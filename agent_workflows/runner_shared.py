@@ -19128,6 +19128,21 @@ RUN_POLICY_FLAGS: tuple = (
         resume_rule=RESUME_NONE_DEFAULT,
         metavar="COUNT",
     ),
+    RunPolicyFlag(
+        flag="--poll-for-deps",
+        dest="poll_for_deps",
+        kind="str",
+        implemented=True,
+        owner="runner_shared.initialize_run_core",
+        help=(
+            "When unmet external dependencies are still actionable (for example approved or "
+            "to-review), poll every DURATION (e.g. 30s, 5m, 30m, 1h, 1d) before creating a run "
+            "directory until they are satisfied; permanently unsatisfiable dependencies still "
+            "refuse immediately (backlog b7seii)"
+        ),
+        resume_rule=RESUME_REFUSE,
+        metavar="DURATION",
+    ),
 )
 
 #: `{flag: RunPolicyFlag}`, for a caller that has a spelling and wants the row.
@@ -19487,6 +19502,104 @@ def resolve_question_timeout(cli_value: Any) -> int:
     if value < 1:
         raise RunFlagRefusal(f"--question-timeout: {value} must be >= 1")
     return value
+
+
+_POLL_DURATION_RE = re.compile(r"^\s*([0-9]+(?:\.[0-9]+)?)\s*([smhdSMHD])\s*$")
+_POLL_DURATION_UNITS: dict[str, float] = {
+    "s": 1.0,
+    "m": 60.0,
+    "h": 3600.0,
+    "d": 86400.0,
+}
+
+#: Statuses on external artifacts that can still progress to satisfy a dependency while polling.
+_WAITABLE_PLAN_STATUSES: frozenset[str] = frozenset(
+    {"draft", "to-review", "reviewed", "approved", "auto-approved", "in-progress"}
+)
+_WAITABLE_SPEC_STATUSES: frozenset[str] = frozenset(
+    {"draft", "to-review", "reviewed", "approved", "implementing"}
+)
+_WAITABLE_BACKLOG_STATUSES: frozenset[str] = frozenset({"open", "graduated", "blocked"})
+
+
+def parse_poll_duration(raw: str) -> float:
+    """Parse a positive duration like ``30s``, ``5m``, ``1.5h``, or ``1d`` into seconds."""
+    import math as _math
+
+    if not isinstance(raw, str):
+        raise RunFlagRefusal(
+            f"--poll-for-deps: expected duration like '30s', '5m', '1h', or '1d', got {raw!r}"
+        )
+    m = _POLL_DURATION_RE.match(raw)
+    if not m:
+        raise RunFlagRefusal(
+            f"--poll-for-deps: invalid duration {raw!r}; expected positive number with s, m, h, or d suffix (e.g. 30s, 5m, 30m, 1h, 1d)"
+        )
+    amount = float(m.group(1))
+    unit = m.group(2).lower()
+    seconds = amount * _POLL_DURATION_UNITS[unit]
+    if not _math.isfinite(seconds) or seconds <= 0.0:
+        raise RunFlagRefusal(
+            f"--poll-for-deps: duration {raw!r} must be greater than zero"
+        )
+    return seconds
+
+
+def resolve_poll_for_deps(cli_value: Any) -> float | None:
+    """Resolve ``--poll-for-deps`` into positive polling interval seconds, or ``None`` when unset."""
+    if cli_value is None or isinstance(cli_value, bool):
+        return None
+    if not isinstance(cli_value, str) or not cli_value.strip():
+        raise RunFlagRefusal(
+            f"--poll-for-deps: invalid duration {cli_value!r}; expected positive number with s, m, h, or d suffix (e.g. 30s, 5m, 30m, 1h, 1d)"
+        )
+    return parse_poll_duration(cli_value)
+
+
+def _sleep_poll_interval(
+    seconds: float,
+    *,
+    sleep_fn: Any = None,
+    slice_seconds: float = 1.0,
+) -> None:
+    """Sleep for ``seconds`` in short slices so Ctrl-C interrupts promptly."""
+    sleeper = sleep_fn if sleep_fn is not None else time.sleep
+    if sleep_fn is not None:
+        sleeper(seconds)
+        return
+    remaining = float(seconds)
+    while remaining > 0.0:
+        step = min(slice_seconds, remaining)
+        sleeper(step)
+        remaining -= step
+
+
+def _is_waitable_external_dep(edge: Any, target_status: str) -> bool:
+    """Return True when an unmet external dependency is still actionable (non-terminal)."""
+    norm_status = (target_status or "").strip().lower()
+    if not norm_status or norm_status in ("absent", "unknown"):
+        return False
+    edge_kind = getattr(edge, "kind", "")
+    target_type = (getattr(edge, "target_type", None) or "").strip().lower()
+    if edge_kind == "executed" or target_type in ("plan", "ipd"):
+        return norm_status in _WAITABLE_PLAN_STATUSES
+    if target_type == "spec":
+        return norm_status in _WAITABLE_SPEC_STATUSES
+    if target_type == "backlog":
+        return norm_status in _WAITABLE_BACKLOG_STATUSES
+    return False
+
+
+class WaitableExternalDependencies(DriverError):
+    """Raised by ``enforce_freeze_time_refusal`` when only actionable external deps are unmet."""
+
+    def __init__(
+        self,
+        waiting_deps: list[tuple[str, str, str, str]],
+        message: str,
+    ) -> None:
+        super().__init__(message)
+        self.waiting_deps = list(waiting_deps)
 
 
 DEFAULT_QUESTION_ROUNDS: int = 2
@@ -24034,6 +24147,7 @@ def enforce_freeze_time_refusal(
     host: str = "oc",
     color: bool | None = None,
     review_unreviewed_deps: bool = False,
+    allow_waitable_external_deps: bool = False,
 ) -> None:
     """Freeze-time whole-run refusal gate (spec `z7nbn1` 1.3, 1.4, 1.7; plan `jdn790`).
 
@@ -24061,6 +24175,8 @@ def enforce_freeze_time_refusal(
     pal = Palette(enabled_color)
 
     findings: list[str] = []
+    waitable_external_deps: list[tuple[str, str, str, str]] = []
+    waitable_findings: list[str] = []
     queue_by_id = {str(entry.get("id6")): entry for entry in queue if entry.get("id6")}
 
     for entry in queue:
@@ -24358,16 +24474,37 @@ def enforce_freeze_time_refusal(
                         else edge_tok
                     )
                     recovery = f"Add it to the selection or run with --with-dependencies, then: aw {host} run {styled_id6}"
-                    findings.append(
+                    finding_msg = (
                         f"[RUN-DEPENDENCY-UNSATISFIABLE] {styled_id6} requires {styled_edge_tok}; {styled_target_id6} is {target_status} and {why} "
                         f"[{atype} {styled_id6} at {rel_path}, status: {status}]. {recovery}"
                     )
+                    if (
+                        allow_waitable_external_deps
+                        and target_id6
+                        and target_id6 not in queue_by_id
+                        and _is_waitable_external_dep(edge, target_status)
+                    ):
+                        waitable_external_deps.append(
+                            (id6, edge_tok, target_id6, target_status)
+                        )
+                        waitable_findings.append(finding_msg)
+                    else:
+                        findings.append(finding_msg)
 
     if findings:
+        all_findings = findings + waitable_findings
         message = (
-            "\n".join(findings) + "\nNo work started, and nothing durable was created."
+            "\n".join(all_findings)
+            + "\nNo work started, and nothing durable was created."
         )
         raise DriverError(message)
+
+    if waitable_external_deps:
+        message = (
+            "\n".join(waitable_findings)
+            + "\nNo work started, and nothing durable was created."
+        )
+        raise WaitableExternalDependencies(waitable_external_deps, message)
 
 
 def enforce_orchestrator_shape_gate(
@@ -39045,14 +39182,100 @@ def initialize_run_core(
     default_runbook_text: str | None = None,
     default_stall_timeout: float | None = None,
     turn_ceiling_seconds: float | None = None,
+    poll_sleep_fn: Any = None,
 ) -> Path:
     """Shared core initialization for all runner hosts.
 
     Unifies the common runner initialization: repo validation, early flag refusals,
-    manifest/runbook discovery, selector expansion, draft admission gate, dependency
-    preflight, action legality checks, mixed-type gate, run directory creation, queue
-    building, state/events persistence, and execution report emission.
+    optional pre-run dependency polling (`--poll-for-deps`), manifest/runbook discovery,
+    selector expansion, draft admission gate, dependency preflight, action legality checks,
+    mixed-type gate, run directory creation, queue building, state/events persistence,
+    and execution report emission.
     """
+    poll_interval = resolve_poll_for_deps(getattr(args, "poll_for_deps", None))
+    poll_enabled = poll_interval is not None and not bool(
+        getattr(args, "prepare_only", False)
+    )
+    poll_label = str(getattr(args, "poll_for_deps", "") or "").strip()
+    poll_tick = 0
+    while True:
+        try:
+            return _initialize_run_core_once(
+                args,
+                host=host,
+                driver_path=driver_path,
+                host_options=host_options,
+                labels=labels,
+                expand_selectors_fn=expand_selectors_fn,
+                enforce_dependency_preflight_fn=enforce_dependency_preflight_fn,
+                edge_satisfied_fn=edge_satisfied_fn,
+                set_plan_approved_fn=set_plan_approved_fn,
+                announce_run_order_fn=announce_run_order_fn,
+                is_plan_review_approved_fn=is_plan_review_approved_fn,
+                run_order_rationale_fn=run_order_rationale_fn,
+                write_report_fn=write_report_fn,
+                git_common_dir_fn=git_common_dir_fn,
+                parse_dependency_token_fn=parse_dependency_token_fn,
+                default_runbook_text=default_runbook_text,
+                default_stall_timeout=default_stall_timeout,
+                turn_ceiling_seconds=turn_ceiling_seconds,
+                allow_waitable_external_deps=poll_enabled,
+                report_start_notices=(poll_tick == 0),
+            )
+        except WaitableExternalDependencies as wait_exc:
+            if not poll_enabled or poll_interval is None:
+                raise DriverError(str(wait_exc)) from wait_exc
+            poll_tick += 1
+            unique_waiting: dict[str, str] = {}
+            for (
+                _consumer,
+                _edge_tok,
+                target_id6,
+                target_status,
+            ) in wait_exc.waiting_deps:
+                unique_waiting[target_id6] = target_status
+            waiting_summary = ", ".join(
+                f"{tid} ({st})" for tid, st in sorted(unique_waiting.items())
+            )
+            next_at = time.strftime(
+                "%H:%M:%S", time.localtime(time.time() + poll_interval)
+            )
+            print(
+                f"[aw] waiting for external dependencies: {waiting_summary}; "
+                f"next check in {poll_label} at {next_at} (Ctrl-C to cancel)",
+                file=sys.stderr,
+                flush=True,
+            )
+            _sleep_poll_interval(poll_interval, sleep_fn=poll_sleep_fn)
+            from agent_workflows import selectors as _poll_selectors
+
+            _poll_selectors._record_dirs_cached.cache_clear()
+            _poll_selectors.drop_scan()
+
+
+def _initialize_run_core_once(
+    args: argparse.Namespace,
+    *,
+    host: str,
+    driver_path: Path | None,
+    host_options: dict[str, Any],
+    labels: HostLabels | None,
+    expand_selectors_fn: Any = None,
+    enforce_dependency_preflight_fn: Any = None,
+    edge_satisfied_fn: Any = None,
+    set_plan_approved_fn: Any = None,
+    announce_run_order_fn: Any = None,
+    is_plan_review_approved_fn: Any = None,
+    run_order_rationale_fn: Any = None,
+    write_report_fn: Any = None,
+    git_common_dir_fn: Any = None,
+    parse_dependency_token_fn: Any = None,
+    default_runbook_text: str | None = None,
+    default_stall_timeout: float | None = None,
+    turn_ceiling_seconds: float | None = None,
+    allow_waitable_external_deps: bool = False,
+    report_start_notices: bool = True,
+) -> Path:
     repo = Path(args.repo).expanduser().resolve()
     if not (repo / ".git").exists():
         try:
@@ -39108,7 +39331,8 @@ def initialize_run_core(
     run_types = resolve_run_types(getattr(args, "types", None))
     refuse_unsweepable_run_types(run_types, args.selectors)
     refuse_type_scoping_outside_the_review_sweep(run_types, args.selectors)
-    report_untracked_dirt_at_run_start(repo)
+    if report_start_notices:
+        report_untracked_dirt_at_run_start(repo)
 
     # THE PRE-QUEUE GATES, BOARD CHECK, SELECTOR EXPANSION, DEPENDENCY CLOSURE, AND QUEUE BUILD
     # RUN INSIDE ONE `selectors.scan_once()` SCOPE. Each of them resolves paths and queries
@@ -39119,7 +39343,8 @@ def initialize_run_core(
     from agent_workflows import selectors as _scan_selectors
 
     with _scan_selectors.scan_once():
-        report_invalid_board_at_run_start(repo)
+        if report_start_notices:
+            report_invalid_board_at_run_start(repo)
 
         queue_ids = expand_selectors_fn(
             manifest, args.selectors, repo=repo, types=run_types
@@ -39473,6 +39698,7 @@ def initialize_run_core(
             host=host,
             color=getattr(args, "color", None),
             review_unreviewed_deps=bool(getattr(args, "review_unreviewed_deps", False)),
+            allow_waitable_external_deps=allow_waitable_external_deps,
         )
 
         enforce_orchestrator_shape_gate({"queue": queue}, repo=repo)
