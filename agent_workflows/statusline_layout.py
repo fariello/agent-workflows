@@ -58,10 +58,14 @@ def _one_line_clean(text: Any) -> str:
 
 
 def format_compact_duration(seconds: float | int | None) -> str:
-    """Format a duration compactly for ETA and pace cells (e.g. '1h16m', '12m00s', '45s')."""
+    """Format a duration compactly for ETA, pace, and burnout cells (e.g. '3d7h', '1h16m', '12m00s', '45s')."""
     if seconds is None:
         return "--"
     secs = max(0, int(round(float(seconds))))
+    if secs >= 86400:
+        d, rem = divmod(secs, 86400)
+        h = rem // 3600
+        return f"{d}d{h}h"
     if secs >= 3600:
         h, rem = divmod(secs, 3600)
         m = rem // 60
@@ -555,28 +559,49 @@ def _format_agy_quota_rows(
         cand_p = f"{lbl_p if use_lbl else ''}{p5}{pipe_p}{pw_b}"
         if _T.visible_width(cand_p) <= max_w:
             cand_c = f"{lbl_c if use_lbl else ''}{c5}{pipe_c}{cw_b}"
-            burn_c_parts: list[str] = []
-            burn_p_parts: list[str] = []
-            if b5 is not None and b5.will_burn_out:
-                z = (
-                    f"~{format_compact_duration(b5.zero_in_s)}"
-                    if b5.zero_in_s is not None
-                    else "soon"
-                )
-                txt = f"!! 5h out {z}"
-                burn_p_parts.append(txt)
-                burn_c_parts.append(f"{c_burn}{txt}{reset}" if color_enabled else txt)
-            if bw is not None and bw.will_burn_out:
-                z = (
-                    f"~{format_compact_duration(bw.zero_in_s)}"
-                    if bw.zero_in_s is not None
-                    else "soon"
-                )
-                txt = f"!! wk out {z}"
-                burn_p_parts.append(txt)
-                burn_c_parts.append(f"{c_burn}{txt}{reset}" if color_enabled else txt)
             sep_dot_p = " · " if use_unicode else " - "
             sep_dot_c = f"{c_muted}{sep_dot_p}{reset}" if color_enabled else sep_dot_p
+
+            burning: list[tuple[str, _aq.QuotaBucket]] = []
+            if b5 is not None and b5.will_burn_out:
+                burning.append(("5h", b5))
+            if bw is not None and bw.will_burn_out:
+                burning.append(("wk", bw))
+
+            def _burn_parts(mode: str) -> tuple[list[str], list[str]]:
+                c_parts: list[str] = []
+                p_parts: list[str] = []
+                for lbl, bkt in burning:
+                    if bkt.zero_in_s is None:
+                        z = "soon"
+                    elif bkt.zero_in_s <= 0:
+                        z = "now"
+                    else:
+                        z = f"~{format_compact_duration(bkt.zero_in_s)}"
+                    gap_s = (
+                        bkt.reset_in_s - bkt.zero_in_s
+                        if (
+                            bkt.zero_in_s is not None and bkt.reset_in_s > bkt.zero_in_s
+                        )
+                        else 0
+                    )
+                    if gap_s > 0 and mode == "full":
+                        txt = (
+                            f"!! {lbl} out {z} ({format_compact_duration(gap_s)} short)"
+                        )
+                    elif gap_s > 0 and mode == "compact":
+                        txt = f"!! {lbl} out {z} (-{format_compact_duration(gap_s)})"
+                    else:
+                        txt = f"!! {lbl} out {z}"
+                    p_parts.append(txt)
+                    c_parts.append(f"{c_burn}{txt}{reset}" if color_enabled else txt)
+                return c_parts, p_parts
+
+            burn_c_parts, burn_p_parts = _burn_parts("full")
+            if _T.visible_width(sep_dot_p.join(burn_p_parts)) > max_w:
+                burn_c_parts, burn_p_parts = _burn_parts("compact")
+            if _T.visible_width(sep_dot_p.join(burn_p_parts)) > max_w:
+                burn_c_parts, burn_p_parts = _burn_parts("minimal")
             return (
                 (cand_c, cand_p),
                 (sep_dot_c.join(burn_c_parts), sep_dot_p.join(burn_p_parts)),

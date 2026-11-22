@@ -275,6 +275,7 @@ def test_agy_quota_model_filtering_burnout_and_narrow_stacking() -> None:
     assert "22%!!" in opus_plain and "65%" in opus_plain
     assert "58%" not in opus_plain
     assert "!! 5h out ~40m00s" in opus_plain
+    assert "(1h18m short)" in opus_plain
     assert "\033[1;31m!!" in opus_lines[2]
 
     # 3. GPT model -> 3P pool labeled GPT:
@@ -314,6 +315,83 @@ def test_agy_quota_model_filtering_burnout_and_narrow_stacking() -> None:
     assert "5h " in narrow_lines[2]
     assert "wk " in narrow_lines[3]
     assert [_T.visible_width(line) for line in narrow_lines] == [76] * 5
+
+
+def test_weekly_burnout_formats_days_and_time_left_on_table() -> None:
+    """Multi-day burnout ETAs render with days+hours and show how far short of reset quota runs out."""
+    # Weekly reset in 5d14h (482400s); burns out in 79h39m (286740s = 3d7h39m) -> 2d6h short (195660s).
+    quota = _aq.AgyQuotaSnapshot(
+        gemini_5h=_aq.QuotaBucket(
+            reset_in_s=6900,
+            remaining_pct=90,
+            will_burn_out=False,
+            zero_in_s=None,
+        ),
+        gemini_weekly=_aq.QuotaBucket(
+            reset_in_s=5 * 86400 + 14 * 3600,
+            remaining_pct=63,
+            will_burn_out=True,
+            zero_in_s=79 * 3600 + 39 * 60,
+        ),
+        tp_5h=None,
+        tp_weekly=None,
+    )
+    lines = rs.format_statusline_lines(
+        now_ts=1700000000.0,
+        run_start_ts=1699999000.0,
+        item_start_ts=1699999900.0,
+        last_act_ts=1699999990.0,
+        current_idx=1,
+        total_items=10,
+        setid="bugs-audit",
+        id6="2nm0pq",
+        runner="agy",
+        model="gemini-4-neon",
+        pal=rs.Palette(False, use_unicode=True),
+        width=150,
+        agy_quota=quota,
+    )
+    plain = "\n".join(lines)
+    assert "!! wk out ~3d7h (2d6h short)" in plain
+    assert "79h" not in plain
+    assert [_T.visible_width(line) for line in lines] == [150] * 5
+
+    # When both 5h and weekly burn out simultaneously, compact fallback keeps both inside the column width.
+    both_burn = _aq.AgyQuotaSnapshot(
+        gemini_5h=_aq.QuotaBucket(
+            reset_in_s=6900,
+            remaining_pct=20,
+            will_burn_out=True,
+            zero_in_s=2400,
+        ),
+        gemini_weekly=_aq.QuotaBucket(
+            reset_in_s=5 * 86400 + 14 * 3600,
+            remaining_pct=40,
+            will_burn_out=True,
+            zero_in_s=3 * 86400 + 7 * 3600,
+        ),
+        tp_5h=None,
+        tp_weekly=None,
+    )
+    both_lines = rs.format_statusline_lines(
+        now_ts=1700000000.0,
+        run_start_ts=1699999000.0,
+        item_start_ts=1699999900.0,
+        last_act_ts=1699999990.0,
+        current_idx=1,
+        total_items=10,
+        setid="bugs-audit",
+        id6="2nm0pq",
+        runner="agy",
+        model="gemini-4-neon",
+        pal=rs.Palette(False, use_unicode=True),
+        width=150,
+        agy_quota=both_burn,
+    )
+    both_plain = "\n".join(both_lines)
+    assert "!! 5h out ~40m00s" in both_plain
+    assert "!! wk out ~3d7h" in both_plain
+    assert [_T.visible_width(line) for line in both_lines] == [150] * 5
 
 
 def test_agy_quota_file_loader_and_burnout_forecast(
