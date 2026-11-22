@@ -264,8 +264,7 @@ def test_parse_plan_file_both_hosts_fields(tmp_path: Path) -> None:
                 3,
             )
 
-    # Multi-word status in pending/: pre-move falls back to directory bucket ("pending");
-    # under D-1 this single assertion changes to "executed".
+    # Multi-word status in pending/: under D-1 normalizes first token ("executed").
     mw = pdir / "20261101-mwset-01-mw0001-multiword.ipd.md"
     mw.write_text(
         "# IPD: Multiword\n\n"
@@ -277,7 +276,7 @@ def test_parse_plan_file_both_hosts_fields(tmp_path: Path) -> None:
     )
     mw_rec = runner_shared.parse_plan_file(mw, repo)
     assert mw_rec is not None
-    assert mw_rec.status == "pending"
+    assert mw_rec.status == "executed"
 
     # Fallbacks when Set, Order, Id are absent (filename, then path hash)
     fn_only = pdir / "20261101-fnset-07-fn0007-from-filename.ipd.md"

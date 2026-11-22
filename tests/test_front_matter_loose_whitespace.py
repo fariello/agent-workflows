@@ -93,7 +93,7 @@ class FrontMatterLooseWhitespaceTests(unittest.TestCase):
             plan_path.write_text(multi, encoding="utf-8")
             record = runner_shared.parse_plan_file(plan_path, tmp_path)
             self.assertIsNotNone(record)
-            self.assertEqual(record.status, "pending")
+            self.assertEqual(record.status, "executed")
             self.assertNotEqual(record.status, "EXECUTED")
 
 

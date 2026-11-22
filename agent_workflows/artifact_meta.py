@@ -4088,7 +4088,21 @@ def _load_sources(
                                         records_root,
                                     )
                                     _track_put(old_art_row["id6"], old_path_str)
-                            elif path_str.startswith("@repo/"):
+                            elif (
+                                path_str.startswith("@repo/")
+                                and (
+                                    not old_path_str.startswith("@repo/")
+                                    or (
+                                        path_str.startswith("@repo/.agents/")
+                                        and old_path_str.startswith(
+                                            "@repo/.aw/records/"
+                                        )
+                                    )
+                                )
+                                and source_path(
+                                    old_path_str, records_root, scan_repo
+                                ).exists()
+                            ):
                                 conn.execute(
                                     """INSERT OR REPLACE INTO files (
                                         path, file_role, id6, size, mtime_ns, content_digest, loaded_at, load_error
