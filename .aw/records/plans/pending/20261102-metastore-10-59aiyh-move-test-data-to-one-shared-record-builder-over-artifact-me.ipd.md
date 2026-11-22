@@ -160,8 +160,11 @@ flowchart TD
 - Moved to 9rgn2w (split 2026-11-07 per maintainer step-complexity rule): E-13 (baselines), E-01 (the builder), E-02 (its tests), E-10 (tracked `.md` fixtures).
   - Carrier: 9rgn2w
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-37-9rgn2w-add-the-shared-test-record-builder-and-convert-the-tracked-r.ipd.md
-- Moved to x05v02 (split 2026-11-07 per maintainer step-complexity rule): E-03 (batch G1, as subsets G1a and G1b), E-04 (batch G2, as subsets G2a and G2b), and the setter subset G3a of E-05.
+- Moved to x05v02 (split 2026-11-07 per maintainer step-complexity rule): E-03 (batch G1, as subsets G1a and G1b) and E-04 (batch G2, as subsets G2a and G2b).
   - Carrier: x05v02
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-38-x05v02-move-backlog-release-gate-check-engine-production-and-setter.ipd.md
+- Moved to 1upea0 (restructuring 2026-11-08 from x05v02 per maintainer decision "Codemod first, then small runs"): the setter subset G3a of E-05.
+  - Carrier: 1upea0
 - Moved to 7qxey9 (split 2026-11-07 per maintainer step-complexity rule): the spec subset G3b of E-05, E-06 (batch G4, as subsets G4a, G4b and G4c), and the runner subset G5a of E-07.
   - Carrier: 7qxey9
 - Moved to nbfg7w (split 2026-11-07 per maintainer step-complexity rule): the runner-family subset G5b of E-07, E-08 (batch G6, as subsets G6a, G6b and G6c), and the first unmatched subset G7a of E-09.
