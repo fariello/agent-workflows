@@ -94,6 +94,7 @@ from agent_workflows import (
     runner_shared,
     runner_shutdown,
 )
+from tests.record_builder import RecordBuilder
 from tests.support import REPO_ROOT
 
 _DRIVERS = (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd))
@@ -107,34 +108,20 @@ def _plan_text(
     order: int = 1,
     status: str = "approved",
     bucket: str = "pending",
+    raw_fields: dict[str, Any] | None = None,
     **kw: Any,
 ) -> str:
     """A minimal conforming plan whose metadata block and structure the reader accepts."""
-    bkl_line = f"- From-Backlog: {from_backlog}\n" if from_backlog is not None else ""
-    return f"""# IPD: Test Plan {id6}
-
-- Date: 2026-08-30
-- Kind: child
-- Concern: Test concern for plan {id6}.
-- Scope: Test scope for plan {id6}.
-- Scope-Paths: README.md
-- Status: {status}
-- Approval: 2026-08-30, test
-- Readiness: go-pending-approval
-{bkl_line}- Set: {setid}
-- Order: {order}
-- Highest E allocated: 01
-- Author: test
-- Priority: medium
-- Work-Kind: feature
-- Id: {id6}
-- Item-Dependencies: none
-
-## Workflow history
-- 2026-08-30 /plan-review (test): APPROVE. Readiness: GO - PENDING HUMAN APPROVAL.
-- 2026-08-30 {status} (test): created.
-
-## Goal
+    extra: dict[str, Any] = {}
+    if from_backlog is not None:
+        extra["from_backlog"] = from_backlog
+    eff_raw: dict[str, Any] = {
+        "Concern": f"Test concern for plan {id6}.",
+        "Scope": f"Test scope for plan {id6}.",
+    }
+    if raw_fields:
+        eff_raw.update(raw_fields)
+    body = f"""## Goal
 Test goal for plan {id6}.
 
 ## Detailed Implementation Checklist (TODO)
@@ -176,41 +163,71 @@ None.
 
 ## Approval and execution gate
 - Size assessment: standard
-- Cohesion rationale: not required
-"""
+- Cohesion rationale: not required"""
+    return str(
+        RecordBuilder().plan(
+            id6=id6,
+            plan_role="child",
+            title=f"Test Plan {id6}",
+            author="test",
+            when="2026-08-30",
+            set=setid,
+            order=order,
+            status=status,
+            scope_paths="README.md",
+            item_dependencies="none",
+            priority="medium",
+            work_kind="feature",
+            approval="2026-08-30, test",
+            readiness="go-pending-approval",
+            history=[
+                "- 2026-08-30 /plan-review (test): APPROVE. Readiness: GO - PENDING HUMAN APPROVAL.",
+                f"- 2026-08-30 {status} (test): created.",
+            ],
+            body=body,
+            raw_fields=eff_raw,
+            text_only=True,
+            **extra,
+        )
+    )
 
 
 def _spec_text(id6: str, *, from_backlog: str, status: str = "draft") -> str:
-    return "\n".join(
-        [
-            f"# Spec: {id6}",
-            "",
-            "- Date: 2026-08-30",
-            f"- Id: {id6}",
-            f"- Status: {status}",
-            f"- From-Backlog: {from_backlog}",
-            "",
-            "## Summary",
-            "",
-            "A spec.",
-            "",
-        ]
+    return str(
+        RecordBuilder().spec(
+            id6=id6,
+            title=id6,
+            when="2026-08-30",
+            status=status,
+            from_backlog=from_backlog,
+            body="## Summary\n\nA spec.",
+            text_only=True,
+        )
     )
 
 
 def _item_text(id6: str, *, status: str = "graduated", blocks_release: str = "") -> str:
-    lines = [
-        f"- Id: {id6}",
-        f"- Status: {status}",
-        "- Set: demo",
-        "- Priority: medium",
-        "- Kind: feature",
-        "- Summary: a demo item",
-    ]
+    extra: dict[str, Any] = {}
     if blocks_release:
-        lines.append(f"- Blocks-Release: {blocks_release}")
-    lines += ["", "## Workflow history", f"- 2026-08-30 {status} (test): created.", ""]
-    return "\n".join(lines)
+        extra["blocks_release"] = blocks_release
+    text = str(
+        RecordBuilder().backlog(
+            id6=id6,
+            status=status,
+            set="demo",
+            priority="medium",
+            work_kind="feature",
+            summary="a demo item",
+            when="2026-08-30",
+            history=[f"- 2026-08-30 {status} (test): created."],
+            text_only=True,
+            **extra,
+        )
+    )
+    return (
+        "\n".join(line for line in text.splitlines() if not line.startswith("> "))
+        + "\n"
+    )
 
 
 def _state_with_open_item(run_id: str = "run-test") -> dict[str, Any]:
@@ -388,9 +405,7 @@ class TestReadsTheFromBacklogLink(_RepoCase):
         for raw in ("-", "none", "unresolved", ""):
             for name, mod in _DRIVERS:
                 with self.subTest(driver=name, value=raw):
-                    text = _plan_text("aaaaaa").replace(
-                        "- Id: aaaaaa", f"- Id: aaaaaa\n- From-Backlog: {raw}"
-                    )
+                    text = _plan_text("aaaaaa", raw_fields={"From-Backlog": raw})
                     self.assertIsNone(mod._read_from_backlog(text))
 
 
