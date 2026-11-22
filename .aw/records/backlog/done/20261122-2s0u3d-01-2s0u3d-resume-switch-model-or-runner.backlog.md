@@ -1,5 +1,5 @@
 - Id: 2s0u3d
-- Status: graduated
+- Status: done
 - Set: 2s0u3d
 - Work-Kind: feature
 - Priority: medium
@@ -9,6 +9,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-22 done (aw set): Completed by executed plan c9v6ie
 - 2026-11-22 graduated (aw set): Graduated to review-ready child plan c9v6ie
 - 2026-11-22 created (aw backlog): Allow resuming a run with a different model or runner when credits are exhausted
 
