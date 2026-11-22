@@ -37,6 +37,7 @@ from tests.conformance_matrix import (
     semantic_facts_from_agent,
     semantic_facts_from_human,
 )
+from tests.record_builder import RecordBuilder
 
 
 @pytest.fixture(scope="session")
@@ -148,7 +149,10 @@ def test_fact_parity_non_vacuous(leaf: str, tmp_path: Path) -> None:
         p_dir = tmp_path / ".aw" / "records" / "plans" / "pending"
         p_dir.mkdir(parents=True, exist_ok=True)
         (p_dir / "20261012-test-01-f36de0-plan.ipd.md").write_text(
-            "# IPD: Test\n\n- Id: f36de0\n- Status: to-review\n", encoding="utf-8"
+            RecordBuilder().plan(
+                title="Test", id6="f36de0", status="to-review", text_only=True
+            ),
+            encoding="utf-8",
         )
     env_overrides = {
         "HOME": str(tmp_path),

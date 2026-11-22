@@ -31,6 +31,7 @@ from typing import Any, Dict, Tuple
 
 from agent_workflows import agent_schema, cli
 from tests.test_check_engine_release_gate import _create_minimal_repo
+from tests.record_builder import RecordBuilder
 
 
 class FixtureRepoBase(unittest.TestCase):
@@ -55,12 +56,15 @@ class FixtureRepoBase(unittest.TestCase):
                 / f"20261001-bkl00{i}-01-bkl00{i}-defect-{i}.backlog.md"
             )
             item_file.write_text(
-                f"- Id: bkl00{i}\n"
-                f"- Status: open\n"
-                f"- Set: bkl00{i}\n"
-                f"- Priority: medium\n"
-                f"- Work-Kind: bug\n"
-                f"- Summary: Live ungated bug {i} {self.SEARCH_QUERY}\n",
+                RecordBuilder().backlog(
+                    id6=f"bkl00{i}",
+                    status="open",
+                    set=f"bkl00{i}",
+                    priority="medium",
+                    work_kind="bug",
+                    summary=f"Live ungated bug {i} {self.SEARCH_QUERY}",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
