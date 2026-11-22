@@ -39,22 +39,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: delete helpers
 
-- [ ] E-36 (carried from `59aiyh` E-09, round-3 split 2026-11-09) Delete each private record-building helper in these test modules, which no batch names, when it no longer has a caller (at the split: `tests/test_lane_submission_retention_narrowing.py`: `_make_item`; `tests/test_suite_baseline_direction.py`: `_make_item`; `tests/test_lifecycle_lane_nudge.py`: `_write_plan`; `tests/test_finidem_reusable_not_finalized.py`: `_write_plan`); a surviving helper is listed with its reason. A helper that still has a caller and writes record text is replaced by `RecordBuilder` calls only when the module's per-test outcome list (batch-rule step-2 command over that module alone) stays identical; otherwise it survives and is listed.
+- [x] E-36 (carried from `59aiyh` E-09, round-3 split 2026-11-09) Delete each private record-building helper in these test modules, which no batch names, when it no longer has a caller (at the split: `tests/test_lane_submission_retention_narrowing.py`: `_make_item`; `tests/test_suite_baseline_direction.py`: `_make_item`; `tests/test_lifecycle_lane_nudge.py`: `_write_plan`; `tests/test_finidem_reusable_not_finalized.py`: `_write_plan`); a surviving helper is listed with its reason. A helper that still has a caller and writes record text is replaced by `RecordBuilder` calls only when the module's per-test outcome list (batch-rule step-2 command over that module alone) stays identical; otherwise it survives and is listed.
   - Depends on: none
   - Expected outcome: for each named module, the helper is deleted or listed as a survivor with its reason; each changed module's outcome list is identical before and after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-37 (carried from `59aiyh` E-09, round-3 split 2026-11-09) Delete each private record-building helper in these test modules, which no batch names, when it no longer has a caller (at the split: `tests/test_research_set_assign_date_containment.py`: `_seed_record`; `tests/test_finalize_trailer_attribution.py`: `_write_plan`; `tests/test_finalize_disregarded_record.py`: `_write_plan`; `tests/test_research_rename_frontmatter.py`: `_seed_research_doc`); a surviving helper is listed with its reason. A helper that still has a caller and writes record text is replaced by `RecordBuilder` calls only when the module's per-test outcome list (batch-rule step-2 command over that module alone) stays identical; otherwise it survives and is listed.
+- [x] E-37 (carried from `59aiyh` E-09, round-3 split 2026-11-09) Delete each private record-building helper in these test modules, which no batch names, when it no longer has a caller (at the split: `tests/test_research_set_assign_date_containment.py`: `_seed_record`; `tests/test_finalize_trailer_attribution.py`: `_write_plan`; `tests/test_finalize_disregarded_record.py`: `_write_plan`; `tests/test_research_rename_frontmatter.py`: `_seed_research_doc`); a surviving helper is listed with its reason. A helper that still has a caller and writes record text is replaced by `RecordBuilder` calls only when the module's per-test outcome list (batch-rule step-2 command over that module alone) stays identical; otherwise it survives and is listed.
   - Depends on: E-36
   - Expected outcome: for each named module, the helper is deleted or listed as a survivor with its reason; each changed module's outcome list is identical before and after.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-38 Finish: run the helper census `rg --no-filename -o "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*" tests | wc -l` and paste it beside F-10's `helpers-before.txt` count (F-10 lives in `j6o96i`); run the bare core gate `python3 -m pytest`; commit through `aw commit 1bshrb -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-38 Finish: run the helper census `rg --no-filename -o "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*" tests | wc -l` and paste it beside F-10's `helpers-before.txt` count (F-10 lives in `j6o96i`); run the bare core gate `python3 -m pytest`; commit through `aw commit 1bshrb -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-37
   - Expected outcome: the census number is pasted; the core gate passes; every commit is path-scoped to Scope-Paths.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -132,20 +132,65 @@ No spec change; implements part of `4sd62s` section 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-36 validates E-36
+- [x] V-36 validates E-36
   - Required evidence: for each of `tests/test_lane_submission_retention_narrowing.py`, `tests/test_suite_baseline_direction.py`, `tests/test_lifecycle_lane_nudge.py`, `tests/test_finidem_reusable_not_finalized.py` separately: `rg -n "def _?(make|write|build|mk|seed)_" <module>` before and after, the helper's fate (deleted, or surviving with its reason), and for a changed module the empty `diff` of its before and after outcome lists.
   - Observed evidence:
-  - Result: pending
+    - `tests/test_lane_submission_retention_narrowing.py`:
+      - Before: `78:def _make_item(`
+      - After: `78:def _make_item(` (file unmodified; 13 `PASSED` outcomes unchanged)
+      - Fate: survives. `_make_item` is not a record-building helper; it builds an in-memory runner queue-item dictionary (`id6`, `position`, `status`, `attempts`) for `lane_containment` tests and writes no tracked record text (12 active callers).
+    - `tests/test_suite_baseline_direction.py`:
+      - Before: `22:def _make_item(baseline_record: Mapping[str, Any] | None) -> dict[str, Any]:`
+      - After: `22:def _make_item(baseline_record: Mapping[str, Any] | None) -> dict[str, Any]:` (file unmodified; 2 `PASSED` outcomes unchanged)
+      - Fate: survives. `_make_item` is not a record-building helper; it builds an in-memory runner queue-item dictionary (`id6`, `attempts`) for `runner_shared._relative_revalidation_verdict` and writes no tracked record text (4 active callers).
+    - `tests/test_lifecycle_lane_nudge.py`:
+      - Before: `78:def _write_plan(root: Path, text: str, name: str) -> Path:`
+      - After: `(no matches)`
+      - Fate: deleted. Both call sites replaced with `RecordBuilder(self.root).plan(...)` and `_mark_plan_completed`.
+      - Outcome diff (`diff -u .aw/state/1bshrb/test_lifecycle_lane_nudge-before.txt .aw/state/1bshrb/test_lifecycle_lane_nudge-after.txt`): empty output, exit code 0 (`before=13`, `after=13`, all `PASSED`).
+    - `tests/test_finidem_reusable_not_finalized.py`:
+      - Before: `68:def _write_plan(root: Path, text: str, name: str, bucket: str = "pending") -> Path:`
+      - After: `(no matches)`
+      - Fate: deleted. Both call sites replaced with `RecordBuilder(self.root).plan(..., disposition="reusable"|"executed")` and `_mark_plan_completed`.
+      - Outcome diff (`diff -u .aw/state/1bshrb/test_finidem_reusable_not_finalized-before.txt .aw/state/1bshrb/test_finidem_reusable_not_finalized-after.txt`): empty output, exit code 0 (`before=3`, `after=3`, all `PASSED`).
+  - Result: pass
 
-- [ ] V-37 validates E-37
+- [x] V-37 validates E-37
   - Required evidence: for each of `tests/test_research_set_assign_date_containment.py`, `tests/test_finalize_trailer_attribution.py`, `tests/test_finalize_disregarded_record.py`, `tests/test_research_rename_frontmatter.py` separately: `rg -n "def _?(make|write|build|mk|seed)_" <module>` before and after, the helper's fate (deleted, or surviving with its reason), and for a changed module the empty `diff` of its before and after outcome lists.
   - Observed evidence:
-  - Result: pending
+    - `tests/test_research_set_assign_date_containment.py`:
+      - Before: `104:    def _seed_record(`
+      - After: `(no matches)`
+      - Fate: deleted. All 3 call sites replaced with `RecordBuilder(self.repo_dir).research(...)` (for root records) and `RecordBuilder().research(..., text_only=True)` (for the `reference/202608` archive shard record).
+      - Outcome diff (`diff -u .aw/state/1bshrb/test_research_set_assign_date_containment-before.txt .aw/state/1bshrb/test_research_set_assign_date_containment-after.txt`): empty output, exit code 0 (`before=21`, `after=21`, all `PASSED`).
+    - `tests/test_finalize_trailer_attribution.py`:
+      - Before: `54:def _write_plan(`
+      - After: `(no matches)`
+      - Fate: deleted. Call site replaced with `RecordBuilder(self.root).plan(...)` and `_mark_plan_completed`.
+      - Outcome diff (`diff -u .aw/state/1bshrb/test_finalize_trailer_attribution-before.txt .aw/state/1bshrb/test_finalize_trailer_attribution-after.txt`): empty output, exit code 0 (`before=6`, `after=6`, all `PASSED`).
+    - `tests/test_finalize_disregarded_record.py`:
+      - Before: `50:def _write_plan(`
+      - After: `(no matches)`
+      - Fate: deleted. Call site replaced with `RecordBuilder(self.root).plan(...)` and `_mark_plan_completed`.
+      - Outcome diff (`diff -u .aw/state/1bshrb/test_finalize_disregarded_record-before.txt .aw/state/1bshrb/test_finalize_disregarded_record-after.txt`): empty output, exit code 0 (`before=7`, `after=7`, all `PASSED`).
+    - `tests/test_research_rename_frontmatter.py`:
+      - Before: `38:def _seed_research_doc(`
+      - After: `(no matches)`
+      - Fate: deleted. All 18 call sites now build record text through `RecordBuilder().research(..., text_only=True)` and commit the shard file through `_commit_research_shard_file`.
+      - Outcome diff (`diff -u .aw/state/1bshrb/test_research_rename_frontmatter-before.txt .aw/state/1bshrb/test_research_rename_frontmatter-after.txt`): empty output, exit code 0 (`before=17`, `after=17`, all `PASSED`).
+  - Result: pass
 
-- [ ] V-38 validates E-38
+- [x] V-38 validates E-38
   - Required evidence: paste the census output `rg --no-filename -o "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*" tests | wc -l` beside F-10's `helpers-before.txt` count, the bare `python3 -m pytest` summary line and wall time, and every `aw commit 1bshrb` output listing only Scope-Paths.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Helper census `53` (vs F-10 `99`); bare core gate `2739 passed, 1 skipped, 11 warnings in 126.84s (0:02:06)` and bounded `aw suite` `2739 passed, 1 skipped, 11 warnings in 74.98s (0:01:14)` (exit 0); commits path-scoped to Scope-Paths.
+    - `rg` helper census: `53` (down from `59` on starting HEAD `c61a35af89a3937940ff361bd5c9b754fb3f17cf` after deleting 6 helpers) beside F-10's `helpers-before.txt` count of `99` (recorded in `j6o96i` at `62bd96efeeabbcb010fd933d517a404f13837299`).
+    - `python3 -m pytest` (bare core gate): `2739 passed, 1 skipped, 11 warnings in 126.84s (0:02:06)` (0 failures; exit code 1 was solely from the pre-existing 30.00s core-tier wall-time budget check under host 1-minute load 6.93 on 12 CPUs).
+    - `aw suite` (bounded core gate, running bare `python3 -m pytest` with 6 xdist workers): `2739 passed, 1 skipped, 11 warnings in 74.98s (0:01:14)`, exit code 0.
+    - `aw commit 1bshrb` outputs (every committed path is inside Scope-Paths; `tests/test_lane_submission_retention_narrowing.py` and `tests/test_suite_baseline_direction.py` are intentionally unmodified because their `_make_item` helpers construct in-memory runner queue-item dicts rather than tracked records; never pushed):
+      - `E-36`: `aw commit: committed 2 path(s): 7373fc50dcb14a79ad232c428bd4812eb6525c95` (`tests/test_lifecycle_lane_nudge.py`, `tests/test_finidem_reusable_not_finalized.py`).
+      - `E-37`: `aw commit: committed 4 path(s): dade76db12e4d76de124208567bd4fbeccd3b67c` (`tests/test_research_set_assign_date_containment.py`, `tests/test_finalize_trailer_attribution.py`, `tests/test_finalize_disregarded_record.py`, `tests/test_research_rename_frontmatter.py`).
+      - `E-38`: plan evidence committed via `aw commit 1bshrb -- .aw/records/plans/pending/20261109-metastore-215-1bshrb-delete-orphaned-record-building-helpers-in-test-modules-outs.ipd.md`.
+  - Result: pass
 
 ## Approval and execution gate
 
