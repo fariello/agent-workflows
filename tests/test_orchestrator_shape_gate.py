@@ -23,6 +23,7 @@ from unittest import mock
 from agent_workflows import agy_runipd, oc_runipd
 from agent_workflows import ipd_lint as lint
 from agent_workflows import runner_shared as rs
+from tests.record_builder import RecordBuilder
 
 BOTH_HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -152,173 +153,97 @@ Fixture.
 - None.
 """
 
-NON_CONFORMING_ORCH_1_TEXT = f"""# IPD: Non-conforming orchestrator 1 (untyped prose row)
+NON_CONFORMING_ORCH_1_TEXT = RecordBuilder().plan(
+    title="Non-conforming orchestrator 1 (untyped prose row)",
+    when="2026-09-24",
+    plan_role="orchestrator",
+    scope_paths="none",
+    priority="medium",
+    work_kind="chore",
+    status="approved",
+    set="fixbad",
+    order=0,
+    highest_e_allocated="01",
+    author="fixture",
+    id6="bad001",
+    approval="2026-09-24, fixture",
+    readiness="go-pending-approval",
+    history=[
+        "- 2026-09-24 approved (fixture): created.",
+        "- 2026-09-24 /plan-review (fixture): APPROVE",
+    ],
+    body=f"## Goal\n\nFixture.\n\n## Detailed Implementation Checklist (TODO)\n\n- [ ] E-01 Establish the characterization baseline before any child runs\n  - Depends on: none\n  - Expected outcome: baseline established.\n  - Execution state: pending\n\n## Child IPDs, sequence, and dependencies\n\n| Order | Id | Status | Plan | Depends on |\n| --- | --- | --- | --- | --- |\n| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixbad-01-chd001.ipd.md | none |\n\n{_ORCH_TAIL_ONE_ITEM}",
+    text_only=True,
+)
 
-- Date: 2026-09-24
-- Kind: orchestrator
-- Concern: fixture.
-- Scope: fixture.
-- Scope-Paths: none
-- Priority: medium
-- Work-Kind: chore
-- Status: approved
-- Set: fixbad
-- Order: 0
-- Highest E allocated: 01
-- Author: fixture
-- Id: bad001
-- Approval: 2026-09-24, fixture
-- Readiness: go-pending-approval
+NON_CONFORMING_ORCH_2_TEXT = RecordBuilder().plan(
+    title="Non-conforming orchestrator 2 (unknown child id6)",
+    when="2026-09-24",
+    plan_role="orchestrator",
+    scope_paths="none",
+    priority="medium",
+    work_kind="chore",
+    status="approved",
+    set="fixbad2",
+    order=0,
+    highest_e_allocated="01",
+    author="fixture",
+    id6="bad002",
+    approval="2026-09-24, fixture",
+    readiness="go-pending-approval",
+    history=[
+        "- 2026-09-24 approved (fixture): created.",
+        "- 2026-09-24 /plan-review (fixture): APPROVE",
+    ],
+    body=f"## Goal\n\nFixture.\n\n## Detailed Implementation Checklist (TODO)\n\n- [ ] E-01 CONFIRM unk999 REACHED executed\n  - Depends on: none\n  - Expected outcome: unk999 reads `- Status: executed` on disk.\n  - Execution state: pending\n\n## Child IPDs, sequence, and dependencies\n\n| Order | Id | Status | Plan | Depends on |\n| --- | --- | --- | --- | --- |\n| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixbad2-01-chd001.ipd.md | none |\n\n{_ORCH_TAIL_ONE_ITEM}",
+    text_only=True,
+)
 
-## Workflow history
+NON_CONFORMING_ORCH_3_TEXT = RecordBuilder().plan(
+    title="Non-conforming orchestrator 3 (missing depends on)",
+    when="2026-09-24",
+    plan_role="orchestrator",
+    scope_paths="none",
+    priority="medium",
+    work_kind="chore",
+    status="approved",
+    set="fixbad3",
+    order=0,
+    highest_e_allocated="01",
+    author="fixture",
+    id6="bad003",
+    approval="2026-09-24, fixture",
+    readiness="go-pending-approval",
+    history=[
+        "- 2026-09-24 approved (fixture): created.",
+        "- 2026-09-24 /plan-review (fixture): APPROVE",
+    ],
+    body=f"## Goal\n\nFixture.\n\n## Detailed Implementation Checklist (TODO)\n\n- [ ] E-01 CONFIRM chd001 REACHED executed\n  - Expected outcome: chd001 reads `- Status: executed` on disk.\n  - Execution state: pending\n\n## Child IPDs, sequence, and dependencies\n\n| Order | Id | Status | Plan | Depends on |\n| --- | --- | --- | --- | --- |\n| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixbad3-01-chd001.ipd.md | none |\n\n{_ORCH_TAIL_ONE_ITEM}",
+    text_only=True,
+)
 
-- 2026-09-24 approved (fixture): created.
-- 2026-09-24 /plan-review (fixture): APPROVE
-
-## Goal
-
-Fixture.
-
-## Detailed Implementation Checklist (TODO)
-
-- [ ] E-01 Establish the characterization baseline before any child runs
-  - Depends on: none
-  - Expected outcome: baseline established.
-  - Execution state: pending
-
-## Child IPDs, sequence, and dependencies
-
-| Order | Id | Status | Plan | Depends on |
-| --- | --- | --- | --- | --- |
-| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixbad-01-chd001.ipd.md | none |
-
-{_ORCH_TAIL_ONE_ITEM}"""
-
-NON_CONFORMING_ORCH_2_TEXT = f"""# IPD: Non-conforming orchestrator 2 (unknown child id6)
-
-- Date: 2026-09-24
-- Kind: orchestrator
-- Concern: fixture.
-- Scope: fixture.
-- Scope-Paths: none
-- Priority: medium
-- Work-Kind: chore
-- Status: approved
-- Set: fixbad2
-- Order: 0
-- Highest E allocated: 01
-- Author: fixture
-- Id: bad002
-- Approval: 2026-09-24, fixture
-- Readiness: go-pending-approval
-
-## Workflow history
-
-- 2026-09-24 approved (fixture): created.
-- 2026-09-24 /plan-review (fixture): APPROVE
-
-## Goal
-
-Fixture.
-
-## Detailed Implementation Checklist (TODO)
-
-- [ ] E-01 CONFIRM unk999 REACHED executed
-  - Depends on: none
-  - Expected outcome: unk999 reads `- Status: executed` on disk.
-  - Execution state: pending
-
-## Child IPDs, sequence, and dependencies
-
-| Order | Id | Status | Plan | Depends on |
-| --- | --- | --- | --- | --- |
-| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixbad2-01-chd001.ipd.md | none |
-
-{_ORCH_TAIL_ONE_ITEM}"""
-
-NON_CONFORMING_ORCH_3_TEXT = f"""# IPD: Non-conforming orchestrator 3 (missing depends on)
-
-- Date: 2026-09-24
-- Kind: orchestrator
-- Concern: fixture.
-- Scope: fixture.
-- Scope-Paths: none
-- Priority: medium
-- Work-Kind: chore
-- Status: approved
-- Set: fixbad3
-- Order: 0
-- Highest E allocated: 01
-- Author: fixture
-- Id: bad003
-- Approval: 2026-09-24, fixture
-- Readiness: go-pending-approval
-
-## Workflow history
-
-- 2026-09-24 approved (fixture): created.
-- 2026-09-24 /plan-review (fixture): APPROVE
-
-## Goal
-
-Fixture.
-
-## Detailed Implementation Checklist (TODO)
-
-- [ ] E-01 CONFIRM chd001 REACHED executed
-  - Expected outcome: chd001 reads `- Status: executed` on disk.
-  - Execution state: pending
-
-## Child IPDs, sequence, and dependencies
-
-| Order | Id | Status | Plan | Depends on |
-| --- | --- | --- | --- | --- |
-| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixbad3-01-chd001.ipd.md | none |
-
-{_ORCH_TAIL_ONE_ITEM}"""
-
-CONFORMING_WITH_BARE_INDENTED_PROSE_TEXT = f"""# IPD: Conforming rows with bare indented prose obligation
-
-- Date: 2026-09-24
-- Kind: orchestrator
-- Concern: fixture.
-- Scope: fixture.
-- Scope-Paths: none
-- Priority: medium
-- Work-Kind: chore
-- Status: approved
-- Set: fixprose
-- Order: 0
-- Highest E allocated: 01
-- Author: fixture
-- Id: prs001
-- Approval: 2026-09-24, fixture
-- Readiness: go-pending-approval
-
-## Workflow history
-
-- 2026-09-24 approved (fixture): created.
-- 2026-09-24 /plan-review (fixture): APPROVE
-
-## Goal
-
-Fixture.
-
-## Detailed Implementation Checklist (TODO)
-
-- [ ] E-01 CONFIRM chd001 REACHED executed
-  Establish the characterization baseline before any child runs and produce the inventory report.
-  - Depends on: none
-  - Expected outcome: chd001 reads `- Status: executed` on disk.
-  - Execution state: pending
-
-## Child IPDs, sequence, and dependencies
-
-| Order | Id | Status | Plan | Depends on |
-| --- | --- | --- | --- | --- |
-| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixprose-01-chd001.ipd.md | none |
-
-{_ORCH_TAIL_ONE_ITEM}"""
+CONFORMING_WITH_BARE_INDENTED_PROSE_TEXT = RecordBuilder().plan(
+    title="Conforming rows with bare indented prose obligation",
+    when="2026-09-24",
+    plan_role="orchestrator",
+    scope_paths="none",
+    priority="medium",
+    work_kind="chore",
+    status="approved",
+    set="fixprose",
+    order=0,
+    highest_e_allocated="01",
+    author="fixture",
+    id6="prs001",
+    approval="2026-09-24, fixture",
+    readiness="go-pending-approval",
+    history=[
+        "- 2026-09-24 approved (fixture): created.",
+        "- 2026-09-24 /plan-review (fixture): APPROVE",
+    ],
+    body=f"## Goal\n\nFixture.\n\n## Detailed Implementation Checklist (TODO)\n\n- [ ] E-01 CONFIRM chd001 REACHED executed\n  Establish the characterization baseline before any child runs and produce the inventory report.\n  - Depends on: none\n  - Expected outcome: chd001 reads `- Status: executed` on disk.\n  - Execution state: pending\n\n## Child IPDs, sequence, and dependencies\n\n| Order | Id | Status | Plan | Depends on |\n| --- | --- | --- | --- | --- |\n| 01 | chd001 | pending | .aw/records/plans/pending/20260924-fixprose-01-chd001.ipd.md | none |\n\n{_ORCH_TAIL_ONE_ITEM}",
+    text_only=True,
+)
 
 
 class TheGateIsSitedBeforeRunDirAndPrepareOnlyRefuses(unittest.TestCase):

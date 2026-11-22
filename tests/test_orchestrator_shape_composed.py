@@ -22,6 +22,7 @@ from agent_workflows import agy_runipd, oc_runipd
 from agent_workflows import ipd_lint as lint
 from agent_workflows import runner_shared as rs
 from tests.support import REPO_ROOT
+from tests.record_builder import RecordBuilder
 
 BOTH_HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -94,50 +95,22 @@ def _make_orchestrator_doc(
         "- [ ] E-01 CONFIRM chd001 REACHED executed\n  - Depends on: none\n  - Execution state: pending",
         "- [ ] E-02 CONFIRM chd002 REACHED executed\n  - Depends on: E-01\n  - Execution state: pending",
     ]
-    return f"""# IPD: Orchestrator Fixture {id6}
-
-- Date: 2026-09-24
-- Kind: orchestrator
-- Concern: test fixture.
-- Scope: test fixture.
-- Scope-Paths: none
-- Status: approved
-- Set: set{id6}
-- Order: 0
-- Highest E allocated: 02
-- Author: test
-- Id: {id6}
-- Approval: 2026-09-24, test
-
-## Workflow history
-
-- 2026-09-24 approved (test): created.
-
-## Goal
-
-Fixture.
-
-## Child IPDs, sequence, and dependencies
-
-| Order | Id | Status | Plan | Depends on |
-| --- | --- | --- | --- | --- | --- |
-{chr(10).join(children_lines)}
-
-## Detailed Implementation Checklist (TODO)
-
-{chr(10).join(check_lines)}
-
-## Validation and cross-check (verify before reporting done)
-
-- [ ] V-01 validates E-01
-  - Required evidence: check.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
-  - Required evidence: check.
-  - Observed evidence:
-  - Result: pending
-"""
+    return RecordBuilder().plan(
+        title=f"Orchestrator Fixture {id6}",
+        when="2026-09-24",
+        plan_role="orchestrator",
+        scope_paths="none",
+        status="approved",
+        set=f"set{id6}",
+        order=0,
+        highest_e_allocated="02",
+        author="test",
+        id6=id6,
+        approval="2026-09-24, test",
+        history=["- 2026-09-24 approved (test): created."],
+        body=f"## Goal\n\nFixture.\n\n## Child IPDs, sequence, and dependencies\n\n| Order | Id | Status | Plan | Depends on |\n| --- | --- | --- | --- | --- | --- |\n{chr(10).join(children_lines)}\n\n## Detailed Implementation Checklist (TODO)\n\n{chr(10).join(check_lines)}\n\n## Validation and cross-check (verify before reporting done)\n\n- [ ] V-01 validates E-01\n  - Required evidence: check.\n  - Observed evidence:\n  - Result: pending\n- [ ] V-02 validates E-02\n  - Required evidence: check.\n  - Observed evidence:\n  - Result: pending",
+        text_only=True,
+    )
 
 
 class TestOneRuleTwoConsumers(unittest.TestCase):

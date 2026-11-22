@@ -12,6 +12,7 @@ from agent_workflows import agent_schema
 from agent_workflows import attention
 from agent_workflows import cli
 from agent_workflows import partition as part
+from tests.record_builder import RecordBuilder
 
 
 def make_item(
@@ -808,52 +809,62 @@ def backlog_fixture_repo(tmp_path: Path) -> Path:
 
     # 1. bkl001: oldest open item (2026-09-20)
     (open_dir / "20260920-bkl001-01-bkl001-item-one.backlog.md").write_text(
-        "- Id: bkl001\n"
-        "- Status: open\n"
-        "- Priority: high\n"
-        "- Item-Dependencies: none\n\n"
-        "## Workflow history\n"
-        "- 2026-09-20 created: item one\n"
+        RecordBuilder().backlog(
+            id6="bkl001",
+            status="open",
+            priority="high",
+            item_dependencies="none",
+            history=["- 2026-09-20 created: item one"],
+            text_only=True,
+        )
     )
 
     # 2. bkl002: second oldest open item (2026-09-22), depends on bkl001
     (open_dir / "20260922-bkl002-01-bkl002-item-two.backlog.md").write_text(
-        "- Id: bkl002\n"
-        "- Status: open\n"
-        "- Priority: medium\n"
-        "- Item-Dependencies: exists:backlog:bkl001\n\n"
-        "## Workflow history\n"
-        "- 2026-09-22 created: item two\n"
+        RecordBuilder().backlog(
+            id6="bkl002",
+            status="open",
+            priority="medium",
+            item_dependencies="exists:backlog:bkl001",
+            history=["- 2026-09-22 created: item two"],
+            text_only=True,
+        )
     )
 
     # 3. bkl003: third oldest open item (2026-09-25)
     (open_dir / "20260925-bkl003-01-bkl003-item-three.backlog.md").write_text(
-        "- Id: bkl003\n"
-        "- Status: open\n"
-        "- Priority: low\n"
-        "- Item-Dependencies: none\n\n"
-        "## Workflow history\n"
-        "- 2026-09-25 created: item three\n"
+        RecordBuilder().backlog(
+            id6="bkl003",
+            status="open",
+            priority="low",
+            item_dependencies="none",
+            history=["- 2026-09-25 created: item three"],
+            text_only=True,
+        )
     )
 
     # 4. bkl004: newest open item (2026-09-28), depends on bkl003
     (open_dir / "20260928-bkl004-01-bkl004-item-four.backlog.md").write_text(
-        "- Id: bkl004\n"
-        "- Status: open\n"
-        "- Priority: high\n"
-        "- Item-Dependencies: exists:backlog:bkl003\n\n"
-        "## Workflow history\n"
-        "- 2026-09-28 created: item four\n"
+        RecordBuilder().backlog(
+            id6="bkl004",
+            status="open",
+            priority="high",
+            item_dependencies="exists:backlog:bkl003",
+            history=["- 2026-09-28 created: item four"],
+            text_only=True,
+        )
     )
 
     # 5. bkl005: done item (2026-09-10) - non-runnable
     (done_dir / "20260910-bkl005-01-bkl005-item-five.backlog.md").write_text(
-        "- Id: bkl005\n"
-        "- Status: done\n"
-        "- Priority: high\n"
-        "- Item-Dependencies: none\n\n"
-        "## Workflow history\n"
-        "- 2026-09-10 created: item five\n"
+        RecordBuilder().backlog(
+            id6="bkl005",
+            status="done",
+            priority="high",
+            item_dependencies="none",
+            history=["- 2026-09-10 created: item five"],
+            text_only=True,
+        )
     )
 
     return repo
@@ -971,7 +982,9 @@ def test_cli_partition_infers_backlog_type_and_clusters_shared_sets(
     open_dir.mkdir(parents=True)
     plans_dir.mkdir(parents=True)
     (plans_dir / "20261119-demo-01-pln901-demo-plan.ipd.md").write_text(
-        "- Id: pln901\n- Set: demo\n- Order: 01\n- Status: approved\n",
+        RecordBuilder().plan(
+            id6="pln901", set="demo", order=1, status="approved", text_only=True
+        ),
         encoding="utf-8",
     )
 
@@ -988,13 +1001,17 @@ def test_cli_partition_infers_backlog_type_and_clusters_shared_sets(
         start=1,
     ):
         (open_dir / f"2026111{idx}-{sid}-01-{bid}-item.backlog.md").write_text(
-            f"- Id: {bid}\n- Status: open\n- Work-Kind: bug\n- Set: {sid}\n",
+            RecordBuilder().backlog(
+                id6=bid, status="open", work_kind="bug", set=sid, text_only=True
+            ),
             encoding="utf-8",
         )
 
     # Also add a plan whose Set name collides with backlog id ms0001 (e.g. a sibling plan).
     (plans_dir / "20261119-ms0001-01-pln902-sibling.ipd.md").write_text(
-        "- Id: pln902\n- Set: ms0001\n- Order: 01\n- Status: approved\n",
+        RecordBuilder().plan(
+            id6="pln902", set="ms0001", order=1, status="approved", text_only=True
+        ),
         encoding="utf-8",
     )
 
@@ -1088,46 +1105,50 @@ def specs_fixture_repo(tmp_path: Path) -> Path:
 
     # 1. spc001: to-review (2026-09-21)
     (toreview_dir / "20260921-spc001-01-spc001-spec-one.spec.md").write_text(
-        "# Spec One\n\n"
-        "- Id: spc001\n"
-        "- Status: to-review\n"
-        "- Priority: high\n"
-        "- Item-Dependencies: none\n\n"
-        "## Workflow history\n"
-        "- 2026-09-21 created: spec one\n"
+        RecordBuilder().spec(
+            id6="spc001",
+            status="to-review",
+            priority="high",
+            item_dependencies="none",
+            history=["- 2026-09-21 created: spec one"],
+            text_only=True,
+        )
     )
 
     # 2. spc002: to-review (2026-09-23), depends on spc001
     (toreview_dir / "20260923-spc002-01-spc002-spec-two.spec.md").write_text(
-        "# Spec Two\n\n"
-        "- Id: spc002\n"
-        "- Status: to-review\n"
-        "- Priority: medium\n"
-        "- Item-Dependencies: exists:spec:spc001\n\n"
-        "## Workflow history\n"
-        "- 2026-09-23 created: spec two\n"
+        RecordBuilder().spec(
+            id6="spc002",
+            status="to-review",
+            priority="medium",
+            item_dependencies="exists:spec:spc001",
+            history=["- 2026-09-23 created: spec two"],
+            text_only=True,
+        )
     )
 
     # 3. spc003: approved (2026-09-24)
     (approved_dir / "20260924-spc003-01-spc003-spec-three.spec.md").write_text(
-        "# Spec Three\n\n"
-        "- Id: spc003\n"
-        "- Status: approved\n"
-        "- Priority: high\n"
-        "- Item-Dependencies: none\n\n"
-        "## Workflow history\n"
-        "- 2026-09-24 created: spec three\n"
+        RecordBuilder().spec(
+            id6="spc003",
+            status="approved",
+            priority="high",
+            item_dependencies="none",
+            history=["- 2026-09-24 created: spec three"],
+            text_only=True,
+        )
     )
 
     # 4. spc004: implemented (2026-09-18) - non-runnable
     (implemented_dir / "20260918-spc004-01-spc004-spec-four.spec.md").write_text(
-        "# Spec Four\n\n"
-        "- Id: spc004\n"
-        "- Status: implemented\n"
-        "- Priority: low\n"
-        "- Item-Dependencies: none\n\n"
-        "## Workflow history\n"
-        "- 2026-09-18 created: spec four\n"
+        RecordBuilder().spec(
+            id6="spc004",
+            status="implemented",
+            priority="low",
+            item_dependencies="none",
+            history=["- 2026-09-18 created: spec four"],
+            text_only=True,
+        )
     )
 
     return repo

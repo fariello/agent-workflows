@@ -21,6 +21,7 @@ import pytest
 
 from agent_workflows import agent_schema, coverage_record
 from tests.test_ipd_lint import _conforming_child
+from tests.record_builder import RecordBuilder
 
 
 def _init_repo(tmp_dir: Path) -> Path:
@@ -493,7 +494,24 @@ class TestOrchestratorStatusGate(unittest.TestCase):
             p_dir = repo / ".aw" / "records" / "plans" / "executed"
             orch_path = p_dir / "20261004-tstset-00-orc001-test.ipd.md"
             orch_path.write_text(
-                "# IPD: Test\n\n- Date: 2026-10-04\n- Kind: orchestrator\n- Id: orc001\n- Set: tstset\n- Order: 0\n- Status: executed\n- Priority: medium\n- Work-Kind: chore\n- Author: test\n- Highest E allocated: 01\n- Concern: x\n- Scope: x\n- Scope-Paths: none\n- Item-Dependencies: none\n\n## Workflow history\n- 2026-10-04 executed (aw ipd finalize): finalized\n\n## Goal\nx\n\n## Detailed Implementation Checklist (TODO)\n- [ ] E-01 x\n  - Depends on: none\n  - Expected outcome: x\n  - Execution state: performed\n\n## Validation and cross-check (verify before reporting the Set complete)\n- [ ] V-01 validates E-01\n  - Required evidence: x\n  - Observed evidence: pass\n  - Result: pass\n\n## Approval and execution gate\n- None.\n",
+                RecordBuilder().plan(
+                    title="Test",
+                    when="2026-10-04",
+                    plan_role="orchestrator",
+                    id6="orc001",
+                    set="tstset",
+                    order=0,
+                    status="executed",
+                    priority="medium",
+                    work_kind="chore",
+                    author="test",
+                    highest_e_allocated="01",
+                    scope_paths="none",
+                    item_dependencies="none",
+                    history=["- 2026-10-04 executed (aw ipd finalize): finalized"],
+                    body="## Goal\nx\n\n## Detailed Implementation Checklist (TODO)\n- [ ] E-01 x\n  - Depends on: none\n  - Expected outcome: x\n  - Execution state: performed\n\n## Validation and cross-check (verify before reporting the Set complete)\n- [ ] V-01 validates E-01\n  - Required evidence: x\n  - Observed evidence: pass\n  - Result: pass\n\n## Approval and execution gate\n- None.",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             p_reopen = _run_cli(
