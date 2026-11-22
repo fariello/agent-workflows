@@ -1,5 +1,6 @@
 - Id: ujxi56
-- Status: open
+- Status: graduated
+- Graduated-To: ujxi56
 - Set: pubrun-bugs
 - Work-Kind: bug
 - Priority: high
@@ -10,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-22 graduated (aw backlog): graduated by run run-20261122T002647Z-1444530: qpvem9
 - 2026-11-22 created (aw backlog): Fix --to-aw layout migration moving workflow-artifacts/* and .agents/docs/README.md into uninventoried .aw/records/* trees
 
 
