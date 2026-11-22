@@ -138,6 +138,7 @@ flowchart TD
 
 - Converting `tests/test_readers_check_engine.py` (`_o30_write_full_plan` and its 76 `hand` sites) onto `tests/record_builder.py::RecordBuilder`:
   - Carrier: 59aiyh
+  - Carrier-Evidence: .aw/records/plans/executed/20261102-metastore-10-59aiyh-move-test-data-to-one-shared-record-builder-over-artifact-me.ipd.md
 - Preserving `Concern` and `Scope` bullets on IPD fixtures in `tools/fixture_codemod.py::_plan_site`:
   - Carrier: kbh055
 - Preserving H1 heading titles on backlog and prompt records in `tools/fixture_codemod.py`:

@@ -130,6 +130,7 @@ flowchart TD
 
 - Converting remaining repository test modules carrying backlog or prompt fixtures (`tests/test_readers_attention.py`, `tests/test_status_set.py`, `tests/test_status_set_descriptive_safety.py`, `tests/test_unresolved_selector_near_match.py`, `tests/test_term.py`, `tests/test_validator_nonsurveyable_dir.py`, `tests/test_generic_color_depth.py`) onto `tests/record_builder.py::RecordBuilder`:
   - Carrier: 59aiyh
+  - Carrier-Evidence: .aw/records/plans/executed/20261102-metastore-10-59aiyh-move-test-data-to-one-shared-record-builder-over-artifact-me.ipd.md
 - Preserving `Concern` and `Scope` bullets on IPD fixtures in `tools/fixture_codemod.py::_plan_site`:
   - Carrier: kbh055
 - Fixing `tools/fixture_codemod.py::_is_body_or_oq_kwarg` misclassifying full record literals passed via `body=` to non-`RecordBuilder` helpers:

@@ -119,6 +119,7 @@ flowchart TD
 
 - Rewriting the 34 repository test modules carrying IPD `Concern` and `Scope` sites onto `RecordBuilder`:
   - Carrier: 59aiyh
+  - Carrier-Evidence: .aw/records/plans/executed/20261102-metastore-10-59aiyh-move-test-data-to-one-shared-record-builder-over-artifact-me.ipd.md
 - Fixing `tools/fixture_codemod.py` dropping H1 heading titles on backlog and prompt records:
   - Carrier: e0wwtc
 - Fixing `tools/fixture_codemod.py::_is_body_or_oq_kwarg` misclassifying full record literals passed via `body=` to non-`RecordBuilder` helpers:
