@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import NamedTuple, Sequence
 
 from agent_workflows import (
+    artifact_meta,
     ipd_lint,
     ipd_schema,
     review_sequence,
@@ -73,6 +74,8 @@ def rereview_triggers(
     """
     doc_start = ipd_lint.parse(pass_start_text or "")
     doc_now = ipd_lint.parse(now_text or "")
+    state_start = artifact_meta.read_text(pass_start_text or "", record_type="ipd")
+    state_now = artifact_meta.read_text(now_text or "", record_type="ipd")
 
     reasons: list[str] = []
 
@@ -90,14 +93,14 @@ def rereview_triggers(
         reasons.append(f"E/V items changed: {'; '.join(parts)}")
 
     # (b) Scope-Paths
-    sp_start = doc_start.meta_fields.get("Scope-Paths")
-    sp_now = doc_now.meta_fields.get("Scope-Paths")
+    sp_start = state_start.fields.get("scope_paths")
+    sp_now = state_now.fields.get("scope_paths")
     if sp_start != sp_now:
         reasons.append(f"Scope-Paths changed from {sp_start!r} to {sp_now!r}")
 
     # (c) Item-Dependencies
-    dep_start = doc_start.meta_fields.get("Item-Dependencies")
-    dep_now = doc_now.meta_fields.get("Item-Dependencies")
+    dep_start = state_start.fields.get("item_dependencies")
+    dep_now = state_now.fields.get("item_dependencies")
     if dep_start != dep_now:
         reasons.append(f"Item-Dependencies changed from {dep_start!r} to {dep_now!r}")
 
@@ -131,12 +134,15 @@ def limit_reached_instruction(result: RereviewResult) -> str:
 def check_limit_s7(plan_before: str, plan_after: str) -> str | None:
     """Postcondition check for S7 when re-review limit is reached (spec Section 8.3, E-04).
 
-    Returns None when ipd_schema.read_readiness of plan_after is 'no-go'
+    Returns None when readiness from artifact_meta.read_text(plan_after) is 'no-go'
     and ipd_lint.parse(plan_after).open_questions holds a question id
     absent from plan_before with Blocking: yes and Status: open;
     otherwise the failed postcondition text.
     """
-    rd = ipd_schema.read_readiness(plan_after)
+    state_after = artifact_meta.read_text(plan_after or "", record_type="ipd")
+    raw_rd = state_after.fields.get("readiness")
+    rd_val = str(raw_rd).strip().lower() if raw_rd is not None else ""
+    rd = rd_val if rd_val in ipd_schema.READINESS_VALUES else None
     if rd != "no-go":
         return "When re-review pass limit is reached, plan front-matter must specify `- Readiness: no-go`."
 

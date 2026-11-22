@@ -22,12 +22,83 @@ from pathlib import Path
 from typing import Any, Mapping, NamedTuple, Sequence
 
 from agent_workflows import (
+    artifact_meta,
     check_engine,
     ipd_lint,
     ipd_schema,
     plan_readiness,
+    plans,
     review_tier,
 )
+
+# Canonical mapping from artifact_meta.State.fields keys back to IPD bullet names (D-2).
+_CANONICAL_BULLET_NAMES: dict[str, str] = {
+    name.lower().replace("-", "_"): name for name in ipd_schema.META_RECOGNIZED
+}
+_CANONICAL_BULLET_NAMES["plan_role"] = "Kind"
+
+
+def _canonical_bullet_name(field_key: str) -> str:
+    if field_key in _CANONICAL_BULLET_NAMES:
+        return _CANONICAL_BULLET_NAMES[field_key]
+    return "-".join(part.capitalize() for part in field_key.split("_"))
+
+
+def _state_to_front_matter(state: artifact_meta.State) -> dict[str, str]:
+    """Map an artifact_meta.State back to canonical IPD front-matter bullet names (D-2)."""
+    out: dict[str, str] = {}
+    fields = getattr(state, "fields", None) or {}
+    for fk, fv in fields.items():
+        if fv is None:
+            continue
+        name = _canonical_bullet_name(fk)
+        if isinstance(fv, list):
+            out[name] = ", ".join(str(x) for x in fv)
+        else:
+            out[name] = str(fv)
+    if "Status" not in out:
+        raw_st = getattr(state, "legacy_raw_status", None) or getattr(
+            state, "status", None
+        )
+        if raw_st is not None:
+            out["Status"] = str(raw_st)
+    if "Id" not in out:
+        st_id = getattr(state, "id6", None)
+        if st_id and not getattr(state, "id_derived", False):
+            out["Id"] = str(st_id)
+    if "Set" not in out:
+        raw_set = getattr(state, "legacy_raw_set", None) or getattr(
+            state, "set_id", None
+        )
+        if raw_set is not None:
+            out["Set"] = str(raw_set)
+    if "Order" not in out and getattr(state, "order_nn", None) is not None:
+        out["Order"] = str(state.order_nn)
+    if "Short-Description" not in out and getattr(state, "short_description", None):
+        out["Short-Description"] = str(state.short_description)
+    return out
+
+
+def _readiness_from_state(state: artifact_meta.State) -> str | None:
+    """Return normalized `- Readiness:` enum value from State, or None."""
+    raw = (getattr(state, "fields", None) or {}).get("readiness")
+    if raw is None:
+        return None
+    val = str(raw).strip().lower()
+    return val if val in ipd_schema.READINESS_VALUES else None
+
+
+def _status_from_state(state: artifact_meta.State) -> str | None:
+    """Return canonical plan status from State (D-1)."""
+    st = getattr(state, "status", None)
+    if st:
+        return str(st).strip()
+    raw = getattr(state, "legacy_raw_status", None)
+    if raw and str(raw).strip():
+        first_tok = str(raw).strip().split()[0]
+        return plans.normalize_status(first_tok)
+    return None
+
 
 # Spec k3yx72 Section 5.3 prompt grouping definitions
 PROMPT_LISTS: dict[str, tuple[tuple[str, ...], ...]] = {
@@ -209,15 +280,21 @@ def structural_diff(before: str, after: str) -> tuple[list[str], list[str]]:
     """
     doc_b = ipd_lint.parse(before or "")
     doc_a = ipd_lint.parse(after or "")
+    fm_b = _state_to_front_matter(
+        artifact_meta.read_text(before or "", record_type="ipd")
+    )
+    fm_a = _state_to_front_matter(
+        artifact_meta.read_text(after or "", record_type="ipd")
+    )
 
     refused: list[str] = []
     confirm: list[str] = []
 
     # 1. Any front-matter value changed, added, or removed
-    all_keys = set(doc_b.meta_fields.keys()) | set(doc_a.meta_fields.keys())
+    all_keys = set(fm_b.keys()) | set(fm_a.keys())
     for k in sorted(all_keys):
-        vb = doc_b.meta_fields.get(k)
-        va = doc_a.meta_fields.get(k)
+        vb = fm_b.get(k)
+        va = fm_a.get(k)
         if vb != va:
             refused.append(f"Front-matter field {k!r} changed from {vb!r} to {va!r}")
 
@@ -444,7 +521,9 @@ def check_S5(
             if m:
                 plan_id6 = m.group(1)
         if not plan_id6:
-            plan_id6 = doc.meta_fields.get("Id")
+            st_after = artifact_meta.read_text(plan_text_after or "", record_type="ipd")
+            if st_after.id6 and not getattr(st_after, "id_derived", False):
+                plan_id6 = st_after.id6
         if not plan_id6:
             plan_id6 = check_engine._read_item_id(plan_text_after)
 
@@ -501,12 +580,13 @@ def count_verdict_bearing_entries(plan_text: str) -> int:
 
 
 def verdict_outputs(plan_text: str) -> tuple[str | None, str | None, str]:
-    """Return (read_readiness, Status value, newest_verdict raw entry) for the MD-15 guard."""
-    rd = ipd_schema.read_readiness(plan_text)
+    """Return (readiness, Status value, newest_verdict raw entry) for the MD-15 guard."""
     try:
-        doc = ipd_lint.parse(plan_text or "")
-        st = doc.meta_fields.get("Status")
+        state = artifact_meta.read_text(plan_text or "", record_type="ipd")
+        rd = _readiness_from_state(state)
+        st = _status_from_state(state)
     except Exception:
+        rd = None
         st = None
     newest = plan_readiness.newest_verdict(plan_text)[1]
     return (rd, st, newest)
@@ -571,11 +651,12 @@ def check_S7(
     Exactly one new verdict-bearing history entry was added during the invocation.
     aw ipd lint --phase author reports no new error except IPD-Q501.
     """
-    rd = ipd_schema.read_readiness(plan_text_after)
     try:
-        doc_a = ipd_lint.parse(plan_text_after or "")
-        st = doc_a.meta_fields.get("Status")
+        state_a = artifact_meta.read_text(plan_text_after or "", record_type="ipd")
+        rd = _readiness_from_state(state_a)
+        st = _status_from_state(state_a)
     except Exception:
+        rd = None
         st = None
 
     cond_a = rd in ("go", "go-pending-approval", "no-go") and st == "reviewed"
