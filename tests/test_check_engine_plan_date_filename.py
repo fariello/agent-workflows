@@ -18,6 +18,7 @@ from pathlib import Path
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import check_engine as ce
+from tests.record_builder import RecordBuilder
 
 
 def _check_date_mismatch(
@@ -35,94 +36,6 @@ def _check_date_mismatch(
     )
 
 
-def _build_plan(
-    *,
-    id6: str = "aaa111",
-    date: str | None = "2026-10-01",
-    status: str = "pending",
-    work_kind: str = "feature",
-    priority: str = "low",
-    setid: str = "probeset",
-    order: int = 1,
-) -> str:
-    lines = [
-        f"# IPD: Probe {id6}",
-        "",
-    ]
-    if date is not None:
-        lines.append(f"- Date: {date}")
-    lines.extend(
-        [
-            "- Kind: child",
-            "- Concern: Probe concern.",
-            "- Scope: Probe scope.",
-            "- Scope-Paths: agent_workflows/check_engine.py",
-            "- Item-Dependencies: none",
-            f"- Status: {status}",
-            f"- Work-Kind: {work_kind}",
-            f"- Priority: {priority}",
-            f"- Set: {setid}",
-            f"- Order: {order}",
-            "- Highest E allocated: 01",
-            "- Author: test-author",
-            f"- Id: {id6}",
-            "",
-            "## Workflow history",
-            f"- 2026-10-01 {status} (test-author): created.",
-            "",
-            "## Goal",
-            "Probe goal.",
-            "",
-            "## Detailed Implementation Checklist (TODO)",
-            "- [ ] E-01 Probe item.",
-            "  - Depends on: none",
-            "  - Expected outcome: done",
-            "  - Execution state: pending",
-            "",
-            "## Project conventions discovered (Step 0)",
-            "- Convention.",
-            "",
-            "## Findings",
-            "| Id | Finding | Evidence |",
-            "|---|---|---|",
-            "| F-01 | Finding. | Evidence. |",
-            "",
-            "## Proposed changes (ordered, validatable)",
-            "1. Probe change.",
-            "",
-            "## Deferred / out of scope (with reason)",
-            "- None.",
-            "",
-            "## Scope check",
-            "- Over-scope: none.",
-            "",
-            "## Required tests / validation",
-            "- Probe test.",
-            "",
-            "## Spec / documentation sync",
-            "None.",
-            "",
-            "## Open questions",
-            "### OQ-01: None.",
-            "- Blocking: no",
-            "- Status: resolved",
-            "- Owner: author",
-            "- Resolution or deferral rationale: done.",
-            "",
-            "## Validation and cross-check (verify before reporting done)",
-            "- [ ] V-01 validates E-01",
-            "  - Required evidence: done",
-            "  - Observed evidence:",
-            "  - Result: pending",
-            "",
-            "## Approval and execution gate",
-            "- Size assessment: standard",
-            "- Cohesion rationale: not required",
-        ]
-    )
-    return "\n".join(lines) + "\n"
-
-
 class CheckEnginePlanDateFilenameTests(unittest.TestCase):
     """Behavioral tests for check.plan-date-filename-mismatch."""
 
@@ -134,7 +47,17 @@ class CheckEnginePlanDateFilenameTests(unittest.TestCase):
             pending.mkdir(parents=True)
             defect_path = pending / "20260101-probeset-01-aaa111-probe.ipd.md"
             defect_path.write_text(
-                _build_plan(id6="aaa111", date="2026-10-01"), encoding="utf-8"
+                RecordBuilder().plan(
+                    id6="aaa111",
+                    when="2026-10-01",
+                    status="draft",
+                    work_kind="feature",
+                    priority="low",
+                    set="probeset",
+                    order=1,
+                    text_only=True,
+                ),
+                encoding="utf-8",
             )
 
             drifts = _check_date_mismatch(root, include_untracked=True)
@@ -158,7 +81,17 @@ class CheckEnginePlanDateFilenameTests(unittest.TestCase):
             pending.mkdir(parents=True)
             plan_path = pending / "20261001-probeset-01-aaa111-probe.ipd.md"
             plan_path.write_text(
-                _build_plan(id6="aaa111", date="2026-10-01"), encoding="utf-8"
+                RecordBuilder().plan(
+                    id6="aaa111",
+                    when="2026-10-01",
+                    status="draft",
+                    work_kind="feature",
+                    priority="low",
+                    set="probeset",
+                    order=1,
+                    text_only=True,
+                ),
+                encoding="utf-8",
             )
 
             drifts = _check_date_mismatch(root, include_untracked=True)
@@ -181,21 +114,29 @@ class CheckEnginePlanDateFilenameTests(unittest.TestCase):
             pending.mkdir(parents=True)
             plan1 = pending / "20260712-probeset-01-aaa111-probe1.ipd.md"
             plan1.write_text(
-                _build_plan(
+                RecordBuilder().plan(
                     id6="aaa111",
-                    date="2026-07-12",
-                    setid="probeset",
+                    when="2026-07-12",
+                    status="draft",
+                    work_kind="feature",
+                    priority="low",
+                    set="probeset",
                     order=1,
+                    text_only=True,
                 ),
                 encoding="utf-8",
             )
             plan2 = pending / "20260915-probeset-02-bbb222-probe2.ipd.md"
             plan2.write_text(
-                _build_plan(
+                RecordBuilder().plan(
                     id6="bbb222",
-                    date="2026-09-15",
-                    setid="probeset",
+                    when="2026-09-15",
+                    status="draft",
+                    work_kind="feature",
+                    priority="low",
+                    set="probeset",
                     order=2,
+                    text_only=True,
                 ),
                 encoding="utf-8",
             )
@@ -218,13 +159,34 @@ class CheckEnginePlanDateFilenameTests(unittest.TestCase):
             pending.mkdir(parents=True)
             plan_no_date = pending / "20261001-probeset-01-aaa111-nodate.ipd.md"
             plan_no_date.write_text(
-                _build_plan(id6="aaa111", date=None), encoding="utf-8"
+                RecordBuilder().plan(
+                    id6="aaa111",
+                    when="2026-10-01",
+                    status="draft",
+                    work_kind="feature",
+                    priority="low",
+                    set="probeset",
+                    order=1,
+                    raw_fields={"Date": None},
+                    text_only=True,
+                ),
+                encoding="utf-8",
             )
             plan_placeholder = (
                 pending / "20261001-probeset-02-bbb222-placeholder.ipd.md"
             )
             plan_placeholder.write_text(
-                _build_plan(id6="bbb222", date="<YYYY-MM-DD>"),
+                RecordBuilder().plan(
+                    id6="bbb222",
+                    when="2026-10-01",
+                    status="draft",
+                    work_kind="feature",
+                    priority="low",
+                    set="probeset",
+                    order=2,
+                    raw_fields={"Date": "<YYYY-MM-DD>"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -248,7 +210,16 @@ class CheckEnginePlanDateFilenameTests(unittest.TestCase):
             executed.mkdir(parents=True)
             plan_executed = executed / "20260101-probeset-01-aaa111-probe.ipd.md"
             plan_executed.write_text(
-                _build_plan(id6="aaa111", date="2026-10-01", status="executed"),
+                RecordBuilder().plan(
+                    id6="aaa111",
+                    when="2026-10-01",
+                    status="executed",
+                    work_kind="feature",
+                    priority="low",
+                    set="probeset",
+                    order=1,
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -291,7 +262,17 @@ class CheckEnginePlanDateFilenameTests(unittest.TestCase):
             pending.mkdir(parents=True)
             defect_path = pending / "20260101-probeset-01-aaa111-probe.ipd.md"
             defect_path.write_text(
-                _build_plan(id6="aaa111", date="2026-10-01"), encoding="utf-8"
+                RecordBuilder().plan(
+                    id6="aaa111",
+                    when="2026-10-01",
+                    status="draft",
+                    work_kind="feature",
+                    priority="low",
+                    set="probeset",
+                    order=1,
+                    text_only=True,
+                ),
+                encoding="utf-8",
             )
 
             drifts = ce.check_content(root, "plans", include_untracked=True)
@@ -315,7 +296,16 @@ class CheckEnginePlanDateFilenameTests(unittest.TestCase):
             pending.mkdir(parents=True)
             plan_path = pending / "20260101-probeset-01-aaa111-probe.ipd.md"
             plan_path.write_text(
-                _build_plan(id6="aaa111", date="2026-10-01", work_kind="bogus"),
+                RecordBuilder().plan(
+                    id6="aaa111",
+                    when="2026-10-01",
+                    status="draft",
+                    priority="low",
+                    set="probeset",
+                    order=1,
+                    raw_fields={"Work-Kind": "bogus"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
