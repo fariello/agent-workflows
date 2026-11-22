@@ -5,8 +5,9 @@
 - Concern: Split from `y97k46` (Order 34) in round 3 of the metastore re-split, per research `nj8zdp` guidance (at most 5 E-items, 8 work Scope-Paths, about 8 named units per item): `y97k46` held 6 E-items and its pin item named 14 units (13 functions, 10 baseline modules). Spec `4sd62s` C5a requires every runner to read metadata through the cache. `runner_shared` holds one plan record for both hosts (`runner_shared.PlanRecord`, built by `runner_shared.parse_plan_file`), and the queue is built from it by per-file regex reads: measured 2026-11-07 at `ac76110f4`, `runner_shared` has 68 metadata reader or regex sites in 26 functions, and `oc_runipd` and `agy_runipd` re-export 10 of those names.
 - Scope: (a) The `runner_shared`/`oc_runipd`/`agy_runipd` rows of the 4.4 search (`y97k46` E-01). (b) `y97k46` E-02 (pin the runner reads), divided into the pin module (E-02) and the ten-module baseline in two halves (E-03, E-04). (c) `y97k46` E-03 (move the plan-selection reads, E-05). EXCLUDES: the execution-path reads and the own-log finalize scope (`k3hb06`, Order 152); the runner residual audit (kept in `y97k46`); the five `runner_shared` git-content readers (`iqhzse`); every writer (Orders 06/07); deleting parsers (Order 11).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_readers_runner.py, tests/test_front_matter_loose_whitespace.py, .aw/records/plans/pending/20261109-metastore-147-k86yq7-pin-the-runner-reads-and-move-the-runner-selection-reads-ont.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261121-metastore-01-hzae10-expose-loose-kind-set-and-order-fields-from-artifa.backlog.md (Durable defect carrier required by driver defect-report contract for artifact_meta.read_text omitting loose Kind/Set/Order fields); agent_workflows/artifact_meta.py (Small cache-refresh bug fix: _apply_updates skipped updating artifacts for moved @repo/ paths when destination sorted before source, erasing moved specs from index.db during test_spec_review_dispatch)
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: k86yq7
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-22 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: k86yq7 verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261121-metastore-01-hzae10-expose-loose-kind-set-and-order-fields-from-artifa.backlog.md: Durable defect carrier required by driver defect-report contract for artifact_meta.read_text omitting loose Kind/Set/Order fields; out-of-scope agent_workflows/artifact_meta.py: Small cache-refresh bug fix: _apply_updates skipped updating artifacts for moved @repo/ paths when destination sorted before source, erasing moved specs from index.db during test_spec_review_dispatch; in-scope-unmodified agent_workflows/agy_runipd.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified agent_workflows/oc_runipd.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
