@@ -1,5 +1,5 @@
 - Id: dswbr8
-- Status: graduated
+- Status: done
 - Graduated-To: dswbr8
 - Set: dswbr8
 - Work-Kind: bug
@@ -11,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-22 done (aw backlog): closed by aw agy run: IPD epsj2v executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261121-dswbr8-01-epsj2v-skip-legacy-agents-non-record-directories-in-attention-fallb.ipd.md); evidence .aw/records/plans/executed/20261121-dswbr8-01-epsj2v-skip-legacy-agents-non-record-directories-in-attention-fallb.ipd.md
 - 2026-11-21 graduated (aw backlog): graduated by run run-20261121T210815Z-1170144: epsj2v
 - 2026-11-21 created (aw backlog): attention.py legacy .agents/ fallback flags .agents/workflows as uninventoried-tree
 
