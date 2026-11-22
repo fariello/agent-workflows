@@ -616,6 +616,22 @@ FATAL_STATUS_PARSE_RULES: FrozenSet[str] = frozenset(
 )
 
 
+#: Framework-owned non-record top-level directories under legacy `.agents/` layouts.
+#: Shallow uninventoried-tree discovery skips these names only when `scan()` falls back
+#: to `.agents/` because `project_records_dir(repo_root)` does not exist on disk:
+#: - `workflows`: legacy system workflow bundle (modern counterpart: `.aw/system/workflows/`).
+#: - `skills`: host skill packages (modern counterpart: `.agents/skills/`, also present
+#:   on modern installs before `.aw/records/` exists).
+#: - `agent-workflows`: legacy install manifest directory holding `managed-sections.json`
+#:   (modern counterpart: `.aw/system/managed-sections.json`).
+#: - `inbox`: legacy raw-drop inbox (modern counterpart: `.aw/inbox/`).
+#: - `runs`: legacy run history (modern counterpart: `.aw/runs/`).
+#: - `state`: legacy durable runtime state (modern counterpart: `.aw/state/`).
+_LEGACY_AGENTS_NON_RECORD_DIRS: FrozenSet[str] = frozenset(
+    {"workflows", "skills", "agent-workflows", "inbox", "runs", "state"}
+)
+
+
 _TREE_TO_META_TYPE: Dict[str, str] = {
     "plans": "ipd",
     "specs": "spec",
@@ -844,11 +860,18 @@ def scan(
         from agent_workflows.project_context import project_records_dir
 
         records_dir = project_records_dir(repo_root)
+        using_legacy_agents_fallback = False
         if not records_dir.is_dir():
             records_dir = repo_root / ".agents"
+            using_legacy_agents_fallback = True
         if records_dir.is_dir():
             for entry in sorted(records_dir.iterdir(), key=lambda p: p.name):
                 if not entry.is_dir():
+                    continue
+                if (
+                    using_legacy_agents_fallback
+                    and entry.name in _LEGACY_AGENTS_NON_RECORD_DIRS
+                ):
                     continue
                 if core.is_ignored_path(entry, repo_root):
                     continue

@@ -12,6 +12,8 @@ Closed by shallow records-root discovery pass emitting `attention.uninventoried-
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import tempfile
 import unittest
@@ -21,6 +23,7 @@ from unittest import mock
 from agent_workflows import artifact_core as core
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as A
+from agent_workflows import cli
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -214,6 +217,149 @@ class AttentionExemptionsAndNonRegressionsTests(unittest.TestCase):
                 and d.location == ".agents/newtype"
             ]
             self.assertEqual(len(uninventoried), 1)
+
+    def test_legacy_agents_fallback_skips_non_record_dirs(self):
+        """Legacy 1.2.1 .agents/ non-record directories scan cleanly and pass aw att / aw attention --check."""
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            workflows_dir = repo / ".agents" / "workflows"
+            workflows_dir.mkdir(parents=True)
+            (workflows_dir / "VERSION").write_text("1.2.1\n", encoding="utf-8")
+            (workflows_dir / "index.md").write_text("# Workflows\n", encoding="utf-8")
+
+            skills_dir = repo / ".agents" / "skills" / "aw"
+            skills_dir.mkdir(parents=True)
+            (skills_dir / "SKILL.md").write_text("# AW Skill\n", encoding="utf-8")
+
+            manifest_dir = repo / ".agents" / "agent-workflows"
+            manifest_dir.mkdir(parents=True)
+            (manifest_dir / "managed-sections.json").write_text(
+                "{}\n", encoding="utf-8"
+            )
+
+            (repo / ".agents" / "inbox").mkdir(parents=True)
+            (repo / ".agents" / "runs").mkdir(parents=True)
+            (repo / ".agents" / "state").mkdir(parents=True)
+            (repo / ".agents" / "plans" / "pending").mkdir(parents=True)
+            (repo / ".agents" / "docs" / "specs").mkdir(parents=True)
+
+            items, drift = att.scan(repo)
+            uninventoried = [
+                d for d in drift if d.rule == "attention.uninventoried-tree"
+            ]
+            self.assertEqual(
+                uninventoried,
+                [],
+                f"Expected zero attention.uninventoried-tree findings on legacy layout, got: {uninventoried}",
+            )
+            rendered = json.loads(att.render_json(items, drift))
+            self.assertTrue(
+                rendered["valid"],
+                f"Expected render_json valid to be True on legacy layout, got: {rendered}",
+            )
+
+            att_stdout = io.StringIO()
+            att_stderr = io.StringIO()
+            with contextlib.redirect_stdout(att_stdout), contextlib.redirect_stderr(
+                att_stderr
+            ):
+                att_rc = cli.main(["att", "--dir", str(repo)])
+            self.assertEqual(
+                att_rc,
+                0,
+                f"Expected aw att to exit 0, got {att_rc}; stdout={att_stdout.getvalue()!r}, stderr={att_stderr.getvalue()!r}",
+            )
+            self.assertNotIn("VIEW INVALID", att_stdout.getvalue())
+            self.assertNotIn("VIEW INVALID", att_stderr.getvalue())
+
+            check_stdout = io.StringIO()
+            check_stderr = io.StringIO()
+            with contextlib.redirect_stdout(check_stdout), contextlib.redirect_stderr(
+                check_stderr
+            ):
+                check_rc = cli.main(["attention", "--check", "--dir", str(repo)])
+            self.assertEqual(
+                check_rc,
+                0,
+                f"Expected aw attention --check to exit 0, got {check_rc}; stdout={check_stdout.getvalue()!r}, stderr={check_stderr.getvalue()!r}",
+            )
+
+    def test_legacy_agents_fallback_flags_unknown_dir_alongside_workflows(self):
+        """Legacy fallback still flags unrecognized .agents/newtype while skipping .agents/workflows."""
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            workflows_dir = repo / ".agents" / "workflows"
+            workflows_dir.mkdir(parents=True)
+            (workflows_dir / "index.md").write_text("# Workflows\n", encoding="utf-8")
+
+            unknown_dir = repo / ".agents" / "newtype"
+            unknown_dir.mkdir(parents=True)
+            (unknown_dir / "x.md").write_text("# Unknown\n", encoding="utf-8")
+
+            items, drift = att.scan(repo)
+            uninventoried = [
+                d for d in drift if d.rule == "attention.uninventoried-tree"
+            ]
+            self.assertEqual(
+                [d.location for d in uninventoried],
+                [".agents/newtype"],
+                f"Expected only .agents/newtype uninventoried finding, got: {uninventoried}",
+            )
+            rendered = json.loads(att.render_json(items, drift))
+            self.assertFalse(rendered["valid"])
+
+    def test_modern_records_root_still_flags_non_record_dir_names(self):
+        """Modern .aw/records/ still flags non-record framework directory names except ignored runs/."""
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            expected_flagged = [
+                "agent-workflows",
+                "inbox",
+                "skills",
+                "state",
+                "workflows",
+            ]
+            for name in expected_flagged + ["runs"]:
+                (repo / ".aw" / "records" / name).mkdir(parents=True)
+
+            items, drift = att.scan(repo)
+            uninventoried = [
+                d for d in drift if d.rule == "attention.uninventoried-tree"
+            ]
+            self.assertEqual(
+                sorted(d.location for d in uninventoried),
+                [f".aw/records/{name}" for name in expected_flagged],
+                f"Expected uninventoried findings for non-ignored names under .aw/records/, got: {uninventoried}",
+            )
+            rendered = json.loads(att.render_json(items, drift))
+            self.assertFalse(rendered["valid"])
+
+    def test_modern_pre_records_install_with_agents_skills_scans_clean(self):
+        """Modern install with .aw/system/VERSION and .agents/skills/ before .aw/records/ exists scans clean."""
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            system_dir = repo / ".aw" / "system"
+            system_dir.mkdir(parents=True)
+            (system_dir / "VERSION").write_text("1.3.0\n", encoding="utf-8")
+
+            skills_dir = repo / ".agents" / "skills" / "aw"
+            skills_dir.mkdir(parents=True)
+            (skills_dir / "SKILL.md").write_text("# AW Skill\n", encoding="utf-8")
+
+            items, drift = att.scan(repo)
+            uninventoried = [
+                d for d in drift if d.rule == "attention.uninventoried-tree"
+            ]
+            self.assertEqual(
+                uninventoried,
+                [],
+                f"Expected zero attention.uninventoried-tree findings on pre-records modern install, got: {uninventoried}",
+            )
+            rendered = json.loads(att.render_json(items, drift))
+            self.assertTrue(
+                rendered["valid"],
+                f"Expected render_json valid to be True on pre-records modern install, got: {rendered}",
+            )
 
     def test_live_repository_no_tree_drift(self):
         """Class-scoped property on live repository: zero findings whose rule contains 'tree'."""
