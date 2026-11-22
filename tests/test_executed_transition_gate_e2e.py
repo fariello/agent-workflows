@@ -66,8 +66,7 @@ from pathlib import Path
 from agent_workflows import ipd_lifecycle as LC
 from agent_workflows.hooks import executed_transition_gate as GATE
 from tests import support
-
-import tests.test_ipd_lifecycle_cli as LT  # reuse the plan fixtures
+from tests.record_builder import RecordBuilder
 
 #: The subject `aw ipd finalize` itself writes, spelled LITERALLY rather than read back from
 #: `artifact_core.finalize_commit_subject`. The gate MATCHES on this string and its refusal QUOTES it
@@ -368,19 +367,6 @@ class PreCommitExecutedGateTests(unittest.TestCase):
         self._tmp.cleanup()
 
     # --- fixture helpers, each of which STAGES the situation it builds ---
-    def _write_plan(
-        self, plan_id: str, scope_paths: str = "grandfathered", name=None
-    ) -> Path:
-        name = name or f"20260824-demo-01-{plan_id}-demo.ipd.md"
-        d = self.root / ".aw" / "records" / "plans" / "pending"
-        d.mkdir(parents=True, exist_ok=True)
-        p = d / name
-        p.write_text(
-            LT._completed_plan_text(plan_id=plan_id, scope_paths=scope_paths),
-            encoding="utf-8",
-        )
-        return p
-
     def _executed_dir(self) -> Path:
         d = self.root / ".aw" / "records" / "plans" / "executed"
         d.mkdir(parents=True, exist_ok=True)
@@ -391,35 +377,66 @@ class PreCommitExecutedGateTests(unittest.TestCase):
         _stage(self.root)
 
     def _edit_plan_keeping_pending(self) -> None:
-        p = self._write_plan("abc123")
+        p = RecordBuilder(self.root).plan(
+            id6="abc123",
+            scope_paths="grandfathered",
+            status="approved",
+            approval="2026-08-24, human: approved",
+            readiness="go-pending-approval",
+        )
         _commit_all(self.root, "add plan")
         p.write_text(p.read_text() + "\n<!-- edit -->\n", encoding="utf-8")
         _stage(self.root)
 
     def _write_executed_prompt(self) -> None:
-        pdir = self.root / ".aw" / "records" / "prompts" / "executed"
-        pdir.mkdir(parents=True)
-        (pdir / "20260824-p-01-pr0mp7-x.prompt.md").write_text(
-            "# Prompt\n\n- Status: executed\n- Id: pr0mp7\n\nbody\n", encoding="utf-8"
+        RecordBuilder(self.root).prompt(
+            id6="pr0mp7",
+            set="p",
+            order=1,
+            slug="x",
+            status="executed",
+            disposition="executed",
+            body="# Prompt\n\nbody\n",
         )
         _stage(self.root)
 
     def _flip_status_in_place(self, plan_id: str = "abc123") -> None:
-        p = self._write_plan(plan_id)
+        p = RecordBuilder(self.root).plan(
+            id6=plan_id,
+            scope_paths="grandfathered",
+            status="approved",
+            approval="2026-08-24, human: approved",
+            readiness="go-pending-approval",
+        )
         _commit_all(self.root, "add plan (approved)")
-        p.write_text(
-            p.read_text().replace("- Status: approved", "- Status: executed"),
-            encoding="utf-8",
+        RecordBuilder(self.root).plan(
+            id6=plan_id,
+            scope_paths="grandfathered",
+            status="executed",
+            approval="2026-08-24, human: approved",
+            readiness="go-pending-approval",
         )
         _stage(self.root)
         self._staged_plan_name = p.name
         self._staged_plan_id = plan_id
 
     def _move_into_executed(self, plan_id: str = "abc123") -> None:
-        p = self._write_plan(plan_id)
+        p = RecordBuilder(self.root).plan(
+            id6=plan_id,
+            scope_paths="grandfathered",
+            status="approved",
+            approval="2026-08-24, human: approved",
+            readiness="go-pending-approval",
+        )
         _commit_all(self.root, "add plan")
-        text = p.read_text().replace("- Status: approved", "- Status: executed")
-        (self._executed_dir() / p.name).write_text(text, encoding="utf-8")
+        RecordBuilder(self.root).plan(
+            id6=plan_id,
+            scope_paths="grandfathered",
+            status="executed",
+            disposition="executed",
+            approval="2026-08-24, human: approved",
+            readiness="go-pending-approval",
+        )
         p.unlink()
         _stage(self.root)
         self._staged_plan_name = p.name
@@ -428,17 +445,18 @@ class PreCommitExecutedGateTests(unittest.TestCase):
     def _commit_plan_already_executed(self, plan_id: str = "abc123") -> Path:
         """A plan COMMITTED in executed/ with `- Status: executed`, i.e. a finished transition at HEAD.
 
-        The commit is the point. `LT._completed_plan_text` yields `- Status: approved`, so a fixture
-        that wrote the plan into executed/ and staged it WITHOUT committing would make its own setup
-        the transition under test, and a row built on it would prove nothing about a FOLLOW-UP edit.
+        The commit is the point. Writing the plan into executed/ and staging it WITHOUT committing
+        would make its own setup the transition under test, and a row built on it would prove
+        nothing about a FOLLOW-UP edit.
         """
-        p = self._write_plan(plan_id)
-        dest = self._executed_dir() / p.name
-        dest.write_text(
-            p.read_text().replace("- Status: approved", "- Status: executed"),
-            encoding="utf-8",
+        dest = RecordBuilder(self.root).plan(
+            id6=plan_id,
+            scope_paths="grandfathered",
+            status="executed",
+            disposition="executed",
+            approval="2026-08-24, human: approved",
+            readiness="go-pending-approval",
         )
-        p.unlink()
         _commit_all(self.root, f"plan {plan_id} already finalized in executed/")
         self._staged_plan_name = dest.name
         self._staged_plan_id = plan_id
@@ -453,23 +471,37 @@ class PreCommitExecutedGateTests(unittest.TestCase):
                 text,
                 "fixture precondition: the shared plan text must carry a history section to append to",
             )
-            text = text.replace(
-                "## Workflow history\n",
-                "## Workflow history\n- 2026-09-09 note (test): a correction after execution.\n",
-                1,
+            RecordBuilder(self.root).plan(
+                id6="abc123",
+                scope_paths="grandfathered",
+                status="executed",
+                disposition="executed",
+                approval="2026-08-24, human: approved",
+                readiness="go-pending-approval",
+                history=[
+                    "- 2026-09-09 note (test): a correction after execution.",
+                    "- 2026-08-24 /plan-review (tester): APPROVE",
+                    "- 2026-08-24 draft (tester): created.",
+                ],
             )
         else:
-            text = text + "\nan ordinary follow-up edit to the body\n"
-        dest.write_text(text, encoding="utf-8")
+            dest.write_text(
+                text + "\nan ordinary follow-up edit to the body\n", encoding="utf-8"
+            )
         _stage(self.root)
 
     def _substitute_plan_at_executed_path(self) -> None:
         """Overwrite an already-executed plan's file with a DIFFERENT plan, still claiming executed."""
         dest = self._commit_plan_already_executed()
         dest.write_text(
-            LT._completed_plan_text(
-                plan_id="zzz999", scope_paths="grandfathered"
-            ).replace("- Status: approved", "- Status: executed"),
+            RecordBuilder().plan(
+                id6="zzz999",
+                scope_paths="grandfathered",
+                status="executed",
+                approval="2026-08-24, human: approved",
+                readiness="go-pending-approval",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         _stage(self.root)
@@ -477,21 +509,27 @@ class PreCommitExecutedGateTests(unittest.TestCase):
 
     def _flip_status_inside_executed(self, plan_id: str = "abc123") -> None:
         """A plan sitting IN executed/ at HEAD with a NON-executed status, flipped in place."""
-        p = self._write_plan(plan_id)
-        dest = self._executed_dir() / p.name
-        dest.write_text(p.read_text(), encoding="utf-8")  # keeps `- Status: approved`
-        p.unlink()
+        dest = RecordBuilder(self.root).plan(
+            id6=plan_id,
+            scope_paths="grandfathered",
+            status="approved",
+            disposition="executed",
+            approval="2026-08-24, human: approved",
+            readiness="go-pending-approval",
+        )
         _commit_all(self.root, f"plan {plan_id} in executed/ but NOT yet executed")
         self.assertIn(
             "- Status: approved",
             dest.read_text(encoding="utf-8"),
             "fixture precondition: HEAD must NOT already carry the executed status here",
         )
-        dest.write_text(
-            dest.read_text(encoding="utf-8").replace(
-                "- Status: approved", "- Status: executed"
-            ),
-            encoding="utf-8",
+        RecordBuilder(self.root).plan(
+            id6=plan_id,
+            scope_paths="grandfathered",
+            status="executed",
+            disposition="executed",
+            approval="2026-08-24, human: approved",
+            readiness="go-pending-approval",
         )
         _stage(self.root)
         self._staged_plan_name = dest.name
@@ -594,7 +632,28 @@ class PreCommitExecutedGateTests(unittest.TestCase):
     def test_real_finalize_own_commit_passes_via_installed_hook(self):
         """Not a row: this runs the REAL `LC.begin`+`LC.finalize` through an installed git hook, so
         its subject is the whole lifecycle rather than a staged situation the table can describe."""
-        p = self._write_plan("abc123", scope_paths="grandfathered")
+        p = RecordBuilder(self.root).plan(
+            id6="abc123",
+            scope_paths="grandfathered",
+            status="approved",
+            approval="2026-08-24, human: approved",
+            readiness="go-pending-approval",
+        )
+        text = p.read_text(encoding="utf-8")
+        text = (
+            text.replace("- [ ] E-01 ", "- [x] E-01 ", 1)
+            .replace(
+                "  - Execution state: pending", "  - Execution state: performed", 1
+            )
+            .replace("- [ ] V-01 validates E-01", "- [x] V-01 validates E-01", 1)
+            .replace(
+                "  - Observed evidence:\n",
+                "  - Observed evidence: done, verified.\n",
+                1,
+            )
+            .replace("  - Result: pending", "  - Result: pass", 1)
+        )
+        p.write_text(text, encoding="utf-8")
         _commit_all(self.root, "init")
         # Install the real hook and run begin+finalize; finalize's own commit must pass.
         hooks_dir = self.root / ".git" / "hooks"
@@ -634,7 +693,14 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
         self._git("config", "user.email", "t@e.com")
         self._git("config", "user.name", "T")
         (self.root / ".gitignore").write_text(".aw/state/\n", encoding="utf-8")
-        self._write_plan_at("pending", "abc123", status="approved")
+        RecordBuilder(self.root).plan(
+            id6="abc123",
+            scope_paths="grandfathered",
+            status="approved",
+            disposition="pending",
+            approval="2026-08-24, human: approved",
+            readiness="go-pending-approval",
+        )
         self._git("add", "-A")
         self._git("commit", "-q", "-m", "base")
         self.base_branch = self._out("rev-parse", "--abbrev-ref", "HEAD")
@@ -659,16 +725,6 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
     def _plan_name(self, id6: str) -> str:
         return f"20260824-demo-01-{id6}-demo.ipd.md"
 
-    def _write_plan_at(self, bucket: str, id6: str, status: str = "approved") -> Path:
-        d = self.root / ".aw" / "records" / "plans" / bucket
-        d.mkdir(parents=True, exist_ok=True)
-        p = d / self._plan_name(id6)
-        text = LT._completed_plan_text(plan_id=id6, scope_paths="grandfathered")
-        if status != "approved":
-            text = text.replace("- Status: approved", f"- Status: {status}")
-        p.write_text(text, encoding="utf-8")
-        return p
-
     def _make_lane(
         self,
         id6: str,
@@ -684,7 +740,14 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
             self.root / ".aw" / "records" / "plans" / "pending" / self._plan_name(id6)
         )
         if not pending.is_file():
-            self._write_plan_at("pending", id6, status="approved")
+            RecordBuilder(self.root).plan(
+                id6=id6,
+                scope_paths="grandfathered",
+                status="approved",
+                disposition="pending",
+                approval="2026-08-24, human: approved",
+                readiness="go-pending-approval",
+            )
             self._git("add", "-A")
             self._git("commit", "-q", "-m", f"add plan {id6}")
         dest_dir = self.root / ".aw" / "records" / "plans" / "executed"
@@ -694,18 +757,15 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
             f".aw/records/plans/pending/{self._plan_name(id6)}",
             f".aw/records/plans/executed/{self._plan_name(id6)}",
         )
-        dest = dest_dir / self._plan_name(id6)
-        text = dest.read_text(encoding="utf-8").replace(
-            "- Status: approved", "- Status: executed"
+        RecordBuilder(self.root).plan(
+            id6=id6,
+            scope_paths="grandfathered",
+            status="executed",
+            disposition="executed",
+            approval="2026-08-24, human: approved",
+            readiness="go-pending-approval",
+            raw_fields={"Id": None} if strip_id else None,
         )
-        if strip_id:
-            text = (
-                "\n".join(
-                    line for line in text.splitlines() if not line.startswith("- Id:")
-                )
-                + "\n"
-            )
-        dest.write_text(text, encoding="utf-8")
         self._git("add", "-A")
         subject = (
             FINALIZE_SUBJECT.format(id6=id6)
@@ -951,7 +1011,14 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
         self._begin_hand_merge(branch)
 
     def _merge_lane_with_foreign_finalize(self) -> None:
-        self._write_plan_at("pending", "other1", status="approved")
+        RecordBuilder(self.root).plan(
+            id6="other1",
+            scope_paths="grandfathered",
+            status="approved",
+            disposition="pending",
+            approval="2026-08-24, human: approved",
+            readiness="go-pending-approval",
+        )
         self._git("add", "-A")
         self._git("commit", "-q", "-m", "add other plan")
         self.base_branch = self._out("rev-parse", "--abbrev-ref", "HEAD")
@@ -975,19 +1042,13 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
         self._begin_hand_merge(branch)
 
     def _hand_edit_no_merge(self) -> None:
-        p = (
-            self.root
-            / ".aw"
-            / "records"
-            / "plans"
-            / "pending"
-            / self._plan_name("abc123")
-        )
-        p.write_text(
-            p.read_text(encoding="utf-8").replace(
-                "- Status: approved", "- Status: executed"
-            ),
-            encoding="utf-8",
+        RecordBuilder(self.root).plan(
+            id6="abc123",
+            scope_paths="grandfathered",
+            status="executed",
+            disposition="pending",
+            approval="2026-08-24, human: approved",
+            readiness="go-pending-approval",
         )
         self._git("add", "-A")
 
@@ -1138,7 +1199,14 @@ class MergeAwareInTreeEvidenceTests(unittest.TestCase):
         return branch
 
     def _prepare_octopus_lanes(self) -> list:
-        self._write_plan_at("pending", "other1", status="approved")
+        RecordBuilder(self.root).plan(
+            id6="other1",
+            scope_paths="grandfathered",
+            status="approved",
+            disposition="pending",
+            approval="2026-08-24, human: approved",
+            readiness="go-pending-approval",
+        )
         self._git("add", "-A")
         self._git("commit", "-q", "-m", "add other plan")
         self.base_branch = self._out("rev-parse", "--abbrev-ref", "HEAD")

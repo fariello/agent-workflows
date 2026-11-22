@@ -15,6 +15,7 @@ from agent_workflows import ipd_lifecycle as LC
 from agent_workflows import render_stream as rs_render
 from agent_workflows import runner_shared as rs
 from tests import support
+from tests.record_builder import RecordBuilder
 from tests.test_orchestrator_retirement import _init_git_repo, _write_conforming_plan
 
 
@@ -280,20 +281,24 @@ class FinalizeRefusalFindingsTests(unittest.TestCase):
                 ["git", "commit", "-m", "initial commit"], cwd=repo_dir, check=True
             )
 
-            child_path = _write_conforming_plan(
-                repo_dir,
-                "pending",
-                plan_id="chi003",
-                set_id="set003",
+            child_path = RecordBuilder(repo_dir).plan(
+                plan_role="child",
+                title="synthetic child",
+                author="tester",
+                when="2026-09-06",
+                set="set003",
                 order=1,
+                id6="chi003",
                 status="approved",
-                kind="child",
+                scope_paths="target.py",
+                item_dependencies="none",
+                priority="medium",
+                work_kind="chore",
+                approval="2026-09-06, human: approved",
+                readiness="go-pending-approval",
+                disposition="pending",
+                slug="synthetic",
             )
-            content = child_path.read_text(encoding="utf-8")
-            content = content.replace(
-                "- Scope-Paths: grandfathered", "- Scope-Paths: target.py"
-            )
-            child_path.write_text(content, encoding="utf-8")
 
             subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
             subprocess.run(
