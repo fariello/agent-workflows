@@ -5,8 +5,9 @@
 - Concern: Split from `2zpw22` (Order 36) in round 3 of the metastore re-split, per research `nj8zdp` guidance (at most 8 work Scope-Paths per plan): `2zpw22` declared 12 work Scope-Paths across three module families. Spec `4sd62s` C5a requires every record module to read metadata through the cache. Measured 2026-11-07 at `ac76110f4`: the review modules read front matter with their own patterns (`review_findings._META_RE`, `artifact_audit._STATUS_LINE_RE`), and `reviews` resolves review subjects by its own reads.
 - Scope: `2zpw22` E-01 (review findings, audit and review subject lookups), carried unchanged. EXCLUDES: the review sequence, tier, re-review and orchestrator readiness modules (`0i0zsg`, Order 150); the production-check, work and adoption modules (`awmsyq`, Order 154); the residual audit (kept in `2zpw22`); the `->reviewed` gate-only attestation rule (`2xwb9b`).
 - Scope-Paths: agent_workflows/review_findings.py, agent_workflows/artifact_audit.py, agent_workflows/reviews.py, tests/test_readers_review_modules.py, tests/test_artifact_audit_verdicts.py, .aw/records/plans/pending/20261109-metastore-149-y4spqy-move-the-review-findings-audit-and-reviews-module-reads-onto.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261121-qihi23-01-qihi23-artifact-meta-load-sources-does-not-project-op-rev.backlog.md (Defect report backlog item filed per driver turn defect-reporting contract for adjacent bug in artifact_meta._load_sources)
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,9 +19,9 @@
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: y4spqy
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-22 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: y4spqy verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261121-qihi23-01-qihi23-artifact-meta-load-sources-does-not-project-op-rev.backlog.md: Defect report backlog item filed per driver turn defect-reporting contract for adjacent bug in artifact_meta._load_sources; in-scope-unmodified tests/test_artifact_audit_verdicts.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
