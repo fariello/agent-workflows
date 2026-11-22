@@ -23,6 +23,7 @@ from unittest.mock import patch
 import pytest
 
 from agent_workflows import artifact_meta, cli, meta_cli
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -48,18 +49,24 @@ def _repo(tmp_path: Path) -> Path:
 
 def _write_legacy_plan(repo: Path, extra_line: str = "") -> Path:
     p = repo / ".aw" / "records" / "plans" / "pending" / PLAN_NAME
+    history = [
+        "- 2026-11-03 approved (aw set): tool-prepended newest line",
+        "- 2026-11-01 draft (author): author-appended oldest line",
+        "- 2026-11-02 to-review (author): appended out of date order",
+    ]
+    if extra_line:
+        history.append(extra_line)
     p.write_text(
-        "# IPD: Legacy plan\n\n"
-        f"- Id: {PLAN_ID}\n"
-        "- Status: approved\n"
-        "- Set: hxset\n"
-        "- Order: 1\n\n"
-        "## Workflow history\n"
-        "- 2026-11-03 approved (aw set): tool-prepended newest line\n"
-        "- 2026-11-01 draft (author): author-appended oldest line\n"
-        "- 2026-11-02 to-review (author): appended out of date order\n"
-        + (extra_line + "\n" if extra_line else "")
-        + "\n## Goal\n\nBody.\n",
+        RecordBuilder().plan(
+            id6=PLAN_ID,
+            title="Legacy plan",
+            status="approved",
+            set="hxset",
+            order=1,
+            history=history,
+            body="## Goal\n\nBody.\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return p
@@ -130,7 +137,12 @@ def _write_log_plan(repo: Path, *, shuffle: bool = False) -> Path:
     log = records / "meta" / f"{LOG_ID}.jsonl"
     log.write_text("".join(lines), encoding="utf-8")
     (records / "plans" / "pending" / LOG_NAME).write_text(
-        f"---\nid: {LOG_ID}\nstatus: to-review\n---\n# IPD: Log plan\n\nBody.\n",
+        RecordBuilder().research(
+            id6=LOG_ID,
+            body="# IPD: Log plan\n\nBody.\n",
+            raw_fields={"status": "to-review"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return log
@@ -236,8 +248,13 @@ def test_c_review_rounds_are_events_of_the_subject(tmp_path: Path) -> None:
     reviews = repo / ".aw" / "records" / "reviews"
     reviews.mkdir(parents=True)
     (reviews / f"20261106-hxset-01-{PLAN_ID}-legacy-plan.review.md").write_text(
-        f"# Review\n\n- Subject-Id: {PLAN_ID}\n- Verdict: APPROVE\n- Reviewer: r1\n\n"
-        "## Round 1\n\nFirst.\n\n## Round 2\n\nSecond.\n",
+        RecordBuilder().review(
+            subject=PLAN_ID,
+            verdict="APPROVE",
+            reviewer="r1",
+            rounds=[{"number": 1}, {"number": 2}],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     rc, out, _ = _run(repo, [PLAN_ID, "--history", "--format", "json"])
@@ -372,7 +389,7 @@ def test_record_still_shown_after_its_review_file_changes(tmp_path: Path) -> Non
     reviews.mkdir(parents=True)
     rv = reviews / f"20261106-hxset-01-{PLAN_ID}-legacy-plan.review.md"
     rv.write_text(
-        f"# Review\n\n- Subject-Id: {PLAN_ID}\n\n## Round 1\n", encoding="utf-8"
+        RecordBuilder().review(subject=PLAN_ID, text_only=True), encoding="utf-8"
     )
     assert _run(repo, [PLAN_ID, "--history"])[0] == 0
     rv.write_text(rv.read_text(encoding="utf-8") + "\n## Round 2\n", encoding="utf-8")

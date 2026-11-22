@@ -12,6 +12,7 @@ from pathlib import Path
 from agent_workflows import backlog as B
 from agent_workflows import plans as plans_mod
 from tests import support
+from tests.record_builder import RecordBuilder
 
 
 def _args(**kw):
@@ -137,11 +138,25 @@ class SectionExtractorTests(unittest.TestCase):
             pending = plans / "pending"
             pending.mkdir(parents=True, exist_ok=True)
             (pending / "20260101-0000-01-a.md").write_text(
-                "# IPD: a\n\n- Status: approved\n- Set: myset\n- Order: 2\n\n## Goal\n\nx\n",
+                RecordBuilder().plan(
+                    title="a",
+                    status="approved",
+                    set="myset",
+                    order=2,
+                    body="## Goal\n\nx",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             (pending / "20260101-0001-01-b.md").write_text(
-                "# IPD: b\n\n- Status: approved\n- Set: myset\n- Order: 1\n\n## Goal\n\nx\n",
+                RecordBuilder().plan(
+                    title="b",
+                    status="approved",
+                    set="myset",
+                    order=1,
+                    body="## Goal\n\nx",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             out = plans_mod.render_status_index(root, plans_mod.scan(root))

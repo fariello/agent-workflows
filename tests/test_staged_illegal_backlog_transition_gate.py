@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from agent_workflows import attention_contract, backlog, check_engine
+from tests.record_builder import RecordBuilder
 
 
 def _run(cmd: str, cwd: str | Path) -> str:
@@ -46,23 +47,40 @@ def _make_item(
     extra_body: str = "",
     omit_id: bool = False,
 ) -> str:
-    id_line = f"- Id: {id6}\n" if not omit_id else ""
-    gate_line = "- Gate-Kind: branch\n- Gate-Ref: main\n" if status == "blocked" else ""
-    hist = history or f"- 2026-10-01 {status} (aw backlog): initial\n"
-    return (
-        f"# {id6}: {summary}\n\n"
-        f"- Date: 2026-10-01\n"
-        f"- Status: {status}\n"
-        f"- Work-Kind: chore\n"
-        f"- Priority: low\n"
-        f"{id_line}"
-        f"- Set: testset\n"
-        f"{gate_line}"
-        f"\n## Workflow history\n"
-        f"{hist}\n"
-        f"## Details\n"
-        f"Standard item body content for testing.\n"
-        f"{extra_body}\n"
+    hist_lines = (
+        [ln for ln in history.splitlines() if ln.strip()]
+        if history is not None
+        else [f"- 2026-10-01 {status} (aw backlog): initial"]
+    )
+    extra_fields: dict[str, str] = {}
+    if status == "blocked":
+        extra_fields["gate_kind"] = "branch"
+        extra_fields["gate_ref"] = "main"
+    raw_fields: dict[str, str | None] = {}
+    eff_status = status
+    if status not in backlog.STATUSES:
+        eff_status = "open"
+        raw_fields["status"] = status
+    if omit_id:
+        raw_fields["id"] = None
+    body_text = "## Details\nStandard item body content for testing.\n"
+    if extra_body:
+        body_text += f"{extra_body}\n"
+    return str(
+        RecordBuilder().backlog(
+            id6=id6,
+            status=eff_status,
+            summary=summary,
+            priority="low",
+            work_kind="chore",
+            when="2026-10-01",
+            set="testset",
+            history=hist_lines,
+            body=body_text,
+            raw_fields=raw_fields or None,
+            text_only=True,
+            **extra_fields,
+        )
     )
 
 
