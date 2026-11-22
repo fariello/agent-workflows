@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 from agent_workflows import runner_shared
+from tests.record_builder import RecordBuilder
 
 
 def _repo(tmp_path: Path) -> Path:
@@ -19,7 +20,9 @@ def _repo(tmp_path: Path) -> Path:
     open_dir = tmp_path / ".aw" / "records" / "backlog" / "open"
     open_dir.mkdir(parents=True)
     (open_dir / "20261016-uypgvi-01-ufawpb-readiness-custom.backlog.md").write_text(
-        "# Backlog: x\n\n- Id: ufawpb\n- Status: open\n- Set: uypgvi\n",
+        RecordBuilder().backlog(
+            id6="ufawpb", status="open", set="uypgvi", text_only=True
+        ),
         encoding="utf-8",
     )
     return tmp_path

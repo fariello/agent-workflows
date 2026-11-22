@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import agent_schema, cli
+from tests.record_builder import RecordBuilder
 
 
 def make_fixture_plan(
@@ -25,28 +26,15 @@ def make_fixture_plan(
     child_orders: tuple[tuple[str, str, str], ...] = (),
     item_dependencies: str = "none",
 ) -> Path:
-    target_dir = repo / ".aw" / "records" / "plans" / dir_kind
-    target_dir.mkdir(parents=True, exist_ok=True)
-    filename = (
-        f"{date}-{setid}-{order:02d}-{id6}-{title.lower().replace(' ', '-')}.ipd.md"
+    when = (
+        f"{date[:4]}-{date[4:6]}-{date[6:8]}"
+        if len(date) == 8 and date.isdigit()
+        else date
     )
-    file_path = target_dir / filename
-
-    lines = [
-        f"# IPD: {title}",
-        "",
-        f"- Date: {date}",
-        f"- Kind: {kind}",
-        f"- Status: {status}",
-        f"- Item-Dependencies: {item_dependencies}",
-        f"- Set: {setid} ({setname})",
-        f"- Order: {order}",
-        f"- Id: {id6}",
-    ]
+    body_lines: list[str] = []
     if child_orders:
-        lines.extend(
+        body_lines.extend(
             [
-                "",
                 "## Child IPDs, sequence, and dependencies",
                 "",
                 "| Order | Id | Summary |",
@@ -54,11 +42,23 @@ def make_fixture_plan(
             ]
         )
         for ord_tok, cid, csum in child_orders:
-            lines.append(f"| {ord_tok} | {cid} | {csum} |")
-
-    lines.append("")
-    file_path.write_text("\n".join(lines))
-    return file_path
+            body_lines.append(f"| {ord_tok} | {cid} | {csum} |")
+    body = "\n".join(body_lines) if body_lines else ""
+    dest = RecordBuilder(repo).plan(
+        id6=id6,
+        plan_role=kind,
+        title=title,
+        when=when,
+        set=setid,
+        order=order,
+        status=status,
+        item_dependencies=item_dependencies,
+        disposition=dir_kind,
+        slug=title.lower().replace(" ", "-"),
+        body=body,
+    )
+    assert isinstance(dest, Path)
+    return dest
 
 
 @pytest.fixture
@@ -419,18 +419,18 @@ def test_filtered_out_child_and_setid_selection(
 
     # 2. Selecting Set B with full runnable members on disk
     # Make bchl03 approved so Set B can finish
-    bchl03_path = (
-        cohesion_repo
-        / ".aw"
-        / "records"
-        / "plans"
-        / "pending"
-        / "20261010-setb-03-bchl03-set-b-child-3.ipd.md"
+    make_fixture_plan(
+        cohesion_repo,
+        "pending",
+        "20261010",
+        "child",
+        "approved",
+        "setb",
+        "Set B",
+        3,
+        "bchl03",
+        "Set B Child 3",
     )
-    content = bchl03_path.read_text().replace(
-        "- Status: to-review", "- Status: approved"
-    )
-    bchl03_path.write_text(content)
 
     code_setid = cli.main(
         [
@@ -612,7 +612,9 @@ def test_backlog_and_specs_unaffected(
     bkl_dir = repo / ".aw" / "records" / "backlog" / "open"
     bkl_dir.mkdir(parents=True, exist_ok=True)
     (bkl_dir / "20261010-bkl001-01-bkl001-item.backlog.md").write_text(
-        "- Id: bkl001\n- Status: open\n- Work-Kind: bug\n"
+        RecordBuilder().backlog(
+            id6="bkl001", status="open", work_kind="bug", text_only=True
+        )
     )
 
     code_bkl = cli.main(

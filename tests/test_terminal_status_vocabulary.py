@@ -389,7 +389,7 @@ class TestExecutionSuccessStatesNarrowingAndBlastRadius(unittest.TestCase):
         gate. The assertion kept here is the one actually worth making (no pending plan cites a
         prerequisite that exists nowhere), now applied per target type.
         """
-        from agent_workflows import ipd_schema
+        from agent_workflows import artifact_meta, ipd_schema
 
         repo_root = Path(__file__).resolve().parent.parent
         plans_root = repo_root / ".aw" / "records" / "plans"
@@ -412,27 +412,29 @@ class TestExecutionSuccessStatesNarrowingAndBlastRadius(unittest.TestCase):
         stranded_prereqs = []
         for plan_file in pending_dir.glob("*.md"):
             content = plan_file.read_text(encoding="utf-8")
-            for line in content.splitlines():
-                if not line.startswith("- Item-Dependencies:"):
-                    continue
-                deps_str = line.split(":", 1)[1].strip()
-                edges, _ready, err = ipd_schema.parse_item_dependencies(deps_str)
-                # A malformed value is NOT this test's concern: `aw ipd lint` and the runner's
-                # dependency preflight both refuse it with a specific diagnostic, and duplicating
-                # that here would report the same defect twice under a misleading name.
-                if err or not edges:
-                    continue
-                for edge in edges:
-                    roots = search_roots.get(edge.target_type, [])
-                    found = any(
-                        any(root.rglob(f"*-{edge.id6}-*.md"))
-                        for root in roots
-                        if root.exists()
+            deps_val = artifact_meta.read_text(content, record_type="ipd").fields.get(
+                "item_dependencies"
+            )
+            if not deps_val:
+                continue
+            deps_str = str(deps_val).strip()
+            edges, _ready, err = ipd_schema.parse_item_dependencies(deps_str)
+            # A malformed value is NOT this test's concern: `aw ipd lint` and the runner's
+            # dependency preflight both refuse it with a specific diagnostic, and duplicating
+            # that here would report the same defect twice under a misleading name.
+            if err or not edges:
+                continue
+            for edge in edges:
+                roots = search_roots.get(edge.target_type, [])
+                found = any(
+                    any(root.rglob(f"*-{edge.id6}-*.md"))
+                    for root in roots
+                    if root.exists()
+                )
+                if not found:
+                    stranded_prereqs.append(
+                        (plan_file.name, edge.target_type, edge.id6)
                     )
-                    if not found:
-                        stranded_prereqs.append(
-                            (plan_file.name, edge.target_type, edge.id6)
-                        )
 
         self.assertEqual(
             stranded_prereqs,

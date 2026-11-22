@@ -25,6 +25,7 @@ from typing import List, Optional
 import pytest
 
 from agent_workflows import ipd_lint, plan_readiness
+from tests.record_builder import RecordBuilder
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -67,26 +68,27 @@ def check_corpus_partition(plans_dir: Path) -> List[str]:
     return violations
 
 
-_SYNTHETIC_PENDING_PLAN = """# IPD: sample (Set x, Order 1)
-
-- Date: 2026-08-03
-- Kind: child
-- Concern: sample.
-- Scope: sample.
-- Status: to-review
-- Work-Kind: chore
-- Priority: medium
-- Set: x
-- Order: 1
-- Highest E allocated: 01
-- Author: tester
-- Id: abc123
-
-## Workflow history
-
-- 2026-08-03 to-review (tester): created.
-
-## Goal
+_SYNTHETIC_PENDING_PLAN = RecordBuilder().plan(
+    title="sample (Set x, Order 1)",
+    when="2026-08-03",
+    plan_role="child",
+    status="to-review",
+    work_kind="chore",
+    priority="medium",
+    set="x",
+    order=1,
+    highest_e_allocated="01",
+    author="tester",
+    id6="abc123",
+    history=["- 2026-08-03 to-review (tester): created."],
+    open_questions=(
+        "### OQ-01: a question\n\n"
+        "- Blocking: no\n"
+        "- Status: open\n"
+        "- Owner: none\n"
+        "- Resolution or deferral rationale: n/a"
+    ),
+    body="""## Goal
 
 Sample goal.
 
@@ -131,13 +133,6 @@ Execution-state rule: mark performed only after doing it.
 
 ## Open questions
 
-### OQ-01: a question
-
-- Blocking: no
-- Status: open
-- Owner: none
-- Resolution or deferral rationale: n/a
-
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence separately.
@@ -152,8 +147,10 @@ Validation-state rule: inspect evidence separately.
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Gate prose.
-"""
+Gate prose.""",
+    raw_fields={"Concern": "sample.", "Scope": "sample."},
+    text_only=True,
+)
 
 
 def get_field_absent_pending_plan_fixture() -> tuple[str, str]:
@@ -311,29 +308,18 @@ def test_fallback_arm_forgery_shapes_and_surviving_fallback(
     expected: bool,
 ):
     """Pin the four forgery shapes as False and genuine review shapes as True under is_plan_review_approved."""
-    lines = [
-        "- Id: tst001",
-        "- Status: reviewed",
-    ]
-    if readiness_field:
-        lines.append(f"- Readiness: {readiness_field}")
-    lines.extend(
-        [
-            "# Test Plan",
-            "",
-            "## Workflow history",
-        ]
+    plan_text = RecordBuilder().plan(
+        id6="tst001",
+        title="Test Plan",
+        status="reviewed",
+        readiness=readiness_field,
+        history=history_records,
+        body="## Goal\n\nTest goal.",
+        text_only=True,
     )
-    lines.extend(history_records)
-    lines.extend(
-        [
-            "",
-            "## Goal",
-            "Test goal.",
-        ]
-    )
+    assert isinstance(plan_text, str)
     plan_file = tmp_path / "plan.ipd.md"
-    plan_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    plan_file.write_text(plan_text, encoding="utf-8")
     actual = plan_readiness.is_plan_review_approved(plan_file)
     assert actual is expected, f"Shape '{shape_name}' expected {expected}, got {actual}"
 
