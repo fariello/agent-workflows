@@ -94,6 +94,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-149-y4spqy-move-the-review-findings-audit-and-reviews-module-reads-onto.ipd.md
 - E-02, review-sequence and orchestration subset (`review_sequence`, `review_tier`, `review_rereview`, `orchestrator_readiness`). Moved to 0i0zsg (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 0i0zsg
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-150-0i0zsg-move-the-review-sequence-tier-rereview-and-orchestrator-read.ipd.md
 - E-02, production, work and adoption subset (`production_checks`, `work_cmd`, `artifact_adopt`). Moved to awmsyq (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: awmsyq
 - The WRITE half of `review_sequence.restore_pre_s7_plan`.
