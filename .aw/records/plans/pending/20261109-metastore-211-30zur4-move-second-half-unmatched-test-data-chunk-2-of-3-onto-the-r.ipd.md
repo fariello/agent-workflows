@@ -49,22 +49,22 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `59aiyh` E-09, batch subset G7b; round-3 split 2026-11-09) Batch G7b, 4 of its 22 modules (the unmatched test modules whose basename sorts at or after `test_l`): `tests/test_notify_telegram.py`, `tests/test_nv_backend_args_climb.py`, `tests/test_prose_dash_advisory.py`, `tests/test_receipt_lane_record.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_notify_telegram` 10, `test_nv_backend_args_climb` 18, `test_prose_dash_advisory` 11, `test_receipt_lane_record` 2. Run the codemod on these modules and apply the batch rule with `<batch>` = `G7b-30zur4-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 300, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_prose_dash_advisory.py`: `_make_ipd`, `_make_spec`, `_make_backlog`); a surviving helper is listed with its reason.
+- [x] E-01 (carried from `59aiyh` E-09, batch subset G7b; round-3 split 2026-11-09) Batch G7b, 4 of its 22 modules (the unmatched test modules whose basename sorts at or after `test_l`): `tests/test_notify_telegram.py`, `tests/test_nv_backend_args_climb.py`, `tests/test_prose_dash_advisory.py`, `tests/test_receipt_lane_record.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_notify_telegram` 10, `test_nv_backend_args_climb` 18, `test_prose_dash_advisory` 11, `test_receipt_lane_record` 2. Run the codemod on these modules and apply the batch rule with `<batch>` = `G7b-30zur4-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 300, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_prose_dash_advisory.py`: `_make_ipd`, `_make_spec`, `_make_backlog`); a surviving helper is listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G7b-30zur4-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 300) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `59aiyh` E-09, batch subset G7b; round-3 split 2026-11-09) Batch G7b, 3 of its 22 modules (the unmatched test modules whose basename sorts at or after `test_l`): `tests/test_repo_relative_posix.py`, `tests/test_rereview_reviewed_plan.py`, `tests/test_resolve_plan_path_typed.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_repo_relative_posix` 2, `test_rereview_reviewed_plan` 29, `test_resolve_plan_path_typed` 18. Run the codemod on these modules and apply the batch rule with `<batch>` = `G7b-30zur4-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 300, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_repo_relative_posix.py`: `_write_plan`; `tests/test_rereview_reviewed_plan.py`: `_write_plan`); a surviving helper is listed with its reason.
+- [x] E-02 (carried from `59aiyh` E-09, batch subset G7b; round-3 split 2026-11-09) Batch G7b, 3 of its 22 modules (the unmatched test modules whose basename sorts at or after `test_l`): `tests/test_repo_relative_posix.py`, `tests/test_rereview_reviewed_plan.py`, `tests/test_resolve_plan_path_typed.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_repo_relative_posix` 2, `test_rereview_reviewed_plan` 29, `test_resolve_plan_path_typed` 18. Run the codemod on these modules and apply the batch rule with `<batch>` = `G7b-30zur4-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 300, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_repo_relative_posix.py`: `_write_plan`; `tests/test_rereview_reviewed_plan.py`: `_write_plan`); a surviving helper is listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G7b-30zur4-2` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 300) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G7b-30zur4-1-files.txt .aw/state/59aiyh/G7b-30zur4-2-files.txt)`) into `.aw/state/59aiyh/30zur4-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit 30zur4 -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G7b-30zur4-1-files.txt .aw/state/59aiyh/G7b-30zur4-2-files.txt)`) into `.aw/state/59aiyh/30zur4-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit 30zur4 -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -155,20 +155,102 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `.aw/state/59aiyh/G7b-30zur4-1-files.txt` and the empty `diff .aw/state/59aiyh/G7b-30zur4-1-before.txt .aw/state/59aiyh/G7b-30zur4-1-after.txt`; then, for each of `tests/test_notify_telegram.py`, `tests/test_nv_backend_args_climb.py`, `tests/test_prose_dash_advisory.py`, `tests/test_receipt_lane_record.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G7b-30zur4-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G7b-30zur4-1-files.txt`:
+      - `tests/test_notify_telegram.py`
+      - `tests/test_nv_backend_args_climb.py`
+      - `tests/test_prose_dash_advisory.py`
+      - `tests/test_receipt_lane_record.py`
+    - Partition check at starting HEAD `982332ae478bc3d7e237252fa31849a51fe66509`: all 4 named modules matched F-01 before conversion.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G7b-30zur4-1-before.txt .aw/state/59aiyh/G7b-30zur4-1-after.txt`): empty output, exit code 0 (53 `PASSED` outcomes; re-verified in union on committed tree `84ef6ba41bdc58015c9b5a2834688c3d2050c141`).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_notify_telegram.py`:
+        - F-01 `rg -c`: before 10, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-30zur4-1-codemod.json`): `sites=5`, `rewrites=5` (`standard=5`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=62f1df0fc3215d7c5e60f5e965d8ce6490cb2da3c18cf6edbd259ad88b491ecd`, `after_hash=62f1df0fc3215d7c5e60f5e965d8ce6490cb2da3c18cf6edbd259ad88b491ecd`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7b | 30zur4 | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_nv_backend_args_climb.py`:
+        - F-01 `rg -c`: before 18, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-30zur4-1-codemod.json`): `sites=3`, `rewrites=3` (`standard=1`, `invalid-input=2`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=16b91433113ad6f9eda5544fdb123328d4428b4ba52d7c1d159c45d78e33cd10`, `after_hash=16b91433113ad6f9eda5544fdb123328d4428b4ba52d7c1d159c45d78e33cd10`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7b | 30zur4 | 3 | 3 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_prose_dash_advisory.py`:
+        - F-01 `rg -c`: before 11, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-30zur4-1-codemod.json`): `sites=4`, `rewrites=1` (`standard=0`, `invalid-input=1`), `refusals=3` (`unsupported-shape=3`, `hand=3`, `legacy-kept=0`), `before_hash=58945d771b125cf448b5724b0b6fbb4e25e6da7fc1a30411af2cc84c019e047d`, `after_hash=58945d771b125cf448b5724b0b6fbb4e25e6da7fc1a30411af2cc84c019e047d`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7b | 30zur4 | 4 | 1 | 1 | 0 | 3 | 0 | 0 | 0 | 0 | 0 | 3 | 0`.
+      - `tests/test_receipt_lane_record.py`:
+        - F-01 `rg -c`: before 2, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-30zur4-1-codemod.json`): `sites=2`, `rewrites=2` (`standard=2`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=4bcc9bd3eda18101605ad6895539bac6ef40ed10d3752f8a60bebc7ac3c13fd6`, `after_hash=4bcc9bd3eda18101605ad6895539bac6ef40ed10d3752f8a60bebc7ac3c13fd6`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7b | 30zur4 | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+    - Hand count: 3 (3 static + 0 apply-time `not-equivalent`; <= 300). Hand-converted sites (all in `tests/test_prose_dash_advisory.py`):
+      - `tests/test_prose_dash_advisory.py` lines 39-51 (`unsupported-shape`): replaced `_BACKLOG_TEMPLATE` in `_make_backlog` with `RecordBuilder().backlog(..., raw_fields={"status": f"open{meta_dash}"} if meta_dash else None, text_only=True)` (`invalid-input` when `meta_dash` is non-empty).
+      - `tests/test_prose_dash_advisory.py` line 298 (2 sites, `unsupported-shape`): replaced `dash_plan.replace("- Status: to-review", "- Status: executed")` in `TestRequiredInvariants.test_d_executed_plan_gets_no_c802` by passing `status="executed"` to `_make_ipd` (which delegates to `_conforming_child` / `RecordBuilder().plan`).
+    - Post-edit codemod dry-run over all 4 modules: all 4 modules at `sites=0` (`hand=0`, `legacy-kept=0`).
+    - Helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before (3 matches in `tests/test_prose_dash_advisory.py`): line 54 `def _make_ipd(body: str, meta_dash: str = "") -> str:`, line 61 `def _make_spec(body: str, meta_dash: str = "") -> str:`, line 65 `def _make_backlog(body: str, meta_dash: str = "") -> str:`.
+      - After (3 matches in `tests/test_prose_dash_advisory.py`): line 39 `def _make_ipd(body: str, meta_dash: str = "", *, status: str = "to-review") -> str:`, line 45 `def _make_spec(body: str, meta_dash: str = "") -> str:`, line 49 `def _make_backlog(body: str, meta_dash: str = "") -> str:`.
+      - Deleted helpers (0): none.
+      - Surviving helpers (3): `_make_ipd` (2 active callers; delegates to `_conforming_child` -> `RecordBuilder().plan`), `_make_spec` (5 active callers, including callable table entry in `test_b_no_error_added_proof_shape`; formats `_SPEC_TEMPLATE` built by `RecordBuilder().spec`), and `_make_backlog` (3 active callers, including callable table entry in `test_b_no_error_added_proof_shape`; delegates to `RecordBuilder().backlog`). None builds legacy text by hand.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `.aw/state/59aiyh/G7b-30zur4-2-files.txt` and the empty `diff .aw/state/59aiyh/G7b-30zur4-2-before.txt .aw/state/59aiyh/G7b-30zur4-2-after.txt`; then, for each of `tests/test_repo_relative_posix.py`, `tests/test_rereview_reviewed_plan.py`, `tests/test_resolve_plan_path_typed.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G7b-30zur4-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G7b-30zur4-2-files.txt`:
+      - `tests/test_repo_relative_posix.py`
+      - `tests/test_rereview_reviewed_plan.py`
+      - `tests/test_resolve_plan_path_typed.py`
+    - Partition check at starting HEAD `982332ae478bc3d7e237252fa31849a51fe66509`: all 3 named modules matched F-01 before conversion.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G7b-30zur4-2-before.txt .aw/state/59aiyh/G7b-30zur4-2-after.txt`): empty output, exit code 0 (44 `PASSED` outcomes; re-verified in union on committed tree `84ef6ba41bdc58015c9b5a2834688c3d2050c141`).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_repo_relative_posix.py`:
+        - F-01 `rg -c`: before 2, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-30zur4-2-codemod.json`): `sites=1`, `rewrites=1` (`standard=0`, `invalid-input=1`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=ecb15e47c35d7906a72d36e2157bfa8ec5e513e760ebcee32eb042e0e29f1525`, `after_hash=ecb15e47c35d7906a72d36e2157bfa8ec5e513e760ebcee32eb042e0e29f1525`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7b | 30zur4 | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_rereview_reviewed_plan.py`:
+        - F-01 `rg -c`: before 29, after 4. Remaining matches (4 lines, all `setter-byte assertion`, `legacy-kept` per codemod and F-30):
+          - `setter-byte assertion` (4 lines): `TestRereviewExecutionTurn.test_execute_item_core_rereview_demotes_and_turn_sees_to_review` (line 553 `self.assertIn("- Status: to-review", seen_plan_text["text"])`, line 554 `self.assertNotIn("- Approval:", seen_plan_text["text"])`); `TestRereviewExecutionTurn.test_execute_item_core_full_auto_skips_auto_approve` (line 669 `self.assertIn("- Status: reviewed", curr_plan.read_text(encoding="utf-8"))`, line 671 `"- Status: auto-approved", curr_plan.read_text(encoding="utf-8")`).
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-30zur4-2-codemod.json`): `sites=31`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=31` (`unsupported-shape=27`, `setter-byte assertion=4`, `hand=27`, `legacy-kept=4`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`, `changed=false`.
+        - `653ndz` F-30 row: `G7b | 30zur4 | 31 | 0 | 0 | 0 | 27 | 0 | 0 | 0 | 4 | 0 | 27 | 4`.
+      - `tests/test_resolve_plan_path_typed.py`:
+        - F-01 `rg -c`: before 18, after 4. Remaining matches (4 lines, all `body prose` in docstring and inline comment, 0 AST sites):
+          - `body prose` (4 lines): module docstring lines 4, 12, and 14 mentioning `- Id:`; line 296 comment `# Legacy slot-only: no "- Id:", id6 in filename slot` inside `ResolvePlanPathTypedTests.test_09_guard_legacy_slot_only_plan_found_by_glob`.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-30zur4-2-codemod.json`): `sites=14`, `rewrites=2` (`standard=2`, `invalid-input=0`), `refusals=12` (`unsupported-shape=11`, `not-equivalent=1`, `hand=12`, `legacy-kept=0`), `before_hash=698cefc7d0cb4517054e0f04db76319b229a27d9188b3ef46b70d9e7d4341b86`, `after_hash=698cefc7d0cb4517054e0f04db76319b229a27d9188b3ef46b70d9e7d4341b86`, `equivalent=true`, `pytest_runs=6`, `changed=true`.
+        - `653ndz` F-30 row: `G7b | 30zur4 | 14 | 3 | 0 | 0 | 11 | 0 | 0 | 0 | 0 | 0 | 11 | 0`.
+    - Hand count: 39 (38 static + 1 apply-time `not-equivalent`; <= 300). Hand-converted sites:
+      - `tests/test_rereview_reviewed_plan.py` (27 sites, all `unsupported-shape`):
+        - Lines 64, 65, 66, 67, 68, 69, 72, 73, 74, 79, 81, 82, 84 (13 sites inside `_write_plan`): replaced hand-built `lines = [...]` header and history with `RecordBuilder(repo).plan(...)`.
+        - Lines 517 (2 sites), 518, 520, 521, 524, 525 (7 sites inside `TestRereviewExecutionTurn.test_execute_item_core_rereview_demotes_and_turn_sees_to_review.fake_run`): replaced string `.replace(...)` status/readiness/history edits with `artifact_meta.append` (`review` + `transition` events).
+        - Lines 617 (2 sites), 618, 620, 621, 624, 625 (7 sites inside `TestRereviewExecutionTurn.test_execute_item_core_full_auto_skips_auto_approve.fake_review_run`): replaced string `.replace(...)` status/readiness/history edits with `artifact_meta.append` (`review` + `transition` events).
+      - `tests/test_resolve_plan_path_typed.py` (12 sites: 11 `unsupported-shape`, 1 `not-equivalent`):
+        - Line 98 (`unsupported-shape`): `test_03_configured_agents_md_raises_outside_plans_trees` `AGENTS.md` text converted to `RecordBuilder().plan(..., text_only=True)`.
+        - Line 112 (`unsupported-shape`): `test_04_id6_only_in_another_plan_slug_raises_cannot_locate` converted to `RecordBuilder().plan(..., status="draft", raw_fields={"status": "pending"}, text_only=True)` (`invalid-input`).
+        - Line 126 (`unsupported-shape`): `test_05a_guard_worktree_and_baseline_copies_do_not_ambiguate_real_plan` converted to `RecordBuilder().plan(..., text_only=True)`.
+        - Line 156 (`unsupported-shape`): `test_05b_worktree_and_baseline_copies_without_real_plan_raises_cannot_locate` converted to `RecordBuilder().plan(..., text_only=True)`.
+        - Lines 192, 196 (`unsupported-shape`): `test_06_two_plans_mentioning_id6_mid_slug_do_not_produce_ambiguous` converted to `RecordBuilder().plan(..., text_only=True)`.
+        - Line 216 (`unsupported-shape`): `test_07_guard_pending_plan_resolves_and_after_move_to_executed_still_resolves` converted to `RecordBuilder().plan(..., text_only=True)`.
+        - Line 250 (`not-equivalent`): `test_09_guard_legacy_slot_only_plan_found_by_glob` converted to `RecordBuilder().plan(..., raw_fields={"id": None}, text_only=True)` (`invalid-input`, omitting `- Id:` so the filename-slot fallback matches `leg123`).
+        - Lines 269, 313, 357 (`unsupported-shape`): `test_10a`, `test_10b`, `test_10c` spec files converted to `RecordBuilder().spec(..., text_only=True)`.
+        - Line 364 (`unsupported-shape`): `test_10c` plan file converted to `RecordBuilder().plan(..., text_only=True)`.
+    - Post-edit codemod dry-run over all 3 modules: `tests/test_repo_relative_posix.py` and `tests/test_resolve_plan_path_typed.py` at `sites=0`; `tests/test_rereview_reviewed_plan.py` at `sites=4` (`hand=0`, `legacy-kept=4`, all `setter-byte assertion`).
+    - Helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before (2 matches): `tests/test_repo_relative_posix.py` line 594 `def _write_plan(self, root: Path, text: str, name: str) -> Path:`; `tests/test_rereview_reviewed_plan.py` line 45 `def _write_plan(`.
+      - After (2 matches): `tests/test_repo_relative_posix.py` line 598 `def _write_plan(self, root: Path, text: str, name: str) -> Path:`; `tests/test_rereview_reviewed_plan.py` line 47 `def _write_plan(`.
+      - Deleted helpers (0): none.
+      - Surviving helpers (2): `tests/test_repo_relative_posix.py::IpdLifecycleOutOfRootPlanRefusalTests._write_plan` (2 active callers in `setUp`; writes `support.ready_plan_text(...)` output to disk and builds no legacy strings) and `tests/test_rereview_reviewed_plan.py::_write_plan` (10 active callers across `TestRereviewQueueBuilder` and `TestRereviewExecutionTurn`; delegates record creation to `RecordBuilder(repo).plan(...)` and stages/commits the plan in the fixture git repo).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G7b-30zur4-1`, `G7b-30zur4-2` against `.aw/state/59aiyh/30zur4-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit 30zur4` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union comparison (`diff -u .aw/state/59aiyh/30zur4-union-before.txt .aw/state/59aiyh/30zur4-union-after.txt`): empty output, exit code 0 (97 `PASSED` outcomes = 53 + 44 across all 7 modules; re-verified on committed tree `84ef6ba41bdc58015c9b5a2834688c3d2050c141`).
+    - Core gate (`aw suite`, running bare `python3 -m pytest` with 6 xdist workers): `2739 passed, 1 skipped, 11 warnings in 122.67s (0:02:02)`, exit code 0.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7084,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit 30zur4` outputs (every committed path strictly inside Scope-Paths; never pushed):
+      - E-01: `aw commit: committed 4 path(s): 576655700b3d8e186e3e8b1a8dca13edda5fc45b` (`tests/test_notify_telegram.py`, `tests/test_nv_backend_args_climb.py`, `tests/test_prose_dash_advisory.py`, `tests/test_receipt_lane_record.py`).
+      - E-02: `aw commit: committed 3 path(s): 84ef6ba41bdc58015c9b5a2834688c3d2050c141` (`tests/test_repo_relative_posix.py`, `tests/test_rereview_reviewed_plan.py`, `tests/test_resolve_plan_path_typed.py`).
+      - Plan evidence: committed via `aw commit 30zur4 -- .aw/records/plans/pending/20261109-metastore-211-30zur4-move-second-half-unmatched-test-data-chunk-2-of-3-onto-the-r.ipd.md`.
+  - Result: pass
 
 ## Approval and execution gate
 
