@@ -13,8 +13,10 @@ import re
 import unittest
 import pytest
 
+from agent_workflows import artifact_meta as meta
 from agent_workflows import ipd_lint as lint
 from agent_workflows import runner_shared as rs
+from tests.record_builder import RecordBuilder
 from tests.support import REPO_ROOT
 
 EXPECTED_PAYLOAD_KEYS = frozenset({"child_table_rows", "e_items", "prose_sections"})
@@ -25,96 +27,106 @@ KEY_HEADINGS = {
     "prose_sections": "### Unattached prose sections",
 }
 
-SYNTHETIC_ORCHESTRATOR = """# Synthetic Test Orchestrator
 
-- Concern: testing probe payload invariants
-- Scope: tests
-- Scope-Paths: tests/test_orchestrator_probe_payload.py
-- Item-Dependencies: none
-- Status: approved
-- Readiness: go-pending-approval
-- Work-Kind: followup
-- Priority: medium
-- From-Backlog: rmcqw8
-- Set: probeprose
-- Order: 1
-- Highest E allocated: 01
-- Author: test
-- Id: syn001
-- Kind: orchestrator
+def _append_workflow_history(text: str) -> str:
+    return meta.render_legacy_text(
+        text,
+        [{"op": "note", "message": "appended history line"}],
+        record_type="ipd",
+        render=meta.LegacyRender(
+            tag="note", day="2026-09-28", actor_label="test", history=True
+        ),
+    )
 
-## Workflow history
-- 2026-09-28 approved: test
 
-## Goal
-A test orchestrator for synthetic invariant verification.
+SYNTHETIC_ORCHESTRATOR = str(
+    RecordBuilder().plan(
+        title="Synthetic Test Orchestrator",
+        when="2026-09-28",
+        plan_role="orchestrator",
+        scope_paths="tests/test_orchestrator_probe_payload.py",
+        item_dependencies="none",
+        status="approved",
+        readiness="go-pending-approval",
+        work_kind="followup",
+        priority="medium",
+        from_backlog="rmcqw8",
+        set="probeprose",
+        order=1,
+        highest_e_allocated="01",
+        author="test",
+        id6="syn001",
+        history=["- 2026-09-28 approved: test"],
+        raw_fields={
+            "Concern": "testing probe payload invariants",
+            "Scope": "tests",
+        },
+        body=(
+            "## Goal\n"
+            "A test orchestrator for synthetic invariant verification.\n\n"
+            "## Cross-IPD validation\n"
+            "- Verify cross-IPD obligations.\n\n"
+            "## Child IPDs, sequence, and dependencies\n\n"
+            "| Order | Set | Id | Kind | Description | Status | Gate-Kind | Gate-Ref |\n"
+            "|---|---|---|---|---|---|---|---|\n"
+            "| 01 | syn | syn002 | standard | child 1 | executed | none | none |\n\n"
+            "## Detailed Implementation Checklist (TODO)\n\n"
+            "- [ ] E-01 Execute first task\n"
+            "  - Depends on: none\n"
+            "  - Expected outcome: done\n"
+            "  - Observed evidence:\n"
+            "  - Execution state: pending\n"
+            "  - Result: pending\n\n"
+            "## Open questions\n"
+            "- None.\n\n"
+            "## Deferred / out of scope (with reason)\n"
+            "- None."
+        ),
+        text_only=True,
+    )
+)
 
-## Cross-IPD validation
-- Verify cross-IPD obligations.
-
-## Child IPDs, sequence, and dependencies
-
-| Order | Set | Id | Kind | Description | Status | Gate-Kind | Gate-Ref |
-|---|---|---|---|---|---|---|---|
-| 01 | syn | syn002 | standard | child 1 | executed | none | none |
-
-## Detailed Implementation Checklist (TODO)
-
-- [ ] E-01 Execute first task
-  - Depends on: none
-  - Expected outcome: done
-  - Observed evidence:
-  - Execution state: pending
-  - Result: pending
-
-## Open questions
-- None.
-
-## Deferred / out of scope (with reason)
-- None.
-"""
-
-SYNTHETIC_ORCHESTRATOR_RESIDUAL_GAP = """# Synthetic Test Orchestrator Residual Gap
-
-- Concern: testing residual indented line gap
-- Scope: tests
-- Scope-Paths: tests/test_orchestrator_probe_payload.py
-- Item-Dependencies: none
-- Status: approved
-- Readiness: go-pending-approval
-- Work-Kind: followup
-- Priority: medium
-- From-Backlog: rmcqw8
-- Set: probeprose
-- Order: 1
-- Highest E allocated: 01
-- Author: test
-- Id: syn002
-- Kind: orchestrator
-
-## Workflow history
-- 2026-09-28 approved: test
-
-## Goal
-Test orchestrator for indented line gap pin.
-
-## Cross-IPD validation
-- Line outside item:
-  - Subfield: value
-    INDENTED LINE SITTING AFTER SUBFIELD: MUST BE FLAGGED (parent-only work no child covers)
-
-## Child IPDs, sequence, and dependencies
-
-| Order | Set | Id | Kind | Description | Status | Gate-Kind | Gate-Ref |
-|---|---|---|---|---|---|---|---|
-| 01 | syn | syn003 | standard | child 1 | executed | none | none |
-
-## Detailed Implementation Checklist (TODO)
-
-- [ ] E-01 Simple task
-  - Depends on: none
-  - Execution state: pending
-"""
+SYNTHETIC_ORCHESTRATOR_RESIDUAL_GAP = str(
+    RecordBuilder().plan(
+        title="Synthetic Test Orchestrator Residual Gap",
+        when="2026-09-28",
+        plan_role="orchestrator",
+        scope_paths="tests/test_orchestrator_probe_payload.py",
+        item_dependencies="none",
+        status="approved",
+        readiness="go-pending-approval",
+        work_kind="followup",
+        priority="medium",
+        from_backlog="rmcqw8",
+        set="probeprose",
+        order=1,
+        highest_e_allocated="01",
+        author="test",
+        id6="syn002",
+        history=["- 2026-09-28 approved: test"],
+        raw_fields={
+            "Concern": "testing residual indented line gap",
+            "Scope": "tests",
+        },
+        body=(
+            "## Goal\n"
+            "Test orchestrator for indented line gap pin.\n\n"
+            "## Cross-IPD validation\n"
+            "- Line outside item:\n"
+            "  - Subfield: value\n"
+            "    INDENTED LINE SITTING AFTER SUBFIELD: MUST BE FLAGGED (parent-only work no child covers)\n\n"
+            "## Child IPDs, sequence, and dependencies\n\n"
+            "| Order | Set | Id | Kind | Description | Status | Gate-Kind | Gate-Ref |\n"
+            "|---|---|---|---|---|---|---|---|\n"
+            "| 01 | syn | syn003 | standard | child 1 | executed | none | none |\n\n"
+            "## Detailed Implementation Checklist (TODO)\n\n"
+            "- [ ] E-01 Simple task\n"
+            "  - Depends on: none\n"
+            "  - Execution state: pending"
+        ),
+        text_only=True,
+    )
+)
 
 
 def _get_corpus_orchestrators() -> list[tuple[str, str]]:
@@ -155,12 +167,7 @@ class TestProbePayloadDefaultSuite(unittest.TestCase):
             mutated,
             flags=re.MULTILINE,
         )
-        mutated = re.sub(
-            r"(?m)^## Workflow history\s*$",
-            "## Workflow history\n- 2026-09-28 appended history line",
-            mutated,
-            count=1,
-        )
+        mutated = _append_workflow_history(mutated)
         mutated = re.sub(
             r"- Execution state:\s*pending", "- Execution state: performed", mutated
         )
@@ -244,48 +251,49 @@ class TestProbePayloadDefaultSuite(unittest.TestCase):
 
     def test_wrapped_completion_criteria_bullet_keeps_owner_continuation(self):
         """Wrapped 2-line and 3-line bullets in allowlisted sections join and keep OWNER continuation."""
-        doc_wrapped = """# Synthetic Test Orchestrator
-- Concern: testing wrapped prose bullet continuations
-- Scope: tests
-- Scope-Paths: tests/test_orchestrator_probe_payload.py
-- Item-Dependencies: none
-- Status: approved
-- Readiness: go-pending-approval
-- Work-Kind: followup
-- Priority: medium
-- From-Backlog: go6vzi
-- Set: probeprose
-- Order: 1
-- Highest E allocated: 01
-- Author: test
-- Id: syn001
-- Kind: orchestrator
-
-## Workflow history
-- 2026-10-14 approved: test
-
-## Goal
-A test orchestrator for wrapped completion criteria bullets.
-
-## Completion criteria (the whole Set is done only when)
-- First criterion wrapping onto second line
-  OWNER: syn002 (executed).
-- Second criterion wrapping onto three lines
-  with intermediate continuation
-  OWNER: syn002 (executed).
-
-## Child IPDs, sequence, and dependencies
-
-| Order | Set | Id | Kind | Description | Status | Gate-Kind | Gate-Ref |
-|---|---|---|---|---|---|---|---|
-| 01 | syn | syn002 | standard | child 1 | executed | none | none |
-
-## Detailed Implementation Checklist (TODO)
-
-- [ ] E-01 Simple task
-  - Depends on: none
-  - Execution state: pending
-"""
+        doc_wrapped = str(
+            RecordBuilder().plan(
+                title="Synthetic Test Orchestrator",
+                when="2026-10-14",
+                plan_role="orchestrator",
+                scope_paths="tests/test_orchestrator_probe_payload.py",
+                item_dependencies="none",
+                status="approved",
+                readiness="go-pending-approval",
+                work_kind="followup",
+                priority="medium",
+                from_backlog="go6vzi",
+                set="probeprose",
+                order=1,
+                highest_e_allocated="01",
+                author="test",
+                id6="syn001",
+                history=["- 2026-10-14 approved: test"],
+                raw_fields={
+                    "Concern": "testing wrapped prose bullet continuations",
+                    "Scope": "tests",
+                },
+                body=(
+                    "## Goal\n"
+                    "A test orchestrator for wrapped completion criteria bullets.\n\n"
+                    "## Completion criteria (the whole Set is done only when)\n"
+                    "- First criterion wrapping onto second line\n"
+                    "  OWNER: syn002 (executed).\n"
+                    "- Second criterion wrapping onto three lines\n"
+                    "  with intermediate continuation\n"
+                    "  OWNER: syn002 (executed).\n\n"
+                    "## Child IPDs, sequence, and dependencies\n\n"
+                    "| Order | Set | Id | Kind | Description | Status | Gate-Kind | Gate-Ref |\n"
+                    "|---|---|---|---|---|---|---|---|\n"
+                    "| 01 | syn | syn002 | standard | child 1 | executed | none | none |\n\n"
+                    "## Detailed Implementation Checklist (TODO)\n\n"
+                    "- [ ] E-01 Simple task\n"
+                    "  - Depends on: none\n"
+                    "  - Execution state: pending"
+                ),
+                text_only=True,
+            )
+        )
         doc_unwrapped = doc_wrapped.replace(
             "- First criterion wrapping onto second line\n  OWNER: syn002 (executed).",
             "- First criterion wrapping onto second line OWNER: syn002 (executed).",
@@ -343,48 +351,48 @@ A test orchestrator for wrapped completion criteria bullets.
 
     def test_e_leaf_indented_continuation_still_excluded_from_unattached_prose(self):
         """E-* leaf continuations, subfield continuations, and indented lines after blank lines are excluded from prose."""
-        doc = """# Synthetic Test Orchestrator
-- Concern: testing leaf continuation exclusion
-- Scope: tests
-- Scope-Paths: tests/test_orchestrator_probe_payload.py
-- Item-Dependencies: none
-- Status: approved
-- Readiness: go-pending-approval
-- Work-Kind: followup
-- Priority: medium
-- From-Backlog: go6vzi
-- Set: probeprose
-- Order: 1
-- Highest E allocated: 01
-- Author: test
-- Id: syn001
-- Kind: orchestrator
-
-## Workflow history
-- 2026-10-14 approved: test
-
-## Goal
-A test orchestrator for exclusion checks.
-
-## Child IPDs, sequence, and dependencies
-
-| Order | Set | Id | Kind | Description | Status | Gate-Kind | Gate-Ref |
-|---|---|---|---|---|---|---|---|
-| 01 | syn | syn002 | standard | child 1 | executed | none | none |
-
-## Detailed Implementation Checklist (TODO)
-
-An unattached prose section opening paragraph
-  with an indented continuation line that should be kept.
-
-- [ ] E-01 Execute first task with
-  a two-space continuation line for leaf action.
-  - Depends on: none
-  - Expected outcome: done with
-    subfield continuation line that must be excluded
-
-  Indented line after blank line that must not attach
-"""
+        doc = str(
+            RecordBuilder().plan(
+                title="Synthetic Test Orchestrator",
+                when="2026-10-14",
+                plan_role="orchestrator",
+                scope_paths="tests/test_orchestrator_probe_payload.py",
+                item_dependencies="none",
+                status="approved",
+                readiness="go-pending-approval",
+                work_kind="followup",
+                priority="medium",
+                from_backlog="go6vzi",
+                set="probeprose",
+                order=1,
+                highest_e_allocated="01",
+                author="test",
+                id6="syn001",
+                history=["- 2026-10-14 approved: test"],
+                raw_fields={
+                    "Concern": "testing leaf continuation exclusion",
+                    "Scope": "tests",
+                },
+                body=(
+                    "## Goal\n"
+                    "A test orchestrator for exclusion checks.\n\n"
+                    "## Child IPDs, sequence, and dependencies\n\n"
+                    "| Order | Set | Id | Kind | Description | Status | Gate-Kind | Gate-Ref |\n"
+                    "|---|---|---|---|---|---|---|---|\n"
+                    "| 01 | syn | syn002 | standard | child 1 | executed | none | none |\n\n"
+                    "## Detailed Implementation Checklist (TODO)\n\n"
+                    "An unattached prose section opening paragraph\n"
+                    "  with an indented continuation line that should be kept.\n\n"
+                    "- [ ] E-01 Execute first task with\n"
+                    "  a two-space continuation line for leaf action.\n"
+                    "  - Depends on: none\n"
+                    "  - Expected outcome: done with\n"
+                    "    subfield continuation line that must be excluded\n\n"
+                    "  Indented line after blank line that must not attach"
+                ),
+                text_only=True,
+            )
+        )
         leaf_cont = "a two-space continuation line for leaf action."
         subfield_cont = "subfield continuation line that must be excluded"
         blank_cont = "Indented line after blank line that must not attach"
@@ -456,12 +464,7 @@ class TestProbePayloadLiveCorpus(unittest.TestCase):
             d0 = rs.probe_cache_digest(t)
             if re.search(r"(?m)^## Workflow history\s*$", t):
                 a3_app += 1
-                t3 = re.sub(
-                    r"(?m)^## Workflow history\s*$",
-                    "## Workflow history\n- 2026-09-28 appended history line",
-                    t,
-                    count=1,
-                )
+                t3 = _append_workflow_history(t)
                 if rs.probe_cache_digest(t3) != d0:
                     a3_moved += 1
 
@@ -499,12 +502,7 @@ class TestProbePayloadLiveCorpus(unittest.TestCase):
                 t6,
                 flags=re.MULTILINE,
             )
-            t6 = re.sub(
-                r"(?m)^## Workflow history\s*$",
-                "## Workflow history\n- 2026-09-28 appended history line",
-                t6,
-                count=1,
-            )
+            t6 = _append_workflow_history(t6)
             t6 = re.sub(
                 r"- Execution state:\s*pending", "- Execution state: performed", t6
             )
