@@ -6,7 +6,9 @@
 - Scope: IN: (1) define `_LEGACY_AGENTS_NON_RECORD_DIRS` in `agent_workflows/attention.py` containing the six framework-owned non-record top-level `.agents/` directories (`workflows`, `skills`, `agent-workflows`, `inbox`, `runs`, `state`), and update `agent_workflows/attention.py::scan` so shallow tree discovery skips entries in `_LEGACY_AGENTS_NON_RECORD_DIRS` only when `records_dir` fell back to `repo_root / ".agents"`; and (2) add behavioral regression tests in `tests/test_attention_blind_spot.py` verifying legacy `.agents/` fallback acceptance of those six directories (including `aw att` and `aw attention --check` via `agent_workflows/cli.py::main`), continued detection of unknown directories under `.agents/`, continued detection of those directory names under modern `.aw/records/`, and clean scans on modern installs carrying `.agents/skills/` before `.aw/records/` exists. OUT: adding non-record system or runtime directories to `agent_workflows/attention_contract.py::TREE_POLICY`, changing `agent_workflows/artifact_core.py::SCAN_ROOTS` or `agent_workflows/artifact_core.py::DEFAULT_IGNORED_DIR_NAMES`, or deduplicating `agent_workflows/migrations/chain.py::_AGENTS_NON_RECORD_TOP_DIRS` and `agent_workflows/migrations/m0001_discover.py::AGENTS_NON_RECORD_TOP_DIRS`.
 - Scope-Paths: agent_workflows/attention.py, tests/test_attention_blind_spot.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - Short-Description: Skip .agents/workflows and sibling legacy non-record directories when attention.py falls back to .agents/
 - Work-Kind: bug
 - Priority: high
@@ -22,6 +24,8 @@
 
 ## Workflow history
 
+- 2026-11-22 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-002 FIXED
+- 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002
 - 2026-11-21 to-review (aw set): Authored review-ready child plan graduated from backlog dswbr8
 - 2026-11-21 draft (antigravity/gemini-4-neon-high): created.
 
@@ -47,7 +51,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### Task group 2: Add behavioral regression tests and validate repository gates
 
 - [ ] E-02 In `tests/test_attention_blind_spot.py`, add behavioral tests (using zero `inspect`, `ast`, or source-regex checks against production code) exercising `agent_workflows/attention.py::scan`, `agent_workflows/attention.py::render_json`, and the Command-Line Interface (CLI) entry point `agent_workflows/cli.py::main`:
-  1. Legacy 1.2.1 layout test: build a temporary repository with `.agents/workflows/` (containing `VERSION` and `index.md`), `.agents/skills/aw/SKILL.md`, `.agents/agent-workflows/managed-sections.json`, `.agents/inbox/`, `.agents/runs/`, `.agents/state/`, `.agents/plans/pending/`, and `.agents/docs/specs/` (and no `.aw/records/`); assert `att.scan(repo)` yields zero `attention.uninventoried-tree` findings, `json.loads(att.render_json(items, drift))["valid"] is True`, and `cli.main(["att", "--dir", str(repo)])` and `cli.main(["attention", "--check", "--dir", str(repo)])` both exit `0`.
+  1. Legacy 1.2.1 layout test: build a temporary repository with `.agents/workflows/` (containing `VERSION` and `index.md`), `.agents/skills/aw/SKILL.md`, `.agents/agent-workflows/managed-sections.json`, `.agents/inbox/`, `.agents/runs/`, `.agents/state/`, `.agents/plans/pending/`, and `.agents/docs/specs/` (and no `.aw/records/`); assert `att.scan(repo)` yields zero `attention.uninventoried-tree` findings, `json.loads(att.render_json(items, drift))["valid"] is True`, and (with stdout/stderr captured via `contextlib.redirect_stdout` / `redirect_stderr`) both `cli.main(["att", "--dir", str(repo)])` and `cli.main(["attention", "--check", "--dir", str(repo)])` exit `0` with `VIEW INVALID` absent from `aw att` output.
   2. Legacy co-existence test: add an unrecognized `.agents/newtype/x.md` directory alongside `.agents/workflows/index.md`; assert `att.scan(repo)` emits exactly one `attention.uninventoried-tree` finding at `.agents/newtype` with `valid` equal to `False` and zero findings for `.agents/workflows`.
   3. Modern `.aw/records/` non-regression test: build a temporary repository with `.aw/records/workflows/`, `.aw/records/skills/`, `.aw/records/agent-workflows/`, `.aw/records/inbox/`, `.aw/records/state/`, and `.aw/records/runs/`; assert `att.scan(repo)` emits `attention.uninventoried-tree` for each of the first five paths (`valid` equal to `False`) while `.aw/records/runs` stays ignored.
   4. Modern pre-records install test: build a temporary repository with `.aw/system/VERSION` and `.agents/skills/aw/SKILL.md` and no `.aw/records/`; assert `att.scan(repo)` yields zero `attention.uninventoried-tree` findings and `valid` equal to `True`.
@@ -145,7 +149,7 @@ N/A with reason: this bug fix aligns `agent_workflows/attention.py::scan` legacy
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition; as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
   - Required evidence: paste `git diff -- agent_workflows/attention.py` showing `_LEGACY_AGENTS_NON_RECORD_DIRS`, `using_legacy_agents_fallback`, and the skip check inside `scan`, confirm `git diff -- agent_workflows/attention_contract.py` is empty, and paste the passing `tests/test_attention_blind_spot.py` output from `E-02`.
@@ -171,6 +175,6 @@ SCOPE FENCE. `- Scope-Paths:` declares `agent_workflows/attention.py` and `tests
 
 HONESTY. Every `V-*` evidence block must paste the actual observed output from commands run after the final edit; never claim success you did not run.
 
-COMMIT. Commit only files changed for this plan through `aw commit epsj2v -- agent_workflows/attention.py tests/test_attention_blind_spot.py`; verify `git diff --cached --name-only` contains only your paths; never use `git add -A`, a bare `git add`, or `git commit -a`; never push without an explicit human request.
+COMMIT. Other agents or humans may work concurrently in a shared checkout; never alter, revert, stage, or commit unrelated changes you did not create. Commit only files changed for this plan through `aw commit epsj2v -- agent_workflows/attention.py tests/test_attention_blind_spot.py`; verify `git diff --cached --name-only` contains only your paths; never use `git add -A`, a bare `git add`, or `git commit -a`; never push without an explicit human request.
 
 POST-GATE LIFECYCLE. Once every `E-*` item has `Execution state: performed`, every `V-*` item has `Result: pass`, and `aw ipd lint --phase pre-transition` reports `conforming`, move the plan to `.aw/records/plans/executed/` through `aw ipd finalize epsj2v --actor <agent/model> --message "<summary>" --apply` (when executed by `aw oc run` or `aw agy run`, the runner owns finalization; a standalone executor runs `aw ipd finalize epsj2v`). Never `git mv` the plan by hand. This plan inherits `- Blocks-Release: next` from backlog `dswbr8`, so closing `dswbr8` as `done` after execution follows the executed-carrier HANDOFF path.
