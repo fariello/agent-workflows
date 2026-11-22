@@ -845,48 +845,77 @@ def _prefix_filter(candidates: List[str], prefix: str) -> List[str]:
     return sorted(seen)[:_MAX_DYNAMIC]
 
 
+def _active_plan_states(repo_root: Optional[Path] = None) -> List[Any]:
+    """Active plan ``artifact_meta.State`` rows (pending + reusable only, per the latency budget).
+
+    Queries ``artifact_meta.query(type="ipd")`` directly instead of scanning plan files or reading
+    ``INDEX.json``, and filters rows to the active disposition directories.
+    """
+    from agent_workflows import artifact_core as _core
+    from agent_workflows import artifact_meta as _am
+    from agent_workflows import plans_index as _pindex
+    from agent_workflows.project_context import project_records_dir
+
+    root = _repo_root(repo_root)
+    plans_dir = project_records_dir(root) / "plans"
+    if not plans_dir.is_dir() and (root / ".agents" / "plans").is_dir():
+        plans_dir = root / ".agents" / "plans"
+    if not plans_dir.is_dir():
+        return []
+    active_roots = [
+        (plans_dir / disp).resolve()
+        for disp in _ACTIVE_PLAN_DISPOSITIONS
+        if (plans_dir / disp).is_dir()
+    ]
+    if not active_roots:
+        return []
+    ignored_dirs = _core.get_ignored_dirs(plans_dir)
+    pdir_res = plans_dir.resolve()
+    try:
+        ctx, records_root, scan_repo = _pindex._meta_context_for_plans_dir(pdir_res)
+        with _am.scan_once(), _am.ephemeral_if_uninitialized():
+            res = _am.query(type="ipd", project_context=ctx, include_fields=False)
+    except Exception:
+        return []
+    out: List[Any] = []
+    for st in res.rows:
+        if not st.path:
+            continue
+        try:
+            abs_p = _am.source_path(st.path, records_root, scan_repo).resolve()
+        except Exception:
+            continue
+        if abs_p.name in _pindex._EXCLUDE_NAMES:
+            continue
+        if not any(abs_p.is_relative_to(ar) for ar in active_roots):
+            continue
+        if _core.is_ignored_path(abs_p, pdir_res, ignored_dirs):
+            continue
+        out.append(st)
+    return out
+
+
 def plan_id6_candidates(repo_root: Optional[Path] = None) -> List[str]:
     """Active plan ``id6`` handles (pending + reusable only, per the latency budget).
 
-    Uses the plan front-matter ``Id:`` (authoritative) via a directory-scoped ``scan_plans`` over
-    each active disposition dir, NOT the full-history resolver sweep.
+    Answered from ``artifact_meta.query(type="ipd")`` scoped to the active disposition directories.
     """
-    from agent_workflows import plans_index
-
-    root = _repo_root(repo_root)
-    from agent_workflows.project_context import project_records_dir
-
-    plans_dir = project_records_dir(root) / "plans"
     out: List[str] = []
-    for disp in _ACTIVE_PLAN_DISPOSITIONS:
-        try:
-            entries, _ = plans_index.scan_plans(plans_dir / disp)
-        except Exception:
-            continue
-        for e in entries:
-            if e.plan_id:
-                out.append(e.plan_id)
+    for st in _active_plan_states(repo_root):
+        if not st.id_derived and st.id6:
+            out.append(st.id6)
     return out
 
 
 def set_id_candidates(repo_root: Optional[Path] = None) -> List[str]:
-    """Active Set ids, derived from the ``- Set:`` front matter of active plans (NOT a `selectors`
-    record type). Terse id only (``plans_index.set_terse_id`` semantics, already applied by
-    ``scan_plans``)."""
-    from agent_workflows import plans_index
-    from agent_workflows.project_context import project_records_dir
+    """Active Set ids from ``artifact_meta.query(type="ipd")`` over active plans (terse id only)."""
+    from agent_workflows import plans_index as _pindex
 
-    root = _repo_root(repo_root)
-    plans_dir = project_records_dir(root) / "plans"
     out: List[str] = []
-    for disp in _ACTIVE_PLAN_DISPOSITIONS:
-        try:
-            entries, _ = plans_index.scan_plans(plans_dir / disp)
-        except Exception:
-            continue
-        for e in entries:
-            if e.set_id:
-                out.append(e.set_id)
+    for st in _active_plan_states(repo_root):
+        sid = _pindex._state_set_id(st)
+        if sid:
+            out.append(sid)
     return out
 
 

@@ -355,10 +355,10 @@ def test_d_status_disagreement_record_matches_and_preserves_plans_index_status(
     assert len(lines) == 1
     assert "pln005" in lines[0]
 
-    # 2. plans_index whole-file parse preserves the trailing prose
+    # 2. D-1 (kyl3m4 / ffceq0): plans_index returns the canonical normalized status from artifact_meta.query
     entries, _ = pi.scan_plans(plans_dir)
     target = [e for e in entries if e.plan_id == "pln005"][0]
-    assert target.status == "draft (aw set): status set to draft"
+    assert target.status == "draft"
 
 
 def test_e_unparseable_research_doc_produces_no_rows(tmp_repo: Path) -> None:

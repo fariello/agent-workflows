@@ -91,6 +91,7 @@ flowchart TD
 
 - E-01, E-02 (the INDEX baseline, the remaining-file 4.4 rows, the plans modules). Moved to kyl3m4 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: kyl3m4
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-148-kyl3m4-move-the-plans-module-reads-onto-artifact-meta.ipd.md
 - E-03, E-04 (the research and prompts modules, the banner-blind research body test). Moved to cb5eda (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: cb5eda
 - The review, orchestration, production-check, work and adoption modules.

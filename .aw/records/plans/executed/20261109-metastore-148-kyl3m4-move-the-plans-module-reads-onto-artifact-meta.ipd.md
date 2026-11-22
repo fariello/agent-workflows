@@ -5,8 +5,9 @@
 - Concern: Split from `jd7874` (Order 35) in round 3 of the metastore re-split, per research `nj8zdp` guidance (at most 8 work Scope-Paths per plan): `jd7874` declared 10 work Scope-Paths across two module families. Spec `4sd62s` C5a requires every record module to read metadata through the cache, and AC-9 requires that no reader depend on an INDEX file. Measured 2026-11-07 at `ac76110f4`: the plans modules read metadata with their own regexes (`plans_index._META_RE` 7 patterns, `plans_archive` 5 `^-` regexes, `plans_refs` 5).
 - Scope: (a) `jd7874` E-01: save the INDEX baseline before any code edit of the `jd7874` family, and record the 4.4 search rows for the 31 files outside the gate and runner files. (b) `jd7874` E-02: pin, then move, the plans modules (`plans_index`, `plans_archive`, `plans_refs` read side, `ipd_set_plan`, `completion`). EXCLUDES: the research and prompts modules and the banner fix (`cb5eda`, Order 153); the residual audit (kept in `jd7874`); deleting the INDEX writers (Order 11).
 - Scope-Paths: agent_workflows/plans_index.py, agent_workflows/plans_archive.py, agent_workflows/plans_refs.py, agent_workflows/ipd_set_plan.py, agent_workflows/completion.py, tests/test_readers_record_modules.py, tests/test_plans_index.py, .aw/records/plans/pending/20261109-metastore-148-kyl3m4-move-the-plans-module-reads-onto-artifact-meta.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261121-jt0hq0-01-jt0hq0-runner-shared-read-set-membership-lowercases-mixed.backlog.md (Mandatory defect-report backlog carrier for adjacent runner_shared.read_set_membership case-folding regression observed on HEAD during kyl3m4 validation); tests/test_find_single_read.py (Update pre-D-1 whole-line prose status assertion to canonical normalized status per kyl3m4 D-1)
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: kyl3m4
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-22 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: kyl3m4 verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261121-jt0hq0-01-jt0hq0-runner-shared-read-set-membership-lowercases-mixed.backlog.md: Mandatory defect-report backlog carrier for adjacent runner_shared.read_set_membership case-folding regression observed on HEAD during kyl3m4 validation; out-of-scope tests/test_find_single_read.py: Update pre-D-1 whole-line prose status assertion to canonical normalized status per kyl3m4 D-1; in-scope-unmodified tests/test_plans_index.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
@@ -44,17 +45,17 @@ Commit through `aw commit kyl3m4 -- <each changed path>`, one commit per item al
 
 ### Task group 1: INDEX baseline and search rows
 
-- [ ] E-01 (carried from `jd7874` E-01) Before any code edit of this plan (and so before any edit of the `jd7874` family, because `cb5eda` depends on this plan), ensure directory existence (`mkdir -p .aw/state/t4gl15 .aw/state/kyl3m4`), save the `aw index plans --check`, `aw index research --check` and `aw index prompts --check` exit codes and outputs to `.aw/state/t4gl15/index-before.txt`. Then record the 4.4 search rows for the 31 files outside the gate and runner files as table F-03 in this plan: run `rg -n -e '"show"' -e 'cat-file' -e '"ls-files", "-s"' -e '"--cached"' -e '":0:"' -e 'rev-parse' agent_workflows -g '!runner_shared.py' -g '!oc_runipd.py' -g '!agy_runipd.py' -g '!check_engine.py' -g '!hooks/*' -g '!plan_readiness.py' -g '!ipd_lifecycle.py' -g '!artifact_meta.py'` (115 hits in 70 functions at `ac76110f4`) and write ONE row per function of the 21 functions with a `show`, `cat-file`, `ls-files -s` or `:0:` hit (named in F-02), each classified as path-only reader, not a metadata read, or metadata reader, and ONE bulk path-only row that names the 49 functions whose only hits are `rev-parse` or `--cached` (a commit id, ref, path or staged path list cannot carry record metadata). Any metadata reader found is a defect of the 4.4 list: name it and add it to E-02 (or to `cb5eda` if it is in a research or prompts module), otherwise report it for `t4gl15` E-15.
+- [x] E-01 (carried from `jd7874` E-01) Before any code edit of this plan (and so before any edit of the `jd7874` family, because `cb5eda` depends on this plan), ensure directory existence (`mkdir -p .aw/state/t4gl15 .aw/state/kyl3m4`), save the `aw index plans --check`, `aw index research --check` and `aw index prompts --check` exit codes and outputs to `.aw/state/t4gl15/index-before.txt`. Then record the 4.4 search rows for the 31 files outside the gate and runner files as table F-03 in this plan: run `rg -n -e '"show"' -e 'cat-file' -e '"ls-files", "-s"' -e '"--cached"' -e '":0:"' -e 'rev-parse' agent_workflows -g '!runner_shared.py' -g '!oc_runipd.py' -g '!agy_runipd.py' -g '!check_engine.py' -g '!hooks/*' -g '!plan_readiness.py' -g '!ipd_lifecycle.py' -g '!artifact_meta.py'` (115 hits in 70 functions at `ac76110f4`) and write ONE row per function of the 21 functions with a `show`, `cat-file`, `ls-files -s` or `:0:` hit (named in F-02), each classified as path-only reader, not a metadata read, or metadata reader, and ONE bulk path-only row that names the 49 functions whose only hits are `rev-parse` or `--cached` (a commit id, ref, path or staged path list cannot carry record metadata). Any metadata reader found is a defect of the 4.4 list: name it and add it to E-02 (or to `cb5eda` if it is in a research or prompts module), otherwise report it for `t4gl15` E-15.
   - Depends on: none
   - Expected outcome: `index-before.txt` exists; F-03 has 21 single rows and one bulk row naming 49 functions; every metadata-reader row names the item that moves it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: plans modules
 
-- [ ] E-02 (carried from `jd7874` E-02) Pin, then move, `plans_index` (`plan_entry`, `scan_plans`, `query`, `_meta`, `check_drift` metadata reads), `plans_archive` (`_ID_RE`, date, status and Set reads in `sweep_candidates` and `_plan_status`), `plans_refs` read side, `ipd_set_plan` (Set inventory via `plans_index.scan_plans`) and `completion` (active Set ids) onto `artifact_meta.query`. `plans_index` entries keep their fields; `status` for a multi-word plan follows D-1 of `ffceq0` (canonical value). The INDEX writers keep writing INDEX files from the same entries until Order 11 deletes them (AC-9). Pin in `tests/test_readers_record_modules.py` and run `tests/test_plans_index.py`, `tests/test_plans_archive.py`, `tests/test_plans_archive_selectors.py`, `tests/test_ipd_set_plan.py` and `tests/test_completion.py` green before and after (outcome lists `E-09-before.txt`/`E-09-after.txt`). (Measured units at `ac76110f4`: 23 functions with a reader site across the five modules, 5 baseline modules.)
+- [x] E-02 (carried from `jd7874` E-02) Pin, then move, `plans_index` (`plan_entry`, `scan_plans`, `query`, `_meta`, `check_drift` metadata reads), `plans_archive` (`_ID_RE`, date, status and Set reads in `sweep_candidates` and `_plan_status`), `plans_refs` read side, `ipd_set_plan` (Set inventory via `plans_index.scan_plans`) and `completion` (active Set ids) onto `artifact_meta.query`. `plans_index` entries keep their fields; `status` for a multi-word plan follows D-1 of `ffceq0` (canonical value). The INDEX writers keep writing INDEX files from the same entries until Order 11 deletes them (AC-9). Pin in `tests/test_readers_record_modules.py` and run `tests/test_plans_index.py`, `tests/test_plans_archive.py`, `tests/test_plans_archive_selectors.py`, `tests/test_ipd_set_plan.py` and `tests/test_completion.py` green before and after (outcome lists `E-09-before.txt`/`E-09-after.txt`). (Measured units at `ac76110f4`: 23 functions with a reader site across the five modules, 5 baseline modules.)
   - Depends on: E-01
   - Expected outcome: all listed modules pass before and after; `aw index plans --check` reports the same exit code and output as `.aw/state/t4gl15/index-before.txt` (any change traced to D-1); `rg -n "re\.\w+\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/plans_index.py agent_workflows/plans_archive.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -74,7 +75,37 @@ Carried from `jd7874` (measured 2026-11-07 at `ac76110f4`):
 |---|---|---|
 | F-01 | AST pass over `rg` hits of each module's reader symbols: `plans_index` 12 sites in 6 functions, `plans_archive` 11 in 8, `plans_refs` 22 in 6, `ipd_set_plan` 1, `completion` 2 | E-02 has 23 functions. |
 | F-02 | The 21 functions outside the gate and runner files with a `show`/`cat-file`/`ls-files -s`/`:0:` hit at `ac76110f4`: `cli.<module>`, `cli._build_parser`, `cli._dispatch`, `cli._oc_profile_show`, `cli._rewrite_help_token`, `cli._run_oc_profile`, `cli._run_show`, `cli._run_show_meta`, `command_surface.<module>`, `completion.complete_query`, `layout_migration._is_removable_leftover`, `leak_sanitizer.scan_staged_counted`, `leak_sanitizer.scan_working_tree_counted`, `meta_cli.show_history`, `meta_cli.show_json`, `project_context._git_cached_entries`, `run_analytics_taxonomy.<module>`, `run_cli.run_cli`, `run_viewer.<module>`, `typecheck_gate._tree_declares_mypy`, `worktree_lease._lane_base_sha` | Most are the `show` sub-command NAME, not `git show`; `t4gl15` F-07 classified the rest as path-only or non-metadata. |
-| F-03 | (written by E-01) the classified rows | 4.4 says the list is a minimum. |
+| F-03 | Classified 2026-11-21 at `58612bb0a` (135 lines with literal `-g '!hooks/*'`, 124 lines across 33 files and 77 functions with `-g '!**/hooks/*'`: 21 non-hook single rows + 1 bulk row naming 56 non-hook functions; plus 3 `hooks/*` functions already moved in `executed:h58z9n` and 2 `hooks/*` path-only functions). Zero unowned metadata readers found. | See Table F-03 below. |
+
+### Table F-03: 4.4 search rows outside gate and runner files (classified 2026-11-21 at `58612bb0a`)
+
+With `-g '!**/hooks/*'`, the search yields 124 hits across 33 files and 77 functions: 21 functions matching `"show"`, `cat-file`, `"ls-files", "-s"`, or `":0:"` (note: `_cli_vocab.<module>` holds the `"show"` vocabulary token previously in `run_viewer.<module>`), plus 56 functions whose only hits are `rev-parse` or `--cached`. With the literal `-g '!hooks/*'` glob (which in `rg` does not exclude `agent_workflows/hooks/*`), 11 additional hits appear in `agent_workflows/hooks/` across 5 functions (2 metadata-reader functions already moved onto `artifact_meta.read_at`/`read_path_at` in `executed:h58z9n`, 1 `cat-file -t` object-type check, and 2 `rev-parse` path-only helpers). Zero unowned metadata readers were found.
+
+| Function | Matched token(s) | Classification | Owner / Notes |
+|---|---|---|---|
+| `_cli_vocab.<module>` | `"show"` | not a metadata read | CLI verb vocabulary constant (replaces `run_viewer.<module>` since `ac76110f4`). |
+| `cli.<module>` | `"show"` | not a metadata read | CLI command help/routing table key. |
+| `cli._build_parser` | `"show"` | not a metadata read | Argparse subparser command name. |
+| `cli._dispatch` | `"show"` | not a metadata read | CLI subcommand dispatch branch. |
+| `cli._oc_profile_show` | `"show"` | not a metadata read | Profile subcommand label. |
+| `cli._rewrite_help_token` | `"show"` | not a metadata read | Help token rewrite tuple. |
+| `cli._run_oc_profile` | `"show"` | not a metadata read | Profile action dispatch map key. |
+| `cli._run_show` | `"show"` | not a metadata read | Command name passed to renderer. |
+| `cli._run_show_meta` | `"show"` | not a metadata read | Command name passed to renderer. |
+| `command_surface.<module>` | `"show"` | not a metadata read | Command surface registry entry. |
+| `completion.complete_query` | `"show"` | not a metadata read | Checks `words[2] == "show"` for completion routing. |
+| `layout_migration._is_removable_leftover` | `cat-file` | path-only reader | `git cat-file -e HEAD:<rel>` checks path existence in HEAD only. |
+| `leak_sanitizer.scan_staged_counted` | `"show"` | not a metadata read | `git show :<rel>` scans staged bytes for local-leak patterns. |
+| `leak_sanitizer.scan_working_tree_counted` | `"show"` | not a metadata read | `git show HEAD:<rel>` scans HEAD bytes for local-leak patterns. |
+| `meta_cli.show_history` | `"show"` | not a metadata read | Command label passed to `_result`. |
+| `meta_cli.show_json` | `"show"` | not a metadata read | Command label passed to `_result`. |
+| `project_context._git_cached_entries` | `"ls-files", "-s"`, `"--cached"` | path-only reader | `git ls-files -s --cached` reads index path/mode/hash entries only. |
+| `run_analytics_taxonomy.<module>` | `"show"`, `rev-parse` | not a metadata read | Static git subcommand taxonomy classification table. |
+| `run_cli.run_cli` | `"show"` | not a metadata read | Subcommand dispatch `if sub == "show"`. |
+| `typecheck_gate._tree_declares_mypy` | `"show"` | not a metadata read | `git show <treeish>:<name>` inspects `pyproject.toml`/`mypy.ini`/`setup.cfg` for mypy config. |
+| `worktree_lease._lane_base_sha` | `"show"`, `rev-parse` | path-only reader | `git reflog show` / `git rev-parse --verify` resolves commit SHA only. |
+| Bulk path-only row (56 non-hook functions; only `rev-parse` or `--cached` hits): `agy_run.repository_root`, `artifact_audit.build_finalize_evidence_index`, `checkup.perform_checkup`, `clean_delta.snapshot_target_state`, `cli._collect_repo_status_details`, `cli._offer_commit_uninstall`, `cli._run_install`, `commit_lock.commit_isolated`, `commit_lock.coordinator_worktree`, `doctor.check_stale_build`, `engine._home_lane_preflight`, `engine.git_available`, `engine.is_source_checkout`, `engine.prompt_and_run_commit`, `engine.run_git_diagnostics`, `engine.run_rollback`, `git_commit_helper._holder_fn`, `git_commit_helper._staged_paths`, `ipd_set_plan._current_head`, `lanes_cli.collect_lane_rows`, `layout_inventory.git_sets`, `layout_migration._git_toplevel`, `layout_migration._perform_move`, `layout_migration._perform_move_untracked`, `layout_migration.execute_migration`, `leak_sanitizer._staged_files`, `migrations.m0001_metadata_v2._staged_paths_in_index`, `migrations.m0001_metadata_v2._unstage_migration_paths`, `migrations.m0001_metadata_v2.commit_staged`, `migrations.m0001_preflight._check_linked_lanes`, `migrations.m0001_preflight._check_worktree`, `placement_switch._is_git_toplevel`, `placement_switch._perform_records_rollback`, `placement_switch._perform_rollback`, `placement_switch._run_transaction`, `project_registry.get_git_common_dir`, `readiness_recheck._head`, `run_evidence.get_git_head`, `run_evidence.get_worktree_path`, `storage._git_has_commits`, `storage.get_git_common_dir`, `suite_cache._working_tree_id`, `suite_cache.is_git_checkout`, `suite_cache.suite_cache_dir`, `typecheck_gate._staged_touches_target`, `typecheck_gate.mypy_cache_dir`, `typecheck_gate.staged_main`, `upgrade_rehearsal.git_state`, `upgrade_rehearsal.inspect`, `work_cmd._staged_paths`, `work_cmd.run_finish`, `work_cmd.run_test`, `worktree_lease.allocate_worktree`, `worktree_lease.inspect_lane`, `worktree_lease.memoize_worktrees`, `worktree_lease.snapshot_lane_dirty_work` | `rev-parse`, `"--cached"` | path-only reader | Commit IDs, git dirs, refs, and staged path lists cannot carry record metadata. |
+| Gate/hook functions matched only under literal `-g '!hooks/*'` (excluded by `-g '!**/hooks/*'`): `hooks.executed_transition_gate._merge_incoming_commits` (`cat-file -t`: not a metadata read), `hooks.executed_transition_gate._staged_plan_executed_transitions` (`":0:"`, `"--cached"`: metadata reader already moved onto `artifact_meta.read_at`/`read_path_at` in `executed:h58z9n`), `hooks.ipd_dependency_statement_gate._staged_ipd_overlay` (`":0:"`, `"--cached"`: metadata reader already moved onto `artifact_meta.read_at`/`read_path_at` in `executed:h58z9n`), `hooks.executed_transition_gate._git_dir` (`rev-parse`: path-only), `hooks.executed_transition_gate._repo_root` (`rev-parse`: path-only) | `cat-file`, `":0:"`, `"--cached"`, `rev-parse` | covered (`executed:h58z9n` / path-only) | In gate files excluded in intent by E-01 and already moved in `executed:h58z9n`. |
 
 Size (round 3): measured with `ipd_schema.count_named_units`, each item names at most 8 distinct units; 7 work Scope-Paths.
 
@@ -140,15 +171,39 @@ No spec change. Implements the plans-module part of `4sd62s` C5a.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `ls -l .aw/state/t4gl15/index-before.txt` older than this plan's first code commit, the exact `rg` command of E-01 with its output line count, and the F-03 table (21 single rows and one bulk row naming 49 functions), every metadata-reader row naming the item that moves it.
   - Observed evidence:
-  - Result: pending
+    - Baseline timestamp (captured before any code edit or commit in this lane):
+      `ls -ln .aw/state/t4gl15/index-before.txt`: `-rw-r--r-- 1 1000 1000 88950 Nov 21 21:34 .aw/state/t4gl15/index-before.txt` (`2026-11-21 21:34:18.296104810 -0500`).
+      Baseline summary recorded in `.aw/state/t4gl15/index-before.txt`: `aw index plans --check` exit 0 (`check.stale-index-missing` for `INDEX.json` and `INDEX.md`), `aw index research --check` exit 1, `aw index prompts --check` exit 0 (`check.stale-index-missing` for `INDEX.json` and `INDEX.md`).
+    - Exact E-01 `rg` command:
+      `rg -n -e '"show"' -e 'cat-file' -e '"ls-files", "-s"' -e '"--cached"' -e '":0:"' -e 'rev-parse' agent_workflows -g '!runner_shared.py' -g '!oc_runipd.py' -g '!agy_runipd.py' -g '!check_engine.py' -g '!hooks/*' -g '!plan_readiness.py' -g '!ipd_lifecycle.py' -g '!artifact_meta.py' | wc -l` -> `135` lines (11 lines in `agent_workflows/hooks/*` because literal `-g '!hooks/*'` does not exclude nested `agent_workflows/hooks/*`; with `-g '!**/hooks/*'` -> `124` lines across 33 files and 77 functions: 21 single rows + 1 bulk row of 56 path-only functions).
+    - Table F-03 recorded in `## Findings` above with all 21 non-hook single rows, the bulk path-only row naming all 56 non-hook `rev-parse`/`--cached` functions, and the 5 `hooks/*` functions (confirming the 2 `:0:` metadata readers were already moved onto `artifact_meta` in `executed:h58z9n`); zero unowned metadata readers found.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_readers_record_modules.py -k plans` all PASSED, `diff .aw/state/t4gl15/E-09-before.txt .aw/state/t4gl15/E-09-after.txt` (outcome lists of `tests/test_plans_index.py tests/test_plans_archive.py tests/test_plans_archive_selectors.py tests/test_ipd_set_plan.py tests/test_completion.py`) printing nothing or only D-1 lines, `aw index plans --check; echo $?` compared with `.aw/state/t4gl15/index-before.txt`, and the empty output of `rg -n "re\.\w+\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/plans_index.py agent_workflows/plans_archive.py`.
   - Observed evidence:
-  - Result: pending
+    - Pin-first check before production edits (`python3 -m pytest -o addopts="" -v tests/test_readers_record_modules.py -k "plans and not multiword_status_d1 and not without_index_files_from_log_format_meta and not bare_tempdir_stays_scoped"`): `5 passed, 3 deselected in 1.01s`.
+    - Post-move check (`python3 -m pytest -o addopts="" -v tests/test_readers_record_modules.py -k plans`):
+      `tests/test_readers_record_modules.py::test_plans_refs_read_side_lookup_and_plan_set_assign PASSED [ 12%]`
+      `tests/test_readers_record_modules.py::test_plans_index_scan_query_and_drift PASSED [ 25%]`
+      `tests/test_readers_record_modules.py::test_plans_readers_answer_without_index_files_from_log_format_meta PASSED [ 37%]`
+      `tests/test_readers_record_modules.py::test_plans_index_multiword_status_d1 PASSED [ 50%]`
+      `tests/test_readers_record_modules.py::test_plans_completion_active_candidates PASSED [ 62%]`
+      `tests/test_readers_record_modules.py::test_plans_archive_shard_move_status_and_sweep PASSED [ 75%]`
+      `tests/test_readers_record_modules.py::test_plans_index_bare_tempdir_stays_scoped PASSED [ 87%]`
+      `tests/test_readers_record_modules.py::test_plans_ipd_set_plan_inventory_and_gates PASSED [100%]`
+      `8 passed in 1.45s`.
+    - Baseline outcome lists (112 tests across `tests/test_plans_index.py`, `tests/test_plans_archive.py`, `tests/test_plans_archive_selectors.py`, `tests/test_ipd_set_plan.py`, `tests/test_completion.py`): before `112 passed in 17.53s` (`.aw/state/t4gl15/E-09-before.txt`, 112 lines); after `112 passed in 19.56s` (`.aw/state/t4gl15/E-09-after.txt`, 112 lines); `diff .aw/state/t4gl15/E-09-before.txt .aw/state/t4gl15/E-09-after.txt` -> empty output (exit 0).
+    - `aw index plans --check; echo $?`:
+      `INDEX.json: check.stale-index-missing: INDEX.json has not been generated; run 'aw index plans'`
+      `INDEX.md: check.stale-index-missing: INDEX.md has not been generated; run 'aw index plans'`
+      `0` (matches `.aw/state/t4gl15/index-before.txt` exactly).
+    - `rg -n "re\.\w+\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/plans_index.py agent_workflows/plans_archive.py`: empty output (exit 1).
+    - Related checks: `python3 -m pytest -o addopts="" -v tests/test_find_single_read.py` (`6 passed in 0.74s`, after updating `test_d_status_disagreement_record_matches_and_preserves_plans_index_status` for D-1 canonical status); `python3 -m mypy agent_workflows/plans_index.py agent_workflows/plans_archive.py agent_workflows/plans_refs.py agent_workflows/ipd_set_plan.py agent_workflows/completion.py` (`Success: no issues found in 5 source files`); `aw backlog check` (`all backlog items conform. 1226 backlog items checked.`); `aw suite` (`2703 passed, 1 skipped, 11 warnings in 78.65s (0:01:18)`).
+  - Result: pass
 
 ## Approval and execution gate
 

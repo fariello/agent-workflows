@@ -24,9 +24,10 @@ import re
 import sys
 from datetime import date, datetime
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple, Union
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import artifact_meta as _am
 from agent_workflows import artifact_naming as _naming
 from agent_workflows import plans_index as _idx
 
@@ -34,7 +35,7 @@ PLANS_DIR = ".agents/plans"
 TERMINAL_DIRS = ("executed", "superseded", "not-executed")
 DEFAULT_SWEEP_AGE_DAYS = 14
 
-_ID_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
+_VALID_DATE_RE = re.compile(r"^(?:\d{8}|\d{4}-\d{2}-\d{2})$")
 
 
 class ShardMove(NamedTuple):
@@ -49,15 +50,24 @@ def _at_disposition_root(rel_parts: List[str]) -> bool:
     return len(rel_parts) == 2 and rel_parts[0] in TERMINAL_DIRS
 
 
+def _normalize_date_value(raw: Optional[object]) -> Optional[str]:
+    if not isinstance(raw, str):
+        return None
+    s = raw.strip()
+    if not _VALID_DATE_RE.fullmatch(s):
+        return None
+    return s.replace("-", "") if "-" in s else s
+
+
 def _plan_date(text: str) -> str:
-    m = re.search(r"(?m)^- Date:\s*(\d{8}|\d{4}-\d{2}-\d{2})\s*$", text)
-    if not m:
-        return "20260101"
-    raw = m.group(1)
-    return raw.replace("-", "") if "-" in raw else raw
+    st = _am.read_text(text, record_type="ipd")
+    val = _normalize_date_value(st.fields.get("date") or st.created_day)
+    return val or "20260101"
 
 
-def _resolve_plan_date(filename: str, text: str) -> str:
+def _resolve_plan_date(
+    filename: str, text: str = "", *, state: Optional[Any] = None
+) -> str:
     """Resolve a plan's date across four tiers: front matter, clustered filename, legacy filename, 20260101.
 
     NOTE THE DELIBERATE INVERSION OF 949enf's TIER ORDER:
@@ -76,10 +86,21 @@ def _resolve_plan_date(filename: str, text: str) -> str:
     `datetime.strptime` (review PR-001) to fall through on impossible dates (like
     `20261399`), while front-matter acceptance is preserved unchanged.
     """
-    m = re.search(r"(?m)^- Date:\s*(\d{8}|\d{4}-\d{2}-\d{2})\s*$", text)
-    if m:
-        raw = m.group(1)
-        return raw.replace("-", "") if "-" in raw else raw
+    if state is not None:
+        fields = getattr(state, "fields", None)
+        state_date = _normalize_date_value(
+            getattr(state, "created_day", None)
+            or (fields.get("date") if isinstance(fields, dict) else None)
+        )
+        if state_date:
+            return state_date
+    if text:
+        st_text = _am.read_text(text, record_type="ipd")
+        text_date = _normalize_date_value(
+            st_text.fields.get("date") or st_text.created_day
+        )
+        if text_date:
+            return text_date
 
     parsed_clustered = _naming._CLUSTERED_RE.match(filename)
     if parsed_clustered:
@@ -108,27 +129,69 @@ def _shard_target(
     return plans_dir / disposition / _core.shard_for_date(plan_date) / filename
 
 
-def plan_shard_move(plans_dir: Path, plan_path: Path) -> Optional[ShardMove]:
+def plan_shard_move(
+    plans_dir: Path,
+    plan_path: Path,
+    *,
+    _states: Optional[Dict[Path, Any]] = None,
+) -> Optional[ShardMove]:
     """Plan moving a terminal-root plan into its weekly shard. None if not eligible."""
 
     rel = plan_path.relative_to(plans_dir)
     parts = rel.parts
     if not _at_disposition_root(list(parts)):
         return None  # not at a terminal-dir root (hot/standing, or already sharded)
-    text = plan_path.read_text(encoding="utf-8")
-    m = _ID_RE.search(text)
-    dst = _shard_target(
-        plans_dir, parts[0], _resolve_plan_date(plan_path.name, text), plan_path.name
+    states = (
+        _states
+        if _states is not None
+        else _idx._cached_plan_states(plans_dir, include_fields=False)
     )
-    return ShardMove(m.group(1) if m else None, plan_path, dst)
-
-
-def _plan_status(plan_path: Path, plans_dir: Path) -> str:
-    """Read the declared status of a plan, noting if it is already in a shard."""
-    try:
+    st = states.get(plan_path.resolve())
+    text = ""
+    if st is not None:
+        plan_id = None if st.id_derived else (st.id6 or None)
+        if st.created_at is None and not st.created_day:
+            try:
+                text = plan_path.read_text(encoding="utf-8")
+            except OSError:
+                text = ""
+    else:
         text = plan_path.read_text(encoding="utf-8")
-        m = re.search(r"(?m)^- Status:\s*(\S+)\s*$", text)
-        st = m.group(1) if m else plan_path.parent.name
+        st_text = _am.read_text(text, record_type="ipd")
+        plan_id = (
+            st_text.id6 if (st_text.id6 and _core.is_valid_id6(st_text.id6)) else None
+        )
+    dst = _shard_target(
+        plans_dir,
+        parts[0],
+        _resolve_plan_date(plan_path.name, text, state=st),
+        plan_path.name,
+    )
+    return ShardMove(plan_id, plan_path, dst)
+
+
+def _plan_status(
+    plan_path: Path,
+    plans_dir: Path,
+    *,
+    _states: Optional[Dict[Path, Any]] = None,
+) -> str:
+    """Read the declared status of a plan via ``artifact_meta``, noting if it is already in a shard."""
+    try:
+        states = (
+            _states
+            if _states is not None
+            else _idx._cached_plan_states(plans_dir, include_fields=False)
+        )
+        st_obj = states.get(plan_path.resolve())
+        if st_obj is not None:
+            st = _idx._canonical_status(st_obj) or plan_path.parent.name
+        else:
+            text = plan_path.read_text(encoding="utf-8")
+            st = (
+                _idx._canonical_status(_am.read_text(text, record_type="ipd"))
+                or plan_path.parent.name
+            )
     except Exception:
         st = "unknown"
     try:
@@ -212,21 +275,30 @@ def sweep_candidates(
     older_than_days: float = DEFAULT_SWEEP_AGE_DAYS,
     today: Optional[date] = None,
 ) -> List[Path]:
-    """Terminal-root plans older than ``older_than_days`` (keeping sets together)."""
+    """Terminal-root plans older than ``older_than_days`` (keeping sets together) via ``artifact_meta.query``."""
 
     all_terminal_root: List[Tuple[Path, str, str]] = []
     set_ages: Dict[str, List[float]] = {}
+    states = _idx._cached_plan_states(plans_dir, include_fields=False)
 
-    for p in sorted(plans_dir.rglob("*.md")):
-        if p.name in _idx._EXCLUDE_NAMES:
-            continue
-        try:
-            text = p.read_text(encoding="utf-8")
-        except Exception:
-            continue
-        sm = re.search(r"(?m)^- Set:\s*(.+?)\s*$", text)
-        set_id = sm.group(1).strip() if sm else ""
-        p_date = _resolve_plan_date(p.name, text)
+    for p in _idx.plan_files(plans_dir):
+        st = states.get(p.resolve())
+        text = ""
+        if st is not None:
+            set_id = _idx._state_set_id(st) or ""
+            if st.created_at is None and not st.created_day:
+                try:
+                    text = p.read_text(encoding="utf-8")
+                except Exception:
+                    text = ""
+        else:
+            try:
+                text = p.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            st_text = _am.read_text(text, record_type="ipd")
+            set_id = _idx.set_terse_id(st_text.legacy_raw_set) or ""
+        p_date = _resolve_plan_date(p.name, text, state=st)
         age = _age_days(p_date, today)
         if set_id:
             set_ages.setdefault(set_id, []).append(age)
@@ -342,7 +414,13 @@ def run_archive(args: argparse.Namespace) -> int:
                 ),
             )
             return 2
-        moves = [mv for mv in (plan_shard_move(plans_dir, p) for p in paths) if mv]
+        with _am.scan_once(), _am.ephemeral_if_uninitialized():
+            states = _idx._cached_plan_states(plans_dir, include_fields=False)
+            moves = [
+                mv
+                for mv in (plan_shard_move(plans_dir, p, _states=states) for p in paths)
+                if mv
+            ]
         if not apply:
             for mv in moves:
                 print(
@@ -368,18 +446,26 @@ def run_archive(args: argparse.Namespace) -> int:
         print(f"error: {e}")
         return 2
 
-    cands = sweep_candidates(plans_dir, older_than_days=older_than_days)
-    if not cands:
-        from agent_workflows.term import Term
-        from agent_workflows.result_types import NextAction
+    with _am.scan_once(), _am.ephemeral_if_uninitialized():
+        cands = sweep_candidates(plans_dir, older_than_days=older_than_days)
+        if not cands:
+            from agent_workflows.term import Term
+            from agent_workflows.result_types import NextAction
 
-        Term().empty_result(
-            summary="no aged terminal-root plans to sweep",
-            filters=None,
-            next_action=NextAction(command="aw find plans", description="find plans"),
-        )
-        return 0
-    moves = [mv for mv in (plan_shard_move(plans_dir, p) for p in cands) if mv]
+            Term().empty_result(
+                summary="no aged terminal-root plans to sweep",
+                filters=None,
+                next_action=NextAction(
+                    command="aw find plans", description="find plans"
+                ),
+            )
+            return 0
+        states = _idx._cached_plan_states(plans_dir, include_fields=False)
+        moves = [
+            mv
+            for mv in (plan_shard_move(plans_dir, p, _states=states) for p in cands)
+            if mv
+        ]
     if not apply:
         age_label = str(raw_age) if raw_age else f"{DEFAULT_SWEEP_AGE_DAYS}d"
         print(
