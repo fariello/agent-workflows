@@ -39,27 +39,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Shared flag, duration parser, and pre-run poll loop
 
-- [ ] E-01 Register `--poll-for-deps` (`dest="poll_for_deps"`, `kind="str"`, `metavar="DURATION"`, `resume_rule=RESUME_REFUSE`) in `agent_workflows/runner_shared.py::RUN_POLICY_FLAGS` and add `parse_poll_duration` and `resolve_poll_for_deps` in `agent_workflows/runner_shared.py` accepting positive numbers with `s`, `m`, `h`, or `d` suffixes (`float` seconds) and raising `RunFlagRefusal` on zero, negative, non-finite, or malformed values.
+- [x] E-01 Register `--poll-for-deps` (`dest="poll_for_deps"`, `kind="str"`, `metavar="DURATION"`, `resume_rule=RESUME_REFUSE`) in `agent_workflows/runner_shared.py::RUN_POLICY_FLAGS` and add `parse_poll_duration` and `resolve_poll_for_deps` in `agent_workflows/runner_shared.py` accepting positive numbers with `s`, `m`, `h`, or `d` suffixes (`float` seconds) and raising `RunFlagRefusal` on zero, negative, non-finite, or malformed values.
   - Depends on: none
   - Expected outcome: Both `agent_workflows/oc_runipd.py::build_parser` and `agent_workflows/agy_runipd.py::build_parser` accept `--poll-for-deps DURATION` on `start` and refuse it on `resume`, `resolve_poll_for_deps` returns `None` when omitted and positive seconds when supplied, and `freeze_run_policy_flags` freezes the operator string into run state.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add `WaitableExternalDependencies` and `allow_waitable_external_deps: bool = False` to `agent_workflows/runner_shared.py::enforce_freeze_time_refusal`, plus an interruptible pre-run poll loop and `_sleep_poll_interval` helper in `agent_workflows/runner_shared.py::initialize_run_core` (with injectable `poll_sleep_fn` for deterministic testing) that re-discovers repository state (rebuilding the dynamic manifest via `discover_plans` / `build_dynamic_manifest` inside a fresh `selectors.scan_once()` after `selectors._record_dirs_cached.cache_clear()`) when all unmet dependencies are actionable external artifacts and fails immediately when `--prepare-only` is set or when any finding is structural, undetermined, internal, or permanently unsatisfiable (`superseded`, `not-executed`, `parked`, `absent`).
+- [x] E-02 Add `WaitableExternalDependencies` and `allow_waitable_external_deps: bool = False` to `agent_workflows/runner_shared.py::enforce_freeze_time_refusal`, plus an interruptible pre-run poll loop and `_sleep_poll_interval` helper in `agent_workflows/runner_shared.py::initialize_run_core` (with injectable `poll_sleep_fn` for deterministic testing) that re-discovers repository state (rebuilding the dynamic manifest via `discover_plans` / `build_dynamic_manifest` inside a fresh `selectors.scan_once()` after `selectors._record_dirs_cached.cache_clear()`) when all unmet dependencies are actionable external artifacts and fails immediately when `--prepare-only` is set or when any finding is structural, undetermined, internal, or permanently unsatisfiable (`superseded`, `not-executed`, `parked`, `absent`).
   - Depends on: E-01
   - Expected outcome: `initialize_run_core` validates `--poll-for-deps` before writing any durable state, never sleeps under `--prepare-only`, prints a single waiting line per tick to `stderr` listing waiting external dependency IDs and statuses, sleeps in <= 1s Ctrl-C-interruptible slices, re-reads fresh disk state on wake, proceeds once dependencies are satisfied, and never sleeps on permanently unsatisfiable dependencies or without `--poll-for-deps`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Behavioral tests, changelog, and validation gates
 
-- [ ] E-03 Create `tests/test_poll_for_deps.py` (`pytestmark = pytest.mark.core`, using `tests/record_builder.py::RecordBuilder` and zero source-code inspection) covering: duration parsing valid and invalid inputs, flag registration and `resume` refusal on both `oc_runipd` and `agy_runipd`, end-to-end `initialize_run_core` waiting until an external `approved` dependency moves to `executed` (zero durable state while waiting, fresh run created once met), immediate refusal without `--poll-for-deps`, immediate refusal with `--poll-for-deps` on permanently unsatisfiable (`superseded` / `not-executed`) and internal unrunnable dependencies, and clean `KeyboardInterrupt` cancellation during wait.
+- [x] E-03 Create `tests/test_poll_for_deps.py` (`pytestmark = pytest.mark.core`, using `tests/record_builder.py::RecordBuilder` and zero source-code inspection) covering: duration parsing valid and invalid inputs, flag registration and `resume` refusal on both `oc_runipd` and `agy_runipd`, end-to-end `initialize_run_core` waiting until an external `approved` dependency moves to `executed` (zero durable state while waiting, fresh run created once met), immediate refusal without `--poll-for-deps`, immediate refusal with `--poll-for-deps` on permanently unsatisfiable (`superseded` / `not-executed`) and internal unrunnable dependencies, and clean `KeyboardInterrupt` cancellation during wait.
   - Depends on: E-02
   - Expected outcome: `python3 -m pytest tests/test_poll_for_deps.py` passes all tests with `0 unlisted slow tests`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add one user-facing bullet under `## 2.0.0 (pending)` in `CHANGELOG.md` (with zero em or en dashes) documenting `--poll-for-deps <duration>` on `aw agy run` and `aw oc run`. Run targeted tests, bare `python3 -m pytest` (core suite), `make typecheck`, `aw sanitize --agent`, and `aw ipd lint --phase pre-transition` on this plan; commit only `Scope-Paths` files via `aw commit z7uxhf -- <paths>`. Never push.
+- [x] E-04 Add one user-facing bullet under `## 2.0.0 (pending)` in `CHANGELOG.md` (with zero em or en dashes) documenting `--poll-for-deps <duration>` on `aw agy run` and `aw oc run`. Run targeted tests, bare `python3 -m pytest` (core suite), `make typecheck`, `aw sanitize --agent`, and `aw ipd lint --phase pre-transition` on this plan; commit only `Scope-Paths` files via `aw commit z7uxhf -- <paths>`. Never push.
   - Depends on: E-03
   - Expected outcome: Targeted tests, bare core pytest suite, `make typecheck`, `aw sanitize --agent`, and `aw ipd lint --phase pre-transition` all pass with zero regressions and one or more path-scoped commits on `- Scope-Paths:`.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -102,8 +102,10 @@ flowchart TD
 
 ## Deferred / out of scope (with reason)
 
-- Mid-run polling inside `run_queue` for partial-wave execution while an external dependency finishes: out of scope for this first slice; pre-run polling handles launching downstream waves cleanly without partial run state.
-- Optional `--poll-timeout` maximum wait bound: deferred until needed; `Ctrl-C` cancels polling cleanly at any time.
+- Mid-run polling inside `run_queue` for partial-wave execution while an external dependency finishes: out of scope for this slice; pre-run polling handles launching downstream waves cleanly without partial run state.
+  - Carrier-Declined: deliberate non-goal of this feature; operators launch downstream waves at pre-run initialization rather than mid-run.
+- Optional `--poll-timeout` maximum wait bound: out of scope for this slice; `Ctrl-C` cancels polling cleanly at any time.
+  - Carrier-Declined: deliberate non-goal until an operator requests unattended wait expiration beyond `Ctrl-C`.
 
 ## Scope check
 
@@ -131,25 +133,25 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste pytest output from `tests/test_poll_for_deps.py` confirming valid/invalid duration parsing (`s`, `m`, `h`, `d`, `0s`, negative, missing unit, bad suffix) and parser acceptance on `oc_runipd.build_parser()` and `agy_runipd.build_parser()` `start` plus refusal on `resume`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest -v tests/test_poll_for_deps.py` passed `5 passed in 3.09s` (`0 unlisted slow tests`), covering `test_parse_and_resolve_poll_duration_valid_and_invalid` (`s`, `m`, `h`, `d`, `0s`, `-5s`, missing unit, bad suffix, `nan`/`inf`) and `test_poll_for_deps_flag_registered_on_both_hosts_and_refused_on_resume` (`oc_runipd.build_parser()` and `agy_runipd.build_parser()` `start` acceptance and `resume` refusal). Committed in `c0b5548280359ffd0d644f9db9cdc99dc08fb663`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste pytest output from `tests/test_poll_for_deps.py` confirming pre-run polling loops across ticks until an external `approved` dependency becomes `executed`, leaves zero run directories during waiting or `KeyboardInterrupt`, freezes `poll_for_deps` in `state.json` once started, and refuses immediately (0 sleeps) without `--poll-for-deps` or on permanently unsatisfiable / internal dependencies.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest -v tests/test_poll_for_deps.py` passed `5 passed in 3.09s` (`0 unlisted slow tests`), covering `test_initialize_run_core_polls_until_external_dep_executes` (0 sleeps on `--prepare-only` or omitted flag; 2 poll ticks until external `approved` plan moves to `executed`; zero `run-*` dirs during ticks; `state.json` freezes `policy.poll_for_deps == "30m"`), `test_initialize_run_core_refuses_immediately_on_permanent_or_internal_unsatisfiable_deps` (0 sleeps on `superseded` external dep and `reviewed` internal dep), and `test_initialize_run_core_keyboard_interrupt_leaves_no_durable_state` (clean `KeyboardInterrupt`, zero `run-*` dirs). Committed in `c0b5548280359ffd0d644f9db9cdc99dc08fb663`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `python3 -m pytest tests/test_poll_for_deps.py tests/test_freeze_time_refusal.py tests/test_concurrent_driver_guard.py tests/test_question_preflight.py` output showing 100% pass and `0 unlisted slow tests`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_poll_for_deps.py tests/test_freeze_time_refusal.py tests/test_concurrent_driver_guard.py tests/test_question_preflight.py` -> `0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).` / `69 passed, 3 warnings in 17.59s`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `CHANGELOG.md` diff hunk (verifying zero em or en dashes), bare `python3 -m pytest` summary line, `make typecheck` summary, `aw sanitize --agent` output, `aw ipd lint --phase pre-transition` output, and `aw commit z7uxhf` output listing only `- Scope-Paths:` files.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `CHANGELOG.md` added bullet under `## 2.0.0 (pending)`: `- Added: --poll-for-deps <duration> (accepting s, m, h, or d suffixes such as 30s, 5m, 30m, 1h, 1d) on aw agy run and aw oc run, letting a dependent run wait before creating durable state until actionable external dependencies execute while still refusing permanently unsatisfiable dependencies immediately.` (0 em/en dashes). Bare `python3 -m pytest`: `2670 passed, 1 skipped, 11 warnings in 128.17s (0:02:08)` (exit 0). `make typecheck`: `Success: no issues found in 228 source files`. `aw sanitize --agent`: `outcome: "clean"`, `checked: 7051`, `findings: 0`. `aw commit z7uxhf` output: `aw commit: committed 3 path(s): c0b5548280359ffd0d644f9db9cdc99dc08fb663` (`agent_workflows/runner_shared.py`, `tests/test_poll_for_deps.py`, `CHANGELOG.md`). Pre-transition `aw ipd lint` verified clean prior to finalize.
+  - Result: pass
 
 ## Approval and execution gate
 
