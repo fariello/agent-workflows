@@ -80,15 +80,15 @@ Every top-level verb is a thin, well-documented front door over the existing cor
 ### OQ-03: What should `aw validate` run, and how does it relate to `aw check`, `aw attention --check`, and `aw verify`?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Context: Users currently face several validation commands with overlapping names: `aw check` (artifact conformance and lint), `aw attention --check` (attention view validity), `aw ipd lint` (plan lint), `aw sanitize` (local-leak check), and `/verify` (repo test/lint suite).
+- Context: Deterministic local checks already live under `aw check`, `aw doctor`, `aw checkup`, `aw sanitize`, and `aw test`, while AI post-execution verification lives in `/verify-execution` (and `/verify`) with no top-level CLI verb.
 - Options:
-  1. **Make `aw validate` a unified umbrella over artifact/repo conformance checks (`aw check` + `aw attention --check` + `aw sanitize`) with optional targets (e.g. `aw validate <id6>` to lint a single plan/spec/backlog item, `aw validate --tests` to also run the repo test suite) (recommended).**
-  2. **Make `aw validate` run the project's test/lint/type-check suite (CLI equivalent of `/verify`), keeping `aw check` strictly for `.aw/` artifact conformance.** Clean separation between code validation and `.aw/` metadata checks.
-  3. **Make `aw validate` an alias of `aw check` only.** Simplest, but leaves `/verify` and `aw ipd lint` separate.
-- Recommendation: Option 1 (unified artifact/item validation umbrella, with `--tests` opt-in for full test execution so default `aw validate` stays fast).
-- Resolution or deferral rationale:
+  1. **`aw validate <ids|set>` runs AI post-execution verification (`/verify-execution`) using the configured validation host/model profile, while `aw check` and `aw doctor` remain the fast deterministic local checks (recommended).**
+  2. **`aw validate` runs fast deterministic checks (`aw check` + `aw attention --check` + `aw sanitize`, with optional `--tests`), and AI post-execution verification gets a separate verb (for example `aw verify <ids>`).**
+  3. **Context-sensitive `aw validate`: bare `aw validate` runs deterministic checks, while `aw validate <executed-id6>` runs AI `/verify-execution`.**
+- Recommendation: Option 1 (`aw validate` runs AI post-execution verification `/verify-execution`; `aw check` / `aw doctor` remain deterministic checks).
+- Resolution or deferral rationale: RESOLVED 2026-11-22 by the user via /askme: Option A (`aw validate <ids|set>` runs AI post-execution verification `/verify-execution` using the configured validation host/model profile, while `aw check` and `aw doctor` remain the fast deterministic local checks). No reason was given.
 
 ### OQ-04: Should `aw approve` require `--by-human` or treat interactive terminal invocation as human attestation?
 
