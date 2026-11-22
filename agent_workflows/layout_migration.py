@@ -324,6 +324,7 @@ class MigrationManager:
         self.durable_state_dir = self.aw_dir / "state" / "durable"
         self.runtime_state_dir = self.aw_dir / "state" / "runtime"
         self.records_dir = self.aw_dir / "records"
+        self.workflow_artifacts_dir = self.aw_dir / "workflow-artifacts"
 
         # Durable & Runtime transaction artifacts (Spec 4.1 Table 4.1)
         self.transaction_file = (
@@ -464,19 +465,8 @@ class MigrationManager:
             return Path(proc.stdout.strip()).resolve()
         return None
 
-    def _perform_move(self, src_p: Path, dst_p: Path, was_tracked: bool) -> None:
-        """Relocate src_p -> dst_p as a MOVE (no retained twin), honoring git tracking.
-
-        - Same git work tree + tracked: `git mv` (preserves history, stages the rename);
-          on failure falls back to filesystem rename + `git rm --cached src` + `git add dst`.
-        - Cross work tree (companion/home) + tracked: filesystem move, then a TWO-INDEX
-          stage - `git rm --cached` the source in the TARGET index and `git add` the
-          destination in the DESTINATION repo's index (a home destination outside any repo
-          just leaves the moved file untracked).
-        - Untracked (either case): plain filesystem move.
-        Symlinks are moved as links (never dereferenced).
-        """
-
+    def _guard_preexisting_destination(self, src_p: Path, dst_p: Path) -> None:
+        """Ensure dst_p parent exists and fail closed on non-identical pre-existing content."""
         dst_p.parent.mkdir(parents=True, exist_ok=True)
         # FAIL-CLOSED on a FOREIGN pre-existing destination (IPD awretrofit Order 04, M01/E-04).
         # In a normal run the destination is freshly computed and empty; a THIS-transaction dedup
@@ -503,6 +493,21 @@ class MigrationManager:
                 shutil.rmtree(dst_p)
             else:
                 dst_p.unlink()
+
+    def _perform_move(self, src_p: Path, dst_p: Path, was_tracked: bool) -> None:
+        """Relocate src_p -> dst_p as a MOVE (no retained twin), honoring git tracking.
+
+        - Same git work tree + tracked: `git mv` (preserves history, stages the rename);
+          on failure falls back to filesystem rename + `git rm --cached src` + `git add dst`.
+        - Cross work tree (companion/home) + tracked: filesystem move, then a TWO-INDEX
+          stage - `git rm --cached` the source in the TARGET index and `git add` the
+          destination in the DESTINATION repo's index (a home destination outside any repo
+          just leaves the moved file untracked).
+        - Untracked (either case): plain filesystem move.
+        Symlinks are moved as links (never dereferenced).
+        """
+
+        self._guard_preexisting_destination(src_p, dst_p)
 
         target_top = Path(self.target_repo).resolve()
         src_top = self._git_toplevel(src_p)
@@ -534,6 +539,35 @@ class MigrationManager:
             _run_git(rm_top, ["rm", "--cached", "--", str(src_p)])
             if dst_top is not None:
                 _run_git(dst_top, ["add", "--", str(dst_p)])
+
+    def _perform_move_untracked(
+        self, src_p: Path, dst_p: Path, was_tracked: bool
+    ) -> None:
+        """Relocate src_p -> dst_p as an untracked file, removing tracked src_p from git index.
+
+        Used for gitignored destination classes such as ``workflow-artifacts`` (D92):
+        enforces the same fail-closed pre-existing destination guard as ``_perform_move``,
+        moves ``src_p`` on disk without staging ``dst_p``, and runs ``git rm --cached``
+        on ``src_p`` when ``was_tracked`` is True.
+        """
+        self._guard_preexisting_destination(src_p, dst_p)
+        target_top = Path(self.target_repo).resolve()
+        src_top = self._git_toplevel(src_p)
+        self._raw_move(src_p, dst_p)
+        if was_tracked:
+            rm_top = src_top if src_top is not None else target_top
+            _run_git(rm_top, ["rm", "--cached", "--", str(src_p)])
+
+    def _restore_tracked_source(self, target_top: Path, src_p: Path) -> None:
+        """Restore a tracked source path to the git index during rollback.
+
+        Falls back to ``git reset --quiet HEAD -- <src_p>`` when ``git add`` fails
+        (for example when a legacy root ``.gitignore`` ignores ``workflow-artifacts/``
+        while the file was force-tracked in ``HEAD``).
+        """
+        proc = _run_git(target_top, ["add", "--", str(src_p)])
+        if proc.returncode != 0:
+            _run_git(target_top, ["reset", "--quiet", "HEAD", "--", str(src_p)])
 
     @staticmethod
     def _raw_move(src_p: Path, dst_p: Path) -> None:
@@ -763,7 +797,7 @@ class MigrationManager:
             if not e.get("was_tracked"):
                 continue
             _add(e["source"])
-            if e.get("action") == "move":
+            if e.get("action") == "move" and not e.get("destination_untracked"):
                 _add(e["destination"])
         for rel in (tx.get("leftover_disposition", {}) or {}).get("removed", []) or []:
             _add(str(repo / rel))
@@ -1319,7 +1353,11 @@ class MigrationManager:
                 self._save_transaction(tx_data)
                 continue
 
-            self._perform_move(src_p, dst_p, was_tracked)
+            untrack_dest = mapping.get("destination_root_class") == "workflow-artifacts"
+            if untrack_dest:
+                self._perform_move_untracked(src_p, dst_p, was_tracked)
+            else:
+                self._perform_move(src_p, dst_p, was_tracked)
 
             # Verify the DESTINATION (the source is gone after the move).
             if not dst_p.is_symlink():
@@ -1332,7 +1370,7 @@ class MigrationManager:
             else:
                 staged_hash = exp_hash
 
-            entry = {
+            move_entry: Dict[str, Any] = {
                 "item_id": item_id,
                 "source": str(src_p),
                 "destination": str(dst_p),
@@ -1340,7 +1378,9 @@ class MigrationManager:
                 "was_tracked": was_tracked,
                 "action": "move",
             }
-            move_journal.append(entry)
+            if untrack_dest:
+                move_entry["destination_untracked"] = True
+            move_journal.append(move_entry)
             journaled_ids.add(item_id)
             dest_seen.add(str(dst_p))
             copied_records.append(
@@ -1675,11 +1715,17 @@ class MigrationManager:
                     src_p.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(dst_p, src_p)
                     if was_tracked:
-                        _run_git(target_top, ["add", "--", str(src_p)])
+                        self._restore_tracked_source(target_top, src_p)
                 continue
             # action == "move": relocate the destination back to the original source.
             if dst_p.exists() or dst_p.is_symlink():
-                self._perform_move(dst_p, src_p, was_tracked)
+                if entry.get("destination_untracked"):
+                    src_p.parent.mkdir(parents=True, exist_ok=True)
+                    self._raw_move(dst_p, src_p)
+                    if was_tracked:
+                        self._restore_tracked_source(target_top, src_p)
+                else:
+                    self._perform_move(dst_p, src_p, was_tracked)
 
         # Prune any now-empty relocated-class directories left under .aw/ (never touch
         # host-adapter-in-place destinations, whose "destination" is a live repo-root path).
@@ -2006,7 +2052,12 @@ class MigrationManager:
                 "config_snapshots": self._snapshot_embedded_configs(),
                 "pre_existing_dirs": {
                     str(d): d.is_dir()
-                    for d in (self.records_dir, self.system_dir, self.config_dir)
+                    for d in (
+                        self.records_dir,
+                        self.system_dir,
+                        self.config_dir,
+                        self.workflow_artifacts_dir,
+                    )
                 },
                 "moved_config_pre_switch": None,
                 "planned_count": int(plan_doc.get("planned_count") or 0),
@@ -2125,7 +2176,13 @@ class MigrationManager:
                         == 0
                     )
 
-                self._perform_move(src_p, dst_p, was_tracked)
+                untrack_dest = (
+                    mapping.get("destination_root_class") == "workflow-artifacts"
+                )
+                if untrack_dest:
+                    self._perform_move_untracked(src_p, dst_p, was_tracked)
+                else:
+                    self._perform_move(src_p, dst_p, was_tracked)
 
                 if not dst_p.is_symlink():
                     staged_hash = _sha256_file(dst_p)
@@ -2136,18 +2193,19 @@ class MigrationManager:
                 else:
                     staged_hash = exp_hash
 
-                move_journal.append(
-                    {
-                        "item_id": item_id,
-                        "source": str(src_p),
-                        "destination": str(dst_p),
-                        "hash": staged_hash,
-                        "was_tracked": was_tracked,
-                        "action": "move",
-                        "dst_existed_before": dst_existed_before,
-                        "dst_was_tracked": dst_was_tracked,
-                    }
-                )
+                stage1_entry: Dict[str, Any] = {
+                    "item_id": item_id,
+                    "source": str(src_p),
+                    "destination": str(dst_p),
+                    "hash": staged_hash,
+                    "was_tracked": was_tracked,
+                    "action": "move",
+                    "dst_existed_before": dst_existed_before,
+                    "dst_was_tracked": dst_was_tracked,
+                }
+                if untrack_dest:
+                    stage1_entry["destination_untracked"] = True
+                move_journal.append(stage1_entry)
                 journaled_ids.add(item_id)
                 dest_seen.add(str(dst_p))
                 copied_records.append(
@@ -2341,7 +2399,7 @@ class MigrationManager:
                     else:
                         shutil.copy2(dst_p, src_p)
                     if was_tracked:
-                        _run_git(target_top, ["add", "--", str(src_p)])
+                        self._restore_tracked_source(target_top, src_p)
                 continue
 
             if entry.get("dst_existed_before"):
@@ -2355,7 +2413,7 @@ class MigrationManager:
                     else:
                         shutil.copy2(dst_p, src_p)
                 if was_tracked and (src_p.exists() or src_p.is_symlink()):
-                    _run_git(target_top, ["add", "--", str(src_p)])
+                    self._restore_tracked_source(target_top, src_p)
                 if entry.get("dst_was_tracked") and (
                     dst_p.exists() or dst_p.is_symlink()
                 ):
@@ -2364,10 +2422,17 @@ class MigrationManager:
                 continue
 
             if dst_p.exists() or dst_p.is_symlink():
-                self._perform_move(dst_p, src_p, was_tracked)
+                if entry.get("destination_untracked"):
+                    src_p.parent.mkdir(parents=True, exist_ok=True)
+                    self._raw_move(dst_p, src_p)
+                    if was_tracked:
+                        self._restore_tracked_source(target_top, src_p)
+                else:
+                    self._perform_move(dst_p, src_p, was_tracked)
 
-        # 6. Prune newly created empty directories under .aw/records, .aw/system, and .aw/config
-        # (plus external records_root subdirs if any), leaving <repo>/.aw/state untouched.
+        # 6. Prune newly created empty directories under .aw/records, .aw/system, .aw/config,
+        # and .aw/workflow-artifacts (plus external records_root subdirs if any), leaving
+        # <repo>/.aw/state untouched.
         rb_backend = str(ls.get("target_backend") or "repository")
         pre_existing_dirs = ls.get("pre_existing_dirs") or {}
         prune_roots: List[Tuple[Path, bool]] = [
@@ -2377,6 +2442,10 @@ class MigrationManager:
             ),
             (self.system_dir, bool(pre_existing_dirs.get(str(self.system_dir), False))),
             (self.config_dir, bool(pre_existing_dirs.get(str(self.config_dir), False))),
+            (
+                self.workflow_artifacts_dir,
+                bool(pre_existing_dirs.get(str(self.workflow_artifacts_dir), False)),
+            ),
         ]
         ext_records = self._records_root_for_backend(rb_backend)
         if ext_records.resolve() != self.records_dir.resolve():

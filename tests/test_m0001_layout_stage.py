@@ -20,6 +20,7 @@ import pytest
 
 from agent_workflows import (
     artifact_meta,
+    attention,
     cli,
     layout_migration,
     project_context,
@@ -633,3 +634,140 @@ def test_home_backend_external_records_root_in_place_migration_and_query(
     rc_find, out_find, _ = _run_cli_inproc(repo, ["find", "--json"], aw_home=aw_home)
     assert rc_find == 0, out_find
     assert "hm0001" in out_find
+
+
+def test_m0001_two_stage_routes_legacy_workflow_artifacts_untracked_and_validates_attention(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two-stage m0001 projects and moves legacy workflow-artifacts to .aw/workflow-artifacts/ untracked."""
+    aw_home = tmp_path / "aw_home"
+    aw_home.mkdir()
+    monkeypatch.setenv("AW_HOME", str(aw_home))
+
+    dest = tmp_path / "legacy_wa_apply"
+    dest.mkdir()
+    repo = migration_corpus.legacy_agents_layout(dest)
+
+    # Give the corpus research note a canonical frontmatter status so attention --check
+    # validates the entire migrated repo rather than tripping on the pre-existing statusless note.
+    survey = repo / ".agents" / "docs" / "research" / "20260708-survey-notes.md"
+    survey.write_text(
+        "---\nstatus: reference\n---\n" + survey.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    wa_files = {
+        "workflow-artifacts/assess-bugs/20260726-115243/report.md": b"# Assess bugs report\n",
+        "workflow-artifacts/plan-review/20260728-090000/review.md": b"# Plan review notes\n",
+    }
+    for rel, content in wa_files.items():
+        p = repo / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(content)
+    _git(
+        repo,
+        "add",
+        "workflow-artifacts",
+        ".agents/docs/research/20260708-survey-notes.md",
+    )
+    _git(repo, "commit", "-q", "-m", "add tracked legacy workflow-artifacts")
+
+    mgr = layout_migration.MigrationManager(str(repo), aw_home=str(aw_home))
+    plan_doc = mgr.plan_embedded_stage_one()
+    assert plan_doc["valid"] is True
+
+    scratch = tmp_path / "scratch_wa"
+    proj = mgr.project_stage_one_to_scratch(plan_doc, scratch, backfill_ids=False)
+    assert proj["status"] == "planned"
+    for rel, content in wa_files.items():
+        projected = scratch / ".aw" / rel
+        assert projected.is_file(), f"Expected scratch artifact at {projected}"
+        assert projected.read_bytes() == content
+    assert not (scratch / ".aw" / "records" / "assess-bugs").exists()
+    assert not (scratch / ".aw" / "records" / "plan-review").exists()
+
+    applied = m0001_metadata_v2.run(
+        repo, apply=True, describer=_stub_describer, commit=True
+    )
+    assert applied["status"] == "applied"
+    assert _git(repo, "status", "--porcelain").stdout.strip() == ""
+    assert (
+        _git(
+            repo, "ls-files", "--", ".aw/workflow-artifacts", "workflow-artifacts"
+        ).stdout.strip()
+        == ""
+    )
+
+    ign = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "check-ignore",
+            "-v",
+            ".aw/workflow-artifacts/assess-bugs/20260726-115243/report.md",
+        ],
+        env=_clean_git_env(),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert ign.returncode == 0, ign.stderr
+    assert ".aw/.gitignore" in ign.stdout
+
+    for rel, content in wa_files.items():
+        dst = repo / ".aw" / rel
+        assert dst.is_file(), f"Missing migrated artifact {dst}"
+        assert dst.read_bytes() == content
+    assert not (repo / "workflow-artifacts").exists()
+    assert not (repo / ".aw" / "records" / "assess-bugs").exists()
+    assert not (repo / ".aw" / "records" / "plan-review").exists()
+
+    att_doc = json.loads(attention.render_json(*attention.scan(repo), repo_root=repo))
+    uninventoried = [
+        v
+        for v in att_doc.get("violations", [])
+        if v.get("rule") == "attention.uninventoried-tree"
+    ]
+    assert uninventoried == [], att_doc
+    assert cli.main(["attention", "--check", "--dir", str(repo)]) == 0
+
+
+def test_m0001_stage2_failure_rollback_restores_workflow_artifacts_and_prunes_aw_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """stage2-failure rollback restores legacy workflow-artifacts/ byte-identically and removes .aw/workflow-artifacts/."""
+    aw_home = tmp_path / "aw_home"
+    aw_home.mkdir()
+    monkeypatch.setenv("AW_HOME", str(aw_home))
+
+    dest = tmp_path / "legacy_wa_rollback"
+    dest.mkdir()
+    repo = migration_corpus.legacy_agents_layout(dest)
+
+    wa_files = {
+        "workflow-artifacts/assess-bugs/20260726-115243/report.md": b"# Assess bugs report\n",
+        "workflow-artifacts/plan-review/20260728-090000/review.md": b"# Plan review notes\n",
+    }
+    for rel, content in wa_files.items():
+        p = repo / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(content)
+    _git(repo, "add", "workflow-artifacts")
+    _git(repo, "commit", "-q", "-m", "add tracked legacy workflow-artifacts")
+    before = _tree_sha256(repo)
+
+    with pytest.raises(layout_migration.MigrationError, match="stage2-failure"):
+        m0001_metadata_v2.run(
+            repo,
+            apply=True,
+            describer=_stub_describer,
+            fault_injection="stage2-failure",
+            commit=True,
+        )
+
+    for rel, content in wa_files.items():
+        assert (repo / rel).read_bytes() == content
+    assert not (repo / ".aw" / "workflow-artifacts").exists()
+    assert _tree_sha256(repo) == before
+    assert _git(repo, "status", "--porcelain").stdout.strip() == ""

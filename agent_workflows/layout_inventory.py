@@ -173,10 +173,12 @@ def classify_item(
                 "disposition": "migrate",
             }
         if label == "workflow-artifacts":
+            # Run scratch relocates to engine.ARTIFACTS_DIR (.aw/workflow-artifacts/),
+            # which is gitignored unconditionally under the D92 leak-containment contract.
             return {
-                "ownership": "records",
-                "lifecycle_class": "records",
-                "expected_destination_class": "records",
+                "ownership": "state-runtime",
+                "lifecycle_class": "state-runtime",
+                "expected_destination_class": "workflow-artifacts",
                 "disposition": "migrate",
             }
         if label == "installer-backups":
@@ -369,10 +371,12 @@ def classify_item(
             "disposition": "block-unknown",
         }
     if label == "workflow-artifacts":
+        # Run scratch relocates to engine.ARTIFACTS_DIR (.aw/workflow-artifacts/),
+        # which is gitignored unconditionally under the D92 leak-containment contract.
         return {
-            "ownership": "records",
-            "lifecycle_class": "records",
-            "expected_destination_class": "records",
+            "ownership": "state-runtime",
+            "lifecycle_class": "state-runtime",
+            "expected_destination_class": "workflow-artifacts",
             "disposition": "migrate",
         }
     if label == "installer-backups":
@@ -527,7 +531,7 @@ def _legacy_class(label: str, relpath: str) -> str:
             return "mixed-system-state-review-required"
         return "unknown-agents-content"
     if label == "workflow-artifacts":
-        return "records"
+        return "state-runtime"
     if label == "installer-backups":
         return "state-runtime"
     if label == "partial-aw":
@@ -892,6 +896,12 @@ def build_migration_map(
             # DIRECTLY to the final flat destination (no intermediate .aw/records/docs/ hop; the .aw/
             # layout has not shipped, so only legacy->final is needed). Non-doc records unchanged.
             dest_relpath = f"records/{_flatten_records_subpath(source_relpath)}"
+        elif dest_class == "workflow-artifacts":
+            dest_relpath = (
+                "workflow-artifacts"
+                if source_relpath in ("", ".")
+                else f"workflow-artifacts/{source_relpath}"
+            )
         elif dest_class == "durable_state":
             dest_relpath = f"state/durable/{source_relpath}"
         elif dest_class == "config":
@@ -939,9 +949,9 @@ def build_migration_map(
             "copy_method": "copy"
             if item.get("disposition") == "migrate"
             else "preserve",
-            "track_ignore_expectation": "tracked"
-            if item.get("git_state") == "tracked"
-            else "untracked",
+            "track_ignore_expectation": "untracked"
+            if dest_class == "workflow-artifacts"
+            else ("tracked" if item.get("git_state") == "tracked" else "untracked"),
             "collision_policy": collision_policy,
             "compatibility_retention": "pointer"
             if source_root.endswith("pointer")
