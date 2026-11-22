@@ -6,7 +6,7 @@
 - Scope: Chunk 3 of 7 of `x05v02` (round-3 split 2026-11-09 per research `nj8zdp` guidance): the 8 test modules named in the items and in F-40, each item one codemod run under the batch rule below, plus a finishing item. EXCLUDES: every other module of the subsets (the other chunk plans and `x05v02`); the builder (`9rgn2w`) and the codemod (`653ndz`); the F-03 EXCLUDED modules; production code; the switch-point proof, census and full-suite comparison (`59aiyh` E-11, E-12).
 - Scope-Paths: tests/test_backlog_transition_gate.py, tests/test_release_gate_one_way_mismatch.py, tests/test_release_readiness.py, tests/test_releases_cli.py, tests/test_release_sentinel_succession.py, tests/test_releases_line_writers.py, tests/test_releases.py, tests/test_releases_sibling_line_writers_bounding.py, .aw/records/plans/pending/20261109-metastore-177-isj48z-move-backlog-release-gate-and-check-test-data-chunk-3-of-7-o.ipd.md
 - Item-Dependencies: executed:653ndz, executed:9rgn2w, executed:g5hpbb, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: isj48z
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-22 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: isj48z verified (set metastore, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_backlog_transition_gate.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_release_gate_one_way_mismatch.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_release_readiness.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_release_sentinel_succession.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_releases_cli.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-21 cap-update (maintainer decision): raised Batch rule step 4 hand-refusal cap from 25 to 100 (raw site count over-counts list elements and .replace() pairs); completed sibling E-item and Step-3 commits from run-20261121T014040Z-2638602 were salvaged onto main, so modules already at 0 rewrites and 0 hand refusals remain unmodified and are acknowledged via --scope-ack at finalize.
 - 2026-11-16 approved (aw set): status set to approved
 
