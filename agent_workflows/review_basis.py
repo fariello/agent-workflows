@@ -50,6 +50,7 @@ class StaleBasis:
     target_status: Optional[str]
     reason: str
     run_id: str
+    consumer_status: Optional[str] = None
 
 
 def record_basis(
@@ -124,13 +125,35 @@ def provisional_targets(
 #: Prerequisite statuses at which a recorded basis is SETTLED if its contract is also unchanged.
 SETTLED_STATUSES = ("reviewed", "approved", "auto-approved", "executed")
 
+#: Consumer statuses and plan directories that are terminal and can never be re-reviewed.
+TERMINAL_CONSUMER_STATUSES = (
+    "executed",
+    "superseded",
+    "not-executed",
+    "rejected",
+    "abandoned",
+)
+TERMINAL_PLAN_DIRS = (
+    "executed",
+    "superseded",
+    "not-executed",
+    "rejected",
+    "abandoned",
+)
+
+#: Consumer statuses that already carry human approval (separated from unapproved consumers).
+APPROVED_CONSUMER_STATUSES = ("approved", "auto-approved")
+
+#: Recommend `aw partition ... --split-sets` once a stale re-review list exceeds this size.
+PARTITION_SUGGEST_THRESHOLD = 8
+
 
 def stale_bases(repo: Path, *, prune: bool = True) -> List[StaleBasis]:
     """Every recorded basis whose prerequisite's contract has changed since the review used it.
 
-    With `prune`, a record whose every prerequisite has since been reviewed WITHOUT its contract
-    changing is deleted: the design the consumer was reviewed against turned out to be the final
-    one, so there is nothing left to recheck.
+    Skips (and with `prune`, deletes) records for consumers that are already terminal
+    (`executed`, `superseded`, `not-executed`, `rejected`, `abandoned`) or missing on disk,
+    as well as records whose every prerequisite settled without its contract changing.
     """
     from agent_workflows import runner_shared as rs
     from agent_workflows import selectors
@@ -144,9 +167,10 @@ def stale_bases(repo: Path, *, prune: bool = True) -> List[StaleBasis]:
         return []
 
     out: List[StaleBasis] = []
-    # Cache per target id6 within one read-only sweep: many consumers reference the same prerequisites,
+    # Cache per id6 within one read-only sweep: many consumers reference the same prerequisites,
     # and selectors.scan_once() avoids re-walking/re-querying the plans tree on each unique target.
     target_cache: Dict[str, Optional[tuple[Optional[str], str]]] = {}
+    consumer_cache: Dict[str, tuple[bool, Optional[str]]] = {}
 
     def _read_target(tid: str) -> Optional[tuple[Optional[str], str]]:
         if tid in target_cache:
@@ -162,6 +186,24 @@ def stale_bases(repo: Path, *, prune: bool = True) -> List[StaleBasis]:
         target_cache[tid] = snapshot
         return snapshot
 
+    def _read_consumer(cid: str) -> tuple[bool, Optional[str]]:
+        """Return ``(is_terminal_or_missing, consumer_status)`` for consumer ``cid``."""
+        if cid in consumer_cache:
+            return consumer_cache[cid]
+        try:
+            cpath = rs.resolve_plan_path(Path(repo), "", cid)
+            text = cpath.read_text(encoding="utf-8")
+        except Exception:
+            consumer_cache[cid] = (True, None)
+            return (True, None)
+        cstatus = read_front_matter_status(text)
+        norm_status = str(cstatus or "").strip().lower()
+        in_terminal_dir = any(part in TERMINAL_PLAN_DIRS for part in cpath.parts)
+        is_terminal = in_terminal_dir or (norm_status in TERMINAL_CONSUMER_STATUSES)
+        res = (is_terminal, norm_status or None)
+        consumer_cache[cid] = res
+        return res
+
     with selectors.scan_once():
         for f in basis_files:
             try:
@@ -170,6 +212,16 @@ def stale_bases(repo: Path, *, prune: bool = True) -> List[StaleBasis]:
                 continue
             consumer = str(rec.get("consumer") or f.stem)
             run_id = str(rec.get("run_id") or "")
+
+            consumer_done, consumer_status = _read_consumer(consumer)
+            if consumer_done:
+                if prune:
+                    try:
+                        f.unlink()
+                    except OSError:
+                        pass
+                continue
+
             settled = 0
             targets = list(rec.get("targets") or ())
             for t in targets:
@@ -185,6 +237,7 @@ def stale_bases(repo: Path, *, prune: bool = True) -> List[StaleBasis]:
                             None,
                             "prerequisite plan not found",
                             run_id,
+                            consumer_status=consumer_status,
                         )
                     )
                     continue
@@ -200,6 +253,7 @@ def stale_bases(repo: Path, *, prune: bool = True) -> List[StaleBasis]:
                         status,
                         f"{tid}'s steps or scope changed (now {status or 'unknown'}) since {consumer} was reviewed against it",
                         run_id,
+                        consumer_status=consumer_status,
                     )
                 )
             if prune and targets and settled == len(targets):
@@ -208,6 +262,17 @@ def stale_bases(repo: Path, *, prune: bool = True) -> List[StaleBasis]:
                 except OSError:
                     pass
     return out
+
+
+def _format_rereview_command(consumers: Sequence[str], host: str) -> tuple[str, bool]:
+    """Format direct run command for small lists or partitioned command for large lists."""
+    ids_str = " ".join(consumers)
+    if len(consumers) > PARTITION_SUGGEST_THRESHOLD:
+        return (
+            f"aw partition -t plans --action review --run {host} --split-sets {ids_str}",
+            True,
+        )
+    return (f"aw {host} run --action review {ids_str}", False)
 
 
 def stale_report_lines(
@@ -222,10 +287,28 @@ def stale_report_lines(
     The list covers the whole checkout, not only the run printing it. When other runs are still
     live, re-reviewing now could be wasted work (they may change more prerequisites), so the advice
     says to wait for them first.
+
+    Separates already-approved consumers from unapproved ones, and suggests `aw partition` with
+    `--split-sets` when the consumer list is large.
     """
     if not stale:
         return []
-    consumers = sorted({s.consumer for s in stale})
+    status_by_consumer: Dict[str, Optional[str]] = {}
+    for s in stale:
+        if (
+            s.consumer not in status_by_consumer
+            or status_by_consumer[s.consumer] is None
+        ):
+            status_by_consumer[s.consumer] = s.consumer_status
+
+    consumers = sorted(status_by_consumer)
+    approved = [
+        c
+        for c in consumers
+        if (status_by_consumer.get(c) or "").lower() in APPROVED_CONSUMER_STATUSES
+    ]
+    unapproved = [c for c in consumers if c not in approved]
+
     by_target: Dict[str, List[str]] = {}
     for s in stale:
         by_target.setdefault(s.target, [])
@@ -240,16 +323,50 @@ def stale_report_lines(
     ]
     for target in sorted(by_target):
         lines.append(f"    {target} -> {' '.join(sorted(by_target[target]))}")
-    command = f"aw {host} run --action review {' '.join(consumers)}"
+
+    if unapproved and approved:
+        lines.append(
+            f"  Status breakdown: {len(unapproved)} unapproved (need re-review), "
+            f"{len(approved)} already approved (re-review only if the prerequisite changes affect their design)."
+        )
+        primary_ids = unapproved
+    elif approved:
+        lines.append(
+            f"  Note: all {len(approved)} flagged plan(s) are already approved; "
+            "re-review only if the prerequisite changes affect their design."
+        )
+        primary_ids = approved
+    else:
+        primary_ids = consumers
+
+    primary_cmd, is_partitioned = _format_rereview_command(primary_ids, host)
     if other_live_runs:
         lines.append(
             f"  Not yet: {len(other_live_runs)} other run(s) are still active "
             f"({', '.join(other_live_runs)}) and may change more prerequisites. Wait for them to "
             "finish; the last one to finish prints the final list."
         )
-        lines.append(f"  Then re-review with: {command}")
+        if is_partitioned:
+            lines.append(
+                f"  Then split into parallel review shards with: {primary_cmd}"
+            )
+        else:
+            lines.append(f"  Then re-review with: {primary_cmd}")
     else:
-        lines.append(f"  No other runs are active, so re-review now with: {command}")
+        if is_partitioned:
+            lines.append(
+                f"  No other runs are active; with {len(primary_ids)} plans, split into parallel review shards with: {primary_cmd}"
+            )
+        else:
+            lines.append(
+                f"  No other runs are active, so re-review now with: {primary_cmd}"
+            )
+
+    if unapproved and approved:
+        approved_cmd, _ = _format_rereview_command(approved, host)
+        lines.append(
+            f"  Optional (already approved, {len(approved)} plan(s)): {approved_cmd}"
+        )
     return lines
 
 

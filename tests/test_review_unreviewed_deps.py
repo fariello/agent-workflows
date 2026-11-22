@@ -333,3 +333,114 @@ def test_stale_bases_handles_shared_settled_changed_and_missing_prerequisites(
     assert (bdir / "con001.json").is_file()
     assert (bdir / "con002.json").is_file()
     assert (bdir / "con004.json").is_file()
+
+
+def test_stale_bases_skips_and_prunes_terminal_and_missing_consumers(
+    tmp_path: Path,
+) -> None:
+    """Already-executed, superseded, and missing consumers are never reported and get pruned."""
+    repo = _repo(tmp_path)
+    pre = _plan(repo, "pre001", 1, "to-review")
+    pending_rev = _plan(repo, "con001", 2, "reviewed", deps="executed:pre001")
+    pending_app = _plan(repo, "con002", 3, "approved", deps="executed:pre001")
+    exec_plan = _plan(repo, "con003", 4, "to-review", deps="executed:pre001")
+    sup_plan = _plan(repo, "con004", 5, "superseded", deps="executed:pre001")
+
+    for cid in ("con001", "con002", "con003", "con004", "mis005"):
+        targets = review_basis.provisional_targets(
+            repo,
+            {"id6": cid, "action": "review", "dependencies": ["executed:pre001"]},
+            _state(repo, True),
+        )
+        review_basis.record_basis(
+            repo, cid, targets, run_id="run-1", at="2026-11-22T00:00:00Z"
+        )
+
+    # Move con003 into executed/ and mark executed; modify prerequisite pre001 so all would be stale.
+    exec_dir = repo / ".aw" / "records" / "plans" / "executed"
+    exec_dir.mkdir(parents=True, exist_ok=True)
+    exec_dest = exec_dir / exec_plan.name
+    exec_dest.write_text(
+        exec_plan.read_text(encoding="utf-8").replace(
+            "- Status: to-review", "- Status: executed"
+        ),
+        encoding="utf-8",
+    )
+    exec_plan.unlink()
+    pre.write_text(
+        pre.read_text(encoding="utf-8").replace("Do it", "Changed design"),
+        encoding="utf-8",
+    )
+    assert pending_rev.is_file() and pending_app.is_file() and sup_plan.is_file()
+
+    stale = review_basis.stale_bases(repo, prune=True)
+    assert {(s.consumer, s.consumer_status) for s in stale} == {
+        ("con001", "reviewed"),
+        ("con002", "approved"),
+    }
+
+    bdir = review_basis.basis_dir(repo)
+    assert (bdir / "con001.json").is_file()
+    assert (bdir / "con002.json").is_file()
+    assert not (bdir / "con003.json").exists()
+    assert not (bdir / "con004.json").exists()
+    assert not (bdir / "mis005.json").exists()
+
+
+def test_stale_report_separates_approved_and_suggests_partition_for_large_lists() -> (
+    None
+):
+    """Report separates approved vs unapproved consumers and suggests aw partition --split-sets for >8 plans."""
+    mixed = [
+        review_basis.StaleBasis(
+            "rev001",
+            "pre001",
+            "reviewed",
+            "changed",
+            "run-1",
+            consumer_status="reviewed",
+        ),
+        review_basis.StaleBasis(
+            "app001",
+            "pre001",
+            "reviewed",
+            "changed",
+            "run-1",
+            consumer_status="approved",
+        ),
+        review_basis.StaleBasis(
+            "app002",
+            "pre001",
+            "reviewed",
+            "changed",
+            "run-1",
+            consumer_status="approved",
+        ),
+    ]
+    mixed_text = "\n".join(review_basis.stale_report_lines(mixed, host="agy"))
+    assert "1 unapproved (need re-review), 2 already approved" in mixed_text
+    assert "re-review now with: aw agy run --action review rev001" in mixed_text
+    assert (
+        "Optional (already approved, 2 plan(s)): aw agy run --action review app001 app002"
+        in mixed_text
+    )
+
+    # Large all-approved list (>8) suggests aw partition --action review --split-sets
+    large = [
+        review_basis.StaleBasis(
+            f"app{i:03d}",
+            "pre001",
+            "approved",
+            "changed",
+            "run-1",
+            consumer_status="approved",
+        )
+        for i in range(1, 11)
+    ]
+    large_text = "\n".join(review_basis.stale_report_lines(large, host="agy"))
+    assert "all 10 flagged plan(s) are already approved" in large_text
+    assert (
+        "aw partition -t plans --action review --run agy --split-sets "
+        "app001 app002 app003 app004 app005 app006 app007 app008 app009 app010"
+        in large_text
+    )
