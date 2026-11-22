@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 4.4 requires every reader of a HEAD, staged or branch revision to call `artifact_meta.read_at` instead of parsing git content, and C5a requires every gate and hook to read metadata through the cache. Measured 2026-11-07 at `ac76110f4`: `check_engine._blob_text` (`git show <ref>:<path>`, `:0:<path>`) has 12 call sites in 6 functions across `check_engine`, `hooks/ipd_dependency_statement_gate` and `status_set`, and `check_engine._status_meta` has 35 call sites in 13 functions; `hooks/executed_transition_gate` reads blobs with its own `_blob_at`; `plan_readiness.review_staleness_index` uses `git cat-file --batch`; `ipd_lifecycle._release_own_plan_edit_before_landing` uses `git show <landed>:<path>`. Part 1 of the split of `t4gl15` (Order 09), whose single plan hid several hundred units of work.
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance). The baseline, the 4.4 search rows and the `check_engine` and hook moves (former E-01 baseline and gate-file rows, E-02, E-03) moved to `snh19k` (Order 145); the remaining 4.4 search rows and the setter, staleness, lifecycle and runner merge-path moves (former E-01 remaining rows, E-04) moved to `iqhzse` (Order 146). This plan keeps E-05: the residual-audit rows of `t4gl15` E-15 for the hook, readiness and lifecycle modules, the re-run of every moved module, and the gates. EXCLUDES: every other runner read (Order 34 `y97k46`), the record, review and orchestration modules (Orders 35 `jd7874` and 36 `2zpw22`), the new `meta/*.jsonl` append hook (`jq82as`), the cache-parity and offline tests and the repo-wide finish (`t4gl15`).
 - Scope-Paths: .aw/records/plans/pending/20261107-metastore-33-h58z9n-move-the-check-engine-hook-and-setter-git-content-readers-on.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261121-q4gwp9-01-q4gwp9-migrate-ipd-lifecycle-plan-status-event-groups-and.backlog.md (Defect-report backlog item filed during h58z9n E-05 residual audit per mandatory defect_report contract for unmigrated ipd_lifecycle._plan_status_event_groups and HISTORY_RECORD_RE callers before Orde...)
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:tve77h, executed:xexn45, executed:snh19k, executed:iqhzse
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: h58z9n
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-22 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: h58z9n verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261121-q4gwp9-01-q4gwp9-migrate-ipd-lifecycle-plan-status-event-groups-and.backlog.md: Defect-report backlog item filed during h58z9n E-05 residual audit per mandatory defect_report contract for unmigrated ipd_lifecycle._plan_status_event_groups and HISTORY_RECORD_RE callers before Order 11 tdhav3]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002
