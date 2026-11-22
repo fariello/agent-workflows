@@ -26,11 +26,14 @@ def fixture_dep_tree(tmp_path: Path):
 
     plan_file = plans_dir / "20260901-test-01-ddd444-plan.ipd.md"
     plan_file.write_text(
-        "# Plan Title\n\n"
-        "- Id: ddd444\n"
-        "- Status: approved\n"
-        "- Set: fxset\n\n"
-        "Plan body.\n",
+        RecordBuilder().plan(
+            id6="ddd444",
+            status="approved",
+            set="fxset",
+            title="Plan Title",
+            body="Plan body.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -80,15 +83,18 @@ def test_bounded_accessors_ignore_body_quotations():
 
     ignore metadata-shaped lines in body text beyond the metadata region.
     """
-    body_quoted_text = (
-        "# Document Header\n\n"
-        "- Id: real01\n"
-        "- Status: draft\n\n"
-        "## Body Section\n\n"
-        "Here is a quoted block:\n"
-        "- Id: fff666\n"
-        "- Blocks-Release: next\n"
-        "- Status: reviewed\n"
+    body_quoted_text = RecordBuilder().plan(
+        id6="real01",
+        status="draft",
+        title="Document Header",
+        body=(
+            "## Body Section\n\n"
+            "Here is a quoted block:\n"
+            "- Id: fff666\n"
+            "- Blocks-Release: next\n"
+            "- Status: reviewed"
+        ),
+        text_only=True,
     )
 
     assert ce._read_item_id(body_quoted_text) == "real01"

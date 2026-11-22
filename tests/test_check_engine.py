@@ -88,81 +88,97 @@ def _plan_text(id6, setid="demo", desc=None, status="approved"):
     statuses must not carry an attestation they have not earned.
     """
     setline = f"{setid} ({desc})" if desc else setid
-    approval = (
-        "- Approval: 2026-01-01, recorded via aw ipd set\n"
-        if status == "approved"
-        else ""
-    )
     # rdyreq (`fhinri`, IPD-M113): a reviewed/ready-to-execute plan must carry `- Readiness:`, and
     # IPD-M107 requires review evidence in the history for it, so both travel together.
     gated = status in ("reviewed", "approved", "auto-approved")
-    readiness = "- Readiness: go-pending-approval\n" if gated else ""
-    review_line = "- 2026-01-01 /plan-review (t): APPROVE\n" if gated else ""
-    return (
-        "# IPD\n\n"
-        "- Date: 2026-01-01\n"
-        "- Kind: child\n"
-        "- Concern: a check_engine fixture\n"
-        "- Scope: a check_engine fixture\n"
-        "- Scope-Paths: x.py\n"
-        "- Item-Dependencies: none\n"
-        f"- Status: {status}\n"
-        f"- Set: {setline}\n"
-        "- Order: 1\n"
-        "- Highest E allocated: 01\n"
+    history = [f"- 2026-01-01 {status} (t): created."]
+    if gated:
+        history.append("- 2026-01-01 /plan-review (t): APPROVE")
+    return RecordBuilder().plan(
+        id6=id6,
+        title="check_engine fixture",
+        when="2026-01-01",
+        plan_role="child",
+        status=status,
+        set=setline,
+        order=1,
+        scope_paths="x.py",
+        item_dependencies="none",
         # planprio (`lkexaw`): REQUIRED at the ready-to-execute gate, and this fixture defaults to
         # `approved`, which IS that gate. Real vocabulary values rather than the `grandfathered`
         # sentinel, per the maintainer's 2026-09-24 decision: the sentinel is advisory-SATISFIED, so it
         # would add a permanent nudge to every row, and it asserts the plan predates the rule, which a
         # fixture built milliseconds ago does not. Fixing the FIXTURE rather than the assertions is this
         # helper's own stated discipline (see its docstring).
-        "- Priority: medium\n"
-        "- Work-Kind: chore\n"
-        "- Author: fixture\n"
-        f"- Id: {id6}\n"
-        f"{approval}"
-        f"{readiness}"
-        "\n## Workflow history\n"
-        f"- 2026-01-01 {status} (t): created.\n"
-        f"{review_line}"
-        "\n## Goal\n\nx\n"
-        "\n## Detailed Implementation Checklist (TODO)\n\n"
-        "- [ ] E-01 do it.\n"
-        "  - Depends on: none\n"
-        "  - Expected outcome: done\n"
-        "  - Execution state: pending\n"
-        "\n## Project conventions discovered (Step 0)\n\n- none\n"
-        "\n## Findings\n\n"
-        "| Id | Severity | Area | What | Evidence |\n|---|---|---|---|---|\n"
-        "| F-1 | LOW | x | y | z |\n"
-        "\n## Proposed changes (ordered, validatable)\n\n1. do it\n"
-        "\n## Deferred / out of scope (with reason)\n\n"
-        "- nothing deferred.\n  - Carrier-Declined: a fixture has no obligations.\n"
-        "\n## Scope check\n\n- Over-scope: none\n- Under-scope: none\n"
-        "\n## Required tests / validation\n\nthe suite\n"
-        "\n## Spec / documentation sync\n\nnone\n"
-        "\n## Open questions\n\nnone\n"
-        "\n## Validation and cross-check (verify before reporting done)\n\n"
-        "- [ ] V-01 validates E-01\n"
-        "  - Required evidence: paste it\n"
-        "  - Observed evidence:\n"
-        "  - Result: pending\n"
-        "\n## Approval and execution gate\n\n"
-        "- Size assessment: standard\n- Cohesion rationale: not required\n"
+        priority="medium",
+        work_kind="chore",
+        author="fixture",
+        approval="2026-01-01, recorded via aw ipd set"
+        if status == "approved"
+        else None,
+        readiness="go-pending-approval" if gated else None,
+        history=history,
+        raw_fields={
+            "Concern": "a check_engine fixture",
+            "Scope": "a check_engine fixture",
+        },
+        body=(
+            "## Goal\n\nx\n\n"
+            "## Detailed Implementation Checklist (TODO)\n\n"
+            "- [ ] E-01 do it.\n"
+            "  - Depends on: none\n"
+            "  - Expected outcome: done\n"
+            "  - Execution state: pending\n\n"
+            "## Project conventions discovered (Step 0)\n\n- none\n\n"
+            "## Findings\n\n"
+            "| Id | Severity | Area | What | Evidence |\n|---|---|---|---|---|\n"
+            "| F-1 | LOW | x | y | z |\n\n"
+            "## Proposed changes (ordered, validatable)\n\n1. do it\n\n"
+            "## Deferred / out of scope (with reason)\n\n"
+            "- nothing deferred.\n  - Carrier-Declined: a fixture has no obligations.\n\n"
+            "## Scope check\n\n- Over-scope: none\n- Under-scope: none\n\n"
+            "## Required tests / validation\n\nthe suite\n\n"
+            "## Spec / documentation sync\n\nnone\n\n"
+            "## Open questions\n\nnone\n\n"
+            "## Validation and cross-check (verify before reporting done)\n\n"
+            "- [ ] V-01 validates E-01\n"
+            "  - Required evidence: paste it\n"
+            "  - Observed evidence:\n"
+            "  - Result: pending\n\n"
+            "## Approval and execution gate\n\n"
+            "- Size assessment: standard\n- Cohesion rationale: not required"
+        ),
+        text_only=True,
     )
 
 
 def _spec_text(id6, setid="demo", desc=None, status="draft"):
     setline = f"{setid} ({desc})" if desc else setid
-    return (
-        f"# Spec\n\n- Id: {id6}\n- Status: {status}\n- Set: {setline}\n\n## Body\n\nx\n"
+    return RecordBuilder().spec(
+        id6=id6,
+        set=setline,
+        status=status,
+        history=[],
+        body="## Body\n\nx",
+        raw_fields={"Set": setline},
+        text_only=True,
     )
 
 
 def _walk_text(id6=None, setid=None):
-    idline = f"- Id: {id6}\n" if id6 else ""
-    setline = f"- Set: {setid}\n" if setid else ""
-    return f"# Walkthrough\n\n- Date: 20260101\n{idline}{setline}\n## Summary\n\nx\n"
+    raw: dict[str, object] = {}
+    if not id6:
+        raw["Id"] = None
+    if setid:
+        raw["Set"] = setid
+    return RecordBuilder().walkthrough(
+        id6=id6 or "wt1001",
+        set=setid or "demo",
+        when="2026-01-01",
+        body="# Walkthrough\n\n## Summary\n\nx\n",
+        raw_fields=raw or None,
+        text_only=True,
+    )
 
 
 def _tree(files):
@@ -777,82 +793,92 @@ class LifecyclePlacementTests(unittest.TestCase):
     deterministically across all lifecycle-bearing record types (plans, specs, backlog, prompts).
     """
 
-    _LEGACY_BODY = (
-        "# IPD\n\n"
-        "- Date: 2026-01-01\n"
-        "- Kind: child\n"
-        "- Concern: a check_engine fixture\n"
-        "- Scope: a check_engine fixture\n"
-        "- Scope-Paths: x.py\n"
-        "- Item-Dependencies: none\n"
-        "- Status: approved\n"
-        "- Set: demo\n"
-        "- Order: 1\n"
-        "- Highest E allocated: 01\n"
-        "- Priority: medium\n"
-        "- Work-Kind: chore\n"
-        "- Author: fixture\n"
-        "- Approval: 2026-01-01, recorded via aw ipd set\n"
-        "- Readiness: go-pending-approval\n"
-        "\n## Workflow history\n"
-        "- 2026-01-01 approved (t): created.\n"
-        "- 2026-01-01 /plan-review (t): APPROVE\n"
-        "\n## Goal\n\nx\n"
-        "\n## Detailed Implementation Checklist (TODO)\n\n"
-        "- [ ] E-01 do it.\n"
-        "  - Depends on: none\n"
-        "  - Expected outcome: done\n"
-        "  - Execution state: pending\n"
-        "\n## Project conventions discovered (Step 0)\n\n- none\n"
-        "\n## Findings\n\n"
-        "| Id | Severity | Area | What | Evidence |\n|---|---|---|---|---|\n"
-        "| F-1 | LOW | x | y | z |\n"
-        "\n## Proposed changes (ordered, validatable)\n\n1. do it\n"
-        "\n## Deferred / out of scope (with reason)\n\n"
-        "- nothing deferred.\n  - Carrier-Declined: a fixture has no obligations.\n"
-        "\n## Scope check\n\n- Over-scope: none\n- Under-scope: none\n"
-        "\n## Required tests / validation\n\nthe suite\n"
-        "\n## Spec / documentation sync\n\nnone\n"
-        "\n## Open questions\n\nnone\n"
-        "\n## Validation and cross-check (verify before reporting done)\n\n"
-        "- [ ] V-01 validates E-01\n"
-        "  - Required evidence: paste it\n"
-        "  - Observed evidence:\n"
-        "  - Result: pending\n"
-        "\n## Approval and execution gate\n\n"
-        "- Size assessment: standard\n- Cohesion rationale: not required\n"
+    _LEGACY_BODY = RecordBuilder().plan(
+        id6="abc123",
+        title="check_engine fixture",
+        when="2026-01-01",
+        plan_role="child",
+        status="approved",
+        set="demo",
+        order=1,
+        scope_paths="x.py",
+        item_dependencies="none",
+        priority="medium",
+        work_kind="chore",
+        author="fixture",
+        approval="2026-01-01, recorded via aw ipd set",
+        readiness="go-pending-approval",
+        history=[
+            "- 2026-01-01 approved (t): created.",
+            "- 2026-01-01 /plan-review (t): APPROVE",
+        ],
+        raw_fields={
+            "Id": None,
+            "Concern": "a check_engine fixture",
+            "Scope": "a check_engine fixture",
+        },
+        body=(
+            "## Goal\n\nx\n\n"
+            "## Detailed Implementation Checklist (TODO)\n\n"
+            "- [ ] E-01 do it.\n"
+            "  - Depends on: none\n"
+            "  - Expected outcome: done\n"
+            "  - Execution state: pending\n\n"
+            "## Project conventions discovered (Step 0)\n\n- none\n\n"
+            "## Findings\n\n"
+            "| Id | Severity | Area | What | Evidence |\n|---|---|---|---|---|\n"
+            "| F-1 | LOW | x | y | z |\n\n"
+            "## Proposed changes (ordered, validatable)\n\n1. do it\n\n"
+            "## Deferred / out of scope (with reason)\n\n"
+            "- nothing deferred.\n  - Carrier-Declined: a fixture has no obligations.\n\n"
+            "## Scope check\n\n- Over-scope: none\n- Under-scope: none\n\n"
+            "## Required tests / validation\n\nthe suite\n\n"
+            "## Spec / documentation sync\n\nnone\n\n"
+            "## Open questions\n\nnone\n\n"
+            "## Validation and cross-check (verify before reporting done)\n\n"
+            "- [ ] V-01 validates E-01\n"
+            "  - Required evidence: paste it\n"
+            "  - Observed evidence:\n"
+            "  - Result: pending\n\n"
+            "## Approval and execution gate\n\n"
+            "- Size assessment: standard\n- Cohesion rationale: not required"
+        ),
+        text_only=True,
     )
 
-    _BKLG_OPEN = (
-        "- Id: ccc333\n"
-        "- Status: open\n"
-        "- Set: demo\n"
-        "- Priority: high\n"
-        "- Work-Kind: feature\n"
-        "- Summary: Open\n\n"
-        "## Workflow history\n\n"
-        "- 2026-01-01 created (aw backlog): fixture\n\n"
-        "## Detail\n\nx\n"
+    _BKLG_OPEN = RecordBuilder().backlog(
+        id6="ccc333",
+        status="open",
+        set="demo",
+        priority="high",
+        work_kind="feature",
+        summary="Open",
+        when="2026-01-01",
+        body="## Detail\n\nx",
+        history=["- 2026-01-01 created (aw backlog): fixture"],
+        text_only=True,
     )
 
-    _BKLG_DONE = (
-        "- Id: ccc333\n"
-        "- Status: done\n"
-        "- Set: demo\n"
-        "- Priority: high\n"
-        "- Work-Kind: feature\n"
-        "- Summary: Done\n\n"
-        "## Workflow history\n\n"
-        "- 2026-01-01 created (aw backlog): fixture\n\n"
-        "## Detail\n\nx\n"
+    _BKLG_DONE = RecordBuilder().backlog(
+        id6="ccc333",
+        status="done",
+        set="demo",
+        priority="high",
+        work_kind="feature",
+        summary="Done",
+        when="2026-01-01",
+        body="## Detail\n\nx",
+        history=["- 2026-01-01 created (aw backlog): fixture"],
+        text_only=True,
     )
 
-    _RESEARCH_TEXT = (
-        "# Research: test doc\n\n"
-        "- Id: ddd444\n"
-        "- Date: 2026-01-01\n"
-        "- Set: demo\n\n"
-        "## Summary\n\nx\n"
+    _RESEARCH_TEXT = RecordBuilder().research(
+        id6="ddd444",
+        set="demo",
+        when="2026-01-01",
+        topic="test doc",
+        body="# Research: test doc\n\n## Summary\n\nx\n",
+        text_only=True,
     )
 
     #: (case, the files as (relative path, text), rules expected from full sweep, why this row exists)
@@ -993,11 +1019,11 @@ class LifecyclePlacementTests(unittest.TestCase):
         records = [
             (
                 "plans/pending/20260101-demo-01-syn001-a.ipd.md",
-                "- Id: syn001\n- Status: approved\n",
+                RecordBuilder().plan(id6="syn001", status="approved", text_only=True),
             ),
             (
                 "plans/executed/20260101-demo-01-syn001-a.ipd.md",
-                "- Id: syn001\n- Status: executed\n",
+                RecordBuilder().plan(id6="syn001", status="executed", text_only=True),
             ),
         ]
         conflicts = ce.find_lifecycle_placement_conflicts(records)
@@ -1043,11 +1069,11 @@ class LifecyclePlacementTests(unittest.TestCase):
         specs_records = [
             (
                 "specs/draft/20260101-spc111-01-spc111-test.spec.md",
-                "- Id: spc111\n- Status: draft\n",
+                RecordBuilder().spec(id6="spc111", status="draft", text_only=True),
             ),
             (
                 "specs/approved/20260101-spc111-01-spc111-test.spec.md",
-                "- Id: spc111\n- Status: approved\n",
+                RecordBuilder().spec(id6="spc111", status="approved", text_only=True),
             ),
         ]
         conflicts_s = ce.find_lifecycle_placement_conflicts(specs_records)
@@ -1059,11 +1085,11 @@ class LifecyclePlacementTests(unittest.TestCase):
         bklg_records = [
             (
                 "backlog/open/20260101-bkl111-01-bkl111-test.backlog.md",
-                "- Id: bkl111\n- Status: open\n",
+                RecordBuilder().backlog(id6="bkl111", status="open", text_only=True),
             ),
             (
                 "backlog/done/20260101-bkl111-01-bkl111-test.backlog.md",
-                "- Id: bkl111\n- Status: done\n",
+                RecordBuilder().backlog(id6="bkl111", status="done", text_only=True),
             ),
         ]
         conflicts_b = ce.find_lifecycle_placement_conflicts(bklg_records)
@@ -1182,26 +1208,42 @@ class Id6OutsideMetadataRegionTests(unittest.TestCase):
 
     NAME = ".aw/records/walkthroughs/20260101-probe-01-prb001-probe.walkthrough.md"
 
-    def _drift(self, body):
-        text = (
-            "# Walkthrough\n\n- Date: 2026-01-01\n- Id: prb001\n\n## Summary\n\n" + body
-        )
+    def _drift(self, text):
         root = _tree([(self.NAME, text)])
         return ce.check_id_outside_metadata_region(root)
 
     def test_a_quoted_id_inside_a_fence_is_not_reported(self):
         for fence in ("```", "~~~", "```markdown"):
-            body = f"Example of another record:\n\n{fence}\n- Id: other1\n{fence[:3]}\n"
-            self.assertEqual(_rules(self._drift(body)), [], fence)
+            text = RecordBuilder().walkthrough(
+                id6="prb001",
+                when="2026-01-01",
+                body=(
+                    "# Walkthrough\n\n## Summary\n\n"
+                    f"Example of another record:\n\n{fence}\n- Id: other1\n{fence[:3]}\n"
+                ),
+                text_only=True,
+            )
+            self.assertEqual(_rules(self._drift(text)), [], fence)
 
     def test_an_unfenced_misplaced_id_is_still_reported(self):
-        drift = self._drift("Prose.\n\n- Id: other1\n")
+        text = RecordBuilder().walkthrough(
+            id6="prb001",
+            when="2026-01-01",
+            body="# Walkthrough\n\n## Summary\n\nProse.\n\n- Id: other1\n",
+            text_only=True,
+        )
+        drift = self._drift(text)
         self.assertEqual(_rules(drift), ["check.id6-outside-metadata-region"])
         self.assertIn("other1", drift[0].detail)
 
     def test_an_id_after_a_closed_fence_is_reported(self):
-        body = "```\n- Id: quoted\n```\n\n- Id: other1\n"
-        drift = self._drift(body)
+        text = RecordBuilder().walkthrough(
+            id6="prb001",
+            when="2026-01-01",
+            body="# Walkthrough\n\n## Summary\n\n```\n- Id: quoted\n```\n\n- Id: other1\n",
+            text_only=True,
+        )
+        drift = self._drift(text)
         self.assertEqual(_rules(drift), ["check.id6-outside-metadata-region"])
         self.assertIn("other1", drift[0].detail)
 
@@ -1631,7 +1673,13 @@ class RetiredAndIgnoredScopeTests(unittest.TestCase):
         (
             "an approved spec",
             f"{SPECS}/20260101-1200-01-active.spec.md",
-            "# Spec: active\n- Status: approved\n\n## Workflow history\n\n- 2026-01-01 note (human): initial approval\n",
+            RecordBuilder().spec(
+                title="active",
+                status="approved",
+                history=["- 2026-01-01 note (human): initial approval"],
+                raw_fields={"Id": None},
+                text_only=True,
+            ),
             False,
             "the active case for a type with NO disposition directories at all: specs live in one "
             "flat directory, so their retirement can only come from the STATUS. This row is the "
@@ -1651,7 +1699,18 @@ class RetiredAndIgnoredScopeTests(unittest.TestCase):
         (
             "a backlog item in open/",
             ".aw/records/backlog/open/20260101-bkl111-01-bkl111-open.backlog.md",
-            "- Id: bkl111\n- Status: open\n- Set: bkl111\n- Priority: high\n- Work-Kind: feature\n- Summary: Open\n\n## Workflow history\n\n- 2026-01-01 created (aw backlog): fixture\n\n## Detail\n\nx\n",
+            RecordBuilder().backlog(
+                id6="bkl111",
+                status="open",
+                set="bkl111",
+                priority="high",
+                work_kind="feature",
+                summary="Open",
+                when="2026-01-01",
+                body="## Detail\n\nx",
+                history=["- 2026-01-01 created (aw backlog): fixture"],
+                text_only=True,
+            ),
             False,
             "the active case for the third tree shape, whose disposition directories are STATUS "
             "names. `open/` must not be mistaken for a retirement segment",
@@ -1659,7 +1718,18 @@ class RetiredAndIgnoredScopeTests(unittest.TestCase):
         (
             "a backlog item in done/",
             ".aw/records/backlog/done/20260101-bkl222-01-bkl222-done.backlog.md",
-            "- Id: bkl222\n- Status: done\n- Set: bkl222\n- Priority: high\n- Work-Kind: feature\n- Summary: Done\n\n## Workflow history\n\n- 2026-01-01 created (aw backlog): fixture\n\n## Detail\n\nx\n",
+            RecordBuilder().backlog(
+                id6="bkl222",
+                status="done",
+                set="bkl222",
+                priority="high",
+                work_kind="feature",
+                summary="Done",
+                when="2026-01-01",
+                body="## Detail\n\nx",
+                history=["- 2026-01-01 created (aw backlog): fixture"],
+                text_only=True,
+            ),
             True,
             "THE OVERLAP ROW: `done` is BOTH a directory segment and a status, so this path is "
             "retired by either mechanism. Kept because it is the shape most likely to be "
@@ -2512,7 +2582,13 @@ class CarrierEvidencePlanAndSpecDisposition(unittest.TestCase):
                     / f".aw/records/specs/{st}/20261011-spc{st[:3]}-01-spc{st[:3]}-test.spec.md"
                 )
                 p.write_text(
-                    f"# Spec\n- Id: spc{st[:3]}\n- Status: {st}\n\n## Workflow history\n- 2026-10-11 {st}: test\n",
+                    RecordBuilder().spec(
+                        id6="sp1001",
+                        status=st,
+                        history=[f"- 2026-10-11 {st}: test"],
+                        raw_fields={"Id": f"spc{st[:3]}"},
+                        text_only=True,
+                    ),
                     encoding="utf-8",
                 )
                 rel = str(p.relative_to(root)).replace("\\", "/")
