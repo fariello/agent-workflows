@@ -25,13 +25,17 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _make_plan_text(history_lines: list[str], *, id6: str = "fixt01") -> str:
-    hist = "\n".join(history_lines)
-    return (
-        f"# IPD: Fixture Plan\n\n"
-        f"- Id: {id6}\n"
-        f"- Status: reviewed\n\n"
-        f"## Workflow history\n"
-        f"{hist}\n"
+    valid_id = id6 if (len(id6) == 6 and id6.isalnum()) else "fixt01"
+    raw_fields = {"Id": id6} if valid_id != id6 else None
+    return str(
+        RecordBuilder().plan(
+            title="Fixture Plan",
+            id6=valid_id,
+            status="reviewed",
+            history=history_lines,
+            raw_fields=raw_fields,
+            text_only=True,
+        )
     )
 
 
@@ -333,13 +337,22 @@ class TestTerminalDispositionRefusal(unittest.TestCase):
                 disp_dir = root / ".aw" / "records" / "plans" / disp
                 disp_dir.mkdir(parents=True, exist_ok=True)
                 p = disp_dir / f"20260901-test-01-{disp[:6]}-test.ipd.md"
+                raw_id = disp[:6]
+                valid_id = disp.replace("-", "")[:6]
                 p.write_text(
-                    f"# IPD: Test {disp}\n\n"
-                    f"- Id: {disp[:6]}\n"
-                    f"- Status: {disp}\n"
-                    f"- Readiness: no-go\n\n"
-                    f"## Workflow history\n"
-                    f"- 2026-09-01 /plan-review (tester): APPROVE; PR-001\n",
+                    str(
+                        RecordBuilder().plan(
+                            title=f"Test {disp}",
+                            id6=valid_id,
+                            status=disp,
+                            readiness="no-go",
+                            history=[
+                                "- 2026-09-01 /plan-review (tester): APPROVE; PR-001"
+                            ],
+                            raw_fields={"Id": raw_id} if valid_id != raw_id else None,
+                            text_only=True,
+                        )
+                    ),
                     encoding="utf-8",
                 )
                 res = plan_readiness.recheck_conditions(root, p)

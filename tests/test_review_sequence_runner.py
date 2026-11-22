@@ -26,11 +26,17 @@ from unittest import mock
 
 from agent_workflows import (
     agy_runipd,
+    ipd_schema,
     oc_runipd,
     runner_shared,
 )
+from tests.record_builder import RecordBuilder
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
+_DEFAULT_PLAN_HISTORY = [
+    "- 2026-10-15 to-review (test): authored",
+    "- 2026-10-15 draft (test): created",
+]
 
 
 def _make_test_repo(path: Path) -> Path:
@@ -42,65 +48,22 @@ def _make_test_repo(path: Path) -> Path:
     return path
 
 
-def _write_plan(
-    repo: Path,
-    *,
-    id6: str,
-    setid: str = "revsteps",
-    order: int = 1,
-    status: str = "to-review",
-    kind: str = "child",
-    readiness: str | None = None,
-    review_depth: str | None = None,
-) -> Path:
-    plan_dir = repo / ".aw" / "records" / "plans" / "pending"
-    plan_dir.mkdir(parents=True, exist_ok=True)
-    if kind == "orchestrator":
-        order = 0
-    plan_path = plan_dir / f"20261015-{setid}-{order:02d}-{id6}-test-plan.ipd.md"
-
-    lines = [
-        f"# IPD: Test Plan {id6}",
+def _default_plan_body(setid: str, kind: str) -> str:
+    body_lines = [
+        "## Goal",
         "",
-        "- Date: 2026-10-15",
-        f"- Id: {id6}",
-        f"- Set: {setid}",
-        f"- Order: {order}",
-        f"- Status: {status}",
-        f"- Kind: {kind}",
-        "- Concern: Test concern.",
-        "- Scope: Test scope.",
-        "- Scope-Paths: none",
-        "- Priority: medium",
-        "- Work-Kind: feature",
-        "- Author: test",
-        "- Highest E allocated: 01",
+        "A test goal.",
+        "",
+        "## Detailed Implementation Checklist (TODO)",
+        "",
+        "- [ ] E-01 Test action item",
+        "  - Depends on: none",
+        "  - Expected outcome: done",
+        "  - Execution state: pending",
+        "",
     ]
-    if review_depth:
-        lines.append(f"- Review-Depth: {review_depth}")
-    if readiness is not None:
-        lines.append(f"- Readiness: {readiness}")
-    lines.append("- Item-Dependencies: none")
-    lines.append("")
-    lines.append("## Workflow history")
-    lines.append("")
-    lines.append("- 2026-10-15 to-review (test): authored")
-    lines.append("- 2026-10-15 draft (test): created")
-    lines.append("")
-    lines.append("## Goal")
-    lines.append("")
-    lines.append("A test goal.")
-    lines.append("")
-    lines.append("## Detailed Implementation Checklist (TODO)")
-    lines.append("")
-    lines.append("- [ ] E-01 Test action item")
-    lines.append("  - Depends on: none")
-    lines.append("  - Expected outcome: done")
-    lines.append("  - Execution state: pending")
-    lines.append("")
-
     if kind == "orchestrator":
-        lines.extend(
+        body_lines.extend(
             [
                 "## Child IPDs, sequence, and dependencies",
                 "",
@@ -118,8 +81,7 @@ def _write_plan(
                 "",
             ]
         )
-
-    lines.extend(
+    body_lines.extend(
         [
             "## Deferred / out of scope (with reason)",
             "",
@@ -143,11 +105,125 @@ def _write_plan(
             "  - Required evidence: evidence",
             "  - Observed evidence: none",
             "  - Result: pending",
-            "",
         ]
     )
+    return "\n".join(body_lines)
 
-    plan_path.write_text("\n".join(lines), encoding="utf-8")
+
+def _render_plan_text(
+    *,
+    id6: str,
+    setid: str = "revsteps",
+    order: int = 1,
+    status: str = "to-review",
+    kind: str = "child",
+    readiness: str | None = None,
+    review_depth: str | None = None,
+    highest_e_allocated: str = "01",
+    history: list[str] | None = None,
+    open_questions: str | list[str] | None = None,
+    body: str | None = None,
+) -> str:
+    if kind == "orchestrator":
+        order = 0
+    valid_id = id6 if (len(id6) == 6 and id6.isalnum()) else "tst001"
+    raw_fields: dict[str, object] = {
+        "Concern": "Test concern.",
+        "Scope": "Test scope.",
+    }
+    if valid_id != id6:
+        raw_fields["Id"] = id6
+    extra: dict[str, object] = {}
+    if review_depth:
+        extra["review_depth"] = review_depth
+    return str(
+        RecordBuilder().plan(
+            title=f"Test Plan {id6}",
+            when="2026-10-15",
+            id6=valid_id,
+            set=setid,
+            order=order,
+            status=status,
+            plan_role=kind,
+            scope_paths="none",
+            item_dependencies="none",
+            priority="medium",
+            work_kind="feature",
+            author="test",
+            highest_e_allocated=highest_e_allocated,
+            readiness=readiness,
+            history=list(_DEFAULT_PLAN_HISTORY if history is None else history),
+            open_questions=open_questions,
+            body=_default_plan_body(setid, kind) if body is None else body,
+            raw_fields=raw_fields,
+            text_only=True,
+            **extra,
+        )
+    )
+
+
+def _rewrite_plan_via_builder(
+    plan_path: Path,
+    *,
+    id6: str,
+    setid: str = "revsteps",
+    order: int = 1,
+    status: str = "reviewed",
+    kind: str = "child",
+    readiness: str | None = None,
+    review_depth: str | None = None,
+    highest_e_allocated: str = "01",
+    history: list[str] | None = None,
+    open_questions: str | list[str] | None = None,
+) -> str:
+    existing = plan_path.read_text(encoding="utf-8")
+    idx = existing.find("\n## Goal")
+    body = existing[idx + 1 :] if idx != -1 else None
+    rendered = _render_plan_text(
+        id6=id6,
+        setid=setid,
+        order=order,
+        status=status,
+        kind=kind,
+        readiness=readiness,
+        review_depth=review_depth,
+        highest_e_allocated=highest_e_allocated,
+        history=history,
+        open_questions=open_questions,
+        body=body,
+    )
+    plan_path.write_text(rendered, encoding="utf-8")
+    return rendered
+
+
+def _write_plan(
+    repo: Path,
+    *,
+    id6: str,
+    setid: str = "revsteps",
+    order: int = 1,
+    status: str = "to-review",
+    kind: str = "child",
+    readiness: str | None = None,
+    review_depth: str | None = None,
+) -> Path:
+    plan_dir = repo / ".aw" / "records" / "plans" / "pending"
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    if kind == "orchestrator":
+        order = 0
+    plan_path = plan_dir / f"20261015-{setid}-{order:02d}-{id6}-test-plan.ipd.md"
+    plan_path.write_text(
+        _render_plan_text(
+            id6=id6,
+            setid=setid,
+            order=order,
+            status=status,
+            kind=kind,
+            readiness=readiness,
+            review_depth=review_depth,
+        ),
+        encoding="utf-8",
+    )
     subprocess.run(["git", "add", str(plan_path)], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-qm", f"add plan {id6}"], cwd=repo, check=True)
     return plan_path
@@ -168,18 +244,20 @@ def _write_review_record(
     rev_dir.mkdir(parents=True, exist_ok=True)
     rev_p = rev_dir / f"20261015-rev-01-{id6}-review.review.md"
 
-    lines = [
-        f"# Review: Test Plan {id6}",
-        "",
-        f"- Subject-Id: {id6}",
-        "- Subject-Type: ipd",
-        "- Reviewed-At: 2026-10-25",
-        "- Reviewer: test-agent",
-        "- Verdict: APPROVE",
-        "",
-        "## Round 1",
-        "",
-    ]
+    valid_id = id6 if (len(id6) == 6 and id6.isalnum()) else "tst001"
+    base = str(
+        RecordBuilder().review(
+            subject=valid_id,
+            reviewed_at="2026-10-25",
+            reviewer="test-agent",
+            verdict="APPROVE",
+            text_only=True,
+        )
+    )
+    if valid_id != id6:
+        base = base.replace(valid_id, id6)
+    header = base.split("\n### Findings", 1)[0].rstrip("\n")
+    lines = [header, ""]
     if proofreading:
         lines.extend(
             [
@@ -323,19 +401,17 @@ class TestReviewSequenceRunner(unittest.TestCase):
                             reply = "AW-REVIEW: DONE"
                         elif "s7-finalize.md" in p_text:
                             curr_plan = repo / item["configured_file"]
-                            txt = curr_plan.read_text(encoding="utf-8")
-                            txt = txt.replace(
-                                "- Status: to-review", "- Status: reviewed"
+                            _rewrite_plan_via_builder(
+                                curr_plan,
+                                id6="std001",
+                                setid="revsteps",
+                                status="reviewed",
+                                readiness="go-pending-approval",
+                                history=[
+                                    "- 2026-10-25 reviewed (test): /plan-review (test): APPROVE",
+                                    *_DEFAULT_PLAN_HISTORY,
+                                ],
                             )
-                            txt = txt.replace(
-                                "- Highest E allocated: 01\n",
-                                "- Highest E allocated: 01\n- Readiness: go-pending-approval\n",
-                            )
-                            txt = txt.replace(
-                                "## Workflow history\n",
-                                "## Workflow history\n\n- 2026-10-25 reviewed (test): /plan-review (test): APPROVE\n",
-                            )
-                            curr_plan.write_text(txt, encoding="utf-8")
                             reply = "Plan review finalized."
                         else:
                             reply = "Check completed."
@@ -417,17 +493,17 @@ class TestReviewSequenceRunner(unittest.TestCase):
                     reply = "AW-REVIEW: DONE"
                 elif "s7-finalize.md" in p_text:
                     curr_plan = repo / it["configured_file"]
-                    txt = curr_plan.read_text(encoding="utf-8")
-                    txt = txt.replace("- Status: to-review", "- Status: reviewed")
-                    txt = txt.replace(
-                        "- Highest E allocated: 01\n",
-                        "- Highest E allocated: 01\n- Readiness: go-pending-approval\n",
+                    _rewrite_plan_via_builder(
+                        curr_plan,
+                        id6="cpx001",
+                        setid="revsteps",
+                        status="reviewed",
+                        readiness="go-pending-approval",
+                        history=[
+                            "- 2026-10-25 reviewed (test): /plan-review (test): APPROVE",
+                            *_DEFAULT_PLAN_HISTORY,
+                        ],
                     )
-                    txt = txt.replace(
-                        "## Workflow history\n",
-                        "## Workflow history\n\n- 2026-10-25 reviewed (test): /plan-review (test): APPROVE\n",
-                    )
-                    curr_plan.write_text(txt, encoding="utf-8")
                     reply = "Finalized."
                 else:
                     reply = "Step checked."
@@ -539,12 +615,14 @@ class TestReviewSequenceRunner(unittest.TestCase):
                 curr_plan = repo / it["configured_file"]
                 txt = curr_plan.read_text(encoding="utf-8")
                 # Illegally write Readiness before S7
-                if "- Readiness:" not in txt:
-                    txt = txt.replace(
-                        "- Highest E allocated: 01\n",
-                        "- Highest E allocated: 01\n- Readiness: go\n",
+                if ipd_schema.read_readiness(txt) is None:
+                    _rewrite_plan_via_builder(
+                        curr_plan,
+                        id6="ac07chk",
+                        setid="revsteps",
+                        status="to-review",
+                        readiness="go",
                     )
-                    curr_plan.write_text(txt, encoding="utf-8")
                 _write_review_record(repo, "ac07chk", proofreading=True, step_t=True)
                 step_log = rd / f"log-ac07-{turn_count}.jsonl"
                 step_log.write_text("AW-TIER: standard", encoding="utf-8")
@@ -610,17 +688,17 @@ class TestReviewSequenceRunner(unittest.TestCase):
                     reply = "AW-REVIEW: DONE"
                 elif "s7-finalize.md" in p_text:
                     curr_plan = repo / it["configured_file"]
-                    txt = curr_plan.read_text(encoding="utf-8")
-                    txt = txt.replace("- Status: to-review", "- Status: reviewed")
-                    txt = txt.replace(
-                        "- Highest E allocated: 01\n",
-                        "- Highest E allocated: 01\n- Readiness: go-pending-approval\n",
+                    _rewrite_plan_via_builder(
+                        curr_plan,
+                        id6="ac08chk",
+                        setid="revsteps",
+                        status="reviewed",
+                        readiness="go-pending-approval",
+                        history=[
+                            "- 2026-10-25 reviewed (test): /plan-review: APPROVE",
+                            *_DEFAULT_PLAN_HISTORY,
+                        ],
                     )
-                    txt = txt.replace(
-                        "## Workflow history\n",
-                        "## Workflow history\n\n- 2026-10-25 reviewed (test): /plan-review: APPROVE\n",
-                    )
-                    curr_plan.write_text(txt, encoding="utf-8")
                     reply = "Finalized."
                 else:
                     reply = "Check ok."
@@ -686,17 +764,17 @@ class TestReviewSequenceRunner(unittest.TestCase):
                     reply = "AW-REVIEW: DONE"
                 elif "s7-finalize.md" in p_text:
                     curr_plan = repo / it["configured_file"]
-                    txt = curr_plan.read_text(encoding="utf-8")
-                    txt = txt.replace("- Status: to-review", "- Status: reviewed")
-                    txt = txt.replace(
-                        "- Highest E allocated: 01\n",
-                        "- Highest E allocated: 01\n- Readiness: no-go\n",
+                    _rewrite_plan_via_builder(
+                        curr_plan,
+                        id6="neg001",
+                        setid="revsteps",
+                        status="reviewed",
+                        readiness="no-go",
+                        history=[
+                            "- 2026-10-25 reviewed (test): /plan-review: REJECT - NEEDS REPLAN",
+                            *_DEFAULT_PLAN_HISTORY,
+                        ],
                     )
-                    txt = txt.replace(
-                        "## Workflow history\n",
-                        "## Workflow history\n\n- 2026-10-25 reviewed (test): /plan-review: REJECT - NEEDS REPLAN\n",
-                    )
-                    curr_plan.write_text(txt, encoding="utf-8")
                     reply = "Completed with no-go."
                 else:
                     reply = "Check ok."
@@ -788,17 +866,17 @@ class TestReviewSequenceRunner(unittest.TestCase):
                     reply = "AW-REVIEW: DONE"
                 elif "s7-finalize.md" in p_text:
                     curr_plan = repo / it["configured_file"]
-                    txt = curr_plan.read_text(encoding="utf-8")
-                    txt = txt.replace("- Status: to-review", "- Status: reviewed")
-                    txt = txt.replace(
-                        "- Highest E allocated: 01\n",
-                        "- Highest E allocated: 01\n- Readiness: go-pending-approval\n",
+                    _rewrite_plan_via_builder(
+                        curr_plan,
+                        id6=it["id6"],
+                        setid=it["setid"],
+                        status="reviewed",
+                        readiness="go-pending-approval",
+                        history=[
+                            "- 2026-10-25 reviewed (test): /plan-review: APPROVE",
+                            *_DEFAULT_PLAN_HISTORY,
+                        ],
                     )
-                    txt = txt.replace(
-                        "## Workflow history\n",
-                        "## Workflow history\n\n- 2026-10-25 reviewed (test): /plan-review: APPROVE\n",
-                    )
-                    curr_plan.write_text(txt, encoding="utf-8")
                     reply = "Finalized."
                 else:
                     reply = "Check ok."
@@ -889,17 +967,17 @@ class TestReviewSequenceRunner(unittest.TestCase):
                 p_text = Path(prompt_f).read_text(encoding="utf-8")
                 calls.append(p_text)
                 curr_plan = repo / it["configured_file"]
-                txt = curr_plan.read_text(encoding="utf-8")
-                txt = txt.replace("- Status: to-review", "- Status: reviewed")
-                txt = txt.replace(
-                    "- Highest E allocated: 01\n",
-                    "- Highest E allocated: 01\n- Readiness: go-pending-approval\n",
+                _rewrite_plan_via_builder(
+                    curr_plan,
+                    id6="sgl001",
+                    setid="revsteps",
+                    status="reviewed",
+                    readiness="go-pending-approval",
+                    history=[
+                        "- 2026-10-25 reviewed (test): /plan-review (test): APPROVE",
+                        *_DEFAULT_PLAN_HISTORY,
+                    ],
                 )
-                txt = txt.replace(
-                    "## Workflow history\n",
-                    "## Workflow history\n\n- 2026-10-25 reviewed (test): /plan-review (test): APPROVE\n",
-                )
-                curr_plan.write_text(txt, encoding="utf-8")
                 _write_review_record(
                     repo, "sgl001", proofreading=True, step_t=True, s7=True
                 )
@@ -1001,17 +1079,17 @@ class TestReviewSequenceRunner(unittest.TestCase):
                     reply = "AW-REVIEW: DONE"
                 elif "s7-finalize.md" in p_text:
                     curr_plan = repo / it["configured_file"]
-                    txt = curr_plan.read_text(encoding="utf-8")
-                    txt = txt.replace("- Status: to-review", "- Status: reviewed")
-                    txt = txt.replace(
-                        "- Highest E allocated: 01\n",
-                        "- Highest E allocated: 01\n- Readiness: go-pending-approval\n",
+                    _rewrite_plan_via_builder(
+                        curr_plan,
+                        id6="res001",
+                        setid="revsteps",
+                        status="reviewed",
+                        readiness="go-pending-approval",
+                        history=[
+                            "- 2026-10-25 reviewed (test): /plan-review (test): APPROVE",
+                            *_DEFAULT_PLAN_HISTORY,
+                        ],
                     )
-                    txt = txt.replace(
-                        "## Workflow history\n",
-                        "## Workflow history\n\n- 2026-10-25 reviewed (test): /plan-review (test): APPROVE\n",
-                    )
-                    curr_plan.write_text(txt, encoding="utf-8")
                     reply = "Finalized."
                 else:
                     reply = "Check ok."

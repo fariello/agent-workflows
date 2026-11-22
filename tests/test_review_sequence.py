@@ -7,34 +7,44 @@ from __future__ import annotations
 
 import pytest
 
-from agent_workflows import review_sequence
+from agent_workflows import review_sequence, review_tier
 from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
+_DEFAULT_HISTORY = [
+    "- 2026-10-25 to-review (test): authored",
+    "- 2026-10-25 draft (test): created",
+]
+_DEFAULT_OQ = "### OQ-01: Is this a test question?\n\n- Blocking: no\n- Status: open\n- Rationale: Non-blocking test question."
+_DEFAULT_BODY = "## Goal\n\nTest goal.\n\n## Detailed Implementation Checklist (TODO)\n\n- [ ] E-01 Implement the feature\n  - Depends on: none\n  - Expected outcome: feature is working\n  - Execution state: pending\n\n## Validation and cross-check (verify before reporting done)\n\n- [ ] V-01 validates E-01\n  - Required evidence: tests pass\n  - Result: pending"
 
-SAMPLE_PLAN = RecordBuilder().plan(
-    title="Sample Test Plan",
-    when="2026-10-25",
-    id6="spl001",
-    set="sample",
-    order=1,
-    status="to-review",
-    plan_role="child",
-    scope_paths="none",
-    item_dependencies="none",
-    priority="medium",
-    work_kind="feature",
-    author="test",
-    highest_e_allocated="01",
-    history=[
-        "- 2026-10-25 to-review (test): authored",
-        "- 2026-10-25 draft (test): created",
-    ],
-    open_questions="### OQ-01: Is this a test question?\n\n- Blocking: no\n- Status: open\n- Rationale: Non-blocking test question.",
-    body="## Goal\n\nTest goal.\n\n## Detailed Implementation Checklist (TODO)\n\n- [ ] E-01 Implement the feature\n  - Depends on: none\n  - Expected outcome: feature is working\n  - Execution state: pending\n\n## Validation and cross-check (verify before reporting done)\n\n- [ ] V-01 validates E-01\n  - Required evidence: tests pass\n  - Result: pending",
-    text_only=True,
-)
+
+def _sample_plan(**overrides: object) -> str:
+    kwargs: dict[str, object] = {
+        "title": "Sample Test Plan",
+        "when": "2026-10-25",
+        "id6": "spl001",
+        "set": "sample",
+        "order": 1,
+        "status": "to-review",
+        "plan_role": "child",
+        "scope_paths": "none",
+        "item_dependencies": "none",
+        "priority": "medium",
+        "work_kind": "feature",
+        "author": "test",
+        "highest_e_allocated": "01",
+        "history": list(_DEFAULT_HISTORY),
+        "open_questions": _DEFAULT_OQ,
+        "body": _DEFAULT_BODY,
+        "text_only": True,
+    }
+    kwargs.update(overrides)
+    return str(RecordBuilder().plan(**kwargs))  # type: ignore[arg-type]
+
+
+SAMPLE_PLAN = _sample_plan()
 
 
 def test_prompt_plan_counts() -> None:
@@ -102,7 +112,7 @@ def test_render_prompt_and_reask() -> None:
         p1,
         first=True,
         plan_rel=".aw/records/plans/pending/test.ipd.md",
-        facts_md="- Kind: child\n- Execution items: 1",
+        facts_md=review_tier.render_tier_facts(review_tier.tier_facts(SAMPLE_PLAN)),
         lane_notice="[ISOLATION NOTICE]",
     )
     assert "Review plan: .aw/records/plans/pending/test.ipd.md" in rendered
@@ -242,16 +252,16 @@ def test_postcondition_S5() -> None:
     assert "check.review-finding-unescalated" in res
 
     # Plan where F-01 is escalated
-    escalated_plan = (
-        SAMPLE_PLAN
-        + """
-### OQ-02: Escalated finding F-01
-
-- Blocking: yes
-- Status: open
-- Finding: F-01
-- Rationale: High severity finding.
-"""
+    escalated_plan = _sample_plan(
+        open_questions=[
+            _DEFAULT_OQ,
+            "",
+            "### OQ-02: Escalated finding F-01\n\n"
+            "- Blocking: yes\n"
+            "- Status: open\n"
+            "- Finding: F-01\n"
+            "- Rationale: High severity finding.",
+        ]
     )
     assert (
         review_sequence.check_S5(SAMPLE_PLAN, escalated_plan, review_with_finding, "")
@@ -259,7 +269,13 @@ def test_postcondition_S5() -> None:
     )
 
     # Plan with missing Status in open question
-    malformed_oq_plan = SAMPLE_PLAN.replace("- Status: open\n", "")
+    malformed_oq_plan = _sample_plan(
+        open_questions=(
+            "### OQ-01: Is this a test question?\n\n"
+            "- Blocking: no\n"
+            "- Rationale: Non-blocking test question."
+        )
+    )
     res2 = review_sequence.check_S5(SAMPLE_PLAN, malformed_oq_plan, "", "")
     assert res2 is not None
     assert "Blocking:" in res2 and "Status:" in res2
@@ -268,12 +284,13 @@ def test_postcondition_S5() -> None:
 def test_postcondition_S7() -> None:
     """V-03: check_S7 verifies (a)/(b), exactly one verdict history entry, and lint."""
     # Conforming review finalization
-    finalized_plan = SAMPLE_PLAN.replace(
-        "- Status: to-review",
-        "- Status: reviewed\n- Readiness: go",
-    ).replace(
-        "## Workflow history\n",
-        "## Workflow history\n\n- 2026-10-25 reviewed (test): /plan-review (test): APPROVE; looks good\n",
+    finalized_plan = _sample_plan(
+        status="reviewed",
+        readiness="go",
+        history=[
+            "- 2026-10-25 reviewed (test): /plan-review (test): APPROVE; looks good",
+            *_DEFAULT_HISTORY,
+        ],
     )
     assert (
         review_sequence.check_S7(SAMPLE_PLAN, finalized_plan, "## Round 1\n", "")
@@ -281,9 +298,14 @@ def test_postcondition_S7() -> None:
     )
 
     # Non-verdict progress lines are allowed and do not count toward verdict entries
-    plan_with_progress = finalized_plan.replace(
-        "## Workflow history\n\n",
-        "## Workflow history\n\n- 2026-10-25 review progress (test): pass 2 re-ran R2\n",
+    plan_with_progress = _sample_plan(
+        status="reviewed",
+        readiness="go",
+        history=[
+            "- 2026-10-25 review progress (test): pass 2 re-ran R2",
+            "- 2026-10-25 reviewed (test): /plan-review (test): APPROVE; looks good",
+            *_DEFAULT_HISTORY,
+        ],
     )
     assert (
         review_sequence.check_S7(SAMPLE_PLAN, plan_with_progress, "## Round 1\n", "")
@@ -291,9 +313,15 @@ def test_postcondition_S7() -> None:
     )
 
     # Two verdict entries added -> fails
-    two_verdicts_plan = plan_with_progress.replace(
-        "## Workflow history\n\n",
-        "## Workflow history\n\n- 2026-10-25 reviewed (test): /plan-review (test): APPROVE WITH REVISIONS APPLIED\n",
+    two_verdicts_plan = _sample_plan(
+        status="reviewed",
+        readiness="go",
+        history=[
+            "- 2026-10-25 reviewed (test): /plan-review (test): APPROVE WITH REVISIONS APPLIED",
+            "- 2026-10-25 review progress (test): pass 2 re-ran R2",
+            "- 2026-10-25 reviewed (test): /plan-review (test): APPROVE; looks good",
+            *_DEFAULT_HISTORY,
+        ],
     )
     res_two = review_sequence.check_S7(
         SAMPLE_PLAN, two_verdicts_plan, "## Round 1\n", ""
@@ -302,9 +330,12 @@ def test_postcondition_S7() -> None:
     assert "Exactly one verdict-bearing history entry" in res_two
 
     # Missing status move -> fails
-    unmoved_plan = SAMPLE_PLAN.replace(
-        "## Workflow history\n",
-        "## Workflow history\n\n- 2026-10-25 reviewed (test): /plan-review (test): APPROVE\n",
+    unmoved_plan = _sample_plan(
+        status="to-review",
+        history=[
+            "- 2026-10-25 reviewed (test): /plan-review (test): APPROVE",
+            *_DEFAULT_HISTORY,
+        ],
     )
     res_unmoved = review_sequence.check_S7(
         SAMPLE_PLAN, unmoved_plan, "## Round 1\n", ""
@@ -338,7 +369,7 @@ def test_structural_diff() -> None:
     assert "Expected outcome changed" in confirm[0]
 
     # 4. Modifying front-matter -> refused
-    fm_plan = SAMPLE_PLAN.replace("- Priority: medium", "- Priority: high")
+    fm_plan = _sample_plan(priority="high")
     refused, _ = review_sequence.structural_diff(SAMPLE_PLAN, fm_plan)
     assert len(refused) == 1
     assert "Priority" in refused[0]
