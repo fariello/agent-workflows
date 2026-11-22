@@ -166,16 +166,19 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-38-x05v02-move-backlog-release-gate-check-engine-production-and-setter.ipd.md
 - Moved to 1upea0 (restructuring 2026-11-08 from x05v02 per maintainer decision "Codemod first, then small runs"): the setter subset G3a of E-05.
   - Carrier: 1upea0
+  - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-50-1upea0-move-setter-runner-lane-and-first-half-unmatched-test-data-o.ipd.md
 - Moved to 7qxey9 (split 2026-11-07 per maintainer step-complexity rule): the spec subset G3b of E-05 and E-06 (batch G4, as subsets G4a, G4b and G4c).
   - Carrier: 7qxey9
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-39-7qxey9-move-spec-plan-lifecycle-orchestration-and-runner-test-data.ipd.md
 - Moved to 1upea0 (re-split 2026-11-08 from 7qxey9 per maintainer decision "Codemod first, then small runs"): the runner subset G5a of E-07.
   - Carrier: 1upea0
+  - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-50-1upea0-move-setter-runner-lane-and-first-half-unmatched-test-data-o.ipd.md
 - Moved to nbfg7w (split 2026-11-07 per maintainer step-complexity rule): the runner-family subset G5b of E-07 and E-08 (batch G6, as subsets G6a, G6b and G6c).
   - Carrier: nbfg7w
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-40-nbfg7w-move-runner-family-reader-record-surface-review-and-unmatche.ipd.md
 - Moved to 1upea0 (re-split 2026-11-08 from nbfg7w per maintainer decision "Codemod first, then small runs"): the first unmatched subset G7a of E-09.
   - Carrier: 1upea0
+  - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-50-1upea0-move-setter-runner-lane-and-first-half-unmatched-test-data-o.ipd.md
 - Adding `RECORD_FORMAT = "log"` (builder writes through `artifact_meta.create`/`append` and the two-key front matter) and converting the F-06 setter-byte assertions to `artifact_meta.read` plus the in-file mirror: both belong in the cutover commit (C10a: one format per commit).
   - Carrier: cxxmyv
 - The legacy-format tests that must keep literal input (the legacy loader tests in `tve77h`, the legacy writer tests in `2xwb9b` and `xexn45`, the migration round-trip and conversion tests in `dcerjg` and `ya4ee4`; the F-03 EXCLUDED list).
