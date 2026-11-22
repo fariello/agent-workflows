@@ -22784,11 +22784,27 @@ def read_set_membership(repo: Path, setid: str) -> SetMembership:
             except (ValueError, TypeError):
                 order = None
             raw_kind = (getattr(st, "fields", None) or {}).get("plan_role")
+            raw_legacy_st = getattr(st, "legacy_raw_status", None)
+            raw_st_tok = (
+                str(raw_legacy_st).strip().split()[0]
+                if raw_legacy_st and str(raw_legacy_st).strip()
+                else ""
+            )
+            canon_status = (_plan_status_from_state(st) or "").strip()
+            if (
+                raw_st_tok
+                and canon_status
+                and raw_st_tok.lower() == canon_status.lower()
+                and raw_st_tok != canon_status
+            ):
+                member_status = raw_st_tok
+            else:
+                member_status = canon_status
             member = SetMember(
                 id6=id6,
                 order=order,
                 kind=(str(raw_kind) if raw_kind is not None else "").strip(),
-                status=(_plan_status_from_state(st) or "").strip(),
+                status=member_status,
                 path=path,
             )
             if member.is_orchestrator:

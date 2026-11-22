@@ -1330,13 +1330,31 @@ def _iter_type_files(
         # differ) and first-seen-wins passes (id6/setid collision) then flag a DIFFERENT file of a
         # colliding pair per machine. Measured on CI 2026-09-25: the same tree reported the
         # collision on `-02-` locally and on `-03-` on the Linux runner.
+        try:
+            d_resolved: Optional[Path] = d.resolve()
+        except OSError:
+            d_resolved = None
         for p in sorted(d.rglob("*.md")):
-            if (
-                p.name in _SKIP_NAMES
-                or _is_record_excluded_dir(p, d)
-                or _core.is_ignored_path(
-                    p, repo_root, ignored_dirs, include_untracked=include_untracked
-                )
+            if p.name in _SKIP_NAMES:
+                continue
+            try:
+                p_resolved = p.resolve()
+            except OSError:
+                continue
+            if d_resolved is not None:
+                try:
+                    rel_parts = p_resolved.relative_to(d_resolved).parts[:-1]
+                    if any(
+                        part in layout.RECORD_SCAN_EXCLUDED_DIRS for part in rel_parts
+                    ):
+                        continue
+                except ValueError:
+                    if _is_record_excluded_dir(p, d):
+                        continue
+            elif _is_record_excluded_dir(p, d):
+                continue
+            if _core.is_ignored_path(
+                p, repo_root, ignored_dirs, include_untracked=include_untracked
             ):
                 continue
             if record_type == "research":
@@ -1346,10 +1364,7 @@ def _iter_type_files(
                     continue
             if not include_retired and is_retired(p, record_type):
                 continue
-            try:
-                key = str(p.resolve())
-            except OSError:
-                continue
+            key = str(p_resolved)
             if key in seen:
                 continue
             seen.add(key)

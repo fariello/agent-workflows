@@ -243,6 +243,13 @@ _OTHER_SWEEP_SKIP_DIRS = (
     KNOWN_PRIMARY_TYPES | NON_PRIMARY_RECORD_DIRS | EXCLUDED_RECORD_DIRS
 )
 
+# Non-record top-level directories under `.agents/` (host skill packages, legacy workflow bundles,
+# install metadata, raw inbox, run history, runtime state). Skipped only when sweeping `.agents/`
+# for `other` records so `.agents/skills/**/SKILL.md` is never misclassified as a record.
+_LEGACY_AGENTS_NON_RECORD_DIRS = frozenset(
+    {"skills", "workflows", "agent-workflows", "inbox", "runs", "state"}
+)
+
 
 def _record_dirs_cached(repo_root_str: str, record_type: str) -> tuple[Path, ...]:
     scan_cache = current_scan_cache()
@@ -279,14 +286,20 @@ def _compute_record_dirs(repo_root_str: str, record_type: str) -> tuple[Path, ..
     rec_root = project_records_dir(repo_root)
 
     if record_type == "other":
-        for base in (rec_root, repo_root / ".agents"):
+        legacy_agents_root = repo_root / ".agents"
+        for base in (rec_root, legacy_agents_root):
             if not base.is_dir():
                 continue
+            is_legacy_agents = base == legacy_agents_root
             for child in base.iterdir():
                 if (
                     child.is_dir()
                     and child.name not in _OTHER_SWEEP_SKIP_DIRS
                     and child.name not in layout.RECORD_SCAN_EXCLUDED_DIRS
+                    and not (
+                        is_legacy_agents
+                        and child.name in _LEGACY_AGENTS_NON_RECORD_DIRS
+                    )
                 ):
                     _add(child)
             with contextlib.suppress(OSError):
@@ -827,9 +840,12 @@ def _iter_paths(repo_root: Path, record_type: str):
         }
         from agent_workflows.project_context import project_records_dir
 
-        for base in (project_records_dir(repo_root), repo_root / ".agents"):
+        legacy_agents_root = repo_root / ".agents"
+        for base in (project_records_dir(repo_root), legacy_agents_root):
             if not base.is_dir():
                 continue
+            is_legacy_agents = base == legacy_agents_root
+            base_res = base.resolve()
             for p in _iter_md(base):
                 if p.name in _SKIP_NAMES:
                     continue
@@ -840,7 +856,14 @@ def _iter_paths(repo_root: Path, record_type: str):
                 if any(kd in p_res.parents or p_res == kd for kd in known_dirs):
                     continue
                 try:
-                    rel_parts = set(p_res.relative_to(base.resolve()).parts)
+                    rel_tuple = p_res.relative_to(base_res).parts
+                    if (
+                        is_legacy_agents
+                        and len(rel_tuple) > 1
+                        and rel_tuple[0] in _LEGACY_AGENTS_NON_RECORD_DIRS
+                    ):
+                        continue
+                    rel_parts = set(rel_tuple)
                     if any(ex in rel_parts for ex in EXCLUDED_RECORD_DIRS) or any(
                         ex in rel_parts for ex in layout.RECORD_SCAN_EXCLUDED_DIRS
                     ):

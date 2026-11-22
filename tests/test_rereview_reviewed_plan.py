@@ -513,17 +513,17 @@ class TestRereviewExecutionTurn(unittest.TestCase):
                 text = curr_plan.read_text(encoding="utf-8")
                 seen_plan_text["text"] = text
 
-                # Turn updates the plan to reviewed with fresh Readiness
+                # Turn updates the plan to reviewed with fresh Readiness in front matter
                 updated = text.replace("- Status: to-review", "- Status: reviewed")
-                updated = updated.replace(
-                    "## Workflow history\n",
-                    "## Workflow history\n\n- 2026-10-16 reviewed (opencode): /plan-review: APPROVE\n- Readiness: go-pending-approval\n",
-                )
                 if "- Readiness:" not in updated:
                     updated = updated.replace(
                         "- Status: reviewed\n",
                         "- Status: reviewed\n- Readiness: go-pending-approval\n",
                     )
+                updated = updated.replace(
+                    "## Workflow history\n",
+                    "## Workflow history\n\n- 2026-10-16 reviewed (opencode): /plan-review: APPROVE\n",
+                )
                 curr_plan.write_text(updated, encoding="utf-8")
                 return 0, "ses1", str(rd / "log"), ["oc"]
 
@@ -615,15 +615,15 @@ class TestRereviewExecutionTurn(unittest.TestCase):
                 curr_plan = Path(st["repo"]) / it["configured_file"]
                 text = curr_plan.read_text(encoding="utf-8")
                 updated = text.replace("- Status: to-review", "- Status: reviewed")
-                updated = updated.replace(
-                    "## Workflow history\n",
-                    "## Workflow history\n\n- 2026-10-16 reviewed (opencode): /plan-review: APPROVE\n- Readiness: go-pending-approval\n",
-                )
                 if "- Readiness:" not in updated:
                     updated = updated.replace(
                         "- Status: reviewed\n",
                         "- Status: reviewed\n- Readiness: go-pending-approval\n",
                     )
+                updated = updated.replace(
+                    "## Workflow history\n",
+                    "## Workflow history\n\n- 2026-10-16 reviewed (opencode): /plan-review: APPROVE\n",
+                )
                 curr_plan.write_text(updated, encoding="utf-8")
                 return 0, "ses1", str(rd / "log"), ["oc"]
 

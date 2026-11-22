@@ -38,7 +38,7 @@ class TestPlanTransitionGate(StatusSetTestBase):
             ("to-review", "draft"),
         ]
         for i, (src, dst) in enumerate(edges):
-            id6 = f"p000{i}"
+            id6 = f"p0000{i}"
             filename = f"20260901-testset-01-{id6}-plan.ipd.md"
             plan = self.create_plan(filename, id6, "testset", status=src)
             before = plan.read_text(encoding="utf-8")

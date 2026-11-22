@@ -5272,15 +5272,22 @@ def review_rows(
     records_root = Path(ctx.logical_roots["records"])
     state_root = Path(ctx.logical_roots["state"])
     scan_repo = _scan_repo_root(ctx, records_root)
-    conn = open_cache(records_root, state_root)
+    conn, should_close = _open_for_read(records_root, state_root)
     try:
-        check_freshness(conn, records_root, project_context=ctx, repo_root=scan_repo)
+        _maybe_check_freshness(
+            conn,
+            records_root,
+            state_root,
+            project_context=ctx,
+            repo_root=scan_repo,
+        )
         rows = conn.execute(
             "SELECT path, parse_ok, round_count FROM review_files WHERE subject_id6 = ? ORDER BY path",
             (subject_id6,),
         ).fetchall()
     finally:
-        conn.close()
+        if should_close:
+            conn.close()
     return [
         {
             "path": r[0],

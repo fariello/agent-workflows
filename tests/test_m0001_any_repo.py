@@ -194,7 +194,7 @@ def _map_pre_migration_path(path: str, rename_map: Dict[str, str]) -> str | None
 
     Returns `None` for non-record `.agents/workflows/` files moved to `.aw/system/workflows/`.
     """
-    if path.startswith(".agents/workflows/"):
+    if path.startswith(".agents/workflows/") or path.startswith(".agents/skills/"):
         return None
     if path.startswith(".agents/docs/"):
         rel = path[len(".agents/docs/") :]
