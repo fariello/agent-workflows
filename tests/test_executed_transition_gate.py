@@ -373,8 +373,13 @@ class ExecutedGateEndToEndTests(unittest.TestCase):
             )
             exec_plan = exec_dir / plan_name
             exec_plan.write_text(
-                exec_plan.read_text(encoding="utf-8").replace(
-                    "- Status: approved", "- Status: executed"
+                RecordBuilder().plan(
+                    title="Sample Plan",
+                    id6="3v7wo6",
+                    status="executed",
+                    author="test",
+                    body="## Goal\n\nInitial goal.",
+                    text_only=True,
                 ),
                 encoding="utf-8",
             )
