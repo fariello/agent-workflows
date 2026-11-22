@@ -67,15 +67,16 @@ Every filter flag should be repeatable (and accept comma-separated values consis
 ### OQ-01: How should short aliases for multi-word selectors (`--set-id`, `--not-set-id`, `--details`/`--description`, `--modified-time`, `--created-time`) be spelled?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Context: Python `argparse` parses single-dash multi-letter flags (such as `-sid`, `-nsid`, `-desc`, `-mtime`, `-ctime`) ambiguously whenever the first letter is also a single-letter option that takes an argument. Because `-s` is `--status`, `argparse` can interpret `-sid` as `-s id` (status equals `id`), and `-desc` as `-d esc` if `-d` takes a value.
+- Context: Empirically verified against Python `argparse`: single-dash multi-letter options (`-sid`, `-nsid`, `-desc`, `-mtime`, `-ctime`) parse cleanly alongside 1-letter options (`-s`, `-n`, `-d`) because exact option strings match before attached short-option values; the only `argparse` caveat is prefix-abbreviation ambiguity on partial tokens (e.g. `-si` when both `-s` and `-sid` exist). The choice is therefore CLI convention and ergonomics: double-dash aliases, single-dash aliases, both, or 1-letter flags.
 - Options:
-  1. **Double-dash short aliases (recommended):** `--set-id` / `--sid`, `--not-set-id` / `--nsid`, `--details` / `--desc`, `--modified-time` / `--mtime`, `--created-time` / `--ctime`. Standard GNU syntax, zero collision with single-letter flags (`-s`, `-d`, `-m`, `-c`), and works natively with `argparse` and shell completion.
-  2. **Single-letter pairs plus long flags:** assign unused single letters (for example `-g` / `-G` for set/group, `-d` / `-D` for filename date, `-m` for mtime, `-c` for ctime) alongside full long names (`--set-id`, `--not-set-id`, `--modified-time`, `--created-time`).
-  3. **Custom pre-parser supporting single-dash multi-letter aliases (`-sid`, `-nsid`, `-desc`, `-mtime`, `-ctime`):** rewrite those exact tokens before `argparse` runs. Disables POSIX short-flag bundling (such as `-sid` meaning `-s id`) and adds custom parser maintenance.
-- Recommendation: Option 1 (double-dash short aliases `--sid`, `--nsid`, `--desc`, `--mtime`, `--ctime`, optionally paired with single-letter flags where unambiguous).
-- Resolution or deferral rationale:
+  1. **Double-dash short aliases (`--sid`, `--nsid`, `--mtime`, `--ctime`, `--desc`) alongside full names, keeping single-dash strictly for 1-letter flags.**
+  2. **Single-dash multi-letter aliases (`-sid`, `-nsid`, `-mtime`, `-ctime`, `-desc`) alongside full double-dash names.**
+  3. **Document double-dash short aliases (`--sid`, `--nsid`, `--mtime`, `--ctime`, `--desc`) as canonical in `--help`, and also accept single-dash forms (`-sid`, `-nsid`, `-mtime`, `-ctime`, `-desc`) as hidden aliases.**
+  4. **Assign unused 1-letter pairs alongside full double-dash names.**
+- Recommendation: Option 1 (or Option 3 to support both double-dash and Unix `find`-style single-dash habits).
+- Resolution or deferral rationale: RESOLVED 2026-11-22 by the user via /askme: Option C (document double-dash short aliases `--sid`, `--nsid`, `--mtime`, `--ctime`, `--desc` as canonical in `--help`, and also accept single-dash forms `-sid`, `-nsid`, `-mtime`, `-ctime`, `-desc` as hidden aliases). No reason was given.
 
 ### OQ-02: What should the filename-date selector flag be called, and should `-d` move from `--details` to the filename-date selector?
 
