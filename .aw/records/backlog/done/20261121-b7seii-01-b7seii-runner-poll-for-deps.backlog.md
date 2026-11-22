@@ -1,5 +1,5 @@
 - Id: b7seii
-- Status: graduated
+- Status: done
 - Graduated-To: b7seii
 - Set: b7seii
 - Work-Kind: feature
@@ -10,6 +10,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-22 done (aw set): Completed by executed plan z7uxhf
 - 2026-11-22 graduated (aw set): Graduated to child plan z7uxhf (set b7seii)
 - 2026-11-22 created (aw backlog): Add --poll-for-deps duration flag to aw agy run and aw oc run so dependent runs wait until external prerequisites execute
 
