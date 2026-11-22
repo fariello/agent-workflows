@@ -133,6 +133,7 @@ def collect_decisions(
     Diagnostics are RETURNED, not raised and not printed. A malformed review is a fact the caller
     reports; this function has no opinion about exit codes.
     """
+    from agent_workflows import artifact_meta as _am
     from agent_workflows import review_findings as _rf
 
     repo_root = Path(repo_root)
@@ -144,10 +145,33 @@ def collect_decisions(
     else:
         candidates = [Path(p) for p in paths]
 
+    ctx = None
+    records_root: Optional[Path] = None
+    scan_repo: Optional[Path] = None
+    try:
+        ctx = _am.legacy_context(repo_root)
+        records_root = Path(ctx.logical_roots["records"])
+        scan_repo = _am._scan_repo_root(ctx, records_root)
+    except Exception:
+        ctx = None
+
     for path in candidates:
         doc = _rf.parse_review_file(path)
         for d in doc.diagnostics:
             diags.append((path, d))
+        subject_id = doc.subject_id
+        if not subject_id and ctx is not None and records_root is not None:
+            parsed_name = _rf.parse_review_name(path.name)
+            fn_id6 = parsed_name["id6"] if parsed_name else ""
+            if fn_id6:
+                try:
+                    stored = _am.stored_path(path, records_root, scan_repo)
+                    for rrow in _am.review_rows(fn_id6, project_context=ctx):
+                        if rrow.get("path") == stored:
+                            subject_id = fn_id6
+                            break
+                except Exception:
+                    pass
         current = doc.current_round()
         cur_no = current.number if current is not None else None
         for rnd in doc.rounds:
@@ -157,7 +181,7 @@ def collect_decisions(
             for dec in rnd.decisions:
                 rows.append(
                     DecisionRow(
-                        subject_id=doc.subject_id,
+                        subject_id=subject_id,
                         subject_type=doc.subject_type,
                         review_path=path,
                         round_number=rnd.number,
@@ -177,22 +201,17 @@ def collect_decisions(
 
 
 def _resolve_selector_paths(repo_root: Path, selector: str) -> tuple:
-    """Resolve one selector to review file(s) through the ONE shared resolver.
+    """Resolve one selector to review file(s) via cached ``review_files`` rows and ``selectors``.
 
     Returns ``(paths, note)``. ``note`` is a human-facing explanation when the selector resolved to
     nothing, so the caller never has to invent one.
 
-    WHICH SELECTOR KINDS ACTUALLY WORK, stated honestly because one of them cannot (E-04/F-13). The
-    shared resolver's `id6` rule matches a `- Id:` front-matter bullet, but a review artifact names its
-    subject with `- Subject-Id:` instead (the field says whose id6 it is; `eyh1fu` made it
-    artifact-neutral, and the conclusion here is unchanged because `selectors._FRONT_MATTER_ID_RE`
-    anchors on `^-\\s*Id:` and matches neither spelling). So an id6
-    selector does NOT match a review's front matter. It still resolves, via the `stem`/`substring`
-    rules, because the artifact-naming grammar embeds the reviewed artifact's id6 in the FILENAME. The
-    practical consequence for a caller: `aw reviews decisions c621h9` works, and it works by filename,
-    not by front matter. `path` and `setid`-shaped filename matches work the same way. We do NOT
-    promise an exact-front-matter `id6` match the artifact cannot support.
+    For an ``id6`` selector, consults the cached ``review_files`` rows in ``artifact_meta`` first
+    (matching the review's declared ``Subject-Id`` even when the filename carries a distinct ref
+    id6), then falls back to the shared ``selectors`` resolver for filename/setid/stem tokens.
     """
+    from agent_workflows import artifact_core as _core
+    from agent_workflows import review_findings as _rf
     from agent_workflows import selectors as _sel
 
     tok = (selector or "").strip()
@@ -202,6 +221,15 @@ def _resolve_selector_paths(repo_root: Path, selector: str) -> tuple:
     direct = Path(tok)
     if direct.is_file():
         return [direct], ""
+
+    if _core.ID6_RE.fullmatch(tok):
+        try:
+            cached_paths, _ = _rf._cached_subject_review_files(repo_root, tok)
+        except Exception:
+            cached_paths = []
+        cached_paths = [p for p in cached_paths if p.name.endswith(".review.md")]
+        if cached_paths:
+            return cached_paths, ""
 
     try:
         paths = _sel.resolve_selectors(repo_root, "reviews", [tok])
@@ -215,15 +243,12 @@ def _resolve_selector_paths(repo_root: Path, selector: str) -> tuple:
     # No review matched. Distinguish "no reviews exist at all" from "this selector matched none",
     # because the recovery differs: the first needs a review to be written, the second a better
     # selector.
-    from agent_workflows import review_findings as _rf
-
     any_reviews = any(True for _ in _rf.iter_review_files(repo_root))
     if not any_reviews:
         return [], "no review records exist yet, so no selector can match one"
     return (
         [],
-        "no review record matches `{0}` (reviews are matched by FILENAME, which embeds the "
-        "reviewed artifact's id6; the front matter carries `Subject-Id:` rather than `Id:`)".format(
+        "no review record matches `{0}` (checked cached review subject ids and review filenames)".format(
             tok
         ),
     )

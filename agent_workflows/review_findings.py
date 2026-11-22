@@ -48,7 +48,7 @@ from __future__ import annotations
 import functools
 import re
 from pathlib import Path
-from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Tuple
+from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import artifact_naming as _naming
 
@@ -475,7 +475,6 @@ def write_review(path, **kwargs) -> Path:
 # PARSE.
 # --------------------------------------------------------------------------------------
 
-_META_RE = re.compile(r"^-\s*([A-Za-z][A-Za-z-]*):\s*(.*?)\s*$")
 _ROUND_RE = re.compile(r"^##\s+Round\s+(\d+)\s*$", re.IGNORECASE)
 _H3_RE = re.compile(r"^###\s+(.+?)\s*$")
 _H2_RE = re.compile(r"^##\s+(.+?)\s*$")
@@ -525,12 +524,26 @@ def _is_header(cells: Sequence[str], columns: Sequence[str]) -> bool:
 def parse_review_text(text: str, path: Optional[Path] = None) -> ReviewDocument:
     """Parse a `.review.md` body into a :class:`ReviewDocument`.
 
+    Front-matter fields are read through ``artifact_meta.read_text`` (spec 4sd62s C5a); the review
+    body grammar of rounds, findings, and decisions stays here (N3).
+
     NEVER raises on malformed content. A row with the wrong cell count, an unrecognized severity, or
     an unrecognized decision produces a :class:`Diagnostic` while every well-formed row around it is
     still returned, so one bad row cannot blind a gate to the rest of the table.
     """
+    from agent_workflows import artifact_meta as _am
+
     diagnostics: List[Diagnostic] = []
     meta: Dict[str, str] = {}
+    st = _am.read_text(text)
+    fields = st.fields or {}
+    for field in ("subject-id", "subject-type", "reviewed-at", "reviewer", "verdict"):
+        raw_val = fields.get(field.replace("-", "_"))
+        if raw_val is None:
+            continue
+        val = raw_val.strip() if isinstance(raw_val, str) else str(raw_val).strip()
+        if val:
+            meta[field] = val
     rounds: List[Round] = []
 
     cur_num: Optional[int] = None
@@ -595,9 +608,6 @@ def parse_review_text(text: str, path: Optional[Path] = None) -> ReviewDocument:
             continue
 
         if cur_num is None:
-            mm = _META_RE.match(raw)
-            if mm:
-                meta[mm.group(1).strip().lower()] = mm.group(2).strip()
             continue
 
         if not raw.strip().startswith("|"):
@@ -845,61 +855,109 @@ class GatingBlock(NamedTuple):
         )
 
 
-_REVIEW_ID_TOKEN_RE = re.compile(r"[a-z0-9]{6}")
-_REVIEW_SUBJECT_HEADER_RE = re.compile(
-    r"^\s*-\s*(?:Subject-Id|Plan-Id)\s*:\s*`?([^\s`]+)`?",
-    re.IGNORECASE | re.MULTILINE,
-)
+def _cached_subject_review_files(
+    repo_root: Path, wanted: str
+) -> Tuple[List[Path], Dict[Path, str]]:
+    """Return ``(paths, kinds_by_path)`` for ``wanted`` from cached ``review_files`` rows.
 
+    Consults ``artifact_meta.review_rows`` (backed by the SQLite ``review_files`` table) for
+    every review under the repository's records root, and falls back to scanning only any
+    external legacy review directory outside ``records_root`` (for example ``.agents/reviews``).
+    Honors ``selectors.current_scan_cache()`` when active so repeated lookups in a single
+    ``scan_once()`` scope coalesce while ``selectors.drop_scan()`` invalidates them.
+    """
+    from agent_workflows import artifact_core as _core
+    from agent_workflows import artifact_meta as _am
+    from agent_workflows import selectors as _selectors
 
-def _cached_review_candidates(
-    root: Path, wanted: str, scan_cache: Dict[Any, Any]
-) -> List[Path]:
-    """Return candidate review paths for `wanted` using a once-per-`scan_once()` index."""
-    idx_key = ("review_findings.subject_index", str(root.resolve()))
-    cached = scan_cache.get(idx_key)
-    if cached is None:
-        by_token: Dict[str, List[Path]] = {}
-        fallback: List[Path] = []
-        review_paths = sorted(iter_review_files(root), key=lambda p: str(p))
-        for path in review_paths:
-            tokens: set[str] = set(_REVIEW_ID_TOKEN_RE.findall(path.name))
-            has_header = False
-            try:
-                with open(path, "r", encoding="utf-8") as _f:
-                    head = _f.read(1024)
-            except OSError:
-                head = ""
-            if head:
-                for m in _REVIEW_SUBJECT_HEADER_RE.finditer(head):
-                    val = m.group(1).strip()
-                    if val:
-                        tokens.add(val)
-                        has_header = True
-                tokens.update(_REVIEW_ID_TOKEN_RE.findall(head))
-            for tok in tokens:
-                by_token.setdefault(tok, []).append(path)
-            if not has_header:
-                fallback.append(path)
-        cached = (by_token, fallback)
-        scan_cache[idx_key] = cached
-    by_token, fallback = cached
-    hits = by_token.get(wanted)
-    if not hits and not fallback:
-        return []
-    if not fallback:
-        return list(hits or ())
-    if not hits:
-        return list(fallback)
+    root = Path(repo_root)
+    scan_cache = _selectors.current_scan_cache()
+    cache_key = None
+    if scan_cache is not None:
+        try:
+            cache_key = (
+                "review_findings.cached_subject_files",
+                str(root.resolve()),
+                wanted,
+            )
+            if cache_key in scan_cache:
+                cached_paths, cached_kinds = scan_cache[cache_key]
+                return list(cached_paths), dict(cached_kinds)
+        except OSError:
+            cache_key = None
+
+    out: List[Path] = []
+    kinds: Dict[Path, str] = {}
     seen: set[str] = set()
-    merged: List[Path] = []
-    for p in (*hits, *fallback):
-        ps = str(p)
-        if ps not in seen:
-            seen.add(ps)
-            merged.append(p)
-    merged.sort(key=str)
-    return merged
+
+    def _add(p: Path, kind: Optional[str] = None) -> None:
+        try:
+            key = str(p.resolve())
+        except OSError:
+            return
+        if key in seen:
+            if kind and p not in kinds:
+                kinds[p] = kind
+            return
+        seen.add(key)
+        out.append(p)
+        if kind:
+            kinds[p] = kind
+
+    rec_resolved: Optional[Path] = None
+    ctx = None
+    records_root: Optional[Path] = None
+    scan_repo: Optional[Path] = None
+    try:
+        ctx = _am.legacy_context(root)
+        records_root = Path(ctx.logical_roots["records"])
+        scan_repo = _am._scan_repo_root(ctx, records_root)
+        if records_root.is_dir():
+            rec_resolved = records_root.resolve()
+    except Exception:
+        rec_resolved = None
+
+    if rec_resolved is not None and ctx is not None and _core.ID6_RE.fullmatch(wanted):
+        try:
+            rows = _am.review_rows(wanted, project_context=ctx)
+        except Exception:
+            rows = []
+        for row in rows:
+            try:
+                abs_p = _am.source_path(row["path"], records_root, scan_repo)
+            except Exception:
+                continue
+            if not abs_p.is_file():
+                continue
+            row_kind = row["review_kind"] if row.get("parse_ok") else "unparsed"
+            _add(abs_p, row_kind)
+
+    if not _core.ID6_RE.fullmatch(wanted):
+        for p in iter_review_files(root):
+            if (parse_review_file(p).subject_id or "").strip() != wanted:
+                continue
+            _add(p)
+    else:
+        for base in review_dirs(root):
+            try:
+                base_res = base.resolve()
+            except OSError:
+                continue
+            if rec_resolved is not None and (
+                base_res == rec_resolved or base_res.is_relative_to(rec_resolved)
+            ):
+                continue
+            for p in sorted(base.rglob("*.review.md")):
+                if p.name in ("README.md", "INDEX.md", "STATUS.md"):
+                    continue
+                if (parse_review_file(p).subject_id or "").strip() != wanted:
+                    continue
+                _add(p, _am.review_kind_of_file(p.name))
+
+    out.sort(key=str)
+    if scan_cache is not None and cache_key is not None:
+        scan_cache[cache_key] = (tuple(out), dict(kinds))
+    return out, kinds
 
 
 def subject_gating_blocks(
@@ -969,21 +1027,10 @@ def subject_gating_blocks(
 
     out: List[GatingBlock] = []
     try:
-        if scan_cache is not None:
-            review_paths = _cached_review_candidates(root, wanted, scan_cache)
-        else:
-            review_paths = sorted(iter_review_files(root), key=lambda p: str(p))
+        review_paths, _ = _cached_subject_review_files(root, wanted)
     except Exception:
         return ()
     for path in review_paths:
-        if wanted not in path.name:
-            try:
-                with open(path, "r", encoding="utf-8") as _f:
-                    head = _f.read(1024)
-            except OSError:
-                continue
-            if wanted not in head:
-                continue
         doc = parse_review_file(path)
         # Matches the record's ARTIFACT-NEUTRAL subject id. The id6 alone identifies the artifact
         # (ids are unique across trees), so this predicate needs no `Subject-Type` filter and keeps
@@ -1074,6 +1121,7 @@ def subject_review_records(repo_root, subject_id6: str) -> Tuple[Path, ...]:
     Includes a record that fails to PARSE; judging conformance is :func:`review_attestation_missing`'s
     job, and a caller listing "what exists" must see a malformed file rather than have it vanish.
 
+    Looks up candidate review files through cached ``review_files`` rows in ``artifact_meta``.
     Never raises: an unreadable tree yields an empty tuple.
     """
     wanted = (subject_id6 or "").strip()
@@ -1081,22 +1129,42 @@ def subject_review_records(repo_root, subject_id6: str) -> Tuple[Path, ...]:
         return ()
     out: List[Path] = []
     try:
-        paths = sorted(iter_review_files(repo_root), key=lambda p: str(p))
+        paths, _ = _cached_subject_review_files(Path(repo_root), wanted)
     except Exception:
         return ()
     for path in paths:
-        if wanted not in path.name:
-            try:
-                with open(path, "r", encoding="utf-8") as _f:
-                    head = _f.read(1024)
-            except OSError:
-                continue
-            if wanted not in head:
-                continue
         doc = parse_review_file(path)
         if (doc.subject_id or "").strip() == wanted:
             out.append(path)
     return tuple(out)
+
+
+def _cached_gate_review_in_reviews_table(
+    repo_root: Path, subject_id6: str, subject_type: str
+) -> bool:
+    """True when cached ``reviews`` rows attest a gate review for ``subject_id6`` of ``subject_type``.
+
+    Uses ``artifact_meta.query(latest_gate_review_of=...)`` so log-only subjects whose review
+    events live in ``reviews`` without a legacy ``.review.md`` file are recognized.
+    """
+    from agent_workflows import artifact_core as _core
+    from agent_workflows import artifact_meta as _am
+
+    if not _core.ID6_RE.fullmatch(subject_id6):
+        return False
+    try:
+        ctx = _am.legacy_context(Path(repo_root))
+        records_root = Path(ctx.logical_roots["records"])
+        if not records_root.is_dir():
+            return False
+        with _am.ephemeral_if_uninitialized():
+            rows = _am.query(latest_gate_review_of=subject_id6, project_context=ctx)
+    except Exception:
+        return False
+    want_type = (subject_type or "").strip().lower()
+    return any(
+        (getattr(st, "type", "") or "").strip().lower() == want_type for st in rows
+    )
 
 
 def review_attestation_missing(
@@ -1136,8 +1204,15 @@ def review_attestation_missing(
     malformed: List[str] = []
     wrong_type: List[str] = []
     conforming: List[Path] = []
-    for path in subject_review_records(repo_root, wanted):
+    try:
+        candidates, cached_kinds = _cached_subject_review_files(Path(repo_root), wanted)
+    except Exception:
+        candidates, cached_kinds = [], {}
+
+    for path in candidates:
         doc = parse_review_file(path)
+        if (doc.subject_id or "").strip() != wanted:
+            continue
         if doc.diagnostics:
             codes = ", ".join(sorted({d.code for d in doc.diagnostics}))
             malformed.append("{0} ({1})".format(path, codes))
@@ -1155,7 +1230,9 @@ def review_attestation_missing(
         # improves a spec but never clears it for `reviewed`. The kind comes from the
         # `artifact_meta` cache, built for THIS `repo_root` so a lane worktree's uncommitted review
         # files are judged as they are on disk.
-        kinds = _attestation_review_kinds(repo_root, wanted, conforming)
+        kinds = _attestation_review_kinds(
+            repo_root, wanted, conforming, cached_kinds=cached_kinds
+        )
         if any(k == "gate" for k in kinds.values()):
             return None
         return (
@@ -1174,16 +1251,27 @@ def review_attestation_missing(
             "a review record naming {0} exists but declares a different subject type "
             "(expected {1}): {2}".format(wanted, want_type, "; ".join(wrong_type))
         )
+    if not candidates and _cached_gate_review_in_reviews_table(
+        Path(repo_root), wanted, want_type
+    ):
+        return None
     return "no review record names {0} as its `- Subject-Id:`".format(wanted)
 
 
 def _attestation_review_kinds(
-    repo_root, subject_id6: str, paths: Sequence[Path]
+    repo_root,
+    subject_id6: str,
+    paths: Sequence[Path],
+    *,
+    cached_kinds: Optional[Dict[Path, str]] = None,
 ) -> Dict[Path, str]:
     """`review_kind` of each conforming review file: from the `artifact_meta` cache's review rows
     (gate only when the cached file has `parse_ok`), else the loader's own rule for a file outside the
     cached records root (a legacy `.agents/reviews` file)."""
     from agent_workflows import artifact_meta as _am
+
+    if cached_kinds is not None and all(p in cached_kinds for p in paths):
+        return {p: cached_kinds[p] for p in paths}
 
     ctx = _am.legacy_context(Path(repo_root))
     records_root = Path(ctx.logical_roots["records"]).resolve()
@@ -1196,6 +1284,9 @@ def _attestation_review_kinds(
     }
     out: Dict[Path, str] = {}
     for p in paths:
+        if cached_kinds is not None and p in cached_kinds:
+            out[p] = cached_kinds[p]
+            continue
         try:
             rel = Path(p).resolve().relative_to(records_root).as_posix()
         except ValueError:

@@ -5,8 +5,9 @@
 - Concern: Split from `2zpw22` (Order 36) in round 3 of the metastore re-split, per research `nj8zdp` guidance (at most 8 work Scope-Paths per plan): `2zpw22` declared 12 work Scope-Paths across three module families. Spec `4sd62s` C5a requires every record module to read metadata through the cache. Measured 2026-11-07 at `ac76110f4`: the review modules read front matter with their own patterns (`review_findings._META_RE`, `artifact_audit._STATUS_LINE_RE`), and `reviews` resolves review subjects by its own reads.
 - Scope: `2zpw22` E-01 (review findings, audit and review subject lookups), carried unchanged. EXCLUDES: the review sequence, tier, re-review and orchestrator readiness modules (`0i0zsg`, Order 150); the production-check, work and adoption modules (`awmsyq`, Order 154); the residual audit (kept in `2zpw22`); the `->reviewed` gate-only attestation rule (`2xwb9b`).
 - Scope-Paths: agent_workflows/review_findings.py, agent_workflows/artifact_audit.py, agent_workflows/reviews.py, tests/test_readers_review_modules.py, tests/test_artifact_audit_verdicts.py, .aw/records/plans/pending/20261109-metastore-149-y4spqy-move-the-review-findings-audit-and-reviews-module-reads-onto.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261121-qihi23-01-qihi23-artifact-meta-load-sources-does-not-project-op-rev.backlog.md (Defect report backlog item filed per driver turn defect-reporting contract for adjacent bug in artifact_meta._load_sources)
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,9 +19,9 @@
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: y4spqy
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-22 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: y4spqy verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261121-qihi23-01-qihi23-artifact-meta-load-sources-does-not-project-op-rev.backlog.md: Defect report backlog item filed per driver turn defect-reporting contract for adjacent bug in artifact_meta._load_sources; in-scope-unmodified tests/test_artifact_audit_verdicts.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
@@ -41,10 +42,10 @@ Commit through `aw commit y4spqy -- <each changed path>`, never `git add -A`, a 
 
 ### Task group 1: review and audit modules
 
-- [ ] E-01 (carried from `2zpw22` E-01) Pin, then move, `review_findings` (`_META_RE` front-matter read in `parse_review_text`; the review body grammar of rounds and findings stays, N3), `artifact_audit` (`_STATUS_LINE_RE` in `read_declared_status`, which serves every artifact type, so D-1 normalization applies only when the record is a plan), `reviews` subject resolution (`reviews._resolve_selector_paths` and `collect_decisions` subject lookups) and `review_findings.review_attestation_missing` lookups onto the cached `review_files` and `reviews` rows (`artifact_meta.query(latest_gate_review_of=...)`); the predicate's acceptance rule stays as it is (the gate-only change is Order 06's). Pin in the new `tests/test_readers_review_modules.py` and run `tests/test_review_findings_gate.py`, `tests/test_spec_review_attestation.py`, `tests/test_artifact_audit.py`, `tests/test_artifact_audit_verdicts.py` and `tests/test_artifact_audit_identity_staleness.py` green before and after. Before the edit also save the sorted `check.spec-review-unattested` locations from `aw check specs --agent` to `.aw/state/t4gl15/spec-review-before.txt`. (Measured units at `ac76110f4`: 12 functions with a reader site, 5 baseline modules.)
+- [x] E-01 (carried from `2zpw22` E-01) Pin, then move, `review_findings` (`_META_RE` front-matter read in `parse_review_text`; the review body grammar of rounds and findings stays, N3), `artifact_audit` (`_STATUS_LINE_RE` in `read_declared_status`, which serves every artifact type, so D-1 normalization applies only when the record is a plan), `reviews` subject resolution (`reviews._resolve_selector_paths` and `collect_decisions` subject lookups) and `review_findings.review_attestation_missing` lookups onto the cached `review_files` and `reviews` rows (`artifact_meta.query(latest_gate_review_of=...)`); the predicate's acceptance rule stays as it is (the gate-only change is Order 06's). Pin in the new `tests/test_readers_review_modules.py` and run `tests/test_review_findings_gate.py`, `tests/test_spec_review_attestation.py`, `tests/test_artifact_audit.py`, `tests/test_artifact_audit_verdicts.py` and `tests/test_artifact_audit_identity_staleness.py` green before and after. Before the edit also save the sorted `check.spec-review-unattested` locations from `aw check specs --agent` to `.aw/state/t4gl15/spec-review-before.txt`. (Measured units at `ac76110f4`: 12 functions with a reader site, 5 baseline modules.)
   - Depends on: none
   - Expected outcome: all listed modules pass before and after; `aw check specs --agent` reports the same `check.spec-review-unattested` set as before.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -135,10 +136,10 @@ No spec change. Implements the review-module part of `4sd62s` C5a.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_readers_review_modules.py -k "review_findings or audit"` all PASSED, `diff .aw/state/t4gl15/E-11-before.txt .aw/state/t4gl15/E-11-after.txt` (outcome lists of `tests/test_review_findings_gate.py tests/test_spec_review_attestation.py tests/test_artifact_audit.py tests/test_artifact_audit_verdicts.py tests/test_artifact_audit_identity_staleness.py`) printing nothing or only D-1 lines, `rg -n "_META_RE|_STATUS_LINE_RE" agent_workflows/review_findings.py agent_workflows/artifact_audit.py` with each remaining hit's function named (none a front-matter read), and the `diff` of `.aw/state/t4gl15/spec-review-before.txt` against the sorted `check.spec-review-unattested` locations from a fresh `aw check specs --agent`, empty.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pre-move pin-first baseline (with `git diff --stat agent_workflows/` empty): `python3 -m pytest -o addopts="" -v tests/test_readers_review_modules.py -k "review_findings or audit"` -> `9 passed in 1.81s`; 5 baseline modules saved to `.aw/state/t4gl15/E-11-before.txt` (`75 passed in 33.52s`, 75 lines); `aw check specs --agent` sorted `check.spec-review-unattested` saved to `.aw/state/t4gl15/spec-review-before.txt` (0 lines). Post-move checks after moving `review_findings.parse_review_text` onto `artifact_meta.read_text` (deleting `_META_RE`), `review_findings.subject_review_records`/`subject_gating_blocks`/`review_attestation_missing` onto cached `review_files` (`artifact_meta.review_rows`) and `reviews` (`artifact_meta.query(latest_gate_review_of=...)`), `artifact_audit.read_declared_status` onto `artifact_meta` with D-1 plan-only normalization (deleting `_STATUS_LINE_RE`), and `reviews._resolve_selector_paths`/`collect_decisions` onto cached `review_files`: (1) `python3 -m pytest -o addopts="" -v tests/test_readers_review_modules.py -k "review_findings or audit"` -> all 11 tests `PASSED` (`11 passed in 2.72s`, with only the D-1 assertion in `test_read_declared_status_plan_multi_word_d1` changed from `None` to `"executed"` plus two new post-move cache-lookup tests); (2) 5 baseline modules saved to `.aw/state/t4gl15/E-11-after.txt` (`75 passed in 20.80s`, 75 lines) and `diff -u .aw/state/t4gl15/E-11-before.txt .aw/state/t4gl15/E-11-after.txt` exited 0 with empty output (`tests/test_artifact_audit_verdicts.py` needed no change because its `x.md` fixture is non-plan per D-1); (3) `rg -n "_META_RE|_STATUS_LINE_RE" agent_workflows/review_findings.py agent_workflows/artifact_audit.py` -> 0 hits (and `2zpw22` E-03 `^-` regex search over all 3 modules -> 0 hits); (4) `diff -u .aw/state/t4gl15/spec-review-before.txt .aw/state/t4gl15/spec-review-after.txt` exited 0 with empty output (0 `check.spec-review-unattested` findings before and after); (5) related consumer suites (`test_review_decisions.py`, `test_startup_preflight_perf_behavior.py`, `test_plan_readiness_recheck.py`, `test_m0001_review_conversion.py`, `test_runner_findings_dependency_gate.py`, `test_review_rereview.py`, `test_record_builder.py`) -> `119 passed in 16.17s`; (6) full core suite via `aw suite` -> `2714 passed, 1 skipped, 11 warnings in 142.28s (0:02:22)` (exit 0); `mypy` -> `Success: no issues found in 3 source files`; `aw sanitize --agent` -> `clean` (`findings: 0`); `aw attention --check --agent` -> `clean` (`findings: 0`).
+  - Result: pass
 
 ## Approval and execution gate
 
