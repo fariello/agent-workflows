@@ -50,22 +50,22 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `59aiyh` E-09, batch subset G7b; round-3 split 2026-11-09) Batch G7b, 4 of its 22 modules (the unmatched test modules whose basename sorts at or after `test_l`): `tests/test_show_history.py`, `tests/test_staged_illegal_backlog_transition_gate.py`, `tests/test_support_section.py`, `tests/test_term_components.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_show_history` 7, `test_staged_illegal_backlog_transition_gate` 9, `test_support_section` 24, `test_term_components` 1. Run the codemod on these modules and apply the batch rule with `<batch>` = `G7b-9jmt3w-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 300, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_staged_illegal_backlog_transition_gate.py`: `_make_item`); a surviving helper is listed with its reason.
+- [x] E-01 (carried from `59aiyh` E-09, batch subset G7b; round-3 split 2026-11-09) Batch G7b, 4 of its 22 modules (the unmatched test modules whose basename sorts at or after `test_l`): `tests/test_show_history.py`, `tests/test_staged_illegal_backlog_transition_gate.py`, `tests/test_support_section.py`, `tests/test_term_components.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_show_history` 7, `test_staged_illegal_backlog_transition_gate` 9, `test_support_section` 24, `test_term_components` 1. Run the codemod on these modules and apply the batch rule with `<batch>` = `G7b-9jmt3w-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 300, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_staged_illegal_backlog_transition_gate.py`: `_make_item`); a surviving helper is listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G7b-9jmt3w-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 300) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `59aiyh` E-09, batch subset G7b; round-3 split 2026-11-09) Batch G7b, 3 of its 22 modules (the unmatched test modules whose basename sorts at or after `test_l`): `tests/test_term.py`, `tests/test_validator_nonsurveyable_dir.py`, `tests/test_workflow_artifacts_prune.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_term` 5, `test_validator_nonsurveyable_dir` 10, `test_workflow_artifacts_prune` 1. Run the codemod on these modules and apply the batch rule with `<batch>` = `G7b-9jmt3w-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 300, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [x] E-02 (carried from `59aiyh` E-09, batch subset G7b; round-3 split 2026-11-09) Batch G7b, 3 of its 22 modules (the unmatched test modules whose basename sorts at or after `test_l`): `tests/test_term.py`, `tests/test_validator_nonsurveyable_dir.py`, `tests/test_workflow_artifacts_prune.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_term` 5, `test_validator_nonsurveyable_dir` 10, `test_workflow_artifacts_prune` 1. Run the codemod on these modules and apply the batch rule with `<batch>` = `G7b-9jmt3w-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 300, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G7b-9jmt3w-2` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 300) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G7b-9jmt3w-1-files.txt .aw/state/59aiyh/G7b-9jmt3w-2-files.txt)`) into `.aw/state/59aiyh/9jmt3w-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit 9jmt3w -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G7b-9jmt3w-1-files.txt .aw/state/59aiyh/G7b-9jmt3w-2-files.txt)`) into `.aw/state/59aiyh/9jmt3w-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit 9jmt3w -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -153,20 +153,91 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `.aw/state/59aiyh/G7b-9jmt3w-1-files.txt` and the empty `diff .aw/state/59aiyh/G7b-9jmt3w-1-before.txt .aw/state/59aiyh/G7b-9jmt3w-1-after.txt`; then, for each of `tests/test_show_history.py`, `tests/test_staged_illegal_backlog_transition_gate.py`, `tests/test_support_section.py`, `tests/test_term_components.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G7b-9jmt3w-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G7b-9jmt3w-1-files.txt`:
+      - `tests/test_show_history.py`
+      - `tests/test_staged_illegal_backlog_transition_gate.py`
+      - `tests/test_support_section.py`
+      - `tests/test_term_components.py`
+    - Partition check at starting HEAD `30242933cc233618d3f26247251508329f2d4e90`: all 4 named modules matched F-01 before conversion.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G7b-9jmt3w-1-before.txt .aw/state/59aiyh/G7b-9jmt3w-1-after.txt`): empty output, exit code 0 (55 `PASSED` outcomes; re-verified in union on committed tree `41dd38fcb29864100713c8f24858ddda88a609d5`).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_show_history.py`:
+        - F-01 `rg -c`: before 7, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-9jmt3w-1-codemod.json`): `sites=4`, `rewrites=2` (`standard=1`, `invalid-input=1`), `refusals=2` (`dynamic-construction=1`, `not-equivalent=1`, `hand=2`, `legacy-kept=0`), `before_hash=0d1eb900177c9d00be06816de2adbb07011024ecd5ca460870e566bf8d2ffa48`, `after_hash=0d1eb900177c9d00be06816de2adbb07011024ecd5ca460870e566bf8d2ffa48`, `equivalent=true`, `pytest_runs=6`, `changed=true`.
+        - `653ndz` F-30 row: `G7b | 9jmt3w | 4 | 3 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0`.
+      - `tests/test_staged_illegal_backlog_transition_gate.py`:
+        - F-01 `rg -c`: before 9, after 1. Remaining matches (1 line, 0 AST sites):
+          - `body prose` (1 line): line 368 docstring `"""(l) Item with no readable - Id: is NOT refused by this rule (left to backlog.id-invalid)."""` in `TestStagedIllegalBacklogTransitionGate.test_l_unreadable_id_not_refused`.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-9jmt3w-1-codemod.json`): `sites=3`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=3` (`dynamic-construction=2`, `unsupported-shape=1`, `hand=3`, `legacy-kept=0`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`, `changed=false`.
+        - `653ndz` F-30 row: `G7b | 9jmt3w | 3 | 0 | 0 | 2 | 1 | 0 | 0 | 0 | 0 | 0 | 3 | 0`.
+      - `tests/test_support_section.py`:
+        - F-01 `rg -c`: before 24, after 22. Remaining matches (22 lines across 20 AST sites plus 1 comment; the module's only 2 hand-built record fixtures at pre-edit lines 140 and 144 were rewritten by the codemod to `RecordBuilder().plan(...)`; the remaining 22 lines are non-record section-extractor inputs, marker arguments, prose, and readback assertions):
+          - `body prose` (14 lines): line 52 comment `# start marker "## Workflow history" contains end marker "## "`; line 103 prose input `"This document only quotes ## Workflow history in a sentence.\n"` (`legacy-kept` in codemod); synthetic Markdown section-extractor unit-test inputs and bare `"## Workflow history"` marker arguments in `test_end_marker_search_starts_after_start_marker` (lines 51, 53), `test_anchored_skips_body_prose_and_anchored_false_matches_prose` (lines 80, 81, 86, 93), `test_marker_only_in_prose_refuses_anchored_and_points_to_anchored_false` (lines 106, 114), and `test_section_lines_agreement_and_refusal` (lines 190, 195, 196, 204).
+          - `setter-byte assertion` (8 lines): 6 assertion lines marked `legacy-kept` by the codemod in `test_end_marker_search_starts_after_start_marker` (line 55), `test_anchored_skips_body_prose_and_anchored_false_matches_prose` (lines 88, 96), `test_marker_only_in_prose_refuses_anchored_and_points_to_anchored_false` (lines 108, 116), and `test_section_lines_agreement_and_refusal` (line 199); plus 2 readback calls over real `backlog.run_new`/`backlog.run_set` on-disk output in `test_backlog_writer_driven_reproduction` (line 250 `text.split("## Workflow history", 1)` and line 258 `support.section(text, "## Workflow history", "## ")`).
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-9jmt3w-1-codemod.json`): `sites=22`, `rewrites=2` (`standard=2`, `invalid-input=0`), `refusals=20` (`unsupported-shape=13`, `setter-byte assertion=6`, `body prose=1`, `hand=13`, `legacy-kept=7`), `before_hash=752513a3943f37577943775c35e805f0b41be3cfcf102e8b858138cd09b69731`, `after_hash=752513a3943f37577943775c35e805f0b41be3cfcf102e8b858138cd09b69731`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7b | 9jmt3w | 22 | 2 | 0 | 0 | 13 | 0 | 0 | 0 | 6 | 1 | 13 | 7`.
+      - `tests/test_term_components.py`:
+        - F-01 `rg -c`: before 1, after 1 (unmodified; declared in `Scope-Paths`, left unmodified because it has 0 AST sites and its only match is a comment). Remaining matches (1 line, 0 AST sites):
+          - `body prose` (1 line): line 93 comment `# \`- Quarantine:\` field rather than a \`- Status:\` value, and \`ipd_lint\` keeps the other four` in `PaletteSingleSourceTests.test_role_palette_contains_the_generic_roles_and_no_lifecycle_status`.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-9jmt3w-1-codemod.json`): `sites=0`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`, `changed=false`.
+        - `653ndz` F-30 row: `G7b | 9jmt3w | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+    - Hand count: 18 reported by codemod (17 static + 1 apply-time `not-equivalent`; <= 300; 5 actual record-fixture sites hand-converted to `RecordBuilder`, and 13 non-record `unsupported-shape` sites in `tests/test_support_section.py` retained and classified above because they are synthetic section-extractor inputs/markers or real-writer readback calls, not hand-built records):
+      - `tests/test_show_history.py` pre-edit lines 52-62 (`dynamic-construction`): replaced hand-built plan string in `_write_legacy_plan` with `RecordBuilder().plan(id6=PLAN_ID, title="Legacy plan", status="approved", set="hxset", order=1, history=history, body="## Goal\n\nBody.\n", text_only=True)`.
+      - `tests/test_show_history.py` pre-edit lines 239-240 (`not-equivalent`): replaced hand-built two-round review string in `test_c_review_rounds_are_events_of_the_subject` with `RecordBuilder().review(subject=PLAN_ID, verdict="APPROVE", reviewer="r1", rounds=[{"number": 1}, {"number": 2}], text_only=True)`.
+      - `tests/test_staged_illegal_backlog_transition_gate.py` pre-edit lines 49, 50 (`dynamic-construction`, 2 sites) and lines 53-65 (`unsupported-shape`, 1 site): replaced hand-built backlog string in `_make_item` with `RecordBuilder().backlog(..., raw_fields=raw_fields or None, text_only=True, **extra_fields)` (`invalid-input` via `raw_fields={"status": status}` when `status not in backlog.STATUSES` and `raw_fields={"id": None}` when `omit_id=True`).
+      - `tests/test_support_section.py` pre-edit lines 50, 52, 78-82, 85, 92, 105, 113, 175-178, 180, 181, 189 (11 `unsupported-shape` sites, classified `body prose`) and pre-edit lines 235, 243 (2 `unsupported-shape` sites, classified `setter-byte assertion`): retained unchanged because none builds a test record fixture and every site exercises `support.section` / `support.section_lines` directly.
+    - Post-edit codemod dry-run over all 4 modules: `tests/test_show_history.py`, `tests/test_staged_illegal_backlog_transition_gate.py`, and `tests/test_term_components.py` at `sites=0`; `tests/test_support_section.py` at `sites=20` (`unsupported-shape=13`, `setter-byte assertion=6`, `body prose=1`; zero hand-built record sites remaining).
+    - Helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before (1 match): `tests/test_staged_illegal_backlog_transition_gate.py` line 41 `def _make_item(`.
+      - After (1 match): `tests/test_staged_illegal_backlog_transition_gate.py` line 42 `def _make_item(`.
+      - Deleted helpers (0): none.
+      - Surviving helpers (1): `tests/test_staged_illegal_backlog_transition_gate.py::_make_item` (25 active callers across all 13 test methods in `TestStagedIllegalBacklogTransitionGate`; now delegates completely to `RecordBuilder().backlog(..., text_only=True)` and builds no legacy text by hand).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `.aw/state/59aiyh/G7b-9jmt3w-2-files.txt` and the empty `diff .aw/state/59aiyh/G7b-9jmt3w-2-before.txt .aw/state/59aiyh/G7b-9jmt3w-2-after.txt`; then, for each of `tests/test_term.py`, `tests/test_validator_nonsurveyable_dir.py`, `tests/test_workflow_artifacts_prune.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G7b-9jmt3w-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G7b-9jmt3w-2-files.txt`:
+      - `tests/test_term.py`
+      - `tests/test_validator_nonsurveyable_dir.py`
+      - `tests/test_workflow_artifacts_prune.py`
+    - Partition check at starting HEAD `30242933cc233618d3f26247251508329f2d4e90`: all 3 named modules matched F-01 before conversion.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G7b-9jmt3w-2-before.txt .aw/state/59aiyh/G7b-9jmt3w-2-after.txt`): empty output, exit code 0 (69 `PASSED` outcomes; re-verified in union on committed tree `41dd38fcb29864100713c8f24858ddda88a609d5`).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_term.py`:
+        - F-01 `rg -c`: before 5, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-9jmt3w-2-codemod.json`): `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=ad483c2b84cf7184aa012f68ae3db242e98d998fa9a6e1c8c7994b5f4334ab84`, `after_hash=ad483c2b84cf7184aa012f68ae3db242e98d998fa9a6e1c8c7994b5f4334ab84`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7b | 9jmt3w | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_validator_nonsurveyable_dir.py`:
+        - F-01 `rg -c`: before 10, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-9jmt3w-2-codemod.json`): `sites=2`, `rewrites=2` (`standard=2`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=554c5c53f8b4780ae04c88603e088639adcb8ad61bb8328419d2e338b9d3ef19`, `after_hash=554c5c53f8b4780ae04c88603e088639adcb8ad61bb8328419d2e338b9d3ef19`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7b | 9jmt3w | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_workflow_artifacts_prune.py`:
+        - F-01 `rg -c`: before 1, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-9jmt3w-2-codemod.json`): `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=e171077555e58f0d886dcf1d9fb669f269bda01115b28be6c961934cfe859052`, `after_hash=e171077555e58f0d886dcf1d9fb669f269bda01115b28be6c961934cfe859052`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7b | 9jmt3w | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+    - Hand count: 0 (0 static + 0 apply-time `not-equivalent`; <= 300; hand-converted sites: none).
+    - Post-edit codemod dry-run over all 3 modules: all 3 modules at `sites=0` (`hand=0`, `legacy-kept=0`).
+    - Helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before: `(none)` (0 matches).
+      - After: `(none)` (0 matches).
+      - Deleted helpers (0): none. Surviving helpers (0): none.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G7b-9jmt3w-1`, `G7b-9jmt3w-2` against `.aw/state/59aiyh/9jmt3w-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit 9jmt3w` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union comparison (`diff -u .aw/state/59aiyh/9jmt3w-union-before.txt .aw/state/59aiyh/9jmt3w-union-after.txt`): empty output, exit code 0 (124 `PASSED` outcomes = 55 + 69 across all 7 modules; re-verified on committed tree `41dd38fcb29864100713c8f24858ddda88a609d5`).
+    - Core gate (`aw suite`, running bare `python3 -m pytest` with 6 xdist workers): `2739 passed, 1 skipped, 11 warnings in 123.26s (0:02:03)`, exit code 0.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7084,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit 9jmt3w` outputs (every committed path strictly inside Scope-Paths; `tests/test_term_components.py` left unmodified because its only F-01 match is a comment; never pushed):
+      - E-01: `aw commit: committed 3 path(s): c4ad30c11369c6d082ac8e3f1b26c6eee0ff6302` (`tests/test_show_history.py`, `tests/test_staged_illegal_backlog_transition_gate.py`, `tests/test_support_section.py`).
+      - E-02: `aw commit: committed 3 path(s): 41dd38fcb29864100713c8f24858ddda88a609d5` (`tests/test_term.py`, `tests/test_validator_nonsurveyable_dir.py`, `tests/test_workflow_artifacts_prune.py`).
+      - Plan evidence: committed via `aw commit 9jmt3w -- .aw/records/plans/pending/20261109-metastore-212-9jmt3w-move-second-half-unmatched-test-data-chunk-3-of-3-onto-the-r.ipd.md`.
+  - Result: pass
 
 ## Approval and execution gate
 
