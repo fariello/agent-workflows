@@ -7,6 +7,8 @@
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_poll_for_deps.py, CHANGELOG.md, .aw/records/plans/pending/20261121-b7seii-01-z7uxhf-add-poll-for-deps-duration-flag-to-aw-agy-run-and-aw-oc-run.ipd.md
 - Item-Dependencies: none
 - Status: to-review
+- Readiness: go-pending-approval
+- Review-Depth: standard
 - Work-Kind: feature
 - Priority: medium
 - From-Backlog: b7seii
@@ -20,6 +22,7 @@
 
 ## Workflow history
 
+- 2026-11-22 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-002 FIXED; review record .aw/records/reviews/20261121-b7seii-01-z7uxhf-add-poll-for-deps-duration-flag-to-aw-agy-run-and-aw-oc-run.review.md
 - 2026-11-22 to-review (antigravity/gemini): authored review-ready child plan graduated from backlog b7seii.
 - 2026-11-22 draft (antigravity/gemini): created.
 
@@ -38,9 +41,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: Both `agent_workflows/oc_runipd.py::build_parser` and `agent_workflows/agy_runipd.py::build_parser` accept `--poll-for-deps DURATION` on `start` and refuse it on `resume`, `resolve_poll_for_deps` returns `None` when omitted and positive seconds when supplied, and `freeze_run_policy_flags` freezes the operator string into run state.
   - Execution state: pending
 
-- [ ] E-02 Add `WaitableExternalDependencies` and `allow_waitable_external_deps: bool = False` to `agent_workflows/runner_shared.py::enforce_freeze_time_refusal`, plus an interruptible pre-run poll loop and `_sleep_poll_interval` helper in `agent_workflows/runner_shared.py::initialize_run_core` (with injectable `poll_sleep_fn` for deterministic testing) that re-discovers repository state after clearing caches when all unmet dependencies are actionable external artifacts and fails immediately when any finding is structural, undetermined, internal, or permanently unsatisfiable (`superseded`, `not-executed`, `parked`, `absent`).
+- [ ] E-02 Add `WaitableExternalDependencies` and `allow_waitable_external_deps: bool = False` to `agent_workflows/runner_shared.py::enforce_freeze_time_refusal`, plus an interruptible pre-run poll loop and `_sleep_poll_interval` helper in `agent_workflows/runner_shared.py::initialize_run_core` (with injectable `poll_sleep_fn` for deterministic testing) that re-discovers repository state (rebuilding the dynamic manifest via `discover_plans` / `build_dynamic_manifest` inside a fresh `selectors.scan_once()` after `selectors._record_dirs_cached.cache_clear()`) when all unmet dependencies are actionable external artifacts and fails immediately when `--prepare-only` is set or when any finding is structural, undetermined, internal, or permanently unsatisfiable (`superseded`, `not-executed`, `parked`, `absent`).
   - Depends on: E-01
-  - Expected outcome: `initialize_run_core` validates `--poll-for-deps` before writing any durable state, prints a single waiting line per tick to `stderr` listing waiting external dependency IDs and statuses, sleeps in <= 1s Ctrl-C-interruptible slices, re-reads fresh disk state on wake, proceeds once dependencies are satisfied, and never sleeps on permanently unsatisfiable dependencies or without `--poll-for-deps`.
+  - Expected outcome: `initialize_run_core` validates `--poll-for-deps` before writing any durable state, never sleeps under `--prepare-only`, prints a single waiting line per tick to `stderr` listing waiting external dependency IDs and statuses, sleeps in <= 1s Ctrl-C-interruptible slices, re-reads fresh disk state on wake, proceeds once dependencies are satisfied, and never sleeps on permanently unsatisfiable dependencies or without `--poll-for-deps`.
   - Execution state: pending
 
 ### Task group 2: Behavioral tests, changelog, and validation gates
