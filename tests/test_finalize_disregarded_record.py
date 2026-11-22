@@ -19,6 +19,7 @@ from pathlib import Path
 
 from agent_workflows import ipd_lifecycle as LC
 from tests import support
+from tests.record_builder import RecordBuilder
 
 
 def _init_git(root: Path) -> None:
@@ -28,12 +29,8 @@ def _init_git(root: Path) -> None:
     (root / ".gitignore").write_text(".aw/state/\n", encoding="utf-8")
 
 
-def _completed_plan_text(
-    *,
-    plan_id: str = "abc123",
-    scope_paths: str = "agent_workflows/demo.py",
-) -> str:
-    t = support.ready_plan_text(plan_id=plan_id, scope_paths=scope_paths)
+def _mark_plan_completed(plan_path: Path) -> Path:
+    t = plan_path.read_text(encoding="utf-8")
     t = t.replace("- [ ] E-01 ", "- [x] E-01 ", 1).replace(
         "  - Execution state: pending", "  - Execution state: performed", 1
     )
@@ -44,17 +41,8 @@ def _completed_plan_text(
         )
         .replace("  - Result: pending", "  - Result: pass", 1)
     )
-    return t
-
-
-def _write_plan(
-    root: Path, text: str, name: str = "20260824-demo-01-abc123-demo.ipd.md"
-) -> Path:
-    d = root / ".aw" / "records" / "plans" / "pending"
-    d.mkdir(parents=True, exist_ok=True)
-    p = d / name
-    p.write_text(text, encoding="utf-8")
-    return p
+    plan_path.write_text(t, encoding="utf-8")
+    return plan_path
 
 
 class FinalizeDisregardedRecordTests(unittest.TestCase):
@@ -66,7 +54,21 @@ class FinalizeDisregardedRecordTests(unittest.TestCase):
         self.root = Path(self._tmp.name)
         _init_git(self.root)
         (self.root / "agent_workflows").mkdir()
-        self.plan = _write_plan(self.root, _completed_plan_text())
+        self.plan = _mark_plan_completed(
+            Path(
+                RecordBuilder(self.root).plan(
+                    plan_id="abc123",
+                    set_name="demo",
+                    order=1,
+                    when="2026-08-24",
+                    slug="demo",
+                    status="approved",
+                    approval="2026-08-24, human: approved",
+                    readiness="go-pending-approval",
+                    scope_paths="agent_workflows/demo.py",
+                )
+            )
+        )
         (self.root / "agent_workflows" / "demo.py").write_text("x\n", encoding="utf-8")
         subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
         subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=self.root, check=True)

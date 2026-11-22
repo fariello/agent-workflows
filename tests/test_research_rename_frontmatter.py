@@ -21,6 +21,7 @@ import subprocess
 import pytest
 
 from agent_workflows import cli, research_contract as R
+from tests.record_builder import RecordBuilder
 
 
 @pytest.fixture
@@ -35,47 +36,10 @@ def temp_git_repo(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _seed_research_doc(
-    repo_dir: Path,
-    filename: str,
-    *,
-    id6: str = "k7m2xq",
-    created: str = "20260901",
-    set_id: str = "oldsetid",
-    order: str = "03",
-    topic: list[str] | None = None,
-    model: str = "",
-    kind: str = "notes",
-    status: str = "reference",
-    outcome: str = "none-yet",
-    summary: str = "A demo doc",
-    consumed_by: list[str] | None = None,
-    body: str = "\n## Notes\nSome demo notes.\n",
-) -> Path:
+def _commit_research_shard_file(repo_dir: Path, filename: str, content: str) -> Path:
     rdir = repo_dir / ".aw" / "records" / "research" / "reference" / "202609"
     rdir.mkdir(parents=True, exist_ok=True)
     path = rdir / filename
-
-    topic_str = f"[{', '.join(topic)}]" if topic is not None else "[demo]"
-    consumed_str = f"[{', '.join(consumed_by)}]" if consumed_by is not None else "[]"
-    model_str = f" {model}" if model else ""
-
-    content = (
-        "---\n"
-        f"id: {id6}\n"
-        f"created: {created}\n"
-        f"set: {set_id}\n"
-        f"order: {order}\n"
-        f"topic: {topic_str}\n"
-        f"model:{model_str}\n"
-        f"kind: {kind}\n"
-        f"status: {status}\n"
-        f"outcome: {outcome}\n"
-        f"summary: {summary}\n"
-        f"consumed-by: {consumed_str}\n"
-        "---\n"
-        f"{body}"
-    )
     path.write_text(content, encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
     subprocess.run(
@@ -101,11 +65,25 @@ def _find_doc_by_id6(repo_dir: Path, id6: str) -> Path:
 
 def test_regroup_updates_set_and_order_frontmatter(temp_git_repo: Path):
     """E-01(a): aw group research updates set: and order: in frontmatter to match destination filename."""
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md",
-        set_id="oldsetid",
-        order="03",
+        str(
+            RecordBuilder().research(
+                id6="k7m2xq",
+                when="2026-09-01",
+                set="oldsetid",
+                order=3,
+                topic=["demo"],
+                model="",
+                research_kind="notes",
+                status="reference",
+                outcome="none-yet",
+                summary="A demo doc",
+                body="\n## Notes\nSome demo notes.\n",
+                text_only=True,
+            )
+        ),
     )
     rc, out, err = _run_cli(
         [
@@ -131,10 +109,25 @@ def test_regroup_updates_set_and_order_frontmatter(temp_git_repo: Path):
 
 def test_mv_model_updates_model_frontmatter(temp_git_repo: Path):
     """E-01(b): aw research mv --model updates model: in frontmatter."""
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md",
-        model="",
+        str(
+            RecordBuilder().research(
+                id6="k7m2xq",
+                when="2026-09-01",
+                set="oldsetid",
+                order=3,
+                topic=["demo"],
+                model="",
+                research_kind="notes",
+                status="reference",
+                outcome="none-yet",
+                summary="A demo doc",
+                body="\n## Notes\nSome demo notes.\n",
+                text_only=True,
+            )
+        ),
     )
     rc, out, err = _run_cli(
         [
@@ -157,10 +150,25 @@ def test_mv_model_updates_model_frontmatter(temp_git_repo: Path):
 
 def test_mv_kind_updates_kind_frontmatter(temp_git_repo: Path):
     """E-01(c): aw research mv --kind updates kind: in frontmatter."""
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md",
-        kind="notes",
+        str(
+            RecordBuilder().research(
+                id6="k7m2xq",
+                when="2026-09-01",
+                set="oldsetid",
+                order=3,
+                topic=["demo"],
+                model="",
+                research_kind="notes",
+                status="reference",
+                outcome="none-yet",
+                summary="A demo doc",
+                body="\n## Notes\nSome demo notes.\n",
+                text_only=True,
+            )
+        ),
     )
     rc, out, err = _run_cli(
         [
@@ -183,9 +191,25 @@ def test_mv_kind_updates_kind_frontmatter(temp_git_repo: Path):
 
 def test_regroup_preserves_generated_index_path_resolution(temp_git_repo: Path):
     """E-02: After a regroup, generated INDEX.json points to a path that exists on disk."""
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md",
+        str(
+            RecordBuilder().research(
+                id6="k7m2xq",
+                when="2026-09-01",
+                set="oldsetid",
+                order=3,
+                topic=["demo"],
+                model="",
+                research_kind="notes",
+                status="reference",
+                outcome="none-yet",
+                summary="A demo doc",
+                body="\n## Notes\nSome demo notes.\n",
+                text_only=True,
+            )
+        ),
     )
     rc_idx, out_idx, err_idx = _run_cli(
         ["index", "research", "--apply", "--dir", str(temp_git_repo)]
@@ -222,11 +246,25 @@ def test_regroup_preserves_generated_index_path_resolution(temp_git_repo: Path):
 
 def test_alternate_spelling_research_set_assign(temp_git_repo: Path):
     """E-06(a): aw research set-assign updates set: and order: in frontmatter."""
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md",
-        set_id="oldsetid",
-        order="03",
+        str(
+            RecordBuilder().research(
+                id6="k7m2xq",
+                when="2026-09-01",
+                set="oldsetid",
+                order=3,
+                topic=["demo"],
+                model="",
+                research_kind="notes",
+                status="reference",
+                outcome="none-yet",
+                summary="A demo doc",
+                body="\n## Notes\nSome demo notes.\n",
+                text_only=True,
+            )
+        ),
     )
     rc, out, err = _run_cli(
         [
@@ -252,10 +290,25 @@ def test_alternate_spelling_research_set_assign(temp_git_repo: Path):
 
 def test_alternate_spelling_rename_research(temp_git_repo: Path):
     """E-06(b): aw rename research reconciles frontmatter order: to match destination filename."""
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20260901-oldsetid-01-k7m2xq-a-demo-doc.notes.md",
-        order="03",
+        str(
+            RecordBuilder().research(
+                id6="k7m2xq",
+                when="2026-09-01",
+                set="oldsetid",
+                order=3,
+                topic=["demo"],
+                model="",
+                research_kind="notes",
+                status="reference",
+                outcome="none-yet",
+                summary="A demo doc",
+                body="\n## Notes\nSome demo notes.\n",
+                text_only=True,
+            )
+        ),
     )
     rc, out, err = _run_cli(
         [
@@ -278,11 +331,25 @@ def test_alternate_spelling_rename_research(temp_git_repo: Path):
 
 def test_rename_research_with_set(temp_git_repo: Path):
     """aw rename research <id6> --set updates set in name and frontmatter, preserving date and order."""
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20261014-oldsetid-01-k7m2xq-a-demo-doc.notes.md",
-        set_id="oldsetid",
-        order="01",
+        str(
+            RecordBuilder().research(
+                id6="k7m2xq",
+                when="2026-09-01",
+                set="oldsetid",
+                order=1,
+                topic=["demo"],
+                model="",
+                research_kind="notes",
+                status="reference",
+                outcome="none-yet",
+                summary="A demo doc",
+                body="\n## Notes\nSome demo notes.\n",
+                text_only=True,
+            )
+        ),
     )
     rc, out, err = _run_cli(
         [
@@ -307,11 +374,25 @@ def test_rename_research_with_set(temp_git_repo: Path):
 
 def test_rename_research_with_set_and_slug(temp_git_repo: Path):
     """aw rename research <id6> --set and --slug updates both while preserving date and order."""
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20261014-oldsetid-01-k7m2xq-a-demo-doc.notes.md",
-        set_id="oldsetid",
-        order="01",
+        str(
+            RecordBuilder().research(
+                id6="k7m2xq",
+                when="2026-09-01",
+                set="oldsetid",
+                order=1,
+                topic=["demo"],
+                model="",
+                research_kind="notes",
+                status="reference",
+                outcome="none-yet",
+                summary="A demo doc",
+                body="\n## Notes\nSome demo notes.\n",
+                text_only=True,
+            )
+        ),
     )
     rc, out, err = _run_cli(
         [
@@ -337,11 +418,25 @@ def test_rename_research_with_set_and_slug(temp_git_repo: Path):
 
 def test_rename_research_refuses_too_long_setid(temp_git_repo: Path):
     """aw rename research <id6> --set refuses setid > 24 characters."""
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20261014-oldsetid-01-k7m2xq-a-demo-doc.notes.md",
-        set_id="oldsetid",
-        order="01",
+        str(
+            RecordBuilder().research(
+                id6="k7m2xq",
+                when="2026-09-01",
+                set="oldsetid",
+                order=1,
+                topic=["demo"],
+                model="",
+                research_kind="notes",
+                status="reference",
+                outcome="none-yet",
+                summary="A demo doc",
+                body="\n## Notes\nSome demo notes.\n",
+                text_only=True,
+            )
+        ),
     )
     rc, out, err = _run_cli(
         [
@@ -369,10 +464,25 @@ def test_body_preservation_with_literal_frontmatter_keys(temp_git_repo: Path):
         "kind: notes\n"
         "End of body.\n"
     )
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md",
-        body=body_text,
+        str(
+            RecordBuilder().research(
+                id6="k7m2xq",
+                when="2026-09-01",
+                set="oldsetid",
+                order=3,
+                topic=["demo"],
+                model="",
+                research_kind="notes",
+                status="reference",
+                outcome="none-yet",
+                summary="A demo doc",
+                body=body_text,
+                text_only=True,
+            )
+        ),
     )
     rc, out, err = _run_cli(
         [
@@ -400,9 +510,25 @@ def test_body_preservation_with_literal_frontmatter_keys(temp_git_repo: Path):
 
 def test_regroup_frontmatter_write_idempotence(temp_git_repo: Path):
     """E-05(b): Regrouping an already-consistent document is idempotent and leaves file byte-identical."""
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md",
+        str(
+            RecordBuilder().research(
+                id6="k7m2xq",
+                when="2026-09-01",
+                set="oldsetid",
+                order=3,
+                topic=["demo"],
+                model="",
+                research_kind="notes",
+                status="reference",
+                outcome="none-yet",
+                summary="A demo doc",
+                body="\n## Notes\nSome demo notes.\n",
+                text_only=True,
+            )
+        ),
     )
     rc1, out1, err1 = _run_cli(
         [
@@ -447,16 +573,26 @@ def test_regroup_frontmatter_write_idempotence(temp_git_repo: Path):
 
 def test_unrelated_frontmatter_keys_are_unmutated(temp_git_repo: Path):
     """E-05(c): Unrelated frontmatter keys (id, created, topic, status, outcome, summary, consumed-by) are untouched."""
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md",
-        id6="k7m2xq",
-        created="20260901",
-        topic=["testing", "guards"],
-        status="todo",
-        outcome="none-yet",
-        summary="Detailed custom summary for regression test",
-        consumed_by=["plan-ref-123456"],
+        str(
+            RecordBuilder().research(
+                id6="k7m2xq",
+                when="2026-09-01",
+                set="oldsetid",
+                order=3,
+                topic=["testing", "guards"],
+                model="",
+                research_kind="notes",
+                status="todo",
+                outcome="none-yet",
+                summary="Detailed custom summary for regression test",
+                consumed_by=["plan-ref-123456"],
+                body="\n## Notes\nSome demo notes.\n",
+                text_only=True,
+            )
+        ),
     )
     rc, out, err = _run_cli(
         [
@@ -487,11 +623,25 @@ def test_unrelated_frontmatter_keys_are_unmutated(temp_git_repo: Path):
 
 def test_gate_agreement_on_all_four_fields(temp_git_repo: Path):
     """E-05(d): aw research index --check passes and INDEX.json records set_id, order, model, kind matching new name."""
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20260901-oldsetid-03-k7m2xq-a-demo-doc.sonnet5high.notes.md",
-        model="sonnet5high",
-        kind="notes",
+        str(
+            RecordBuilder().research(
+                id6="k7m2xq",
+                when="2026-09-01",
+                set="oldsetid",
+                order=3,
+                topic=["demo"],
+                model="sonnet5high",
+                research_kind="notes",
+                status="reference",
+                outcome="none-yet",
+                summary="A demo doc",
+                body="\n## Notes\nSome demo notes.\n",
+                text_only=True,
+            )
+        ),
     )
     rc, out, err = _run_cli(
         [
@@ -529,10 +679,25 @@ def test_gate_agreement_on_all_four_fields(temp_git_repo: Path):
 
 def test_model_provenance_preserved_on_facetless_name(temp_git_repo: Path):
     """E-05(e): A record with no model facet in filename retains populated model: in frontmatter on regroup."""
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md",
-        model="sonnet5high",
+        str(
+            RecordBuilder().research(
+                id6="k7m2xq",
+                when="2026-09-01",
+                set="oldsetid",
+                order=3,
+                topic=["demo"],
+                model="sonnet5high",
+                research_kind="notes",
+                status="reference",
+                outcome="none-yet",
+                summary="A demo doc",
+                body="\n## Notes\nSome demo notes.\n",
+                text_only=True,
+            )
+        ),
     )
     rc, out, err = _run_cli(
         [
@@ -557,11 +722,25 @@ def test_model_provenance_preserved_on_facetless_name(temp_git_repo: Path):
 
 def test_model_and_kind_preserved_through_mv_slug(temp_git_repo: Path):
     """E-05(f): aw research mv --slug preserves existing model and kind in frontmatter."""
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20260901-oldsetid-03-k7m2xq-a-demo-doc.sonnet5high.notes.md",
-        model="sonnet5high",
-        kind="notes",
+        str(
+            RecordBuilder().research(
+                id6="k7m2xq",
+                when="2026-09-01",
+                set="oldsetid",
+                order=3,
+                topic=["demo"],
+                model="sonnet5high",
+                research_kind="notes",
+                status="reference",
+                outcome="none-yet",
+                summary="A demo doc",
+                body="\n## Notes\nSome demo notes.\n",
+                text_only=True,
+            )
+        ),
     )
     rc, out, err = _run_cli(
         [
@@ -585,10 +764,25 @@ def test_model_and_kind_preserved_through_mv_slug(temp_git_repo: Path):
 
 def test_tier_independence_sibling_interaction(temp_git_repo: Path):
     """E-05(g): Disagreement between initial filename NN and frontmatter order resolves to destination name."""
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20260901-oldsetid-01-k7m2xq-a-demo-doc.notes.md",
-        order="03",
+        str(
+            RecordBuilder().research(
+                id6="k7m2xq",
+                when="2026-09-01",
+                set="oldsetid",
+                order=3,
+                topic=["demo"],
+                model="",
+                research_kind="notes",
+                status="reference",
+                outcome="none-yet",
+                summary="A demo doc",
+                body="\n## Notes\nSome demo notes.\n",
+                text_only=True,
+            )
+        ),
     )
     rc, out, err = _run_cli(
         [
@@ -617,10 +811,25 @@ def test_tier_independence_sibling_interaction(temp_git_repo: Path):
 def test_preview_announces_frontmatter_metadata_write(temp_git_repo: Path):
     """E-04: Dry run announces metadata write with exactly the fields that apply will write."""
     # Case A: with model facet in destination name
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20260901-oldsetid-03-k7m2xq-a-demo-doc.sonnet5high.notes.md",
-        model="sonnet5high",
+        str(
+            RecordBuilder().research(
+                id6="k7m2xq",
+                when="2026-09-01",
+                set="oldsetid",
+                order=3,
+                topic=["demo"],
+                model="sonnet5high",
+                research_kind="notes",
+                status="reference",
+                outcome="none-yet",
+                summary="A demo doc",
+                body="\n## Notes\nSome demo notes.\n",
+                text_only=True,
+            )
+        ),
     )
     rc1, out1, err1 = _run_cli(
         [
@@ -639,11 +848,25 @@ def test_preview_announces_frontmatter_metadata_write(temp_git_repo: Path):
     assert "--- would set metadata set/order/model/kind in " in out1
 
     # Case B: without model facet in destination name
-    _seed_research_doc(
+    _commit_research_shard_file(
         temp_git_repo,
         "20260901-oldsetid-03-ab12cd-a-demo-doc.notes.md",
-        id6="ab12cd",
-        model="",
+        str(
+            RecordBuilder().research(
+                id6="ab12cd",
+                when="2026-09-01",
+                set="oldsetid",
+                order=3,
+                topic=["demo"],
+                model="",
+                research_kind="notes",
+                status="reference",
+                outcome="none-yet",
+                summary="A demo doc",
+                body="\n## Notes\nSome demo notes.\n",
+                text_only=True,
+            )
+        ),
     )
     rc2, out2, err2 = _run_cli(
         [

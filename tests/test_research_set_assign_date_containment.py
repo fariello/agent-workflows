@@ -18,7 +18,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
-from typing import Optional, Tuple
+from typing import Tuple
 import unittest
 from unittest.mock import patch
 from contextlib import redirect_stderr, redirect_stdout
@@ -27,6 +27,7 @@ from agent_workflows import cli
 from agent_workflows import research_contract as R
 from agent_workflows import research_refs
 from agent_workflows.project_context import resolve_verb_repo_root
+from tests.record_builder import RecordBuilder
 
 
 class _ResearchSetAssignContainmentTestCase(unittest.TestCase):
@@ -93,48 +94,22 @@ class _ResearchSetAssignContainmentTestCase(unittest.TestCase):
         )
 
         # Seed standard committed research record
-        self._seed_record(
+        RecordBuilder(self.repo_dir).research(
             id6="w1qe6d",
-            set_id="seed",
-            order="00",
+            set="seed",
+            order=0,
             slug="seed",
-            created="20260101",
+            when="2026-01-01",
+            research_kind="findings",
+            topic=["testing"],
+            summary="seed record w1qe6d",
+            body="# Seed w1qe6d\n",
+            raw_fields={"status": "completed", "outcome": "confirmed"},
         )
-
-    def _seed_record(
-        self,
-        id6: str = "w1qe6d",
-        set_id: str = "seed",
-        order: str = "00",
-        slug: str = "seed",
-        created: str = "20260101",
-        subdir: Optional[str] = None,
-    ) -> Path:
-        target_dir = self.research_root
-        if subdir:
-            target_dir = target_dir / subdir
-            target_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"{created}-{set_id}-{order}-{id6}-{slug}.findings.md"
-        filepath = target_dir / filename
-        content = f"""---
-id: {id6}
-created: {created}
-set: {set_id}
-order: '{order}'
-topic: [testing]
-kind: findings
-status: completed
-outcome: confirmed
-summary: seed record {id6}
----
-# Seed {id6}
-"""
-        filepath.write_text(content, encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=self.repo_dir, check=True)
         subprocess.run(
-            ["git", "commit", "-m", f"seed {id6}"], cwd=self.repo_dir, check=True
+            ["git", "commit", "-m", "seed w1qe6d"], cwd=self.repo_dir, check=True
         )
-        return filepath
 
     def _run(self, argv: list[str]) -> Tuple[int, str, str]:
         cmd = argv + ["--dir", str(self.repo_dir)]
@@ -288,13 +263,29 @@ class TestEscapeSetAssignDateContainment(_ResearchSetAssignContainmentTestCase):
     def test_conforming_rename_in_archive_shard_subdirectory(self):
         """Descendant allowance: conforming rename of a record in an archive shard subdirectory succeeds."""
         shard_rel = "reference/202608"
-        self._seed_record(
-            id6="rf0001",
-            set_id="ref",
-            order="00",
-            slug="refdoc",
-            created="20260801",
-            subdir=shard_rel,
+        shard_dir = self.research_root / shard_rel
+        shard_dir.mkdir(parents=True, exist_ok=True)
+        (shard_dir / "20260801-ref-00-rf0001-refdoc.findings.md").write_text(
+            str(
+                RecordBuilder().research(
+                    id6="rf0001",
+                    set="ref",
+                    order=0,
+                    slug="refdoc",
+                    when="2026-08-01",
+                    research_kind="findings",
+                    topic=["testing"],
+                    summary="seed record rf0001",
+                    body="# Seed rf0001\n",
+                    raw_fields={"status": "completed", "outcome": "confirmed"},
+                    text_only=True,
+                )
+            ),
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "."], cwd=self.repo_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "seed rf0001"], cwd=self.repo_dir, check=True
         )
         rc, out, err = self._run(
             [
@@ -386,8 +377,21 @@ class TestContainmentDirectBypass(_ResearchSetAssignContainmentTestCase):
 
     def test_containment_multi_id_one_bad_moves_none(self):
         """Multi-id call where one destination escapes moves NONE of the records."""
-        self._seed_record(
-            id6="w2qe6d", set_id="seed", order="01", slug="seed2", created="20260101"
+        RecordBuilder(self.repo_dir).research(
+            id6="w2qe6d",
+            set="seed",
+            order=1,
+            slug="seed2",
+            when="2026-01-01",
+            research_kind="findings",
+            topic=["testing"],
+            summary="seed record w2qe6d",
+            body="# Seed w2qe6d\n",
+            raw_fields={"status": "completed", "outcome": "confirmed"},
+        )
+        subprocess.run(["git", "add", "."], cwd=self.repo_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "seed w2qe6d"], cwd=self.repo_dir, check=True
         )
         plan_good = research_refs.RenamePlan(
             old_path=self.research_root / "20260101-seed-00-w1qe6d-seed.findings.md",
