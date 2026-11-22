@@ -444,3 +444,63 @@ def test_stale_report_separates_approved_and_suggests_partition_for_large_lists(
         "app001 app002 app003 app004 app005 app006 app007 app008 app009 app010"
         in large_text
     )
+
+
+def test_stale_bases_skips_and_prunes_orchestrator_consumers(tmp_path: Path) -> None:
+    """Kind: orchestrator consumers can never be re-reviewed, so stale_bases skips and prunes them."""
+    repo = _repo(tmp_path)
+    pre = _plan(repo, "pre001", 1, "to-review")
+    _plan(repo, "ch0001", 2, "approved", deps="executed:pre001")
+    orch = (
+        repo
+        / ".aw"
+        / "records"
+        / "plans"
+        / "pending"
+        / "20261113-rudset-00-ord000-o.ipd.md"
+    )
+    orch.write_text(
+        "# IPD: orchestrator\n\n- Kind: orchestrator\n- Status: approved\n- Set: rudset\n"
+        "- Order: 0\n- Id: ord000\n- Scope-Paths: README.md\n\n"
+        "## Detailed Implementation Checklist (TODO)\n- [ ] E-01 Run children\n- [ ] V-01 Verify\n",
+        encoding="utf-8",
+    )
+    for cid in ("ch0001", "ord000"):
+        targets = review_basis.provisional_targets(
+            repo,
+            {"id6": cid, "action": "review", "dependencies": ["executed:pre001"]},
+            _state(repo, True),
+        )
+        review_basis.record_basis(
+            repo, cid, targets, run_id="run-1", at="2026-11-22T00:00:00Z"
+        )
+
+    pre.write_text(
+        pre.read_text(encoding="utf-8").replace("Do it", "Changed step"),
+        encoding="utf-8",
+    )
+    stale = review_basis.stale_bases(repo, prune=True)
+    assert [s.consumer for s in stale] == ["ch0001"]
+    bdir = review_basis.basis_dir(repo)
+    assert (bdir / "ch0001.json").is_file()
+    assert not (bdir / "ord000.json").exists()
+
+
+def test_stale_report_caps_many_changed_prerequisites() -> None:
+    """Reports with more than MAX_TARGET_DETAIL_LINES changed prerequisites cap the detail list."""
+    total_targets = review_basis.MAX_TARGET_DETAIL_LINES + 5
+    stale = [
+        review_basis.StaleBasis(
+            f"con{i:03d}",
+            f"pre{i:03d}",
+            "reviewed",
+            "changed",
+            "run-1",
+            consumer_status="reviewed",
+        )
+        for i in range(1, total_targets + 1)
+    ]
+    lines = review_basis.stale_report_lines(stale, host="agy")
+    arrow_lines = [ln for ln in lines if " -> " in ln and ln.startswith("    ")]
+    assert len(arrow_lines) == review_basis.MAX_TARGET_DETAIL_LINES
+    assert any("... and 5 more changed prerequisite(s)" in ln for ln in lines)

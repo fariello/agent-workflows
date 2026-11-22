@@ -147,6 +147,16 @@ APPROVED_CONSUMER_STATUSES = ("approved", "auto-approved")
 #: Recommend `aw partition ... --split-sets` once a stale re-review list exceeds this size.
 PARTITION_SUGGEST_THRESHOLD = 8
 
+#: Cap prerequisite-to-consumer detail lines in end-of-run stderr advice to prevent walls of text.
+MAX_TARGET_DETAIL_LINES = 12
+
+
+def _is_orchestrator_text(text: str) -> bool:
+    """Return True when plan text declares ``- Kind: orchestrator``."""
+    import re
+
+    return bool(re.search(r"(?mi)^-\s*Kind:\s*orchestrator\b", text[:4096]))
+
 
 def stale_bases(repo: Path, *, prune: bool = True) -> List[StaleBasis]:
     """Every recorded basis whose prerequisite's contract has changed since the review used it.
@@ -199,8 +209,12 @@ def stale_bases(repo: Path, *, prune: bool = True) -> List[StaleBasis]:
         cstatus = read_front_matter_status(text)
         norm_status = str(cstatus or "").strip().lower()
         in_terminal_dir = any(part in TERMINAL_PLAN_DIRS for part in cpath.parts)
-        is_terminal = in_terminal_dir or (norm_status in TERMINAL_CONSUMER_STATUSES)
-        res = (is_terminal, norm_status or None)
+        is_non_reviewable = (
+            in_terminal_dir
+            or (norm_status in TERMINAL_CONSUMER_STATUSES)
+            or _is_orchestrator_text(text)
+        )
+        res = (is_non_reviewable, norm_status or None)
         consumer_cache[cid] = res
         return res
 
@@ -321,8 +335,20 @@ def stale_report_lines(
         "so these reviews may rest on an outdated design and should be reviewed again.",
         "  Changed prerequisite -> plans reviewed against its old version:",
     ]
-    for target in sorted(by_target):
-        lines.append(f"    {target} -> {' '.join(sorted(by_target[target]))}")
+    sorted_targets = sorted(by_target)
+    if len(sorted_targets) > MAX_TARGET_DETAIL_LINES:
+        ranked = sorted(by_target, key=lambda t: (-len(by_target[t]), t))
+        shown_targets = ranked[:MAX_TARGET_DETAIL_LINES]
+        omitted = len(ranked) - len(shown_targets)
+        for target in shown_targets:
+            lines.append(f"    {target} -> {' '.join(sorted(by_target[target]))}")
+        lines.append(
+            f"    ... and {omitted} more changed prerequisite(s) "
+            f"(see .aw/state/review-basis/)"
+        )
+    else:
+        for target in sorted_targets:
+            lines.append(f"    {target} -> {' '.join(sorted(by_target[target]))}")
 
     if unapproved and approved:
         lines.append(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import shlex
 import sys
 from dataclasses import dataclass
@@ -292,6 +293,24 @@ def _is_active_member(
 #: Statuses at which a plan needs no further review (see `classify_sets`).
 _REVIEW_SETTLED_STATUSES = frozenset({"reviewed", "approved", "auto-approved"})
 
+#: Statuses eligible for explicit non-orchestrator re-review under `--action review`.
+_REREVIEW_ADMISSIBLE_STATUSES = frozenset({"reviewed", "approved", "auto-approved"})
+_ORCHESTRATOR_KIND_RE = re.compile(r"(?mi)^-\s*Kind:\s*orchestrator\b")
+
+
+def _is_orchestrator_plan(it: _att.Item, repo_root: Path) -> bool:
+    """Return True when ``it`` is a plan whose front-matter ``- Kind:`` is ``orchestrator``."""
+    if it.tree != "plans":
+        return False
+    p = repo_root / it.path
+    if not p.is_file():
+        return False
+    try:
+        head = p.read_text(encoding="utf-8")[:4096]
+    except OSError:
+        return False
+    return bool(_ORCHESTRATOR_KIND_RE.search(head))
+
 
 def classify_sets(
     repo_root: Path,
@@ -302,8 +321,10 @@ def classify_sets(
     include_active: bool = False,
     run_map: Optional[Dict[str, str]] = None,
     review_unreviewed_deps: bool = False,
+    rereview_ids: Optional[Set[str]] = None,
 ) -> Dict[str, SetClassification]:
     """Classify every distinct Set that has a selected member and an orchestrator on disk."""
+    rereview_set = rereview_ids or set()
     if not include_active and run_map is None:
         run_map = _att.get_active_runs_map(repo_root)
 
@@ -394,6 +415,12 @@ def classify_sets(
                 batch_action == _run_selection_policy.ACTION_REVIEW
                 and m_status in _REVIEW_SETTLED_STATUSES
             ):
+                if m.id6 in rereview_set:
+                    if m.id6 in runnable_ids:
+                        runnable.append(m.id6)
+                    else:
+                        finished.append(m.id6)
+                    continue
                 # A review batch has nothing to do for a member that is already reviewed, and no
                 # orchestrator retires in a review run, so that member neither blocks the Set nor
                 # needs approval first. (Approval gates EXECUTION; refusing a review batch for it
@@ -1069,6 +1096,7 @@ def collect(
     run_map: Optional[Dict[str, str]] = None,
     skip_ineligible: bool = False,
     term: Optional[Term] = None,
+    rereview_out: Optional[Set[str]] = None,
 ) -> List[_att.Item]:
     """Select candidate items honoring artifact type, selectors, filters, action, and ordering.
 
@@ -1154,6 +1182,9 @@ def collect(
     raw_candidates: List[_att.Item] = []
     ineligible_items: List[Tuple[_att.Item, str]] = []
     seen_ineligible_ids: Set[str] = set()
+    ineligible_orchestrators: List[Tuple[_att.Item, str]] = []
+    seen_orch_ids: Set[str] = set()
+    explicit_rereview_ids: Set[str] = set()
 
     if tokens is not None:
         for tok in tokens:
@@ -1202,6 +1233,31 @@ def collect(
                 )
 
             for it in matched_items:
+                st_norm = (
+                    (getattr(it, "status", None) or it.native_status or "")
+                    .strip()
+                    .lower()
+                )
+                in_terminal_dir = (
+                    it.tree == "plans"
+                    and _att._plan_disposition_from_rel(it.path) in _plans.DIR_TERMINAL
+                )
+                if (
+                    canon_type == "plans"
+                    and action == _run_selection_policy.ACTION_REVIEW
+                    and res.kind != _selectors.MATCH_SETID
+                    and not in_terminal_dir
+                    and st_norm in _REREVIEW_ADMISSIBLE_STATUSES
+                ):
+                    if _is_orchestrator_plan(it, repo_root):
+                        if it.id not in seen_orch_ids:
+                            seen_orch_ids.add(it.id)
+                            ineligible_orchestrators.append((it, st_norm))
+                        continue
+                    if it.id:
+                        explicit_rereview_ids.add(it.id)
+                    raw_candidates.append(it)
+                    continue
                 if not _is_runnable(it):
                     if res.kind == _selectors.MATCH_SETID and _is_finished_plan(
                         it, repo_root
@@ -1215,6 +1271,26 @@ def collect(
                 raw_candidates.append(it)
     else:
         raw_candidates = [it for it in items if _is_runnable(it)]
+
+    if ineligible_orchestrators:
+        err_term = _make_err_term(term)
+        if skip_ineligible:
+            warn_label = err_term.colorize("warning:", "yellow", "bold")
+            for it, st in ineligible_orchestrators:
+                styled_id = err_term.colorize(it.id, "bold")
+                print(
+                    f"{warn_label} orchestrator plan {styled_id} (status {st!r}) cannot be re-reviewed (skipping)",
+                    file=sys.stderr,
+                )
+        else:
+            orch_ids = ", ".join(
+                err_term.colorize(it.id, "bold") for it, _ in ineligible_orchestrators
+            )
+            skip_flag = err_term.colorize("--skip-ineligible", "cyan")
+            raise ValueError(
+                f"orchestrator plan(s) cannot be re-reviewed: {orch_ids} "
+                f"(remedy: omit orchestrator IDs or pass {skip_flag} to skip)"
+            )
 
     if ineligible_items:
         err_term = _make_err_term(term)
@@ -1363,6 +1439,8 @@ def collect(
         if action is not None:
             err_term = term if term is not None else Term(stream=sys.stderr)
             for it in candidates:
+                if it.id in explicit_rereview_ids:
+                    continue
                 it_act = _run_selection_policy.action_for_status(
                     spec_type, getattr(it, "status", None) or it.native_status
                 )
@@ -1381,6 +1459,11 @@ def collect(
     effective_order_by = order_by or ("depth" if artifact_type == "plans" else "date")
     if max_count is not None and max_count > 0:
         candidates = apply_max_count(candidates, max_count, effective_order_by)
+
+    if rereview_out is not None:
+        rereview_out.update(
+            it.id for it in candidates if it.id and it.id in explicit_rereview_ids
+        )
 
     return candidates
 
@@ -1611,6 +1694,7 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
     extra_edges: Optional[List[Tuple[str, str]]] = None
     orchestrator_ids: Optional[Set[str]] = None
     set_by_item: Optional[Dict[str, str]] = None
+    rereview_ids: Set[str] = set()
 
     if canon_type == "plans":
         try:
@@ -1630,6 +1714,7 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
                 run_map=run_map,
                 skip_ineligible=skip_ineligible,
                 term=term,
+                rereview_out=rereview_ids,
             )
         except ValueError as e:
             err_term = _make_err_term(term)
@@ -1664,6 +1749,7 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
             include_active=include_active,
             run_map=run_map,
             review_unreviewed_deps=bool(getattr(args, "review_unreviewed_deps", False)),
+            rereview_ids=rereview_ids,
         )
 
         # Action homogeneity check for plans performed AFTER Set classification.
@@ -1674,6 +1760,8 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
         if action_flag is not None:
             err_term = _make_err_term(term)
             for it in runnable_candidates:
+                if it.id in rereview_ids:
+                    continue
                 it_act = _run_selection_policy.action_for_status(
                     spec_type, getattr(it, "status", None) or it.native_status
                 )
@@ -1918,6 +2006,31 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
             commands.append(cmd)
 
     # Write summary on stderr always
+    active_rereview_ids = sorted(
+        it.id for it in candidates if it.id and it.id in rereview_ids
+    )
+    if active_rereview_ids:
+        approved_rr_count = sum(
+            1
+            for it in candidates
+            if it.id in rereview_ids
+            and (getattr(it, "status", None) or it.native_status or "").lower()
+            in ("approved", "auto-approved")
+        )
+        if approved_rr_count:
+            print(
+                f"warning: partitioning {len(active_rereview_ids)} plan(s) for re-review "
+                f"({approved_rr_count} already approved); running these shards withdraws approval "
+                f"and requires typing 're-review' or passing --yes.",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"warning: partitioning {len(active_rereview_ids)} already-reviewed plan(s) for re-review; "
+                f"running these shards requires typing 're-review' or passing --yes.",
+                file=sys.stderr,
+            )
+
     shard_sizes = [len(s) for s in part_res.shards]
     print(
         f"Partitioned {len(candidates)} items across {len(part_res.shards)} shard(s): {shard_sizes}",
@@ -1984,6 +2097,8 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
         }
         if held_back_orchestrators:
             record["held_back_orchestrators"] = held_back_orchestrators
+        if active_rereview_ids:
+            record["rereview_ids"] = active_rereview_ids
         if fields:
             record = agent_schema.filter_record_fields(record, fields)
         sys.stdout.write(agent_schema.render_jsonl_record(record))
@@ -1998,6 +2113,8 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
         }
         if held_back_orchestrators:
             payload["held_back_orchestrators"] = held_back_orchestrators
+        if active_rereview_ids:
+            payload["rereview_ids"] = active_rereview_ids
         print(json.dumps(payload, indent=2))
         return 0
 

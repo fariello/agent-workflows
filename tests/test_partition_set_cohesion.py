@@ -1641,3 +1641,178 @@ def test_partition_split_sets_for_backlog(
     payload_split = json.loads(cap_split.out)
     assert [len(s) for s in payload_split["shards"]] == [2, 2]
     assert "hint:" not in cap_split.err
+
+
+def test_partition_action_review_admits_explicit_rereview_ids_and_guards_sets_and_orchestrators(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Explicit non-orchestrator approved/reviewed IDs partition under --action review; Set names and orchestrators do not."""
+    import io
+
+    repo = tmp_path / "repo_rereview"
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+
+    table = (
+        ("01", "rrch01", "Child 1"),
+        ("02", "rrch02", "Child 2"),
+        ("03", "rrch03", "Child 3"),
+        ("04", "rrch04", "Child 4"),
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261122",
+        "orchestrator",
+        "approved",
+        "rrset",
+        "Re-review Set",
+        0,
+        "rrorch",
+        "Re-review Orchestrator",
+        child_orders=table,
+    )
+    for idx, (cid, st) in enumerate(
+        (
+            ("rrch01", "approved"),
+            ("rrch02", "approved"),
+            ("rrch03", "reviewed"),
+            ("rrch04", "auto-approved"),
+        ),
+        start=1,
+    ):
+        make_fixture_plan(
+            repo,
+            "pending",
+            "20261122",
+            "child",
+            st,
+            "rrset",
+            "Re-review Set",
+            idx,
+            cid,
+            f"Child {idx}",
+        )
+
+    # 1. Explicit child IDs under --action review --split-sets succeed, split across shards, warn, and omit --yes.
+    code = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "--action",
+            "review",
+            "--run",
+            "agy",
+            "--split-sets",
+            "-n",
+            "2",
+            "--json",
+            "--dir",
+            str(repo),
+            "rrch01",
+            "rrch02",
+            "rrch03",
+            "rrch04",
+        ]
+    )
+    assert code == 0
+    cap = capsys.readouterr()
+    payload = json.loads(cap.out)
+    assert sorted(sum(payload["shards"], [])) == [
+        "rrch01",
+        "rrch02",
+        "rrch03",
+        "rrch04",
+    ]
+    assert sorted(len(s) for s in payload["shards"]) == [2, 2]
+    assert payload["rereview_ids"] == ["rrch01", "rrch02", "rrch03", "rrch04"]
+    assert all(
+        cmd.startswith("aw agy run --action review ") and "--yes" not in cmd
+        for cmd in payload["commands"]
+    )
+    assert (
+        "warning: partitioning 4 plan(s) for re-review (3 already approved)" in cap.err
+    )
+    assert "requires typing 're-review' or passing --yes" in cap.err
+
+    # 2. Explicit IDs via --stdin also work.
+    monkeypatch.setattr("sys.stdin", io.StringIO("rrch01\nrrch03\n"))
+    code_stdin = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "--action",
+            "review",
+            "--run",
+            "oc",
+            "--stdin",
+            "-n",
+            "2",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert code_stdin == 0
+    cap_stdin = capsys.readouterr()
+    assert "aw oc run --action review" in cap_stdin.out
+    assert "rrch01" in cap_stdin.out and "rrch03" in cap_stdin.out
+
+    # 3. Broad Set selector does NOT admit approved/reviewed plans for re-review.
+    code_set = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "--action",
+            "review",
+            "--dir",
+            str(repo),
+            "rrset",
+        ]
+    )
+    assert code_set == 2
+    capsys.readouterr()
+
+    # 4. Explicit orchestrator ID is refused (and skipped with --skip-ineligible).
+    code_orch = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "--action",
+            "review",
+            "--dir",
+            str(repo),
+            "rrorch",
+            "rrch01",
+        ]
+    )
+    assert code_orch == 2
+    cap_orch = capsys.readouterr()
+    assert "orchestrator plan(s) cannot be re-reviewed" in cap_orch.err
+    assert "rrorch" in cap_orch.err
+
+    code_orch_skip = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "--action",
+            "review",
+            "--skip-ineligible",
+            "--run",
+            "none",
+            "--dir",
+            str(repo),
+            "rrorch",
+            "rrch01",
+        ]
+    )
+    assert code_orch_skip == 0
+    cap_orch_skip = capsys.readouterr()
+    assert "orchestrator plan" in cap_orch_skip.err and "skipping" in cap_orch_skip.err
+    assert cap_orch_skip.out.strip() == "rrch01"
