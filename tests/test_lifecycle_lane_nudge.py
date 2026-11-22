@@ -30,6 +30,7 @@ from agent_workflows import cli
 from agent_workflows import ipd_lifecycle as LC
 from agent_workflows import runner_shared as RS
 from tests import support
+from tests.record_builder import RecordBuilder
 
 
 def _init_git(root: Path) -> None:
@@ -44,24 +45,8 @@ def _commit_all(root: Path, message: str) -> None:
     subprocess.run(["git", "commit", "-q", "-m", message], cwd=root, check=True)
 
 
-def _ready_plan_text(
-    *,
-    plan_id: str = "abc123",
-    set_name: str = "demo",
-    scope_paths: str = "agent_workflows/demo.py, tests/test_demo.py",
-) -> str:
-    return support.ready_plan_text(
-        plan_id=plan_id, set_name=set_name, scope_paths=scope_paths
-    )
-
-
-def _completed_plan_text(
-    *,
-    plan_id: str = "abc123",
-    set_name: str = "demo",
-    scope_paths: str = "agent_workflows/demo.py, tests/test_demo.py",
-) -> str:
-    t = _ready_plan_text(plan_id=plan_id, set_name=set_name, scope_paths=scope_paths)
+def _mark_plan_completed(plan_path: Path) -> Path:
+    t = plan_path.read_text(encoding="utf-8")
     t = t.replace("- [ ] E-01 ", "- [x] E-01 ", 1).replace(
         "  - Execution state: pending", "  - Execution state: performed", 1
     )
@@ -72,15 +57,8 @@ def _completed_plan_text(
         )
         .replace("  - Result: pending", "  - Result: pass", 1)
     )
-    return t
-
-
-def _write_plan(root: Path, text: str, name: str) -> Path:
-    d = root / ".aw" / "records" / "plans" / "pending"
-    d.mkdir(parents=True, exist_ok=True)
-    p = d / name
-    p.write_text(text, encoding="utf-8")
-    return p
+    plan_path.write_text(t, encoding="utf-8")
+    return plan_path
 
 
 class LifecycleLaneNudgeTests(unittest.TestCase):
@@ -94,10 +72,20 @@ class LifecycleLaneNudgeTests(unittest.TestCase):
 
         self.plan_id = "ndg001"
         self.plan_name = f"20261009-demo-01-{self.plan_id}-test-plan.ipd.md"
-        self.plan_path = _write_plan(
-            self.root,
-            _completed_plan_text(plan_id=self.plan_id, set_name="demo"),
-            self.plan_name,
+        self.plan_path = _mark_plan_completed(
+            Path(
+                RecordBuilder(self.root).plan(
+                    plan_id=self.plan_id,
+                    set_name="demo",
+                    order=1,
+                    when="2026-10-09",
+                    slug="test-plan",
+                    status="approved",
+                    approval="2026-10-09, human: approved",
+                    readiness="go-pending-approval",
+                    scope_paths="agent_workflows/demo.py, tests/test_demo.py",
+                )
+            )
         )
         (self.root / "agent_workflows").mkdir(parents=True, exist_ok=True)
         (self.root / "tests").mkdir(parents=True, exist_ok=True)
@@ -529,10 +517,20 @@ class LifecycleLaneNudgeTests(unittest.TestCase):
 
         # Plan 2 for agent mode
         p2 = "ndg002"
-        _write_plan(
-            self.root,
-            _completed_plan_text(plan_id=p2, set_name="demo"),
-            f"20261009-demo-02-{p2}-test-plan.ipd.md",
+        _mark_plan_completed(
+            Path(
+                RecordBuilder(self.root).plan(
+                    plan_id=p2,
+                    set_name="demo",
+                    order=2,
+                    when="2026-10-09",
+                    slug="test-plan",
+                    status="approved",
+                    approval="2026-10-09, human: approved",
+                    readiness="go-pending-approval",
+                    scope_paths="agent_workflows/demo.py, tests/test_demo.py",
+                )
+            )
         )
         _commit_all(self.root, "commit plan 2")
         self._run_cli(

@@ -6,8 +6,8 @@ a missing begin receipt to be treated as consumed and converting driver-seam ref
 
 Fixture choice:
 Reuses `tests.support.declare_execution_role` (to declare the coordinator role and prevent role
-leakage across `-n auto` workers) and `tests.support.ready_plan_text`.
-Local fixture helpers (`_init_git`, `_completed_plan_text`, `_commit_all`, and `_write_plan`)
+leakage across `-n auto` workers) and `tests.record_builder.RecordBuilder`.
+Local fixture helpers (`_init_git`, `_mark_plan_completed`, and `_commit_all`)
 are defined locally in this module rather than importing private helpers from
 `test_ipd_lifecycle_cli` across modules, ensuring proper repository initialization,
 git configuration, `.aw/state/` gitignore isolation, and lint-clean pre-transition plans.
@@ -25,6 +25,7 @@ from agent_workflows import ipd_lint as L
 from agent_workflows import run_selection_policy as RSP
 from agent_workflows import runner_shared as RS
 from tests import support
+from tests.record_builder import RecordBuilder
 
 
 def _init_git(root: Path) -> None:
@@ -43,15 +44,10 @@ def _commit_all(root: Path, message: str) -> None:
     subprocess.run(["git", "commit", "-q", "-m", message], cwd=root, check=True)
 
 
-def _completed_plan_text(
-    *,
-    plan_id: str = "abc123",
-    status: str = "approved",
-    scope_paths: str = "agent_workflows/demo.py, tests/test_demo.py",
-) -> str:
-    """A ready-plan whose single E-01/V-01 is marked performed/pass so it lints CONFORMING at
+def _mark_plan_completed(plan_path: Path) -> Path:
+    """Mark the single E-01/V-01 pair performed/pass so the plan lints CONFORMING at
     the pre-transition checkpoint (finalize requires this)."""
-    t = support.ready_plan_text(plan_id=plan_id, status=status, scope_paths=scope_paths)
+    t = plan_path.read_text(encoding="utf-8")
     t = t.replace("- [ ] E-01 ", "- [x] E-01 ", 1).replace(
         "  - Execution state: pending", "  - Execution state: performed", 1
     )
@@ -62,15 +58,8 @@ def _completed_plan_text(
         )
         .replace("  - Result: pending", "  - Result: pass", 1)
     )
-    return t
-
-
-def _write_plan(root: Path, text: str, name: str, bucket: str = "pending") -> Path:
-    d = root / ".aw" / "records" / "plans" / bucket
-    d.mkdir(parents=True, exist_ok=True)
-    p = d / name
-    p.write_text(text, encoding="utf-8")
-    return p
+    plan_path.write_text(t, encoding="utf-8")
+    return plan_path
 
 
 class ReusablePlanIsNotAlreadyFinalized(unittest.TestCase):
@@ -98,17 +87,33 @@ class ReusablePlanIsNotAlreadyFinalized(unittest.TestCase):
         (self.root / "agent_workflows").mkdir(parents=True, exist_ok=True)
         (self.root / "tests").mkdir(parents=True, exist_ok=True)
 
-        self.reusable_plan = _write_plan(
-            self.root,
-            _completed_plan_text(plan_id=self.REUSABLE_ID, status="reusable"),
-            self.REUSABLE_NAME,
-            bucket="reusable",
+        self.reusable_plan = _mark_plan_completed(
+            Path(
+                RecordBuilder(self.root).plan(
+                    plan_id=self.REUSABLE_ID,
+                    set_name="demo",
+                    order=1,
+                    when="2026-09-17",
+                    slug="demo",
+                    status="reusable",
+                    disposition="reusable",
+                    scope_paths="agent_workflows/demo.py, tests/test_demo.py",
+                )
+            )
         )
-        self.executed_plan = _write_plan(
-            self.root,
-            _completed_plan_text(plan_id=self.EXECUTED_ID, status="executed"),
-            self.EXECUTED_NAME,
-            bucket="executed",
+        self.executed_plan = _mark_plan_completed(
+            Path(
+                RecordBuilder(self.root).plan(
+                    plan_id=self.EXECUTED_ID,
+                    set_name="demo",
+                    order=1,
+                    when="2026-09-17",
+                    slug="demo",
+                    status="executed",
+                    disposition="executed",
+                    scope_paths="agent_workflows/demo.py, tests/test_demo.py",
+                )
+            )
         )
         _commit_all(self.root, "init fixture plans")
 
