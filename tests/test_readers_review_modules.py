@@ -399,6 +399,17 @@ class TestArtifactAuditReaders:
         )
         assert artifact_audit.read_declared_status(multi_plan) == "executed"
 
+        # Warm the SQLite cache and verify the cached artifact_meta.query path agrees under D-1.
+        from agent_workflows import artifact_meta as _am
+
+        ctx = _am.legacy_context(tmp_path)
+        _am.query(type="ipd", project_context=ctx)
+        assert (Path(ctx.logical_roots["state"]) / "index.db").exists()
+        assert (
+            artifact_audit.read_declared_status(multi_plan, repo_root=tmp_path)
+            == "executed"
+        )
+
     def test_audit_artifact_and_tracked_artifact_verdicts(self, tmp_path: Path) -> None:
         builder = RecordBuilder(tmp_path)
         ex_plan = builder.plan(
@@ -568,6 +579,63 @@ class TestReviewsModuleAuditReaders:
         matched, note = reviews._resolve_selector_paths(tmp_path, "rv2001")
         assert matched == [ref_rev]
         assert note == ""
+
+    def test_resolve_selector_paths_legacy_agents_dir_does_not_leak_other_subjects(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".aw" / "records").mkdir(parents=True)
+        retention_manifest = (
+            tmp_path
+            / ".aw"
+            / "state"
+            / "durable"
+            / "migrations"
+            / "retention_manifest.json"
+        )
+        retention_manifest.parent.mkdir(parents=True)
+        retention_manifest.write_text("{}\n", encoding="utf-8")
+        legacy_dir = tmp_path / ".agents" / "reviews"
+        legacy_dir.mkdir(parents=True)
+        assert legacy_dir in rf.review_dirs(tmp_path)
+        rev_a = legacy_dir / "20261109-leg-01-leg101-first.review.md"
+        rev_b = legacy_dir / "20261109-leg-02-leg202-second.review.md"
+        rf.write_review(
+            rev_a,
+            subject_id="leg101",
+            subject_type="ipd",
+            reviewed_at="2026-11-09",
+            reviewer="tester",
+            verdict="APPROVE",
+            rounds=[
+                rf.Round(
+                    1, (_finding("F-1", "low", "fixed"),), (_decision("D-1", "yes"),)
+                )
+            ],
+        )
+        rf.write_review(
+            rev_b,
+            subject_id="leg202",
+            subject_type="ipd",
+            reviewed_at="2026-11-09",
+            reviewer="tester",
+            verdict="APPROVE",
+            rounds=[
+                rf.Round(
+                    1, (_finding("F-2", "low", "fixed"),), (_decision("D-2", "yes"),)
+                )
+            ],
+        )
+
+        # Unrelated id6 must not match legacy reviews belonging to other subjects.
+        miss_paths, miss_note = reviews._resolve_selector_paths(tmp_path, "zzzzzz")
+        assert miss_paths == []
+        assert "zzzzzz" in miss_note
+
+        # Matching id6 returns only its own legacy review, not siblings in .agents/reviews.
+        hit_paths, hit_note = reviews._resolve_selector_paths(tmp_path, "leg101")
+        assert hit_paths == [rev_a]
+        assert hit_note == ""
 
     def test_review_findings_attestation_matches_cached_query(
         self, tmp_path: Path

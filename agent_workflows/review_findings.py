@@ -934,6 +934,8 @@ def _cached_subject_review_files(
 
     if not _core.ID6_RE.fullmatch(wanted):
         for p in iter_review_files(root):
+            if (parse_review_file(p).subject_id or "").strip() != wanted:
+                continue
             _add(p)
     else:
         for base in review_dirs(root):
@@ -947,6 +949,8 @@ def _cached_subject_review_files(
                 continue
             for p in sorted(base.rglob("*.review.md")):
                 if p.name in ("README.md", "INDEX.md", "STATUS.md"):
+                    continue
+                if (parse_review_file(p).subject_id or "").strip() != wanted:
                     continue
                 _add(p, _am.review_kind_of_file(p.name))
 
