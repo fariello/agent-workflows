@@ -32,6 +32,7 @@ from unittest import mock
 
 from agent_workflows import oc_runipd, runner_shared
 from tests import support
+from tests.record_builder import RecordBuilder
 
 
 def _init_git_repo(repo: Path) -> None:
@@ -82,7 +83,8 @@ class ResolvePlanPathTypedTests(unittest.TestCase):
                 / "20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md"
             )
             spec_file.write_text(
-                "# Spec\n\n- Id: 4sd62s\n- Status: approved\n", encoding="utf-8"
+                RecordBuilder().spec(id6="4sd62s", status="approved", text_only=True),
+                encoding="utf-8",
             )
             rel_path = str(spec_file.relative_to(repo))
             with self.assertRaises(runner_shared.DriverError) as cm:
@@ -95,7 +97,12 @@ class ResolvePlanPathTypedTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td).resolve()
             agents_md = repo / "AGENTS.md"
-            agents_md.write_text("# AGENTS\n\n- Kind: child\n", encoding="utf-8")
+            agents_md.write_text(
+                RecordBuilder().plan(
+                    title="AGENTS", id6="ag0001", kind="child", text_only=True
+                ),
+                encoding="utf-8",
+            )
             with self.assertRaises(runner_shared.DriverError) as cm:
                 runner_shared.resolve_plan_path(repo, "AGENTS.md", "ag0001")
             msg = str(cm.exception)
@@ -109,7 +116,14 @@ class ResolvePlanPathTypedTests(unittest.TestCase):
             pending_dir.mkdir(parents=True)
             plan = pending_dir / "20260101-demo-01-zzz999-adopt-spec-abc123.ipd.md"
             plan.write_text(
-                "- Id: zzz999\n- Set: demo\n- Status: pending\n# IPD: demo\n",
+                RecordBuilder().plan(
+                    title="demo",
+                    id6="zzz999",
+                    set="demo",
+                    status="draft",
+                    raw_fields={"status": "pending"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             with self.assertRaises(runner_shared.DriverError) as cm:
@@ -123,7 +137,13 @@ class ResolvePlanPathTypedTests(unittest.TestCase):
             pending_dir = repo / ".aw" / "records" / "plans" / "pending"
             pending_dir.mkdir(parents=True)
             real_plan = pending_dir / "20260101-set-01-abc123-real-plan.ipd.md"
-            content = "- Id: abc123\n- Set: set\n- Status: approved\n# Real Plan\n"
+            content = RecordBuilder().plan(
+                title="Real Plan",
+                id6="abc123",
+                set="set",
+                status="approved",
+                text_only=True,
+            )
             real_plan.write_text(content, encoding="utf-8")
 
             # Copy under worktree
@@ -153,7 +173,13 @@ class ResolvePlanPathTypedTests(unittest.TestCase):
     ):
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td).resolve()
-            content = "- Id: abc123\n- Set: set\n- Status: approved\n# Plan\n"
+            content = RecordBuilder().plan(
+                title="Plan",
+                id6="abc123",
+                set="set",
+                status="approved",
+                text_only=True,
+            )
 
             # Copies ONLY under worktree and baseline, NO file in repo's plans tree
             wt_dir = (
@@ -189,11 +215,25 @@ class ResolvePlanPathTypedTests(unittest.TestCase):
             pending_dir.mkdir(parents=True)
             p1 = pending_dir / "20260101-set-01-zzz999-adopt-abc123-spec.ipd.md"
             p1.write_text(
-                "- Id: zzz999\n- Set: set\n- Status: approved\n# P1\n", encoding="utf-8"
+                RecordBuilder().plan(
+                    title="P1",
+                    id6="zzz999",
+                    set="set",
+                    status="approved",
+                    text_only=True,
+                ),
+                encoding="utf-8",
             )
             p2 = pending_dir / "20260101-set-01-yyy888-revisit-abc123-again.ipd.md"
             p2.write_text(
-                "- Id: yyy888\n- Set: set\n- Status: approved\n# P2\n", encoding="utf-8"
+                RecordBuilder().plan(
+                    title="P2",
+                    id6="yyy888",
+                    set="set",
+                    status="approved",
+                    text_only=True,
+                ),
+                encoding="utf-8",
             )
 
             with self.assertRaises(runner_shared.DriverError) as cm:
@@ -213,7 +253,13 @@ class ResolvePlanPathTypedTests(unittest.TestCase):
 
             plan_p = pending_dir / "20260827-testset-01-xyz999-test-plan.ipd.md"
             plan_p.write_text(
-                "- Id: xyz999\n- Set: testset\n- Status: approved\n# Test Plan\n",
+                RecordBuilder().plan(
+                    title="Test Plan",
+                    id6="xyz999",
+                    set="testset",
+                    status="approved",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             configured = (
@@ -234,7 +280,10 @@ class ResolvePlanPathTypedTests(unittest.TestCase):
             rel = ".aw/records/plans/pending/20260101-s-01-aaaaaa-x.ipd.md"
             for root in (repo, lane):
                 (root / rel).parent.mkdir(parents=True, exist_ok=True)
-                (root / rel).write_text("# IPD: x\n\n- Id: aaaaaa\n", encoding="utf-8")
+                (root / rel).write_text(
+                    RecordBuilder().plan(title="x", id6="aaaaaa", text_only=True),
+                    encoding="utf-8",
+                )
             lane_plan = runner_shared.resolve_plan_path(lane, rel, "aaaaaa")
             self.assertTrue(str(lane_plan).startswith(str(lane)))
             self.assertEqual(lane_plan, (lane / rel).resolve())
@@ -247,7 +296,14 @@ class ResolvePlanPathTypedTests(unittest.TestCase):
             # Legacy slot-only: no "- Id:", id6 in filename slot
             plan = pending_dir / "20260101-legset-01-leg123-legacy-plan.ipd.md"
             plan.write_text(
-                "# Legacy Plan\n\n- Set: legset\n- Status: approved\n", encoding="utf-8"
+                RecordBuilder().plan(
+                    title="Legacy Plan",
+                    set="legset",
+                    status="approved",
+                    raw_fields={"id": None},
+                    text_only=True,
+                ),
+                encoding="utf-8",
             )
             found = runner_shared.resolve_plan_path(repo, "", "leg123")
             self.assertEqual(found, plan.resolve())
@@ -266,7 +322,10 @@ class DispatchRefusalTests(unittest.TestCase):
             specs_dir.mkdir(parents=True)
             spec_file = specs_dir / "20260926-0001-01-tst001-test-spec.spec.md"
             spec_file.write_text(
-                "- Id: tst001\n- Status: to-review\n# Spec\n", encoding="utf-8"
+                RecordBuilder().spec(
+                    title="Spec", id6="tst001", status="to-review", text_only=True
+                ),
+                encoding="utf-8",
             )
             _init_git_repo(repo)
             rel_spec = str(spec_file.relative_to(repo))
@@ -310,7 +369,10 @@ class DispatchRefusalTests(unittest.TestCase):
             specs_dir.mkdir(parents=True)
             spec_file = specs_dir / "20260926-0001-01-tst001-test-spec.spec.md"
             spec_file.write_text(
-                "- Id: tst001\n- Status: approved\n# Spec\n", encoding="utf-8"
+                RecordBuilder().spec(
+                    title="Spec", id6="tst001", status="approved", text_only=True
+                ),
+                encoding="utf-8",
             )
             _init_git_repo(repo)
             rel_spec = str(spec_file.relative_to(repo))
@@ -354,14 +416,23 @@ class DispatchRefusalTests(unittest.TestCase):
             specs_dir.mkdir(parents=True)
             spec_file = specs_dir / "20260926-0001-01-tst001-test-spec.spec.md"
             spec_file.write_text(
-                "- Id: tst001\n- Status: approved\n# Spec\n", encoding="utf-8"
+                RecordBuilder().spec(
+                    title="Spec", id6="tst001", status="approved", text_only=True
+                ),
+                encoding="utf-8",
             )
 
             plans_dir = repo / ".aw" / "records" / "plans" / "pending"
             plans_dir.mkdir(parents=True)
             plan_file = plans_dir / "20260926-demo-01-pl0002-real-plan.ipd.md"
             plan_file.write_text(
-                "- Id: pl0002\n- Set: demo\n- Status: approved\n# IPD: Demo\n",
+                RecordBuilder().plan(
+                    title="Demo",
+                    id6="pl0002",
+                    set="demo",
+                    status="approved",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             _init_git_repo(repo)

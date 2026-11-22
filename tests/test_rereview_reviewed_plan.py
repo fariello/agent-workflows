@@ -25,10 +25,12 @@ from unittest import mock
 
 from agent_workflows import (
     agy_runipd,
+    artifact_meta,
     cli,
     oc_runipd,
     run_selection_policy,
 )
+from tests.record_builder import RecordBuilder
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -52,58 +54,33 @@ def _write_plan(
     kind: str = "child",
     readiness: str | None = "go-pending-approval",
 ) -> Path:
-    plan_dir = repo / ".aw" / "records" / "plans" / "pending"
-    plan_dir.mkdir(parents=True, exist_ok=True)
     if kind == "orchestrator":
         order = 0
-    plan_path = plan_dir / f"20261015-{setid}-{order:02d}-{id6}-test-plan.ipd.md"
 
-    lines = [
-        f"# IPD: Test Plan {id6}",
-        "",
-        "- Date: 2026-10-15",
-        f"- Id: {id6}",
-        f"- Set: {setid}",
-        f"- Order: {order}",
-        f"- Status: {status}",
-        f"- Kind: {kind}",
-        "- Concern: Test concern.",
-        "- Scope: Test scope.",
-        "- Scope-Paths: none",
-        "- Priority: medium",
-        "- Work-Kind: feature",
-        "- Author: test",
-        "- Highest E allocated: 01",
-    ]
+    history: list[str] = []
     if status == "approved":
-        lines.append("- Approval: 2026-10-15, approved by human")
-    if readiness is not None:
-        lines.append(f"- Readiness: {readiness}")
-    lines.append("- Item-Dependencies: none")
-    lines.append("")
-    lines.append("## Workflow history")
-    lines.append("")
-    if status == "approved":
-        lines.append("- 2026-10-15 approved (test): status set to approved")
+        history.append("- 2026-10-15 approved (test): status set to approved")
     if status in ("reviewed", "approved"):
-        lines.append("- 2026-10-15 reviewed (test): /plan-review (test): APPROVE")
-    lines.append("- 2026-10-15 to-review (test): authored")
-    lines.append("- 2026-10-15 draft (test): created")
-    lines.append("")
-    lines.append("## Goal")
-    lines.append("")
-    lines.append("A test goal.")
-    lines.append("")
-    lines.append("## Detailed Implementation Checklist (TODO)")
-    lines.append("")
-    lines.append("- [ ] E-01 Test action item")
-    lines.append("  - Depends on: none")
-    lines.append("  - Expected outcome: done")
-    lines.append("  - Execution state: pending")
-    lines.append("")
+        history.append("- 2026-10-15 reviewed (test): /plan-review (test): APPROVE")
+    history.append("- 2026-10-15 to-review (test): authored")
+    history.append("- 2026-10-15 draft (test): created")
+
+    body_lines = [
+        "## Goal",
+        "",
+        "A test goal.",
+        "",
+        "## Detailed Implementation Checklist (TODO)",
+        "",
+        "- [ ] E-01 Test action item",
+        "  - Depends on: none",
+        "  - Expected outcome: done",
+        "  - Execution state: pending",
+        "",
+    ]
 
     if kind == "orchestrator":
-        lines.extend(
+        body_lines.extend(
             [
                 "## Child IPDs, sequence, and dependencies",
                 "",
@@ -149,7 +126,7 @@ def _write_plan(
             ]
         )
     else:
-        lines.extend(
+        body_lines.extend(
             [
                 "## Project conventions discovered (Step 0)",
                 "",
@@ -197,7 +174,32 @@ def _write_plan(
             ]
         )
 
-    plan_path.write_text("\n".join(lines), encoding="utf-8")
+    plan_path = Path(
+        RecordBuilder(repo).plan(
+            id6=id6,
+            set=setid,
+            order=order,
+            when="2026-10-15",
+            title=f"Test Plan {id6}",
+            slug="test-plan",
+            status=status,
+            kind=kind,
+            readiness=readiness,
+            approval="2026-10-15, approved by human" if status == "approved" else None,
+            scope_paths="none",
+            item_dependencies="none",
+            priority="medium",
+            work_kind="feature",
+            author="test",
+            history=history,
+            body="\n".join(body_lines),
+            raw_fields={
+                "Concern": "Test concern.",
+                "Scope": "Test scope.",
+                "Highest E allocated": "01",
+            },
+        )
+    )
     subprocess.run(["git", "add", str(plan_path)], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-qm", f"add plan {id6}"], cwd=repo, check=True)
     return plan_path
@@ -514,17 +516,33 @@ class TestRereviewExecutionTurn(unittest.TestCase):
                 seen_plan_text["text"] = text
 
                 # Turn updates the plan to reviewed with fresh Readiness in front matter
-                updated = text.replace("- Status: to-review", "- Status: reviewed")
-                if "- Readiness:" not in updated:
-                    updated = updated.replace(
-                        "- Status: reviewed\n",
-                        "- Status: reviewed\n- Readiness: go-pending-approval\n",
-                    )
-                updated = updated.replace(
-                    "## Workflow history\n",
-                    "## Workflow history\n\n- 2026-10-16 reviewed (opencode): /plan-review: APPROVE\n",
+                artifact_meta.append(
+                    artifact_meta.LegacyTarget(curr_plan, "ipd", id6=it["id6"]),
+                    [
+                        {
+                            "op": "review",
+                            "review_kind": "gate",
+                            "verdict": "APPROVE",
+                            "readiness": "go-pending-approval",
+                        },
+                        {
+                            "op": "transition",
+                            "from": "to-review",
+                            "to": "reviewed",
+                            "message": "/plan-review: APPROVE",
+                        },
+                    ],
+                    dry_run=False,
+                    project_context=artifact_meta.legacy_context(Path(st["repo"])),
+                    actor={"tool": "opencode"},
+                    legacy_render=artifact_meta.LegacyRender(
+                        tag="reviewed",
+                        day="2026-10-16",
+                        actor_label="opencode",
+                        history=True,
+                    ),
+                    repo_root=Path(st["repo"]),
                 )
-                curr_plan.write_text(updated, encoding="utf-8")
                 return 0, "ses1", str(rd / "log"), ["oc"]
 
             with mock.patch.object(oc_runipd, "run_opencode", fake_run):
@@ -613,18 +631,33 @@ class TestRereviewExecutionTurn(unittest.TestCase):
 
             def fake_review_run(st, rd, it, p_rec, prompt_file, att_no, *a, **kw):
                 curr_plan = Path(st["repo"]) / it["configured_file"]
-                text = curr_plan.read_text(encoding="utf-8")
-                updated = text.replace("- Status: to-review", "- Status: reviewed")
-                if "- Readiness:" not in updated:
-                    updated = updated.replace(
-                        "- Status: reviewed\n",
-                        "- Status: reviewed\n- Readiness: go-pending-approval\n",
-                    )
-                updated = updated.replace(
-                    "## Workflow history\n",
-                    "## Workflow history\n\n- 2026-10-16 reviewed (opencode): /plan-review: APPROVE\n",
+                artifact_meta.append(
+                    artifact_meta.LegacyTarget(curr_plan, "ipd", id6=it["id6"]),
+                    [
+                        {
+                            "op": "review",
+                            "review_kind": "gate",
+                            "verdict": "APPROVE",
+                            "readiness": "go-pending-approval",
+                        },
+                        {
+                            "op": "transition",
+                            "from": "to-review",
+                            "to": "reviewed",
+                            "message": "/plan-review: APPROVE",
+                        },
+                    ],
+                    dry_run=False,
+                    project_context=artifact_meta.legacy_context(Path(st["repo"])),
+                    actor={"tool": "opencode"},
+                    legacy_render=artifact_meta.LegacyRender(
+                        tag="reviewed",
+                        day="2026-10-16",
+                        actor_label="opencode",
+                        history=True,
+                    ),
+                    repo_root=Path(st["repo"]),
                 )
-                curr_plan.write_text(updated, encoding="utf-8")
                 return 0, "ses1", str(rd / "log"), ["oc"]
 
             with mock.patch.object(oc_runipd, "run_opencode", fake_review_run):

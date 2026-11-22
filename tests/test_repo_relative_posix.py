@@ -26,6 +26,7 @@ from agent_workflows import ipd_lifecycle
 from agent_workflows import layout_inventory
 from agent_workflows import specs
 from tests import support
+from tests.record_builder import RecordBuilder
 
 
 def _safe_symlink(src: Path | str, dst: Path | str) -> None:
@@ -453,9 +454,12 @@ class RepoRelativePosixParityTests(unittest.TestCase):
             os.chdir(orig_cwd)
 
     def test_parity_root_less_inputs_with_specs_validate_spec(self) -> None:
-        spec_text = (
-            "# Spec: Parity\n\n- Status: invalid_status\n- Id: 123456\n\n"
-            "## Workflow history\n- 2026-01-01 draft (t): created.\n"
+        spec_text = RecordBuilder().spec(
+            title="Parity",
+            id6="123456",
+            history=["- 2026-01-01 draft (t): created."],
+            raw_fields={"Status": "invalid_status"},
+            text_only=True,
         )
 
         # 1. Truncated segment (modern layout)
