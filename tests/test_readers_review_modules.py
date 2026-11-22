@@ -132,7 +132,7 @@ class TestReviewFindingsReaders:
         assert doc_bad_type.subject_type == "backlog"
 
         retired_field = bad_type.replace(
-            "- Subject-Id: rf1002", "- Plan-Id: rf1002"
+            "Subject-Id: rf1002", "Plan-Id: rf1002"
         ).replace("- Subject-Type: backlog", "- Subject-Type: ipd")
         doc_retired = rf.parse_review_text(retired_field)
         codes_retired = {d.code for d in doc_retired.diagnostics}
@@ -140,12 +140,16 @@ class TestReviewFindingsReaders:
         assert doc_retired.subject_id == ""
 
         no_rounds = (
-            "# Review findings: ipd rf1003\n\n"
-            "- Subject-Id: rf1003\n"
-            "- Subject-Type: ipd\n"
-            "- Reviewed-At: 2026-11-09\n"
-            "- Reviewer: tester\n"
-            "- Verdict: APPROVE\n"
+            str(
+                RecordBuilder().review(
+                    "rf1003",
+                    reviewed_at="2026-11-09",
+                    reviewer="tester",
+                    verdict="APPROVE",
+                    text_only=True,
+                )
+            ).split("\n## Round 1", 1)[0]
+            + "\n"
         )
         doc_no_rounds = rf.parse_review_text(no_rounds)
         assert {d.code for d in doc_no_rounds.diagnostics} == {rf.D_NO_ROUNDS}
@@ -217,13 +221,16 @@ class TestReviewFindingsReaders:
         rev_dir.mkdir(parents=True)
         bad_rev = rev_dir / "20261109-demo-01-pl2002-bad.review.md"
         bad_rev.write_text(
-            "# Review findings: ipd pl2002\n\n"
-            "- Subject-Id: pl2002\n"
-            "- Subject-Type: ipd\n"
-            "- Reviewed-At: 2026-11-09\n"
-            "- Reviewer: tester\n"
-            "- Verdict: APPROVE\n\n"
-            "no rounds section here\n",
+            str(
+                RecordBuilder().review(
+                    "pl2002",
+                    reviewed_at="2026-11-09",
+                    reviewer="tester",
+                    verdict="APPROVE",
+                    text_only=True,
+                )
+            ).split("\n## Round 1", 1)[0]
+            + "\n\nno rounds section here\n",
             encoding="utf-8",
         )
         assert rf.subject_review_records(tmp_path, "pl2002") == (bad_rev,)
@@ -325,12 +332,17 @@ class TestReviewFindingsReaders:
             / "20261109-demo-04-sp3004-malformed.review.md"
         )
         bad_spec_rev.write_text(
-            "# Review findings: spec sp3004\n\n"
-            "- Subject-Id: sp3004\n"
-            "- Subject-Type: spec\n"
-            "- Reviewed-At: 2026-11-09\n"
-            "- Reviewer: tester\n"
-            "- Verdict: APPROVE\n",
+            str(
+                RecordBuilder().review(
+                    "sp3004",
+                    subject_type="spec",
+                    reviewed_at="2026-11-09",
+                    reviewer="tester",
+                    verdict="APPROVE",
+                    text_only=True,
+                )
+            ).split("\n## Round 1", 1)[0]
+            + "\n",
             encoding="utf-8",
         )
         malformed_reason = rf.review_attestation_missing(tmp_path, "sp3004", "spec")
@@ -707,29 +719,20 @@ class TestReviewsModuleAuditReaders:
         assert "REFINEMENT" in ref_reason
 
 
-_SNAPSHOT_PLAN = """# IPD: Pinning snapshot plan
+_SNAPSHOT_DEFAULT_OQ = (
+    "### OQ-01: Sample open question\n\n"
+    "- Blocking: no\n"
+    "- Status: resolved\n"
+    "- Owner: tester\n"
+    "- Resolution or deferral rationale: resolved."
+)
 
-- Date: 2026-11-09
-- Kind: child
-- Concern: Pin reader behavior before and after moving onto artifact_meta.
-- Scope: Snapshot reader tests only.
-- Scope-Paths: agent_workflows/demo.py, docs/demo.spec.md
-- Item-Dependencies: executed:ffceq0
-- Status: to-review
-- Priority: medium
-- Work-Kind: feature
-- Set: demo (demo set description)
-- Order: 2
-- Highest E allocated: 01
-- Author: tester
-- Id: sq1001
+_SNAPSHOT_DEFAULT_HISTORY = (
+    "- 2026-11-09 to-review (tester): authored.",
+    "- 2026-11-09 draft (tester): created.",
+)
 
-## Workflow history
-
-- 2026-11-09 to-review (tester): authored.
-- 2026-11-09 draft (tester): created.
-
-## Goal
+_SNAPSHOT_BODY = """## Goal
 
 Pin observable behavior of the snapshot metadata readers.
 
@@ -791,8 +794,62 @@ None needed.
 ## Approval and execution gate
 
 - Size assessment: small
-- Cohesion rationale: none
-"""
+- Cohesion rationale: none"""
+
+
+def _snapshot_plan(
+    *,
+    plan_role: str = "child",
+    scope_paths: str = "agent_workflows/demo.py, docs/demo.spec.md",
+    item_dependencies: str = "executed:ffceq0",
+    status: str = "to-review",
+    priority: str = "medium",
+    work_kind: str = "feature",
+    set_val: str = "demo (demo set description)",
+    order: int = 2,
+    id6: str = "sq1001",
+    readiness: str | None = None,
+    review_depth: str | None = None,
+    history: tuple[str, ...] | list[str] = _SNAPSHOT_DEFAULT_HISTORY,
+    open_questions: str | list[str] = _SNAPSHOT_DEFAULT_OQ,
+    extra_raw: dict[str, object] | None = None,
+) -> str:
+    raw: dict[str, object] = {
+        "Concern": "Pin reader behavior before and after moving onto artifact_meta.",
+        "Scope": "Snapshot reader tests only.",
+    }
+    if extra_raw:
+        raw.update(extra_raw)
+    extra: dict[str, object] = {}
+    if review_depth is not None:
+        extra["review_depth"] = review_depth
+    return str(
+        RecordBuilder().plan(
+            title="Pinning snapshot plan",
+            when="2026-11-09",
+            plan_role=plan_role,
+            scope_paths=scope_paths,
+            item_dependencies=item_dependencies,
+            status=status,
+            priority=priority,
+            work_kind=work_kind,
+            set=set_val,
+            order=order,
+            highest_e_allocated="01",
+            author="tester",
+            id6=id6,
+            readiness=readiness,
+            history=list(history),
+            body=_SNAPSHOT_BODY,
+            open_questions=open_questions,
+            raw_fields=raw,
+            text_only=True,
+            **extra,
+        )
+    )
+
+
+_SNAPSHOT_PLAN = _snapshot_plan()
 
 
 class TestReviewSequenceReaders:
@@ -808,38 +865,27 @@ class TestReviewSequenceReaders:
         assert review_sequence.structural_diff(headerless, headerless) == ([], [])
 
         # Canonical front-matter field edits report canonical bullet names.
-        for old, new, expected_name in (
-            ("- Priority: medium", "- Priority: high", "Priority"),
-            ("- Kind: child", "- Kind: orchestrator", "Kind"),
-            (
-                "- Scope-Paths: agent_workflows/demo.py, docs/demo.spec.md",
-                "- Scope-Paths: agent_workflows/other.py",
-                "Scope-Paths",
-            ),
-            (
-                "- Item-Dependencies: executed:ffceq0",
-                "- Item-Dependencies: none",
-                "Item-Dependencies",
-            ),
-            ("- Status: to-review", "- Status: reviewed", "Status"),
-            (
-                "- Set: demo (demo set description)",
-                "- Set: other (renamed)",
-                "Set",
-            ),
-            ("- Order: 2", "- Order: 3", "Order"),
-            ("- Id: sq1001", "- Id: sq9999", "Id"),
+        for overrides, expected_name in (
+            ({"priority": "high"}, "Priority"),
+            ({"plan_role": "orchestrator"}, "Kind"),
+            ({"scope_paths": "agent_workflows/other.py"}, "Scope-Paths"),
+            ({"item_dependencies": "none"}, "Item-Dependencies"),
+            ({"status": "reviewed"}, "Status"),
+            ({"set_val": "other (renamed)"}, "Set"),
+            ({"order": 3}, "Order"),
+            ({"id6": "sq9999"}, "Id"),
         ):
-            changed = _SNAPSHOT_PLAN.replace(old, new)
+            changed = _snapshot_plan(**overrides)
             refused, confirm = review_sequence.structural_diff(_SNAPSHOT_PLAN, changed)
             assert len(refused) == 1
             assert f"Front-matter field {expected_name!r} changed" in refused[0]
             assert confirm == []
 
         # Adding Readiness, Review-Depth, or an unmapped legacy bullet is refused with its field name.
-        with_extra = _SNAPSHOT_PLAN.replace(
-            "- Id: sq1001",
-            "- Id: sq1001\n- Readiness: go\n- Review-Depth: standard\n- Custom-Note: legacy value",
+        with_extra = _snapshot_plan(
+            readiness="go",
+            review_depth="standard",
+            extra_raw={"Custom-Note": "legacy value"},
         )
         refused_extra, confirm_extra = review_sequence.structural_diff(
             _SNAPSHOT_PLAN, with_extra
@@ -875,14 +921,16 @@ class TestReviewSequenceReaders:
         assert "check.review-finding-unescalated" in err
 
         # Escalating F-01 clears check_S5.
-        escalated = _SNAPSHOT_PLAN.replace(
-            "## Validation and cross-check",
-            "### OQ-02: Escalated F-01\n\n"
-            "- Blocking: yes\n"
-            "- Status: open\n"
-            "- Finding: F-01\n"
-            "- Resolution or deferral rationale: pending.\n\n"
-            "## Validation and cross-check",
+        escalated = _snapshot_plan(
+            open_questions=[
+                _SNAPSHOT_DEFAULT_OQ,
+                "",
+                "### OQ-02: Escalated F-01\n\n"
+                "- Blocking: yes\n"
+                "- Status: open\n"
+                "- Finding: F-01\n"
+                "- Resolution or deferral rationale: pending.",
+            ]
         )
         assert (
             review_sequence.check_S5(_SNAPSHOT_PLAN, escalated, review_with_high, "")
@@ -890,14 +938,22 @@ class TestReviewSequenceReaders:
         )
 
         # Id-less snippet (no - Id:, no plan_path) does not synthesize a derived id6.
-        idless_plan = _SNAPSHOT_PLAN.replace("- Id: sq1001\n", "")
+        idless_plan = _snapshot_plan(extra_raw={"Id": None})
         assert (
             review_sequence.check_S5(idless_plan, idless_plan, review_with_high, "")
             is None
         )
 
         # Missing Status in open question still fails on an id-less snippet.
-        bad_oq = idless_plan.replace("- Status: resolved\n", "")
+        bad_oq = _snapshot_plan(
+            extra_raw={"Id": None},
+            open_questions=(
+                "### OQ-01: Sample open question\n\n"
+                "- Blocking: no\n"
+                "- Owner: tester\n"
+                "- Resolution or deferral rationale: resolved."
+            ),
+        )
         err_bad_oq = review_sequence.check_S5(idless_plan, bad_oq, "", "")
         assert err_bad_oq is not None
         assert "Blocking:" in err_bad_oq and "Status:" in err_bad_oq
@@ -910,21 +966,22 @@ class TestReviewSequenceReaders:
             "",
         )
 
-        reviewed_plan = _SNAPSHOT_PLAN.replace(
-            "- Status: to-review",
-            "- Status: reviewed\n- Readiness: GO",
-        ).replace(
-            "## Workflow history\n",
-            "## Workflow history\n\n- 2026-11-09 reviewed (tester): /plan-review (tester): APPROVE; ok\n",
+        reviewed_plan = _snapshot_plan(
+            status="reviewed",
+            readiness="GO",
+            history=(
+                "- 2026-11-09 reviewed (tester): /plan-review (tester): APPROVE; ok",
+                *_SNAPSHOT_DEFAULT_HISTORY,
+            ),
         )
         rd, st, newest = review_sequence.verdict_outputs(reviewed_plan)
         assert rd == "go"
         assert st == "reviewed"
         assert "APPROVE" in newest
 
-        bad_readiness = _SNAPSHOT_PLAN.replace(
-            "- Status: to-review",
-            "- Status: reviewed\n- Readiness: invalid-val",
+        bad_readiness = _snapshot_plan(
+            status="reviewed",
+            extra_raw={"Readiness": "invalid-val"},
         )
         rd_bad, st_bad, _ = review_sequence.verdict_outputs(bad_readiness)
         assert rd_bad is None
@@ -944,21 +1001,24 @@ class TestReviewSequenceReaders:
 
     def test_sequence_check_s7_readiness_status_and_exhausted_repair(self) -> None:
         # Condition (a): valid readiness + reviewed + 1 verdict history entry passes.
-        good_a = _SNAPSHOT_PLAN.replace(
-            "- Status: to-review",
-            "- Status: reviewed\n- Readiness: go-pending-approval",
-        ).replace(
-            "## Workflow history\n",
-            "## Workflow history\n\n- 2026-11-09 reviewed (tester): /plan-review (tester): APPROVE\n",
+        good_a = _snapshot_plan(
+            status="reviewed",
+            readiness="go-pending-approval",
+            history=(
+                "- 2026-11-09 reviewed (tester): /plan-review (tester): APPROVE",
+                *_SNAPSHOT_DEFAULT_HISTORY,
+            ),
         )
         assert (
             review_sequence.check_S7(_SNAPSHOT_PLAN, good_a, "## Round 1\n", "") is None
         )
 
         # Condition (b): no readiness + to-review + exhausted repair in review + 1 verdict entry passes.
-        good_b = _SNAPSHOT_PLAN.replace(
-            "## Workflow history\n",
-            "## Workflow history\n\n- 2026-11-09 reviewed (tester): /plan-review (tester): REJECT - NEEDS REPLAN\n",
+        good_b = _snapshot_plan(
+            history=(
+                "- 2026-11-09 reviewed (tester): /plan-review (tester): REJECT - NEEDS REPLAN",
+                *_SNAPSHOT_DEFAULT_HISTORY,
+            ),
         )
         assert (
             review_sequence.check_S7(
@@ -971,8 +1031,13 @@ class TestReviewSequenceReaders:
         )
 
         # Invalid readiness value fails closed.
-        bad_rd = good_a.replace(
-            "- Readiness: go-pending-approval", "- Readiness: maybe"
+        bad_rd = _snapshot_plan(
+            status="reviewed",
+            extra_raw={"Readiness": "maybe"},
+            history=(
+                "- 2026-11-09 reviewed (tester): /plan-review (tester): APPROVE",
+                *_SNAPSHOT_DEFAULT_HISTORY,
+            ),
         )
         err_bad_rd = review_sequence.check_S7(
             _SNAPSHOT_PLAN, bad_rd, "## Round 1\n", ""
@@ -996,13 +1061,10 @@ class TestReviewTierReaders:
 
         # Orchestrator without Set and with TODO-prefixed Scope-Paths.
         for todo_val in ("TODO", "TODO fill in", "TODO(later)", "TODO: pending"):
-            todo_plan = (
-                _SNAPSHOT_PLAN.replace("- Kind: child", "- Kind: orchestrator")
-                .replace("- Set: demo (demo set description)\n", "")
-                .replace(
-                    "- Scope-Paths: agent_workflows/demo.py, docs/demo.spec.md",
-                    f"- Scope-Paths: {todo_val}",
-                )
+            todo_plan = _snapshot_plan(
+                plan_role="orchestrator",
+                scope_paths=todo_val,
+                extra_raw={"Set": None},
             )
             f_todo = review_tier.tier_facts(todo_plan)
             assert f_todo["kind"] == "orchestrator"
@@ -1039,19 +1101,15 @@ class TestReviewRereviewReaders:
         )
         assert review_rereview.rereview_triggers("", "", after_r_text=None) == []
 
-        sp_changed = _SNAPSHOT_PLAN.replace(
-            "- Scope-Paths: agent_workflows/demo.py, docs/demo.spec.md",
-            "- Scope-Paths: agent_workflows/demo.py",
-        )
+        sp_changed = _snapshot_plan(scope_paths="agent_workflows/demo.py")
         sp_reasons = review_rereview.rereview_triggers(
             _SNAPSHOT_PLAN, sp_changed, after_r_text=None
         )
         assert len(sp_reasons) == 1
         assert "Scope-Paths changed" in sp_reasons[0]
 
-        dep_changed = _SNAPSHOT_PLAN.replace(
-            "- Item-Dependencies: executed:ffceq0",
-            "- Item-Dependencies: executed:ffceq0, executed:tve77h",
+        dep_changed = _snapshot_plan(
+            item_dependencies="executed:ffceq0, executed:tve77h"
         )
         dep_reasons = review_rereview.rereview_triggers(
             _SNAPSHOT_PLAN, dep_changed, after_r_text=None
@@ -1059,9 +1117,9 @@ class TestReviewRereviewReaders:
         assert len(dep_reasons) == 1
         assert "Item-Dependencies changed" in dep_reasons[0]
 
-        both_changed = dep_changed.replace(
-            "- Scope-Paths: agent_workflows/demo.py, docs/demo.spec.md",
-            "- Scope-Paths: none",
+        both_changed = _snapshot_plan(
+            scope_paths="none",
+            item_dependencies="executed:ffceq0, executed:tve77h",
         )
         both_reasons = review_rereview.rereview_triggers(
             _SNAPSHOT_PLAN, both_changed, after_r_text=None
@@ -1071,25 +1129,27 @@ class TestReviewRereviewReaders:
     def test_rereview_check_limit_s7_readiness_case_and_blocking_oq(self) -> None:
         # Lowercase and uppercase NO-GO with a new Blocking: yes open question pass.
         for rd_val in ("no-go", "NO-GO"):
-            after_ok = _SNAPSHOT_PLAN.replace(
-                "- Status: to-review", f"- Status: to-review\n- Readiness: {rd_val}"
-            ).replace(
-                "## Validation and cross-check",
-                "### OQ-02: Limit reached\n\n"
-                "- Blocking: yes\n"
-                "- Status: open\n"
-                "- Resolution or deferral rationale: active changes.\n\n"
-                "## Validation and cross-check",
+            after_ok = _snapshot_plan(
+                extra_raw={"Readiness": rd_val},
+                open_questions=[
+                    _SNAPSHOT_DEFAULT_OQ,
+                    "",
+                    "### OQ-02: Limit reached\n\n"
+                    "- Blocking: yes\n"
+                    "- Status: open\n"
+                    "- Resolution or deferral rationale: active changes.",
+                ],
             )
             assert review_rereview.check_limit_s7(_SNAPSHOT_PLAN, after_ok) is None
 
         # Wrong or absent Readiness fails.
-        after_go = _SNAPSHOT_PLAN.replace(
-            "- Status: to-review", "- Status: to-review\n- Readiness: go"
-        ).replace(
-            "## Validation and cross-check",
-            "### OQ-02: Limit reached\n\n- Blocking: yes\n- Status: open\n\n"
-            "## Validation and cross-check",
+        after_go = _snapshot_plan(
+            readiness="go",
+            open_questions=[
+                _SNAPSHOT_DEFAULT_OQ,
+                "",
+                "### OQ-02: Limit reached\n\n- Blocking: yes\n- Status: open",
+            ],
         )
         err_go = review_rereview.check_limit_s7(_SNAPSHOT_PLAN, after_go)
         assert err_go is not None
@@ -1100,9 +1160,7 @@ class TestReviewRereviewReaders:
         assert "- Readiness: no-go" in err_absent
 
         # Readiness no-go without a new blocking open question fails.
-        after_no_oq = _SNAPSHOT_PLAN.replace(
-            "- Status: to-review", "- Status: to-review\n- Readiness: no-go"
-        )
+        after_no_oq = _snapshot_plan(readiness="no-go")
         err_no_oq = review_rereview.check_limit_s7(_SNAPSHOT_PLAN, after_no_oq)
         assert err_no_oq is not None
         assert "Blocking: yes" in err_no_oq
@@ -1206,12 +1264,16 @@ class TestOrchestratorReadinessReaders:
             / "20260101-1200-03-legacy-no-id.ipd.md"
         )
         idless.write_text(
-            "# IPD: Legacy without id\n\n"
-            "- Date: 2026-01-01\n"
-            "- Kind: child\n"
-            "- Set: alpha\n"
-            "- Order: 3\n"
-            "- Status: draft\n",
+            RecordBuilder().plan(
+                title="Legacy without id",
+                when="2026-01-01",
+                plan_role="child",
+                set="alpha",
+                order=3,
+                status="draft",
+                raw_fields={"Id": None},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 

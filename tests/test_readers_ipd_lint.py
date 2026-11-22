@@ -15,6 +15,8 @@ import pytest
 
 from agent_workflows import ipd_lint as L
 from agent_workflows import ipd_schema as S
+from agent_workflows import plans as P
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -24,7 +26,9 @@ def _build_plan_text(
     id6: str = "pin001",
     date: str = "2026-10-01",
     status: str = "to-review",
-    extra_meta: tuple[str, ...] = (),
+    readiness: str | None = None,
+    approval: str | None = None,
+    raw_fields: dict[str, object] | None = None,
     history_lines: tuple[str, ...] = ("- 2026-10-01 to-review (tester): created.",),
     e_checked: bool = False,
     e_state: str = "pending",
@@ -32,31 +36,22 @@ def _build_plan_text(
     v_evidence: str = "",
     v_result: str = "pending",
 ) -> str:
-    meta_lines = [
-        f"- Date: {date}",
-        "- Kind: child",
-        "- Concern: pin ipd_lint metadata and history readers.",
-        "- Scope: pin fixture verdicts for 1suzlp.",
-        f"- Status: {status}",
-        "- Work-Kind: chore",
-        "- Priority: medium",
-        "- Set: pinset",
-        "- Order: 1",
-        "- Highest E allocated: 01",
-        "- Author: tester",
-        f"- Id: {id6}",
-        *extra_meta,
-    ]
     e_mark = "x" if e_checked else " "
     v_mark = "x" if v_checked else " "
     v_obs = f" {v_evidence}" if v_evidence else ""
-    hist_block = "\n".join(history_lines)
-    return (
-        f"# IPD: sample plan {id6}\n\n"
-        + "\n".join(meta_lines)
-        + "\n\n## Workflow history\n\n"
-        + hist_block
-        + "\n\n## Goal\n\nPin linter verdicts.\n\n"
+    eff_raw: dict[str, object] = {
+        "Concern": "pin ipd_lint metadata and history readers.",
+        "Scope": "pin fixture verdicts for 1suzlp.",
+        "Scope-Paths": None,
+        "Item-Dependencies": None,
+    }
+    if raw_fields:
+        eff_raw.update(raw_fields)
+    valid_status = status if status in P.RECOGNIZED else "executed"
+    if valid_status != status:
+        eff_raw["Status"] = status
+    body = (
+        "## Goal\n\nPin linter verdicts.\n\n"
         "## Detailed Implementation Checklist (TODO)\n\n"
         "Execution-state rule: mark performed only after doing it.\n\n"
         "### Task group 1: pin\n\n"
@@ -86,7 +81,28 @@ def _build_plan_text(
         "## Approval and execution gate\n\n"
         "- Size assessment: standard\n"
         "- Cohesion rationale: not required\n\n"
-        "Gate prose.\n"
+        "Gate prose."
+    )
+    return str(
+        RecordBuilder().plan(
+            title=f"sample plan {id6}",
+            when=date,
+            plan_role="child",
+            status=valid_status,
+            work_kind="chore",
+            priority="medium",
+            set="pinset",
+            order=1,
+            highest_e_allocated="01",
+            author="tester",
+            id6=id6,
+            readiness=readiness,
+            approval=approval,
+            history=list(history_lines),
+            body=body,
+            raw_fields=eff_raw,
+            text_only=True,
+        )
     )
 
 
@@ -170,7 +186,7 @@ def test_ipd_m107_conforming(tmp_path: Path) -> None:
     text = _build_plan_text(
         id6="m107ok",
         status="reviewed",
-        extra_meta=("- Readiness: go-pending-approval",),
+        readiness="go-pending-approval",
         history_lines=(
             "- 2026-10-02 reviewed (reviewer): /plan-review: APPROVE WITH REVISIONS APPLIED.",
             "- 2026-10-01 to-review (tester): created.",
@@ -194,7 +210,7 @@ def test_ipd_m107_refused(tmp_path: Path) -> None:
     text = _build_plan_text(
         id6="m107no",
         status="to-review",
-        extra_meta=("- Readiness: go-pending-approval",),
+        readiness="go-pending-approval",
         history_lines=("- 2026-10-01 to-review (tester): created.",),
     )
     plan_path = _write_tracked_plan(
@@ -216,11 +232,11 @@ def test_ipd_m112_conforming(tmp_path: Path) -> None:
     text = _build_plan_text(
         id6="m112ok",
         status="to-review",
-        extra_meta=(
-            "- Coverage: pass",
-            f"- Coverage-Fingerprint: {fp}",
-            "- Coverage-Checked: 2026-10-02 by tester/model",
-        ),
+        raw_fields={
+            "Coverage": "pass",
+            "Coverage-Fingerprint": fp,
+            "Coverage-Checked": "2026-10-02 by tester/model",
+        },
         history_lines=(
             f"- 2026-10-02 coverage pass (aw oc run): fingerprint {fp[:12]}, model tester/model",
             "- 2026-10-01 to-review (tester): created.",
@@ -245,11 +261,11 @@ def test_ipd_m112_refused(tmp_path: Path) -> None:
     text = _build_plan_text(
         id6="m112no",
         status="to-review",
-        extra_meta=(
-            "- Coverage: pass",
-            f"- Coverage-Fingerprint: {fp}",
-            "- Coverage-Checked: 2026-10-02 by tester/model",
-        ),
+        raw_fields={
+            "Coverage": "pass",
+            "Coverage-Fingerprint": fp,
+            "Coverage-Checked": "2026-10-02 by tester/model",
+        },
         history_lines=("- 2026-10-01 to-review (tester): created.",),
     )
     plan_path = _write_tracked_plan(
@@ -270,7 +286,7 @@ def test_ipd_m113_conforming(tmp_path: Path) -> None:
     text = _build_plan_text(
         id6="m113ok",
         status="reviewed",
-        extra_meta=("- Readiness: go-pending-approval",),
+        readiness="go-pending-approval",
         history_lines=(
             "- 2026-10-02 reviewed (reviewer): /plan-review: APPROVE.",
             "- 2026-10-01 to-review (tester): created.",
@@ -357,10 +373,8 @@ def test_ipd_m105_refused(tmp_path: Path) -> None:
         id6="m105no",
         date="2026-10-01",
         status="approved",
-        extra_meta=(
-            "- Readiness: go-pending-approval",
-            "- Approval: 2026-10-01, recorded via aw ipd set: approved",
-        ),
+        readiness="go-pending-approval",
+        approval="2026-10-01, recorded via aw ipd set: approved",
         history_lines=(
             "- 2026-10-01 reviewed (reviewer): /plan-review: APPROVE.",
             "- 2026-10-01 to-review (tester): created.",

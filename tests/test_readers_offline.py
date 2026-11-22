@@ -109,15 +109,17 @@ def _build_offline_fixture(tmp_path: Path) -> Path:
     (
         recs / "backlog" / "open" / "20261101-ofb-01-ofb001-offline-item.backlog.md"
     ).write_text(
-        "- Id: ofb001\n"
-        "- Status: open\n"
-        "- Set: ofb\n"
-        "- Priority: low\n"
-        "- Work-Kind: chore\n"
-        "- Summary: Offline backlog item\n\n"
-        "## Workflow history\n"
-        "- 2026-11-01 created (aw backlog): Offline backlog item\n\n"
-        "### Problem Statement\n\nOffline backlog body.\n",
+        RecordBuilder().backlog(
+            id6="ofb001",
+            status="open",
+            set="ofb",
+            priority="low",
+            work_kind="chore",
+            summary="Offline backlog item",
+            when="2026-11-01",
+            body="### Problem Statement\n\nOffline backlog body.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 

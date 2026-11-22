@@ -82,57 +82,64 @@ def _corrupt_cache(state_root: Path) -> None:
 
 
 def _plan_text(status: str = "draft") -> str:
-    return (
-        "# IPD: Clean Parity Plan\n\n"
-        "- Date: 2026-11-01\n"
-        "- Kind: child\n"
-        "- Concern: Verify cache parity across reader commands.\n"
-        "- Scope: Exercise cache states on a minimal fixture.\n"
-        "- Scope-Paths: tests/test_readers_cache_parity.py\n"
-        "- Item-Dependencies: none\n"
-        f"- Status: {status}\n"
-        "- Work-Kind: chore\n"
-        "- Priority: low\n"
-        "- Set: cset\n"
-        "- Order: 01\n"
-        "- Highest E allocated: 01\n"
-        "- Author: tester\n"
-        "- Review-Depth: simple\n"
-        "- Id: pln001\n\n"
-        "## Workflow history\n"
-        f"- 2026-11-01 {status} (tester): fixture state\n\n"
-        "## Goal\n\n"
-        "Verify cache parity across all five moved reader surfaces.\n\n"
-        "## Detailed Implementation Checklist (TODO)\n\n"
-        "- [ ] E-01 Run parity command\n"
-        "  - Depends on: none\n"
-        "  - Expected outcome: command outputs match across cache states\n"
-        "  - Execution state: pending\n\n"
-        "## Project conventions discovered (Step 0)\n\n"
-        "- Core tests run via pytest.\n\n"
-        "## Findings\n\n"
-        "- None.\n\n"
-        "## Proposed changes (ordered, validatable)\n\n"
-        "1. Run parity assertions.\n\n"
-        "## Deferred / out of scope (with reason)\n\n"
-        "None.\n\n"
-        "## Scope check\n\n"
-        "- Over-scope: none.\n"
-        "- Under-scope: none.\n\n"
-        "## Required tests / validation\n\n"
-        "Run pytest on the cache parity suite.\n\n"
-        "## Spec / documentation sync\n\n"
-        "N/A.\n\n"
-        "## Open questions\n\n"
-        "None.\n\n"
-        "## Validation and cross-check (verify before reporting done)\n\n"
-        "- [ ] V-01 validates E-01\n"
-        "  - Required evidence: paste pytest output showing every case passed\n"
-        "  - Observed evidence:\n"
-        "  - Result: pending\n\n"
-        "## Approval and execution gate\n\n"
-        "- Size assessment: standard\n"
-        "- Cohesion rationale: not required\n"
+    return str(
+        RecordBuilder().plan(
+            title="Clean Parity Plan",
+            when="2026-11-01",
+            plan_role="child",
+            scope_paths="tests/test_readers_cache_parity.py",
+            item_dependencies="none",
+            status=status,
+            work_kind="chore",
+            priority="low",
+            set="cset",
+            order=1,
+            highest_e_allocated="01",
+            author="tester",
+            review_depth="simple",
+            id6="pln001",
+            history=[f"- 2026-11-01 {status} (tester): fixture state"],
+            open_questions="None.",
+            body=(
+                "## Goal\n\n"
+                "Verify cache parity across all five moved reader surfaces.\n\n"
+                "## Detailed Implementation Checklist (TODO)\n\n"
+                "- [ ] E-01 Run parity command\n"
+                "  - Depends on: none\n"
+                "  - Expected outcome: command outputs match across cache states\n"
+                "  - Execution state: pending\n\n"
+                "## Project conventions discovered (Step 0)\n\n"
+                "- Core tests run via pytest.\n\n"
+                "## Findings\n\n"
+                "- None.\n\n"
+                "## Proposed changes (ordered, validatable)\n\n"
+                "1. Run parity assertions.\n\n"
+                "## Deferred / out of scope (with reason)\n\n"
+                "None.\n\n"
+                "## Scope check\n\n"
+                "- Over-scope: none.\n"
+                "- Under-scope: none.\n\n"
+                "## Required tests / validation\n\n"
+                "Run pytest on the cache parity suite.\n\n"
+                "## Spec / documentation sync\n\n"
+                "N/A.\n\n"
+                "## Open questions\n\n"
+                "None.\n\n"
+                "## Validation and cross-check (verify before reporting done)\n\n"
+                "- [ ] V-01 validates E-01\n"
+                "  - Required evidence: paste pytest output showing every case passed\n"
+                "  - Observed evidence:\n"
+                "  - Result: pending\n\n"
+                "## Approval and execution gate\n\n"
+                "- Size assessment: standard\n"
+                "- Cohesion rationale: not required"
+            ),
+            raw_fields={
+                "Concern": "Verify cache parity across reader commands.",
+                "Scope": "Exercise cache states on a minimal fixture.",
+            },
+            text_only=True,
+        )
     )
 
 
@@ -206,15 +213,17 @@ def _build_corpus_repo(tmp_path: Path, name: str = "corpus") -> Tuple[Path, Path
     (
         recs / "backlog" / "open" / "20261101-bklset-01-bkl001-clean-item.backlog.md"
     ).write_text(
-        "- Id: bkl001\n"
-        "- Status: open\n"
-        "- Set: bklset\n"
-        "- Priority: low\n"
-        "- Work-Kind: chore\n"
-        "- Summary: Clean backlog item\n\n"
-        "## Workflow history\n"
-        "- 2026-11-01 created (aw backlog): Clean backlog item\n\n"
-        "### Problem Statement\n\nClean backlog body.\n",
+        RecordBuilder().backlog(
+            id6="bkl001",
+            status="open",
+            set="bklset",
+            priority="low",
+            work_kind="chore",
+            summary="Clean backlog item",
+            when="2026-11-01",
+            body="### Problem Statement\n\nClean backlog body.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 

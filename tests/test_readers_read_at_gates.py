@@ -21,6 +21,7 @@ from agent_workflows import (
     check_engine,
     ipd_lifecycle,
     ipd_schema,
+    plans,
 )
 from tests.record_builder import RecordBuilder
 
@@ -87,25 +88,39 @@ def _plan_text(
     order: int = 1,
     item_deps: str = "none",
     history_lines: tuple[str, ...] = ("- 2026-11-01 draft (author): created",),
-    extra_bullets: tuple[str, ...] = (),
+    from_backlog: str | None = None,
+    blocks_release: str | None = None,
+    work_kind: str = "chore",
+    priority: str = "medium",
 ) -> str:
-    extra = "".join(f"{b}\n" for b in extra_bullets)
-    hist = "\n".join(history_lines)
-    return (
-        f"# IPD: Fixture Plan {id6}\n\n"
-        f"- Date: 2026-11-01\n"
-        f"- Kind: child\n"
-        f"- Scope-Paths: x.py\n"
-        f"- Item-Dependencies: {item_deps}\n"
-        f"- Status: {status}\n"
-        f"- Set: demo\n"
-        f"- Order: {order}\n"
-        f"- Id: {id6}\n"
-        f"{extra}\n"
-        f"## Workflow history\n"
-        f"{hist}\n\n"
-        f"## Goal\n\n"
-        f"Fixture goal.\n"
+    valid_status = status if status in plans.RECOGNIZED else "approved"
+    raw_fields: dict[str, object] = {}
+    if valid_status != status:
+        raw_fields["Status"] = status
+    extra: dict[str, object] = {}
+    if from_backlog is not None:
+        extra["from_backlog"] = from_backlog
+    if blocks_release is not None:
+        extra["blocks_release"] = blocks_release
+    return str(
+        RecordBuilder().plan(
+            title=f"Fixture Plan {id6}",
+            when="2026-11-01",
+            plan_role="child",
+            scope_paths="x.py",
+            item_dependencies=item_deps,
+            status=valid_status,
+            work_kind=work_kind,
+            priority=priority,
+            set="demo",
+            order=order,
+            id6=id6,
+            history=list(history_lines),
+            body="## Goal\n\nFixture goal.",
+            raw_fields=raw_fields or None,
+            text_only=True,
+            **extra,
+        )
     )
 
 
@@ -116,24 +131,26 @@ def _backlog_text(
     blocks_release: str | None = None,
     work_kind: str = "bug",
 ) -> str:
-    gate = f"- Blocks-Release: {blocks_release}\n" if blocks_release else ""
-    gate_block = (
-        "- Gate-Kind: branch\n- Gate-Ref: main\n" if status == "blocked" else ""
-    )
-    return (
-        f"# {id6}: Fixture item\n\n"
-        f"- Date: 2026-11-01\n"
-        f"- Status: {status}\n"
-        f"- Work-Kind: {work_kind}\n"
-        f"- Priority: high\n"
-        f"- Id: {id6}\n"
-        f"- Set: demo\n"
-        f"{gate}"
-        f"{gate_block}\n"
-        f"## Workflow history\n"
-        f"- 2026-11-01 {status} (aw backlog): state\n\n"
-        f"## Details\n\n"
-        f"Fixture details.\n"
+    extra: dict[str, object] = {}
+    if blocks_release is not None:
+        extra["blocks_release"] = blocks_release
+    if status == "blocked":
+        extra["gate_kind"] = "branch"
+        extra["gate_ref"] = "main"
+    return str(
+        RecordBuilder().backlog(
+            id6=id6,
+            summary="Fixture item",
+            when="2026-11-01",
+            status=status,
+            work_kind=work_kind,
+            priority="high",
+            set="demo",
+            history=[f"- 2026-11-01 {status} (aw backlog): state"],
+            body="## Details\n\nFixture details.",
+            text_only=True,
+            **extra,
+        )
     )
 
 
@@ -375,7 +392,8 @@ def test_check_engine_release_blocking_done_without_and_with_handoff(
         _plan_text(
             id6="pl0005",
             status="executed",
-            extra_bullets=("- From-Backlog: bk0002", "- Blocks-Release: next"),
+            from_backlog="bk0002",
+            blocks_release="next",
         ),
         encoding="utf-8",
     )
@@ -618,7 +636,8 @@ def test_hook_backlog_blocking_close_gate_cli(tmp_path: Path) -> None:
         _plan_text(
             id6="hk0004",
             status="executed",
-            extra_bullets=("- From-Backlog: hk0003", "- Blocks-Release: next"),
+            from_backlog="hk0003",
+            blocks_release="next",
         ),
         encoding="utf-8",
     )
@@ -691,19 +710,24 @@ def test_read_at_staged_index_fields_history_and_fenced_preamble(
 
     _init_repo(tmp_path)
     rel_plan = ".aw/records/plans/pending/20261101-demo-01-ra0001-stage.ipd.md"
+    base_plan = str(
+        RecordBuilder().plan(
+            title="Staged Read Test",
+            when="2026-11-01",
+            id6="ra0001",
+            status="approved",
+            set="demo",
+            item_dependencies="none",
+            history=["- 2026-11-01 approved (aw set): ok"],
+            text_only=True,
+        )
+    )
+    title_line, rest = base_plan.split("\n\n", 1)
+    fenced_preamble = (
+        "Preamble quote:\n```text\n- Id: ffffff\n- Status: executed\n```\n\n"
+    )
     (tmp_path / rel_plan).write_text(
-        "# IPD: Staged Read Test\n\n"
-        "Preamble quote:\n"
-        "```text\n"
-        "- Id: ffffff\n"
-        "- Status: executed\n"
-        "```\n\n"
-        "- Id: ra0001\n"
-        "- Status: approved\n"
-        "- Set: demo\n"
-        "- Item-Dependencies: none\n\n"
-        "## Workflow history\n"
-        "- 2026-11-01 approved (aw set): ok\n",
+        f"{title_line}\n\n{fenced_preamble}{rest}",
         encoding="utf-8",
     )
     _git(tmp_path, "add", rel_plan)
@@ -807,10 +831,20 @@ def test_evaluate_ipd_dependencies_overlay_states_missing_respects_date_cutover(
         / "pending"
         / "20190101-demo-02-ov0002-pre.ipd.md"
     )
-    post_text = (
-        "# IPD: Post-cutover missing deps\n\n"
-        "- Date: 2026-11-01\n- Kind: child\n- Scope-Paths: x.py\n"
-        "- Status: draft\n- Set: demo\n- Order: 1\n- Id: ov0001\n\n## Goal\ng\n"
+    post_text = str(
+        RecordBuilder().plan(
+            title="Post-cutover missing deps",
+            when="2026-11-01",
+            plan_role="child",
+            scope_paths="x.py",
+            status="draft",
+            set="demo",
+            order=1,
+            id6="ov0001",
+            body="## Goal\ng",
+            raw_fields={"Item-Dependencies": None},
+            text_only=True,
+        )
     )
     pre_text = RecordBuilder().plan(
         title="Pre-cutover missing deps",
@@ -866,7 +900,8 @@ def test_setter_head_status_differs_from_working_tree(tmp_path: Path) -> None:
             status="to-review",
             order=1,
             history_lines=("- 2026-11-01 to-review (author): ready",),
-            extra_bullets=("- Work-Kind: chore", "- Priority: medium"),
+            work_kind="chore",
+            priority="medium",
         ),
         encoding="utf-8",
     )
@@ -876,7 +911,8 @@ def test_setter_head_status_differs_from_working_tree(tmp_path: Path) -> None:
             status="reviewed",
             order=2,
             history_lines=("- 2026-11-01 reviewed (author): reviewed",),
-            extra_bullets=("- Work-Kind: chore", "- Priority: medium"),
+            work_kind="chore",
+            priority="medium",
         ),
         encoding="utf-8",
     )
@@ -886,8 +922,13 @@ def test_setter_head_status_differs_from_working_tree(tmp_path: Path) -> None:
     # Hand-edit sh0001 in working tree: HEAD is `to-review`, working tree is `reviewed`.
     plan_diff = tmp_path / rel_diff
     plan_diff.write_text(
-        plan_diff.read_text(encoding="utf-8").replace(
-            "- Status: to-review", "- Status: reviewed"
+        _plan_text(
+            id6="sh0001",
+            status="reviewed",
+            order=1,
+            history_lines=("- 2026-11-01 to-review (author): ready",),
+            work_kind="chore",
+            priority="medium",
         ),
         encoding="utf-8",
     )
