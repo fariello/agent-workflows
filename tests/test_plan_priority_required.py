@@ -24,6 +24,12 @@ from agent_workflows import ipd_schema as schema
 from tests.record_builder import RecordBuilder
 
 
+_VALID_PRIORITIES = frozenset({"high", "medium", "low", "grandfathered", "unresolved"})
+_VALID_WORK_KINDS = frozenset(
+    {"bug", "feature", "chore", "security", "followup", "grandfathered", "unresolved"}
+)
+
+
 def _build_test_plan(
     *,
     status: str = "draft",
@@ -33,89 +39,100 @@ def _build_test_plan(
     plan_id: str = "tst001",
     approval: str | None = None,
 ) -> str:
-    lines = [
-        f"# IPD: Test Plan {plan_id}",
-        "",
-        "- Date: 2026-09-24",
-        "- Kind: child",
-        "- Concern: Test concern.",
-        "- Scope: Test scope.",
-        f"- Scope-Paths: {scope_paths}",
-        "- Item-Dependencies: none",
-        f"- Status: {status}",
-    ]
-    if approval:
-        lines.append(f"- Approval: {approval}")
-    if status in ("reviewed", "approved", "auto-approved"):
-        lines.append("- Readiness: go-pending-approval")
-    if work_kind is not None:
-        lines.append(f"- Work-Kind: {work_kind}")
-    if priority is not None:
-        lines.append(f"- Priority: {priority}")
-    lines.extend(
-        [
-            "- Set: testset",
-            "- Order: 1",
-            "- Highest E allocated: 01",
-            "- Author: test-author",
-            f"- Id: {plan_id}",
-            "",
-            "## Workflow history",
-            "- 2026-09-24 draft (test-author): created.",
-            "- 2026-09-24 /plan-review (test-author): APPROVE",
-            "",
-            "## Goal",
-            "Test goal.",
-            "",
-            "## Detailed Implementation Checklist (TODO)",
-            "- [ ] E-01 Test action.",
-            "  - Depends on: none",
-            "  - Expected outcome: done",
-            "  - Execution state: pending",
-            "",
-            "## Project conventions discovered (Step 0)",
-            "- Convention 1.",
-            "",
-            "## Findings",
-            "| Id | Severity | Finding |",
-            "|---|---|---|",
-            "| F-1 | LOW | Test finding. |",
-            "",
-            "## Proposed changes (ordered, validatable)",
-            "1. Test change.",
-            "",
-            "## Deferred / out of scope (with reason)",
-            "- None.",
-            "",
-            "## Scope check",
-            "- Over-scope: none.",
-            "",
-            "## Required tests / validation",
-            "tests/test_foo.py",
-            "",
-            "## Spec / documentation sync",
-            "None.",
-            "",
-            "## Open questions",
-            "### OQ-01: None.",
-            "- Blocking: no",
-            "- Status: resolved",
-            "- Owner: author",
-            "- Resolution or deferral rationale: done.",
-            "",
-            "## Validation and cross-check (verify before reporting done)",
-            "- [ ] V-01 validates E-01",
-            "  - Required evidence: done",
-            "  - Observed evidence:",
-            "  - Result: pending",
-            "",
-            "## Approval and execution gate",
-            "- Size assessment: standard",
-            "- Cohesion rationale: not required",
-            "",
-        ]
+    raw_fields: dict[str, str | None] = {
+        "Concern": "Test concern.",
+        "Scope": "Test scope.",
+    }
+    if priority is None:
+        eff_priority = "medium"
+        raw_fields["Priority"] = None
+    elif priority in _VALID_PRIORITIES:
+        eff_priority = priority
+    else:
+        eff_priority = "medium"
+        raw_fields["Priority"] = priority
+
+    if work_kind is None:
+        eff_work_kind = "chore"
+        raw_fields["Work-Kind"] = None
+    elif work_kind in _VALID_WORK_KINDS:
+        eff_work_kind = work_kind
+    else:
+        eff_work_kind = "chore"
+        raw_fields["Work-Kind"] = work_kind
+
+    readiness = (
+        "go-pending-approval"
+        if status in ("reviewed", "approved", "auto-approved")
+        else None
     )
-    return "\n".join(lines)
+    body = (
+        "## Goal\n"
+        "Test goal.\n\n"
+        "## Detailed Implementation Checklist (TODO)\n"
+        "- [ ] E-01 Test action.\n"
+        "  - Depends on: none\n"
+        "  - Expected outcome: done\n"
+        "  - Execution state: pending\n\n"
+        "## Project conventions discovered (Step 0)\n"
+        "- Convention 1.\n\n"
+        "## Findings\n"
+        "| Id | Severity | Finding |\n"
+        "|---|---|---|\n"
+        "| F-1 | LOW | Test finding. |\n\n"
+        "## Proposed changes (ordered, validatable)\n"
+        "1. Test change.\n\n"
+        "## Deferred / out of scope (with reason)\n"
+        "- None.\n\n"
+        "## Scope check\n"
+        "- Over-scope: none.\n\n"
+        "## Required tests / validation\n"
+        "tests/test_foo.py\n\n"
+        "## Spec / documentation sync\n"
+        "None.\n\n"
+        "## Open questions\n\n"
+        "## Validation and cross-check (verify before reporting done)\n"
+        "- [ ] V-01 validates E-01\n"
+        "  - Required evidence: done\n"
+        "  - Observed evidence:\n"
+        "  - Result: pending\n\n"
+        "## Approval and execution gate\n"
+        "- Size assessment: standard\n"
+        "- Cohesion rationale: not required\n"
+    )
+    open_questions = (
+        "### OQ-01: None.\n"
+        "- Blocking: no\n"
+        "- Status: resolved\n"
+        "- Owner: author\n"
+        "- Resolution or deferral rationale: done."
+    )
+    return str(
+        RecordBuilder().plan(
+            id6=plan_id,
+            kind="child",
+            title=f"Test Plan {plan_id}",
+            author="test-author",
+            when="2026-09-24",
+            set="testset",
+            order=1,
+            status=status,
+            scope_paths=scope_paths,
+            item_dependencies="none",
+            priority=eff_priority,
+            work_kind=eff_work_kind,
+            approval=approval or None,
+            readiness=readiness,
+            history=[
+                "- 2026-09-24 draft (test-author): created.",
+                "- 2026-09-24 /plan-review (test-author): APPROVE",
+            ],
+            body=body,
+            open_questions=open_questions,
+            raw_fields=raw_fields,
+            text_only=True,
+        )
+    )
 
 
 class ReadyToExecuteGateTests(unittest.TestCase):
