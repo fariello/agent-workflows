@@ -21,6 +21,7 @@ from agent_workflows import agy_runipd, cli, render_stream, runner_shared
 from tests import support
 from tests.repo_template import copy_template_repo
 from tests.test_oc_runipd import _CONFORMING_PLAN
+from tests.record_builder import RecordBuilder
 
 
 def _run_cli(argv):
@@ -66,6 +67,91 @@ class AgyRunipdCliTests(unittest.TestCase):
 
 
 # --- driverfin-01 (p7peqf): agy driver self-finalize (aw ipd begin before + aw ipd finalize after) ---
+
+
+def _conforming_plan_text(
+    *,
+    id6: str = "agy001",
+    order: int = 1,
+    scope_paths: str = "src/",
+    from_backlog: str | None = None,
+) -> str:
+    body = (
+        "## Goal\n\n"
+        "Demo goal sentence.\n\n"
+        "## Detailed Implementation Checklist (TODO)\n\n"
+        "Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.\n\n"
+        "### Task group 1: demo\n\n"
+        "- [x] E-01 Create the demo file.\n"
+        "  - Depends on: none\n"
+        "  - Expected outcome: the demo file exists.\n"
+        "  - Execution state: performed\n\n"
+        "## Project conventions discovered (Step 0)\n\n"
+        "- demo convention.\n\n"
+        "## Findings\n\n"
+        "demo findings.\n\n"
+        "## Proposed changes (ordered, validatable)\n\n"
+        "1. src/demo.txt: create it.\n\n"
+        "## Deferred / out of scope (with reason)\n\n"
+        "none.\n\n"
+        "## Scope check\n\n"
+        "- Over-scope: none.\n"
+        "- Under-scope: none.\n\n"
+        "## Required tests / validation\n\n"
+        "Manual check that src/demo.txt exists.\n\n"
+        "## Spec / documentation sync\n\n"
+        "N/A: demo only.\n\n"
+        "## Open questions\n\n"
+        "### OQ-01: none?\n\n"
+        "- Blocking: no\n"
+        "- Status: resolved\n"
+        "- Owner: none\n"
+        "- Resolution or deferral rationale: none.\n\n"
+        "## Validation and cross-check (verify before reporting done)\n\n"
+        "Validation-state rule: inspect evidence in a separate pass.\n\n"
+        "- [x] V-01 validates E-01\n"
+        "  - Required evidence: src/demo.txt present.\n"
+        "  - Observed evidence: src/demo.txt present.\n"
+        "  - Result: pass\n\n"
+        "## Approval and execution gate\n\n"
+        "- Size assessment: standard\n"
+        "- Cohesion rationale: not required\n\n"
+        "Execution contract: commit path-scoped; do not push."
+    )
+    extra = {}
+    if from_backlog is not None:
+        extra["from_backlog"] = from_backlog
+    return str(
+        RecordBuilder().plan(
+            title="Demo self-finalize",
+            when="2026-08-28",
+            plan_role="child",
+            status="approved",
+            set="demo",
+            order=order,
+            priority="medium",
+            work_kind="chore",
+            author="test",
+            id6=id6,
+            scope_paths=scope_paths,
+            item_dependencies="none",
+            approval="2026-08-28, recorded via aw ipd set: status set to approved",
+            readiness="go-pending-approval",
+            history=[
+                "- 2026-08-28 approved (aw set): status set to approved",
+                "- 2026-08-28 /plan-review (test): APPROVE",
+                "- 2026-08-28 draft (test): created.",
+            ],
+            body=body,
+            raw_fields={
+                "Concern": "demo concern for the self-finalize test.",
+                "Scope": "demo scope.",
+                "Highest E allocated": "01",
+            },
+            text_only=True,
+            **extra,
+        )
+    )
 
 
 def _init_repo_with_conforming_plan(repo: Path, id6: str = "agy001") -> Path:
@@ -439,8 +525,8 @@ class AgySelfFinalizeTests(unittest.TestCase):
             (repo / "docs").mkdir(parents=True, exist_ok=True)
             (repo / "docs" / "A.spec.md").write_text("# Spec A\n", encoding="utf-8")
 
-            plan_text = _CONFORMING_PLAN.format(id6="agy001").replace(
-                "- Scope-Paths: src/", "- Scope-Paths: docs/A.spec.md"
+            plan_text = _conforming_plan_text(
+                id6="agy001", scope_paths="docs/A.spec.md"
             )
             pending = repo / ".aw" / "records" / "plans" / "pending"
             pending.mkdir(parents=True, exist_ok=True)
@@ -1287,24 +1373,24 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
         bdir.mkdir(parents=True, exist_ok=True)
         bitem = bdir / "20260928-1200-01-bg0001-test.backlog.md"
         bitem.write_text(
-            "- Id: bg0001\n- Status: graduated\n- Priority: medium\n- Work-Kind: chore\n",
+            RecordBuilder().backlog(
+                id6="bg0001",
+                status="graduated",
+                priority="medium",
+                work_kind="chore",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
         pdir = repo / ".aw" / "records" / "plans" / "pending"
         pdir.mkdir(parents=True, exist_ok=True)
 
-        p1_text = _CONFORMING_PLAN.format(id6="agy001").replace(
-            "- Item-Dependencies: none",
-            "- Item-Dependencies: none\n- From-Backlog: bg0001",
-        )
+        p1_text = _conforming_plan_text(id6="agy001", order=1, from_backlog="bg0001")
         p1 = pdir / "20260828-demo-01-agy001-demo.ipd.md"
         p1.write_text(p1_text, encoding="utf-8")
 
-        p2_text = _CONFORMING_PLAN.format(id6="agy002").replace(
-            "- Item-Dependencies: none",
-            "- Item-Dependencies: none\n- From-Backlog: bg0001",
-        )
+        p2_text = _conforming_plan_text(id6="agy002", order=2, from_backlog="bg0001")
         p2 = pdir / "20260828-demo-02-agy002-demo.ipd.md"
         p2.write_text(p2_text, encoding="utf-8")
 
@@ -1441,18 +1527,28 @@ class AgyFullAutoApprovalTests(unittest.TestCase):
             root = Path(t)
             clear = root / "clear.ipd.md"
             clear.write_text(
-                "# P\n\n- Id: agy010\n- Status: reviewed\n"
-                "- Readiness: go-pending-approval\n\n"
-                "## Workflow history\n- 2026-08-29 /plan-review (agy): APPROVE; PR-001\n",
+                RecordBuilder().plan(
+                    id6="agy010",
+                    status="reviewed",
+                    readiness="go-pending-approval",
+                    history=["- 2026-08-29 /plan-review (agy): APPROVE; PR-001"],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             self.assertTrue(agy_runipd.is_plan_review_approved(clear))
 
             refuse = root / "refuse.ipd.md"
             refuse.write_text(
-                "# P\n\n- Id: agy011\n- Status: reviewed\n- Readiness: no-go\n\n"
-                "## Workflow history\n"
-                "- 2026-08-29 /plan-review (agy): APPROVE. Readiness: GO - PENDING HUMAN APPROVAL.\n",
+                RecordBuilder().plan(
+                    id6="agy011",
+                    status="reviewed",
+                    readiness="no-go",
+                    history=[
+                        "- 2026-08-29 /plan-review (agy): APPROVE. Readiness: GO - PENDING HUMAN APPROVAL."
+                    ],
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             self.assertFalse(agy_runipd.is_plan_review_approved(refuse))
@@ -2424,11 +2520,32 @@ class AgyDependencyPathsAreSharedTests(unittest.TestCase):
         (repo / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
         d = repo / ".aw" / "records" / "plans" / bucket
         d.mkdir(parents=True, exist_ok=True)
+        valid_plan_statuses = {
+            "draft",
+            "to-review",
+            "reviewed",
+            "approved",
+            "auto-approved",
+            "executed",
+            "not-executed",
+            "superseded",
+        }
+        raw = None if status in valid_plan_statuses else {"status": status}
         (d / "20260908-demo-01-depaaa-x.ipd.md").write_text(
-            "# IPD: dep\n\n"
-            "- Date: 2026-09-08\n- Kind: child\n- Scope-Paths: x.py\n"
-            f"- Item-Dependencies: none\n- Status: {status}\n- Set: demo\n"
-            "- Order: 1\n- Id: depaaa\n\n## Goal\ng\n",
+            RecordBuilder().plan(
+                title="dep",
+                when="2026-09-08",
+                plan_role="child",
+                scope_paths="x.py",
+                item_dependencies="none",
+                status=status if status in valid_plan_statuses else "executed",
+                set="demo",
+                order=1,
+                id6="depaaa",
+                body="## Goal\ng",
+                raw_fields=raw,
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         return repo
@@ -2462,16 +2579,35 @@ class AgyDependencyPathsAreSharedTests(unittest.TestCase):
             pending = repo / ".aw" / "records" / "plans" / "pending"
             pending.mkdir(parents=True)
             (pending / "20260908-demo-00-orch00-x.ipd.md").write_text(
-                "# IPD: orch\n\n- Date: 2026-09-08\n- Kind: orchestrator\n"
-                "- Scope-Paths: x.py\n- Item-Dependencies: none\n- Status: approved\n"
-                "- Set: demo\n- Order: 0\n- Id: orch00\n\n"
-                "## Children\n\n| Order | Id | Title |\n|---|---|---|\n| 01 | child1 | c |\n",
+                RecordBuilder().plan(
+                    title="orch",
+                    when="2026-09-08",
+                    plan_role="orchestrator",
+                    scope_paths="x.py",
+                    item_dependencies="none",
+                    status="approved",
+                    set="demo",
+                    order=0,
+                    id6="orch00",
+                    body="## Children\n\n| Order | Id | Title |\n|---|---|---|\n| 01 | child1 | c |",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             (pending / "20260908-demo-01-child1-x.ipd.md").write_text(
-                "# IPD: child\n\n- Date: 2026-09-08\n- Kind: child\n- Scope-Paths: x.py\n"
-                "- Item-Dependencies: none\n- Status: approved\n- Set: demo\n"
-                "- Order: 1\n- Id: child1\n\n## Goal\ng\n",
+                RecordBuilder().plan(
+                    title="child",
+                    when="2026-09-08",
+                    plan_role="child",
+                    scope_paths="x.py",
+                    item_dependencies="none",
+                    status="approved",
+                    set="demo",
+                    order=1,
+                    id6="child1",
+                    body="## Goal\ng",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             orch = {
@@ -2853,7 +2989,13 @@ class AgyVerificationAbsenceTests(unittest.TestCase):
             )
             plan = repo / configured
             plan.write_text(
-                "- Id: agy999\n- Set: testset\n- Status: approved\n# Test Plan\n",
+                RecordBuilder().plan(
+                    title="Test Plan",
+                    id6="agy999",
+                    set="testset",
+                    status="approved",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             self.assertEqual(

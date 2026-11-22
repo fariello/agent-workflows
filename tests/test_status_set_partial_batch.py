@@ -24,7 +24,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_workflows import agent_schema
+from agent_workflows import agent_schema, artifact_meta
+from tests.record_builder import RecordBuilder
 from tests.test_ipd_lint import _conforming_child
 
 
@@ -89,45 +90,26 @@ def _make_orchestrator(
             )
         ]
 
-    lines = [
-        f"# IPD: Orchestrator {id6}",
-        "",
-        "- Date: 2026-10-04",
-        "- Kind: orchestrator",
-        f"- Id: {id6}",
-        f"- Set: {setid}",
-        "- Order: 0",
-        f"- Status: {status}",
-        "- Priority: medium",
-        "- Work-Kind: chore",
-        "- Author: test",
-        "- Highest E allocated: 01",
-        "- Concern: test concern.",
-        "- Scope: test scope.",
-        "- Scope-Paths: none",
-        "- Item-Dependencies: none",
-        "",
-        "## Workflow history",
-        "",
-        f"- 2026-10-04 {status} (test): created.",
-        "",
-        "## Goal",
-        "",
-        "Test orchestrator goal.",
-        "",
-        "## Detailed Implementation Checklist (TODO)",
-        "",
-        "- [ ] E-01 CONFIRM chd001 REACHED executed\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: pending",
-        "",
+    child_table_lines = [
         "## Child IPDs, sequence, and dependencies",
         "",
         "| Order | Id | Status | Plan | Depends on |",
         "|---|---|---|---|---|",
     ]
     for ord_tok, c_id6, c_path in child_rows:
-        lines.append(f"| {ord_tok} | {c_id6} | pending | {c_path} | none |")
-    lines.extend(
+        child_table_lines.append(f"| {ord_tok} | {c_id6} | pending | {c_path} | none |")
+
+    body = "\n".join(
         [
+            "## Goal",
+            "",
+            "Test orchestrator goal.",
+            "",
+            "## Detailed Implementation Checklist (TODO)",
+            "",
+            "- [ ] E-01 CONFIRM chd001 REACHED executed\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: pending",
+            "",
+            *child_table_lines,
             "",
             "## Completion criteria (the whole Set is done only when)",
             "",
@@ -160,10 +142,33 @@ def _make_orchestrator(
             "## Approval and execution gate",
             "",
             "- None.",
-            "",
         ]
     )
-    orch_path.write_text("\n".join(lines), encoding="utf-8")
+    text = str(
+        RecordBuilder().plan(
+            title=f"Orchestrator {id6}",
+            when="2026-10-04",
+            plan_role="orchestrator",
+            id6=id6,
+            set=setid,
+            order=0,
+            status=status,
+            priority="medium",
+            work_kind="chore",
+            author="test",
+            scope_paths="none",
+            item_dependencies="none",
+            history=[f"- 2026-10-04 {status} (test): created."],
+            body=body,
+            raw_fields={
+                "Concern": "test concern.",
+                "Scope": "test scope.",
+                "Highest E allocated": "01",
+            },
+            text_only=True,
+        )
+    )
+    orch_path.write_text(text, encoding="utf-8")
     return orch_path
 
 
@@ -174,17 +179,24 @@ def _make_child(
     setid: str = "tstset",
     order: int = 1,
     status: str = "to-review",
+    disposition: str = "pending",
+    from_backlog: str | None = None,
+    raw_fields: dict[str, str] | None = None,
 ) -> Path:
-    p_dir = repo / ".aw" / "records" / "plans" / "pending"
+    p_dir = repo / ".aw" / "records" / "plans" / disposition
     p_dir.mkdir(parents=True, exist_ok=True)
     child_path = p_dir / f"20261004-{setid}-{order:02d}-{id6}-test.ipd.md"
 
-    text = (
-        _conforming_child()
-        .replace("- Set: x", f"- Set: {setid}")
-        .replace("- Order: 1", f"- Order: {order}")
-        .replace("- Id: abc123", f"- Id: {id6}")
-        .replace("- Status: to-review", f"- Status: {status}")
+    extra_raw: dict[str, str] = {"id": id6}
+    if from_backlog is not None:
+        extra_raw["from_backlog"] = from_backlog
+    if raw_fields:
+        extra_raw.update(raw_fields)
+    text = _conforming_child(
+        set_name=setid,
+        order=order,
+        status=status,
+        raw_fields=extra_raw,
     )
     child_path.write_text(text, encoding="utf-8")
     return child_path
@@ -483,15 +495,14 @@ class TestStatusSetPartialBatch(unittest.TestCase):
         """Case 10: a terminal-reopen-only batch still exits 2."""
         with tempfile.TemporaryDirectory() as td:
             repo = _init_repo(Path(td))
-            p_dir = repo / ".aw" / "records" / "plans" / "executed"
-            plan = p_dir / "20261004-tstset-01-ex0001-test.ipd.md"
-            plan.write_text(
-                _conforming_child()
-                .replace(
-                    "- Status: to-review", "- Status: executed\n- Disposition: executed"
-                )
-                .replace("- Id: abc123", "- Id: ex0001"),
-                encoding="utf-8",
+            _make_child(
+                repo,
+                id6="ex0001",
+                setid="tstset",
+                order=1,
+                status="executed",
+                disposition="executed",
+                raw_fields={"Disposition": "executed"},
             )
 
             proc = _run_cli(repo, ["ipd", "set", "to-review", "ex0001", "--yes"])
@@ -517,7 +528,14 @@ class TestStatusSetPartialBatch(unittest.TestCase):
                 / "20261004-prm001-test.prompt.md"
             )
             prompt_file.write_text(
-                "# Prompt\n\n- Id: prm001\n- Status: draft\n\n## Goal\nTest\n",
+                RecordBuilder().prompt(
+                    id6="prm001",
+                    status="pending",
+                    when="2026-10-04",
+                    body="# Prompt\n\n## Goal\nTest\n",
+                    raw_fields={"status": "draft"},
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -537,7 +555,12 @@ class TestStatusSetPartialBatch(unittest.TestCase):
             self.assertEqual(proc.returncode, 1)
 
             self.assertIn("- Status: reviewed", p1.read_text(encoding="utf-8"))
-            self.assertIn("- Status: draft", prompt_file.read_text(encoding="utf-8"))
+            self.assertEqual(
+                artifact_meta.read(
+                    "prm001", project_context=artifact_meta.legacy_context(repo)
+                ).status,
+                "draft",
+            )
 
             rec = json.loads(
                 [line for line in proc.stdout.splitlines() if line.strip()][-1]
@@ -554,13 +577,32 @@ class TestStatusSetPartialBatch(unittest.TestCase):
             # Item 1: High priority + blocks-release, no evidence -> illegitimate close
             b1 = b_dir / "20261004-bkl001-item1.backlog.md"
             b1.write_text(
-                "# Item 1\n\n- Id: bkl001\n- Status: open\n- Priority: high\n- Work-Kind: bug\n- Blocks-Release: yes\n- Author: test\n\n## Summary\nx\n",
+                RecordBuilder().backlog(
+                    id6="bkl001",
+                    status="open",
+                    priority="high",
+                    work_kind="bug",
+                    blocks_release="yes",
+                    summary="x",
+                    author="test",
+                    when="2026-10-04",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             # Item 2: Low priority, un-gated (no blocks-release line) -> legitimate close
             b2 = b_dir / "20261004-bkl002-item2.backlog.md"
             b2.write_text(
-                "# Item 2\n\n- Id: bkl002\n- Status: open\n- Priority: low\n- Work-Kind: chore\n- Author: test\n\n## Summary\nx\n",
+                RecordBuilder().backlog(
+                    id6="bkl002",
+                    status="open",
+                    priority="low",
+                    work_kind="chore",
+                    summary="x",
+                    author="test",
+                    when="2026-10-04",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -598,22 +640,41 @@ class TestStatusSetPartialBatch(unittest.TestCase):
             # bkl001: no plan authored -> graduation not ready
             b1 = b_dir / "20261004-bkl001-item1.backlog.md"
             b1.write_text(
-                "# Item 1\n\n- Id: bkl001\n- Status: open\n- Priority: medium\n- Work-Kind: feature\n- Author: test\n\n## Summary\nx\n",
+                RecordBuilder().backlog(
+                    id6="bkl001",
+                    status="open",
+                    priority="medium",
+                    work_kind="feature",
+                    summary="x",
+                    author="test",
+                    when="2026-10-04",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             # bkl002: has conforming to-review plan -> graduation ready
             b2 = b_dir / "20261004-bkl002-item2.backlog.md"
             b2.write_text(
-                "# Item 2\n\n- Id: bkl002\n- Status: open\n- Priority: medium\n- Work-Kind: feature\n- Author: test\n\n## Summary\nx\n",
+                RecordBuilder().backlog(
+                    id6="bkl002",
+                    status="open",
+                    priority="medium",
+                    work_kind="feature",
+                    summary="x",
+                    author="test",
+                    when="2026-10-04",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
-            p2 = _make_child(
-                repo, id6="pla002", setid="setbatch", order=2, status="to-review"
+            _make_child(
+                repo,
+                id6="pla002",
+                setid="setbatch",
+                order=2,
+                status="to-review",
+                from_backlog="bkl002",
             )
-            p2_text = p2.read_text(encoding="utf-8").replace(
-                "- Id: pla002", "- Id: pla002\n- From-Backlog: bkl002"
-            )
-            p2.write_text(p2_text, encoding="utf-8")
 
             proc = _run_cli(
                 repo,
@@ -646,15 +707,14 @@ class TestStatusSetPartialBatch(unittest.TestCase):
         """Gate (d): terminal reopen lands in data.skipped with status.terminal_reopen_refused."""
         with tempfile.TemporaryDirectory() as td:
             repo = _init_repo(Path(td))
-            p_dir = repo / ".aw" / "records" / "plans" / "executed"
-            p1 = p_dir / "20261004-tstset-01-ex0001-test.ipd.md"
-            p1.write_text(
-                _conforming_child()
-                .replace(
-                    "- Status: to-review", "- Status: executed\n- Disposition: executed"
-                )
-                .replace("- Id: abc123", "- Id: ex0001"),
-                encoding="utf-8",
+            p1 = _make_child(
+                repo,
+                id6="ex0001",
+                setid="tstset",
+                order=1,
+                status="executed",
+                disposition="executed",
+                raw_fields={"Disposition": "executed"},
             )
             p2 = _make_child(
                 repo, id6="pla002", setid="setbatch", order=2, status="draft"

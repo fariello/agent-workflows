@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import io
 import json
-import re
 import shlex
 import shutil
 import tempfile
@@ -13,10 +12,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from agent_workflows import agent_schema, check_engine, cli
+from agent_workflows import agent_schema, artifact_meta, check_engine, cli, plans
 from tests import support
 
 import pytest
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -58,26 +58,37 @@ class StatusSetTestBase(unittest.TestCase):
         set_id: str,
         status: str = "draft",
         disposition: str = "pending",
+        *,
+        approval: str | None = None,
+        history: list[str] | None = None,
+        body: str | None = None,
     ) -> Path:
         p = self.repo_root / ".aw" / "records" / "plans" / disposition / filename
-        content = f"""# IPD: Test Plan {id6}
-
-- Date: 2026-08-22
-- Kind: child
-- Status: {status}
-- Work-Kind: chore
-- Priority: medium
-- Set: {set_id}
-- Order: 1
-- Id: {id6}
-
-## Workflow history
-
-- 2026-08-22 draft (author): initial draft.
-
-## Goal
-Test goal.
-"""
+        p.parent.mkdir(parents=True, exist_ok=True)
+        valid_status = status in plans.RECOGNIZED
+        raw = None if valid_status else {"status": status}
+        content = str(
+            RecordBuilder().plan(
+                title=f"Test Plan {id6}",
+                when="2026-08-22",
+                plan_role="child",
+                status=status if valid_status else "draft",
+                work_kind="chore",
+                priority="medium",
+                set=set_id,
+                order=1,
+                id6=id6,
+                approval=approval,
+                history=(
+                    history
+                    if history is not None
+                    else ["- 2026-08-22 draft (author): initial draft."]
+                ),
+                body=body if body is not None else "## Goal\nTest goal.",
+                raw_fields=raw,
+                text_only=True,
+            )
+        )
         p.write_text(content, encoding="utf-8")
         return p
 
@@ -92,98 +103,106 @@ Test goal.
         spec_id6: str | None = None,
         scope_paths: str = "README.md",
         disposition: str = "pending",
+        priority: str = "medium",
+        work_kind: str = "chore",
     ) -> Path:
         p = self.repo_root / ".aw" / "records" / "plans" / disposition / filename
         p.parent.mkdir(parents=True, exist_ok=True)
-        bkl = f"- From-Backlog: {backlog_id6}\n" if backlog_id6 else ""
-        spc = f"- From-Spec: {spec_id6}\n" if spec_id6 else ""
-        content = f"""# IPD: Test Plan {id6}
-
-- Date: 2026-08-22
-- Kind: child
-- Concern: Test concern.
-- Scope: Test scope.
-- Status: {status}
-- Work-Kind: chore
-- Priority: medium
-- Set: {set_id}
-- Order: 1
-- Id: {id6}
-{bkl}{spc}- Scope-Paths: {scope_paths}
-- Highest E allocated: 01
-- Author: test
-- Item-Dependencies: none
-
-## Workflow history
-
-- 2026-08-22 {status} (author): created.
-
-## Goal
-Test goal {id6}.
-
-## Detailed Implementation Checklist (TODO)
-### Task group 1: work
-- [ ] E-01 Work item
-  - Depends on: none
-  - Expected outcome: done
-  - Execution state: pending
-
-## Project conventions discovered (Step 0)
-None.
-
-## Findings
-None.
-
-## Proposed changes (ordered, validatable)
-1. E-01 do work.
-
-## Deferred / out of scope (with reason)
-- None.
-
-## Scope check
-- None.
-
-## Required tests / validation
-- None.
-
-## Spec / documentation sync
-- None.
-
-## Open questions
-- None.
-
-## Validation and cross-check (verify before reporting done)
-- [ ] V-01 validates E-01
-  - Required evidence: check.
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-- Size assessment: standard
-- Cohesion rationale: not required
-"""
+        raw: dict[str, str] = {
+            "Concern": "Test concern.",
+            "Scope": "Test scope.",
+            "Highest E allocated": "01",
+        }
+        eff_priority = priority
+        if priority == "unresolved":
+            eff_priority = "medium"
+            raw["priority"] = "unresolved"
+        eff_work_kind = work_kind
+        if work_kind == "unresolved":
+            eff_work_kind = "chore"
+            raw["work_kind"] = "unresolved"
+        extra: dict[str, str] = {}
+        if backlog_id6:
+            extra["from_backlog"] = backlog_id6
+        if spec_id6:
+            extra["from_spec"] = spec_id6
+        body = (
+            f"## Goal\nTest goal {id6}.\n\n"
+            "## Detailed Implementation Checklist (TODO)\n"
+            "### Task group 1: work\n"
+            "- [ ] E-01 Work item\n"
+            "  - Depends on: none\n"
+            "  - Expected outcome: done\n"
+            "  - Execution state: pending\n\n"
+            "## Project conventions discovered (Step 0)\nNone.\n\n"
+            "## Findings\nNone.\n\n"
+            "## Proposed changes (ordered, validatable)\n1. E-01 do work.\n\n"
+            "## Deferred / out of scope (with reason)\n- None.\n\n"
+            "## Scope check\n- None.\n\n"
+            "## Required tests / validation\n- None.\n\n"
+            "## Spec / documentation sync\n- None.\n\n"
+            "## Open questions\n- None.\n\n"
+            "## Validation and cross-check (verify before reporting done)\n"
+            "- [ ] V-01 validates E-01\n"
+            "  - Required evidence: check.\n"
+            "  - Observed evidence:\n"
+            "  - Result: pending\n\n"
+            "## Approval and execution gate\n"
+            "- Size assessment: standard\n"
+            "- Cohesion rationale: not required"
+        )
+        content = str(
+            RecordBuilder().plan(
+                title=f"Test Plan {id6}",
+                when="2026-08-22",
+                plan_role="child",
+                status=status,
+                work_kind=eff_work_kind,
+                priority=eff_priority,
+                set=set_id,
+                order=1,
+                id6=id6,
+                scope_paths=scope_paths,
+                author="test",
+                item_dependencies="none",
+                history=[f"- 2026-08-22 {status} (author): created."],
+                body=body,
+                raw_fields=raw,
+                text_only=True,
+                **extra,
+            )
+        )
         p.write_text(content, encoding="utf-8")
         return p
 
     def create_spec(
-        self, filename: str, id6: str, set_id: str, status: str = "draft"
+        self,
+        filename: str,
+        id6: str,
+        set_id: str,
+        status: str = "draft",
+        *,
+        gate_kind: str | None = None,
+        gate_ref: str | None = None,
     ) -> Path:
         p = self.repo_root / ".aw" / "records" / "specs" / status / filename
         p.parent.mkdir(parents=True, exist_ok=True)
-        content = f"""# Spec: Test Spec {id6}
-
-- Date: 2026-08-22
-- Status: {status}
-- Set: {set_id}
-- Id: {id6}
-
-## Workflow history
-
-- 2026-08-22 {status} (author): initial spec draft.
-
-## Goal
-Test spec goal.
-"""
+        extra: dict[str, str] = {}
+        if gate_kind is not None:
+            extra["gate_kind"] = gate_kind
+        if gate_ref is not None:
+            extra["gate_ref"] = gate_ref
+        content = RecordBuilder().spec(
+            title=f"Test Spec {id6}",
+            when="2026-08-22",
+            status=status,
+            set=set_id,
+            id6=id6,
+            history=[f"- 2026-08-22 {status} (author): initial spec draft."],
+            body="## Goal\nTest spec goal.",
+            text_only=True,
+            **extra,
+        )
         p.write_text(content, encoding="utf-8")
         return p
 
@@ -196,17 +215,30 @@ Test spec goal.
         disposition: str = "pending",
     ) -> Path:
         p = self.repo_root / ".aw" / "records" / "prompts" / disposition / filename
-        content = f"""# Prompt: Test Prompt {id6}
-
-- Date: 2026-08-22
-- Status: {status}
-- Set: {set_id}
-- Id: {id6}
-
-## Workflow history
-
-- 2026-08-22 draft (author): initial prompt.
-"""
+        p.parent.mkdir(parents=True, exist_ok=True)
+        valid_prompt_statuses = {
+            "pending",
+            "executed",
+            "not-executed",
+            "superseded",
+            "parked",
+            "reusable",
+            "archived",
+        }
+        valid_status = status in valid_prompt_statuses
+        raw = None if valid_status else {"status": status}
+        content = str(
+            RecordBuilder().prompt(
+                id6=id6,
+                set=set_id,
+                status=status if valid_status else "pending",
+                when="2026-08-22",
+                short_description=f"Test Prompt {id6}",
+                body=f"# Prompt: Test Prompt {id6}\n\nInitial prompt.\n",
+                raw_fields=raw,
+                text_only=True,
+            )
+        )
         p.write_text(content, encoding="utf-8")
         return p
 
@@ -214,19 +246,16 @@ Test spec goal.
         self, filename: str, id6: str, set_id: str, status: str = "open"
     ) -> Path:
         p = self.repo_root / ".aw" / "records" / "backlog" / status / filename
-        content = f"""# Backlog Item {id6}
-
-- Id: {id6}
-- Status: {status}
-- Set: {set_id}
-- Priority: medium
-- Kind: chore
-- Summary: Test backlog item
-
-## Workflow history
-
-- 2026-08-22 created: created.
-"""
+        content = RecordBuilder().backlog(
+            id6=id6,
+            status=status,
+            set=set_id,
+            priority="medium",
+            work_kind="chore",
+            summary="Test backlog item",
+            history=["- 2026-08-22 created: created."],
+            text_only=True,
+        )
         p.write_text(content, encoding="utf-8")
         return p
 
@@ -248,18 +277,23 @@ Test spec goal.
         base = self.repo_root / ".aw" / "records" / "research"
         p = (base / disposition / filename) if disposition else (base / filename)
         p.parent.mkdir(parents=True, exist_ok=True)
-        status_line = f"status: {status}\n" if status is not None else ""
-        content = f"""---
-id: {id6}
-kind: {kind}
-{status_line}set: {set_id}
----
-
-# Research: Test {kind} {id6}
-
-## Summary
-Test research report.
-"""
+        raw = (
+            {"status": None} if (status is None and kind != "research-prompt") else None
+        )
+        eff_status = (
+            "reference" if (status is None and kind != "research-prompt") else status
+        )
+        content = str(
+            RecordBuilder().research(
+                id6=id6,
+                kind=kind,
+                status=eff_status,
+                set=set_id,
+                body=f"# Research: Test {kind} {id6}\n\n## Summary\nTest research report.\n",
+                raw_fields=raw,
+                text_only=True,
+            )
+        )
         p.write_text(content, encoding="utf-8")
         return p
 
@@ -508,59 +542,6 @@ class TestStatusSetCommands(StatusSetTestBase):
         text = done_path.read_text(encoding="utf-8")
         self.assertIn("- Status: done", text)
 
-    def _write_spec_review_record(
-        self, subject_id6: str, slug: str = "test-spec"
-    ) -> Path:
-        """A conforming spec-review record, so a spec may legally reach `reviewed`.
-
-        revsweep `5slbpi` made `to-review -> reviewed` an ATTESTED transition for specs: it now requires
-        a parseable review record naming the spec as its `- Subject-Id:`. Written through
-        `review_findings` (the single writer) rather than as literal markdown, so this fixture cannot
-        drift from the format the setter's predicate parses.
-        """
-        from agent_workflows import review_findings as rf
-
-        rnd = rf.Round(
-            number=1,
-            findings=(
-                rf.Finding(
-                    id="SR-001",
-                    severity="low",
-                    scope="in-scope",
-                    area="B",
-                    evidence="spec.md:1",
-                    finding="a fixture finding",
-                    remediation_risk="Overall:Low",
-                    decision="fixed",
-                    resolution="handled",
-                ),
-            ),
-            decisions=(),
-        )
-        p = (
-            self.repo_root
-            / ".aw"
-            / "records"
-            / "reviews"
-            / rf.build_review_name(
-                date="20260822",
-                set_id="setmix",
-                order=1,
-                subject_id6=subject_id6,
-                slug=slug,
-            )
-        )
-        rf.write_review(
-            p,
-            subject_id=subject_id6,
-            subject_type="spec",
-            reviewed_at="2026-08-22",
-            reviewer="fixture",
-            verdict="APPROVE",
-            rounds=[rnd],
-        )
-        return p
-
     def test_set_multiple_mixed_types(self):
         plan = self.create_plan(
             "20260822-setmix-01-pl0005-test-plan.ipd.md",
@@ -571,7 +552,7 @@ class TestStatusSetCommands(StatusSetTestBase):
         spec = self.create_spec(
             "20260822-0003-01-test-spec.spec.md", "sp0003", "setmix", "to-review"
         )
-        prompt = self.create_prompt(
+        self.create_prompt(
             "20260822-setmix-01-pr0002-test-prompt.prompt.md",
             "pr0002",
             "setmix",
@@ -580,7 +561,34 @@ class TestStatusSetCommands(StatusSetTestBase):
         # revsweep `5slbpi`: the spec member's `->reviewed` transition is now ATTESTED, so the batch
         # needs the spec's review record to exist. The plan and prompt members are unaffected (a
         # missing review stays deliberately silent for a plan).
-        self._write_spec_review_record("sp0003")
+        RecordBuilder(self.repo_root).review(
+            "sp0003",
+            subject_type="spec",
+            when="2026-08-22",
+            reviewer="fixture",
+            verdict="APPROVE",
+            set="setmix",
+            order=1,
+            slug="test-spec",
+            rounds=[
+                {
+                    "number": 1,
+                    "findings": [
+                        {
+                            "id": "SR-001",
+                            "severity": "low",
+                            "scope": "in-scope",
+                            "area": "B",
+                            "evidence": "spec.md:1",
+                            "finding": "a fixture finding",
+                            "remediation_risk": "Overall:Low",
+                            "decision": "fixed",
+                            "resolution": "handled",
+                        }
+                    ],
+                }
+            ],
+        )
 
         # Mixed batch carrying a prompt at reviewed is refused before making changes:
         # prompt vocabulary does not include 'reviewed'.
@@ -604,7 +612,12 @@ class TestStatusSetCommands(StatusSetTestBase):
         self.assertIn("Refusing before making changes", out)
         self.assertIn("- Status: to-review", plan.read_text(encoding="utf-8"))
         self.assertIn("- Status: to-review", spec.read_text(encoding="utf-8"))
-        self.assertIn("- Status: to-review", prompt.read_text(encoding="utf-8"))
+        self.assertEqual(
+            artifact_meta.read(
+                "pr0002", project_context=artifact_meta.legacy_context(self.repo_root)
+            ).status,
+            "to-review",
+        )
 
         # Valid batch with plan and spec succeeds
         rc = cli.main(
@@ -1048,25 +1061,38 @@ class TestApprovedWritesApprovalField(StatusSetTestBase):
             # planprio lkexaw: the author declares what the plan may change, as a real author must;
             # the scaffold's Scope-Paths placeholder is refused by the ready-to-execute gate. Priority
             # and Work-Kind need no edit: they were decided at scaffold time and must survive.
-            _t = plan.read_text(encoding="utf-8")
-            _t = re.sub(
-                r"(?m)^- Scope-Paths:.*$", "- Scope-Paths: agent_workflows/probe.py", _t
-            )
             # rdyreq (`fhinri`, IPD-M113): stand in for the /plan-review that writes `- Readiness:`
             # and its attesting history verdict (IPD-M107) before the plan is set reviewed/approved.
-            _t = re.sub(
-                r"(?m)^(- Status:.*)$",
-                r"\1\n- Readiness: go-pending-approval",
-                _t,
-                count=1,
-            )
-            _t = _t.replace(
-                "## Workflow history\n",
-                "## Workflow history\n\n- 2026-08-22 /plan-review (test): APPROVE\n",
-                1,
-            )
-            plan.write_text(_t, encoding="utf-8")
             id6 = "apxlnt"
+            ctx = artifact_meta.legacy_context(self.repo_root)
+            artifact_meta.append(
+                artifact_meta.LegacyTarget(plan, "ipd", id6=id6),
+                [
+                    {
+                        "op": "set",
+                        "fields": {
+                            "scope_paths": "agent_workflows/probe.py",
+                        },
+                    },
+                    {
+                        "op": "review",
+                        "review_kind": "gate",
+                        "verdict": "APPROVE",
+                        "readiness": "go-pending-approval",
+                        "message": "APPROVE",
+                    },
+                ],
+                dry_run=False,
+                project_context=ctx,
+                actor={"tool": "test"},
+                legacy_render=artifact_meta.LegacyRender(
+                    tag="/plan-review",
+                    day="2026-08-22",
+                    actor_label="test",
+                    history=True,
+                ),
+                repo_root=self.repo_root,
+            )
             cli.main(["set", "reviewed", id6, "--yes", "--dir", str(self.repo_root)])
             rc_appr = cli.main(
                 [
@@ -1253,16 +1279,13 @@ class BlocksReleaseSetterTests(StatusSetTestBase):
 
     def test_status_set_unchanged_idempotent_no_rewrite(self):
         plan = self.create_plan(
-            "20260822-fmtset-02-pl0202-p2.ipd.md", "pl0202", "fmtset", "approved"
+            "20260822-fmtset-02-pl0202-p2.ipd.md",
+            "pl0202",
+            "fmtset",
+            "approved",
+            approval="2026-08-27, recorded: ok",
         )
-        # Add approval line so plan is fully conformant
         orig_text = plan.read_text(encoding="utf-8")
-        if "- Approval:" not in orig_text:
-            orig_text = orig_text.replace(
-                "- Status: approved",
-                "- Status: approved\n- Approval: 2026-08-27, recorded: ok",
-            )
-            plan.write_text(orig_text, encoding="utf-8")
 
         buf = io.StringIO()
         with patch("sys.stdout", buf):
@@ -1315,18 +1338,18 @@ class TestGateFieldClearingOnStatusChange(StatusSetTestBase):
         # Mirrors the real `aw backlog new` output exactly (no H1; gate bullets after Summary), so
         # the parser sees a conformant record and `backlog check` findings are about the gate alone.
         p.write_text(
-            f"""- Id: {id6}
-- Status: blocked
-- Set: {set_id}
-- Priority: high
-- Kind: bug
-- Summary: Test blocked backlog item
-- Gate-Kind: {gate_kind}
-- Gate-Ref: {gate_ref}
-
-## Workflow history
-- 2026-08-22 created (aw backlog): created.
-""",
+            RecordBuilder().backlog(
+                id6=id6,
+                status="blocked",
+                set=set_id,
+                priority="high",
+                work_kind="bug",
+                summary="Test blocked backlog item",
+                gate_kind=gate_kind,
+                gate_ref=gate_ref,
+                history=["- 2026-08-22 created (aw backlog): created."],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         return p
@@ -1424,13 +1447,9 @@ class TestGateFieldClearingOnStatusChange(StatusSetTestBase):
             "sp0001",
             "specset",
             "deferred",
+            gate_kind="decision",
+            gate_ref="D7",
         )
-        spec_text = spec.read_text(encoding="utf-8").replace(
-            "- Id: sp0001\n",
-            "- Id: sp0001\n- Gate-Kind: decision\n- Gate-Ref: D7\n",
-            1,
-        )
-        spec.write_text(spec_text, encoding="utf-8")
         rc = cli.main(
             ["spec", "set", "draft", "sp0001", "--yes", "--dir", str(self.repo_root)]
         )
@@ -1498,13 +1517,13 @@ class ApprovalGateTests(StatusSetTestBase):
     ) -> Path:
         """A plan in `reviewed` whose history carries a real review record (newest-FIRST)."""
         plan = self.create_plan(
-            f"20260830-{set_id}-01-{id6}-gate-probe.ipd.md", id6, set_id, "reviewed"
+            f"20260830-{set_id}-01-{id6}-gate-probe.ipd.md",
+            id6,
+            set_id,
+            "reviewed",
+            history=[record, "- 2026-08-22 draft (author): initial draft."],
+            body="## Goal\nTest goal." + extra,
         )
-        text = plan.read_text(encoding="utf-8").replace(
-            "## Workflow history\n",
-            "## Workflow history\n" + record + "\n",
-        )
-        plan.write_text(text + extra, encoding="utf-8")
         return plan
 
     def test_rejected_plan_refuses_and_leaves_the_file_unchanged(self):
@@ -2876,10 +2895,15 @@ class SameStatusMessageIsRecordedTests(StatusSetTestBase):
         # Pure predicate test
         from agent_workflows import status_set as ss
 
-        text = (
-            "# IPD: x\n\n- Status: reviewed\n\n## Workflow history\n"
-            "- 2026-09-22 same-status (aw set): identical note\n"
-            "- 2026-09-01 draft (aw set): created.\n\n## Goal\n"
+        text = RecordBuilder().plan(
+            title="x",
+            status="reviewed",
+            history=[
+                "- 2026-09-22 same-status (aw set): identical note",
+                "- 2026-09-01 draft (aw set): created.",
+            ],
+            body="## Goal",
+            text_only=True,
         )
         self.assertTrue(
             ss.same_status_message_is_duplicate(
@@ -3087,24 +3111,20 @@ class UntooledStatusRemediationTests(unittest.TestCase):
             filename = f"20260927-untooled-01-{id6}-test-plan.ipd.md"
         plan_path = self.repo_root / ".aw" / "records" / "plans" / "pending" / filename
         plan_path.parent.mkdir(parents=True, exist_ok=True)
-        content = f"""# IPD: Test Untooled Plan {id6}
-
-- Date: 2026-09-27
-- Kind: child
-- Status: {status}
-- Work-Kind: chore
-- Priority: medium
-- Set: untooled
-- Order: 1
-- Id: {id6}
-
-## Workflow history
-
-- 2026-09-27 {status} (author): initial.
-
-## Goal
-Test goal.
-"""
+        content = RecordBuilder().plan(
+            title=f"Test Untooled Plan {id6}",
+            when="2026-09-27",
+            plan_role="child",
+            status=status,
+            work_kind="chore",
+            priority="medium",
+            set="untooled",
+            order=1,
+            id6=id6,
+            history=[f"- 2026-09-27 {status} (author): initial."],
+            body="## Goal\nTest goal.",
+            text_only=True,
+        )
         plan_path.write_text(content, encoding="utf-8")
         support.git(self.repo_root, "add", str(plan_path))
         support.git(self.repo_root, "commit", "-m", f"add plan {id6}")
@@ -3126,13 +3146,33 @@ Test goal.
         tokens = self._history_tokens(path)
         return tokens[0] if tokens else None
 
+    def _render_untooled_plan(self, id6: str, status: str, history_status: str) -> str:
+        return str(
+            RecordBuilder().plan(
+                title=f"Test Untooled Plan {id6}",
+                when="2026-09-27",
+                plan_role="child",
+                status=status,
+                work_kind="chore",
+                priority="medium",
+                set="untooled",
+                order=1,
+                id6=id6,
+                history=[f"- 2026-09-27 {history_status} (author): initial."],
+                body="## Goal\nTest goal.",
+                text_only=True,
+            )
+        )
+
     def test_untooled_hand_edit_cleared_by_setter(self):
         """Case (a): hand-edit to-review -> reviewed, finding fires, aw set clears it and writes reviewed token."""
         plan_path = self._create_committed_plan("ut0001", status="to-review")
-        text = plan_path.read_text(encoding="utf-8").replace(
-            "- Status: to-review", "- Status: reviewed"
+        plan_path.write_text(
+            self._render_untooled_plan(
+                "ut0001", status="reviewed", history_status="to-review"
+            ),
+            encoding="utf-8",
         )
-        plan_path.write_text(text, encoding="utf-8")
         support.git(self.repo_root, "add", str(plan_path))
 
         drift = check_engine.check_status_untooled(self.repo_root)
@@ -3172,24 +3212,20 @@ Test goal.
             pdir = root / ".aw" / "records" / "plans" / "pending"
             pdir.mkdir(parents=True, exist_ok=True)
             plan_path = pdir / "20260927-untooled-01-ut0003-outside.ipd.md"
-            content = """# IPD: Test Untooled Plan ut0003
-
-- Date: 2026-09-27
-- Kind: child
-- Status: reviewed
-- Work-Kind: chore
-- Priority: medium
-- Set: untooled
-- Order: 1
-- Id: ut0003
-
-## Workflow history
-
-- 2026-09-27 reviewed (author): initial.
-
-## Goal
-Test goal.
-"""
+            content = RecordBuilder().plan(
+                title="Test Untooled Plan ut0003",
+                when="2026-09-27",
+                plan_role="child",
+                status="reviewed",
+                work_kind="chore",
+                priority="medium",
+                set="untooled",
+                order=1,
+                id6="ut0003",
+                history=["- 2026-09-27 reviewed (author): initial."],
+                body="## Goal\nTest goal.",
+                text_only=True,
+            )
             plan_path.write_text(content, encoding="utf-8")
             res = support.run_cli(
                 "set",
@@ -3209,10 +3245,12 @@ Test goal.
     def test_untooled_idempotent_rerun_records_exactly_once(self):
         """Case (d): Idempotence guards against duplicate history accumulation (1i300e / vhbvwz)."""
         plan_path = self._create_committed_plan("ut0004", status="to-review")
-        text = plan_path.read_text(encoding="utf-8").replace(
-            "- Status: to-review", "- Status: reviewed"
+        plan_path.write_text(
+            self._render_untooled_plan(
+                "ut0004", status="reviewed", history_status="to-review"
+            ),
+            encoding="utf-8",
         )
-        plan_path.write_text(text, encoding="utf-8")
         support.git(self.repo_root, "add", str(plan_path))
 
         res1 = support.run_cli(
@@ -3234,10 +3272,12 @@ Test goal.
     def test_untooled_terminal_status_hand_edit_relocates_and_clears(self):
         """Case (e): Hand-edit to terminal status relocates to not-executed/ and clears finding."""
         plan_path = self._create_committed_plan("ut0005", status="to-review")
-        text = plan_path.read_text(encoding="utf-8").replace(
-            "- Status: to-review", "- Status: not-executed"
+        plan_path.write_text(
+            self._render_untooled_plan(
+                "ut0005", status="not-executed", history_status="to-review"
+            ),
+            encoding="utf-8",
         )
-        plan_path.write_text(text, encoding="utf-8")
         support.git(self.repo_root, "add", str(plan_path))
 
         drift = check_engine.check_status_untooled(self.repo_root)
@@ -3603,7 +3643,13 @@ class SetterRefusalRetryCommandTests(StatusSetTestBase):
             / "20260930-bk0001-test.md"
         )
         bk_path.write_text(
-            "# Backlog item\n\n- Id: bk0001\n- Status: open\n- Work-Kind: bug\n- Priority: high\n",
+            RecordBuilder().backlog(
+                id6="bk0001",
+                status="open",
+                work_kind="bug",
+                priority="high",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         buf_bk = io.StringIO()
@@ -3681,7 +3727,12 @@ class SetterRefusalRetryCommandTests(StatusSetTestBase):
             / "20260930-sp0010-01-sp0010-test.spec.md"
         )
         spec_path.write_text(
-            "# Spec\n\n- Id: sp0010\n- Status: draft\n\n## Workflow history\n- 2026-09-30 draft: created\n",
+            RecordBuilder().spec(
+                id6="sp0010",
+                status="draft",
+                history=["- 2026-09-30 draft: created"],
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         buf_spec = io.StringIO()
@@ -3731,7 +3782,13 @@ class SetterRefusalRetryCommandTests(StatusSetTestBase):
             / "20260930-bk0010-test.md"
         )
         bk_path.write_text(
-            "# Backlog item\n\n- Id: bk0010\n- Status: open\n- Work-Kind: bug\n- Priority: high\n",
+            RecordBuilder().backlog(
+                id6="bk0010",
+                status="open",
+                work_kind="bug",
+                priority="high",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         buf_bk = io.StringIO()
@@ -4124,8 +4181,10 @@ class TestScopePathCitationRewriteSetter(StatusSetTestBase):
             / "pending"
             / "20261001-test-01-pl0002-rcpt.ipd.md"
         )
-        p1_rcpt_orig = (
-            f"# IPD\n- Id: pl0002\n- Scope-Paths: .aw/records/backlog/open/{bk1.name}\n"
+        p1_rcpt_orig = RecordBuilder().plan(
+            id6="pl0002",
+            scope_paths=f".aw/records/backlog/open/{bk1.name}",
+            text_only=True,
         )
         p1_rcpt.write_text(p1_rcpt_orig)
         rcpt1 = ipd_lifecycle.receipt_path_for(self.repo_root, "pl0002")
@@ -4173,8 +4232,10 @@ class TestScopePathCitationRewriteSetter(StatusSetTestBase):
             / "pending"
             / "20261001-test-01-pl0004-rcpt.ipd.md"
         )
-        p2_rcpt_orig = (
-            f"# IPD\n- Id: pl0004\n- Scope-Paths: .aw/records/backlog/open/{bk2.name}\n"
+        p2_rcpt_orig = RecordBuilder().plan(
+            id6="pl0004",
+            scope_paths=f".aw/records/backlog/open/{bk2.name}",
+            text_only=True,
         )
         p2_rcpt.write_text(p2_rcpt_orig)
         rcpt2 = ipd_lifecycle.receipt_path_for(self.repo_root, "pl0004")
@@ -4222,7 +4283,11 @@ class TestScopePathCitationRewriteSetter(StatusSetTestBase):
             / "pending"
             / "20261001-test-01-pl0006-rcpt.ipd.md"
         )
-        p3_rcpt_orig = f"# IPD\n- Id: pl0006\n- Scope-Paths: .aw/records/specs/approved/{sp3.name}\n"
+        p3_rcpt_orig = RecordBuilder().plan(
+            id6="pl0006",
+            scope_paths=f".aw/records/specs/approved/{sp3.name}",
+            text_only=True,
+        )
         p3_rcpt.write_text(p3_rcpt_orig)
         rcpt3 = ipd_lifecycle.receipt_path_for(self.repo_root, "pl0006")
         rcpt3.write_text('{"schema_version": 2, "plan_id": "pl0006"}')
@@ -4264,55 +4329,53 @@ class TestScopePathCitationRewriteSetter(StatusSetTestBase):
             / "pending"
             / "20261001-bkset-01-tst001-plan.ipd.md"
         )
-        plan_text = (
-            "# IPD: Synthetic Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Kind: child\n"
-            "- Concern: test\n"
-            "- Scope: test\n"
-            f"- Scope-Paths: .aw/records/backlog/open/{bk.name}\n"
-            "- Item-Dependencies: none\n"
-            "- Status: approved\n"
-            "- Work-Kind: chore\n"
-            "- Priority: low\n"
-            "- Author: test\n"
-            "- Highest E allocated: 01\n"
-            "- Set: bkset\n"
-            "- Order: 1\n"
-            "- Id: tst001\n"
-            "- From-Backlog: bk0003\n"
-            "- Approval: 2026-09-30, approved\n"
-            "- Readiness: go-pending-approval\n\n"
-            "## Workflow history\n"
-            "- 2026-09-30 /plan-review (test): APPROVE\n"
-            "- 2026-09-30: approved\n\n"
-            "## Goal\n"
-            "test\n\n"
-            "## Detailed Implementation Checklist (TODO)\n\n"
-            "- [x] E-01 work item\n"
-            "  - Execution state: performed\n\n"
-            "## Project conventions discovered (Step 0)\n"
-            "none\n\n"
-            "## Findings\n"
-            "none\n\n"
-            "## Proposed changes (ordered, validatable)\n"
-            "none\n\n"
-            "## Deferred / out of scope (with reason)\n"
-            "none\n\n"
-            "## Scope check\n"
-            "none\n\n"
-            "## Required tests / validation\n"
-            "none\n\n"
-            "## Spec / documentation sync\n"
-            "none\n\n"
-            "## Open questions\n"
-            "none\n\n"
-            "## Validation and cross-check (verify before reporting done)\n\n"
-            "- [x] V-01 validates E-01\n"
-            "  - Observed evidence: verified evidence in test\n"
-            "  - Result: pass\n\n"
-            "## Approval and execution gate\n"
-            "none\n"
+        plan_text = str(
+            RecordBuilder().plan(
+                title="Synthetic Plan",
+                when="2026-09-30",
+                plan_role="child",
+                scope_paths=f".aw/records/backlog/open/{bk.name}",
+                item_dependencies="none",
+                status="approved",
+                work_kind="chore",
+                priority="low",
+                author="test",
+                set="bkset",
+                order=1,
+                id6="tst001",
+                from_backlog="bk0003",
+                approval="2026-09-30, approved",
+                readiness="go-pending-approval",
+                history=[
+                    "- 2026-09-30 /plan-review (test): APPROVE",
+                    "- 2026-09-30: approved",
+                ],
+                body=(
+                    "## Goal\ntest\n\n"
+                    "## Detailed Implementation Checklist (TODO)\n\n"
+                    "- [x] E-01 work item\n"
+                    "  - Execution state: performed\n\n"
+                    "## Project conventions discovered (Step 0)\nnone\n\n"
+                    "## Findings\nnone\n\n"
+                    "## Proposed changes (ordered, validatable)\nnone\n\n"
+                    "## Deferred / out of scope (with reason)\nnone\n\n"
+                    "## Scope check\nnone\n\n"
+                    "## Required tests / validation\nnone\n\n"
+                    "## Spec / documentation sync\nnone\n\n"
+                    "## Open questions\nnone\n\n"
+                    "## Validation and cross-check (verify before reporting done)\n\n"
+                    "- [x] V-01 validates E-01\n"
+                    "  - Observed evidence: verified evidence in test\n"
+                    "  - Result: pass\n\n"
+                    "## Approval and execution gate\nnone"
+                ),
+                raw_fields={
+                    "Concern": "test",
+                    "Scope": "test",
+                    "Highest E allocated": "01",
+                },
+                text_only=True,
+            )
         )
         plan_file.write_text(plan_text, encoding="utf-8")
 
@@ -4367,7 +4430,11 @@ class TestScopePathCitationRewriteSetter(StatusSetTestBase):
             / "20261001-test-01-pl0008-rcpt.ipd.md"
         )
         p_rcpt.write_text(
-            f"# IPD\n- Id: pl0008\n- Scope-Paths: .aw/records/backlog/open/{bk.name}\n"
+            RecordBuilder().plan(
+                id6="pl0008",
+                scope_paths=f".aw/records/backlog/open/{bk.name}",
+                text_only=True,
+            )
         )
         rcpt = ipd_lifecycle.receipt_path_for(self.repo_root, "pl0008")
         rcpt.parent.mkdir(parents=True, exist_ok=True)
@@ -4439,7 +4506,11 @@ class TestScopePathCitationRewriteSetter(StatusSetTestBase):
             / "20261001-test-01-pl0011-rcpt.ipd.md"
         )
         p_j_rcpt.write_text(
-            f"# IPD\n- Id: pl0011\n- Scope-Paths: .aw/records/backlog/open/{bk_j.name}\n"
+            RecordBuilder().plan(
+                id6="pl0011",
+                scope_paths=f".aw/records/backlog/open/{bk_j.name}",
+                text_only=True,
+            )
         )
         rcpt_j = ipd_lifecycle.receipt_path_for(self.repo_root, "pl0011")
         rcpt_j.parent.mkdir(parents=True, exist_ok=True)
@@ -4529,43 +4600,24 @@ class RefusalMessagePolishAndGateTests(StatusSetTestBase):
             / "20261004-tstset-01-chd001-test.ipd.md"
         )
         c_path.write_text(
-            """# IPD: Child chd001
-- Date: 2026-10-04
-- Kind: child
-- Id: chd001
-- Set: tstset
-- Order: 1
-- Status: draft
-- Priority: medium
-- Work-Kind: chore
-- Author: test
-- Highest E allocated: 01
-- Concern: test concern.
-- Scope: test scope.
-- Scope-Paths: none
-- Item-Dependencies: none
-
-## Workflow history
-- 2026-10-04 draft (test): created.
-
-## Goal
-Goal.
-
-## Detailed Implementation Checklist (TODO)
-- [ ] E-01 item
-  - Depends on: none
-  - Expected outcome: done
-  - Execution state: pending
-
-## Validation and cross-check (verify before reporting the Set complete)
-- [ ] V-01 validates E-01
-  - Required evidence: c.
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-- None.
-""",
+            RecordBuilder().plan(
+                title="Child chd001",
+                when="2026-10-04",
+                plan_role="child",
+                id6="chd001",
+                set="tstset",
+                order=1,
+                status="draft",
+                priority="medium",
+                work_kind="chore",
+                author="test",
+                highest_e_allocated="01",
+                scope_paths="none",
+                item_dependencies="none",
+                history=["- 2026-10-04 draft (test): created."],
+                body="## Goal\nGoal.\n\n## Detailed Implementation Checklist (TODO)\n- [ ] E-01 item\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: pending\n\n## Validation and cross-check (verify before reporting the Set complete)\n- [ ] V-01 validates E-01\n  - Required evidence: c.\n  - Observed evidence:\n  - Result: pending\n\n## Approval and execution gate\n- None.",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -4578,48 +4630,24 @@ Goal.
             / "20261004-tstset-00-orc001-test.ipd.md"
         )
         o_path.write_text(
-            """# IPD: Orch orc001
-- Date: 2026-10-04
-- Kind: orchestrator
-- Id: orc001
-- Set: tstset
-- Order: 0
-- Status: to-review
-- Priority: medium
-- Work-Kind: chore
-- Author: test
-- Highest E allocated: 01
-- Concern: test concern.
-- Scope: test scope.
-- Scope-Paths: none
-- Item-Dependencies: none
-
-## Workflow history
-- 2026-10-04 to-review (test): created.
-
-## Goal
-Goal.
-
-## Detailed Implementation Checklist (TODO)
-- [ ] E-01 CONFIRM chd001 REACHED executed
-  - Depends on: none
-  - Expected outcome: done
-  - Execution state: pending
-
-## Child IPDs, sequence, and dependencies
-| Order | Id | Status | Plan | Depends on |
-|---|---|---|---|---|
-| 01 | chd001 | pending | .aw/records/plans/pending/20261004-tstset-01-chd001-test.ipd.md | none |
-
-## Validation and cross-check (verify before reporting the Set complete)
-- [ ] V-01 validates E-01
-  - Required evidence: c.
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-- None.
-""",
+            RecordBuilder().plan(
+                title="Orch orc001",
+                when="2026-10-04",
+                plan_role="orchestrator",
+                id6="orc001",
+                set="tstset",
+                order=0,
+                status="to-review",
+                priority="medium",
+                work_kind="chore",
+                author="test",
+                highest_e_allocated="01",
+                scope_paths="none",
+                item_dependencies="none",
+                history=["- 2026-10-04 to-review (test): created."],
+                body="## Goal\nGoal.\n\n## Detailed Implementation Checklist (TODO)\n- [ ] E-01 CONFIRM chd001 REACHED executed\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: pending\n\n## Child IPDs, sequence, and dependencies\n| Order | Id | Status | Plan | Depends on |\n|---|---|---|---|---|\n| 01 | chd001 | pending | .aw/records/plans/pending/20261004-tstset-01-chd001-test.ipd.md | none |\n\n## Validation and cross-check (verify before reporting the Set complete)\n- [ ] V-01 validates E-01\n  - Required evidence: c.\n  - Observed evidence:\n  - Result: pending\n\n## Approval and execution gate\n- None.",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
@@ -4756,17 +4784,14 @@ Goal.
         self.assertIn("--allow-terminal-reopen", out_reopen)
 
         # 2. Priority / work-kind backstop
-        plan_prio = self.create_conforming_plan(
+        self.create_conforming_plan(
             "20261004-tstset-02-pr0002-test.ipd.md",
             "pr0002",
             "tstset",
             status="to-review",
+            priority="unresolved",
+            work_kind="unresolved",
         )
-        text_prio = plan_prio.read_text(encoding="utf-8")
-        text_prio = text_prio.replace(
-            "- Priority: medium", "- Priority: unresolved"
-        ).replace("- Work-Kind: chore", "- Work-Kind: unresolved")
-        plan_prio.write_text(text_prio, encoding="utf-8")
 
         buf_prio = io.StringIO()
         with patch("sys.stdout", buf_prio):
