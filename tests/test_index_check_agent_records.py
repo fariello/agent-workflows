@@ -26,6 +26,7 @@ from agent_workflows.result_types import CommandResult, Diagnostic
 # Reuses tests.conformance_matrix.run_cli_inproc (which passes cwd and pins NO_COLOR/COLUMNS)
 # rather than forking a subprocess harness.
 from tests.conformance_matrix import REPO_ROOT, run_cli_inproc as run_cli
+from tests.record_builder import RecordBuilder
 
 
 def _create_fixture_repo(root: Path, *, mode: str = "missing") -> None:
@@ -40,17 +41,18 @@ def _create_fixture_repo(root: Path, *, mode: str = "missing") -> None:
     plans_dir = root / ".aw" / "records" / "plans"
     (plans_dir / "pending").mkdir(parents=True, exist_ok=True)
     (plans_dir / "pending" / "20260701-seta-01-aaaaaa-plan.ipd.md").write_text(
-        "# IPD: Test plan\n\n"
-        "- Date: 2026-07-01\n"
-        "- Kind: child\n"
-        "- Concern: test.\n"
-        "- Scope: test.\n"
-        "- Status: pending\n"
-        "- Author: test\n"
-        "- Id: aaaaaa\n"
-        "- Set: seta\n"
-        "- Order: 01\n\n"
-        "## Goal\n\nTest plan.\n",
+        RecordBuilder().plan(
+            title="Test plan",
+            when="2026-07-01",
+            plan_role="child",
+            author="test",
+            id6="aaaaaa",
+            set="seta",
+            order=1,
+            body="## Goal\n\nTest plan.",
+            raw_fields={"Status": "pending"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -58,24 +60,33 @@ def _create_fixture_repo(root: Path, *, mode: str = "missing") -> None:
     prompts_dir = root / ".aw" / "records" / "prompts"
     (prompts_dir / "pending").mkdir(parents=True, exist_ok=True)
     (prompts_dir / "pending" / "20260701-seta-01-bbbbbb-prompt.prompt.md").write_text(
-        "<!-- aw-prompt: Kind: research | Id: bbbbbb | Set: seta | Order: 01 | Status: pending | Slug: prompt -->\n\n"
-        "Prompt body.\n",
+        RecordBuilder().prompt(
+            id6="bbbbbb",
+            prompt_kind="research",
+            set="seta",
+            order=1,
+            status="pending",
+            when="2026-07-01",
+            body="Prompt body.\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     # 3. Research
     research_dir = root / ".aw" / "records" / "research"
     research_dir.mkdir(parents=True, exist_ok=True)
-    (research_dir / "20260701-seta-01-cccccc-notes.md").write_text(
-        "# Research notes\n\n"
-        "- Id: cccccc\n"
-        "- Created: 2026-07-01\n"
-        "- Set: seta\n"
-        "- Order: 01\n"
-        "- Status: reference\n"
-        "- Kind: notes\n"
-        "- Topics: [test]\n\n"
-        "Research body.\n",
+    (research_dir / "20260701-seta-01-cccccc-notes.research-report.md").write_text(
+        RecordBuilder().research(
+            id6="cccccc",
+            when="2026-07-01",
+            set="seta",
+            order=1,
+            status="active",
+            topic=["test"],
+            body="# Research notes\n\nResearch body.\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 

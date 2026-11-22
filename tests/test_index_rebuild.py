@@ -16,6 +16,7 @@ from unittest.mock import patch
 import pytest
 
 from agent_workflows import artifact_meta, cli, meta_cli
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -44,8 +45,16 @@ def _plan(repo: Path, id6: str, order: int, status: str = "approved") -> Path:
     )
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(
-        f"# IPD: Plan {id6}\n\n- Id: {id6}\n- Status: {status}\n- Set: rbset\n- Order: {order}\n\n"
-        "## Workflow history\n- 2026-11-06 approved (aw set): ok\n\n## Goal\n\nBody.\n",
+        RecordBuilder().plan(
+            title=f"Plan {id6}",
+            id6=id6,
+            status=status,
+            set="rbset",
+            order=order,
+            history=["- 2026-11-06 approved (aw set): ok"],
+            body="## Goal\n\nBody.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return p
@@ -61,12 +70,21 @@ def _repo(tmp_path: Path) -> Path:
     walk = repo / ".aw" / "records" / "walkthroughs"
     walk.mkdir(parents=True)
     (walk / "20261106-rbset-01-rb0001-x.walkthrough.md").write_text(
-        "# Walkthrough\n\n- Id: rbw001\n\nText.\n", encoding="utf-8"
+        RecordBuilder().walkthrough(
+            id6="rbw001",
+            target_id="rb0001",
+            set="rbset",
+            order=1,
+            when="2026-11-06",
+            body="# Walkthrough\n\nText.\n",
+            text_only=True,
+        ),
+        encoding="utf-8",
     )
     rev = repo / ".aw" / "records" / "reviews"
     rev.mkdir(parents=True)
     (rev / "20261106-rbset-01-rb0001-plan-rb0001.review.md").write_text(
-        "# Review\n\n- Subject-Id: rb0001\n- Verdict: APPROVE\n\n## Round 1\n",
+        RecordBuilder().review(subject="rb0001", verdict="APPROVE", text_only=True),
         encoding="utf-8",
     )
     _git(repo, "add", "-A")

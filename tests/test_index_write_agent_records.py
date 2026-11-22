@@ -41,6 +41,7 @@ from unittest import mock
 
 from agent_workflows import agent_schema, plans_index, prompts_index, research_index
 from tests.conformance_matrix import REPO_ROOT, run_cli_inproc as run_cli
+from tests.record_builder import RecordBuilder
 from tests.test_index_check_agent_records import _create_fixture_repo
 from tests.test_research_index import _write
 
@@ -251,16 +252,17 @@ class IndexWriteSubprocessTests(unittest.TestCase):
     def test_drift_plans_missing_id(self):
         index_dir, rel_dir = _setup_fixture_for_verb(self.root, "plans")
         (index_dir / "pending" / "20260701-seta-02-noid-plan.ipd.md").write_text(
-            "# IPD: Plan lacking id\n\n"
-            "- Date: 2026-07-01\n"
-            "- Kind: child\n"
-            "- Concern: test\n"
-            "- Scope: test\n"
-            "- Status: pending\n"
-            "- Author: test\n"
-            "- Set: seta\n"
-            "- Order: 02\n\n"
-            "## Goal\n\nTest\n",
+            RecordBuilder().plan(
+                title="Plan lacking id",
+                when="2026-07-01",
+                plan_role="child",
+                author="test",
+                set="seta",
+                order=2,
+                body="## Goal\n\nTest",
+                raw_fields={"Id": None, "Status": "pending"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         res = run_cli(["index", "plans", "--agent"], cwd=self.root)
@@ -745,9 +747,10 @@ class IndexWriteMissingDirTests(unittest.TestCase):
                     )
                     out_buf = io.StringIO()
                     err_buf = io.StringIO()
-                    with contextlib.redirect_stdout(
-                        out_buf
-                    ), contextlib.redirect_stderr(err_buf):
+                    with (
+                        contextlib.redirect_stdout(out_buf),
+                        contextlib.redirect_stderr(err_buf),
+                    ):
                         rc = mod.run_index(args)
                     self.assertEqual(rc, 2, f"{name} rc != 2: {rc}")
                     self.assertEqual(out_buf.getvalue(), "", f"{name} stdout not empty")

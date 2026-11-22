@@ -18,9 +18,13 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from agent_workflows import agy_runipd, oc_runipd, runner_shared
+from agent_workflows import agy_runipd, artifact_meta, oc_runipd, runner_shared
 from tests import support
-from tests.test_oc_runipd import _CONFORMING_PLAN, _init_repo_with_conforming_plan
+from tests.test_oc_runipd import (
+    _conforming_plan_text,
+    _init_repo_with_conforming_plan,
+)
+from tests.record_builder import RecordBuilder
 
 _HOSTS = (("oc", oc_runipd, "run_opencode"), ("agy", agy_runipd, "run_agy_turn"))
 
@@ -82,14 +86,29 @@ def _fake_agent_retires_in_lane(
         pending = next((wt / ".aw" / "records" / "plans" / "pending").glob("*ret001*"))
         sup = wt / ".aw" / "records" / "plans" / "superseded"
         sup.mkdir(parents=True, exist_ok=True)
-        text = pending.read_text(encoding="utf-8").replace(
-            "- Status: approved", "- Status: superseded"
+        artifact_meta.append(
+            artifact_meta.LegacyTarget(pending, "ipd", id6="ret001"),
+            [
+                {
+                    "op": "transition",
+                    "from": "approved",
+                    "to": "superseded",
+                    "message": "premise spent",
+                },
+                {"op": "unset", "fields": ["approval"]},
+            ],
+            dry_run=False,
+            project_context=artifact_meta.legacy_context(wt),
+            actor={"tool": "test"},
+            legacy_render=artifact_meta.LegacyRender(
+                tag="superseded",
+                day="2026-09-27",
+                actor_label="aw set",
+                history=tooled,
+            ),
+            repo_root=wt,
         )
-        if tooled:
-            text = text.replace(
-                "## Workflow history\n",
-                "## Workflow history\n- 2026-09-27 superseded (aw set): premise spent\n",
-            )
+        text = pending.read_text(encoding="utf-8")
         pending.write_text(
             "RETIRED 2026-09-27: premise spent.\n\n" + text, encoding="utf-8"
         )
@@ -328,28 +347,26 @@ class InLaneRetirementBacklogCloseTests(unittest.TestCase):
         bdir.mkdir(parents=True, exist_ok=True)
         bitem = bdir / "20260928-1200-01-bg0001-test.backlog.md"
         bitem.write_text(
-            f"- Id: bg0001\n- Status: {bstatus}\n- Priority: medium\n- Work-Kind: chore\n",
+            RecordBuilder().backlog(
+                id6="bg0001",
+                status=bstatus,
+                priority="medium",
+                work_kind="chore",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
         pdir = repo / ".aw" / "records" / "plans" / "pending"
         pdir.mkdir(parents=True, exist_ok=True)
-        p1_text = _CONFORMING_PLAN.format(id6="ret001").replace(
-            "- Item-Dependencies: none",
-            "- Item-Dependencies: none\n- From-Backlog: bg0001",
-        )
+        p1_text = _conforming_plan_text(id6="ret001", from_backlog="bg0001")
         plan1 = pdir / "20260828-demo-01-ret001-demo.ipd.md"
         plan1.write_text(p1_text, encoding="utf-8")
 
         edir = repo / ".aw" / "records" / "plans" / "executed"
         edir.mkdir(parents=True, exist_ok=True)
-        p2_text = (
-            _CONFORMING_PLAN.format(id6="ret002")
-            .replace(
-                "- Item-Dependencies: none",
-                "- Item-Dependencies: none\n- From-Backlog: bg0001",
-            )
-            .replace("- Status: approved", "- Status: executed")
+        p2_text = _conforming_plan_text(
+            id6="ret002", from_backlog="bg0001", status="executed"
         )
         plan2 = edir / "20260828-demo-02-ret002-demo.ipd.md"
         plan2.write_text(p2_text, encoding="utf-8")
@@ -372,10 +389,20 @@ class InLaneRetirementBacklogCloseTests(unittest.TestCase):
                 pending = next(
                     (wt / ".aw" / "records" / "plans" / "pending").glob("*ret001*")
                 )
-                text = pending.read_text(encoding="utf-8").replace(
-                    "- From-Backlog: bg0001", "- From-Backlog: -"
+                artifact_meta.append(
+                    artifact_meta.LegacyTarget(pending, "ipd", id6="ret001"),
+                    [{"op": "set", "fields": {"from_backlog": []}}],
+                    dry_run=False,
+                    project_context=artifact_meta.legacy_context(wt),
+                    actor={"tool": "test"},
+                    legacy_render=artifact_meta.LegacyRender(
+                        tag="note",
+                        day="2026-09-27",
+                        actor_label="aw set",
+                        history=False,
+                    ),
+                    repo_root=wt,
                 )
-                pending.write_text(text, encoding="utf-8")
             return base(state, rd, item, *args, **kwargs)
 
         return run
