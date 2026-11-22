@@ -105,6 +105,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-147-k86yq7-pin-the-runner-reads-and-move-the-runner-selection-reads-ont.ipd.md
 - E-04, E-05 (the execution-path move, the own-log finalize scope). Moved to k3hb06 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: k3hb06
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-152-k3hb06-move-the-runner-execution-reads-onto-artifact-meta-and-add-t.ipd.md
 - The five `runner_shared` git-content readers (moved onto `read_at`).
   - Carrier: h58z9n
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-33-h58z9n-move-the-check-engine-hook-and-setter-git-content-readers-on.ipd.md
