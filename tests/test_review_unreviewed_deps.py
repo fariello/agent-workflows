@@ -13,6 +13,7 @@ import subprocess
 from pathlib import Path
 
 from agent_workflows import partition, review_basis, runner_shared
+from tests.record_builder import RecordBuilder
 
 
 def _repo(tmp_path: Path) -> Path:
@@ -23,21 +24,41 @@ def _repo(tmp_path: Path) -> Path:
 
 
 def _plan(
-    repo: Path, id6: str, order: int, status: str, deps: str = "", step: str = "Do it"
+    repo: Path,
+    id6: str,
+    order: int,
+    status: str,
+    deps: str = "",
+    step: str = "Do it",
+    *,
+    subdir: str = "pending",
 ) -> Path:
     p = (
         repo
         / ".aw"
         / "records"
         / "plans"
-        / "pending"
+        / subdir
         / f"20261113-rudset-{order:02d}-{id6}-p.ipd.md"
     )
-    dep_line = f"- Item-Dependencies: {deps}\n" if deps else ""
+    p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(
-        f"# IPD: {id6}\n\n- Kind: child\n- Status: {status}\n- Set: rudset\n- Order: {order}\n"
-        f"- Id: {id6}\n{dep_line}- Scope-Paths: README.md\n\n"
-        f"## Detailed Implementation Checklist (TODO)\n- [ ] E-01 {step}\n- [ ] V-01 Verify it\n",
+        RecordBuilder().plan(
+            title=id6,
+            when="2026-11-13",
+            plan_role="child",
+            status=status,
+            set="rudset",
+            order=order,
+            id6=id6,
+            item_dependencies=deps or "none",
+            scope_paths="README.md",
+            body=(
+                f"## Detailed Implementation Checklist (TODO)\n"
+                f"- [ ] E-01 {step}\n- [ ] V-01 Verify it"
+            ),
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return p
@@ -139,10 +160,7 @@ def test_basis_goes_stale_when_prerequisite_steps_change_and_clears_when_settled
 
     # Re-reviewing the dependent against a now-reviewed prerequisite records no provisional basis,
     # which clears the warning.
-    pre.write_text(
-        pre.read_text().replace("- Status: to-review", "- Status: reviewed"),
-        encoding="utf-8",
-    )
+    _plan(repo, "aaa001", 1, "reviewed", step="Do something else entirely")
     assert review_basis.provisional_targets(repo, item, _state(repo, True)) == []
     review_basis.record_basis(
         repo, "bbb002", [], run_id="run-y", at="2026-11-13T01:00:00Z"
@@ -154,15 +172,12 @@ def test_unchanged_prerequisite_that_gets_reviewed_prunes_the_record(
     tmp_path: Path,
 ) -> None:
     repo = _repo(tmp_path)
-    pre = _plan(repo, "aaa001", 1, "to-review")
+    _plan(repo, "aaa001", 1, "to-review")
     item = {"id6": "bbb002", "action": "review", "dependencies": ["executed:aaa001"]}
     targets = review_basis.provisional_targets(repo, item, _state(repo, True))
     path = review_basis.record_basis(repo, "bbb002", targets, run_id="r", at="t")
     assert path is not None and path.is_file()
-    pre.write_text(
-        pre.read_text().replace("- Status: to-review", "- Status: reviewed"),
-        encoding="utf-8",
-    )
+    _plan(repo, "aaa001", 1, "reviewed")
     assert review_basis.stale_bases(repo) == []
     assert not path.exists()
 
@@ -186,11 +201,24 @@ def test_partition_splits_a_chain_and_emits_the_flag(tmp_path: Path, capsys) -> 
         / "20261113-rudset-00-ord000-o.ipd.md"
     )
     orch.write_text(
-        "# IPD: orchestrator\n\n- Kind: orchestrator\n- Status: to-review\n- Set: rudset\n"
-        "- Order: 0\n- Id: ord000\n- Scope-Paths: README.md\n\n"
-        "## Child IPDs, sequence, and dependencies\n\n| Order | Id | Summary |\n|---|---|---|\n"
-        + "\n".join(rows)
-        + "\n\n## Detailed Implementation Checklist (TODO)\n- [ ] E-01 Run children\n- [ ] V-01 Verify\n",
+        RecordBuilder().plan(
+            title="orchestrator",
+            when="2026-11-13",
+            plan_role="orchestrator",
+            status="to-review",
+            set="rudset",
+            order=0,
+            id6="ord000",
+            scope_paths="README.md",
+            body=(
+                "## Child IPDs, sequence, and dependencies\n\n"
+                "| Order | Id | Summary |\n|---|---|---|\n"
+                + "\n".join(rows)
+                + "\n\n## Detailed Implementation Checklist (TODO)\n"
+                "- [ ] E-01 Run children\n- [ ] V-01 Verify"
+            ),
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -226,11 +254,7 @@ def test_partition_splits_a_chain_and_emits_the_flag(tmp_path: Path, capsys) -> 
         return [ln for ln in out.splitlines() if ln.startswith("aw oc run")]
 
     # Like metastore mid-review: one member already reviewed, awaiting approval.
-    first = next((repo / ".aw" / "records" / "plans" / "pending").glob("*-ch0001-*"))
-    first.write_text(
-        first.read_text().replace("- Status: to-review", "- Status: reviewed"),
-        encoding="utf-8",
-    )
+    _plan(repo, "ch0001", 1, "reviewed")
 
     # Without the flag, an already-reviewed member no longer refuses a review batch; the Set is
     # kept in one shard because its chain must be reviewed in order.
@@ -271,7 +295,7 @@ def test_stale_bases_handles_shared_settled_changed_and_missing_prerequisites(
 ) -> None:
     """Overlapping targets across many consumers: settled prunes cleanly, modified & missing flag all consumers."""
     repo = _repo(tmp_path)
-    p1 = _plan(repo, "pre001", 1, "to-review")
+    _plan(repo, "pre001", 1, "to-review")
     p2 = _plan(repo, "pre002", 2, "to-review")
     p3 = _plan(repo, "pre003", 3, "to-review")
 
@@ -298,12 +322,7 @@ def test_stale_bases_handles_shared_settled_changed_and_missing_prerequisites(
         )
 
     # Settle pre001 unchanged -> con003 (which depends only on pre001) should prune on stale_bases().
-    p1.write_text(
-        p1.read_text(encoding="utf-8").replace(
-            "- Status: to-review", "- Status: reviewed"
-        ),
-        encoding="utf-8",
-    )
+    _plan(repo, "pre001", 1, "reviewed")
     # Modify pre002's step text -> con001 and con002 both go stale on pre002.
     p2.write_text(
         p2.read_text(encoding="utf-8").replace("Do it", "Do something different"),
@@ -357,15 +376,7 @@ def test_stale_bases_skips_and_prunes_terminal_and_missing_consumers(
         )
 
     # Move con003 into executed/ and mark executed; modify prerequisite pre001 so all would be stale.
-    exec_dir = repo / ".aw" / "records" / "plans" / "executed"
-    exec_dir.mkdir(parents=True, exist_ok=True)
-    exec_dest = exec_dir / exec_plan.name
-    exec_dest.write_text(
-        exec_plan.read_text(encoding="utf-8").replace(
-            "- Status: to-review", "- Status: executed"
-        ),
-        encoding="utf-8",
-    )
+    _plan(repo, "con003", 4, "executed", deps="executed:pre001", subdir="executed")
     exec_plan.unlink()
     pre.write_text(
         pre.read_text(encoding="utf-8").replace("Do it", "Changed design"),
@@ -460,9 +471,17 @@ def test_stale_bases_skips_and_prunes_orchestrator_consumers(tmp_path: Path) -> 
         / "20261113-rudset-00-ord000-o.ipd.md"
     )
     orch.write_text(
-        "# IPD: orchestrator\n\n- Kind: orchestrator\n- Status: approved\n- Set: rudset\n"
-        "- Order: 0\n- Id: ord000\n- Scope-Paths: README.md\n\n"
-        "## Detailed Implementation Checklist (TODO)\n- [ ] E-01 Run children\n- [ ] V-01 Verify\n",
+        RecordBuilder().plan(
+            title="orchestrator",
+            plan_role="orchestrator",
+            status="approved",
+            set="rudset",
+            order=0,
+            id6="ord000",
+            scope_paths="README.md",
+            body="## Detailed Implementation Checklist (TODO)\n- [ ] E-01 Run children\n- [ ] V-01 Verify",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     for cid in ("ch0001", "ord000"):

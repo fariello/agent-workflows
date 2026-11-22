@@ -48,32 +48,40 @@ def test_plans_tree_attention_pin(tmp_path: Path) -> None:
 
     valid_rel = ".aw/records/plans/pending/20261010-pinset-01-pln001-valid-plan.ipd.md"
     (repo / valid_rel).write_text(
-        "# IPD: Valid Plan Heading\n\n"
-        "- Date: 2026-10-10\n"
-        "- Kind: child\n"
-        "- Concern: Pin attention plan fields.\n"
-        "- Scope: Plans tree coverage.\n"
-        "- Status: reviewed\n"
-        "- Readiness: go-pending-approval\n"
-        "- Priority: high\n"
-        "- Blocks-Release: next\n"
-        "- Item-Dependencies: executed:dep001\n"
-        "- Set: pinset\n"
-        "- Order: 1\n"
-        "- Id: pln001\n\n"
-        "## Workflow history\n"
-        "- 2026-10-12 reviewed (tester): reviewed plan\n"
-        "- 2026-10-10 draft (tester): created plan\n\n"
-        "## Detailed Implementation Checklist (TODO)\n"
-        "- [x] E-01 done step\n"
-        "- [ ] E-02 todo step\n\n"
-        "## Open questions\n"
-        "### OQ-01: Open question one\n"
-        "- Status: open\n\n"
-        "### RQ-01: Resolved question one\n"
-        "- Status: resolved\n\n"
-        "## Validation and cross-check\n"
-        "- [x] V-01 validates E-01\n",
+        RecordBuilder().plan(
+            title="Valid Plan Heading",
+            when="2026-10-10",
+            plan_role="child",
+            status="reviewed",
+            readiness="go-pending-approval",
+            priority="high",
+            blocks_release="next",
+            item_dependencies="executed:dep001",
+            set="pinset",
+            order=1,
+            id6="pln001",
+            history=[
+                "- 2026-10-12 reviewed (tester): reviewed plan",
+                "- 2026-10-10 draft (tester): created plan",
+            ],
+            body=(
+                "## Detailed Implementation Checklist (TODO)\n"
+                "- [x] E-01 done step\n"
+                "- [ ] E-02 todo step\n\n"
+                "## Open questions\n"
+                "### OQ-01: Open question one\n"
+                "- Status: open\n\n"
+                "### RQ-01: Resolved question one\n"
+                "- Status: resolved\n\n"
+                "## Validation and cross-check\n"
+                "- [x] V-01 validates E-01"
+            ),
+            raw_fields={
+                "Concern": "Pin attention plan fields.",
+                "Scope": "Plans tree coverage.",
+            },
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -111,7 +119,13 @@ def test_plans_tree_attention_pin(tmp_path: Path) -> None:
 
     missing_rel = ".aw/records/plans/pending/20261003-pinset-04-pln004-no-status.ipd.md"
     (repo / missing_rel).write_text(
-        "# IPD: Missing Status Plan\n\n- Set: pinset\n- Id: pln004\n",
+        RecordBuilder().plan(
+            title="Missing Status Plan",
+            set="pinset",
+            id6="pln004",
+            raw_fields={"Status": None},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -183,33 +197,44 @@ def test_specs_tree_attention_pin(tmp_path: Path) -> None:
 
     valid_rel = ".aw/records/specs/20261010-pinset-01-spc001-deferred-spec.spec.md"
     (repo / valid_rel).write_text(
-        "# Spec: Deferred Spec\n\n"
-        "- Id: spc001\n"
-        "- Status: deferred\n"
-        "- Priority: high\n"
-        "- Blocks-Release: next\n"
-        "- Readiness: go\n"
-        "- Gate-Kind: decision\n"
-        "- Gate-Ref: D42\n"
-        "- Gate-Summary: Waiting for architecture signoff\n"
-        "- Summary: Pin spec attention reader fields.\n\n"
-        "## Workflow history\n"
-        "- 2026-10-14 deferred (tester): deferred pending D42\n"
-        "- 2026-10-10 draft (tester): created spec\n\n"
-        "## Open questions\n"
-        "### OQ-01: Unresolved spec question\n"
-        "- Status: open\n\n"
-        "### OQ-02: Resolved spec question\n"
-        "- Status: resolved\n",
+        RecordBuilder().spec(
+            title="Deferred Spec",
+            id6="spc001",
+            status="deferred",
+            priority="high",
+            blocks_release="next",
+            gate_kind="decision",
+            gate_ref="D42",
+            gate_summary="Waiting for architecture signoff",
+            history=[
+                "- 2026-10-14 deferred (tester): deferred pending D42",
+                "- 2026-10-10 draft (tester): created spec",
+            ],
+            body=(
+                "## Open questions\n"
+                "### OQ-01: Unresolved spec question\n"
+                "- Status: open\n\n"
+                "### OQ-02: Resolved spec question\n"
+                "- Status: resolved"
+            ),
+            raw_fields={
+                "Readiness": "go",
+                "Summary": "Pin spec attention reader fields.",
+            },
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     missing_rel = ".aw/records/specs/20261011-pinset-02-spc002-no-status.spec.md"
     (repo / missing_rel).write_text(
-        "# Spec: Missing Status Spec\n\n"
-        "- Id: spc002\n\n"
-        "## Workflow history\n"
-        "- 2026-10-11 draft (tester): created\n",
+        RecordBuilder().spec(
+            title="Missing Status Spec",
+            id6="spc002",
+            history=["- 2026-10-11 draft (tester): created"],
+            raw_fields={"Status": None},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -261,24 +286,29 @@ def test_backlog_tree_attention_pin(tmp_path: Path) -> None:
 
     valid_rel = ".aw/records/backlog/blocked/20261010-pinset-01-bkl001-gated.backlog.md"
     (repo / valid_rel).write_text(
-        "# Backlog: Gated Item\n\n"
-        "- Id: bkl001\n"
-        "- Status: blocked\n"
-        "- Priority: medium\n"
-        "- Blocks-Release: next\n"
-        "- Readiness: go-pending-approval\n"
-        "- Work-Kind: feature\n"
-        "- Gate-Kind: date\n"
-        "- Gate-Ref: 2026-12-01\n"
-        "- Summary: Pin backlog attention reader fields.\n\n"
-        "## Workflow history\n"
-        "- 2026-10-15 blocked (tester): gated on date\n"
-        "- 2026-10-10 open (tester): created\n\n"
-        "## Open questions\n"
-        "### OQ-01: Open backlog question\n"
-        "- Status: open\n\n"
-        "### RQ-01: Answered backlog question\n"
-        "- Status: answered\n",
+        RecordBuilder().backlog(
+            id6="bkl001",
+            status="blocked",
+            priority="medium",
+            blocks_release="next",
+            work_kind="feature",
+            gate_kind="date",
+            gate_ref="2026-12-01",
+            summary="Pin backlog attention reader fields.",
+            history=[
+                "- 2026-10-15 blocked (tester): gated on date",
+                "- 2026-10-10 open (tester): created",
+            ],
+            body=(
+                "## Open questions\n"
+                "### OQ-01: Open backlog question\n"
+                "- Status: open\n\n"
+                "### RQ-01: Answered backlog question\n"
+                "- Status: answered"
+            ),
+            raw_fields={"Readiness": "go-pending-approval"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -286,7 +316,12 @@ def test_backlog_tree_attention_pin(tmp_path: Path) -> None:
         ".aw/records/backlog/open/20261011-pinset-02-bkl002-no-status.backlog.md"
     )
     (repo / missing_rel).write_text(
-        "# Backlog: No Status\n\n- Id: bkl002\n- Priority: low\n",
+        RecordBuilder().backlog(
+            id6="bkl002",
+            priority="low",
+            raw_fields={"Status": None},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -332,29 +367,38 @@ def test_research_tree_attention_pin(tmp_path: Path) -> None:
         ".aw/records/research/20261010-pinset-01-res001-active-study.findings.md"
     )
     (repo / valid_rel).write_text(
-        "---\n"
-        "id: res001\n"
-        "kind: findings\n"
-        "status: active\n"
-        "priority: high\n"
-        "blocks-release: next\n"
-        "summary: Pin research attention reader fields.\n"
-        "---\n\n"
-        "# Research: Active Study\n\n"
-        "## Workflow history\n"
-        "- 2026-10-16 active (tester): resumed study\n"
-        "- 2026-10-10 todo (tester): opened study\n\n"
-        "## Open questions\n"
-        "### OQ-01: Unresolved research question\n"
-        "- Status: open\n\n"
-        "### RQ-01: Resolved research question\n"
-        "- Status: resolved\n",
+        RecordBuilder().research(
+            id6="res001",
+            research_kind="findings",
+            status="active",
+            priority="high",
+            summary="Pin research attention reader fields.",
+            raw_fields={"blocks-release": "next"},
+            body=(
+                "\n# Research: Active Study\n\n"
+                "## Workflow history\n"
+                "- 2026-10-16 active (tester): resumed study\n"
+                "- 2026-10-10 todo (tester): opened study\n\n"
+                "## Open questions\n"
+                "### OQ-01: Unresolved research question\n"
+                "- Status: open\n\n"
+                "### RQ-01: Resolved research question\n"
+                "- Status: resolved\n"
+            ),
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     missing_rel = ".aw/records/research/20261011-pinset-02-res002-no-status.findings.md"
     (repo / missing_rel).write_text(
-        "---\nid: res002\nkind: findings\n---\n\n# Research: Missing Status\n",
+        RecordBuilder().research(
+            id6="res002",
+            research_kind="findings",
+            raw_fields={"status": None},
+            body="\n# Research: Missing Status\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -402,24 +446,37 @@ def test_releases_tree_attention_pin(tmp_path: Path) -> None:
 
     valid_rel = ".aw/records/releases/20261010-pinset-01-rel001-v1-0-0.release.md"
     (repo / valid_rel).write_text(
-        "# Release: v1.0.0\n\n"
-        "- Id: rel001\n"
-        "- Status: planned\n"
-        "- Summary: Pin release attention reader fields.\n\n"
-        "## Workflow history\n"
-        "- 2026-10-17 planned (tester): scheduled release\n"
-        "- 2026-10-10 planned (tester): drafted release\n\n"
-        "## Open questions\n"
-        "### OQ-01: Open release question\n"
-        "- Status: open\n\n"
-        "### RQ-01: Closed release question\n"
-        "- Status: closed\n",
+        RecordBuilder().release(
+            id6="rel001",
+            version="v1.0.0",
+            status="planned",
+            summary="Pin release attention reader fields.",
+            history=[
+                "- 2026-10-17 planned (tester): scheduled release",
+                "- 2026-10-10 planned (tester): drafted release",
+            ],
+            body=(
+                "# Release: v1.0.0\n\n"
+                "## Open questions\n"
+                "### OQ-01: Open release question\n"
+                "- Status: open\n\n"
+                "### RQ-01: Closed release question\n"
+                "- Status: closed\n"
+            ),
+            raw_fields={"Summary": "Pin release attention reader fields."},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     missing_rel = ".aw/records/releases/20261011-pinset-02-rel002-no-status.release.md"
     (repo / missing_rel).write_text(
-        "# Release: Missing Status\n\n- Id: rel002\n",
+        RecordBuilder().release(
+            id6="rel002",
+            version="Missing Status",
+            raw_fields={"Status": None},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -466,23 +523,38 @@ def test_prompts_tree_attention_pin(tmp_path: Path) -> None:
 
     valid_rel = ".aw/records/prompts/pending/20261010-pinset-01-prm001-sample.prompt.md"
     (repo / valid_rel).write_text(
-        "<!-- aw-prompt: Kind: research | Id: prm001 | Set: pinset | Order: 01 | Status: pending | Slug: sample -->\n\n"
-        "# Prompt: Pin prompt attention reader fields.\n\n"
-        "## Workflow history\n"
-        "- 2026-10-18 pending (tester): staged prompt\n"
-        "- 2026-10-10 pending (tester): created prompt\n\n"
-        "## Open questions\n"
-        "### OQ-01: Open prompt question\n"
-        "- Status: open\n\n"
-        "### RQ-01: Resolved prompt question\n"
-        "- Status: resolved\n",
+        RecordBuilder().prompt(
+            prompt_kind="research",
+            id6="prm001",
+            set="pinset",
+            status="pending",
+            raw_fields={"Short-Description": None},
+            body=(
+                "# Prompt: Pin prompt attention reader fields.\n\n"
+                "## Workflow history\n"
+                "- 2026-10-18 pending (tester): staged prompt\n"
+                "- 2026-10-10 pending (tester): created prompt\n\n"
+                "## Open questions\n"
+                "### OQ-01: Open prompt question\n"
+                "- Status: open\n\n"
+                "### RQ-01: Resolved prompt question\n"
+                "- Status: resolved\n"
+            ),
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
     missing_rel = ".aw/records/prompts/20261011-pinset-02-prm002-unbucketed.prompt.md"
     (repo / missing_rel).write_text(
-        "<!-- aw-prompt: Kind: research | Id: prm002 | Set: pinset | Order: 02 | Status: pending | Slug: unbucketed -->\n\n"
-        "# Prompt: Unbucketed\n",
+        RecordBuilder().prompt(
+            prompt_kind="research",
+            id6="prm002",
+            set="pinset",
+            status="pending",
+            body="# Prompt: Unbucketed\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -490,8 +562,15 @@ def test_prompts_tree_attention_pin(tmp_path: Path) -> None:
         ".aw/records/prompts/weird/20261012-pinset-03-prm003-bad-bucket.prompt.md"
     )
     (repo / unknown_rel).write_text(
-        "<!-- aw-prompt: Kind: research | Id: prm003 | Set: pinset | Order: 03 | Status: weird | Slug: bad-bucket -->\n\n"
-        "# Prompt: Unknown Bucket\n",
+        RecordBuilder().prompt(
+            prompt_kind="research",
+            id6="prm003",
+            set="pinset",
+            status="pending",
+            raw_fields={"Status": "weird"},
+            body="# Prompt: Unknown Bucket\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -538,7 +617,13 @@ def test_check_agent_exit_code_with_one_violation(tmp_path: Path) -> None:
     )
     bad_rel = ".aw/records/plans/pending/20261011-pinset-02-chk002-bad.ipd.md"
     (repo / bad_rel).write_text(
-        "# IPD: Broken Plan\n\n- Set: pinset\n- Id: chk002\n",
+        RecordBuilder().plan(
+            title="Broken Plan",
+            set="pinset",
+            id6="chk002",
+            raw_fields={"Status": None},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -640,12 +725,15 @@ def test_short_description_wins_over_extract_detail_fallback(tmp_path: Path) -> 
 
     no_sd_rel = ".aw/records/plans/pending/20261011-pinset-02-sd0002-no-sd.ipd.md"
     (repo / no_sd_rel).write_text(
-        "# IPD: Without Short Description\n\n"
-        "- Date: 2026-10-11\n"
-        "- Status: draft\n"
-        "- Scope: Fallback scope paragraph.\n"
-        "- Set: pinset\n"
-        "- Id: sd0002\n",
+        RecordBuilder().plan(
+            title="Without Short Description",
+            when="2026-10-11",
+            status="draft",
+            set="pinset",
+            id6="sd0002",
+            raw_fields={"Scope": "Fallback scope paragraph."},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -1130,14 +1218,17 @@ def test_legacy_spec_with_history_still_uses_validate_spec(tmp_path: Path) -> No
 
     dup_rel = ".aw/records/specs/20261012-leg001-01-leg001-dup-bullet.spec.md"
     (repo / dup_rel).write_text(
-        "# Spec: Legacy Duplicate Bullet\n\n"
-        "- Id: leg001\n"
-        "- Status: approved\n"
-        "- Priority: high\n"
-        "- Priority: low\n\n"
-        "## Workflow history\n"
-        "- 2026-10-12 approved (human): approved\n"
-        "- 2026-10-10 draft (tester): created\n",
+        RecordBuilder().spec(
+            title="Legacy Duplicate Bullet",
+            id6="leg001",
+            status="approved",
+            history=[
+                "- 2026-10-12 approved (human): approved",
+                "- 2026-10-10 draft (tester): created",
+            ],
+            raw_fields={"Priority": "high\n- Priority: low"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 

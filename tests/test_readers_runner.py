@@ -18,6 +18,7 @@ from agent_workflows import (
     ipd_schema,
     oc_runipd,
     plan_readiness,
+    plans,
     runner_shared,
 )
 from tests.record_builder import RecordBuilder
@@ -38,104 +39,68 @@ def _valid_ipd_text(
     readiness: str | None = None,
     attended: str | None = None,
     history_lines: tuple[str, ...] = ("- 2026-11-01 to-review (tester): created.",),
-    bullet_prefix: str = "- ",
 ) -> str:
     set_val = f"{setid} ({set_desc})" if set_desc else setid
-    lines = [
-        f"# IPD: Plan {id6}",
-        "",
-        f"{bullet_prefix}Date: 2026-11-01",
-        f"{bullet_prefix}Kind: {kind}",
-        f"{bullet_prefix}Concern: Pin runner metadata reads.",
-        f"{bullet_prefix}Scope: Pin runner metadata reads.",
-        f"{bullet_prefix}Scope-Paths: agent_workflows/runner_shared.py",
-        f"{bullet_prefix}Item-Dependencies: {deps}",
-        f"{bullet_prefix}Status: {status}",
-    ]
-    if readiness is not None:
-        lines.append(f"{bullet_prefix}Readiness: {readiness}")
+    valid_status = status if status in plans.RECOGNIZED else "executed"
+    raw_fields: dict[str, object] = {
+        "Concern": "Pin runner metadata reads.",
+        "Scope": "Pin runner metadata reads.",
+    }
+    if valid_status != status:
+        raw_fields["Status"] = status
     if attended is not None:
-        lines.append(f"{bullet_prefix}Attended: {attended}")
-    lines.extend(
-        [
-            f"{bullet_prefix}Work-Kind: chore",
-            f"{bullet_prefix}Priority: medium",
-            f"{bullet_prefix}Set: {set_val}",
-            f"{bullet_prefix}Order: {order:02d}",
-            f"{bullet_prefix}Highest E allocated: 01",
-            f"{bullet_prefix}Author: tester",
-            f"{bullet_prefix}Id: {id6}",
-        ]
-    )
+        raw_fields["Attended"] = attended
+    extra: dict[str, object] = {}
     if from_backlog is not None:
-        lines.append(f"{bullet_prefix}From-Backlog: {from_backlog}")
-    lines.extend(
-        [
-            "",
-            "## Workflow history",
-            *history_lines,
-            "",
-            "## Goal",
-            "",
-            "Pin runner behavior.",
-            "",
-            "## Detailed Implementation Checklist (TODO)",
-            "",
-            "### Task group 1: pin",
-            "",
-            "- [ ] E-01 Pin the reader.",
-            "  - Depends on: none",
-            "  - Expected outcome: pinned.",
-            "  - Execution state: pending",
-            "",
-            "## Project conventions discovered (Step 0)",
-            "",
-            "- None.",
-            "",
-            "## Findings",
-            "",
-            "- None.",
-            "",
-            "## Proposed changes (ordered, validatable)",
-            "",
-            "1. Pin.",
-            "",
-            "## Deferred / out of scope (with reason)",
-            "",
-            "- None.",
-            "",
-            "## Scope check",
-            "",
-            "- Over-scope: none.",
-            "- Under-scope: none.",
-            "",
-            "## Required tests / validation",
-            "",
-            "- `python3 -m pytest`",
-            "",
-            "## Spec / documentation sync",
-            "",
-            "- None.",
-            "",
-            "## Open questions",
-            "",
-            "- None.",
-            "",
-            "## Validation and cross-check (verify before reporting done)",
-            "",
-            "- [ ] V-01 validates E-01",
-            "  - Required evidence: paste test output.",
-            "  - Observed evidence:",
-            "  - Result: pending",
-            "",
-            "## Approval and execution gate",
-            "",
-            "- Size assessment: small",
-            "- Cohesion rationale: not required",
-            "",
-        ]
+        extra["from_backlog"] = from_backlog
+    body = (
+        "## Goal\n\nPin runner behavior.\n\n"
+        "## Detailed Implementation Checklist (TODO)\n\n"
+        "### Task group 1: pin\n\n"
+        "- [ ] E-01 Pin the reader.\n"
+        "  - Depends on: none\n"
+        "  - Expected outcome: pinned.\n"
+        "  - Execution state: pending\n\n"
+        "## Project conventions discovered (Step 0)\n\n- None.\n\n"
+        "## Findings\n\n- None.\n\n"
+        "## Proposed changes (ordered, validatable)\n\n1. Pin.\n\n"
+        "## Deferred / out of scope (with reason)\n\n- None.\n\n"
+        "## Scope check\n\n- Over-scope: none.\n- Under-scope: none.\n\n"
+        "## Required tests / validation\n\n- `python3 -m pytest`\n\n"
+        "## Spec / documentation sync\n\n- None.\n\n"
+        "## Open questions\n\n- None.\n\n"
+        "## Validation and cross-check (verify before reporting done)\n\n"
+        "- [ ] V-01 validates E-01\n"
+        "  - Required evidence: paste test output.\n"
+        "  - Observed evidence:\n"
+        "  - Result: pending\n\n"
+        "## Approval and execution gate\n\n"
+        "- Size assessment: small\n"
+        "- Cohesion rationale: not required"
     )
-    return "\n".join(lines)
+    return str(
+        RecordBuilder().plan(
+            title=f"Plan {id6}",
+            when="2026-11-01",
+            plan_role=kind,
+            scope_paths="agent_workflows/runner_shared.py",
+            item_dependencies=deps,
+            status=valid_status,
+            readiness=readiness,
+            work_kind="chore",
+            priority="medium",
+            set=set_val,
+            order=order,
+            highest_e_allocated="01",
+            author="tester",
+            id6=id6,
+            history=list(history_lines),
+            body=body,
+            raw_fields=raw_fields,
+            text_only=True,
+            **extra,
+        )
+    )
 
 
 def _valid_spec_text(
@@ -163,15 +128,18 @@ def _valid_backlog_text(
     priority: str = "medium",
 ) -> str:
     sid = setid or id6
-    return (
-        f"- Id: {id6}\n"
-        f"- Status: {status}\n"
-        f"- Set: {sid}\n"
-        f"- Priority: {priority}\n"
-        f"- Work-Kind: {work_kind}\n"
-        f"- Summary: Sample backlog {id6}\n\n"
-        "## Workflow history\n"
-        f"- 2026-11-01 {status} (tester): created.\n"
+    return str(
+        RecordBuilder().backlog(
+            id6=id6,
+            status=status,
+            set=sid,
+            priority=priority,
+            work_kind=work_kind,
+            summary=f"Sample backlog {id6}",
+            when="2026-11-01",
+            history=[f"- 2026-11-01 {status} (tester): created."],
+            text_only=True,
+        )
     )
 
 
@@ -401,7 +369,13 @@ def test_discover_specs_returns_spec_records_and_skips_idless(tmp_path: Path) ->
         encoding="utf-8",
     )
     (specs_root / "approved" / "20260801-1200-01-legacy-idless.spec.md").write_text(
-        "# Spec: Legacy\n\n- Status: approved\n",
+        RecordBuilder().spec(
+            title="Legacy",
+            status="approved",
+            when="2026-08-01",
+            raw_fields={"Id": None},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 

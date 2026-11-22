@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_workflows import check_engine, cli
+from agent_workflows import check_engine, cli, plans
 from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
@@ -93,26 +93,21 @@ def _write_backlog(
     close_evidence: str | None = None,
     gate_kind: str | None = None,
     gate_ref: str | None = None,
+    graduated_to: str | None = None,
     history_lines: tuple[str, ...] = ("- 2026-10-01 created (test): created",),
 ) -> Path:
     st = status or bucket
-    lines = [
-        f"- Id: {id6}",
-        f"- Status: {st}",
-        "- Set: tstset",
-        f"- Priority: {priority}",
-        f"- Work-Kind: {work_kind}",
-        f"- Summary: Test item {id6}",
-    ]
+    extra: dict[str, object] = {}
     if blocks_release is not None:
-        lines.append(f"- Blocks-Release: {blocks_release}")
+        extra["blocks_release"] = blocks_release
     if close_evidence is not None:
-        lines.append(f"- Close-Evidence: {close_evidence}")
+        extra["close_evidence"] = close_evidence
     if gate_kind is not None:
-        lines.append(f"- Gate-Kind: {gate_kind}")
+        extra["gate_kind"] = gate_kind
     if gate_ref is not None:
-        lines.append(f"- Gate-Ref: {gate_ref}")
-    lines.extend(["", "## Workflow history", *history_lines, ""])
+        extra["gate_ref"] = gate_ref
+    if graduated_to is not None:
+        extra["graduated_to"] = graduated_to
     p = (
         repo
         / ".aw"
@@ -121,7 +116,21 @@ def _write_backlog(
         / bucket
         / f"20261001-tstset-01-{id6}-item.backlog.md"
     )
-    p.write_text("\n".join(lines), encoding="utf-8")
+    p.write_text(
+        RecordBuilder().backlog(
+            id6=id6,
+            summary=f"Test item {id6}",
+            when="2026-10-01",
+            status=st,
+            set="tstset",
+            priority=priority,
+            work_kind=work_kind,
+            history=list(history_lines),
+            text_only=True,
+            **extra,
+        ),
+        encoding="utf-8",
+    )
     return p
 
 
@@ -135,19 +144,11 @@ def _write_plan(
     blocks_release: str | None = None,
 ) -> Path:
     st = status or ("executed" if bucket == "executed" else "approved")
-    lines = [
-        f"# IPD: Plan {id6}",
-        "",
-        f"- Id: {id6}",
-        f"- Status: {st}",
-        "- Set: tstset",
-        "- Order: 01",
-    ]
+    extra: dict[str, object] = {}
     if from_backlog is not None:
-        lines.append(f"- From-Backlog: {from_backlog}")
+        extra["from_backlog"] = from_backlog
     if blocks_release is not None:
-        lines.append(f"- Blocks-Release: {blocks_release}")
-    lines.extend(["", "## Goal", "", "Test goal.", ""])
+        extra["blocks_release"] = blocks_release
     p = (
         repo
         / ".aw"
@@ -156,7 +157,20 @@ def _write_plan(
         / bucket
         / f"20261001-tstset-01-{id6}-plan.ipd.md"
     )
-    p.write_text("\n".join(lines), encoding="utf-8")
+    p.write_text(
+        RecordBuilder().plan(
+            title=f"Plan {id6}",
+            when="2026-10-01",
+            id6=id6,
+            status=st,
+            set="tstset",
+            order=1,
+            body="## Goal\n\nTest goal.",
+            text_only=True,
+            **extra,
+        ),
+        encoding="utf-8",
+    )
     return p
 
 
@@ -170,24 +184,18 @@ def _write_spec(
     blocks_release: str | None = None,
     gate_kind: str | None = None,
     gate_ref: str | None = None,
+    history_lines: tuple[str, ...] | None = None,
 ) -> Path:
     st = status or bucket
-    lines = [
-        f"# Spec: {id6}",
-        "",
-        f"- Id: {id6}",
-        f"- Status: {st}",
-        f"- Set: {id6}",
-    ]
+    extra: dict[str, object] = {}
     if from_backlog is not None:
-        lines.append(f"- From-Backlog: {from_backlog}")
+        extra["from_backlog"] = from_backlog
     if blocks_release is not None:
-        lines.append(f"- Blocks-Release: {blocks_release}")
+        extra["blocks_release"] = blocks_release
     if gate_kind is not None:
-        lines.append(f"- Gate-Kind: {gate_kind}")
+        extra["gate_kind"] = gate_kind
     if gate_ref is not None:
-        lines.append(f"- Gate-Ref: {gate_ref}")
-    lines.extend(["", "## Goal", "", "Spec goal.", ""])
+        extra["gate_ref"] = gate_ref
     p = (
         repo
         / ".aw"
@@ -196,7 +204,20 @@ def _write_spec(
         / bucket
         / f"20261001-{id6}-01-{id6}-spec.spec.md"
     )
-    p.write_text("\n".join(lines), encoding="utf-8")
+    p.write_text(
+        RecordBuilder().spec(
+            title=id6,
+            when="2026-10-01",
+            id6=id6,
+            status=st,
+            set=id6,
+            history=list(history_lines) if history_lines is not None else [],
+            body="## Goal\n\nSpec goal.",
+            text_only=True,
+            **extra,
+        ),
+        encoding="utf-8",
+    )
     return p
 
 
@@ -227,13 +248,14 @@ class TestCheckEngineReleaseGateReadersOrder31:
         assert refused.legitimate is False
         assert refused.severity == "error"
 
-        exec_p = repo / ".aw" / "records" / "plans" / "executed" / plan_p.name
-        plan_p.rename(exec_p)
-        exec_p.write_text(
-            exec_p.read_text(encoding="utf-8").replace(
-                "- Status: approved", "- Status: executed"
-            ),
-            encoding="utf-8",
+        plan_p.unlink()
+        _write_plan(
+            repo,
+            "executed",
+            "pln001",
+            status="executed",
+            from_backlog="bkl001",
+            blocks_release="next",
         )
 
         allowed = check_engine.evaluate_blocking_close(repo, item_p, "done")
@@ -282,8 +304,18 @@ class TestCheckEngineReleaseGateReadersOrder31:
         v_blocked = check_engine.evaluate_blocking_close(repo, item_p, "done")
         assert v_blocked.legitimate is False
 
-        degated_text = item_p.read_text(encoding="utf-8").replace(
-            "- Blocks-Release: next\n", ""
+        degated_text = str(
+            RecordBuilder().backlog(
+                id6="bkl003",
+                summary="Test item bkl003",
+                when="2026-10-01",
+                status="open",
+                set="tstset",
+                priority="high",
+                work_kind="bug",
+                history=["- 2026-10-01 created (test): created"],
+                text_only=True,
+            )
         )
         v_degated = check_engine.evaluate_blocking_close(
             repo, item_p, "done", item_text=degated_text
@@ -592,60 +624,69 @@ def _o30_write_full_plan(
     priority: str | None = "medium",
     work_kind: str | None = "feature",
     include_id: bool = True,
-    extra_meta: tuple[str, ...] = (),
+    from_backlog: str | None = None,
+    from_spec: str | None = None,
+    blocks_release: str | None = None,
+    readiness: str | None = None,
+    concern: str | None = None,
+    scope: str | None = None,
+    history_lines: tuple[str, ...] | None = None,
+    extra_raw: dict[str, object] | None = None,
     body: str | None = None,
 ) -> Path:
-    lines = [
-        f"# IPD: Plan {id6}",
-        "",
-        f"- Date: {date}",
-        f"- Kind: {kind}",
-        f"- Scope-Paths: {scope_paths}",
-    ]
-    if item_deps is not None:
-        lines.append(f"- Item-Dependencies: {item_deps}")
-    lines.append(f"- Status: {status}")
-    if priority is not None:
-        lines.append(f"- Priority: {priority}")
-    if work_kind is not None:
-        lines.append(f"- Work-Kind: {work_kind}")
-    lines.extend([f"- Set: {setid}", f"- Order: {order}"])
-    if include_id:
-        lines.append(f"- Id: {id6}")
-    lines.extend(extra_meta)
-    if body is None:
-        lines.extend(
-            [
-                "",
-                "## Workflow history",
-                f"- {date} {status} (test): created.",
-                "",
-                "## Goal",
-                "",
-                "Test goal.",
-                "",
-                "## Detailed Implementation Checklist (TODO)",
-                "",
-                "- [ ] E-01 Execute step.",
-                "  - Depends on: none",
-                "  - Expected outcome: works",
-                "  - Execution state: pending",
-                "",
-                "## Scope check",
-                "",
-                "- Over-scope: none.",
-                "",
-                "## Validation and cross-check (verify before reporting done)",
-                "",
-                "- [ ] V-01 validates E-01",
-                "  - Required evidence: pytest passes",
-                "  - Observed evidence:",
-                "  - Result: pending",
-                "",
-            ]
+    raw: dict[str, object] = {
+        "Concern": concern if concern is not None else "Test concern.",
+        "Scope": scope if scope is not None else "Test scope.",
+    }
+    valid_status = status if status in plans.RECOGNIZED else "draft"
+    if valid_status != status:
+        raw["Status"] = status
+    if item_deps is None:
+        raw["Item-Dependencies"] = None
+    if priority is None:
+        raw["Priority"] = None
+    elif priority not in ("low", "medium", "high"):
+        raw["Priority"] = priority
+    if work_kind is None:
+        raw["Work-Kind"] = None
+    elif work_kind not in ("bug", "feature", "chore", "security", "followup"):
+        raw["Work-Kind"] = work_kind
+    if not include_id:
+        raw["Id"] = None
+    if extra_raw:
+        raw.update(extra_raw)
+
+    extra: dict[str, object] = {}
+    if from_backlog is not None:
+        extra["from_backlog"] = from_backlog
+    if from_spec is not None:
+        extra["from_spec"] = from_spec
+    if blocks_release is not None:
+        extra["blocks_release"] = blocks_release
+
+    eff_body = (
+        body
+        if body is not None
+        else (
+            "## Goal\n\nTest goal.\n\n"
+            "## Detailed Implementation Checklist (TODO)\n\n"
+            "- [ ] E-01 Execute step.\n"
+            "  - Depends on: none\n"
+            "  - Expected outcome: works\n"
+            "  - Execution state: pending\n\n"
+            "## Scope check\n\n- Over-scope: none.\n\n"
+            "## Validation and cross-check (verify before reporting done)\n\n"
+            "- [ ] V-01 validates E-01\n"
+            "  - Required evidence: pytest passes\n"
+            "  - Observed evidence:\n"
+            "  - Result: pending"
         )
-    else:
-        lines.extend(["", body, ""])
+    )
+    eff_history = (
+        list(history_lines)
+        if history_lines is not None
+        else [f"- {date} {status} (test): created."]
+    )
     p = (
         repo
         / ".aw"
@@ -655,7 +696,32 @@ def _o30_write_full_plan(
         / f"{date.replace('-', '')}-{setid}-{order:02d}-{id6}-plan.ipd.md"
     )
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text("\n".join(lines), encoding="utf-8")
+    p.write_text(
+        RecordBuilder().plan(
+            title=f"Plan {id6}",
+            when=date,
+            plan_role=kind,
+            scope_paths=scope_paths,
+            item_dependencies=item_deps if item_deps is not None else "none",
+            status=valid_status,
+            priority=priority if priority in ("low", "medium", "high") else "medium",
+            work_kind=(
+                work_kind
+                if work_kind in ("bug", "feature", "chore", "security", "followup")
+                else "feature"
+            ),
+            set=setid,
+            order=order,
+            id6=id6,
+            readiness=readiness,
+            history=eff_history,
+            body=eff_body,
+            raw_fields=raw,
+            text_only=True,
+            **extra,
+        ),
+        encoding="utf-8",
+    )
     return p
 
 
@@ -670,34 +736,50 @@ def _o30_write_review(
     verdict: str = "APPROVE",
 ) -> Path:
     fid = filename_id or subject_id
-    lines = [
-        f"# Review: {subject_id}",
-        "",
-        f"- Subject-Id: {subject_id}",
-        f"- Subject-Type: {subject_type}",
-        f"- Verdict: {verdict}",
-        "- Reviewer: test-reviewer",
-        "- Reviewed-At: 2026-10-01",
-        "",
-        "## Round 1",
-        "",
-        "### Findings",
-        "",
-        "| ID | Severity | Scope | Area | Evidence | Finding | Remediation risk | Decision | Resolution |",
-        "|---|---|---|---|---|---|---|---|---|",
-        *findings_rows,
-        "",
-        "### Decisions",
-        "",
-        "| ID | Question | Chosen | Alternatives considered | Basis | Reversible |",
-        "|---|---|---|---|---|---|",
-        *decisions_rows,
-        "",
-    ]
+    findings: list[dict[str, str]] = []
+    for row in findings_rows:
+        cells = [c.strip() for c in row.strip().strip("|").split("|")]
+        findings.append(
+            {
+                "id": cells[0],
+                "severity": cells[1],
+                "scope": cells[2],
+                "area": cells[3],
+                "evidence": cells[4],
+                "finding": cells[5],
+                "remediation_risk": cells[6],
+                "decision": cells[7],
+                "resolution": cells[8],
+            }
+        )
+    decisions: list[dict[str, str]] = []
+    for row in decisions_rows:
+        cells = [c.strip() for c in row.strip().strip("|").split("|")]
+        decisions.append(
+            {
+                "id": cells[0],
+                "question": cells[1],
+                "chosen": cells[2],
+                "alternatives": cells[3],
+                "basis": cells[4],
+                "reversible": cells[5],
+            }
+        )
     rdir = repo / ".aw" / "records" / "reviews"
     rdir.mkdir(parents=True, exist_ok=True)
     p = rdir / f"20261001-tstset-01-{fid}-review.review.md"
-    p.write_text("\n".join(lines), encoding="utf-8")
+    p.write_text(
+        RecordBuilder().review(
+            subject_id,
+            subject_type=subject_type,
+            reviewed_at="2026-10-01",
+            reviewer="test-reviewer",
+            verdict=verdict,
+            rounds=[{"number": 1, "findings": findings, "decisions": decisions}],
+            text_only=True,
+        ),
+        encoding="utf-8",
+    )
     return p
 
 
@@ -806,7 +888,7 @@ class TestCheckEngineReadersOrder30:
             "pending",
             "drf002",
             status="draft",
-            extra_meta=("- Concern: TODO.",),
+            concern="TODO.",
         )
         _o30_write_full_plan(repo, "pending", "drf003", status="to-review")
         _o30_write_full_plan(repo, "executed", "drf004", status="draft")
@@ -833,11 +915,12 @@ class TestCheckEngineReadersOrder30:
         _o30_git(repo, "commit", "-m", "plan-review: initial review")
 
         # Edit Scope-Paths after the plan-review commit so review is stale
-        plan_p.write_text(
-            plan_p.read_text(encoding="utf-8").replace(
-                "- Scope-Paths: src/a.py", "- Scope-Paths: src/a.py, src/b.py"
-            ),
-            encoding="utf-8",
+        _o30_write_full_plan(
+            repo,
+            "pending",
+            "stl001",
+            status="reviewed",
+            scope_paths="src/a.py, src/b.py",
         )
 
         rc, out, _ = _run_cli(repo, "check", "plans", "--agent")
@@ -932,7 +1015,7 @@ class TestCheckEngineReadersOrder30:
             status="approved",
             priority=None,
             work_kind=None,
-            extra_meta=("- Readiness: go-pending-approval",),
+            readiness="go-pending-approval",
         )
         _o30_write_full_plan(
             repo,
@@ -942,7 +1025,7 @@ class TestCheckEngineReadersOrder30:
             status="approved",
             priority="medium",
             work_kind="chore",
-            extra_meta=("- Readiness: go-pending-approval",),
+            readiness="go-pending-approval",
         )
 
         rc, out, _ = _run_cli(repo, "check", "plans", "--agent")
@@ -1004,10 +1087,10 @@ class TestCheckEngineReadersOrder30:
             "pending",
             "rfg002",
             order=2,
+            history_lines=("- 2026-10-01 draft (test): created.",),
             body=(
-                "## Workflow history\n- 2026-10-01 draft (test): created.\n\n"
                 "## Open questions\n\n### OQ-01: escalate?\n\n"
-                "- Blocking: yes\n- Status: open\n- Owner: maintainer\n- Finding: F-002\n"
+                "- Blocking: yes\n- Status: open\n- Owner: maintainer\n- Finding: F-002"
             ),
         )
         _o30_write_review(
@@ -1048,10 +1131,10 @@ class TestCheckEngineReadersOrder30:
             "pending",
             "rdc002",
             order=2,
+            history_lines=("- 2026-10-01 draft (test): created.",),
             body=(
-                "## Workflow history\n- 2026-10-01 draft (test): created.\n\n"
                 "## Open questions\n\n### OQ-01: escalate?\n\n"
-                "- Blocking: yes\n- Status: open\n- Owner: maintainer\n"
+                "- Blocking: yes\n- Status: open\n- Owner: maintainer"
             ),
         )
         _o30_write_review(
@@ -1185,14 +1268,13 @@ class TestCheckEngineReadersOrder30:
             order=0,
             kind="orchestrator",
             status="to-review",
+            history_lines=("- 2026-10-01 to-review (test): ready.",),
             body=(
-                "## Workflow history\n"
-                "- 2026-10-01 to-review (test): ready.\n\n"
                 "## Child IPDs\n\n"
                 "| Order | Id | Slug | Scope |\n"
                 "|---|---|---|---|\n"
                 "| 01 | cld001 | child-one | part 1 |\n"
-                "| 02 | TBA | child-two | part 2 |\n"
+                "| 02 | TBA | child-two | part 2 |"
             ),
         )
         _o30_write_full_plan(
@@ -1351,7 +1433,15 @@ class TestCheckEngineReadersOrder29:
             / "20260801-1200-01-legacy-spec.spec.md"
         )
         leg.write_text(
-            "# Spec: Legacy\n\n- Id: leg001\n- Status: approved\n- Set: legset\n\n## Goal\n\nTest.\n",
+            RecordBuilder().spec(
+                title="Legacy",
+                id6="leg001",
+                status="approved",
+                set="legset",
+                body="## Goal\n\nTest.",
+                raw_fields={"Set": "legset"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         rc, out, _ = _run_cli(repo, "check", "all", "--agent")
@@ -1416,9 +1506,21 @@ class TestCheckEngineReadersOrder29:
             / "20261001-twenty-six-character-setid-02-sle002-plan.ipd.md"
         )
         err_p.write_text(
-            "# IPD: Long\n\n- Date: 2026-10-01\n- Kind: child\n- Scope-Paths: src/a.py\n"
-            "- Item-Dependencies: none\n- Status: draft\n- Priority: medium\n- Work-Kind: feature\n"
-            "- Order: 2\n- Id: sle002\n\n## Goal\n\nLong.\n",
+            RecordBuilder().plan(
+                title="Long",
+                when="2026-10-01",
+                plan_role="child",
+                scope_paths="src/a.py",
+                item_dependencies="none",
+                status="draft",
+                priority="medium",
+                work_kind="feature",
+                order=2,
+                id6="sle002",
+                body="## Goal\n\nLong.",
+                raw_fields={"Set": None},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         _o30_write_full_plan(
@@ -1451,11 +1553,19 @@ class TestCheckEngineReadersOrder29:
             [
                 (
                     ".aw/records/plans/pending/20261001-s-01-plc001-a.ipd.md",
-                    "- Id: plc001\n- Status: approved\n",
+                    str(
+                        RecordBuilder().plan(
+                            id6="plc001", status="approved", text_only=True
+                        )
+                    ),
                 ),
                 (
                     ".aw/records/plans/executed/20261001-s-01-plc001-a.ipd.md",
-                    "- Id: plc001\n- Status: executed\n",
+                    str(
+                        RecordBuilder().plan(
+                            id6="plc001", status="executed", text_only=True
+                        )
+                    ),
                 ),
             ]
         )
@@ -1608,14 +1718,15 @@ class TestCheckEngineReadersOrder29:
             "pending",
             "fsp001",
             order=1,
-            extra_meta=("- From-Spec: fs0001", "- Blocks-Release: next"),
+            from_spec="fs0001",
+            blocks_release="next",
         )
         p_nob = _o30_write_full_plan(
             repo,
             "pending",
             "fsp002",
             order=2,
-            extra_meta=("- From-Spec: fs0001",),
+            from_spec="fs0001",
         )
         found = check_engine.find_from_spec_plans(repo, "fs0001")
         by_name = {Path(p).name: br for p, br in found}
@@ -1632,21 +1743,21 @@ class TestCheckEngineReadersOrder29:
             "pending",
             "fsd001",
             order=1,
-            extra_meta=("- From-Spec: spok01",),
+            from_spec="spok01",
         )
         bad = _o30_write_full_plan(
             repo,
             "pending",
             "fsd002",
             order=2,
-            extra_meta=("- From-Spec: dead99",),
+            from_spec="dead99",
         )
         _o30_write_full_plan(
             repo,
             "pending",
             "fsd003",
             order=3,
-            extra_meta=("- From-Spec: none",),
+            from_spec="none",
         )
 
         rc, out, _ = _run_cli(repo, "check", "all", "--agent")
@@ -1666,17 +1777,15 @@ class TestCheckEngineReadersOrder29:
             "pending",
             "psl001",
             order=1,
-            extra_meta=("- Concern: Implements spc001 requirement.",),
+            concern="Implements spc001 requirement.",
         )
         _o30_write_full_plan(
             repo,
             "pending",
             "psl002",
             order=2,
-            extra_meta=(
-                "- Concern: Discusses spc001 without originating from it.",
-                "- From-Spec: none",
-            ),
+            concern="Discusses spc001 without originating from it.",
+            from_spec="none",
         )
 
         rc, out, _ = _run_cli(repo, "check", "plans", "--agent")
@@ -1714,7 +1823,7 @@ class TestCheckEngineReadersOrder29:
             "covpl1",
             setid="covset",
             order=1,
-            extra_meta=("- From-Spec: covsp1",),
+            from_spec="covsp1",
             body=(
                 "## Validation and cross-check (verify before reporting done)\n\n"
                 "- [ ] V-01 validates AC-1\n"
@@ -1753,7 +1862,8 @@ class TestCheckEngineReadersOrder32:
             setid="setgr1",
             order=1,
             status="approved",
-            extra_meta=("- From-Backlog: bkl101", "- From-Spec: spc101"),
+            from_backlog="bkl101",
+            from_spec="spc101",
         )
         _o30_write_full_plan(
             repo,
@@ -1762,7 +1872,7 @@ class TestCheckEngineReadersOrder32:
             setid="setgr1",
             order=2,
             status="executed",
-            extra_meta=("- From-Backlog: bkl101", "- From-Backlog: bkl102"),
+            extra_raw={"From-Backlog": "bkl101\n- From-Backlog: bkl102"},
         )
         _o30_write_full_plan(
             repo,
@@ -1771,7 +1881,8 @@ class TestCheckEngineReadersOrder32:
             setid="setgr1",
             order=3,
             status="draft",
-            extra_meta=("- From-Backlog: none", "- From-Spec: none"),
+            from_backlog="none",
+            from_spec="none",
         )
         _write_spec(repo, "approved", "grs101", from_backlog="bkl103")
 
@@ -1795,13 +1906,7 @@ class TestCheckEngineReadersOrder32:
         repo = _setup_repo(tmp_path)
 
         # (1) Declarations alone: Graduated-To on item, no From-Backlog on plans
-        b_fwd = _write_backlog(repo, "graduated", "clsfwd")
-        b_fwd.write_text(
-            b_fwd.read_text(encoding="utf-8").replace(
-                "- Set: tstset", "- Set: tstset\n- Graduated-To: setfwd"
-            ),
-            encoding="utf-8",
-        )
+        _write_backlog(repo, "graduated", "clsfwd", graduated_to="setfwd")
         _o30_write_full_plan(
             repo, "pending", "clf001", setid="setfwd", order=1, status="to-review"
         )
@@ -1815,17 +1920,11 @@ class TestCheckEngineReadersOrder32:
             setid="setrev",
             order=1,
             status="approved",
-            extra_meta=("- From-Backlog: clsrev",),
+            from_backlog="clsrev",
         )
 
         # (3) Both directions agree + unresolved forward target
-        b_both = _write_backlog(repo, "graduated", "clsbth")
-        b_both.write_text(
-            b_both.read_text(encoding="utf-8").replace(
-                "- Set: tstset", "- Set: tstset\n- Graduated-To: setbth"
-            ),
-            encoding="utf-8",
-        )
+        _write_backlog(repo, "graduated", "clsbth", graduated_to="setbth")
         _o30_write_full_plan(
             repo,
             "executed",
@@ -1833,15 +1932,9 @@ class TestCheckEngineReadersOrder32:
             setid="setbth",
             order=1,
             status="executed",
-            extra_meta=("- From-Backlog: clsbth",),
+            from_backlog="clsbth",
         )
-        b_dng = _write_backlog(repo, "graduated", "clsdng")
-        b_dng.write_text(
-            b_dng.read_text(encoding="utf-8").replace(
-                "- Set: tstset", "- Set: tstset\n- Graduated-To: nosuchset"
-            ),
-            encoding="utf-8",
-        )
+        _write_backlog(repo, "graduated", "clsdng", graduated_to="nosuchset")
 
         c_fwd = check_engine.graduation_cluster(repo, "clsfwd")
         assert c_fwd.artifact_count == 0
@@ -1872,13 +1965,7 @@ class TestCheckEngineReadersOrder32:
         repo = _setup_repo(tmp_path)
 
         # Fallback via Graduated-To Set (plan_setid_index=None) with draft plan -> not ready
-        b_fwd = _write_backlog(repo, "open", "hnd001")
-        b_fwd.write_text(
-            b_fwd.read_text(encoding="utf-8").replace(
-                "- Set: tstset", "- Set: tstset\n- Graduated-To: hndset"
-            ),
-            encoding="utf-8",
-        )
+        _write_backlog(repo, "open", "hnd001", graduated_to="hndset")
         _o30_write_full_plan(
             repo, "pending", "hnp001", setid="hndset", order=1, status="draft"
         )
@@ -1896,14 +1983,8 @@ class TestCheckEngineReadersOrder32:
         assert res_sp_bad.ready is False
         assert [f.code for f in res_sp_bad.findings] == ["spec-status-not-ready"]
 
-        sp_ok = repo / ".aw" / "records" / "specs" / "approved" / sp_c.name
-        sp_c.rename(sp_ok)
-        sp_ok.write_text(
-            sp_ok.read_text(encoding="utf-8").replace(
-                "- Status: draft", "- Status: approved"
-            ),
-            encoding="utf-8",
-        )
+        sp_c.unlink()
+        _write_spec(repo, "approved", "hns002", from_backlog="hnd002")
         res_sp_ok = check_engine.evaluate_handoff_ready(repo, "backlog", "hnd002")
         assert res_sp_ok.ready is True
 
@@ -1917,7 +1998,8 @@ class TestCheckEngineReadersOrder32:
             order=0,
             kind="orchestrator",
             status="to-review",
-            extra_meta=("- From-Backlog: hnd003", "- Scope: orch"),
+            from_backlog="hnd003",
+            scope="orch",
         )
         res_orch = check_engine.evaluate_handoff_ready(repo, "backlog", "hnd003")
         assert res_orch.ready is False
@@ -1932,7 +2014,7 @@ class TestCheckEngineReadersOrder32:
             setid="hns2st",
             order=1,
             status="executed",
-            extra_meta=("- From-Spec: hns201",),
+            from_spec="hns201",
         )
         res_spec_src = check_engine.evaluate_handoff_ready(repo, "spec", "hns201")
         assert res_spec_src.ready is True
@@ -1978,17 +2060,17 @@ class TestCheckEngineReadersOrder32:
             == "20261005"
         )
 
-        s_post = _write_spec(repo, "implementing", "gis001")
-        s_post.write_text(
-            s_post.read_text(encoding="utf-8")
-            + "\n## Workflow history\n- 2026-10-15 implementing (test): started\n",
-            encoding="utf-8",
+        s_post = _write_spec(
+            repo,
+            "implementing",
+            "gis001",
+            history_lines=("- 2026-10-15 implementing (test): started",),
         )
-        s_pre = _write_spec(repo, "implementing", "gis002")
-        s_pre.write_text(
-            s_pre.read_text(encoding="utf-8")
-            + "\n## Workflow history\n- 2026-10-02 implementing (test): early\n",
-            encoding="utf-8",
+        s_pre = _write_spec(
+            repo,
+            "implementing",
+            "gis002",
+            history_lines=("- 2026-10-02 implementing (test): early",),
         )
         assert (
             check_engine._spec_implementing_date(s_post.read_text(encoding="utf-8"))
@@ -2083,7 +2165,12 @@ class TestRecordSkipListAndMetaDirExclusion:
         )
         meta_readme = meta_dir / "README.md"
         meta_readme.write_text(
-            "# Meta README\n\n- Id: met001\n- Status: pending\n",
+            RecordBuilder().plan(
+                title="Meta README",
+                id6="met001",
+                raw_fields={"Status": "pending"},
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         pending_readme = repo / ".aw" / "records" / "plans" / "pending" / "README.md"
