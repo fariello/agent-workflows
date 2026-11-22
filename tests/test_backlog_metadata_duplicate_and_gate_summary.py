@@ -26,52 +26,22 @@ from agent_workflows import doctor
 from tests.record_builder import RecordBuilder
 
 
-def _make_item(
-    id6: str = "abc123",
-    status: str = "open",
-    setid: str = "9rl7cm",
-    priority: str = "low",
-    work_kind: str = "chore",
-    summary: str = "A valid summary line",
-    extra_bullets: list[str] | None = None,
-    body: str = "",
-) -> str:
-    lines = [
-        f"- Id: {id6}",
-        f"- Status: {status}",
-        f"- Set: {setid}",
-        f"- Priority: {priority}",
-        f"- Work-Kind: {work_kind}",
-        f"- Summary: {summary}",
-    ]
-    if extra_bullets:
-        lines.extend(extra_bullets)
-    lines.extend(
-        [
-            "",
-            "## Workflow history",
-            f"- 2026-10-01 created (aw backlog): {summary}",
-            "",
-            body,
-        ]
-    )
-    return "\n".join(lines).rstrip() + "\n"
-
-
 class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
     def test_duplicate_bullets_six_shapes(self) -> None:
         p_open = Path(".aw/records/backlog/open/abc123.md")
+        rb = RecordBuilder()
 
         # 1. Doubled - Status:
-        text_status = (
-            "- Id: abc123\n"
-            "- Status: open\n"
-            "- Status: done\n"
-            "- Set: 9rl7cm\n"
-            "- Priority: low\n"
-            "- Work-Kind: chore\n"
-            "- Summary: Valid summary\n\n"
-            "## Workflow history\n- 2026-10-01 created: note\n"
+        text_status = rb.backlog(
+            id6="abc123",
+            status="open",
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="Valid summary",
+            history=["- 2026-10-01 created: note"],
+            raw_fields={"Status": "open\n- Status: done"},
+            text_only=True,
         )
         drifts = backlog.validate_item(p_open, text_status)
         repeated = [d for d in drifts if d.rule == "backlog.metadata-bullet-repeated"]
@@ -80,15 +50,16 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
         self.assertIn("2", repeated[0].detail)
 
         # 2. Doubled - Work-Kind:
-        text_kind = (
-            "- Id: abc123\n"
-            "- Status: open\n"
-            "- Set: 9rl7cm\n"
-            "- Priority: low\n"
-            "- Work-Kind: chore\n"
-            "- Work-Kind: bug\n"
-            "- Summary: Valid summary\n\n"
-            "## Workflow history\n- 2026-10-01 created: note\n"
+        text_kind = rb.backlog(
+            id6="abc123",
+            status="open",
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="Valid summary",
+            history=["- 2026-10-01 created: note"],
+            raw_fields={"Work-Kind": "chore\n- Work-Kind: bug"},
+            text_only=True,
         )
         drifts = backlog.validate_item(p_open, text_kind)
         repeated = [d for d in drifts if d.rule == "backlog.metadata-bullet-repeated"]
@@ -97,15 +68,16 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
         self.assertIn("2", repeated[0].detail)
 
         # 3. One - Kind: plus one - Work-Kind:
-        text_canon = (
-            "- Id: abc123\n"
-            "- Status: open\n"
-            "- Set: 9rl7cm\n"
-            "- Priority: low\n"
-            "- Kind: chore\n"
-            "- Work-Kind: bug\n"
-            "- Summary: Valid summary\n\n"
-            "## Workflow history\n- 2026-10-01 created: note\n"
+        text_canon = rb.backlog(
+            id6="abc123",
+            status="open",
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="Valid summary",
+            history=["- 2026-10-01 created: note"],
+            raw_fields={"Work-Kind": None, "Kind": "chore\n- Work-Kind: bug"},
+            text_only=True,
         )
         drifts = backlog.validate_item(p_open, text_canon)
         repeated = [d for d in drifts if d.rule == "backlog.metadata-bullet-repeated"]
@@ -114,8 +86,16 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
         self.assertIn("2", repeated[0].detail)
 
         # 4. Doubled - Blocks-Release: agreeing and disagreeing
-        text_br_agree = _make_item(
-            extra_bullets=["- Blocks-Release: next", "- Blocks-Release: next"]
+        text_br_agree = rb.backlog(
+            id6="abc123",
+            status="open",
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="A valid summary line",
+            history=["- 2026-10-01 created (aw backlog): A valid summary line"],
+            raw_fields={"Blocks-Release": "next\n- Blocks-Release: next"},
+            text_only=True,
         )
         drifts = backlog.validate_item(p_open, text_br_agree)
         repeated = [d for d in drifts if d.rule == "backlog.metadata-bullet-repeated"]
@@ -123,8 +103,16 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
         self.assertIn("Blocks-Release", repeated[0].detail)
         self.assertIn("2", repeated[0].detail)
 
-        text_br_disagree = _make_item(
-            extra_bullets=["- Blocks-Release: next", "- Blocks-Release: 1.0.0"]
+        text_br_disagree = rb.backlog(
+            id6="abc123",
+            status="open",
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="A valid summary line",
+            history=["- 2026-10-01 created (aw backlog): A valid summary line"],
+            raw_fields={"Blocks-Release": "next\n- Blocks-Release: 1.0.0"},
+            text_only=True,
         )
         drifts = backlog.validate_item(p_open, text_br_disagree)
         repeated = [d for d in drifts if d.rule == "backlog.metadata-bullet-repeated"]
@@ -133,15 +121,16 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
         self.assertIn("2", repeated[0].detail)
 
         # 5. Doubled - Id:
-        text_id = (
-            "- Id: abc123\n"
-            "- Id: def456\n"
-            "- Status: open\n"
-            "- Set: 9rl7cm\n"
-            "- Priority: low\n"
-            "- Work-Kind: chore\n"
-            "- Summary: Valid summary\n\n"
-            "## Workflow history\n- 2026-10-01 created: note\n"
+        text_id = rb.backlog(
+            id6="abc123",
+            status="open",
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="Valid summary",
+            history=["- 2026-10-01 created: note"],
+            raw_fields={"Id": "abc123\n- Id: def456"},
+            text_only=True,
         )
         drifts = backlog.validate_item(p_open, text_id)
         repeated = [d for d in drifts if d.rule == "backlog.metadata-bullet-repeated"]
@@ -150,23 +139,34 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
         self.assertIn("2", repeated[0].detail)
 
         # 6. Conformant item
-        text_ok = _make_item()
+        text_ok = rb.backlog(
+            id6="abc123",
+            status="open",
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="A valid summary line",
+            history=["- 2026-10-01 created (aw backlog): A valid summary line"],
+            text_only=True,
+        )
         drifts = backlog.validate_item(p_open, text_ok)
         repeated = [d for d in drifts if d.rule == "backlog.metadata-bullet-repeated"]
         self.assertEqual(repeated, [])
 
     def test_legacy_kind_canonicalization_both_orders(self) -> None:
         p_open = Path(".aw/records/backlog/open/abc123.md")
+        rb = RecordBuilder()
 
-        text_order1 = (
-            "- Id: abc123\n"
-            "- Status: open\n"
-            "- Set: 9rl7cm\n"
-            "- Priority: low\n"
-            "- Kind: chore\n"
-            "- Work-Kind: bug\n"
-            "- Summary: Valid summary\n\n"
-            "## Workflow history\n- 2026-10-01 created: note\n"
+        text_order1 = rb.backlog(
+            id6="abc123",
+            status="open",
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="Valid summary",
+            history=["- 2026-10-01 created: note"],
+            raw_fields={"Work-Kind": None, "Kind": "chore\n- Work-Kind: bug"},
+            text_only=True,
         )
         drifts1 = backlog.validate_item(p_open, text_order1)
         rep1 = [d for d in drifts1 if d.rule == "backlog.metadata-bullet-repeated"]
@@ -174,15 +174,16 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
         self.assertIn("Work-Kind", rep1[0].detail)
         self.assertIn("2", rep1[0].detail)
 
-        text_order2 = (
-            "- Id: abc123\n"
-            "- Status: open\n"
-            "- Set: 9rl7cm\n"
-            "- Priority: low\n"
-            "- Work-Kind: bug\n"
-            "- Kind: chore\n"
-            "- Summary: Valid summary\n\n"
-            "## Workflow history\n- 2026-10-01 created: note\n"
+        text_order2 = rb.backlog(
+            id6="abc123",
+            status="open",
+            set="9rl7cm",
+            priority="low",
+            work_kind="bug",
+            summary="Valid summary",
+            history=["- 2026-10-01 created: note"],
+            raw_fields={"Work-Kind": "bug\n- Kind: chore"},
+            text_only=True,
         )
         drifts2 = backlog.validate_item(p_open, text_order2)
         rep2 = [d for d in drifts2 if d.rule == "backlog.metadata-bullet-repeated"]
@@ -192,16 +193,18 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
 
     def test_sub_bullet_boundary_deliberate_non_finding(self) -> None:
         p_open = Path(".aw/records/backlog/open/abc123.md")
-        text = (
-            "- Id: abc123\n"
-            "- Status: open\n"
-            "- Set: 9rl7cm\n"
-            "- Priority: low\n"
-            "- Work-Kind: chore\n"
-            "- Summary: A summary line\n"
-            "  - indented sub bullet\n"
-            "- Work-Kind: bug\n\n"
-            "## Workflow history\n- 2026-10-01 created: note\n"
+        text = RecordBuilder().backlog(
+            id6="abc123",
+            status="open",
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="A summary line",
+            history=["- 2026-10-01 created: note"],
+            raw_fields={
+                "Summary": "A summary line\n  - indented sub bullet\n- Work-Kind: bug"
+            },
+            text_only=True,
         )
         drifts = backlog.validate_item(p_open, text)
         repeated = [d for d in drifts if d.rule == "backlog.metadata-bullet-repeated"]
@@ -211,10 +214,19 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
         p_open = Path(".aw/records/backlog/open/abc123.md")
         p_done = Path(".aw/records/backlog/done/abc123.md")
         p_blocked = Path(".aw/records/backlog/blocked/abc123.md")
+        rb = RecordBuilder()
 
         # 1. done item with safe Gate-Summary
-        text_done = _make_item(
-            status="done", extra_bullets=["- Gate-Summary: waiting on a ruling"]
+        text_done = rb.backlog(
+            id6="abc123",
+            status="done",
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="A valid summary line",
+            gate_summary="waiting on a ruling",
+            history=["- 2026-10-01 created (aw backlog): A valid summary line"],
+            text_only=True,
         )
         drifts = backlog.validate_item(p_done, text_done)
         rules = [d.rule for d in drifts]
@@ -223,8 +235,16 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
         self.assertNotIn("backlog.gate-unexpected", rules)
 
         # 2. open item with safe Gate-Summary
-        text_open = _make_item(
-            status="open", extra_bullets=["- Gate-Summary: waiting on a ruling"]
+        text_open = rb.backlog(
+            id6="abc123",
+            status="open",
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="A valid summary line",
+            gate_summary="waiting on a ruling",
+            history=["- 2026-10-01 created (aw backlog): A valid summary line"],
+            text_only=True,
         )
         drifts = backlog.validate_item(p_open, text_open)
         rules = [d.rule for d in drifts]
@@ -233,13 +253,18 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
         self.assertNotIn("backlog.gate-unexpected", rules)
 
         # 3. blocked item with safe Gate-Summary
-        text_blocked = _make_item(
+        text_blocked = rb.backlog(
+            id6="abc123",
             status="blocked",
-            extra_bullets=[
-                "- Gate-Kind: date",
-                "- Gate-Ref: 2026-10-15",
-                "- Gate-Summary: waiting on a ruling",
-            ],
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="A valid summary line",
+            gate_kind="date",
+            gate_ref="2026-10-15",
+            gate_summary="waiting on a ruling",
+            history=["- 2026-10-01 created (aw backlog): A valid summary line"],
+            text_only=True,
         )
         drifts = backlog.validate_item(p_blocked, text_blocked)
         rules = [d.rule for d in drifts]
@@ -249,13 +274,18 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
         self.assertEqual(drifts, [])
 
         # 4. blocked item with ANSI escape in Gate-Summary
-        text_ansi = _make_item(
+        text_ansi = rb.backlog(
+            id6="abc123",
             status="blocked",
-            extra_bullets=[
-                "- Gate-Kind: date",
-                "- Gate-Ref: 2026-10-15",
-                "- Gate-Summary: bad\x1b[31mred",
-            ],
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="A valid summary line",
+            gate_kind="date",
+            gate_ref="2026-10-15",
+            history=["- 2026-10-01 created (aw backlog): A valid summary line"],
+            raw_fields={"Gate-Summary": "bad\x1b[31mred"},
+            text_only=True,
         )
         drifts = backlog.validate_item(p_blocked, text_ansi)
         rules = [d.rule for d in drifts]
@@ -264,13 +294,18 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
 
         # 5. blocked item at exactly 300 characters
         safe_300 = "x" * 300
-        text_300 = _make_item(
+        text_300 = rb.backlog(
+            id6="abc123",
             status="blocked",
-            extra_bullets=[
-                "- Gate-Kind: date",
-                "- Gate-Ref: 2026-10-15",
-                f"- Gate-Summary: {safe_300}",
-            ],
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="A valid summary line",
+            gate_kind="date",
+            gate_ref="2026-10-15",
+            gate_summary=safe_300,
+            history=["- 2026-10-01 created (aw backlog): A valid summary line"],
+            text_only=True,
         )
         drifts = backlog.validate_item(p_blocked, text_300)
         rules = [d.rule for d in drifts]
@@ -278,35 +313,52 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
 
         # 6. blocked item at 301 characters
         unsafe_301 = "x" * 301
-        text_301 = _make_item(
+        text_301 = rb.backlog(
+            id6="abc123",
             status="blocked",
-            extra_bullets=[
-                "- Gate-Kind: date",
-                "- Gate-Ref: 2026-10-15",
-                f"- Gate-Summary: {unsafe_301}",
-            ],
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="A valid summary line",
+            gate_kind="date",
+            gate_ref="2026-10-15",
+            history=["- 2026-10-01 created (aw backlog): A valid summary line"],
+            raw_fields={"Gate-Summary": unsafe_301},
+            text_only=True,
         )
         drifts = backlog.validate_item(p_blocked, text_301)
         rules = [d.rule for d in drifts]
         self.assertIn("backlog.gate-descriptive-unsafe", rules)
 
         # 7. blocked item with control character
-        text_ctrl = _make_item(
+        text_ctrl = rb.backlog(
+            id6="abc123",
             status="blocked",
-            extra_bullets=[
-                "- Gate-Kind: date",
-                "- Gate-Ref: 2026-10-15",
-                "- Gate-Summary: line\x00zero",
-            ],
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="A valid summary line",
+            gate_kind="date",
+            gate_ref="2026-10-15",
+            history=["- 2026-10-01 created (aw backlog): A valid summary line"],
+            raw_fields={"Gate-Summary": "line\x00zero"},
+            text_only=True,
         )
         drifts = backlog.validate_item(p_blocked, text_ctrl)
         rules = [d.rule for d in drifts]
         self.assertIn("backlog.gate-descriptive-unsafe", rules)
 
         # 8. done item with unsafe Gate-Summary (both findings reported)
-        text_done_unsafe = _make_item(
+        text_done_unsafe = rb.backlog(
+            id6="abc123",
             status="done",
-            extra_bullets=["- Gate-Summary: bad\x1b[31mred"],
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="A valid summary line",
+            history=["- 2026-10-01 created (aw backlog): A valid summary line"],
+            raw_fields={"Gate-Summary": "bad\x1b[31mred"},
+            text_only=True,
         )
         drifts = backlog.validate_item(p_done, text_done_unsafe)
         rules = [d.rule for d in drifts]
@@ -354,7 +406,16 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
             self.assertEqual(spec.invariant, "")
 
     def test_live_tree_regression_floor(self) -> None:
-        text = _make_item()
+        text = RecordBuilder().backlog(
+            id6="abc123",
+            status="open",
+            set="9rl7cm",
+            priority="low",
+            work_kind="chore",
+            summary="A valid summary line",
+            history=["- 2026-10-01 created (aw backlog): A valid summary line"],
+            text_only=True,
+        )
         p = Path(".aw/records/backlog/open/abc123.md")
         self.assertEqual(backlog.validate_item(p, text), [])
 
@@ -369,16 +430,16 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
             item_path = item_dir / "20261001-9rl7cm-01-prod01-test-item.backlog.md"
 
             # 1. Direct two-line check
-            seed_two = (
-                "- Id: prod01\n"
-                "- Status: open\n"
-                "- Set: 9rl7cm\n"
-                "- Priority: low\n"
-                "- Work-Kind: chore\n"
-                "- Summary: Test summary\n"
-                "- Blocks-Release: next\n"
-                "- Blocks-Release:\n\n"
-                "## Workflow history\n- 2026-10-01 created: note\n"
+            seed_two = RecordBuilder().backlog(
+                id6="prod01",
+                status="open",
+                set="9rl7cm",
+                priority="low",
+                work_kind="chore",
+                summary="Test summary",
+                history=["- 2026-10-01 created: note"],
+                raw_fields={"Blocks-Release": "next\n- Blocks-Release:"},
+                text_only=True,
             )
             item_path.write_text(seed_two, encoding="utf-8")
             drifts = backlog.validate_item(item_path, seed_two)

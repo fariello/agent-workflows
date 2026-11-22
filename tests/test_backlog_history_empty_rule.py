@@ -32,16 +32,16 @@ def _capture_cli(argv: list[str]) -> tuple[int, str, str]:
 
 def test_case_a_conformant_item_yields_no_history_empty():
     """Case (a): a conformant item yields no backlog.history-empty."""
-    text = (
-        "- Id: bkl001\n"
-        "- Status: open\n"
-        "- Set: demo\n"
-        "- Priority: high\n"
-        "- Work-Kind: feature\n"
-        "- Summary: Conformant item\n\n"
-        "## Workflow history\n\n"
-        "- 2026-10-12 created (aw backlog): initial filing\n\n"
-        "## Detail\n\nProse.\n"
+    text = RecordBuilder().backlog(
+        id6="bkl001",
+        status="open",
+        set="demo",
+        priority="high",
+        work_kind="feature",
+        summary="Conformant item",
+        history=["- 2026-10-12 created (aw backlog): initial filing"],
+        body="## Detail\n\nProse.",
+        text_only=True,
     )
     p = Path(".aw/records/backlog/open/20261012-demo-01-bkl001-item.backlog.md")
     drift = backlog.validate_item(p, text)
@@ -51,16 +51,16 @@ def test_case_a_conformant_item_yields_no_history_empty():
 
 def test_case_b_indented_history_only_yields_no_column_zero_detail():
     """Case (b): heading with only an indented history-shaped line yields it with the 'no column-zero record' detail."""
-    text = (
-        "- Id: bkl002\n"
-        "- Status: open\n"
-        "- Set: demo\n"
-        "- Priority: high\n"
-        "- Work-Kind: feature\n"
-        "- Summary: Indented history only\n\n"
-        "## Workflow history\n\n"
-        "  - 2026-10-12 created (aw backlog): initial filing\n\n"
-        "## Detail\n\nProse.\n"
+    text = RecordBuilder().backlog(
+        id6="bkl002",
+        status="open",
+        set="demo",
+        priority="high",
+        work_kind="feature",
+        summary="Indented history only",
+        history=[],
+        body="  - 2026-10-12 created (aw backlog): initial filing\n\n## Detail\n\nProse.",
+        text_only=True,
     )
     p = Path(".aw/records/backlog/open/20261012-demo-01-bkl002-item.backlog.md")
     drift = backlog.validate_item(p, text)
@@ -75,15 +75,16 @@ def test_case_b_indented_history_only_yields_no_column_zero_detail():
 
 def test_case_c_blank_lines_then_prose_yields_history_empty():
     """Case (c): heading with only blank lines then prose yields backlog.history-empty."""
-    text = (
-        "- Id: bkl003\n"
-        "- Status: open\n"
-        "- Set: demo\n"
-        "- Priority: high\n"
-        "- Work-Kind: feature\n"
-        "- Summary: Blank lines then prose\n\n"
-        "## Workflow history\n\n\n\n"
-        "Prose directly under heading without a record.\n"
+    text = RecordBuilder().backlog(
+        id6="bkl003",
+        status="open",
+        set="demo",
+        priority="high",
+        work_kind="feature",
+        summary="Blank lines then prose",
+        history=[],
+        body="Prose directly under heading without a record.",
+        text_only=True,
     )
     p = Path(".aw/records/backlog/open/20261012-demo-01-bkl003-item.backlog.md")
     drift = backlog.validate_item(p, text)
@@ -95,24 +96,30 @@ def test_case_c_blank_lines_then_prose_yields_history_empty():
 def test_case_d_no_heading_yields_no_heading_detail_and_differs_from_case_b():
     """Case (d): no heading yields it with the 'no heading' detail (assert the two details differ)."""
     text_d = (
-        "- Id: bkl004\n"
-        "- Status: open\n"
-        "- Set: demo\n"
-        "- Priority: high\n"
-        "- Work-Kind: feature\n"
-        "- Summary: No heading\n\n"
-        "## Detail\n\nProse.\n"
+        RecordBuilder()
+        .backlog(
+            id6="bkl004",
+            status="open",
+            set="demo",
+            priority="high",
+            work_kind="feature",
+            summary="No heading",
+            history=[],
+            text_only=True,
+        )
+        .split("\n\n## ")[0]
+        + "\n\n## Detail\n\nProse.\n"
     )
-    text_b = (
-        "- Id: bkl002\n"
-        "- Status: open\n"
-        "- Set: demo\n"
-        "- Priority: high\n"
-        "- Work-Kind: feature\n"
-        "- Summary: Indented history only\n\n"
-        "## Workflow history\n\n"
-        "  - 2026-10-12 created (aw backlog): initial filing\n\n"
-        "## Detail\n\nProse.\n"
+    text_b = RecordBuilder().backlog(
+        id6="bkl002",
+        status="open",
+        set="demo",
+        priority="high",
+        work_kind="feature",
+        summary="Indented history only",
+        history=[],
+        body="  - 2026-10-12 created (aw backlog): initial filing\n\n## Detail\n\nProse.",
+        text_only=True,
     )
     p = Path(".aw/records/backlog/open/20261012-demo-01-bkl004-item.backlog.md")
     drift_d = backlog.validate_item(p, text_d)
@@ -172,15 +179,17 @@ def test_case_f_cli_backlog_check(tmp_path):
     # Place case (b) item (indented history line only)
     b_file = open_dir / "20261012-demo-01-bkl002-case-b.backlog.md"
     b_file.write_text(
-        "- Id: bkl002\n"
-        "- Status: open\n"
-        "- Set: demo\n"
-        "- Priority: high\n"
-        "- Work-Kind: feature\n"
-        "- Summary: Indented history only\n\n"
-        "## Workflow history\n\n"
-        "  - 2026-10-12 created (aw backlog): initial filing\n\n"
-        "## Detail\n\nProse.\n",
+        RecordBuilder().backlog(
+            id6="bkl002",
+            status="open",
+            set="demo",
+            priority="high",
+            work_kind="feature",
+            summary="Indented history only",
+            history=[],
+            body="  - 2026-10-12 created (aw backlog): initial filing\n\n## Detail\n\nProse.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     code, out, err = _capture_cli(["backlog", "check", "--dir", str(repo_root)])
@@ -220,15 +229,17 @@ def test_case_g_check_engine_backlog_reports_rule(tmp_path):
 
     b_file = open_dir / "20261012-demo-01-bkl002-case-b.backlog.md"
     b_file.write_text(
-        "- Id: bkl002\n"
-        "- Status: open\n"
-        "- Set: demo\n"
-        "- Priority: high\n"
-        "- Work-Kind: feature\n"
-        "- Summary: Indented history only\n\n"
-        "## Workflow history\n\n"
-        "  - 2026-10-12 created (aw backlog): initial filing\n\n"
-        "## Detail\n\nProse.\n",
+        RecordBuilder().backlog(
+            id6="bkl002",
+            status="open",
+            set="demo",
+            priority="high",
+            work_kind="feature",
+            summary="Indented history only",
+            history=[],
+            body="  - 2026-10-12 created (aw backlog): initial filing\n\n## Detail\n\nProse.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     code, out, err = _capture_cli(["check", "backlog", "--dir", str(repo_root)])
