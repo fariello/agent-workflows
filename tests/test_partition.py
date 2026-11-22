@@ -293,50 +293,71 @@ def plan_fixture_repo(tmp_path: Path) -> Path:
 
     # 1. Root plan 1 (approved, high)
     (pending / "20260926-set1-01-pln001-plan-one.ipd.md").write_text(
-        "---\n"
-        "- Id: pln001\n"
-        "- Set: set1 (Set One)\n"
-        "- Status: approved\n"
-        "- Priority: high\n"
-        "- Item-Dependencies: none\n"
-        "---\n"
-        "# Plan One\n"
+        str(
+            RecordBuilder().plan(
+                id6="pln001",
+                title="Plan One",
+                when="2026-09-26",
+                set="set1",
+                order=1,
+                status="approved",
+                priority="high",
+                item_dependencies="none",
+                text_only=True,
+            )
+        )
     )
 
     # 2. Child plan 2 (approved, medium, depends on pln001)
     (pending / "20260926-set1-02-pln002-plan-two.ipd.md").write_text(
-        "---\n"
-        "- Id: pln002\n"
-        "- Set: set1 (Set One)\n"
-        "- Status: approved\n"
-        "- Priority: medium\n"
-        "- Item-Dependencies: executed:pln001\n"
-        "---\n"
-        "# Plan Two\n"
+        str(
+            RecordBuilder().plan(
+                id6="pln002",
+                title="Plan Two",
+                when="2026-09-26",
+                set="set1",
+                order=2,
+                status="approved",
+                priority="medium",
+                item_dependencies="executed:pln001",
+                text_only=True,
+            )
+        )
     )
 
     # 3. Plan 3 (to-review, low)
     (pending / "20260926-set2-01-pln003-plan-three.ipd.md").write_text(
-        "---\n"
-        "- Id: pln003\n"
-        "- Set: set2 (Set Two)\n"
-        "- Status: to-review\n"
-        "- Priority: low\n"
-        "- Item-Dependencies: none\n"
-        "---\n"
-        "# Plan Three\n"
+        str(
+            RecordBuilder().plan(
+                id6="pln003",
+                title="Plan Three",
+                when="2026-09-26",
+                set="set2",
+                order=1,
+                status="to-review",
+                priority="low",
+                item_dependencies="none",
+                text_only=True,
+            )
+        )
     )
 
     # 4. Terminal plan in executed/ directory
     (executed / "20260926-set3-01-pln004-plan-four.ipd.md").write_text(
-        "---\n"
-        "- Id: pln004\n"
-        "- Set: set3 (Set Three)\n"
-        "- Status: executed\n"
-        "- Priority: high\n"
-        "- Item-Dependencies: none\n"
-        "---\n"
-        "# Plan Four\n"
+        str(
+            RecordBuilder().plan(
+                id6="pln004",
+                title="Plan Four",
+                when="2026-09-26",
+                set="set3",
+                order=1,
+                status="executed",
+                priority="high",
+                item_dependencies="none",
+                disposition="executed",
+                text_only=True,
+            )
+        )
     )
 
     return repo
@@ -804,7 +825,18 @@ def backlog_fixture_repo(tmp_path: Path) -> Path:
 
     # Cross-tree plan item to test wrong-type selector error
     (plan_dir / "20260920-setx-01-plnx01-other-plan.ipd.md").write_text(
-        "---\n- Id: plnx01\n- Set: setx\n- Status: approved\n- Item-Dependencies: none\n---\n"
+        str(
+            RecordBuilder().plan(
+                id6="plnx01",
+                title="Other Plan",
+                when="2026-09-20",
+                set="setx",
+                order=1,
+                status="approved",
+                item_dependencies="none",
+                text_only=True,
+            )
+        )
     )
 
     # 1. bkl001: oldest open item (2026-09-20)
@@ -1573,22 +1605,32 @@ def test_cli_partition_ineligible_aggregated_diagnostics(
     """Multiple ineligible items are aggregated with clear expected status and remedy hints."""
     pending = plan_fixture_repo / ".aw" / "records" / "plans" / "pending"
     (pending / "20261017-revset-01-r20rid-plan-r20.ipd.md").write_text(
-        "---\n"
-        "- Id: r20rid\n"
-        "- Set: revset (Review Set)\n"
-        "- Status: reviewed\n"
-        "- Item-Dependencies: none\n"
-        "---\n"
-        "# Plan R20\n"
+        str(
+            RecordBuilder().plan(
+                id6="r20rid",
+                title="Plan R20",
+                when="2026-10-17",
+                set="revset",
+                order=1,
+                status="reviewed",
+                item_dependencies="none",
+                text_only=True,
+            )
+        )
     )
     (pending / "20261017-revset-02-44nfmd-plan-44n.ipd.md").write_text(
-        "---\n"
-        "- Id: 44nfmd\n"
-        "- Set: revset (Review Set)\n"
-        "- Status: reviewed\n"
-        "- Item-Dependencies: none\n"
-        "---\n"
-        "# Plan 44N\n"
+        str(
+            RecordBuilder().plan(
+                id6="44nfmd",
+                title="Plan 44N",
+                when="2026-10-17",
+                set="revset",
+                order=2,
+                status="reviewed",
+                item_dependencies="none",
+                text_only=True,
+            )
+        )
     )
 
     monkeypatch.setattr("sys.stdin", io.StringIO("r20rid\n44nfmd\n"))
@@ -1619,13 +1661,18 @@ def test_cli_partition_skip_ineligible_flag(
     """--skip-ineligible warns on stderr and partitions the runnable subset."""
     pending = plan_fixture_repo / ".aw" / "records" / "plans" / "pending"
     (pending / "20261017-revset-01-r20rid-plan-r20.ipd.md").write_text(
-        "---\n"
-        "- Id: r20rid\n"
-        "- Set: revset (Review Set)\n"
-        "- Status: reviewed\n"
-        "- Item-Dependencies: none\n"
-        "---\n"
-        "# Plan R20\n"
+        str(
+            RecordBuilder().plan(
+                id6="r20rid",
+                title="Plan R20",
+                when="2026-10-17",
+                set="revset",
+                order=1,
+                status="reviewed",
+                item_dependencies="none",
+                text_only=True,
+            )
+        )
     )
 
     monkeypatch.setattr("sys.stdin", io.StringIO("r20rid\npln001\n"))
@@ -1664,13 +1711,18 @@ def test_partition_id6_highlighting_with_color(
 
     pending = plan_fixture_repo / ".aw" / "records" / "plans" / "pending"
     (pending / "20261017-revset-01-r20rid-plan-r20.ipd.md").write_text(
-        "---\n"
-        "- Id: r20rid\n"
-        "- Set: revset (Review Set)\n"
-        "- Status: reviewed\n"
-        "- Item-Dependencies: none\n"
-        "---\n"
-        "# Plan R20\n"
+        str(
+            RecordBuilder().plan(
+                id6="r20rid",
+                title="Plan R20",
+                when="2026-10-17",
+                set="revset",
+                order=1,
+                status="reviewed",
+                item_dependencies="none",
+                text_only=True,
+            )
+        )
     )
 
     stderr_buf = io.StringIO()
