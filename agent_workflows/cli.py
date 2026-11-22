@@ -5032,8 +5032,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "Partition artifacts (plans, backlog, specs) into balanced runner shards while keeping "
             "dependencies and Set members clustered together to prevent concurrent runner failures. "
             "For plans, an orchestrator travels with its unfinished children, and incomplete Sets are "
-            "refused by default (exit 2) unless --allow-partial-sets is passed. Formats cut-and-paste "
-            "`aw oc run` or `aw agy run` commands."
+            "refused by default (exit 2) unless --allow-partial-sets is passed. Pass --split-sets to "
+            "allow Set members to split across shards while still respecting Item-Dependencies. "
+            "Formats cut-and-paste `aw oc run` or `aw agy run` commands."
         ),
         formatter_class=_AlphaHelpFormatter,
         epilog=(
@@ -5041,6 +5042,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  aw partition -t plans approved            # split approved plans into 3 shards\n"
             "  aw partition -t plans -n 3 -s approved    # same with explicit shard count\n"
             "  aw partition -t plans --allow-partial-sets # schedule ready plans, holding back orchestrators\n"
+            "  aw partition -t plans -n 3 --split-sets <setid> # split a large Set across 3 shards\n"
             "  aw partition -t backlog -s open -n 2 --max 100 # split 100 oldest open backlog items to plan\n"
             "  aw partition -n 4 --action plan id1 id2   # infer type (-t backlog) from selectors\n"
             "  aw partition -t specs -s to-review -n 2   # partition specs needing review\n"
@@ -5179,6 +5181,18 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help="Schedule the ready plans of a Set that cannot finish in this batch. The Set's orchestrator is never scheduled until every child can run.",
+    )
+    p_partition.add_argument(
+        "--split-sets",
+        dest="split_sets",
+        action="store_true",
+        default=False,
+        help=(
+            "Allow members of a Set to split across multiple shards instead of keeping each Set "
+            "whole in one shard. Explicit Item-Dependencies are still respected; for non-review "
+            "plan runs, non-terminal orchestrators of split Sets are held back so they can be "
+            "retired once all shards finish."
+        ),
     )
     p_partition.add_argument(
         "--with-dependencies",

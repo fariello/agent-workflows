@@ -67,6 +67,7 @@ class Partition:
     shards: List[List[_att.Item]]
     split_components: List[SplitNote]
     cycles: List[List[str]] = ()
+    kept_whole_sets: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -914,6 +915,7 @@ def partition(
 
     shards: List[List[_att.Item]] = [[] for _ in range(clamped_k)]
     split_components: List[SplitNote] = []
+    kept_whole_sets: List[str] = []
 
     def _smallest_shard_idx() -> int:
         min_len = len(shards[0])
@@ -942,6 +944,8 @@ def partition(
                             break
                 if not set_id:
                     _, set_id, _, _ = _att._extract_identity_parts(comp[0])
+                if set_id and set_id not in kept_whole_sets:
+                    kept_whole_sets.append(str(set_id))
                 noun = "plans" if comp[0].tree == "plans" else "items"
                 print(
                     f"note: Set '{set_id}' ({len(comp)} {noun}) kept whole in shard {target_idx}, exceeding the even share of {cap}",
@@ -992,6 +996,7 @@ def partition(
         shards=sorted_shards,
         split_components=split_components,
         cycles=cycles,
+        kept_whole_sets=tuple(kept_whole_sets),
     )
 
 
@@ -1742,11 +1747,25 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
                 held_back_orchestrators.append(cs.to_dict())
 
         # Build extra clustering edges and sort helpers for plans
+        split_sets = bool(getattr(args, "split_sets", False))
         extra_edges = []
         orchestrator_ids = set()
         set_by_item = {}
         candidate_ids = {it.id for it in candidates if it.id}
 
+        plan_action: Optional[str] = action_flag
+        if plan_action is None and candidates:
+            acts = {
+                _run_selection_policy.action_for_status(
+                    spec_type, getattr(it, "status", None) or it.native_status
+                )
+                for it in candidates
+            }
+            if len(acts) == 1:
+                plan_action = next(iter(acts))
+        is_review_run = plan_action == "review"
+
+        split_held_orch_ids: Set[str] = set()
         for cs in classifications.values():
             orchestrator_ids.add(cs.orchestrator_id)
             for mid in cs.runnable:
@@ -1759,6 +1778,46 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
             if cs.orchestrator_id in cs.finished:
                 # Retired orchestrator: no retirement to keep together, so its remaining members
                 # balance like any other plans; real Item-Dependencies edges still cluster them.
+                continue
+            if split_sets:
+                if (
+                    not is_review_run
+                    and shards_val > 1
+                    and cs.orchestrator_id in candidate_ids
+                    and len(runnable_children) >= 2
+                ):
+                    split_held_orch_ids.add(cs.orchestrator_id)
+                    retire_cmd = format_shard(
+                        run=runner,
+                        ids=[cs.orchestrator_id],
+                        action=plan_action,
+                        profile=profile,
+                        model=model,
+                        variant=variant,
+                    )
+                    print(
+                        f"note: Set '{cs.setid}' orchestrator '{cs.orchestrator_id}' held back under --split-sets; "
+                        f"retire after all shards finish: {retire_cmd}",
+                        file=sys.stderr,
+                    )
+                    held_back_orchestrators.append(
+                        {
+                            "setid": cs.setid,
+                            "orchestrator": cs.orchestrator_id,
+                            "reason": "split-sets",
+                            "retire_command": agent_schema.redact_home_paths(
+                                retire_cmd
+                            ),
+                        }
+                    )
+                elif (
+                    not is_review_run
+                    and cs.orchestrator_id in candidate_ids
+                    and len(runnable_children) == 1
+                ):
+                    # A single-child Set cannot split its child across shards; keep its
+                    # orchestrator paired with that lone child so it retires cleanly.
+                    extra_edges.append((cs.orchestrator_id, runnable_children[0]))
                 continue
             if cs.is_completeable:
                 if cs.orchestrator_id in candidate_ids:
@@ -1773,7 +1832,11 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
                 for i in range(len(runnable_children) - 1):
                     extra_edges.append((runnable_children[i], runnable_children[i + 1]))
 
+        if split_held_orch_ids:
+            candidates = [it for it in candidates if it.id not in split_held_orch_ids]
+
     else:
+        split_sets = bool(getattr(args, "split_sets", False))
         try:
             candidates = collect(
                 repo_root=repo_root,
@@ -1798,7 +1861,7 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
             print(f"{err_label} {e}", file=sys.stderr)
             return 2
 
-        if canon_type == "backlog" and candidates:
+        if canon_type == "backlog" and candidates and not split_sets:
             bkl_edges, bkl_set_map = _cluster_backlog_sets(repo_root, candidates)
             if bkl_edges:
                 extra_edges = bkl_edges
@@ -1860,6 +1923,38 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
         f"Partitioned {len(candidates)} items across {len(part_res.shards)} shard(s): {shard_sizes}",
         file=sys.stderr,
     )
+    if part_res.kept_whole_sets and not split_sets and not relax_reviews:
+        splittable_sets: List[str] = []
+        for sid in part_res.kept_whole_sets:
+            members = [
+                it.id
+                for it in candidates
+                if set_by_item and set_by_item.get(it.id) == sid
+            ]
+            if (
+                canon_type == "plans"
+                and effective_action != "review"
+                and orchestrator_ids
+            ):
+                non_orch = [mid for mid in members if mid not in orchestrator_ids]
+                if len(non_orch) >= 2:
+                    splittable_sets.append(sid)
+            elif len(members) >= 2 or not members:
+                splittable_sets.append(sid)
+        if splittable_sets:
+            sets_str = ", ".join(f"'{s}'" for s in splittable_sets)
+            non_empty_shards = sum(1 for s in part_res.shards if s)
+            if non_empty_shards == 1 and shards_val > 1:
+                print(
+                    f"hint: all {len(candidates)} items ended up in 1 shard because Set cohesion kept Set {sets_str} whole; "
+                    f"pass --split-sets to split Set members across {shards_val} shards.",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    f"hint: pass --split-sets to allow oversized Set {sets_str} to split across shards.",
+                    file=sys.stderr,
+                )
     if part_res.split_components:
         for sc in part_res.split_components:
             print(

@@ -1365,3 +1365,279 @@ def test_partition_executed_orchestrator_mixed_sibling_statuses_does_not_refuse(
     shards = [json.dumps(s) for s in payload["shards"]]
     assert len(shards) == 2
     assert all(("rchl03" in s) != ("rchl04" in s) for s in shards)
+
+
+def test_partition_split_sets_and_single_shard_hint_for_plans(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Large Set alone in 1 shard suggests --split-sets; --split-sets splits children across shards,
+    preserves explicit Item-Dependencies, and holds back the orchestrator for post-shard retirement."""
+    repo = tmp_path / "repo_split_sets"
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+
+    table = (
+        ("01", "schl01", "Child 1"),
+        ("02", "schl02", "Child 2"),
+        ("03", "schl03", "Child 3"),
+        ("04", "schl04", "Child 4"),
+        ("05", "schl05", "Child 5"),
+        ("06", "schl06", "Child 6"),
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "orchestrator",
+        "approved",
+        "setspl",
+        "Set Split",
+        0,
+        "sorch0",
+        "Set Split Orchestrator",
+        child_orders=table,
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "child",
+        "approved",
+        "setspl",
+        "Set Split",
+        1,
+        "schl01",
+        "Child 1",
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "child",
+        "approved",
+        "setspl",
+        "Set Split",
+        2,
+        "schl02",
+        "Child 2",
+        item_dependencies="executed:schl01",
+    )
+    for order, cid in ((3, "schl03"), (4, "schl04"), (5, "schl05"), (6, "schl06")):
+        make_fixture_plan(
+            repo,
+            "pending",
+            "20261010",
+            "child",
+            "approved",
+            "setspl",
+            "Set Split",
+            order,
+            cid,
+            f"Child {order}",
+        )
+
+    # 1. Default run (no --split-sets): all 7 land in 1 shard and stderr suggests --split-sets
+    code_default = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "-s",
+            "approved",
+            "-n",
+            "3",
+            "--run",
+            "none",
+            "--json",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert code_default == 0
+    cap_def = capsys.readouterr()
+    payload_def = json.loads(cap_def.out)
+    non_empty_def = [s for s in payload_def["shards"] if s]
+    assert len(non_empty_def) == 1
+    assert len(non_empty_def[0]) == 7
+    assert "ended up in 1 shard" in cap_def.err
+    assert "--split-sets" in cap_def.err
+
+    # 2. With --split-sets: 6 children split 2/2/2 across 3 shards, schl01+schl02 stay together,
+    #    and orchestrator sorch0 is held back with a retire command
+    code_split = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "-s",
+            "approved",
+            "-n",
+            "3",
+            "--split-sets",
+            "--run",
+            "agy",
+            "--json",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert code_split == 0
+    cap_split = capsys.readouterr()
+    payload_split = json.loads(cap_split.out)
+    shards = payload_split["shards"]
+    assert [len(s) for s in shards] == [2, 2, 2]
+    all_scheduled = [cid for s in shards for cid in s]
+    assert "sorch0" not in all_scheduled
+    assert set(all_scheduled) == {
+        "schl01",
+        "schl02",
+        "schl03",
+        "schl04",
+        "schl05",
+        "schl06",
+    }
+    # Real dependency pair schl01 -> schl02 stays in the same shard with 0 cut edges
+    pair_shards = [s for s in shards if "schl01" in s or "schl02" in s]
+    assert len(pair_shards) == 1
+    assert pair_shards[0] == ["schl01", "schl02"]
+    assert payload_split["split_components"] == []
+    assert any(
+        h.get("orchestrator") == "sorch0" and h.get("reason") == "split-sets"
+        for h in payload_split.get("held_back_orchestrators", [])
+    )
+    assert "sorch0" in cap_split.err and "held back under --split-sets" in cap_split.err
+    assert "aw agy run" in cap_split.err
+
+
+def test_partition_split_sets_review_keeps_orchestrator_in_shards(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """In review runs, --split-sets splits all plans including the orchestrator without holding it back."""
+    repo = tmp_path / "repo_split_review"
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+
+    table = (
+        ("01", "vchl01", "Child 1"),
+        ("02", "vchl02", "Child 2"),
+        ("03", "vchl03", "Child 3"),
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "orchestrator",
+        "to-review",
+        "setrev",
+        "Set Rev",
+        0,
+        "vorch0",
+        "Set Rev Orchestrator",
+        child_orders=table,
+    )
+    for order, cid in ((1, "vchl01"), (2, "vchl02"), (3, "vchl03")):
+        make_fixture_plan(
+            repo,
+            "pending",
+            "20261010",
+            "child",
+            "to-review",
+            "setrev",
+            "Set Rev",
+            order,
+            cid,
+            f"Child {order}",
+        )
+
+    code = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "-s",
+            "to-review",
+            "-n",
+            "2",
+            "--split-sets",
+            "--run",
+            "none",
+            "--json",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert code == 0
+    cap = capsys.readouterr()
+    payload = json.loads(cap.out)
+    assert [len(s) for s in payload["shards"]] == [2, 2]
+    all_ids = {cid for s in payload["shards"] for cid in s}
+    assert all_ids == {"vorch0", "vchl01", "vchl02", "vchl03"}
+    assert not payload.get("held_back_orchestrators")
+
+
+def test_partition_split_sets_for_backlog(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Backlog items sharing a Set stay in 1 shard with a --split-sets hint by default, and split with --split-sets."""
+    repo = tmp_path / "repo_split_backlog"
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    bkl_dir = repo / ".aw" / "records" / "backlog"
+    bkl_dir.mkdir(parents=True, exist_ok=True)
+    for idx, bid in enumerate(("bkl001", "bkl002", "bkl003", "bkl004"), start=1):
+        (bkl_dir / f"20261010-bklset-{idx:02d}-{bid}-item-{idx}.backlog.md").write_text(
+            f"# Backlog Item {idx}\n\n"
+            f"- Id: {bid}\n"
+            f"- Set: bklset (Backlog Set)\n"
+            f"- Status: open\n"
+            f"- Priority: medium\n",
+            encoding="utf-8",
+        )
+
+    # Default: all 4 kept in 1 shard + hint suggesting --split-sets
+    code_def = cli.main(
+        [
+            "partition",
+            "-t",
+            "backlog",
+            "-s",
+            "open",
+            "-n",
+            "2",
+            "--run",
+            "none",
+            "--json",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert code_def == 0
+    cap_def = capsys.readouterr()
+    payload_def = json.loads(cap_def.out)
+    assert [len(s) for s in payload_def["shards"]] == [4, 0]
+    assert "ended up in 1 shard" in cap_def.err
+    assert "--split-sets" in cap_def.err
+
+    # With --split-sets: splits 2/2 across 2 shards
+    code_split = cli.main(
+        [
+            "partition",
+            "-t",
+            "backlog",
+            "-s",
+            "open",
+            "-n",
+            "2",
+            "--split-sets",
+            "--run",
+            "none",
+            "--json",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert code_split == 0
+    cap_split = capsys.readouterr()
+    payload_split = json.loads(cap_split.out)
+    assert [len(s) for s in payload_split["shards"]] == [2, 2]
+    assert "hint:" not in cap_split.err
