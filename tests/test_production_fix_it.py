@@ -33,12 +33,11 @@ from agent_workflows import (
     runner_shared as rs,
     runner_stop,
 )
+from tests.record_builder import RecordBuilder
 from tests.test_production_correction_turn import (
     _HOSTS,
     _fake_probe_pass,
     _patch_host_agent,
-    _write_backlog_item,
-    _write_spec,
 )
 
 
@@ -74,31 +73,7 @@ def _write_child_plan(
     p_dir.mkdir(parents=True, exist_ok=True)
     file_path = p_dir / f"20261004-{setid}-{order:02d}-{id6}-test-child.ipd.md"
 
-    bkl_line = f"- From-Backlog: {backlog_id6}\n" if backlog_id6 else ""
-    spec_line = f"- From-Spec: {spec_id6}\n" if spec_id6 else ""
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
-
-    content = f"""# IPD: Test Child Plan {id6}
-
-- Date: 2026-10-04
-- Kind: child
-- Concern: Test child concern.
-- Scope: Test child scope.
-- Scope-Paths: {scope_paths}
-- Status: {status}
-{bkl_line}{spec_line}{gate_line}- Set: {setid}
-- Order: {order}
-- Highest E allocated: 01
-- Author: test
-- Priority: medium
-- Work-Kind: feature
-- Id: {id6}
-- Item-Dependencies: {dependencies}
-
-## Workflow history
-- 2026-10-04 {status} (test): created.
-
-## Goal
+    body = """## Goal
 Test child goal.
 
 ## Detailed Implementation Checklist (TODO)
@@ -144,6 +119,29 @@ Validation-state rule: inspect evidence.
 ## Approval and execution gate
 - None.
 """
+    content = RecordBuilder().plan(
+        id6=id6,
+        plan_role="child",
+        title=f"Test Child Plan {id6}",
+        author="test",
+        when="2026-10-04",
+        set_name=setid,
+        order=order,
+        status=status,
+        scope_paths=scope_paths,
+        item_dependencies=dependencies,
+        priority="medium",
+        work_kind="feature",
+        slug="test-child",
+        from_backlog=backlog_id6,
+        from_spec=spec_id6,
+        blocks_release=gate,
+        history=[f"- 2026-10-04 {status} (test): created."],
+        raw_fields={"Concern": "Test child concern.", "Scope": "Test child scope."},
+        body=body,
+        text_only=True,
+    )
+    assert isinstance(content, str)
     file_path.write_text(content, encoding="utf-8")
     return file_path
 
@@ -183,32 +181,7 @@ def _write_orchestrator_plan(
             "  - Execution state: pending"
         )
 
-    bkl_line = f"- From-Backlog: {backlog_id6}\n" if backlog_id6 else ""
-    spec_line = f"- From-Spec: {spec_id6}\n" if spec_id6 else ""
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
-    readiness_line = f"- Readiness: {readiness}\n" if readiness else ""
-
-    lines = [
-        f"# IPD: Test Orchestrator {id6}",
-        "",
-        "- Date: 2026-10-04",
-        "- Kind: orchestrator",
-        f"- Id: {id6}",
-        f"- Set: {setid}",
-        "- Order: 0",
-        f"- Status: {status}",
-        f"{readiness_line}{bkl_line}{spec_line}{gate_line}- Priority: medium",
-        "- Work-Kind: chore",
-        "- Author: test",
-        "- Highest E allocated: 01",
-        "- Concern: Test orchestrator concern.",
-        "- Scope: Test orchestrator scope.",
-        "- Scope-Paths: README.md",
-        "- Item-Dependencies: none",
-        "",
-        "## Workflow history",
-        f"- 2026-10-04 {status} (test): created.",
-        "",
+    body_lines = [
         "## Goal",
         "Test orchestrator goal.",
         "",
@@ -223,8 +196,8 @@ def _write_orchestrator_plan(
         "|---|---|---|---|---|",
     ]
     for ord_tok, c_id6, c_path in child_rows:
-        lines.append(f"| {ord_tok} | {c_id6} | pending | {c_path} | none |")
-    lines.extend(
+        body_lines.append(f"| {ord_tok} | {c_id6} | pending | {c_path} | none |")
+    body_lines.extend(
         [
             "",
             "## Completion criteria (the whole Set is done only when)",
@@ -261,86 +234,33 @@ def _write_orchestrator_plan(
             "",
         ]
     )
-    file_path.write_text("\n".join(lines), encoding="utf-8")
-    return file_path
-
-
-def _write_review_plan(
-    repo: Path,
-    *,
-    id6: str = "rev001",
-    setid: str = "revset",
-    status: str = "to-review",
-) -> Path:
-    p_dir = repo / ".aw" / "records" / "plans" / "pending"
-    p_dir.mkdir(parents=True, exist_ok=True)
-    file_path = p_dir / f"20261024-{setid}-01-{id6}-test-plan.ipd.md"
-    content = f"""# IPD: Review Plan {id6}
-
-- Date: 2026-10-24
-- Kind: child
-- Concern: Test concern.
-- Scope: Test scope.
-- Scope-Paths: README.md
-- Status: {status}
-- Set: {setid}
-- Order: 1
-- Highest E allocated: 01
-- Author: tester
-- Priority: medium
-- Work-Kind: feature
-- Id: {id6}
-- Item-Dependencies: none
-
-## Workflow history
-- 2026-10-24 {status} (tester): created.
-
-## Goal
-Test goal.
-
-## Detailed Implementation Checklist (TODO)
-Execution-state rule: mark performed only after doing it.
-### Task group 1: work
-- [ ] E-01 Work
-  - Depends on: none
-  - Expected outcome: done
-  - Execution state: pending
-
-## Project conventions discovered (Step 0)
-- None.
-
-## Findings
-- None.
-
-## Proposed changes (ordered, validatable)
-1. E-01 work.
-
-## Deferred / out of scope (with reason)
-- None.
-  - Carrier-Declined: none
-
-## Scope check
-- None.
-
-## Required tests / validation
-- None.
-
-## Spec / documentation sync
-- None.
-
-## Open questions
-- None.
-
-## Validation and cross-check (verify before reporting done)
-Validation-state rule: inspect evidence.
-- [ ] V-01 validates E-01
-  - Required evidence: check.
-  - Observed evidence:
-  - Result: pending
-
-## Approval and execution gate
-- None.
-"""
+    content = RecordBuilder().plan(
+        id6=id6,
+        plan_role="orchestrator",
+        title=f"Test Orchestrator {id6}",
+        author="test",
+        when="2026-10-04",
+        set_name=setid,
+        order=0,
+        status=status,
+        readiness=readiness,
+        scope_paths="README.md",
+        item_dependencies="none",
+        priority="medium",
+        work_kind="chore",
+        slug="test-orch",
+        from_backlog=backlog_id6,
+        from_spec=spec_id6,
+        blocks_release=gate,
+        history=[f"- 2026-10-04 {status} (test): created."],
+        raw_fields={
+            "Concern": "Test orchestrator concern.",
+            "Scope": "Test orchestrator scope.",
+        },
+        body="\n".join(body_lines),
+        text_only=True,
+    )
+    assert isinstance(content, str)
     file_path.write_text(content, encoding="utf-8")
     return file_path
 
@@ -354,8 +274,15 @@ class TestProductionFixIt(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl001", status="open", setid="set001"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl001",
+                        status="open",
+                        set_name="set001",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -471,8 +398,15 @@ class TestProductionFixIt(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl002", status="open", setid="set002"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl002",
+                        status="open",
+                        set_name="set002",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -598,7 +532,13 @@ class TestProductionFixIt(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_spec(repo, id6="spc001", status="approved")
+                    RecordBuilder(repo).spec(
+                        id6="spc001",
+                        status="approved",
+                        title="Test Spec",
+                        slug="test-spec",
+                        when="2026-10-04",
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-qm", "add spec"], cwd=repo, check=True
@@ -687,11 +627,25 @@ class TestProductionFixIt(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl004", status="open", setid="set004"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl004",
+                        status="open",
+                        set_name="set004",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
-                    _write_backlog_item(
-                        repo, id6="bkl005", status="open", setid="set005"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl005",
+                        status="open",
+                        set_name="set005",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -781,8 +735,15 @@ class TestProductionFixIt(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl006", status="open", setid="set006"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl006",
+                        status="open",
+                        set_name="set006",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -834,8 +795,15 @@ class TestProductionFixIt(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl007", status="open", setid="set007"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl007",
+                        status="open",
+                        set_name="set007",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -946,8 +914,15 @@ class TestProductionFixIt(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl008", status="open", setid="set008"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl008",
+                        status="open",
+                        set_name="set008",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -1057,8 +1032,15 @@ class TestProductionFixIt(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl009", status="open", setid="set009"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl009",
+                        status="open",
+                        set_name="set009",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -1154,8 +1136,15 @@ class TestProductionFixIt(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl010", status="open", setid="set010"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl010",
+                        status="open",
+                        set_name="set010",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -1319,7 +1308,72 @@ class TestProductionFixIt(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_review_plan(repo, id6="rev001")
+                    RecordBuilder(repo).plan(
+                        id6="rev001",
+                        plan_role="child",
+                        title="Review Plan rev001",
+                        author="tester",
+                        when="2026-10-24",
+                        set_name="revset",
+                        order=1,
+                        status="to-review",
+                        scope_paths="README.md",
+                        item_dependencies="none",
+                        priority="medium",
+                        work_kind="feature",
+                        slug="test-plan",
+                        history=["- 2026-10-24 to-review (tester): created."],
+                        raw_fields={
+                            "Concern": "Test concern.",
+                            "Scope": "Test scope.",
+                        },
+                        body="""## Goal
+Test goal.
+
+## Detailed Implementation Checklist (TODO)
+Execution-state rule: mark performed only after doing it.
+### Task group 1: work
+- [ ] E-01 Work
+  - Depends on: none
+  - Expected outcome: done
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+- None.
+
+## Findings
+- None.
+
+## Proposed changes (ordered, validatable)
+1. E-01 work.
+
+## Deferred / out of scope (with reason)
+- None.
+  - Carrier-Declined: none
+
+## Scope check
+- None.
+
+## Required tests / validation
+- None.
+
+## Spec / documentation sync
+- None.
+
+## Open questions
+- None.
+
+## Validation and cross-check (verify before reporting done)
+Validation-state rule: inspect evidence.
+- [ ] V-01 validates E-01
+  - Required evidence: check.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+- None.
+""",
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-qm", "add plan"], cwd=repo, check=True
@@ -1372,8 +1426,15 @@ class TestProductionFixIt(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl011", status="open", setid="set011"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl011",
+                        status="open",
+                        set_name="set011",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -1501,8 +1562,15 @@ class TestProductionFixIt(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl012", status="open", setid="set012"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl012",
+                        status="open",
+                        set_name="set012",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -1633,8 +1701,15 @@ class TestProductionFixIt(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl013", status="open", setid="set013"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl013",
+                        status="open",
+                        set_name="set013",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -1687,8 +1762,15 @@ class TestProductionFixIt(unittest.TestCase):
                 # Run B: lane with unmerged commits left on disk -> preserved
                 with tempfile.TemporaryDirectory() as td2:
                     repo2 = _make_test_repo(Path(td2))
-                    _write_backlog_item(
-                        repo2, id6="bkl014", status="open", setid="set014"
+                    RecordBuilder(repo2).backlog(
+                        id6="bkl014",
+                        status="open",
+                        set_name="set014",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo2, check=True)
                     subprocess.run(

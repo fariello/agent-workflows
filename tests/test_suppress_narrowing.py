@@ -32,6 +32,7 @@ from agent_workflows.runner_shared import (
     DriverError,
     GateAnswerOutcome,
 )
+from tests.record_builder import RecordBuilder
 
 LaneOutcomeStub = namedtuple("LaneOutcomeStub", ["changed_files"])
 
@@ -58,7 +59,17 @@ def _setup_fixture_repo(
         / f"20260928-test-01-{id6}-test.ipd.md"
     )
     plan.write_text(
-        f"# IPD: test\n\n- Date: 2026-09-28\n- Kind: child\n- Id: {id6}\n- Set: test\n- Order: 1\n- Status: approved\n\n## Goal\n\ntest\n",
+        RecordBuilder().plan(
+            title="test",
+            when="2026-09-28",
+            plan_role="child",
+            id6=id6,
+            set="test",
+            order=1,
+            status="approved",
+            body="## Goal\n\ntest",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     subprocess.run(["git", "add", "."], cwd=repo, check=True)

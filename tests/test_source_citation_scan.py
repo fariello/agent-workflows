@@ -23,13 +23,16 @@ from agent_workflows.artifact_refs import (
     check_source_citations,
     dead_filename_citations,
 )
+from tests.record_builder import RecordBuilder
 
 
 def _setup_fake_repo(tmp_path: Path) -> dict[str, Path]:
     plans_dir = tmp_path / ".aw" / "records" / "plans" / "pending"
     plans_dir.mkdir(parents=True, exist_ok=True)
     real_plan = plans_dir / "20260901-testset-01-a1b2c3-real-plan.ipd.md"
-    real_plan.write_text("# Real Plan\n- Id: a1b2c3\n", encoding="utf-8")
+    real_plan.write_text(
+        RecordBuilder().plan(id6="a1b2c3", text_only=True), encoding="utf-8"
+    )
 
     pkg_dir = tmp_path / "agent_workflows"
     pkg_dir.mkdir(parents=True, exist_ok=True)

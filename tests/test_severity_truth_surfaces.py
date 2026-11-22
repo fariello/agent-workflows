@@ -19,6 +19,7 @@ from pathlib import Path
 from agent_workflows import runner_shared as rs
 from tests.conformance_matrix import run_cli_inproc
 from tests.support import init_repo
+from tests.record_builder import RecordBuilder
 
 
 def _summary_line_buckets(output: str) -> tuple[int, int, int, int, int]:
@@ -53,15 +54,16 @@ def test_doctor_summary_bucket_count_conservation(tmp_path: Path) -> None:
     r_dir.mkdir(parents=True)
     doc = r_dir / "20260901-testset-01-tst001-test-doc.research-report.md"
     doc.write_text(
-        "---\n"
-        "id: tst001\n"
-        "title: Test Doc\n"
-        "status: active\n"
-        "outcome: adopted\n"
-        "consumed-by: []\n"
-        "model: test-model\n"
-        "---\n\n"
-        "# Test Doc\n",
+        RecordBuilder().research(
+            id6="tst001",
+            title="Test Doc",
+            status="active",
+            outcome="adopted",
+            consumed_by=[],
+            model="test-model",
+            body="\n# Test Doc\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -102,7 +104,10 @@ def test_attention_diagnostic_preserves_drift_severity_and_exit_code(
     plan_dir = repo / ".aw" / "records" / "plans" / "executed"
     plan_dir.mkdir(parents=True, exist_ok=True)
     (plan_dir / "20260101-set-01-3brgb6-slug.ipd.md").write_text(
-        "# IPD: probe\n\n- Id: 3brgb6\n- Status: executed\n", encoding="utf-8"
+        RecordBuilder().plan(
+            title="probe", id6="3brgb6", status="executed", text_only=True
+        ),
+        encoding="utf-8",
     )
     subprocess.run(
         ["git", "add", ".aw/records/plans/executed"],

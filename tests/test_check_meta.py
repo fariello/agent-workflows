@@ -18,6 +18,7 @@ import pytest
 
 from agent_workflows import artifact_meta, cli
 from agent_workflows.agent_schema import validate_agent_record
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -65,7 +66,8 @@ def _write_clean_plan(
     date_iso: str = "2026-11-09",
     status: str = "approved",
     disposition: str = "pending",
-    extra_bullets: str = "",
+    ace: str | None = None,
+    model: str | None = None,
     filename_override: str | None = None,
 ) -> Path:
     fname = (
@@ -74,17 +76,24 @@ def _write_clean_plan(
     )
     p = repo / ".aw" / "records" / "plans" / disposition / fname
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(
-        f"# IPD: Clean plan {id6}\n\n"
-        f"- Date: {date_iso}\n"
-        f"- Id: {id6}\n"
-        f"- Status: {status}\n"
-        f"- Set: {set_id}\n"
-        f"- Order: {order:02d}\n"
-        f"{extra_bullets}\n"
-        "## Goal\n\nBody text.\n",
-        encoding="utf-8",
+    raw_fields: dict[str, Any] = {}
+    if ace is not None:
+        raw_fields["Ace"] = ace
+    if model is not None:
+        raw_fields["Model"] = model
+    text = RecordBuilder().plan(
+        id6=id6,
+        title=f"Clean plan {id6}",
+        when=date_iso,
+        status=status,
+        set_name=set_id,
+        order=order,
+        raw_fields=raw_fields or None,
+        body="## Goal\n\nBody text.\n",
+        text_only=True,
     )
+    assert isinstance(text, str)
+    p.write_text(text, encoding="utf-8")
     return p
 
 
@@ -122,7 +131,16 @@ def test_clean_fixture_exits_zero_and_names_not_applicable_rows(tmp_path: Path) 
     )
     spec_p.parent.mkdir(parents=True, exist_ok=True)
     spec_p.write_text(
-        "# Spec: Clean\n\n- Date: 2026-11-09\n- Id: cl0002\n- Status: approved\n- Set: cmset\n- Order: 01\n\n## Scope\n\nText.\n",
+        RecordBuilder().spec(
+            title="Clean",
+            when="2026-11-09",
+            id6="cl0002",
+            status="approved",
+            set="cmset",
+            order=1,
+            body="## Scope\n\nText.",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -135,7 +153,14 @@ def test_clean_fixture_exits_zero_and_names_not_applicable_rows(tmp_path: Path) 
     )
     walk_p.parent.mkdir(parents=True, exist_ok=True)
     walk_p.write_text(
-        "# Walkthrough: Clean\n\n- Date: 2026-11-09\n- Id: cl0003\n- Set: cmset\n- Order: 01\n\nText.\n",
+        RecordBuilder().walkthrough(
+            id6="cl0003",
+            when="2026-11-09",
+            set_name="cmset",
+            order=1,
+            body="# Walkthrough: Clean\n\nText.\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -148,14 +173,16 @@ def test_clean_fixture_exits_zero_and_names_not_applicable_rows(tmp_path: Path) 
     )
     res_p.parent.mkdir(parents=True, exist_ok=True)
     res_p.write_text(
-        "---\n"
-        "id: cl0004\n"
-        "set: cmset\n"
-        "order: 1\n"
-        "model: opus\n"
-        "kind: findings\n"
-        "status: active\n"
-        "---\n\n# Clean Research\n\nBody.\n",
+        RecordBuilder().research(
+            id6="cl0004",
+            set="cmset",
+            order=1,
+            model="opus",
+            research_kind="findings",
+            status="active",
+            body="\n# Clean Research\n\nBody.\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -168,7 +195,7 @@ def test_clean_fixture_exits_zero_and_names_not_applicable_rows(tmp_path: Path) 
     )
     rev_p.parent.mkdir(parents=True, exist_ok=True)
     rev_p.write_text(
-        "# Review\n\n- Subject-Id: cl0001\n- Verdict: APPROVE\n\n## Round 1\n\nLooks good.\n",
+        RecordBuilder().review(subject="cl0001", verdict="APPROVE", text_only=True),
         encoding="utf-8",
     )
 
@@ -202,7 +229,12 @@ def test_drift_status_mirror(tmp_path: Path) -> None:
     p = repo / ".aw" / "records" / rel
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(
-        "---\nid: sm0001\nstatus: draft\n---\n# Plan\n\nBody.\n",
+        RecordBuilder().research(
+            id6="sm0001",
+            body="# Plan\n\nBody.\n",
+            raw_fields={"status": "draft"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     _write_log(
@@ -243,7 +275,12 @@ def test_drift_id_mirror(tmp_path: Path) -> None:
     p = repo / ".aw" / "records" / rel
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(
-        "---\nid: zzzzzz\nstatus: approved\n---\n# Plan\n\nBody.\n",
+        RecordBuilder().research(
+            id6="zzzzzz",
+            body="# Plan\n\nBody.\n",
+            raw_fields={"status": "approved"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     _write_log(
@@ -345,7 +382,8 @@ def test_drift_d177_facet(tmp_path: Path) -> None:
     _write_clean_plan(
         repo,
         "d10001",
-        extra_bullets="- Ace: opencode\n- Model: sonnet\n",
+        ace="opencode",
+        model="sonnet",
         filename_override="20261109-cmset-01-d10001-clean-plan.opencode.opus.ipd.md",
     )
 
@@ -367,14 +405,16 @@ def test_drift_research_facet(tmp_path: Path) -> None:
     )
     res_p.parent.mkdir(parents=True, exist_ok=True)
     res_p.write_text(
-        "---\n"
-        "id: rf0001\n"
-        "set: cmset\n"
-        "order: 1\n"
-        "model: opus\n"
-        "kind: survey\n"
-        "status: active\n"
-        "---\n\n# Study\n\nBody.\n",
+        RecordBuilder().research(
+            id6="rf0001",
+            set="cmset",
+            order=1,
+            model="opus",
+            research_kind="survey",
+            status="active",
+            body="\n# Study\n\nBody.\n",
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -414,8 +454,12 @@ def test_drift_review_rounds(tmp_path: Path) -> None:
     rev_p.parent.mkdir(parents=True, exist_ok=True)
     # Skips Round 2: file has [1, 3] while cached review rows expect [1, 2, 3].
     rev_p.write_text(
-        "# Review\n\n- Subject-Id: rr0001\n- Verdict: APPROVE\n\n"
-        "## Round 1\n\nFirst pass.\n\n## Round 3\n\nSkipped round 2.\n",
+        RecordBuilder().review(
+            subject="rr0001",
+            verdict="APPROVE",
+            rounds=[{"number": 1}, {"number": 3}],
+            text_only=True,
+        ),
         encoding="utf-8",
     )
 
@@ -535,7 +579,12 @@ def test_duplicate_seq_log_never_passes_check_meta(tmp_path: Path) -> None:
     p = repo / ".aw" / "records" / rel
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(
-        "---\nid: dv0002\nstatus: draft\n---\n# Plan\n\nBody.\n",
+        RecordBuilder().research(
+            id6="dv0002",
+            body="# Plan\n\nBody.\n",
+            raw_fields={"status": "draft"},
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     _write_log(

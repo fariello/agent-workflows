@@ -26,6 +26,7 @@ from agent_workflows import (
     oc_runipd,
     runner_shared as rs,
 )
+from tests.record_builder import RecordBuilder
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -40,67 +41,6 @@ def _make_test_repo(path: Path) -> Path:
     subprocess.run(["git", "add", "README.md"], cwd=path, check=True)
     subprocess.run(["git", "commit", "-qm", "initial commit"], cwd=path, check=True)
     return path
-
-
-def _write_backlog_item(
-    repo: Path,
-    *,
-    id6: str,
-    status: str = "open",
-    summary: str = "Test backlog item",
-    slug: str = "test-item",
-    gate: str | None = None,
-    work_kind: str = "feature",
-    priority: str = "high",
-    setid: str | None = None,
-) -> Path:
-    bkl_dir = repo / ".aw" / "records" / "backlog" / status
-    bkl_dir.mkdir(parents=True, exist_ok=True)
-    if setid is None:
-        setid = id6
-    file_path = bkl_dir / f"20261004-{setid}-01-{id6}-{slug}.backlog.md"
-
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
-    content = f"""- Id: {id6}
-- Status: {status}
-- Set: {setid}
-{gate_line}- Priority: {priority}
-- Work-Kind: {work_kind}
-- Summary: {summary}
-
-## Workflow history
-- 2026-10-04 {status} (tester): created item
-"""
-    file_path.write_text(content, encoding="utf-8")
-    return file_path
-
-
-def _write_spec(
-    repo: Path,
-    *,
-    id6: str,
-    status: str = "approved",
-    title: str = "Test Spec",
-    slug: str = "test-spec",
-    gate: str | None = None,
-) -> Path:
-    bucket = "approved" if status == "approved" else status
-    specs_dir = repo / ".aw" / "records" / "specs" / bucket
-    specs_dir.mkdir(parents=True, exist_ok=True)
-    file_path = specs_dir / f"20261004-{id6}-01-{id6}-{slug}.spec.md"
-
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
-    content = f"""# SPEC: {title}
-
-- Date: 2026-10-04
-- Status: {status}
-{gate_line}- Id: {id6}
-
-## Workflow history
-- 2026-10-04 {status} (tester): created spec
-"""
-    file_path.write_text(content, encoding="utf-8")
-    return file_path
 
 
 def _write_child_plan(
@@ -120,31 +60,7 @@ def _write_child_plan(
     p_dir.mkdir(parents=True, exist_ok=True)
     file_path = p_dir / f"20261004-{setid}-{order:02d}-{id6}-test-child.ipd.md"
 
-    bkl_line = f"- From-Backlog: {backlog_id6}\n" if backlog_id6 else ""
-    spec_line = f"- From-Spec: {spec_id6}\n" if spec_id6 else ""
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
-
-    content = f"""# IPD: Test Child Plan {id6}
-
-- Date: 2026-10-04
-- Kind: child
-- Concern: Test child concern.
-- Scope: Test child scope.
-- Scope-Paths: {scope_paths}
-- Status: {status}
-{bkl_line}{spec_line}{gate_line}- Set: {setid}
-- Order: {order}
-- Highest E allocated: 01
-- Author: test
-- Priority: medium
-- Work-Kind: feature
-- Id: {id6}
-- Item-Dependencies: {dependencies}
-
-## Workflow history
-- 2026-10-04 {status} (test): created.
-
-## Goal
+    body = """## Goal
 Test child goal.
 
 ## Detailed Implementation Checklist (TODO)
@@ -189,6 +105,29 @@ Validation-state rule: inspect evidence.
 ## Approval and execution gate
 - None.
 """
+    content = RecordBuilder().plan(
+        id6=id6,
+        plan_role="child",
+        title=f"Test Child Plan {id6}",
+        author="test",
+        when="2026-10-04",
+        set_name=setid,
+        order=order,
+        status=status,
+        scope_paths=scope_paths,
+        item_dependencies=dependencies,
+        priority="medium",
+        work_kind="feature",
+        slug="test-child",
+        from_backlog=backlog_id6,
+        from_spec=spec_id6,
+        blocks_release=gate,
+        history=[f"- 2026-10-04 {status} (test): created."],
+        raw_fields={"Concern": "Test child concern.", "Scope": "Test child scope."},
+        body=body,
+        text_only=True,
+    )
+    assert isinstance(content, str)
     file_path.write_text(content, encoding="utf-8")
     return file_path
 
@@ -228,32 +167,7 @@ def _write_orchestrator_plan(
             "  - Execution state: pending"
         )
 
-    bkl_line = f"- From-Backlog: {backlog_id6}\n" if backlog_id6 else ""
-    spec_line = f"- From-Spec: {spec_id6}\n" if spec_id6 else ""
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
-    readiness_line = f"- Readiness: {readiness}\n" if readiness else ""
-
-    lines = [
-        f"# IPD: Test Orchestrator {id6}",
-        "",
-        "- Date: 2026-10-04",
-        "- Kind: orchestrator",
-        f"- Id: {id6}",
-        f"- Set: {setid}",
-        "- Order: 0",
-        f"- Status: {status}",
-        f"{readiness_line}{bkl_line}{spec_line}{gate_line}- Priority: medium",
-        "- Work-Kind: chore",
-        "- Author: test",
-        "- Highest E allocated: 01",
-        "- Concern: Test orchestrator concern.",
-        "- Scope: Test orchestrator scope.",
-        "- Scope-Paths: README.md",
-        "- Item-Dependencies: none",
-        "",
-        "## Workflow history",
-        f"- 2026-10-04 {status} (test): created.",
-        "",
+    body_lines = [
         "## Goal",
         "Test orchestrator goal.",
         "",
@@ -268,8 +182,8 @@ def _write_orchestrator_plan(
         "|---|---|---|---|---|",
     ]
     for ord_tok, c_id6, c_path in child_rows:
-        lines.append(f"| {ord_tok} | {c_id6} | pending | {c_path} | none |")
-    lines.extend(
+        body_lines.append(f"| {ord_tok} | {c_id6} | pending | {c_path} | none |")
+    body_lines.extend(
         [
             "",
             "## Completion criteria (the whole Set is done only when)",
@@ -305,7 +219,34 @@ def _write_orchestrator_plan(
             "",
         ]
     )
-    file_path.write_text("\n".join(lines), encoding="utf-8")
+    content = RecordBuilder().plan(
+        id6=id6,
+        plan_role="orchestrator",
+        title=f"Test Orchestrator {id6}",
+        author="test",
+        when="2026-10-04",
+        set_name=setid,
+        order=0,
+        status=status,
+        readiness=readiness,
+        scope_paths="README.md",
+        item_dependencies="none",
+        priority="medium",
+        work_kind="chore",
+        slug="test-orch",
+        from_backlog=backlog_id6,
+        from_spec=spec_id6,
+        blocks_release=gate,
+        history=[f"- 2026-10-04 {status} (test): created."],
+        raw_fields={
+            "Concern": "Test orchestrator concern.",
+            "Scope": "Test orchestrator scope.",
+        },
+        body="\n".join(body_lines),
+        text_only=True,
+    )
+    assert isinstance(content, str)
+    file_path.write_text(content, encoding="utf-8")
     return file_path
 
 
@@ -407,8 +348,15 @@ class TestProductionCorrectionTurn(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl001", status="open", setid="set001"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl001",
+                        status="open",
+                        set_name="set001",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -431,8 +379,9 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -486,12 +435,16 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                             )
                         return 0, "session-1", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -537,8 +490,15 @@ class TestProductionCorrectionTurn(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl002", status="open", setid="set002"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl002",
+                        status="open",
+                        set_name="set002",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -561,8 +521,9 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -600,12 +561,16 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                         )
                         return 0, "session-1", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -641,8 +606,15 @@ class TestProductionCorrectionTurn(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl003", status="open", setid="set003"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl003",
+                        status="open",
+                        set_name="set003",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -665,8 +637,9 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -706,12 +679,16 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                         )
                         return 0, "session-1", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -729,8 +706,15 @@ class TestProductionCorrectionTurn(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl004", status="open", setid="set004"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl004",
+                        status="open",
+                        set_name="set004",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -753,8 +737,9 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -795,12 +780,16 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                         )
                         return 0, "session-1", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -818,7 +807,13 @@ class TestProductionCorrectionTurn(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_spec(repo, id6="spc001", status="approved")
+                    RecordBuilder(repo).spec(
+                        id6="spc001",
+                        status="approved",
+                        title="Test Spec",
+                        slug="test-spec",
+                        when="2026-10-04",
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-qm", "add spec"], cwd=repo, check=True
@@ -840,8 +835,9 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -890,12 +886,16 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                             )
                         return 0, "session-1", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -961,8 +961,9 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -981,17 +982,24 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                         target = Path(kwargs.get("work_dir") or state["repo"])
                         if turn_counter[0] == 1:
                             # Sets reviewed in file directly (to test demotion and remand)
-                            p = list(
-                                target.glob(
-                                    ".aw/records/plans/**/20261004-setrev-00-orcrev*.ipd.md"
-                                )
-                            )[0]
-                            p.write_text(
-                                p.read_text(encoding="utf-8").replace(
-                                    "- Status: to-review",
-                                    "- Status: reviewed\n- Readiness: go-pending-approval",
-                                ),
-                                encoding="utf-8",
+                            _write_orchestrator_plan(
+                                target,
+                                id6="orcrev",
+                                setid="setrev",
+                                status="reviewed",
+                                readiness="go-pending-approval",
+                                child_rows=[
+                                    (
+                                        "01",
+                                        "chd001",
+                                        ".aw/records/plans/pending/20261004-setrev-01-chd001-test-child.ipd.md",
+                                    ),
+                                    (
+                                        "02",
+                                        "chd002",
+                                        ".aw/records/plans/pending/20261004-setrev-02-chd002-test-child.ipd.md",
+                                    ),
+                                ],
                             )
                         else:
                             # Correction turn: authors chd002 and sets reviewed with coverage
@@ -1025,12 +1033,16 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                             )
                         return 0, "session-rev", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1083,8 +1095,9 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1099,26 +1112,37 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                     ) -> tuple[int, str, Path, list[str]]:
                         target = Path(kwargs.get("work_dir") or state["repo"])
                         # Keeps setting reviewed without fixing chd002
-                        p = list(
-                            target.glob(
-                                ".aw/records/plans/**/20261004-setex-00-orce01*.ipd.md"
-                            )
-                        )[0]
-                        p.write_text(
-                            p.read_text(encoding="utf-8").replace(
-                                "- Status: to-review",
-                                "- Status: reviewed\n- Readiness: go-pending-approval",
-                            ),
-                            encoding="utf-8",
+                        _write_orchestrator_plan(
+                            target,
+                            id6="orce01",
+                            setid="setex",
+                            status="reviewed",
+                            readiness="go-pending-approval",
+                            child_rows=[
+                                (
+                                    "01",
+                                    "chd001",
+                                    ".aw/records/plans/pending/20261004-setex-01-chd001-test-child.ipd.md",
+                                ),
+                                (
+                                    "02",
+                                    "chd002",
+                                    ".aw/records/plans/pending/20261004-setex-02-chd002-test-child.ipd.md",
+                                ),
+                            ],
                         )
                         return 0, "session-rev", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent_ex), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent_ex),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1191,8 +1215,9 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1235,12 +1260,16 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                             )
                         return 0, "session-c-123", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent_c), mock.patch.object(
-                        rs, "ask_orchestrator_probe", _fake_probe_pass
+                    with (
+                        _patch_host_agent(mod, fake_agent_c),
+                        mock.patch.object(
+                            rs, "ask_orchestrator_probe", _fake_probe_pass
+                        ),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(

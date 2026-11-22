@@ -50,6 +50,7 @@ from agent_workflows import (
     production_checks,
     runner_shared as rs,
 )
+from tests.record_builder import RecordBuilder
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -64,72 +65,6 @@ def _make_test_repo(path: Path) -> Path:
     subprocess.run(["git", "add", "README.md"], cwd=path, check=True)
     subprocess.run(["git", "commit", "-qm", "initial commit"], cwd=path, check=True)
     return path
-
-
-def _write_backlog_item(
-    repo: Path,
-    *,
-    id6: str,
-    status: str = "open",
-    summary: str = "Test backlog item",
-    slug: str = "test-item",
-    gate: str | None = None,
-    work_kind: str = "feature",
-    priority: str = "high",
-    setid: str | None = None,
-) -> Path:
-    bkl_dir = repo / ".aw" / "records" / "backlog" / status
-    bkl_dir.mkdir(parents=True, exist_ok=True)
-    if setid is None:
-        setid = id6
-    file_path = bkl_dir / f"20261004-{setid}-01-{id6}-{slug}.backlog.md"
-
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
-    content = f"""- Id: {id6}
-- Status: {status}
-- Set: {setid}
-{gate_line}- Priority: {priority}
-- Work-Kind: {work_kind}
-- Summary: {summary}
-
-## Workflow history
-- 2026-10-04 {status} (tester): created item
-"""
-    file_path.write_text(content, encoding="utf-8")
-    return file_path
-
-
-def _write_spec(
-    repo: Path,
-    *,
-    id6: str,
-    status: str = "approved",
-    title: str = "Test Spec",
-    slug: str = "test-spec",
-    gate: str | None = None,
-) -> Path:
-    bucket = "approved" if status == "approved" else status
-    specs_dir = repo / ".aw" / "records" / "specs" / bucket
-    specs_dir.mkdir(parents=True, exist_ok=True)
-    file_path = specs_dir / f"20261004-{id6}-01-{id6}-{slug}.spec.md"
-
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
-    content = f"""# SPEC: {title}
-
-- Date: 2026-10-04
-- Status: {status}
-- Title: {title}
-- Slug: {slug}
-- Id: {id6}
-{gate_line}
-## Workflow history
-- 2026-10-04 {status} (tester): set status
-
-## 1. Overview
-Overview of spec {id6}.
-"""
-    file_path.write_text(content, encoding="utf-8")
-    return file_path
 
 
 def _write_child_plan(
@@ -150,38 +85,16 @@ def _write_child_plan(
     p_dir.mkdir(parents=True, exist_ok=True)
     file_path = p_dir / f"20261004-{setid}-{order:02d}-{id6}-test-child.ipd.md"
 
-    bkl_line = f"- From-Backlog: {backlog_id6}\n" if backlog_id6 else ""
-    spec_line = f"- From-Spec: {spec_id6}\n" if spec_id6 else ""
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
-    appr_line = "- Approval: test\n" if status == "approved" else ""
     # rdyreq (`fhinri`, IPD-M113): reviewed/ready-to-execute requires `- Readiness:`, attested by a
     # /plan-review verdict in the history (IPD-M107).
     gated = status in ("reviewed", "approved", "auto-approved")
+    approval = "test" if status == "approved" else None
+    readiness = "go-pending-approval" if gated else None
+    history = [f"- 2026-10-04 {status} (test): created."]
     if gated:
-        appr_line += "- Readiness: go-pending-approval\n"
-    review_line = "- 2026-10-04 /plan-review (test): APPROVE\n" if gated else ""
+        history.append("- 2026-10-04 /plan-review (test): APPROVE")
 
-    content = f"""# IPD: Test Child Plan {id6}
-
-- Date: 2026-10-04
-- Kind: child
-- Concern: Test child concern.
-- Scope: Test child scope.
-- Scope-Paths: {scope_paths}
-- Status: {status}
-{appr_line}{bkl_line}{spec_line}{gate_line}- Set: {setid}
-- Order: {order}
-- Highest E allocated: 01
-- Author: test
-- Priority: medium
-- Work-Kind: feature
-- Id: {id6}
-- Item-Dependencies: {dependencies}
-
-## Workflow history
-- 2026-10-04 {status} (test): created.
-{review_line}
-## Goal
+    body = """## Goal
 Test child goal.
 
 ## Detailed Implementation Checklist (TODO)
@@ -226,6 +139,31 @@ Validation-state rule: inspect evidence.
 ## Approval and execution gate
 - None.
 """
+    content = RecordBuilder().plan(
+        id6=id6,
+        plan_role="child",
+        title=f"Test Child Plan {id6}",
+        author="test",
+        when="2026-10-04",
+        set_name=setid,
+        order=order,
+        status=status,
+        approval=approval,
+        readiness=readiness,
+        scope_paths=scope_paths,
+        item_dependencies=dependencies,
+        priority="medium",
+        work_kind="feature",
+        slug="test-child",
+        from_backlog=backlog_id6,
+        from_spec=spec_id6,
+        blocks_release=gate,
+        history=history,
+        raw_fields={"Concern": "Test child concern.", "Scope": "Test child scope."},
+        body=body,
+        text_only=True,
+    )
+    assert isinstance(content, str)
     file_path.write_text(content, encoding="utf-8")
     return file_path
 
@@ -266,57 +204,25 @@ def _write_orchestrator_plan(
             "  - Execution state: pending"
         )
 
-    bkl_line = f"- From-Backlog: {backlog_id6}\n" if backlog_id6 else ""
-    spec_line = f"- From-Spec: {spec_id6}\n" if spec_id6 else ""
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
-
-    lines = [
-        f"# IPD: Test Orchestrator {id6}",
-        "",
-        "- Date: 2026-10-04",
-        "- Kind: orchestrator",
-        f"- Id: {id6}",
-        f"- Set: {setid}",
-        "- Order: 0",
-        f"- Status: {status}",
-    ]
-    if status == "approved":
-        lines.append("- Approval: test")
     gated = status in ("reviewed", "approved", "auto-approved")
+    approval = "test" if status == "approved" else None
+    readiness = "go-pending-approval" if gated else None
+    history = [f"- 2026-10-04 {status} (test): created."]
     if gated:
-        lines.append("- Readiness: go-pending-approval")
-    lines.extend(
-        [
-            f"{bkl_line}{spec_line}{gate_line}- Priority: medium",
-            "- Work-Kind: chore",
-            "- Author: test",
-            "- Highest E allocated: 01",
-            "- Concern: Test orchestrator concern.",
-            "- Scope: Test orchestrator scope.",
-            "- Scope-Paths: README.md",
-            "- Item-Dependencies: none",
-            "",
-            "## Workflow history",
-            f"- 2026-10-04 {status} (test): created.",
-        ]
-    )
-    if gated:
-        lines.append("- 2026-10-04 /plan-review (test): APPROVE")
-    lines.extend(
-        [
-            "",
-            "## Goal",
-            "Test orchestrator goal.",
-            "",
-            "## Detailed Implementation Checklist (TODO)",
-            "Execution-state rule: mark performed only after doing it.",
-            "### Task group 1: orchestrate",
-            checklist_item,
-            "",
-        ]
-    )
+        history.append("- 2026-10-04 /plan-review (test): APPROVE")
+
+    body_lines = [
+        "## Goal",
+        "Test orchestrator goal.",
+        "",
+        "## Detailed Implementation Checklist (TODO)",
+        "Execution-state rule: mark performed only after doing it.",
+        "### Task group 1: orchestrate",
+        checklist_item,
+        "",
+    ]
     if not omit_child_table:
-        lines.extend(
+        body_lines.extend(
             [
                 "## Child IPDs, sequence, and dependencies",
                 "",
@@ -325,10 +231,10 @@ def _write_orchestrator_plan(
             ]
         )
         for ord_tok, c_id6, c_path in child_rows:
-            lines.append(f"| {ord_tok} | {c_id6} | pending | {c_path} | none |")
-        lines.append("")
+            body_lines.append(f"| {ord_tok} | {c_id6} | pending | {c_path} | none |")
+        body_lines.append("")
 
-    lines.extend(
+    body_lines.extend(
         [
             "## Completion criteria (the whole Set is done only when)",
             "- None.",
@@ -363,7 +269,35 @@ def _write_orchestrator_plan(
             "",
         ]
     )
-    file_path.write_text("\n".join(lines), encoding="utf-8")
+    content = RecordBuilder().plan(
+        id6=id6,
+        plan_role="orchestrator",
+        title=f"Test Orchestrator {id6}",
+        author="test",
+        when="2026-10-04",
+        set_name=setid,
+        order=0,
+        status=status,
+        approval=approval,
+        readiness=readiness,
+        scope_paths="README.md",
+        item_dependencies="none",
+        priority="medium",
+        work_kind="chore",
+        slug="test-orch",
+        from_backlog=backlog_id6,
+        from_spec=spec_id6,
+        blocks_release=gate,
+        history=history,
+        raw_fields={
+            "Concern": "Test orchestrator concern.",
+            "Scope": "Test orchestrator scope.",
+        },
+        body="\n".join(body_lines),
+        text_only=True,
+    )
+    assert isinstance(content, str)
+    file_path.write_text(content, encoding="utf-8")
     return file_path
 
 
@@ -397,7 +331,16 @@ class TestProductionResumeHandoffUnit(unittest.TestCase):
         """Test the 6 count outcomes for backlog items (E-01)."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            _write_backlog_item(repo, id6="bkl001", setid="set001")
+            RecordBuilder(repo).backlog(
+                id6="bkl001",
+                status="open",
+                set_name="set001",
+                when="2026-10-04",
+                summary="Test backlog item",
+                slug="test-item",
+                work_kind="feature",
+                priority="high",
+            )
 
             # 1. Zero linked plans after turn -> fails
             f_zero = production_checks.backlog_graduate_count(repo, "bkl001", set())
@@ -464,7 +407,13 @@ class TestProductionResumeHandoffUnit(unittest.TestCase):
         """Test the 6 count outcomes for specs (E-01)."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            _write_spec(repo, id6="spc001")
+            RecordBuilder(repo).spec(
+                id6="spc001",
+                status="approved",
+                title="Test Spec",
+                slug="test-spec",
+                when="2026-10-04",
+            )
 
             # 1. Zero linked plans after turn -> fails
             f_zero = production_checks.spec_plan_count(repo, "spc001", set())
@@ -524,8 +473,23 @@ class TestProductionResumeHandoffUnit(unittest.TestCase):
         """Prompt builder tests: continue section placement, findings, byte-identity, zero probe calls (E-02)."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            bkl_path = _write_backlog_item(repo, id6="bkl001", setid="tstset")
-            spc_path = _write_spec(repo, id6="spc001")
+            bkl_path = RecordBuilder(repo).backlog(
+                id6="bkl001",
+                status="open",
+                set_name="tstset",
+                when="2026-10-04",
+                summary="Test backlog item",
+                slug="test-item",
+                work_kind="feature",
+                priority="high",
+            )
+            spc_path = RecordBuilder(repo).spec(
+                id6="spc001",
+                status="approved",
+                title="Test Spec",
+                slug="test-spec",
+                when="2026-10-04",
+            )
 
             probe_mock = mock.MagicMock()
             with mock.patch.object(rs, "ask_orchestrator_probe", probe_mock):
@@ -613,7 +577,15 @@ class TestProductionResumeHandoffUnit(unittest.TestCase):
         """Per-plan conformance accepts legitimate status for continued plans (E-03)."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
-            _write_backlog_item(repo, id6="bkl001")
+            RecordBuilder(repo).backlog(
+                id6="bkl001",
+                status="open",
+                when="2026-10-04",
+                summary="Test backlog item",
+                slug="test-item",
+                work_kind="feature",
+                priority="high",
+            )
 
             p_to_rev = _write_child_plan(
                 repo, id6="p00001", backlog_id6="bkl001", status="to-review"
@@ -658,7 +630,16 @@ class TestProductionResumeHandoffUnit(unittest.TestCase):
         """Commit helpers allow continued plans and classify deleted/renamed/pre-dirty (E-05)."""
         with tempfile.TemporaryDirectory() as td:
             repo = _make_test_repo(Path(td))
-            _write_backlog_item(repo, id6="bkl001", setid="set001")
+            RecordBuilder(repo).backlog(
+                id6="bkl001",
+                status="open",
+                set_name="set001",
+                when="2026-10-04",
+                summary="Test backlog item",
+                slug="test-item",
+                work_kind="feature",
+                priority="high",
+            )
             p_exist = _write_child_plan(
                 repo, id6="old001", backlog_id6="bkl001", setid="set001"
             )
@@ -752,8 +733,15 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
                 # A. Failing variant: child left draft -> fails BACKLOG-GRADUATE-SET naming it
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl401", status="open", setid="set401"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl401",
+                        status="open",
+                        set_name="set401",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     _write_orchestrator_plan(
                         repo,
@@ -796,8 +784,9 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -822,12 +811,14 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
                     ) -> tuple[str, str, tuple[str, ...]]:
                         return (rs.PROBE_ANSWER_NO_EXECUTIONS, "fake-model", ())
 
-                    with _patch_host_agent(
-                        mod, fake_agent_no_change
-                    ), mock.patch.object(rs, "ask_orchestrator_probe", fake_ask_probe):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                    with (
+                        _patch_host_agent(mod, fake_agent_no_change),
+                        mock.patch.object(rs, "ask_orchestrator_probe", fake_ask_probe),
+                    ):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -842,8 +833,15 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
                 # B. Passing case: agent brings child to-review -> item graduated
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl401", status="open", setid="set401"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl401",
+                        status="open",
+                        set_name="set401",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     _write_orchestrator_plan(
                         repo,
@@ -886,8 +884,9 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -902,27 +901,23 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
                     ) -> tuple[int, str, Path, list[str]]:
                         work_dir = kwargs.get("work_dir")
                         target = Path(work_dir) if work_dir else Path(state["repo"])
-                        target_chd = (
-                            target
-                            / ".aw"
-                            / "records"
-                            / "plans"
-                            / "pending"
-                            / "20261004-set401-01-chd401-test-child.ipd.md"
+                        _write_child_plan(
+                            target,
+                            id6="chd401",
+                            backlog_id6="bkl401",
+                            setid="set401",
+                            status="to-review",
                         )
-                        c_text = target_chd.read_text(encoding="utf-8")
-                        c_text = c_text.replace(
-                            "- Status: draft", "- Status: to-review"
-                        )
-                        target_chd.write_text(c_text, encoding="utf-8")
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
-                    with _patch_host_agent(mod, fake_agent_fix), mock.patch.object(
-                        rs, "ask_orchestrator_probe", fake_ask_probe
+                    with (
+                        _patch_host_agent(mod, fake_agent_fix),
+                        mock.patch.object(rs, "ask_orchestrator_probe", fake_ask_probe),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -963,8 +958,15 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl402", status="open", setid="set402"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl402",
+                        status="open",
+                        set_name="set402",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     _write_child_plan(
                         repo, id6="chd402", backlog_id6="bkl402", setid="set402"
@@ -990,8 +992,9 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1016,9 +1019,10 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent_second_set):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1040,7 +1044,13 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_spec(repo, id6="spc403", status="approved")
+                    RecordBuilder(repo).spec(
+                        id6="spc403",
+                        status="approved",
+                        title="Test Spec",
+                        slug="test-spec",
+                        when="2026-10-04",
+                    )
                     _write_orchestrator_plan(
                         repo,
                         id6="orc403",
@@ -1082,8 +1092,9 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1098,19 +1109,13 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
                     ) -> tuple[int, str, Path, list[str]]:
                         work_dir = kwargs.get("work_dir")
                         target = Path(work_dir) if work_dir else Path(state["repo"])
-                        target_chd = (
-                            target
-                            / ".aw"
-                            / "records"
-                            / "plans"
-                            / "pending"
-                            / "20261004-set403-01-chd403-test-child.ipd.md"
+                        _write_child_plan(
+                            target,
+                            id6="chd403",
+                            spec_id6="spc403",
+                            setid="set403",
+                            status="to-review",
                         )
-                        c_text = target_chd.read_text(encoding="utf-8")
-                        c_text = c_text.replace(
-                            "- Status: draft", "- Status: to-review"
-                        )
-                        target_chd.write_text(c_text, encoding="utf-8")
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     def fake_ask_probe(
@@ -1122,12 +1127,14 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
                     ) -> tuple[str, str, tuple[str, ...]]:
                         return (rs.PROBE_ANSWER_NO_EXECUTIONS, "fake-model", ())
 
-                    with _patch_host_agent(mod, fake_agent_fix), mock.patch.object(
-                        rs, "ask_orchestrator_probe", fake_ask_probe
+                    with (
+                        _patch_host_agent(mod, fake_agent_fix),
+                        mock.patch.object(rs, "ask_orchestrator_probe", fake_ask_probe),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1156,8 +1163,15 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl404", status="open", setid="set404"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl404",
+                        status="open",
+                        set_name="set404",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     _write_child_plan(
                         repo,
@@ -1188,8 +1202,9 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1228,9 +1243,10 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
                         return 0, "session", rdir / "log.txt", ["cmd"]
 
                     with _patch_host_agent(mod, fake_agent_edit_and_add):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(

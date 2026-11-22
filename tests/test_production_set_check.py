@@ -31,6 +31,7 @@ from agent_workflows import (
     production_checks,
     runner_shared as rs,
 )
+from tests.record_builder import RecordBuilder
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -47,72 +48,6 @@ def _make_test_repo(path: Path) -> Path:
     return path
 
 
-def _write_backlog_item(
-    repo: Path,
-    *,
-    id6: str,
-    status: str = "open",
-    summary: str = "Test backlog item",
-    slug: str = "test-item",
-    gate: str | None = None,
-    work_kind: str = "feature",
-    priority: str = "high",
-    setid: str | None = None,
-) -> Path:
-    bkl_dir = repo / ".aw" / "records" / "backlog" / status
-    bkl_dir.mkdir(parents=True, exist_ok=True)
-    if setid is None:
-        setid = id6
-    file_path = bkl_dir / f"20261004-{setid}-01-{id6}-{slug}.backlog.md"
-
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
-    content = f"""- Id: {id6}
-- Status: {status}
-- Set: {setid}
-{gate_line}- Priority: {priority}
-- Work-Kind: {work_kind}
-- Summary: {summary}
-
-## Workflow history
-- 2026-10-04 {status} (tester): created item
-"""
-    file_path.write_text(content, encoding="utf-8")
-    return file_path
-
-
-def _write_spec(
-    repo: Path,
-    *,
-    id6: str,
-    status: str = "approved",
-    title: str = "Test Spec",
-    slug: str = "test-spec",
-    gate: str | None = None,
-) -> Path:
-    bucket = "approved" if status == "approved" else status
-    specs_dir = repo / ".aw" / "records" / "specs" / bucket
-    specs_dir.mkdir(parents=True, exist_ok=True)
-    file_path = specs_dir / f"20261004-{id6}-01-{id6}-{slug}.spec.md"
-
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
-    content = f"""# SPEC: {title}
-
-- Date: 2026-10-04
-- Status: {status}
-- Title: {title}
-- Slug: {slug}
-- Id: {id6}
-{gate_line}
-## Workflow history
-- 2026-10-04 {status} (tester): set status
-
-## 1. Overview
-Overview of spec {id6}.
-"""
-    file_path.write_text(content, encoding="utf-8")
-    return file_path
-
-
 def _write_child_plan(
     repo: Path,
     *,
@@ -126,35 +61,7 @@ def _write_child_plan(
     scope_paths: str = "README.md",
     dependencies: str = "none",
 ) -> Path:
-    p_dir = repo / ".aw" / "records" / "plans" / "pending"
-    p_dir.mkdir(parents=True, exist_ok=True)
-    file_path = p_dir / f"20261004-{setid}-{order:02d}-{id6}-test-child.ipd.md"
-
-    bkl_line = f"- From-Backlog: {backlog_id6}\n" if backlog_id6 else ""
-    spec_line = f"- From-Spec: {spec_id6}\n" if spec_id6 else ""
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
-
-    content = f"""# IPD: Test Child Plan {id6}
-
-- Date: 2026-10-04
-- Kind: child
-- Concern: Test child concern.
-- Scope: Test child scope.
-- Scope-Paths: {scope_paths}
-- Status: {status}
-{bkl_line}{spec_line}{gate_line}- Set: {setid}
-- Order: {order}
-- Highest E allocated: 01
-- Author: test
-- Priority: medium
-- Work-Kind: feature
-- Id: {id6}
-- Item-Dependencies: {dependencies}
-
-## Workflow history
-- 2026-10-04 {status} (test): created.
-
-## Goal
+    body = """## Goal
 Test child goal.
 
 ## Detailed Implementation Checklist (TODO)
@@ -199,6 +106,32 @@ Validation-state rule: inspect evidence.
 ## Approval and execution gate
 - None.
 """
+    p_dir = repo / ".aw" / "records" / "plans" / "pending"
+    p_dir.mkdir(parents=True, exist_ok=True)
+    file_path = p_dir / f"20261004-{setid}-{order:02d}-{id6}-test-child.ipd.md"
+    content = RecordBuilder().plan(
+        id6=id6,
+        plan_role="child",
+        title=f"Test Child Plan {id6}",
+        author="test",
+        when="2026-10-04",
+        set_name=setid,
+        order=order,
+        status=status,
+        scope_paths=scope_paths,
+        item_dependencies=dependencies,
+        priority="medium",
+        work_kind="feature",
+        slug="test-child",
+        from_backlog=backlog_id6,
+        from_spec=spec_id6,
+        blocks_release=gate,
+        history=[f"- 2026-10-04 {status} (test): created."],
+        raw_fields={"Concern": "Test child concern.", "Scope": "Test child scope."},
+        body=body,
+        text_only=True,
+    )
+    assert isinstance(content, str)
     file_path.write_text(content, encoding="utf-8")
     return file_path
 
@@ -216,10 +149,6 @@ def _write_orchestrator_plan(
     checklist_item: str | None = None,
     omit_child_table: bool = False,
 ) -> Path:
-    p_dir = repo / ".aw" / "records" / "plans" / "pending"
-    p_dir.mkdir(parents=True, exist_ok=True)
-    file_path = p_dir / f"20261004-{setid}-00-{id6}-test-orch.ipd.md"
-
     if child_rows is None:
         child_rows = [
             (
@@ -238,31 +167,7 @@ def _write_orchestrator_plan(
             "  - Execution state: pending"
         )
 
-    bkl_line = f"- From-Backlog: {backlog_id6}\n" if backlog_id6 else ""
-    spec_line = f"- From-Spec: {spec_id6}\n" if spec_id6 else ""
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
-
-    lines = [
-        f"# IPD: Test Orchestrator {id6}",
-        "",
-        "- Date: 2026-10-04",
-        "- Kind: orchestrator",
-        f"- Id: {id6}",
-        f"- Set: {setid}",
-        "- Order: 0",
-        f"- Status: {status}",
-        f"{bkl_line}{spec_line}{gate_line}- Priority: medium",
-        "- Work-Kind: chore",
-        "- Author: test",
-        "- Highest E allocated: 01",
-        "- Concern: Test orchestrator concern.",
-        "- Scope: Test orchestrator scope.",
-        "- Scope-Paths: README.md",
-        "- Item-Dependencies: none",
-        "",
-        "## Workflow history",
-        f"- 2026-10-04 {status} (test): created.",
-        "",
+    body_lines = [
         "## Goal",
         "Test orchestrator goal.",
         "",
@@ -273,7 +178,7 @@ def _write_orchestrator_plan(
         "",
     ]
     if not omit_child_table:
-        lines.extend(
+        body_lines.extend(
             [
                 "## Child IPDs, sequence, and dependencies",
                 "",
@@ -282,10 +187,10 @@ def _write_orchestrator_plan(
             ]
         )
         for ord_tok, c_id6, c_path in child_rows:
-            lines.append(f"| {ord_tok} | {c_id6} | pending | {c_path} | none |")
-        lines.append("")
+            body_lines.append(f"| {ord_tok} | {c_id6} | pending | {c_path} | none |")
+        body_lines.append("")
 
-    lines.extend(
+    body_lines.extend(
         [
             "## Completion criteria (the whole Set is done only when)",
             "- None.",
@@ -320,7 +225,36 @@ def _write_orchestrator_plan(
             "",
         ]
     )
-    file_path.write_text("\n".join(lines), encoding="utf-8")
+    p_dir = repo / ".aw" / "records" / "plans" / "pending"
+    p_dir.mkdir(parents=True, exist_ok=True)
+    file_path = p_dir / f"20261004-{setid}-00-{id6}-test-orch.ipd.md"
+    content = RecordBuilder().plan(
+        id6=id6,
+        plan_role="orchestrator",
+        title=f"Test Orchestrator {id6}",
+        author="test",
+        when="2026-10-04",
+        set_name=setid,
+        order=0,
+        status=status,
+        scope_paths="README.md",
+        item_dependencies="none",
+        priority="medium",
+        work_kind="chore",
+        slug="test-orch",
+        from_backlog=backlog_id6,
+        from_spec=spec_id6,
+        blocks_release=gate,
+        history=[f"- 2026-10-04 {status} (test): created."],
+        raw_fields={
+            "Concern": "Test orchestrator concern.",
+            "Scope": "Test orchestrator scope.",
+        },
+        body="\n".join(body_lines),
+        text_only=True,
+    )
+    assert isinstance(content, str)
+    file_path.write_text(content, encoding="utf-8")
     return file_path
 
 
@@ -728,8 +662,15 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl301", status="open", setid="set301"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl301",
+                        status="open",
+                        set_name="set301",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -750,8 +691,9 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -797,12 +739,14 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
                     ) -> tuple[str, str, tuple[str, ...]]:
                         return (rs.PROBE_ANSWER_NO_EXECUTIONS, "fake-model", ())
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", fake_ask_probe
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(rs, "ask_orchestrator_probe", fake_ask_probe),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -827,8 +771,15 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl302", status="open", setid="set302"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl302",
+                        status="open",
+                        set_name="set302",
+                        when="2026-10-04",
+                        summary="Test backlog item",
+                        slug="test-item",
+                        work_kind="feature",
+                        priority="high",
                     )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
@@ -849,8 +800,9 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -899,12 +851,14 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
                         probe_calls.append(host)
                         return (rs.PROBE_ANSWER_NO_EXECUTIONS, "fake-model", ())
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", fake_ask_probe
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(rs, "ask_orchestrator_probe", fake_ask_probe),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -963,7 +917,13 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_spec(repo, id6="spc301", status="approved")
+                    RecordBuilder(repo).spec(
+                        id6="spc301",
+                        status="approved",
+                        title="Test Spec",
+                        slug="test-spec",
+                        when="2026-10-04",
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-qm", "add spec"], cwd=repo, check=True
@@ -983,8 +943,9 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1030,12 +991,14 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
                     ) -> tuple[str, str, tuple[str, ...]]:
                         return (rs.PROBE_ANSWER_NO_EXECUTIONS, "fake-model", ())
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", fake_ask_probe
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(rs, "ask_orchestrator_probe", fake_ask_probe),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1060,7 +1023,13 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_spec(repo, id6="spc302", status="approved")
+                    RecordBuilder(repo).spec(
+                        id6="spc302",
+                        status="approved",
+                        title="Test Spec",
+                        slug="test-spec",
+                        when="2026-10-04",
+                    )
                     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
                     subprocess.run(
                         ["git", "commit", "-qm", "add spec"], cwd=repo, check=True
@@ -1080,8 +1049,9 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
                     ]
                     args = mod.build_parser().parse_args(cmd)
                     buf = io.StringIO()
-                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
-                        buf
+                    with (
+                        contextlib.redirect_stdout(buf),
+                        contextlib.redirect_stderr(buf),
                     ):
                         run_dir = mod.initialize_run(args)
 
@@ -1130,12 +1100,14 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
                         probe_calls.append(host)
                         return (rs.PROBE_ANSWER_NO_EXECUTIONS, "fake-model", ())
 
-                    with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                        rs, "ask_orchestrator_probe", fake_ask_probe
+                    with (
+                        _patch_host_agent(mod, fake_agent),
+                        mock.patch.object(rs, "ask_orchestrator_probe", fake_ask_probe),
                     ):
-                        with contextlib.redirect_stdout(
-                            buf
-                        ), contextlib.redirect_stderr(buf):
+                        with (
+                            contextlib.redirect_stdout(buf),
+                            contextlib.redirect_stderr(buf),
+                        ):
                             mod.run_queue(run_dir, retry_incomplete=False)
 
                     state = json.loads(
@@ -1161,7 +1133,16 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
     def test_backlog_production_could_not_ask(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             repo = _make_test_repo(Path(td))
-            _write_backlog_item(repo, id6="bkl303", status="open", setid="set303")
+            RecordBuilder(repo).backlog(
+                id6="bkl303",
+                status="open",
+                set_name="set303",
+                when="2026-10-04",
+                summary="Test backlog item",
+                slug="test-item",
+                work_kind="feature",
+                priority="high",
+            )
             subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
             subprocess.run(
                 ["git", "commit", "-qm", "add backlog"], cwd=repo, check=True
@@ -1223,8 +1204,9 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
             ) -> tuple[str, str, tuple[str, ...]]:
                 return (rs.PROBE_ANSWER_COULD_NOT_ASK, "probe host unreachable", ())
 
-            with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                rs, "ask_orchestrator_probe", fake_ask_probe
+            with (
+                _patch_host_agent(mod, fake_agent),
+                mock.patch.object(rs, "ask_orchestrator_probe", fake_ask_probe),
             ):
                 with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
                     mod.run_queue(run_dir, retry_incomplete=False)
@@ -1251,7 +1233,16 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
     def test_single_finding_deduplication(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             repo = _make_test_repo(Path(td))
-            _write_backlog_item(repo, id6="bkl304", status="open", setid="set304")
+            RecordBuilder(repo).backlog(
+                id6="bkl304",
+                status="open",
+                set_name="set304",
+                when="2026-10-04",
+                summary="Test backlog item",
+                slug="test-item",
+                work_kind="feature",
+                priority="high",
+            )
             subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
             subprocess.run(
                 ["git", "commit", "-qm", "add backlog"], cwd=repo, check=True
@@ -1317,8 +1308,9 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
                     ("uncovered work passage",),
                 )
 
-            with _patch_host_agent(mod, fake_agent), mock.patch.object(
-                rs, "ask_orchestrator_probe", fake_ask_probe
+            with (
+                _patch_host_agent(mod, fake_agent),
+                mock.patch.object(rs, "ask_orchestrator_probe", fake_ask_probe),
             ):
                 with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
                     mod.run_queue(run_dir, retry_incomplete=False)

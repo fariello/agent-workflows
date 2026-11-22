@@ -20,6 +20,7 @@ import unittest
 import pytest
 
 from agent_workflows import runner_shared
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -67,7 +68,8 @@ class ProductionPromptWritingStandardTests(unittest.TestCase):
             )
             spec_app_path.parent.mkdir(parents=True, exist_ok=True)
             spec_app_path.write_text(
-                "# Spec\n- Id: demo01\n- Status: approved\n", encoding="utf-8"
+                RecordBuilder().spec(id6="demo01", status="approved", text_only=True),
+                encoding="utf-8",
             )
 
             spec_imp_path = (
@@ -80,7 +82,10 @@ class ProductionPromptWritingStandardTests(unittest.TestCase):
             )
             spec_imp_path.parent.mkdir(parents=True, exist_ok=True)
             spec_imp_path.write_text(
-                "# Spec\n- Id: demo01\n- Status: implementing\n", encoding="utf-8"
+                RecordBuilder().spec(
+                    id6="demo01", status="implementing", text_only=True
+                ),
+                encoding="utf-8",
             )
 
             backlog_path = (
@@ -92,7 +97,9 @@ class ProductionPromptWritingStandardTests(unittest.TestCase):
                 / "20261001-bkl01-01-bkl01-test.backlog.md"
             )
             backlog_path.parent.mkdir(parents=True, exist_ok=True)
-            backlog_path.write_text("# Backlog\n- Id: bkl001\n", encoding="utf-8")
+            backlog_path.write_text(
+                RecordBuilder().backlog(id6="bkl001", text_only=True), encoding="utf-8"
+            )
 
             plan_path = (
                 repo
@@ -103,7 +110,9 @@ class ProductionPromptWritingStandardTests(unittest.TestCase):
                 / "20261001-test-01-tst01-test.ipd.md"
             )
             plan_path.parent.mkdir(parents=True, exist_ok=True)
-            plan_path.write_text("# Plan\n- Id: tst001\n", encoding="utf-8")
+            plan_path.write_text(
+                RecordBuilder().plan(id6="tst001", text_only=True), encoding="utf-8"
+            )
 
             state = {"repo": str(repo), "run_id": "run-001"}
             spec_item = {"id6": "demo01"}
@@ -183,7 +192,8 @@ class ProductionPromptWritingStandardTests(unittest.TestCase):
             )
             spec_app_path.parent.mkdir(parents=True, exist_ok=True)
             spec_app_path.write_text(
-                "# Spec\n- Id: demo01\n- Status: approved\n", encoding="utf-8"
+                RecordBuilder().spec(id6="demo01", status="approved", text_only=True),
+                encoding="utf-8",
             )
 
             spec_imp_path = (
@@ -196,7 +206,10 @@ class ProductionPromptWritingStandardTests(unittest.TestCase):
             )
             spec_imp_path.parent.mkdir(parents=True, exist_ok=True)
             spec_imp_path.write_text(
-                "# Spec\n- Id: demo01\n- Status: implementing\n", encoding="utf-8"
+                RecordBuilder().spec(
+                    id6="demo01", status="implementing", text_only=True
+                ),
+                encoding="utf-8",
             )
 
             backlog_path = (
@@ -208,7 +221,9 @@ class ProductionPromptWritingStandardTests(unittest.TestCase):
                 / "20261001-bkl01-01-bkl01-test.backlog.md"
             )
             backlog_path.parent.mkdir(parents=True, exist_ok=True)
-            backlog_path.write_text("# Backlog\n- Id: bkl001\n", encoding="utf-8")
+            backlog_path.write_text(
+                RecordBuilder().backlog(id6="bkl001", text_only=True), encoding="utf-8"
+            )
 
             state = {"repo": str(repo), "run_id": "run-001"}
             spec_item = {"id6": "demo01"}
