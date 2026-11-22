@@ -25,7 +25,6 @@ from agent_workflows import coverage_record
 from agent_workflows import orchestrator_readiness as readiness
 from agent_workflows import runner_shared as rs
 from agent_workflows.cli import main
-from tests.test_ipd_lint import _conforming_child
 from tests.record_builder import RecordBuilder
 
 
@@ -49,101 +48,171 @@ def _create_orchestrator_and_child(
     child_in_executed: bool = False,
     child_status: str = "to-review",
 ) -> tuple[Path, Path]:
-    pending_dir = repo / ".aw" / "records" / "plans" / "pending"
-    exec_dir = repo / ".aw" / "records" / "plans" / "executed"
+    rb = RecordBuilder(repo)
+    chd_body = """## Goal
 
-    chd_dir = exec_dir if child_in_executed else pending_dir
-    chd_path = chd_dir / f"20261007-{setid}-01-{chd_id6}-child.ipd.md"
-    chd_text = (
-        _conforming_child()
-        .replace("- Set: x", f"- Set: {setid}")
-        .replace("- Order: 1", "- Order: 1")
-        .replace("- Id: abc123", f"- Id: {chd_id6}")
-        .replace("- Status: to-review", f"- Status: {child_status}")
-    )
-    chd_text = chd_text.replace(
-        "## Deferred / out of scope (with reason)\n\n- x",
-        "## Deferred / out of scope (with reason)\n\n- None\n  - Carrier-Declined: fixture",
-    )
-    chd_path.write_text(chd_text, encoding="utf-8")
+Sample goal.
 
-    orch_path = pending_dir / f"20261007-{setid}-00-{orch_id6}-orchestrator.ipd.md"
-    orch_lines = [
-        f"# IPD: Orchestrator {orch_id6}",
-        "",
-        "- Date: 2026-10-07",
-        "- Kind: orchestrator",
-        f"- Id: {orch_id6}",
-        f"- Set: {setid}",
-        "- Order: 0",
-        "- Status: to-review",
-        "- Priority: medium",
-        "- Work-Kind: chore",
-        "- Author: tester",
-        "- Highest E allocated: 01",
-        "- Concern: fixture.",
-        "- Scope: fixture.",
-        "- Scope-Paths: none",
-        "- Item-Dependencies: none",
-        "",
-        "## Workflow history",
-        "",
-        "- 2026-10-07 to-review (tester): created.",
-        "",
-        "## Goal",
-        "",
-        "Fixture goal.",
-        "",
-        "## Detailed Implementation Checklist (TODO)",
-        "",
-        f"- [ ] E-01 CONFIRM {chd_id6} REACHED executed",
-        "  - Depends on: none",
-        f"  - Expected outcome: {chd_id6} reads `- Status: executed` on disk.",
-        "  - Execution state: pending",
-        "",
-        "## Child IPDs, sequence, and dependencies",
-        "",
-        "| Order | Id | Status | Plan | Depends on |",
-        "|---|---|---|---|---|",
-        f"| 01 | {chd_id6} | {child_status} | {chd_path.relative_to(repo)} | none |",
-        "",
-        "## Completion criteria (the whole Set is done only when)",
-        "",
-        "- None.",
-        "",
-        "## Cross-IPD validation",
-        "",
-        "- None.",
-        "",
-        "## Deferred / out of scope (with reason)",
-        "",
-        "- None",
-        "  - Carrier-Declined: fixture",
-        "",
-        "## Scope check",
-        "",
-        "- None.",
-        "",
-        "## Required tests / validation",
-        "",
-        "- None.",
-        "",
-        "## Open questions",
-        "",
-        "- None.",
-        "",
-        "## Validation and cross-check (verify before reporting the Set complete)",
-        "",
-        "- [ ] V-01 validates E-01",
-        "  - Required evidence: check.",
-        "  - Observed evidence:",
-        "  - Result: pending",
-        "",
-        "## Approval and execution gate",
-        "",
-        "- None.",
-    ]
-    orch_path.write_text("\n".join(orch_lines) + "\n", encoding="utf-8")
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark performed only after doing it.
+
+### Task group 1: t
+
+- [ ] E-01 do a thing.
+  - Depends on: none
+  - Expected outcome: the thing exists.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- x
+
+## Findings
+
+- x
+
+## Proposed changes (ordered, validatable)
+
+- x
+
+## Deferred / out of scope (with reason)
+
+- None
+  - Carrier-Declined: fixture
+
+## Scope check
+
+- x
+
+## Required tests / validation
+
+- x
+
+## Spec / documentation sync
+
+- x
+
+## Open questions
+
+- None.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence separately.
+
+- [ ] V-01 validates E-01
+  - Required evidence: the thing is present at path X.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required"""
+    chd_path = Path(
+        rb.plan(
+            id6=chd_id6,
+            plan_role="child",
+            title=f"Child {chd_id6}",
+            slug="child",
+            when="2026-10-07",
+            set=setid,
+            order=1,
+            status=child_status,
+            disposition="executed" if child_in_executed else "pending",
+            priority="medium",
+            work_kind="chore",
+            author="tester",
+            scope_paths="agent_workflows/demo.py",
+            item_dependencies="none",
+            history=[f"- 2026-10-07 {child_status} (tester): created."],
+            raw_fields={
+                "Concern": "sample.",
+                "Scope": "sample.",
+                "Highest E allocated": "01",
+            },
+            body=chd_body,
+        )
+    )
+
+    orch_body = f"""## Goal
+
+Fixture goal.
+
+## Detailed Implementation Checklist (TODO)
+
+- [ ] E-01 CONFIRM {chd_id6} REACHED executed
+  - Depends on: none
+  - Expected outcome: {chd_id6} reads `- Status: executed` on disk.
+  - Execution state: pending
+
+## Child IPDs, sequence, and dependencies
+
+| Order | Id | Status | Plan | Depends on |
+|---|---|---|---|---|
+| 01 | {chd_id6} | {child_status} | {chd_path.relative_to(repo)} | none |
+
+## Completion criteria (the whole Set is done only when)
+
+- None.
+
+## Cross-IPD validation
+
+- None.
+
+## Deferred / out of scope (with reason)
+
+- None
+  - Carrier-Declined: fixture
+
+## Scope check
+
+- None.
+
+## Required tests / validation
+
+- None.
+
+## Open questions
+
+- None.
+
+## Validation and cross-check (verify before reporting the Set complete)
+
+- [ ] V-01 validates E-01
+  - Required evidence: check.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- None."""
+    orch_path = Path(
+        rb.plan(
+            id6=orch_id6,
+            plan_role="orchestrator",
+            title=f"Orchestrator {orch_id6}",
+            slug="orchestrator",
+            when="2026-10-07",
+            set=setid,
+            order=0,
+            status="to-review",
+            disposition="pending",
+            priority="medium",
+            work_kind="chore",
+            author="tester",
+            scope_paths="none",
+            item_dependencies="none",
+            history=["- 2026-10-07 to-review (tester): created."],
+            raw_fields={
+                "Concern": "fixture.",
+                "Scope": "fixture.",
+                "Highest E allocated": "01",
+            },
+            body=orch_body,
+        )
+    )
     return orch_path, chd_path
 
 

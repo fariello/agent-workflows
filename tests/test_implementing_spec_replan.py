@@ -33,6 +33,7 @@ from agent_workflows import (
     run_selection_policy,
     runner_shared,
 )
+from tests.record_builder import RecordBuilder
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -62,11 +63,6 @@ def _write_spec(
     requirements: list[str] | None = None,
     acceptance: list[str] | None = None,
 ) -> Path:
-    specs_dir = repo / ".aw" / "records" / "specs" / status
-    specs_dir.mkdir(parents=True, exist_ok=True)
-    file_path = specs_dir / f"{filename_date}-{id6}-01-{id6}-{slug}.spec.md"
-
-    gate_line = f"- Blocks-Release: {gate}\n" if gate else ""
     req_section = ""
     if requirements:
         req_lines = "\n".join(f"- {r}" for r in requirements)
@@ -76,22 +72,28 @@ def _write_spec(
         ac_lines = "\n".join(f"- {a}" for a in acceptance)
         ac_section = f"\n## 3. Acceptance Criteria\n{ac_lines}\n"
 
-    content = f"""# SPEC: {title}
-
-- Date: {spec_date}
-- Status: {status}
-- Title: {title}
-- Slug: {slug}
-- Id: {id6}
-{gate_line}
-## Workflow history
-- {spec_date} {status} (tester): set status
-
-## 1. Overview
-Overview of spec {id6}.
-{req_section}{ac_section}"""
-    file_path.write_text(content, encoding="utf-8")
-    return file_path
+    body = f"## 1. Overview\nOverview of spec {id6}.\n{req_section}{ac_section}"
+    extra: dict[str, str] = {}
+    if gate:
+        extra["blocks_release"] = gate
+    when = (
+        f"{filename_date[:4]}-{filename_date[4:6]}-{filename_date[6:8]}"
+        if len(filename_date) == 8
+        else spec_date
+    )
+    return Path(
+        RecordBuilder(repo).spec(
+            id6=id6,
+            status=status,
+            title=title,
+            slug=slug,
+            when=when,
+            disposition=status,
+            body=body,
+            history=[f"- {spec_date} {status} (tester): set status"],
+            **extra,
+        )
+    )
 
 
 def _write_plan(
@@ -107,11 +109,6 @@ def _write_plan(
     e_items: list[str] | None = None,
     v_items: list[str] | None = None,
 ) -> Path:
-    dir_path = repo / ".aw" / "records" / "plans" / bucket
-    dir_path.mkdir(parents=True, exist_ok=True)
-    file_path = dir_path / f"{filename_date}-{setid}-{order:02d}-{id6}-test-plan.ipd.md"
-
-    spec_line = f"- From-Spec: {spec_id6}\n" if spec_id6 else ""
     highest_e = f"{len(e_items):02d}" if e_items else "01"
 
     if e_items:
@@ -139,27 +136,7 @@ def _write_plan(
     else:
         v_body = """- [ ] V-01 validates E-01\n  - Required evidence: check.\n  - Observed evidence:\n  - Result: pending"""
 
-    content = f"""# IPD: Test Plan {id6}
-
-- Date: 2026-10-01
-- Kind: child
-- Concern: Test concern for plan {id6}.
-- Scope: Test scope for plan {id6}.
-- Scope-Paths: README.md
-- Status: {status}
-{spec_line}- Set: {setid}
-- Order: {order}
-- Highest E allocated: {highest_e}
-- Author: test
-- Priority: medium
-- Work-Kind: feature
-- Id: {id6}
-- Item-Dependencies: none
-
-## Workflow history
-- 2026-10-01 {status} (test): created.
-
-## Goal
+    body = f"""## Goal
 Test goal for plan {id6}.
 
 ## Detailed Implementation Checklist (TODO)
@@ -195,10 +172,38 @@ None.
 
 ## Approval and execution gate
 - Size assessment: standard
-- Cohesion rationale: not required
-"""
-    file_path.write_text(content, encoding="utf-8")
-    return file_path
+- Cohesion rationale: not required"""
+
+    when = f"{filename_date[:4]}-{filename_date[4:6]}-{filename_date[6:8]}"
+    extra: dict[str, str] = {}
+    if spec_id6:
+        extra["from_spec"] = spec_id6
+    return Path(
+        RecordBuilder(repo).plan(
+            id6=id6,
+            plan_role="child",
+            title=f"Test Plan {id6}",
+            slug="test-plan",
+            when=when,
+            set=setid,
+            order=order,
+            status=status,
+            disposition=bucket,
+            scope_paths="README.md",
+            item_dependencies="none",
+            priority="medium",
+            work_kind="feature",
+            author="test",
+            history=[f"- 2026-10-01 {status} (test): created."],
+            raw_fields={
+                "Concern": f"Test concern for plan {id6}.",
+                "Scope": f"Test scope for plan {id6}.",
+                "Highest E allocated": highest_e,
+            },
+            body=body,
+            **extra,
+        )
+    )
 
 
 def _patch_host_agent(module, agent_fn):
