@@ -22,7 +22,8 @@ from unittest import mock
 from agent_workflows import check_engine, coverage_record, ipd_lint
 from agent_workflows import orchestrator_readiness as readiness
 from agent_workflows import runner_shared as rs
-from tests.test_ipd_lint import _conforming_child, _executed_child
+from tests.record_builder import RecordBuilder
+from tests.test_ipd_lint import _CONFORMING_CHILD_BODY
 
 
 def _init_repo(tmp_dir: Path) -> Path:
@@ -43,9 +44,6 @@ def _make_orchestrator(
     checklist_item: str = "- [ ] E-01 CONFIRM chd001 REACHED executed\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: pending",
     omit_child_table: bool = False,
 ) -> Path:
-    pending_dir = repo / ".aw" / "records" / "plans" / "pending"
-    orch_path = pending_dir / f"20261004-{setid}-00-{id6}-test.ipd.md"
-
     if child_rows is None:
         child_rows = [
             (
@@ -55,45 +53,18 @@ def _make_orchestrator(
             )
         ]
 
-    lines = [
-        f"# IPD: Orchestrator {id6}",
+    body_lines = [
+        "## Goal",
         "",
-        "- Date: 2026-10-04",
-        "- Kind: orchestrator",
-        f"- Id: {id6}",
-        f"- Set: {setid}",
-        "- Order: 0",
-        f"- Status: {status}",
-        "- Priority: medium",
-        "- Work-Kind: chore",
-        "- Author: test",
-        "- Highest E allocated: 01",
-        "- Concern: test concern.",
-        "- Scope: test scope.",
-        "- Scope-Paths: none",
-        "- Item-Dependencies: none",
+        "Test orchestrator goal.",
+        "",
+        "## Detailed Implementation Checklist (TODO)",
+        "",
+        checklist_item,
+        "",
     ]
-    if status == "approved":
-        lines.append("- Approval: 2026-10-04, test approved")
-    lines.extend(
-        [
-            "",
-            "## Workflow history",
-            "",
-            f"- 2026-10-04 {status} (test): created.",
-            "",
-            "## Goal",
-            "",
-            "Test orchestrator goal.",
-            "",
-            "## Detailed Implementation Checklist (TODO)",
-            "",
-            checklist_item,
-            "",
-        ]
-    )
     if not omit_child_table:
-        lines.extend(
+        body_lines.extend(
             [
                 "## Child IPDs, sequence, and dependencies",
                 "",
@@ -102,10 +73,10 @@ def _make_orchestrator(
             ]
         )
         for ord_tok, c_id6, c_path in child_rows:
-            lines.append(f"| {ord_tok} | {c_id6} | pending | {c_path} | none |")
-        lines.append("")
+            body_lines.append(f"| {ord_tok} | {c_id6} | pending | {c_path} | none |")
+        body_lines.append("")
 
-    lines.extend(
+    body_lines.extend(
         [
             "## Completion criteria (the whole Set is done only when)",
             "",
@@ -141,11 +112,34 @@ def _make_orchestrator(
             "## Approval and execution gate",
             "",
             "- None.",
-            "",
         ]
     )
-    orch_path.write_text("\n".join(lines), encoding="utf-8")
-    return orch_path
+    return Path(
+        RecordBuilder(repo).plan(
+            disposition="pending",
+            title=f"Orchestrator {id6}",
+            when="2026-10-04",
+            plan_role="orchestrator",
+            id6=id6,
+            set=setid,
+            order=0,
+            status=status,
+            priority="medium",
+            work_kind="chore",
+            author="test",
+            highest_e_allocated="01",
+            scope_paths="none",
+            item_dependencies="none",
+            approval="2026-10-04, test approved" if status == "approved" else None,
+            slug="test",
+            history=[f"- 2026-10-04 {status} (test): created."],
+            body="\n".join(body_lines),
+            raw_fields={
+                "Concern": "test concern.",
+                "Scope": "test scope.",
+            },
+        )
+    )
 
 
 def _make_child(
@@ -157,33 +151,59 @@ def _make_child(
     status: str = "to-review",
     in_executed: bool = False,
     broken_lint: bool = False,
+    disposition: str | None = None,
 ) -> Path:
-    bucket = "executed" if in_executed else "pending"
-    p_dir = repo / ".aw" / "records" / "plans" / bucket
-    p_dir.mkdir(parents=True, exist_ok=True)
-    child_path = p_dir / f"20261004-{setid}-{order:02d}-{id6}-test.ipd.md"
-
-    if in_executed or status == "executed":
-        text = (
-            _executed_child()
-            .replace("- Set: x", f"- Set: {setid}")
-            .replace("- Order: 1", f"- Order: {order}")
-            .replace("- Id: abc123", f"- Id: {id6}")
+    eff_disp = (
+        disposition
+        if disposition is not None
+        else ("executed" if in_executed else "pending")
+    )
+    is_executed = in_executed or status == "executed"
+    eff_status = "executed" if is_executed else status
+    body = _CONFORMING_CHILD_BODY
+    if is_executed:
+        body = body.replace(
+            "- [ ] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: pending",
+            "- [x] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: performed",
+        ).replace(
+            "- [ ] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n  - Result: pending",
+            "- [x] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence: verified at path X.\n  - Result: pass",
         )
+        history = [
+            "- 2026-08-03 to-review (tester): created.",
+            "- 2026-08-04 executed (tester): executed.",
+        ]
     else:
-        text = (
-            _conforming_child()
-            .replace("- Set: x", f"- Set: {setid}")
-            .replace("- Order: 1", f"- Order: {order}")
-            .replace("- Id: abc123", f"- Id: {id6}")
-            .replace("- Status: to-review", f"- Status: {status}")
-        )
+        history = ["- 2026-08-03 to-review (tester): created."]
     if broken_lint:
-        # Break required heading
-        text = text.replace("## Goal", "## Broken")
+        body = body.replace("## Goal", "## Broken")
 
-    child_path.write_text(text, encoding="utf-8")
-    return child_path
+    return Path(
+        RecordBuilder(repo).plan(
+            disposition=eff_disp,
+            title=f"sample (Set {setid}, Order {order})",
+            when="2026-10-04",
+            plan_role="child",
+            status=eff_status,
+            work_kind="chore",
+            priority="medium",
+            set=setid,
+            order=order,
+            scope_paths="agent_workflows/demo.py",
+            author="tester",
+            id6=id6,
+            slug="test",
+            history=history,
+            body=body,
+            raw_fields={
+                "Concern": "sample.",
+                "Scope": "sample.",
+                "Item-Dependencies": None,
+                "Scope-Paths": None,
+                "Highest E allocated": "01",
+            },
+        )
+    )
 
 
 class TestOrchestratorReadinessConditions(unittest.TestCase):
@@ -293,16 +313,13 @@ class TestOrchestratorReadinessConditions(unittest.TestCase):
                     )
                 ],
             )
-            ne_dir = repo / ".aw" / "records" / "plans" / "not-executed"
-            ne_dir.mkdir(parents=True, exist_ok=True)
-            p = ne_dir / "20261004-tstset-01-chd001-test.ipd.md"
-            p.write_text(
-                _conforming_child()
-                .replace("- Set: x", "- Set: tstset")
-                .replace("- Order: 1", "- Order: 01")
-                .replace("- Id: abc123", "- Id: chd001")
-                .replace("- Status: to-review", "- Status: not-executed"),
-                encoding="utf-8",
+            _make_child(
+                repo,
+                id6="chd001",
+                setid="tstset",
+                order=1,
+                status="not-executed",
+                disposition="not-executed",
             )
             coverage_record.write(orch, "pass", model="fixture", tool="test")
             res = readiness.review_readiness(repo, orch, ask=False)

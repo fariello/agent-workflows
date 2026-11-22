@@ -26,64 +26,15 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from agent_workflows import agy_runipd, coverage_record, oc_runipd, runner_shared
+from agent_workflows import (
+    agy_runipd,
+    artifact_meta,
+    coverage_record,
+    oc_runipd,
+    runner_shared,
+)
 from agent_workflows import ipd_lifecycle as LC
-
-
-def _make_plan_text(
-    *,
-    id6: str,
-    setid: str,
-    order: int,
-    status: str,
-    kind: str = "child",
-    declared_children: tuple[tuple[str, str], ...] = (),
-    goal: str = "Standard test goal.",
-) -> str:
-    if kind == "orchestrator":
-        table_rows = []
-        e_items = []
-        for idx, (ch_order, ch_id6) in enumerate(declared_children, start=1):
-            table_rows.append(
-                f"| {ch_order} | {ch_id6} | pending | .aw/records/plans/pending/20261004-{setid}-{ch_order}-{ch_id6}-synthetic.ipd.md | none |"
-            )
-            e_items.append(
-                f"- [ ] E-{idx:02d} CONFIRM {ch_id6} REACHED executed\n"
-                f"  - Depends on: none\n"
-                f"  - Expected outcome: {ch_id6} reads `- Status: executed` on disk.\n"
-                f"  - Execution state: pending"
-            )
-        child_table = (
-            "## Child IPDs, sequence, and dependencies\n\n"
-            "| Order | Id | Status | Plan | Depends on |\n"
-            "| --- | --- | --- | --- | --- |\n" + "\n".join(table_rows) + "\n\n"
-        )
-        e_section = (
-            "\n".join(e_items)
-            if e_items
-            else "- [ ] E-01 Synthetic step\n  - Execution state: pending"
-        )
-    else:
-        child_table = ""
-        e_section = "- [ ] E-01 Synthetic step\n" "  - Execution state: pending"
-
-    return (
-        f"# IPD: synthetic {kind} {id6}\n\n"
-        "- Date: 2026-10-04\n"
-        f"- Kind: {kind}\n"
-        "- Concern: synthetic fixture.\n"
-        "- Scope: synthetic fixture.\n"
-        "- Scope-Paths: tests/**\n"
-        f"- Status: {status}\n"
-        f"- Set: {setid}\n"
-        f"- Order: {order}\n"
-        f"- Id: {id6}\n\n"
-        "## Goal\n\n"
-        f"{goal}\n\n"
-        "## Detailed Implementation Checklist (TODO)\n\n"
-        f"{e_section}\n\n"
-        f"{child_table}"
-    )
+from tests.record_builder import RecordBuilder
 
 
 class OrchestratorProbeScopeTests(unittest.TestCase):
@@ -117,24 +68,90 @@ class OrchestratorProbeScopeTests(unittest.TestCase):
         declared_rows: tuple[str, ...] = (),
         goal: str = "Standard test goal.",
     ) -> Path:
-        d = self.repo / ".aw" / "records" / "plans" / bucket
-        d.mkdir(parents=True, exist_ok=True)
         children = declared_children
         if not children and declared_rows:
             children = tuple((tok, f"chi{tok}") for tok in declared_rows)
-        path = d / f"20261004-{setid}-{order:02d}-{id6}-synthetic.ipd.md"
-        path.write_text(
-            _make_plan_text(
-                id6=id6,
-                setid=setid,
+        if kind == "orchestrator":
+            table_rows = []
+            e_items = []
+            for idx, (ch_order, ch_id6) in enumerate(children, start=1):
+                table_rows.append(
+                    f"| {ch_order} | {ch_id6} | pending | .aw/records/plans/pending/20261004-{setid}-{ch_order}-{ch_id6}-synthetic.ipd.md | none |"
+                )
+                e_items.append(
+                    f"- [ ] E-{idx:02d} CONFIRM {ch_id6} REACHED executed\n"
+                    f"  - Depends on: none\n"
+                    f"  - Expected outcome: {ch_id6} reads `- Status: executed` on disk.\n"
+                    f"  - Execution state: pending"
+                )
+            child_table = (
+                "\n\n## Child IPDs, sequence, and dependencies\n\n"
+                "| Order | Id | Status | Plan | Depends on |\n"
+                "| --- | --- | --- | --- | --- |\n" + "\n".join(table_rows)
+            )
+            e_section = (
+                "\n".join(e_items)
+                if e_items
+                else "- [ ] E-01 Synthetic step\n  - Execution state: pending"
+            )
+        else:
+            child_table = ""
+            e_section = "- [ ] E-01 Synthetic step\n  - Execution state: pending"
+
+        body = (
+            f"## Goal\n\n{goal}\n\n"
+            f"## Detailed Implementation Checklist (TODO)\n\n"
+            f"{e_section}{child_table}"
+        )
+        raw_fields: dict[str, object] = {
+            "Concern": "synthetic fixture.",
+            "Scope": "synthetic fixture.",
+        }
+        try:
+            artifact_meta.validate_id6(id6)
+            valid_id = True
+        except ValueError:
+            valid_id = False
+
+        if valid_id:
+            return Path(
+                RecordBuilder(self.repo).plan(
+                    disposition=bucket,
+                    id6=id6,
+                    set=setid,
+                    order=order,
+                    status=status,
+                    plan_role=kind,
+                    title=f"synthetic {kind} {id6}",
+                    when="2026-10-04",
+                    slug="synthetic",
+                    scope_paths="tests/**",
+                    body=body,
+                    raw_fields=raw_fields,
+                )
+            )
+
+        raw_fields["Id"] = id6
+        text = str(
+            RecordBuilder().plan(
+                id6="abc123",
+                set=setid,
                 order=order,
                 status=status,
-                kind=kind,
-                declared_children=children,
-                goal=goal,
-            ),
-            encoding="utf-8",
+                plan_role=kind,
+                title=f"synthetic {kind} {id6}",
+                when="2026-10-04",
+                slug="synthetic",
+                scope_paths="tests/**",
+                body=body,
+                raw_fields=raw_fields,
+                text_only=True,
+            )
         )
+        d = self.repo / ".aw" / "records" / "plans" / bucket
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / f"20261004-{setid}-{order:02d}-{id6}-synthetic.ipd.md"
+        path.write_text(text, encoding="utf-8")
         return path
 
     def _read_probe_gate_events(self, run_dir: Path) -> list[dict]:
