@@ -26,6 +26,7 @@ from pathlib import Path
 from agent_workflows import check_engine as ce
 from agent_workflows import coverage_record as cr
 from tests.conformance_matrix import run_cli_inproc
+from tests.record_builder import RecordBuilder
 
 
 def _run_cli(*args, cwd=None, **kwargs):
@@ -51,34 +52,16 @@ def _make_conforming_child(
     in_terminal: str | None = None,
 ) -> Path:
     bucket = in_terminal if in_terminal else "pending"
-    p_dir = repo / ".aw" / "records" / "plans" / bucket
-    p_dir.mkdir(parents=True, exist_ok=True)
-    p = p_dir / f"20261006-{setid}-{order:02d}-{id6}-test.ipd.md"
-
-    bkl = f"- From-Backlog: {backlog_id6}\n" if backlog_id6 else ""
-    spc = f"- From-Spec: {spec_id6}\n" if spec_id6 else ""
-    scope_field = "- Scope: Test scope.\n" if not broken_lint else ""
-
-    content = f"""# IPD: Test Child Plan {id6}
-
-- Date: 2026-10-06
-- Kind: child
-- Concern: Test concern.
-{scope_field}- Status: {status}
-- Work-Kind: chore
-- Priority: medium
-- Set: {setid}
-- Order: {order}
-- Id: {id6}
-{bkl}{spc}- Scope-Paths: README.md
-- Highest E allocated: 01
-- Author: test
-- Item-Dependencies: none
-
-## Workflow history
-- 2026-10-06 {status} (test): created.
-
-## Goal
+    extra: dict[str, str] = {}
+    if backlog_id6:
+        extra["from_backlog"] = backlog_id6
+    if spec_id6:
+        extra["from_spec"] = spec_id6
+    raw_fields: dict[str, object] = {
+        "Concern": "Test concern.",
+        "Scope": None if broken_lint else "Test scope.",
+    }
+    body = f"""## Goal
 Test goal for child plan {id6}.
 
 ## Detailed Implementation Checklist (TODO)
@@ -120,9 +103,28 @@ None.
 
 ## Approval and execution gate
 - Size assessment: standard
-- Cohesion rationale: not required
-"""
-    p.write_text(content, encoding="utf-8")
+- Cohesion rationale: not required"""
+    p = RecordBuilder(repo).plan(
+        id6=id6,
+        plan_role="child",
+        title=f"Test Child Plan {id6}",
+        author="test",
+        when="2026-10-06",
+        set=setid,
+        order=order,
+        status=status,
+        scope_paths="README.md",
+        item_dependencies="none",
+        priority="medium",
+        work_kind="chore",
+        disposition=bucket,
+        slug="test",
+        history=[f"- 2026-10-06 {status} (test): created."],
+        body=body,
+        raw_fields=raw_fields,
+        **extra,
+    )
+    assert isinstance(p, Path)
     return p
 
 
@@ -140,13 +142,6 @@ def _make_conforming_orchestrator(
     omit_coverage: bool = False,
     omit_child_table: bool = False,
 ) -> Path:
-    p_dir = repo / ".aw" / "records" / "plans" / "pending"
-    p_dir.mkdir(parents=True, exist_ok=True)
-    orch_path = p_dir / f"20261006-{setid}-00-{id6}-orchestrator.ipd.md"
-
-    bkl = f"- From-Backlog: {backlog_id6}\n" if backlog_id6 else ""
-    spc = f"- From-Spec: {spec_id6}\n" if spec_id6 else ""
-
     if child_rows is None:
         child_rows = [
             (
@@ -156,51 +151,26 @@ def _make_conforming_orchestrator(
             )
         ]
 
-    lines = [
-        f"# IPD: Orchestrator {id6}",
-        "",
-        "- Date: 2026-10-06",
-        "- Kind: orchestrator",
-        f"- Id: {id6}",
-        f"- Set: {setid}",
-        "- Order: 0",
-        f"- Status: {status}",
-        "- Priority: medium",
-        "- Work-Kind: chore",
-        "- Author: test",
-        "- Highest E allocated: 01",
-        "- Concern: test concern.",
-        "- Scope: test scope.",
-        "- Scope-Paths: none",
-        "- Item-Dependencies: none",
-    ]
-    if bkl:
-        lines.append(bkl.strip())
-    if spc:
-        lines.append(spc.strip())
-    if status == "approved":
-        lines.append("- Approval: 2026-10-06, test approved")
+    extra: dict[str, str] = {}
+    if backlog_id6:
+        extra["from_backlog"] = backlog_id6
+    if spec_id6:
+        extra["from_spec"] = spec_id6
 
-    lines.extend(
-        [
-            "",
-            "## Workflow history",
-            f"- 2026-10-06 {status} (test): created.",
-            "",
-            "## Goal",
-            "Test orchestrator goal.",
-            "",
-            "## Detailed Implementation Checklist (TODO)",
-            "- [ ] E-01 CONFIRM chd001 REACHED executed",
-            "  - Depends on: none",
-            "  - Expected outcome: done",
-            "  - Execution state: pending",
-            "",
-        ]
-    )
+    body_lines = [
+        "## Goal",
+        "Test orchestrator goal.",
+        "",
+        "## Detailed Implementation Checklist (TODO)",
+        "- [ ] E-01 CONFIRM chd001 REACHED executed",
+        "  - Depends on: none",
+        "  - Expected outcome: done",
+        "  - Execution state: pending",
+        "",
+    ]
 
     if not omit_child_table:
-        lines.extend(
+        body_lines.extend(
             [
                 "## Child IPDs, sequence, and dependencies",
                 "| Order | Id | Status | Plan | Depends on |",
@@ -208,10 +178,10 @@ def _make_conforming_orchestrator(
             ]
         )
         for ord_tok, c_id6, c_path in child_rows:
-            lines.append(f"| {ord_tok} | {c_id6} | pending | {c_path} | none |")
-        lines.append("")
+            body_lines.append(f"| {ord_tok} | {c_id6} | pending | {c_path} | none |")
+        body_lines.append("")
 
-    lines.extend(
+    body_lines.extend(
         [
             "## Completion criteria (the whole Set is done only when)",
             "- None.",
@@ -239,11 +209,31 @@ def _make_conforming_orchestrator(
             "",
             "## Approval and execution gate",
             "- None.",
-            "",
         ]
     )
 
-    orch_path.write_text("\n".join(lines), encoding="utf-8")
+    orch_path = RecordBuilder(repo).plan(
+        id6=id6,
+        plan_role="orchestrator",
+        title=f"Orchestrator {id6}",
+        author="test",
+        when="2026-10-06",
+        set=setid,
+        order=0,
+        status=status,
+        scope_paths="none",
+        item_dependencies="none",
+        priority="medium",
+        work_kind="chore",
+        approval="2026-10-06, test approved" if status == "approved" else None,
+        disposition="pending",
+        slug="orchestrator",
+        history=[f"- 2026-10-06 {status} (test): created."],
+        body="\n".join(body_lines),
+        raw_fields={"Concern": "test concern.", "Scope": "test scope."},
+        **extra,
+    )
+    assert isinstance(orch_path, Path)
 
     if fail_coverage and not omit_coverage:
         cr.write(
@@ -257,73 +247,6 @@ def _make_conforming_orchestrator(
         cr.write(orch_path, cr.COVERAGE_PASS, model="test-model", tool="test-tool")
 
     return orch_path
-
-
-def _make_backlog_item(
-    repo: Path,
-    *,
-    id6: str = "bk0001",
-    status: str = "open",
-    setid: str = "demo",
-    graduated_to: str | None = None,
-    history_date: str = "2026-10-06",
-) -> Path:
-    p_dir = repo / ".aw" / "records" / "backlog" / status
-    p_dir.mkdir(parents=True, exist_ok=True)
-    p = p_dir / f"20261006-{setid}-01-{id6}-item.backlog.md"
-
-    lines = [
-        f"- Id: {id6}",
-        f"- Status: {status}",
-        f"- Set: {setid}",
-        "- Priority: medium",
-        "- Work-Kind: feature",
-        "- Summary: Test item",
-    ]
-    if graduated_to:
-        lines.append(f"- Graduated-To: {graduated_to}")
-    lines.extend(
-        [
-            "",
-            "## Workflow history",
-            f"- {history_date} {status} (test): transition to {status}",
-            "",
-            "Prose body",
-        ]
-    )
-    p.write_text("\n".join(lines), encoding="utf-8")
-    return p
-
-
-def _make_spec(
-    repo: Path,
-    *,
-    id6: str = "sp0001",
-    status: str = "approved",
-    setid: str = "demo",
-    from_backlog: str | None = None,
-    history_date: str = "2026-10-06",
-) -> Path:
-    p_dir = repo / ".aw" / "records" / "specs" / status
-    p_dir.mkdir(parents=True, exist_ok=True)
-    p = p_dir / f"20261006-{id6}-01-{id6}-test.spec.md"
-
-    bkl = f"- From-Backlog: {from_backlog}\n" if from_backlog else ""
-    content = f"""# Spec: Test Spec {id6}
-
-- Date: 2026-10-06
-- Status: {status}
-- Set: {setid}
-- Id: {id6}
-{bkl}
-## Workflow history
-- {history_date} {status} (test): approved spec
-
-## Goal
-Goal for spec {id6}.
-"""
-    p.write_text(content, encoding="utf-8")
-    return p
 
 
 def _setup_test_repo(path: Path) -> Path:
@@ -366,7 +289,18 @@ class TestPredicateUnit(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_failure_kind_1_no_handoff(self):
-        _make_backlog_item(self.repo, id6="bk0001")
+        RecordBuilder(self.repo).backlog(
+            id6="bk0001",
+            status="open",
+            set="demo",
+            priority="medium",
+            work_kind="feature",
+            summary="Test item",
+            when="2026-10-06",
+            slug="item",
+            history=["- 2026-10-06 open (test): transition to open"],
+            body="Prose body",
+        )
         res = ce.evaluate_handoff_ready(self.repo, "backlog", "bk0001")
         self.assertFalse(res.ready)
         self.assertEqual(len(res.findings), 1)
@@ -374,7 +308,18 @@ class TestPredicateUnit(unittest.TestCase):
         self.assertIn("no handoff plan or spec found", res.findings[0].detail)
 
     def test_failure_kind_2_plan_status_below_to_review(self):
-        _make_backlog_item(self.repo, id6="bk0001")
+        RecordBuilder(self.repo).backlog(
+            id6="bk0001",
+            status="open",
+            set="demo",
+            priority="medium",
+            work_kind="feature",
+            summary="Test item",
+            when="2026-10-06",
+            slug="item",
+            history=["- 2026-10-06 open (test): transition to open"],
+            body="Prose body",
+        )
         _make_conforming_child(
             self.repo, id6="chd001", status="draft", backlog_id6="bk0001"
         )
@@ -386,7 +331,18 @@ class TestPredicateUnit(unittest.TestCase):
         self.assertIn("must be to-review or later", f.detail)
 
     def test_failure_kind_3_plan_lint_failing(self):
-        _make_backlog_item(self.repo, id6="bk0001")
+        RecordBuilder(self.repo).backlog(
+            id6="bk0001",
+            status="open",
+            set="demo",
+            priority="medium",
+            work_kind="feature",
+            summary="Test item",
+            when="2026-10-06",
+            slug="item",
+            history=["- 2026-10-06 open (test): transition to open"],
+            body="Prose body",
+        )
         _make_conforming_child(
             self.repo,
             id6="chd001",
@@ -402,7 +358,18 @@ class TestPredicateUnit(unittest.TestCase):
         self.assertIn("fails author lint", f.detail)
 
     def test_failure_kind_4_orchestrator_coverage_failing(self):
-        _make_backlog_item(self.repo, id6="bk0001")
+        RecordBuilder(self.repo).backlog(
+            id6="bk0001",
+            status="open",
+            set="demo",
+            priority="medium",
+            work_kind="feature",
+            summary="Test item",
+            when="2026-10-06",
+            slug="item",
+            history=["- 2026-10-06 open (test): transition to open"],
+            body="Prose body",
+        )
         _make_conforming_child(
             self.repo, id6="chd001", status="to-review", backlog_id6="bk0001"
         )
@@ -415,7 +382,18 @@ class TestPredicateUnit(unittest.TestCase):
         self.assertTrue(any("coverage" in c or "orchestrator" in c for c in codes))
 
     def test_ready_case_1_ready_set_with_passing_orchestrator(self):
-        _make_backlog_item(self.repo, id6="bk0001")
+        RecordBuilder(self.repo).backlog(
+            id6="bk0001",
+            status="open",
+            set="demo",
+            priority="medium",
+            work_kind="feature",
+            summary="Test item",
+            when="2026-10-06",
+            slug="item",
+            history=["- 2026-10-06 open (test): transition to open"],
+            body="Prose body",
+        )
         _make_conforming_child(
             self.repo, id6="chd001", status="to-review", backlog_id6="bk0001"
         )
@@ -427,7 +405,18 @@ class TestPredicateUnit(unittest.TestCase):
         self.assertEqual(len(res.findings), 0)
 
     def test_ready_case_2_completed_all_terminal_handoff(self):
-        _make_backlog_item(self.repo, id6="bk0001")
+        RecordBuilder(self.repo).backlog(
+            id6="bk0001",
+            status="open",
+            set="demo",
+            priority="medium",
+            work_kind="feature",
+            summary="Test item",
+            when="2026-10-06",
+            slug="item",
+            history=["- 2026-10-06 open (test): transition to open"],
+            body="Prose body",
+        )
         # All linked plans are in terminal directory with at least 1 executed
         _make_conforming_child(
             self.repo,
@@ -452,7 +441,19 @@ class TestPredicateUnit(unittest.TestCase):
 
     def test_ready_case_3_graduated_to_set_handoff(self):
         # Backlog item points to Set 'demo' via - Graduated-To: demo, plans do not have - From-Backlog:
-        _make_backlog_item(self.repo, id6="bk0001", graduated_to="demo")
+        RecordBuilder(self.repo).backlog(
+            id6="bk0001",
+            status="open",
+            set="demo",
+            priority="medium",
+            work_kind="feature",
+            summary="Test item",
+            when="2026-10-06",
+            slug="item",
+            graduated_to="demo",
+            history=["- 2026-10-06 open (test): transition to open"],
+            body="Prose body",
+        )
         _make_conforming_child(
             self.repo, id6="chd001", setid="demo", status="to-review", backlog_id6=None
         )
@@ -475,7 +476,19 @@ class TestBacklogSetterSubprocess(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_both_spellings_refuse_identically_on_not_ready_and_write_nothing(self):
-        item = _make_backlog_item(self.repo, id6="bk0001", status="open")
+        item = RecordBuilder(self.repo).backlog(
+            id6="bk0001",
+            status="open",
+            set="demo",
+            priority="medium",
+            work_kind="feature",
+            summary="Test item",
+            when="2026-10-06",
+            slug="item",
+            history=["- 2026-10-06 open (test): transition to open"],
+            body="Prose body",
+        )
+        assert isinstance(item, Path)
         orig_bytes = item.read_bytes()
 
         # Route 1: positional spelling
@@ -520,7 +533,19 @@ class TestBacklogSetterSubprocess(unittest.TestCase):
 
     def test_both_spellings_succeed_on_ready_fixture(self):
         # 1. Positional spelling
-        item1 = _make_backlog_item(self.repo, id6="bk0001", status="open")
+        item1 = RecordBuilder(self.repo).backlog(
+            id6="bk0001",
+            status="open",
+            set="demo",
+            priority="medium",
+            work_kind="feature",
+            summary="Test item",
+            when="2026-10-06",
+            slug="item",
+            history=["- 2026-10-06 open (test): transition to open"],
+            body="Prose body",
+        )
+        assert isinstance(item1, Path)
         _make_conforming_child(
             self.repo, id6="chd001", status="to-review", backlog_id6="bk0001"
         )
@@ -539,7 +564,19 @@ class TestBacklogSetterSubprocess(unittest.TestCase):
         self.assertIn("- Status: graduated", moved1.read_text(encoding="utf-8"))
 
         # 2. --status spelling
-        item2 = _make_backlog_item(self.repo, id6="bk0002", status="open")
+        item2 = RecordBuilder(self.repo).backlog(
+            id6="bk0002",
+            status="open",
+            set="demo",
+            priority="medium",
+            work_kind="feature",
+            summary="Test item",
+            when="2026-10-06",
+            slug="item",
+            history=["- 2026-10-06 open (test): transition to open"],
+            body="Prose body",
+        )
+        assert isinstance(item2, Path)
         _make_conforming_child(
             self.repo, id6="chd002", status="to-review", backlog_id6="bk0002"
         )
@@ -559,7 +596,19 @@ class TestBacklogSetterSubprocess(unittest.TestCase):
 
     def test_same_status_note_skips_check(self):
         # Already graduated item with no handoff: a same-status note succeeds without refusal
-        item = _make_backlog_item(self.repo, id6="bk0003", status="graduated")
+        item = RecordBuilder(self.repo).backlog(
+            id6="bk0003",
+            status="graduated",
+            set="demo",
+            priority="medium",
+            work_kind="feature",
+            summary="Test item",
+            when="2026-10-06",
+            slug="item",
+            history=["- 2026-10-06 graduated (test): transition to graduated"],
+            body="Prose body",
+        )
+        assert isinstance(item, Path)
         res = _run_cli(
             "backlog",
             "set",
@@ -587,7 +636,17 @@ class TestSpecSetterSubprocess(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_spec_setter_refuses_when_handoff_is_not_ready(self):
-        spec = _make_spec(self.repo, id6="sp0001", status="approved")
+        spec = RecordBuilder(self.repo).spec(
+            id6="sp0001",
+            title="Test Spec sp0001",
+            status="approved",
+            set="demo",
+            when="2026-10-06",
+            slug="test",
+            history=["- 2026-10-06 approved (test): approved spec"],
+            body="## Goal\nGoal for spec sp0001.",
+        )
+        assert isinstance(spec, Path)
         # Child plan linked to spec is draft
         _make_conforming_child(
             self.repo, id6="chd001", status="draft", spec_id6="sp0001"
@@ -599,7 +658,17 @@ class TestSpecSetterSubprocess(unittest.TestCase):
         self.assertTrue(spec.exists())
 
     def test_spec_setter_succeeds_when_handoff_is_ready(self):
-        spec = _make_spec(self.repo, id6="sp0002", status="approved")
+        spec = RecordBuilder(self.repo).spec(
+            id6="sp0002",
+            title="Test Spec sp0002",
+            status="approved",
+            set="demo",
+            when="2026-10-06",
+            slug="test",
+            history=["- 2026-10-06 approved (test): approved spec"],
+            body="## Goal\nGoal for spec sp0002.",
+        )
+        assert isinstance(spec, Path)
         _make_conforming_child(
             self.repo, id6="chd002", status="to-review", spec_id6="sp0002"
         )
@@ -622,13 +691,31 @@ class TestGraduationIncompleteCheckRule(unittest.TestCase):
 
     def test_check_rule_reports_post_cutover_drift_and_skips_pre_cutover(self):
         # Post-cutover drifted item: graduated on 2026-10-06 with no handoff
-        _make_backlog_item(
-            self.repo, id6="bkpost", status="graduated", history_date="2026-10-06"
+        RecordBuilder(self.repo).backlog(
+            id6="bkpost",
+            status="graduated",
+            set="demo",
+            priority="medium",
+            work_kind="feature",
+            summary="Test item",
+            when="2026-10-06",
+            slug="item",
+            history=["- 2026-10-06 graduated (test): transition to graduated"],
+            body="Prose body",
         )
 
         # Pre-cutover item: graduated on 2026-10-01 with no handoff (grandfathered)
-        _make_backlog_item(
-            self.repo, id6="bkprev", status="graduated", history_date="2026-10-01"
+        RecordBuilder(self.repo).backlog(
+            id6="bkprev",
+            status="graduated",
+            set="demo",
+            priority="medium",
+            work_kind="feature",
+            summary="Test item",
+            when="2026-10-06",
+            slug="item",
+            history=["- 2026-10-01 graduated (test): transition to graduated"],
+            body="Prose body",
         )
 
         findings = ce.check_graduation_incomplete(self.repo, "backlog")
@@ -646,16 +733,30 @@ class TestGraduationIncompleteCheckRule(unittest.TestCase):
 
     def test_check_rule_reports_post_cutover_spec_drift_and_skips_pre_cutover(self):
         # Post-cutover drifted spec: implementing on 2026-10-06 with unready plan
-        _make_spec(
-            self.repo, id6="sppost", status="implementing", history_date="2026-10-06"
+        RecordBuilder(self.repo).spec(
+            id6="sppost",
+            title="Test Spec sppost",
+            status="implementing",
+            set="demo",
+            when="2026-10-06",
+            slug="test",
+            history=["- 2026-10-06 implementing (test): approved spec"],
+            body="## Goal\nGoal for spec sppost.",
         )
         _make_conforming_child(
             self.repo, id6="chd101", status="draft", spec_id6="sppost"
         )
 
         # Pre-cutover spec: implementing on 2026-10-01 with unready plan
-        _make_spec(
-            self.repo, id6="spprev", status="implementing", history_date="2026-10-01"
+        RecordBuilder(self.repo).spec(
+            id6="spprev",
+            title="Test Spec spprev",
+            status="implementing",
+            set="demo",
+            when="2026-10-06",
+            slug="test",
+            history=["- 2026-10-01 implementing (test): approved spec"],
+            body="## Goal\nGoal for spec spprev.",
         )
         _make_conforming_child(
             self.repo, id6="chd102", status="draft", spec_id6="spprev"
@@ -675,8 +776,17 @@ class TestGraduationIncompleteCheckRule(unittest.TestCase):
         )
 
     def test_cli_check_backlog_reports_finding(self):
-        _make_backlog_item(
-            self.repo, id6="bkpost", status="graduated", history_date="2026-10-06"
+        RecordBuilder(self.repo).backlog(
+            id6="bkpost",
+            status="graduated",
+            set="demo",
+            priority="medium",
+            work_kind="feature",
+            summary="Test item",
+            when="2026-10-06",
+            slug="item",
+            history=["- 2026-10-06 graduated (test): transition to graduated"],
+            body="Prose body",
         )
         res = _run_cli("check", "backlog", cwd=self.repo)
         self.assertIn("check.graduation-incomplete", res.stdout + res.stderr)
@@ -697,7 +807,19 @@ class TestProductionAndIsolation(unittest.TestCase):
         gate_tmp = tempfile.TemporaryDirectory()
         gate_dir = _setup_test_repo(Path(gate_tmp.name))
         try:
-            item = _make_backlog_item(self.repo, id6="bklane", status="open")
+            item = RecordBuilder(self.repo).backlog(
+                id6="bklane",
+                status="open",
+                set="demo",
+                priority="medium",
+                work_kind="feature",
+                summary="Test item",
+                when="2026-10-06",
+                slug="item",
+                history=["- 2026-10-06 open (test): transition to open"],
+                body="Prose body",
+            )
+            assert isinstance(item, Path)
             _make_conforming_child(
                 self.repo, id6="chd001", status="to-review", backlog_id6="bklane"
             )

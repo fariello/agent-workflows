@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import io
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import unittest
@@ -17,6 +18,64 @@ from tests.test_orchestrator_retirement import (
     _write_conforming_plan,
 )
 from tests.record_builder import RecordBuilder
+
+
+def _orchestrator_with_backlog(
+    repo: Path,
+    *,
+    plan_id: str,
+    set_id: str,
+    from_backlog: str,
+    child_table: str,
+    checklist_rows: list[str],
+    validation_rows: list[str],
+) -> Path:
+    text = str(
+        RecordBuilder().plan(
+            plan_role="orchestrator",
+            title="synthetic orchestrator",
+            author="tester",
+            when="2026-09-06",
+            set=set_id,
+            order=0,
+            id6=plan_id,
+            status="approved",
+            scope_paths="grandfathered",
+            item_dependencies="none",
+            priority="medium",
+            work_kind="chore",
+            approval="2026-09-06, human: approved",
+            readiness="go-pending-approval",
+            from_backlog=from_backlog,
+            text_only=True,
+        )
+    )
+    text = text.replace(
+        "## Child IPDs, sequence, and dependencies\n\n"
+        "| Order | Id | File | What it does | Depends on |\n"
+        "|---|---|---|---|---|\n"
+        "| 01 | `c0ch01` | TODO child plan filename | TODO what it does. | none |\n",
+        child_table + "\n",
+    )
+    exec_body = "\n\n".join(checklist_rows)
+    text = re.sub(
+        r"### Task group 1: TODO\n\n- \[ \] E-01 CONFIRM c0ch01 REACHED executed.*?(?=\n\n##|\Z)",
+        f"### Task group 1: Child confirmation\n\n{exec_body}\n",
+        text,
+        flags=re.DOTALL,
+    )
+    valid_body = "\n\n".join(validation_rows)
+    text = re.sub(
+        r"- \[ \] V-01 validates E-01.*?(?=\n\n##|\Z)",
+        f"{valid_body}\n",
+        text,
+        flags=re.DOTALL,
+    )
+    d = repo / ".aw" / "records" / "plans" / "pending"
+    d.mkdir(parents=True, exist_ok=True)
+    path = d / f"20260906-{set_id}-00-{plan_id}-synthetic.ipd.md"
+    path.write_text(text, encoding="utf-8")
+    return path
 
 
 class TestOrchestratorRetireClosesBacklog(unittest.TestCase):
@@ -79,21 +138,15 @@ class TestOrchestratorRetireClosesBacklog(unittest.TestCase):
                 "  - Observed evidence:\n"
                 "  - Result: pending"
             ]
-            orc_file = _write_conforming_plan(
+            orc_file = _orchestrator_with_backlog(
                 repo,
-                "pending",
                 plan_id="orc001",
                 set_id="seto",
-                order=0,
-                status="approved",
-                kind="orchestrator",
+                from_backlog="bkl001",
                 child_table=child_table,
                 checklist_rows=checklist_rows,
                 validation_rows=validation_rows,
             )
-            txt = orc_file.read_text("utf-8")
-            txt = txt.replace("- Id: orc001", "- Id: orc001\n- From-Backlog: bkl001")
-            orc_file.write_text(txt, "utf-8")
 
             coverage_record.write(
                 orc_file, verdict=coverage_record.COVERAGE_PASS, commit=False
@@ -196,19 +249,25 @@ class TestOrchestratorRetireClosesBacklog(unittest.TestCase):
             )
 
             # Sibling carrier in pending/ (unexecuted)
-            sib_file = _write_conforming_plan(
-                repo,
-                "pending",
-                plan_id="sib002",
-                set_id="sets",
+            RecordBuilder(repo).plan(
+                plan_role="child",
+                title="synthetic child",
+                author="tester",
+                when="2026-09-06",
+                set="sets",
                 order=1,
+                id6="sib002",
                 status="approved",
-                kind="child",
+                scope_paths="grandfathered",
+                item_dependencies="none",
+                priority="medium",
+                work_kind="chore",
+                approval="2026-09-06, human: approved",
+                readiness="go-pending-approval",
+                from_backlog="bkl002",
+                disposition="pending",
+                slug="synthetic",
             )
-            txt_s = sib_file.read_text("utf-8").replace(
-                "- Id: sib002", "- Id: sib002\n- From-Backlog: bkl002"
-            )
-            sib_file.write_text(txt_s, "utf-8")
 
             # Orchestrator plan in pending/
             child_table = _table(
@@ -227,21 +286,15 @@ class TestOrchestratorRetireClosesBacklog(unittest.TestCase):
                 "  - Observed evidence:\n"
                 "  - Result: pending"
             ]
-            orc_file = _write_conforming_plan(
+            orc_file = _orchestrator_with_backlog(
                 repo,
-                "pending",
                 plan_id="orc002",
                 set_id="seto",
-                order=0,
-                status="approved",
-                kind="orchestrator",
+                from_backlog="bkl002",
                 child_table=child_table,
                 checklist_rows=checklist_rows,
                 validation_rows=validation_rows,
             )
-            txt = orc_file.read_text("utf-8")
-            txt = txt.replace("- Id: orc002", "- Id: orc002\n- From-Backlog: bkl002")
-            orc_file.write_text(txt, "utf-8")
 
             coverage_record.write(
                 orc_file, verdict=coverage_record.COVERAGE_PASS, commit=False
