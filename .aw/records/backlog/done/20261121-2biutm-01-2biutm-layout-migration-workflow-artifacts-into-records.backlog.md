@@ -1,5 +1,5 @@
 - Id: 2biutm
-- Status: graduated
+- Status: done
 - Graduated-To: 2biutm
 - Set: 2biutm
 - Work-Kind: bug
@@ -11,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-22 done (aw backlog): closed by aw agy run: IPD 0hdqbw executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261121-2biutm-01-0hdqbw-route-legacy-workflow-artifacts-to-aw-workflow-artifacts-in.ipd.md); evidence .aw/records/plans/executed/20261121-2biutm-01-0hdqbw-route-legacy-workflow-artifacts-to-aw-workflow-artifacts-in.ipd.md
 - 2026-11-21 graduated (aw backlog): graduated by run run-20261121T210815Z-1170144: 0hdqbw
 - 2026-11-21 created (aw backlog): layout_inventory routes legacy workflow-artifacts/ into .aw/records/ instead of .aw/workflow-artifacts/
 
