@@ -40,27 +40,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Shared resume host/model switch helper and driver wiring
 
-- [ ] E-01 Add `apply_resume_host_and_model_switch` (and helpers `_detect_state_host`, `validate_resume_model_override`) in `agent_workflows/runner_shared.py` that: validates any supplied `--model` is non-blank before mutating `state` (raising `DriverError` on empty/whitespace); detects same-host vs cross-host (`agy` <-> `oc`) transitions from `state["driver"]["id"]` (with option fallback for older states); on cross-host handoff rebinds `state["driver"]`, seeds missing target `default_host_options`, replaces the old host's `options["model"]` with either explicit `--model` or `default_model_resolver()`, resets cross-host-only knobs (`effort`/`variant`/`agent`/`explicit_model`), refreshes `options[COST_ATTRIBUTION_KEY]`, and preserves `options["launch_profile"]`; on same-host model switch updates `options["model"]` (plus `explicit_model` on `agy`) and `options[COST_ATTRIBUTION_KEY]`; applies explicit `--effort`/`--variant`/`--opencode` overrides (subsuming `oc_runipd`'s standalone `--variant` block); clears incompatible saved sessions (`state["session_id"]`, `state["set_sessions"]`, `options["session"]`, `state["session_item_count"]`, non-terminal queue items' `question_resume_session`, and incomplete `review_steps` `session_id` entries) whenever host or model changes (unless `--session` is explicitly passed on the same resume); appends a structured handoff record to `state["resume_handoffs"]`; and returns `False` as a complete no-op when neither host nor explicit model/effort/variant/opencode changes.
+- [x] E-01 Add `apply_resume_host_and_model_switch` (and helpers `_detect_state_host`, `validate_resume_model_override`) in `agent_workflows/runner_shared.py` that: validates any supplied `--model` is non-blank before mutating `state` (raising `DriverError` on empty/whitespace); detects same-host vs cross-host (`agy` <-> `oc`) transitions from `state["driver"]["id"]` (with option fallback for older states); on cross-host handoff rebinds `state["driver"]`, seeds missing target `default_host_options`, replaces the old host's `options["model"]` with either explicit `--model` or `default_model_resolver()`, resets cross-host-only knobs (`effort`/`variant`/`agent`/`explicit_model`), refreshes `options[COST_ATTRIBUTION_KEY]`, and preserves `options["launch_profile"]`; on same-host model switch updates `options["model"]` (plus `explicit_model` on `agy`) and `options[COST_ATTRIBUTION_KEY]`; applies explicit `--effort`/`--variant`/`--opencode` overrides (subsuming `oc_runipd`'s standalone `--variant` block); clears incompatible saved sessions (`state["session_id"]`, `state["set_sessions"]`, `options["session"]`, `state["session_item_count"]`, non-terminal queue items' `question_resume_session`, and incomplete `review_steps` `session_id` entries) whenever host or model changes (unless `--session` is explicitly passed on the same resume); appends a structured handoff record to `state["resume_handoffs"]`; and returns `False` as a complete no-op when neither host nor explicit model/effort/variant/opencode changes.
   - Depends on: none
   - Expected outcome: `runner_shared.apply_resume_host_and_model_switch` cleanly handles same-host no-op, same-host model/effort/variant override, cross-host `agy -> oc` and `oc -> agy` handoff (with and without explicit `--model`), blank `--model` refusal, session clearing, `launch_profile` preservation, and `resume_handoffs` audit logging.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Register `--model` and `--effort` (`default=None`) on `agent_workflows/agy_runipd.py::build_parser` `resume` subparser and `--model` and `--opencode` (`default=None`) on `agent_workflows/oc_runipd.py::build_parser` `resume` subparser; wire both `args.command == "resume"` blocks to call `runner_shared.apply_resume_host_and_model_switch` before `--session` attachment and `run_queue`, saving `state.json` and logging a concise one-line notice to `stderr` whenever a host or model switch occurred. Preserve `oc_runipd`'s existing `as <profile>` and `--verify-with` resume refusals untouched.
+- [x] E-02 Register `--model` and `--effort` (`default=None`) on `agent_workflows/agy_runipd.py::build_parser` `resume` subparser and `--model` and `--opencode` (`default=None`) on `agent_workflows/oc_runipd.py::build_parser` `resume` subparser; wire both `args.command == "resume"` blocks to call `runner_shared.apply_resume_host_and_model_switch` before `--session` attachment and `run_queue`, saving `state.json` and logging a concise one-line notice to `stderr` whenever a host or model switch occurred. Preserve `oc_runipd`'s existing `as <profile>` and `--verify-with` resume refusals untouched.
   - Depends on: E-01
   - Expected outcome: Both `aw agy run resume` and `aw oc run resume` accept explicit model/runner-option overrides, seamlessly resume runs created by the other host, keep omitted resume invocations byte-identical to prior behavior, and keep `3cm15q`/`kgpptv` profile-refusal invariants intact.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Behavioral tests, changelog, and validation gates
 
-- [ ] E-03 Create `tests/test_resume_switch.py` (`pytestmark = pytest.mark.core`, zero source-code inspection) covering: parser acceptance of `--model`/`--effort` on `agy_runipd` `resume` and `--model`/`--variant`/`--opencode` on `oc_runipd` `resume`; blank `--model` refusal; same-host model switch on both hosts (updates `options.model` + `cost_attribution`, clears `session_id`/`set_sessions`/`question_resume_session`, appends `resume_handoffs`, preserves `launch_profile`, honors explicit `--session`); cross-host `agy -> oc` and `oc -> agy` resume handoffs both with explicit `--model` and falling back to target host default (rebinds `state["driver"]`, seeds target host options, clears cross-host sessions and model, preserves queue, preserved lanes, and answered questions); no-op resume leaves `state` unchanged; and `oc_runipd` `resume` still refuses `as <profile>` and `--verify-with`.
+- [x] E-03 Create `tests/test_resume_switch.py` (`pytestmark = pytest.mark.core`, zero source-code inspection) covering: parser acceptance of `--model`/`--effort` on `agy_runipd` `resume` and `--model`/`--variant`/`--opencode` on `oc_runipd` `resume`; blank `--model` refusal; same-host model switch on both hosts (updates `options.model` + `cost_attribution`, clears `session_id`/`set_sessions`/`question_resume_session`, appends `resume_handoffs`, preserves `launch_profile`, honors explicit `--session`); cross-host `agy -> oc` and `oc -> agy` resume handoffs both with explicit `--model` and falling back to target host default (rebinds `state["driver"]`, seeds target host options, clears cross-host sessions and model, preserves queue, preserved lanes, and answered questions); no-op resume leaves `state` unchanged; and `oc_runipd` `resume` still refuses `as <profile>` and `--verify-with`.
   - Depends on: E-02
   - Expected outcome: `python3 -m pytest tests/test_resume_switch.py` passes all tests with `0 unlisted slow tests`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add one user-facing bullet under `## 2.0.0 (pending)` in `CHANGELOG.md` (with zero em or en dashes) documenting model overrides on `resume` and cross-runner (`agy` <-> `oc`) resume handoff. Run targeted tests, bare `python3 -m pytest` (core suite), `make typecheck`, `aw sanitize --agent`, and `aw ipd lint --phase pre-transition` on this plan; commit only `Scope-Paths` files via `aw commit c9v6ie -- <paths>`. Never push.
+- [x] E-04 Add one user-facing bullet under `## 2.0.0 (pending)` in `CHANGELOG.md` (with zero em or en dashes) documenting model overrides on `resume` and cross-runner (`agy` <-> `oc`) resume handoff. Run targeted tests, bare `python3 -m pytest` (core suite), `make typecheck`, `aw sanitize --agent`, and `aw ipd lint --phase pre-transition` on this plan; commit only `Scope-Paths` files via `aw commit c9v6ie -- <paths>`. Never push.
   - Depends on: E-03
   - Expected outcome: Targeted tests, bare core pytest suite, `make typecheck`, `aw sanitize --agent`, and `aw ipd lint --phase pre-transition` all pass with zero regressions and path-scoped commits on `- Scope-Paths:`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -131,25 +131,25 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste pytest output from `tests/test_resume_switch.py` confirming `apply_resume_host_and_model_switch` handles no-op, blank `--model` refusal, same-host model/effort/variant override with session clearing and `launch_profile` preservation, and cross-host `agy -> oc` / `oc -> agy` handoff with `driver` rebinding, target option seeding, `cost_attribution` refresh, and `resume_handoffs` audit entry.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest -v tests/test_resume_switch.py` -> `4 passed in 4.05s` (`0 unlisted slow tests`), covering `test_resume_parsers_accept_model_and_host_overrides_and_refuse_blank_model`, `test_same_host_noop_and_model_switch_clear_sessions_and_preserve_launch_profile`, and `test_cross_host_handoff_agy_to_oc_and_oc_to_agy`. Committed in `e98f1d6fc2a79798439e7b0a7a6d75be63a6aba2`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste pytest output from `tests/test_resume_switch.py` and existing `resume`/profile tests confirming `agy_runipd.build_parser()` accepts `--model`/`--effort` on `resume`, `oc_runipd.build_parser()` accepts `--model`/`--variant`/`--opencode` on `resume`, both drivers execute `resume` through `apply_resume_host_and_model_switch` and preserve existing `as <profile>` and `--verify-with` refusals.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest -v tests/test_resume_switch.py` -> `4 passed in 4.05s` (including `test_driver_main_resume_end_to_end_persists_switch_and_preserves_profile_refusal` driving `oc_runipd.main` and `agy_runipd.main` end-to-end plus verifying `--verify-with` refusal); `python3 -m pytest -m "" tests/test_oc_runipd.py -k "resume or profile or verify_with"` -> `24 passed in 7.95s` (`0 unlisted slow tests`). Committed in `e98f1d6fc2a79798439e7b0a7a6d75be63a6aba2`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `python3 -m pytest tests/test_resume_switch.py` output showing 100% pass and `0 unlisted slow tests`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest -v tests/test_resume_switch.py` -> `0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).` / `4 passed in 4.05s`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `CHANGELOG.md` diff hunk (verifying zero em or en dashes), bare `python3 -m pytest` summary line, `make typecheck` summary, `aw sanitize --agent` output, `aw ipd lint --phase pre-transition` output, and `aw commit c9v6ie` output listing only `- Scope-Paths:` files.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `CHANGELOG.md` added bullet under `## 2.0.0 (pending)`: `- Added: resuming a run with a different model or runner when credits run out (aw agy run resume <run-id> --model ... [--effort ...], aw oc run resume <run-id> --model ... [--variant ...] [--opencode ...], and cross-host agy <-> oc resume handoff). Updates driver, options, and cost_attribution, clears incompatible saved sessions, preserves launch_profile and preserved lanes, and records the switch in resume_handoffs.` (0 em/en dashes). Bare `python3 -m pytest`: `2738 passed, 1 skipped, 11 warnings in 119.50s (0:01:59)` (0 failures; 119.51s exceeded 30s core wall budget under 6.94 host load). `make typecheck`: `Success: no issues found in 231 source files`. `aw sanitize --agent`: `outcome: "clean"`, `checked: 7080`, `findings: 0`. `aw commit c9v6ie` output: `aw commit: committed 5 path(s): e98f1d6fc2a79798439e7b0a7a6d75be63a6aba2` (`agent_workflows/runner_shared.py`, `agent_workflows/agy_runipd.py`, `agent_workflows/oc_runipd.py`, `tests/test_resume_switch.py`, `CHANGELOG.md`). Pre-transition `aw ipd lint` verified clean prior to finalize.
+  - Result: pass
 
 ## Approval and execution gate
 
