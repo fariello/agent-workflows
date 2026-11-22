@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/agy_runipd.py, agent_workflows/oc_runipd.py, tests/test_resume_switch.py, CHANGELOG.md, .aw/records/plans/pending/20261122-2s0u3d-01-c9v6ie-allow-resuming-a-run-with-a-different-model-or-runner.ipd.md
 - Item-Dependencies: none
 - Status: to-review
+- Readiness: go-pending-approval
 - Short-Description: Add --model/--effort/--opencode overrides on resume and cross-runner (agy <-> oc) resume handoff
 - Review-Depth: standard
 - Work-Kind: feature
@@ -22,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-22 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-002 FIXED; review record .aw/records/reviews/20261122-2s0u3d-01-c9v6ie-allow-resuming-a-run-with-a-different-model-or-runner.review.md
 - 2026-11-22 to-review (antigravity/gemini): authored review-ready child plan graduated from backlog 2s0u3d.
 - 2026-11-22 draft (antigravity/gemini): created.
 
@@ -35,7 +37,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Shared resume host/model switch helper and driver wiring
 
-- [ ] E-01 Add `apply_resume_host_and_model_switch` (and helper `_detect_state_host`) in `agent_workflows/runner_shared.py` that: validates any supplied `--model` is non-blank (raising `DriverError` before mutating `state` if empty/whitespace); detects same-host vs cross-host (`agy` <-> `oc`) transitions from `state["driver"]["id"]` (with option fallback for older states); on cross-host handoff rebinds `state["driver"]`, seeds missing target `default_host_options`, replaces the old host's `options["model"]` with either explicit `--model` or `default_model_resolver()`, resets cross-host-only knobs (`effort`/`variant`/`agent`/`explicit_model`), refreshes `options[COST_ATTRIBUTION_KEY]`, and preserves `options["launch_profile"]`; on same-host model switch updates `options["model"]` (plus `explicit_model` on `agy`) and `options[COST_ATTRIBUTION_KEY]`; applies explicit `--effort`/`--variant`/`--opencode` overrides; clears incompatible saved sessions (`state["session_id"]`, `state["set_sessions"]`, `options["session"]`, `state["session_item_count"]`, and non-terminal queue items' `question_resume_session`) whenever host or model changes (unless `--session` is explicitly passed on the same resume); appends a structured handoff record to `state["resume_handoffs"]`; and returns `False` as a complete no-op when neither host nor explicit model/effort/variant/opencode changes.
+- [ ] E-01 Add `apply_resume_host_and_model_switch` (and helpers `_detect_state_host`, `validate_resume_model_override`) in `agent_workflows/runner_shared.py` that: validates any supplied `--model` is non-blank before mutating `state` (raising `DriverError` on empty/whitespace); detects same-host vs cross-host (`agy` <-> `oc`) transitions from `state["driver"]["id"]` (with option fallback for older states); on cross-host handoff rebinds `state["driver"]`, seeds missing target `default_host_options`, replaces the old host's `options["model"]` with either explicit `--model` or `default_model_resolver()`, resets cross-host-only knobs (`effort`/`variant`/`agent`/`explicit_model`), refreshes `options[COST_ATTRIBUTION_KEY]`, and preserves `options["launch_profile"]`; on same-host model switch updates `options["model"]` (plus `explicit_model` on `agy`) and `options[COST_ATTRIBUTION_KEY]`; applies explicit `--effort`/`--variant`/`--opencode` overrides (subsuming `oc_runipd`'s standalone `--variant` block); clears incompatible saved sessions (`state["session_id"]`, `state["set_sessions"]`, `options["session"]`, `state["session_item_count"]`, non-terminal queue items' `question_resume_session`, and incomplete `review_steps` `session_id` entries) whenever host or model changes (unless `--session` is explicitly passed on the same resume); appends a structured handoff record to `state["resume_handoffs"]`; and returns `False` as a complete no-op when neither host nor explicit model/effort/variant/opencode changes.
   - Depends on: none
   - Expected outcome: `runner_shared.apply_resume_host_and_model_switch` cleanly handles same-host no-op, same-host model/effort/variant override, cross-host `agy -> oc` and `oc -> agy` handoff (with and without explicit `--model`), blank `--model` refusal, session clearing, `launch_profile` preservation, and `resume_handoffs` audit logging.
   - Execution state: pending
