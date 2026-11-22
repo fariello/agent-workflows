@@ -32,6 +32,7 @@ from pathlib import Path
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as ac
 from agent_workflows import cli
+from tests.record_builder import RecordBuilder
 
 _ACTOR_PAREN = re.compile(r"\((?:aw backlog|aw set)\)")
 
@@ -72,57 +73,62 @@ def _write_conforming_plan(
     plan_dir = root / ".aw" / "records" / "plans" / "pending"
     plan_dir.mkdir(parents=True, exist_ok=True)
     p = plan_dir / f"20260901-{set_id}-01-{id6}-plan.ipd.md"
-    p.write_text(
-        f"# IPD: Plan {id6}\n\n"
-        "- Date: 2026-09-01\n"
-        "- Kind: child\n"
-        "- Concern: Test concern.\n"
-        "- Scope: Test scope.\n"
-        "- Status: to-review\n"
-        "- Work-Kind: chore\n"
-        "- Priority: medium\n"
-        f"- Set: {set_id}\n"
-        "- Order: 1\n"
-        f"- Id: {id6}\n"
-        f"- From-Backlog: {backlog_id6}\n"
-        "- Scope-Paths: README.md\n"
-        "- Highest E allocated: 01\n"
-        "- Author: test\n"
-        "- Item-Dependencies: none\n\n"
-        "## Workflow history\n"
-        "- 2026-09-01 to-review (test): created\n\n"
-        "## Goal\n"
-        f"Goal {id6}.\n\n"
-        "## Detailed Implementation Checklist (TODO)\n"
-        "### Task group 1: work\n"
+    plan_body = (
+        f"## Goal\n\nGoal {id6}.\n\n"
+        "## Detailed Implementation Checklist (TODO)\n\n"
+        "### Task group 1: work\n\n"
         "- [ ] E-01 Work item\n"
         "  - Depends on: none\n"
         "  - Expected outcome: done\n"
         "  - Execution state: pending\n\n"
-        "## Project conventions discovered (Step 0)\n"
+        "## Project conventions discovered (Step 0)\n\n"
         "None.\n\n"
-        "## Findings\n"
+        "## Findings\n\n"
         "None.\n\n"
-        "## Proposed changes (ordered, validatable)\n"
+        "## Proposed changes (ordered, validatable)\n\n"
         "1. E-01 do work.\n\n"
-        "## Deferred / out of scope (with reason)\n"
+        "## Deferred / out of scope (with reason)\n\n"
         "- None.\n\n"
-        "## Scope check\n"
+        "## Scope check\n\n"
         "- None.\n\n"
-        "## Required tests / validation\n"
+        "## Required tests / validation\n\n"
         "- None.\n\n"
-        "## Spec / documentation sync\n"
+        "## Spec / documentation sync\n\n"
         "- None.\n\n"
-        "## Open questions\n"
+        "## Open questions\n\n"
         "- None.\n\n"
-        "## Validation and cross-check (verify before reporting done)\n"
+        "## Validation and cross-check (verify before reporting done)\n\n"
         "- [ ] V-01 validates E-01\n"
         "  - Required evidence: check.\n"
         "  - Observed evidence:\n"
         "  - Result: pending\n\n"
-        "## Approval and execution gate\n"
+        "## Approval and execution gate\n\n"
         "- Size assessment: standard\n"
-        "- Cohesion rationale: not required\n",
+        "- Cohesion rationale: not required\n"
+    )
+    p.write_text(
+        RecordBuilder().plan(
+            id6=id6,
+            title=f"Plan {id6}",
+            when="2026-09-01",
+            status="to-review",
+            work_kind="chore",
+            priority="medium",
+            set=set_id,
+            order=1,
+            from_backlog=backlog_id6,
+            scope_paths="README.md",
+            highest_e_allocated="01",
+            author="test",
+            item_dependencies="none",
+            history=["- 2026-09-01 to-review (test): created"],
+            body=plan_body,
+            raw_fields={
+                "Concern": "Test concern.",
+                "Scope": "Test scope.",
+            },
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return p
@@ -157,37 +163,44 @@ class BacklogHistoryDedupParityTests(unittest.TestCase):
             / "open"
             / "20260901-demo-01-bk0002-item-2.backlog.md"
         )
-        initial_content_f1 = (
-            "- Id: bk0001\n"
-            "- Status: open\n"
-            "- Set: demo\n"
-            "- Priority: high\n"
-            "- Work-Kind: feature\n"
-            "- Summary: item 1\n\n"
-            "## Workflow history\n"
-            "- 2026-09-01 created (tester): initial\n"
-            "- 2026-08-15 created (tester): older initial\n\n"
-            "Prose body\n"
+        initial_content_f1 = RecordBuilder().backlog(
+            id6="bk0001",
+            status="open",
+            set="demo",
+            priority="high",
+            work_kind="feature",
+            summary="item 1",
+            when="2026-09-01",
+            history=[
+                "- 2026-09-01 created (tester): initial",
+                "- 2026-08-15 created (tester): older initial",
+            ],
+            body="Prose body",
+            text_only=True,
         )
-        initial_content_f2 = (
-            "- Id: bk0002\n"
-            "- Status: open\n"
-            "- Set: demo\n"
-            "- Priority: high\n"
-            "- Work-Kind: feature\n"
-            "- Summary: item 2\n\n"
-            "## Workflow history\n"
-            "- 2026-09-01 created (tester): initial\n"
-            "- 2026-08-15 created (tester): older initial\n\n"
-            "Prose body\n"
+        initial_content_f2 = RecordBuilder().backlog(
+            id6="bk0002",
+            status="open",
+            set="demo",
+            priority="high",
+            work_kind="feature",
+            summary="item 2",
+            when="2026-09-01",
+            history=[
+                "- 2026-09-01 created (tester): initial",
+                "- 2026-08-15 created (tester): older initial",
+            ],
+            body="Prose body",
+            text_only=True,
         )
         f1.write_text(initial_content_f1, encoding="utf-8")
         f2.write_text(initial_content_f2, encoding="utf-8")
 
         # Drive f1 with --status spelling TWICE
         for _ in range(2):
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
-                io.StringIO()
+            with (
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(io.StringIO()),
             ):
                 rc = cli.main(
                     [
@@ -207,8 +220,9 @@ class BacklogHistoryDedupParityTests(unittest.TestCase):
 
         # Drive f2 with positional spelling TWICE
         for _ in range(2):
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
-                io.StringIO()
+            with (
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(io.StringIO()),
             ):
                 rc = cli.main(
                     [
@@ -282,19 +296,40 @@ class BacklogHistoryDedupParityTests(unittest.TestCase):
             / "20260901-demo-01-bk0002-item-2.backlog.md"
         )
         f1.write_text(
-            "- Id: bk0001\n- Status: open\n- Set: demo\n- Priority: high\n- Work-Kind: feature\n- Summary: item 1\n\n"
-            "## Workflow history\n- 2026-09-01 created (tester): initial\n\nProse body\n",
+            RecordBuilder().backlog(
+                id6="bk0001",
+                status="open",
+                set="demo",
+                priority="high",
+                work_kind="feature",
+                summary="item 1",
+                when="2026-09-01",
+                history=["- 2026-09-01 created (tester): initial"],
+                body="Prose body",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         f2.write_text(
-            "- Id: bk0002\n- Status: open\n- Set: demo\n- Priority: high\n- Work-Kind: feature\n- Summary: item 2\n\n"
-            "## Workflow history\n- 2026-09-01 created (tester): initial\n\nProse body\n",
+            RecordBuilder().backlog(
+                id6="bk0002",
+                status="open",
+                set="demo",
+                priority="high",
+                work_kind="feature",
+                summary="item 2",
+                when="2026-09-01",
+                history=["- 2026-09-01 created (tester): initial"],
+                body="Prose body",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
         for msg in ("first note", "second note"):
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
-                io.StringIO()
+            with (
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(io.StringIO()),
             ):
                 rc = cli.main(
                     [
@@ -313,8 +348,9 @@ class BacklogHistoryDedupParityTests(unittest.TestCase):
             self.assertEqual(rc, 0)
 
         for msg in ("first note", "second note"):
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
-                io.StringIO()
+            with (
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(io.StringIO()),
             ):
                 rc = cli.main(
                     [
@@ -375,14 +411,25 @@ class BacklogHistoryDedupParityTests(unittest.TestCase):
             / "20260901-demo-01-bk0001-item-1.backlog.md"
         )
         f1.write_text(
-            "- Id: bk0001\n- Status: open\n- Set: demo\n- Priority: high\n- Work-Kind: feature\n- Summary: item 1\n\n"
-            "## Workflow history\n- 2026-09-01 created (tester): initial\n\nProse body\n",
+            RecordBuilder().backlog(
+                id6="bk0001",
+                status="open",
+                set="demo",
+                priority="high",
+                work_kind="feature",
+                summary="item 1",
+                when="2026-09-01",
+                history=["- 2026-09-01 created (tester): initial"],
+                body="Prose body",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
         for _ in range(2):
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
-                io.StringIO()
+            with (
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(io.StringIO()),
             ):
                 rc = cli.main(
                     [
@@ -421,14 +468,25 @@ class BacklogHistoryDedupParityTests(unittest.TestCase):
             / "20260901-demo-01-bk0001-item-1.backlog.md"
         )
         f1.write_text(
-            "- Id: bk0001\n- Status: open\n- Set: demo\n- Priority: high\n- Work-Kind: feature\n- Summary: item 1\n\n"
-            "## Workflow history\n- 2026-09-01 created (tester): initial\n\nProse body\n",
+            RecordBuilder().backlog(
+                id6="bk0001",
+                status="open",
+                set="demo",
+                priority="high",
+                work_kind="feature",
+                summary="item 1",
+                when="2026-09-01",
+                history=["- 2026-09-01 created (tester): initial"],
+                body="Prose body",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         _write_conforming_plan(self.root, backlog_id6="bk0001")
 
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
-            io.StringIO()
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
         ):
             rc1 = cli.main(
                 [
@@ -450,8 +508,9 @@ class BacklogHistoryDedupParityTests(unittest.TestCase):
         self.assertTrue(moved.exists())
 
         # Repeat call with identical status and message
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
-            io.StringIO()
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
         ):
             rc2 = cli.main(
                 [
@@ -495,15 +554,24 @@ class BacklogHistoryDedupParityTests(unittest.TestCase):
         )
         # Indented history line: seen by attention, but _prior_history_records returns []
         f1.write_text(
-            "- Id: bk0001\n- Status: open\n- Set: demo\n- Priority: high\n- Work-Kind: feature\n- Summary: item 1\n\n"
-            "## Workflow history\n"
-            "    - 2026-10-02 same-status (aw backlog): metadata only\n\n"
-            "Prose body\n",
+            RecordBuilder().backlog(
+                id6="bk0001",
+                status="open",
+                set="demo",
+                priority="high",
+                work_kind="feature",
+                summary="item 1",
+                when="2026-09-01",
+                history=[],
+                body="    - 2026-10-02 same-status (aw backlog): metadata only\n\nProse body",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
-            io.StringIO()
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
         ):
             rc = cli.main(
                 [
@@ -545,15 +613,26 @@ class BacklogHistoryDedupParityTests(unittest.TestCase):
             / "20260901-demo-01-bk0001-item-1.backlog.md"
         )
         f1.write_text(
-            "- Id: bk0001\n- Status: open\n- Set: demo\n- Priority: high\n- Work-Kind: feature\n- Summary: item 1\n\n"
-            "## Workflow history\n- 2026-09-01 created (tester): initial\n\nProse body\n",
+            RecordBuilder().backlog(
+                id6="bk0001",
+                status="open",
+                set="demo",
+                priority="high",
+                work_kind="feature",
+                summary="item 1",
+                when="2026-09-01",
+                history=["- 2026-09-01 created (tester): initial"],
+                body="Prose body",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
         sidecar = self.root / ".aw" / "records" / "history.jsonl"
 
         # Recorded call 1
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
-            io.StringIO()
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
         ):
             rc1 = cli.main(
                 [
@@ -576,8 +655,9 @@ class BacklogHistoryDedupParityTests(unittest.TestCase):
         self.assertGreaterEqual(count1, 1)
 
         # Suppressed call 2 (identical repeat)
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
-            io.StringIO()
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
         ):
             rc2 = cli.main(
                 [
@@ -600,8 +680,9 @@ class BacklogHistoryDedupParityTests(unittest.TestCase):
         )
 
         # Recorded call 3 (different message)
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
-            io.StringIO()
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
         ):
             rc3 = cli.main(
                 [

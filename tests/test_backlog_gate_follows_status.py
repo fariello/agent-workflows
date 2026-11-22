@@ -59,24 +59,9 @@ def _create_item(
     blocks_release: str | None = None,
 ) -> Path:
     """Create a backlog item in the given status."""
-    lines = [
-        f"- Id: {item_id}",
-        f"- Status: {status}",
-    ]
+    extra: dict[str, str] = {}
     if blocks_release is not None:
-        lines.append(f"- Blocks-Release: {blocks_release}")
-    lines.extend(
-        [
-            f"- Set: {item_id}",
-            "- Priority: medium",
-            f"- Work-Kind: {work_kind}",
-            "- Summary: Test defect",
-            "",
-            "## Workflow history",
-            "- 2026-09-28 created (tester): initial",
-            "",
-        ]
-    )
+        extra["blocks_release"] = blocks_release
     p = (
         repo
         / ".aw"
@@ -85,7 +70,21 @@ def _create_item(
         / status
         / f"20260928-{item_id}-01-{item_id}-test.backlog.md"
     )
-    p.write_text("\n".join(lines), encoding="utf-8")
+    p.write_text(
+        RecordBuilder().backlog(
+            id6=item_id,
+            status=status,
+            set=item_id,
+            priority="medium",
+            work_kind=work_kind,
+            summary="Test defect",
+            when="2026-09-28",
+            history=["- 2026-09-28 created (tester): initial"],
+            text_only=True,
+            **extra,
+        ),
+        encoding="utf-8",
+    )
     return p
 
 
@@ -110,57 +109,62 @@ def _write_conforming_plan(
     plan_dir = repo / ".aw" / "records" / "plans" / "pending"
     plan_dir.mkdir(parents=True, exist_ok=True)
     p = plan_dir / f"20260901-{set_id}-01-{id6}-plan.ipd.md"
-    p.write_text(
-        f"# IPD: Plan {id6}\n\n"
-        "- Date: 2026-09-01\n"
-        "- Kind: child\n"
-        "- Concern: Test concern.\n"
-        "- Scope: Test scope.\n"
-        "- Status: to-review\n"
-        "- Work-Kind: chore\n"
-        "- Priority: medium\n"
-        f"- Set: {set_id}\n"
-        "- Order: 1\n"
-        f"- Id: {id6}\n"
-        f"- From-Backlog: {backlog_id6}\n"
-        "- Scope-Paths: README.md\n"
-        "- Highest E allocated: 01\n"
-        "- Author: test\n"
-        "- Item-Dependencies: none\n\n"
-        "## Workflow history\n"
-        "- 2026-09-01 to-review (test): created\n\n"
-        "## Goal\n"
-        f"Goal {id6}.\n\n"
-        "## Detailed Implementation Checklist (TODO)\n"
-        "### Task group 1: work\n"
+    plan_body = (
+        f"## Goal\n\nGoal {id6}.\n\n"
+        "## Detailed Implementation Checklist (TODO)\n\n"
+        "### Task group 1: work\n\n"
         "- [ ] E-01 Work item\n"
         "  - Depends on: none\n"
         "  - Expected outcome: done\n"
         "  - Execution state: pending\n\n"
-        "## Project conventions discovered (Step 0)\n"
+        "## Project conventions discovered (Step 0)\n\n"
         "None.\n\n"
-        "## Findings\n"
+        "## Findings\n\n"
         "None.\n\n"
-        "## Proposed changes (ordered, validatable)\n"
+        "## Proposed changes (ordered, validatable)\n\n"
         "1. E-01 do work.\n\n"
-        "## Deferred / out of scope (with reason)\n"
+        "## Deferred / out of scope (with reason)\n\n"
         "- None.\n\n"
-        "## Scope check\n"
+        "## Scope check\n\n"
         "- None.\n\n"
-        "## Required tests / validation\n"
+        "## Required tests / validation\n\n"
         "- None.\n\n"
-        "## Spec / documentation sync\n"
+        "## Spec / documentation sync\n\n"
         "- None.\n\n"
-        "## Open questions\n"
+        "## Open questions\n\n"
         "- None.\n\n"
-        "## Validation and cross-check (verify before reporting done)\n"
+        "## Validation and cross-check (verify before reporting done)\n\n"
         "- [ ] V-01 validates E-01\n"
         "  - Required evidence: check.\n"
         "  - Observed evidence:\n"
         "  - Result: pending\n\n"
-        "## Approval and execution gate\n"
+        "## Approval and execution gate\n\n"
         "- Size assessment: standard\n"
-        "- Cohesion rationale: not required\n",
+        "- Cohesion rationale: not required\n"
+    )
+    p.write_text(
+        RecordBuilder().plan(
+            id6=id6,
+            title=f"Plan {id6}",
+            when="2026-09-01",
+            status="to-review",
+            work_kind="chore",
+            priority="medium",
+            set=set_id,
+            order=1,
+            from_backlog=backlog_id6,
+            scope_paths="README.md",
+            highest_e_allocated="01",
+            author="test",
+            item_dependencies="none",
+            history=["- 2026-09-01 to-review (test): created"],
+            body=plan_body,
+            raw_fields={
+                "Concern": "Test concern.",
+                "Scope": "Test scope.",
+            },
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     return p
