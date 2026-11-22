@@ -67,7 +67,7 @@ Every top-level verb is a thin, well-documented front door over the existing cor
 ### OQ-02: How should `aw show` distinguish named read-only views (`stale-reviews`, `decisions`, `board`, etc.) from artifact selectors (`id6`, Set ID, filename fragment, status)?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Context: Today `aw show <action_ref>` takes a single positional selector (`id6`, Set ID, filename fragment, or status). Adding named read-only views under `aw show` introduces a possible namespace collision if a Set ID or filename fragment ever matches a view name.
 - Options:
@@ -75,7 +75,7 @@ Every top-level verb is a thin, well-documented front door over the existing cor
   2. **Require a flag for views (`aw show --view stale-reviews`) and keep positional arguments strictly for artifact selectors.** Zero collision risk, at the cost of extra typing on every view invocation.
   3. **Require a noun subcommand for everything (`aw show artifact <id6>`, `aw show stale-reviews`, `aw show decisions`).** Completely unambiguous, but breaks existing `aw show <id6>` muscle memory.
 - Recommendation: Option 1 (reserved view names with an explicit artifact escape hatch).
-- Resolution or deferral rationale:
+- Resolution or deferral rationale: RESOLVED 2026-11-22 by the user via /askme: Option A (reserved built-in view names dispatching first, falling back to artifact selectors, with an explicit `aw show artifact <selector>` escape hatch), including `stale-reviews`, `decisions`, `graduation`, `board`, `history`, and `runs` under `aw show`. User noted liking all of the additional views.
 
 ### OQ-03: What should `aw validate` run, and how does it relate to `aw check`, `aw attention --check`, and `aw verify`?
 
