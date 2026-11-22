@@ -8512,12 +8512,24 @@ def _prompt_yes_no(prompt: str, default: bool) -> bool:
     return answer in ("y", "yes")
 
 
+def _is_attended_stdin() -> bool:
+    """Return True when stdin is attended and non-interactive mode is not forced."""
+    if (
+        _term_mod.get_interactive_override() is False
+        or _term_mod.is_forced_noninteractive()
+    ):
+        return False
+    return _term_mod.is_interactive() or isinstance(sys.stdin, io.StringIO)
+
+
 def _ask_policy(
     term: Term,
     key: str,
     prompt: str,
     builtin_default: bool,
     assume_yes: bool,
+    *,
+    dry_run: bool = False,
 ) -> bool:
     """Ask a policy question with precedence: flag > saved answer > built-in default.
 
@@ -8525,7 +8537,7 @@ def _ask_policy(
     Otherwise a saved defaults.<key> answers silently (with one line saying it came from config).
     Otherwise, interactively, ask with builtin_default shown as capitalized choice ([Y/n] or [y/N])
     and offer to remember the answer in config.
-    Under --yes or non-interactive stdin, return builtin_default with a note naming
+    Under --yes, --dry-run, or non-interactive stdin, return builtin_default with a note naming
     the config key that would silence it.
     """
     config_key = key if key.startswith("defaults.") else f"defaults.{key}"
@@ -8539,9 +8551,7 @@ def _ask_policy(
         term.line(f"Using saved {config_key}={str(saved_val).lower()} from config.")
         return saved_val
 
-    is_interactive = (
-        _term_mod.is_interactive() or isinstance(sys.stdin, io.StringIO)
-    ) and not assume_yes
+    is_interactive = _is_attended_stdin() and not assume_yes and not dry_run
     if not is_interactive:
         term.line(
             f"Using default {config_key}={str(builtin_default).lower()} "
@@ -8568,7 +8578,7 @@ def _confirm_install(
     """Single final install confirmation gate (E-04). Defaults YES for interactive."""
     if assume_yes:
         return True
-    is_interactive = _term_mod.is_interactive() or isinstance(sys.stdin, io.StringIO)
+    is_interactive = _is_attended_stdin()
     if not is_interactive:
         term.status(
             "warn",
@@ -8605,7 +8615,7 @@ def _confirm_relocation(
     """Relocation confirmation gate (spec Section 8 & E-02). Defaults NO for interactive."""
     if assume_yes:
         return True
-    is_interactive = _term_mod.is_interactive() or isinstance(sys.stdin, io.StringIO)
+    is_interactive = _is_attended_stdin()
     if direction in ("records-to-home", "records-to-target"):
         target_desc = "home" if direction == "records-to-home" else "repository"
         prompt_subject = f"Relocate records for {repo_root} to {target_desc}?"
@@ -8791,11 +8801,12 @@ def _install_leftover_disposition(args, term: Optional[Term] = None) -> Any:
             term.line(f"Using saved defaults.leftovers={saved} from config.")
         return saved
 
+    if getattr(args, "dry_run", False) is True:
+        return "remove"
+
     # Attended check (matching _ask_policy: stdin is a TTY or StringIO, and --yes not given)
     assume_yes = getattr(args, "yes", False)
-    is_interactive = (
-        _term_mod.is_interactive() or isinstance(sys.stdin, io.StringIO)
-    ) and not assume_yes
+    is_interactive = _is_attended_stdin() and not assume_yes
 
     if not is_interactive or term is None:
         return "remove"
@@ -8827,6 +8838,8 @@ def _split_brain_guard(term: Term, repo_root: Path, args) -> str:
         )
         return "skip"
 
+    dry_run = getattr(args, "dry_run", False) is True
+
     # Interactive branch: offer migrate-now
     if _prompt_yes_no(
         "Consolidate now with 'aw migrate-layout' (moves .agents/ content into .aw/)?",
@@ -8843,7 +8856,14 @@ def _split_brain_guard(term: Term, repo_root: Path, args) -> str:
             mgr.execute_migration(
                 target_backend="repository",
                 leftover_disposition=_install_leftover_disposition(args, term=term),
+                dry_run=dry_run,
             )
+            if dry_run:
+                term.status(
+                    "ok",
+                    f"[DRY RUN] {repo_root}: would consolidate split-brain layout into .aw/ (no changes written)",
+                )
+                return "skip"
             _report_leftover_removal(term, mgr)
         except (PreflightGateError, StaleInputError) as exc:
             term.status(
@@ -8934,6 +8954,9 @@ def _diagnostics_ok(repo_root: Path, args: argparse.Namespace) -> bool:
     parity, 1837-01). run_git_diagnostics is no-op-silent when the repo is clean+in-sync or
     non-interactive, and only prompts on real risk (tracked-dirty or behind).
     """
+
+    if getattr(args, "dry_run", False) is True:
+        return True
 
     import copy
 
@@ -9073,20 +9096,21 @@ def _install_one(
     # Record install history event & drop the self-explaining setup-repo-needed marker (setupmarker
     # Order 01: replaces the old operational-action ledger). Install history is a genuine append-only
     # audit; the marker is the per-machine "run setup here" reminder that `aw setup`/deletion clears.
-    try:
-        from agent_workflows.install_history import record_install_history
+    if getattr(args, "dry_run", False) is not True:
+        try:
+            from agent_workflows.install_history import record_install_history
 
-        record_install_history(
-            target_repo=str(repo_root),
-            event_type="install" if outcome == "ok" else "check",
-            details={
-                "version": result.get("version", ""),
-                "installed_files": len(result.get("installed", [])),
-            },
-        )
-        engine.write_setup_marker(repo_root)
-    except Exception:
-        pass
+            record_install_history(
+                target_repo=str(repo_root),
+                event_type="install" if outcome == "ok" else "check",
+                details={
+                    "version": result.get("version", ""),
+                    "installed_files": len(result.get("installed", [])),
+                },
+            )
+            engine.write_setup_marker(repo_root)
+        except Exception:
+            pass
 
     # Offer to commit (auto under --yes; prompt otherwise; on decline it prints how to commit, so
     # nothing is left SILENTLY staged). This is the step batch paths previously skipped (the bug).
@@ -9136,6 +9160,7 @@ def _handle_legacy_migration(
     if not is_legacy_only:
         return False
 
+    dry_run = getattr(args, "dry_run", False) is True
     to_aw = getattr(args, "to_aw", False)
     keep_legacy = getattr(args, "keep_legacy", False)
 
@@ -9151,9 +9176,16 @@ def _handle_legacy_migration(
             mgr.execute_migration(
                 target_backend="repository",
                 leftover_disposition=_install_leftover_disposition(args, term=term),
+                dry_run=dry_run,
             )
-            _report_leftover_removal(term, mgr)
-            term.status("ok", f"{repo_root}: migrated legacy layout to .aw/")
+            if dry_run:
+                term.status(
+                    "ok",
+                    f"[DRY RUN] {repo_root}: would migrate legacy layout to .aw/ (no changes written)",
+                )
+            else:
+                _report_leftover_removal(term, mgr)
+                term.status("ok", f"{repo_root}: migrated legacy layout to .aw/")
             return False
         except (PreflightGateError, StaleInputError) as exc:
             term.status(
@@ -9179,6 +9211,7 @@ def _handle_legacy_migration(
         prompt=f"Migrate {repo_root} from legacy .agents/ to canonical .aw/ now?",
         builtin_default=True,
         assume_yes=assume_yes,
+        dry_run=dry_run,
     )
 
     if should_migrate:
@@ -9193,9 +9226,16 @@ def _handle_legacy_migration(
             mgr.execute_migration(
                 target_backend="repository",
                 leftover_disposition=_install_leftover_disposition(args, term=term),
+                dry_run=dry_run,
             )
-            _report_leftover_removal(term, mgr)
-            term.status("ok", f"{repo_root}: migrated legacy layout to .aw/")
+            if dry_run:
+                term.status(
+                    "ok",
+                    f"[DRY RUN] {repo_root}: would migrate legacy layout to .aw/ (no changes written)",
+                )
+            else:
+                _report_leftover_removal(term, mgr)
+                term.status("ok", f"{repo_root}: migrated legacy layout to .aw/")
             return False
         except (PreflightGateError, StaleInputError) as exc:
             term.status(
@@ -9360,6 +9400,7 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                     explicit_companion=getattr(args, "companion_dir", None),
                     allow_placement_switch=is_relocate,
                     allow_records_switch=is_relocate,
+                    dry_run=(getattr(args, "dry_run", False) is True),
                 )
                 switch = config_placement_switch(
                     str(repo_root), policy, existing_policy=existing_policy
@@ -9487,6 +9528,8 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                     assume_yes=getattr(args, "yes", False),
                     direction=switch_plan.direction,
                 )
+            elif getattr(args, "dry_run", False) is True:
+                confirmed = True
             else:
                 confirmed = _confirm_install(
                     term, repo_root, getattr(args, "yes", False)
@@ -9702,7 +9745,7 @@ def _install_all(args: argparse.Namespace, term: Term) -> int:
 
     # "all" means every CONFIGURED repo (the allowlist), not every repo on disk. Make that
     # explicit so a user with many on-disk repos is not surprised by the count.
-    if not _confirm(
+    if getattr(args, "dry_run", False) is not True and not _confirm(
         term,
         f"Install/update agent-workflows into {len(repos)} configured repo(s)?",
         args.yes,
@@ -10122,6 +10165,9 @@ def _configure_completion(args: argparse.Namespace, term: Term) -> None:
     deliberately does not make that offer (`offer_rc_write=False`), because it can be running under
     `--yes` or in a pipe. It only REPORTS whether completion will take effect and PRINTS the fix.
     """
+    if getattr(args, "dry_run", False) is True:
+        return
+
     from agent_workflows import completion as _completion
 
     shell = _resolve_completion_choice(args)

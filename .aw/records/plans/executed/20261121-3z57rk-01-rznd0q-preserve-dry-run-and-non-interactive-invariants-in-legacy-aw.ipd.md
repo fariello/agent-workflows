@@ -5,8 +5,9 @@
 - Concern: Backlog `3z57rk` (`Work-Kind: bug`, `Priority: high`, `Blocks-Release: next`) reports that running `aw install --dry-run --no-interactive` in a repository with a legacy 1.2.1 `.agents/` layout executes the full layout migration live on disk (`git mv` of `.agents/` and `workflow-artifacts/` into `.aw/`, deleting leftover `.agents/README.md` with a backup tarball) and then blocks waiting on the interactive `AW Policy Update Checkpoint` prompt (`Keep current policy and proceed? [Y/n/review]`). Code inspection and direct reproduction show three linked defects: (1) `agent_workflows/cli.py::_handle_legacy_migration` (both the `--to-aw` and `should_migrate` branches) and `agent_workflows/cli.py::_split_brain_guard` call `MigrationManager.execute_migration` without forwarding `dry_run=bool(getattr(args, "dry_run", False))`, even though `agent_workflows/layout_migration.py::MigrationManager.execute_migration` already supports `dry_run: bool = False`; (2) `agent_workflows/install_wizard.py::collect_policy_interactive` checks bare `sys.stdin.isatty()` instead of the canonical interactivity contract in `agent_workflows/term.py` (`is_interactive`, `get_interactive_override`, and `is_forced_noninteractive`) and does not accept `dry_run`, causing it to render `AW Policy Update Checkpoint` and call `input()` on a Teletype (TTY) even when `--no-interactive`, `AW_NONINTERACTIVE`, `CI`, or `--dry-run` is active; and (3) `agent_workflows/cli.py` contains related dry-run and non-interactive leaks on the same Command-Line Interface (CLI) install flow (`_install_one` writes `.aw/setup-repo-needed.md`, `.aw/.gitignore`, and `.aw/state/durable/install.json` via `record_install_history` and `engine.write_setup_marker` under `--dry-run`; `_configure_completion` does not short-circuit on `--dry-run`; `_ask_policy`, `_confirm_install`, `_confirm_relocation`, and `_install_leftover_disposition` allow `isinstance(sys.stdin, io.StringIO)` to override `--no-interactive` / `AW_NONINTERACTIVE` / `CI`; and `_run_install` / `_install_all` gate dry-run previews on confirmation prompts).
 - Scope: IN: (1) update `agent_workflows/install_wizard.py::collect_policy_interactive` to honor `agent_workflows/term.py` interactivity precedence (`--no-interactive` > `AW_NONINTERACTIVE`/`CI` > `--interactive` > stream detection, without allowing `io.StringIO` to override forced non-interactive mode) and add keyword-only `dry_run: bool = False` so dry-run calls with an existing policy resolve non-interactively without prompting `AW Policy Update Checkpoint`; (2) update `agent_workflows/cli.py` to introduce `_is_attended_stdin()` for `_ask_policy`, `_confirm_install`, `_confirm_relocation`, and `_install_leftover_disposition`, read `dry_run` safely via `getattr(args, "dry_run", False) is True` (avoiding truthy unset `MagicMock` attributes), forward `dry_run` in `_ask_policy` (no prompt and no user-config write), `_install_leftover_disposition`, `_handle_legacy_migration`, `_split_brain_guard`, and `_run_install` (`collect_policy_interactive` and the `kept_legacy` dry-run confirmation bypass), emit dry-run preview messages instead of claiming live migration or leftover removal, short-circuit `_diagnostics_ok` on `dry_run` (preventing `git fetch`, interactive prompts, or `git pull --rebase` during `--dry-run`), guard `record_install_history` and `engine.write_setup_marker` in `_install_one` against `dry_run`, short-circuit `_configure_completion` on `dry_run`, and bypass batch `_confirm` in `_install_all` on `dry_run`; (3) update all four exact-keyword `execute_migration.assert_called_once_with(...)` assertions in `tests/test_installer.py` (`SplitBrainLayoutGuardTests.test_guard_clean_shapes_description_and_migration`, `InstallLeftoverDispositionThreadingTests.test_migration_paths_thread_requested_disposition`, and `InstallLeftoverDispositionThreadingTests.test_legacy_migration_fail_soft_on_preflight_gate_error`) to verify `dry_run=False` forwarding and add a `dry_run=True` subtest; and (4) add fast (< 2s per test) behavioral regression tests in `tests/test_install_dry_run_noninteractive.py` covering the exact `3z57rk` reproduction and every dry-run and non-interactive matrix case. OUT: modifying `agent_workflows/layout_migration.py::MigrationManager.execute_migration` or `plan_migration` (already read-only under `dry_run=True`), changing `agent_workflows/term.py::is_interactive`, modifying `agent_workflows/engine.py::install_into_repo` or `run_git_diagnostics`, or changing `aw migrate-layout` behavior.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/install_wizard.py, tests/test_installer.py, tests/test_install_dry_run_noninteractive.py
+- Scope-Exceeded: agent_workflows/engine.py (Guard save_created_files_record and prune_old_backups inside if not dry_run in install_into_repo so --dry-run --keep-legacy leaves git status clean without creating .agent-workflows-installer-backups ...)
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Forward dry_run through install-time layout migration, honor --no-interactive and --dry-run in install_wizard and install helpers, and guard dry-run side effects
@@ -19,12 +20,12 @@
 - Highest E allocated: 05
 - Author: antigravity/gemini-4-neon-high
 - Id: rznd0q
-- Approval: 2026-11-22, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-22 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: rznd0q verified (set 3z57rk, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/engine.py: Guard save_created_files_record and prune_old_backups inside if not dry_run in install_into_repo so --dry-run --keep-legacy leaves git status clean without creating .agent-workflows-installer-backups (required by E-04 item 4a)]
 - 2026-11-22 approved (aw set): status set to approved
 - 2026-11-22 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
@@ -41,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Honor non-interactive overrides and dry-run in `install_wizard.py`
 
-- [ ] E-01 In `agent_workflows/install_wizard.py`, update `collect_policy_interactive` to enforce the repository's canonical interactivity contract and accept `dry_run` (remaining signature-compatible with pending sibling plan `gftvh6` regardless of execution order):
+- [x] E-01 In `agent_workflows/install_wizard.py`, update `collect_policy_interactive` to enforce the repository's canonical interactivity contract and accept `dry_run` (remaining signature-compatible with pending sibling plan `gftvh6` regardless of execution order):
   1. Ensure `collect_policy_interactive` accepts optional keyword-only parameters `interactive: Optional[bool] = None` and `dry_run: bool = False` (preserving `interactive` if sibling plan `gftvh6` already added it, and defaulting both so all existing callers remain compatible).
   2. Replace the bare `(hasattr(sys.stdin, "isatty") and sys.stdin.isatty()) or isinstance(sys.stdin, io.StringIO)` predicate with `agent_workflows/term.py` precedence:
      - Compute `forced_noninteractive = (interactive is False) or (_term_mod.get_interactive_override() is False) or _term_mod.is_forced_noninteractive()`.
@@ -51,11 +52,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   3. Route to `resolve_policy_noninteractive(...)` whenever `not is_interactive` OR `(dry_run and existing_policy is not None)`.
   - Depends on: none
   - Expected outcome: `collect_policy_interactive` never calls `input()` when `interactive=False`, `--no-interactive`, `AW_NONINTERACTIVE`, `CI`, or non-TTY standard input is active (even if `sys.stdin` is an `io.StringIO` or a real TTY), skips the `AW Policy Update Checkpoint` prompt when `dry_run=True` and `existing_policy is not None`, preserves `interactive=True` support for `gftvh6`, and continues to fail closed with `IncompletePolicyError` on non-interactive first install without required policy flags.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Thread `dry_run` and enforce non-interactive guards in `cli.py`
 
-- [ ] E-02 In `agent_workflows/cli.py`, forward `dry_run` through install-time layout migration, honor forced non-interactive mode across install helpers, and guard all dry-run write paths reachable from `aw install` (reading `dry_run` as `getattr(args, "dry_run", False) is True` throughout, matching `_split_brain_guard`'s `_split_brain_consented` `is True` convention so unset `MagicMock` test attributes never evaluate as `dry_run=True`):
+- [x] E-02 In `agent_workflows/cli.py`, forward `dry_run` through install-time layout migration, honor forced non-interactive mode across install helpers, and guard all dry-run write paths reachable from `aw install` (reading `dry_run` as `getattr(args, "dry_run", False) is True` throughout, matching `_split_brain_guard`'s `_split_brain_consented` `is True` convention so unset `MagicMock` test attributes never evaluate as `dry_run=True`):
   1. Add a private helper `_is_attended_stdin() -> bool` that returns `False` when `_term_mod.get_interactive_override() is False` or `_term_mod.is_forced_noninteractive()` is `True`, and otherwise returns `_term_mod.is_interactive() or isinstance(sys.stdin, io.StringIO)`. Replace the inline `_term_mod.is_interactive() or isinstance(sys.stdin, io.StringIO)` checks in `_ask_policy`, `_confirm_install`, `_confirm_relocation`, and `_install_leftover_disposition` with `_is_attended_stdin()`.
   2. Add optional keyword-only parameter `dry_run: bool = False` to `_ask_policy`. When `dry_run` is `True` and no saved boolean exists in config, return `builtin_default` after printing the default notice without calling `_prompt_yes_no` or `config.set_config_value`.
   3. In `_install_leftover_disposition`, when `getattr(args, "dry_run", False) is True` and neither an explicit `--leftovers` flag nor a saved `defaults.leftovers` config value is set, return `"remove"` without constructing `_LeftoverPromptCallback`.
@@ -69,18 +70,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   9. In `_configure_completion`, return immediately when `getattr(args, "dry_run", False) is True` so `aw install --dry-run` never prompts for or writes shell completion files. In `_install_all`, bypass the batch `_confirm` prompt when `getattr(args, "dry_run", False) is True`.
   - Depends on: E-01
   - Expected outcome: Running `aw install --dry-run` (with or without `--no-interactive`, `--to-aw`, `--keep-legacy`, `--yes`, `--completion`, or `all`) performs zero writes to the repository working tree, git index, `.aw/` directories, user config, or shell completion directories, prints honest `[DRY RUN]` preview messages, and never blocks waiting for standard input when `--no-interactive` or `--dry-run` applies.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Update existing mock assertions and add behavioral regression coverage
 
-- [ ] E-03 In `tests/test_installer.py`, update the exact-kwargs `execute_migration` mock assertions across `SplitBrainLayoutGuardTests` and `InstallLeftoverDispositionThreadingTests`:
+- [x] E-03 In `tests/test_installer.py`, update the exact-kwargs `execute_migration` mock assertions across `SplitBrainLayoutGuardTests` and `InstallLeftoverDispositionThreadingTests`:
   1. Update all four existing `MockMgr.return_value.execute_migration.assert_called_once_with(...)` assertions to include `dry_run=False`: `SplitBrainLayoutGuardTests.test_guard_clean_shapes_description_and_migration`, `InstallLeftoverDispositionThreadingTests.test_migration_paths_thread_requested_disposition` (both `--to-aw` and interactive `_handle_legacy_migration` subtests), and `InstallLeftoverDispositionThreadingTests.test_legacy_migration_fail_soft_on_preflight_gate_error` (the split-brain migrate-now subtest).
   2. Add a `dry_run=True` subtest in `InstallLeftoverDispositionThreadingTests` confirming that `_handle_legacy_migration` forwards `dry_run=True` to `execute_migration`, does not call `_report_leftover_removal`, and reports a `[DRY RUN]` preview message rather than claiming migration completed.
   - Depends on: E-02
   - Expected outcome: All existing and updated tests in `tests/test_installer.py` (`SplitBrainLayoutGuardTests` and `InstallLeftoverDispositionThreadingTests`) pass with `0 unlisted slow tests`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Create fast (< 2s per test, un-slowed) behavioral regression tests in `tests/test_install_dry_run_noninteractive.py` using zero `inspect`, `ast`, or source-regex checks against production code:
+- [x] E-04 Create fast (< 2s per test, un-slowed) behavioral regression tests in `tests/test_install_dry_run_noninteractive.py` using zero `inspect`, `ast`, or source-regex checks against production code:
   1. Exact `3z57rk` reproduction test: build a temporary git repository with a committed legacy 1.2.1 layout (`.agents/workflows/VERSION`, `.agents/workflows/index.md`, `.agents/README.md`, and tracked `workflow-artifacts/verify/run1/out.md`), run `cli.main(["install", str(repo), "--dry-run", "--no-interactive"])` in-process with a simulated TTY `stdin` (`isatty() -> True`), isolated `AW_HOME`/`HOME`/`XDG_CONFIG_HOME`, and `builtins.input` patched to raise `AssertionError`. Assert exit code `0`, zero `input()` calls, `AW Policy Update Checkpoint` absent from output, `migrated legacy layout to .aw/` absent, `[DRY RUN]` preview present, `(repo / ".aw").exists()` is `False`, `.agents/` and `workflow-artifacts/` remain byte-identical, and `git status --porcelain` is empty.
   2. `--dry-run --to-aw --no-interactive` test on the same legacy layout: assert exit code `0`, zero `input()` calls, `(repo / ".aw").exists()` is `False`, all legacy files remain byte-identical, `git status --porcelain` is empty, and `[DRY RUN]` preview is printed.
   3. Interactive-TTY `--dry-run` test (without `--no-interactive`, with `AW_NONINTERACTIVE` and `CI` cleared from `os.environ` so the test is non-vacuous in CI environments) on both a legacy `.agents/` repository and an already-installed `.aw/` repository, with `builtins.input` patched to raise `AssertionError`: assert exit code `0`, zero `input()` calls, no user config written under `XDG_CONFIG_HOME`, zero working-tree or `.aw/` changes, and empty `git status --porcelain`.
@@ -89,14 +90,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   6. Split-brain `--dry-run` and completion `--dry-run` tests: (a) in a split-brain repository (`.aw/system` plus `.agents/workflows`), verify `_split_brain_guard` under `dry_run=True` with interactive consolidate answer calls `execute_migration(..., dry_run=True)` and leaves `.agents/workflows` and git state unchanged; (b) verify `aw install <repo> --dry-run --no-interactive --completion bash` writes no completion file under isolated `HOME`/`XDG_DATA_HOME`.
   - Depends on: E-02
   - Expected outcome: All tests in `tests/test_install_dry_run_noninteractive.py` run under default `python3 -m pytest` (no `pytest.mark.slow`), pass in under 2 seconds per test with `0 unlisted slow tests`, and fail if any of the repaired regressions returns.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Validate repository gates and commit
 
-- [ ] E-05 After the final edit, run the targeted test suites (`python3 -m pytest tests/test_install_dry_run_noninteractive.py tests/test_stdin_interactive.py tests/test_install_consent_truth.py tests/test_placement_switch_guard.py tests/test_records_root_switch_guard.py -v`, `python3 -m pytest -m "" tests/test_installer.py -k "migration_paths_thread or legacy_migration or guard_clean_shapes" -v`, and `python3 -m pytest -m "" tests/test_cli.py -k "legacy_repo" -v`), bare `python3 -m pytest`, `make test-all`, `aw check all --agent`, and `aw sanitize --agent`, then commit only the four `- Scope-Paths:` files through `aw commit rznd0q`.
+- [x] E-05 After the final edit, run the targeted test suites (`python3 -m pytest tests/test_install_dry_run_noninteractive.py tests/test_stdin_interactive.py tests/test_install_consent_truth.py tests/test_placement_switch_guard.py tests/test_records_root_switch_guard.py -v`, `python3 -m pytest -m "" tests/test_installer.py -k "migration_paths_thread or legacy_migration or guard_clean_shapes" -v`, and `python3 -m pytest -m "" tests/test_cli.py -k "legacy_repo" -v`), bare `python3 -m pytest`, `make test-all`, `aw check all --agent`, and `aw sanitize --agent`, then commit only the four `- Scope-Paths:` files through `aw commit rznd0q`.
   - Depends on: E-03, E-04
   - Expected outcome: Every targeted suite, bare `python3 -m pytest`, `make test-all`, `aw check all --agent`, `aw sanitize --agent`, and the path-scoped `aw commit rznd0q` commit succeed with zero failures.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -243,26 +244,75 @@ N/A with reason: this bug fix aligns `agent_workflows/cli.py` and `agent_workflo
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff -- agent_workflows/install_wizard.py` showing `interactive: Optional[bool] = None` and `dry_run: bool = False`, removal of bare `sys.stdin.isatty()`, use of `agent_workflows/term.py` precedence (`get_interactive_override`, `is_forced_noninteractive`, `is_interactive`), and the `not is_interactive or (dry_run and existing_policy is not None)` branch, plus the passing `collect_policy_interactive` test cases from `tests/test_install_dry_run_noninteractive.py` (`E-04`).
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    Commit `90132cb4` (`git show 90132cb4 -- agent_workflows/install_wizard.py`):
+    ```diff
+    +from agent_workflows import term as _term_mod
+     from agent_workflows.term import Term
+    @@ -997,18 +998,28 @@ def collect_policy_interactive(
+         *,
+         allow_placement_switch: bool = False,
+         allow_records_switch: bool = False,
+    +    interactive: Optional[bool] = None,
+    +    dry_run: bool = False,
+     ) -> ProjectPolicy:
+         if existing_policy is None:
+             existing_policy = resolve_existing_policy(repo_path)
+
+    -    is_interactive = not assume_yes and (
+    -        (hasattr(sys.stdin, "isatty") and sys.stdin.isatty())
+    -        or isinstance(sys.stdin, io.StringIO)
+    +    forced_noninteractive = (
+    +        (interactive is False)
+    +        or (_term_mod.get_interactive_override() is False)
+    +        or _term_mod.is_forced_noninteractive()
+         )
+    +    if assume_yes or forced_noninteractive:
+    +        is_interactive = False
+    +    elif interactive is True:
+    +        is_interactive = True
+    +    else:
+    +        is_interactive = _term_mod.is_interactive() or isinstance(
+    +            sys.stdin, io.StringIO
+    +        )
+
+    -    if not is_interactive:
+    +    if not is_interactive or (dry_run and existing_policy is not None):
+    ```
+    Pytest (`python3 -m pytest tests/test_install_dry_run_noninteractive.py -v`): `10 passed in 2.61s` (including `test_collect_policy_interactive_interactivity_and_dry_run_matrix`), `0 unlisted slow tests`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff -- agent_workflows/cli.py` showing `_is_attended_stdin()`, `getattr(args, "dry_run", False) is True` dry-run checks and forwarding in `_ask_policy`, `_install_leftover_disposition`, `_handle_legacy_migration`, `_split_brain_guard`, `_diagnostics_ok`, and `_run_install`, the dry-run guards around `record_install_history` / `engine.write_setup_marker` in `_install_one`, the dry-run early return in `_configure_completion`, and the dry-run confirm bypass in `_run_install` (`kept_legacy=True`) and `_install_all`, plus passing output from `tests/test_install_dry_run_noninteractive.py` (`E-04`) and `tests/test_installer.py` (`E-03`).
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    Commit `90132cb4` (`git show 90132cb4 -- agent_workflows/cli.py`, plus justified 2-line dry-run guard in `agent_workflows/engine.py::install_into_repo` wrapping `save_created_files_record` and `prune_old_backups` inside `if not dry_run:`):
+    - Added `_is_attended_stdin()` and replaced inline checks in `_ask_policy`, `_confirm_install`, `_confirm_relocation`, and `_install_leftover_disposition`.
+    - Added keyword-only `dry_run: bool = False` to `_ask_policy`; guarded `_install_leftover_disposition`, `_diagnostics_ok`, `_install_one` (`record_install_history` and `engine.write_setup_marker`), `_configure_completion`, `_run_install` (`collect_policy_interactive(..., dry_run=...)` and `kept_legacy=True` confirm bypass), and `_install_all` (`_confirm` bypass) with `getattr(args, "dry_run", False) is True`.
+    - Forwarded `dry_run=dry_run` in `_handle_legacy_migration` (both `to_aw` and `should_migrate` branches) and `_split_brain_guard`, emitting `[DRY RUN]` previews and skipping `_report_leftover_removal`.
+    - Pytest: `tests/test_install_dry_run_noninteractive.py` `10 passed in 2.61s`; `tests/test_installer.py -k "migration_paths_thread or legacy_migration or guard_clean_shapes"` `7 passed in 3.41s`; `0 unlisted slow tests`.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff -- tests/test_installer.py` and the passing `python3 -m pytest -m "" tests/test_installer.py -k "migration_paths_thread or legacy_migration or guard_clean_shapes" -v` output showing all four updated assertions and the new `dry_run=True` subtest passing with `0 unlisted slow tests`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    Commit `90132cb4` (`git show 90132cb4 -- tests/test_installer.py`): updated all four `MockMgr.return_value.execute_migration.assert_called_once_with(...)` assertions to include `dry_run=False` (`SplitBrainLayoutGuardTests.test_guard_clean_shapes_description_and_migration`, `InstallLeftoverDispositionThreadingTests.test_migration_paths_thread_requested_disposition` `--to-aw` and interactive subtests, and `InstallLeftoverDispositionThreadingTests.test_legacy_migration_fail_soft_on_preflight_gate_error` split-brain subtest) and added `dry_run=True` subtests (`to_aw_dry_run` and `default_dry_run`) verifying `dry_run=True`, no `_report_leftover_removal` call, and `[DRY RUN]` output.
+    Runner output (`python3 -m pytest -m "" tests/test_installer.py -k "migration_paths_thread or legacy_migration or guard_clean_shapes" -v`):
+    `0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).`
+    `7 passed in 3.41s`
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste `git diff -- tests/test_install_dry_run_noninteractive.py` (or `git status` + file summary), the `python3 -m pytest tests/test_install_dry_run_noninteractive.py -v` output showing every test passing under default markers with `0 unlisted slow tests`, and confirmation that `rg -n "inspect\.|getsource|\bast\." tests/test_install_dry_run_noninteractive.py` returns no matches.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    Created `tests/test_install_dry_run_noninteractive.py` (469 lines, 10 parametrized test cases covering exact `3z57rk` repro, `--dry-run --to-aw --no-interactive`, interactive TTY `--dry-run` on legacy and modern repos, `--dry-run --keep-legacy --no-interactive` with and without `--yes`, dirty tracked legacy TTY `--dry-run --keep-legacy`, direct `collect_policy_interactive` matrix, `_split_brain_guard` dry-run, and `--completion bash` dry-run).
+    Code-pinning check: `rg -n "inspect\.|getsource|\bast\." tests/test_install_dry_run_noninteractive.py` returned no matches (`NO_CODE_PINNING_MATCHES`).
+    Runner output (`python3 -m pytest tests/test_install_dry_run_noninteractive.py -v`):
+    `0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).`
+    `10 passed in 2.61s`
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste actual runner output and summary lines from the targeted suites (`tests/test_install_dry_run_noninteractive.py`, `tests/test_stdin_interactive.py`, `tests/test_install_consent_truth.py`, `tests/test_placement_switch_guard.py`, `tests/test_records_root_switch_guard.py`, `tests/test_installer.py` legacy subset, and `tests/test_cli.py` legacy subset), bare `python3 -m pytest`, `make test-all`, `aw check all --agent`, and `aw sanitize --agent`, plus `git show --stat` of the `aw commit rznd0q` commit confirming only `- Scope-Paths:` files changed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Targeted suites passed (`tests/test_install_dry_run_noninteractive.py` + 4 sibling files: `27 passed in 8.92s`, `0 unlisted slow tests`; `tests/test_installer.py` legacy subset: `7 passed in 3.41s`, `0 unlisted slow tests`; `tests/test_cli.py` legacy subset: `6 passed in 5.54s`, `0 unlisted slow tests`). Core suite (`aw suite`, running `python3 -m pytest`): `2667 passed, 1 skipped, 11 warnings in 137.20s (0:02:17)`. Thorough suite (`aw suite --thorough`, running `make test-all`): `5 failed, 11588 passed, 6 skipped, 1 xpassed, 17 warnings in 1071.48s (0:17:51)`; all 5 failures are pre-existing on base HEAD (`85442f2a`) and unrelated to `rznd0q` (`test_runs_leaf_flag_position_parity` `--no-bell` parity on `runs show`, three stale-stop tests in `tests/test_runner_resume_clears_stop.py`, and `tests/test_m0001_any_repo.py::test_ac42_this_repository_clone_migration` `aw find` skills drop), while every installer, CLI, install_wizard, and dry-run/non-interactive test passed. Typecheck (`make typecheck`): `Success: no issues found in 228 source files`. `aw check all --agent`: 0 findings on the four declared `- Scope-Paths:` files, 1 justified advisory `check.scope-drift` on `agent_workflows/engine.py` (2-line dry-run guard moving `save_created_files_record` and `prune_old_backups` inside `if not dry_run:` in `install_into_repo`, recorded via `--scope-reason` at `aw commit rznd0q`), and 107 pre-existing repo-wide findings on untouched artifacts. `aw sanitize --agent`: `outcome="clean"`, `exit=0`, `checked=7050`, `findings=0`. Commit `90132cb4f8c03bc18534f5d31b61a724b45f2be0` (`git show --stat`): `agent_workflows/cli.py | 102 ++++--`, `agent_workflows/engine.py | 4 +-`, `agent_workflows/install_wizard.py | 21 +-`, `tests/test_install_dry_run_noninteractive.py | 469 +++`, `tests/test_installer.py | 44 ++-` (`5 files changed, 601 insertions(+), 39 deletions(-)`).
+  - Result: pass
 
 ## Approval and execution gate
 
