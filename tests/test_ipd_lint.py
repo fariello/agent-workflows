@@ -32,8 +32,10 @@ import json
 import re
 import tempfile
 import unittest
+from collections.abc import Sequence
 from contextlib import redirect_stdout
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -51,28 +53,7 @@ SPEC = next(
 )
 
 
-# A minimal conforming CHILD IPD (author phase), built programmatically so tests can mutate it.
-def _conforming_child() -> str:
-    return """# IPD: sample (Set x, Order 1)
-
-- Date: 2026-08-03
-- Kind: child
-- Concern: sample.
-- Scope: sample.
-- Status: to-review
-- Work-Kind: chore
-- Priority: medium
-- Set: x
-- Order: 1
-- Highest E allocated: 01
-- Author: tester
-- Id: abc123
-
-## Workflow history
-
-- 2026-08-03 to-review (tester): created.
-
-## Goal
+_CONFORMING_CHILD_BODY = """## Goal
 
 Sample goal.
 
@@ -138,29 +119,88 @@ Validation-state rule: inspect evidence separately.
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Gate prose.
-"""
+Gate prose."""
 
 
-def _executed_child(include_executed_history: bool = True) -> str:
-    history = "- 2026-08-03 to-review (tester): created.\n"
-    if include_executed_history:
-        history += "- 2026-08-04 executed (tester): executed.\n"
-    return (
-        _conforming_child()
-        .replace("- Status: to-review", "- Status: executed")
-        .replace(
-            "## Workflow history\n\n- 2026-08-03 to-review (tester): created.",
-            f"## Workflow history\n\n{history.rstrip()}",
+# A minimal conforming CHILD IPD (author phase), built via RecordBuilder so tests can mutate it.
+def _conforming_child(
+    *,
+    when: str = "2026-08-03",
+    plan_role: str = "child",
+    status: str = "to-review",
+    set_name: str = "x",
+    order: int = 1,
+    scope_paths: str | None = None,
+    approval: str | None = None,
+    readiness: str | None = None,
+    history: Sequence[str] | None = None,
+    body: str | None = None,
+    raw_fields: dict[str, Any] | None = None,
+) -> str:
+    raw: dict[str, Any] = {
+        "Concern": "sample.",
+        "Scope": "sample.",
+        "Item-Dependencies": None,
+        "Highest E allocated": "01",
+    }
+    if scope_paths is None:
+        raw["Scope-Paths"] = None
+    if raw_fields:
+        raw.update(raw_fields)
+    eff_history = (
+        list(history)
+        if history is not None
+        else ["- 2026-08-03 to-review (tester): created."]
+    )
+    return str(
+        RecordBuilder().plan(
+            title="sample (Set x, Order 1)",
+            when=when,
+            plan_role=plan_role,
+            status=status,
+            work_kind="chore",
+            priority="medium",
+            set=set_name,
+            order=order,
+            scope_paths=(
+                scope_paths if scope_paths is not None else "agent_workflows/demo.py"
+            ),
+            approval=approval,
+            readiness=readiness,
+            author="tester",
+            id6="abc123",
+            history=eff_history,
+            body=_CONFORMING_CHILD_BODY if body is None else body,
+            raw_fields=raw,
+            text_only=True,
         )
-        .replace(
-            "- [ ] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: pending",
-            "- [x] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: performed",
-        )
-        .replace(
-            "- [ ] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n  - Result: pending",
-            "- [x] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence: verified at path X.\n  - Result: pass",
-        )
+    )
+
+
+def _executed_child(
+    include_executed_history: bool = True,
+    *,
+    scope_paths: str | None = None,
+    history: Sequence[str] | None = None,
+) -> str:
+    if history is None:
+        eff_history = ["- 2026-08-03 to-review (tester): created."]
+        if include_executed_history:
+            eff_history.append("- 2026-08-04 executed (tester): executed.")
+    else:
+        eff_history = list(history)
+    body = _CONFORMING_CHILD_BODY.replace(
+        "- [ ] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: pending",
+        "- [x] E-01 do a thing.\n  - Depends on: none\n  - Expected outcome: the thing exists.\n  - Execution state: performed",
+    ).replace(
+        "- [ ] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence:\n  - Result: pending",
+        "- [x] V-01 validates E-01\n  - Required evidence: the thing is present at path X.\n  - Observed evidence: verified at path X.\n  - Result: pass",
+    )
+    return _conforming_child(
+        status="executed",
+        scope_paths=scope_paths,
+        history=eff_history,
+        body=body,
     )
 
 
@@ -345,7 +385,7 @@ class StructuralRuleTests(unittest.TestCase):
         ),
         (
             "an orchestrator declaring a nonzero Order",
-            _conforming_child().replace("- Kind: child", "- Kind: orchestrator"),
+            _conforming_child(plan_role="orchestrator"),
             ("IPD-M104",),
             ("Order",),
             (),
@@ -355,9 +395,7 @@ class StructuralRuleTests(unittest.TestCase):
         ),
         (
             "Status: auto-approved",
-            _conforming_child().replace(
-                "- Status: to-review", "- Status: auto-approved"
-            ),
+            _conforming_child(status="auto-approved"),
             (),
             (),
             ("IPD-M104", "IPD-M101"),
@@ -566,20 +604,15 @@ class ReadinessAttestationTests(unittest.TestCase):
 
     def _plan(self, readiness=None, review=None, approved=False) -> str:
         """The conforming child with an optional `- Readiness:` and an optional review record."""
-        text = _conforming_child()
-        meta = (
-            "- Status: approved\n- Approval: 2026-09-06, probe"
-            if approved
-            else "- Status: to-review"
-        )
-        if readiness is not None:
-            meta += f"\n- Readiness: {readiness}"
-        text = text.replace("- Status: to-review", meta, 1)
+        history = ["- 2026-08-03 to-review (tester): created."]
         if review is not None:
-            text = text.replace(
-                "## Workflow history", f"## Workflow history\n\n{review}", 1
-            )
-        return text
+            history = [review, *history]
+        return _conforming_child(
+            status="approved" if approved else "to-review",
+            approval="2026-09-06, probe" if approved else None,
+            readiness=readiness,
+            history=history,
+        )
 
     #: (case, the `- Readiness:` value or None to omit it, a review history record or None, whether
     #: the plan is made ready-to-execute, the lint PHASE, whether IPD-M107 must be reported as a
@@ -767,19 +800,17 @@ class ReadinessRequiredTests(unittest.TestCase):
         review: str | None = None,
     ) -> str:
         """The conforming child with configurable status, readiness, approval, and history."""
-        text = _conforming_child()
-        meta_lines = [f"- Status: {status}"]
-        if approval:
-            meta_lines.append("- Approval: 2026-10-07, human probe")
-        if readiness is not None:
-            meta_lines.append(f"- Readiness: {readiness}")
-        meta = "\n".join(meta_lines)
-        text = text.replace("- Status: to-review", meta, 1)
+        history = ["- 2026-08-03 to-review (tester): created."]
         if review is not None:
-            text = text.replace(
-                "## Workflow history", f"## Workflow history\n\n{review}", 1
-            )
-        return text
+            history = [review, *history]
+        raw = {"Readiness": ""} if readiness == "" else None
+        return _conforming_child(
+            status=status,
+            approval="2026-10-07, human probe" if approval else None,
+            readiness=readiness if readiness else None,
+            history=history,
+            raw_fields=raw,
+        )
 
     #: (case, status, readiness, approval, review, phase, directory, fires, why)
     CASES = (
@@ -1040,17 +1071,12 @@ class CheckpointPhaseTests(unittest.TestCase):
 
     @staticmethod
     def _approved_with_blocking_question() -> str:
-        return (
-            _conforming_child()
-            .replace(
-                "- Blocking: no\n- Status: open\n- Owner: none\n- Resolution or deferral rationale: n/a",
-                "- Blocking: yes\n- Status: open\n- Owner: someone\n- Resolution or deferral rationale:",
-            )
-            .replace("- Status: to-review", "- Status: approved")
-            .replace(
-                "- Author: tester",
-                "- Approval: approved by x 2026-08-03\n- Author: tester",
-            )
+        return _conforming_child(
+            status="approved",
+            approval="approved by x 2026-08-03",
+        ).replace(
+            "- Blocking: no\n- Status: open\n- Owner: none\n- Resolution or deferral rationale: n/a",
+            "- Blocking: yes\n- Status: open\n- Owner: someone\n- Resolution or deferral rationale:",
         )
 
     #: (case, plan text, phase, whether IPD-S404 must fire, message substrings required on the S404
@@ -1251,19 +1277,13 @@ class PostTransitionExecutedHistoryTests(unittest.TestCase):
         ``scope_paths`` declares a real (post-cutoff) or ``grandfathered`` (pre-cutoff) allowlist, or
         is None to omit the field entirely, which is also pre-cutoff.
         """
-        text = _executed_child(include_executed_history=False)
-        if scope_paths is not None:
-            text = text.replace(
-                "- Scope: sample.", f"- Scope: sample.\n- Scope-Paths: {scope_paths}", 1
-            )
-        # Insert the newest executed entry right after the Workflow history heading.
-        text = text.replace(
-            "## Workflow history\n\n- 2026-08-03 to-review (tester): created.",
-            f"## Workflow history\n\n- 2026-08-05 executed ({actor}): {msg}\n"
-            "- 2026-08-03 to-review (tester): created.",
-            1,
+        return _executed_child(
+            scope_paths=scope_paths,
+            history=[
+                f"- 2026-08-05 executed ({actor}): {msg}",
+                "- 2026-08-03 to-review (tester): created.",
+            ],
         )
-        return text
 
     def test_attribution_fires_only_on_a_generic_terminal_record_past_the_cutoff(self):
         """One table over IPD-S406, replacing six tests (ipdgates Order wezhxg).
@@ -1429,7 +1449,7 @@ class DispositionTests(unittest.TestCase):
         ),
         (
             "a perfectly conforming CHILD plan sitting in a terminal directory",
-            _conforming_child().replace("- Status: to-review", "- Status: executed"),
+            _conforming_child(status="executed"),
             "executed",
             "author",
             S.DISPOSITION_LEGACY,
@@ -1898,31 +1918,25 @@ class NameConformityTests(unittest.TestCase):
 class DensityAdvisoryLintTests(unittest.TestCase):
     """Order 07: Per-E-item density heuristic surfacing in linter (spec Section 8.1)."""
 
-    def _dense_child(self) -> str:
+    def _dense_child(self, *, ready: bool = False) -> str:
         # A conforming child IPD with a multi-concern E-item
-        doc = _conforming_child()
+        if ready:
+            doc = _conforming_child(
+                status="approved",
+                approval="tester 2026-08-03",
+                readiness="go-pending-approval",
+                scope_paths="agent_workflows/foo.py",
+                history=[
+                    "- 2026-08-03 approved (tester): approved.",
+                    "- 2026-08-03 reviewed (tester): /plan-review: APPROVE WITH REVISIONS APPLIED",
+                ],
+            )
+        else:
+            doc = _conforming_child()
         # Replace E-01 action with a multi-concern action
         return doc.replace(
             "- [ ] E-01 do a thing.",
             "- [ ] E-01 add an append-only tamper-evident ledger AND crash recovery AND a 12-class evidence validator",
-        )
-
-    def _ready_to_execute(self, text: str) -> str:
-        """Make a fixture pass the ready-to-execute gate, so only the DENSITY advisory remains."""
-        text = text.replace("Status: to-review", "Status: approved")
-        text = text.replace(
-            "- 2026-08-03 to-review (tester): created.",
-            "- 2026-08-03 approved (tester): approved.\n- 2026-08-03 reviewed (tester): /plan-review: APPROVE WITH REVISIONS APPLIED",
-        )
-        text = text.replace(
-            "- Author: tester",
-            "- Author: tester\n- Approval: tester 2026-08-03\n- Readiness: go-pending-approval",
-        )
-        # Order oorry1: a ready-to-execute plan needs a Scope-Paths value; declare a real allowlist so
-        # these rows isolate the DENSITY advisory (Z602) they are actually about.
-        return text.replace(
-            "- Scope: sample.",
-            "- Scope: sample.\n- Scope-Paths: agent_workflows/foo.py",
         )
 
     #: (case, whether the E-item bundles multiple concerns, the lint PHASE, how many Z602 advisories
@@ -1974,9 +1988,10 @@ class DensityAdvisoryLintTests(unittest.TestCase):
         wrong = []
         positive_row_broken = False
         for case, dense, phase, count, why in self.DENSITY:
-            text = self._dense_child() if dense else _conforming_child()
-            if phase != "author":
-                text = self._ready_to_execute(text)
+            if dense:
+                text = self._dense_child(ready=(phase != "author"))
+            else:
+                text = _conforming_child()
             res = L.lint_text(text, checkpoint=phase, directory="pending")
             found = [a for a in res.advisories if a.code == L.C_SIZE_DENSITY]
             problems = []
@@ -2144,13 +2159,9 @@ class CitationAnchorAdvisoryTests(unittest.TestCase):
 
     def _plan(self, body: str, *, date=None) -> str:
         """A conforming child plan whose Findings section carries ``body``."""
-        text = _conforming_child().replace(
-            "## Findings\n\n- x", "## Findings\n\n" + body
-        )
-        return text.replace(
-            "- Date: 2026-08-03",
-            "- Date: " + (date if date is not None else self.POST_CUTOVER_DATE),
-        )
+        return _conforming_child(
+            when=date if date is not None else self.POST_CUTOVER_DATE,
+        ).replace("## Findings\n\n- x", "## Findings\n\n" + body)
 
     def _advisories(self, body: str, *, date=None, phase="author"):
         text = self._plan(body, date=date)
@@ -2534,43 +2545,6 @@ class CitationAnchorAdvisoryTests(unittest.TestCase):
         )
 
 
-def _with_scope_paths(text: str, value) -> str:
-    """Return ``text`` with a Scope-Paths metadata line set to ``value`` (or removed if None)."""
-    out = []
-    for ln in text.splitlines():
-        if ln.startswith("- Scope-Paths:"):
-            continue  # drop any existing one first
-        out.append(ln)
-        if value is not None and ln.startswith("- Scope:"):
-            out.append("- Scope-Paths: " + value)
-    return "\n".join(out) + "\n"
-
-
-def _approved(text: str) -> str:
-    """Make a fixture ready-to-execute: Status approved + the required Approval field.
-
-    Only the METADATA-block Status (before the first H2) is changed, so an OQ's own
-    `- Status: open` line later in the document is left intact.
-    """
-    out = []
-    in_meta = True
-    for ln in text.splitlines():
-        if ln.startswith("## "):
-            in_meta = False
-        if in_meta and ln.startswith("- Status:"):
-            out.append("- Status: approved")
-            continue
-        out.append(ln)
-        if in_meta and ln.startswith("- Author:"):
-            out.append("- Approval: 2026-08-24, human: approved")
-            out.append("- Readiness: go-pending-approval")
-        elif not in_meta and ln.startswith("## Workflow history"):
-            out.append(
-                "- 2026-08-24 reviewed (tester): /plan-review: APPROVE WITH REVISIONS APPLIED"
-            )
-    return "\n".join(out) + "\n"
-
-
 class ScopePathsCheckpointTests(unittest.TestCase):
     """Order oorry1: conditional Scope-Paths enforcement (IPD-M106) in the CHECKPOINT layer.
 
@@ -2712,10 +2686,21 @@ class ScopePathsCheckpointTests(unittest.TestCase):
             disposition,
             why,
         ) in self.SCOPES:
-            base = _executed_child() if directory == "executed" else _conforming_child()
-            text = _with_scope_paths(base, value)
-            if approved:
-                text = _approved(text)
+            if directory == "executed":
+                text = _executed_child(scope_paths=value)
+            elif approved:
+                text = _conforming_child(
+                    scope_paths=value,
+                    status="approved",
+                    approval="2026-08-24, human: approved",
+                    readiness="go-pending-approval",
+                    history=[
+                        "- 2026-08-24 reviewed (tester): /plan-review: APPROVE WITH REVISIONS APPLIED",
+                        "- 2026-08-03 to-review (tester): created.",
+                    ],
+                )
+            else:
+                text = _conforming_child(scope_paths=value)
             res = L.lint_text(text, checkpoint=phase, directory=directory)
             blocking = [d for d in res.diagnostics if d.code == L.C_SCOPE_PATHS]
             advisory = [d for d in res.advisories if d.code == L.C_SCOPE_PATHS]
@@ -2916,12 +2901,16 @@ class ParenthesizedActorParsesInTheAttributionRegex(unittest.TestCase):
         whole parsed document, which is where the original bug actually surfaced: the fall-through to
         the bare-line branch reported an empty actor for a line that plainly had one.
         """
-        plan = _approved(_conforming_child())
-        plan = plan.replace("- Status: approved", "- Status: executed")
-        plan += (
-            "\n## Workflow history\n\n"
-            "- 2026-08-30 executed (opencode (its_direct/some-model)): did the work "
-            "and validated it.\n"
+        plan = _conforming_child(
+            status="executed",
+            approval="2026-08-24, human: approved",
+            readiness="go-pending-approval",
+            history=[
+                "- 2026-08-30 executed (opencode (its_direct/some-model)): did the work "
+                "and validated it.",
+                "- 2026-08-24 reviewed (tester): /plan-review: APPROVE WITH REVISIONS APPLIED",
+                "- 2026-08-03 to-review (tester): created.",
+            ],
         )
         doc = L.parse(plan)
         parsed = L._newest_executed_history(doc)
@@ -3266,11 +3255,11 @@ class SetidLengthLintTests(unittest.TestCase):
     path, so one row asserts that it does NOT.
     """
 
-    def _plan_text(self, setid, date="2026-09-23"):
-        return (
-            _conforming_child()
-            .replace("- Set: x", f"- Set: {setid} (topic)")
-            .replace("- Date: 2026-08-03", f"- Date: {date}")
+    def _plan_text(self, setid, date="2026-09-23", *, status="to-review"):
+        return _conforming_child(
+            when=date,
+            status=status,
+            raw_fields={"Set": f"{setid} (topic)"},
         )
 
     def _repo(self, d, cutover: "str | None" = "2026-09-23"):
@@ -3352,9 +3341,7 @@ class SetidLengthLintTests(unittest.TestCase):
 
         # Terminal plan reaches legacy disposition first
         res_leg = L.lint_text(
-            self._plan_text("a" * 25).replace(
-                "- Status: to-review", "- Status: executed"
-            ),
+            self._plan_text("a" * 25, status="executed"),
             checkpoint="author",
             directory="executed",
         )
@@ -3373,51 +3360,22 @@ class TerminalPathStatusLintTests(unittest.TestCase):
         date: str | None = "2026-09-25",
         status: str | None = "to-review",
     ) -> str:
-        lines = [
-            "# IPD: sample (Set x, Order 1)",
-            "",
-        ]
-        if date is not None:
-            lines.append(f"- Date: {date}")
-        lines.extend(
-            [
-                "- Kind: child",
-                "- Concern: sample.",
-                "- Scope: sample.",
-            ]
+        raw: dict[str, Any] = {}
+        if date is None:
+            raw["Date"] = None
+        if status is None:
+            raw["Status"] = None
+        elif status == "EXECUTED":
+            raw["Status"] = "EXECUTED"
+        eff_status = (
+            status if status is not None and status != "EXECUTED" else "to-review"
         )
-        if status is not None:
-            lines.append(f"- Status: {status}")
-        lines.extend(
-            [
-                "- Work-Kind: chore",
-                "- Priority: medium",
-                "- Set: x",
-                "- Order: 1",
-                "- Highest E allocated: 01",
-                "- Author: tester",
-                "- Id: abc123",
-                "",
-                "## Workflow history",
-                "- 2026-09-25 to-review: test",
-                "",
-                "## Goal",
-                "sample goal",
-                "",
-                "## Detailed Implementation Checklist (TODO)",
-                "- [ ] E-01 sample",
-                "  - Depends on: none",
-                "  - Expected outcome: sample",
-                "  - Execution state: pending",
-                "",
-                "## Validation and cross-check (verify before reporting done)",
-                "- [ ] V-01 validates E-01",
-                "  - Required evidence: sample",
-                "  - Observed evidence:",
-                "  - Result: pending",
-            ]
+        return _conforming_child(
+            when=date if date is not None else "2026-09-25",
+            status=eff_status,
+            history=["- 2026-09-25 to-review: test"],
+            raw_fields=raw or None,
         )
-        return "\n".join(lines) + "\n"
 
     def test_m105_terminal_cutover_constant_is_strictly_greater(self):
         """The constant must be compact YYYYMMDD and strictly greater than the newest affected plan date (2026-07-11)."""
@@ -3542,18 +3500,16 @@ class CitationAnchorsOnDemandTests(unittest.TestCase):
     def _pre_cutover_fixture(
         self, *, body: str = "- the defect is at foo.py:123 and must be fixed"
     ) -> str:
-        text = _conforming_child().replace(
+        return _conforming_child(when=self.PRE_CUTOVER_DATE).replace(
             "## Findings\n\n- x", "## Findings\n\n" + body
         )
-        return text.replace("- Date: 2026-08-03", f"- Date: {self.PRE_CUTOVER_DATE}")
 
     def _post_cutover_fixture(
         self, *, body: str = "- the defect is at foo.py:123 and must be fixed"
     ) -> str:
-        text = _conforming_child().replace(
+        return _conforming_child(when=self.POST_CUTOVER_DATE).replace(
             "## Findings\n\n- x", "## Findings\n\n" + body
         )
-        return text.replace("- Date: 2026-08-03", f"- Date: {self.POST_CUTOVER_DATE}")
 
     def test_citation_anchors_flag_reports_pre_cutover_bare_citation_advisory(self):
         """Property 1: WITH the flag, a pre-cutover fixture plan carrying a bare citation yields IPD-C801."""
@@ -3631,11 +3587,13 @@ class CitationAnchorsOnDemandTests(unittest.TestCase):
         self.assertEqual(len(adv), 1)
 
     def _terminal_pre_cutover_fixture(self) -> str:
-        text = self._pre_cutover_fixture()
-        text = text.replace("- Status: to-review", "- Status: executed")
-        return text.replace(
-            "to-review (tester): created.",
-            "executed (tester): executed.",
+        return _conforming_child(
+            when=self.PRE_CUTOVER_DATE,
+            status="executed",
+            history=["- 2026-08-03 executed (tester): executed."],
+        ).replace(
+            "## Findings\n\n- x",
+            "## Findings\n\n- the defect is at foo.py:123 and must be fixed",
         )
 
     def test_terminal_directory_plan_reports_citation_advisory_under_flag_without_legacy(
@@ -4182,8 +4140,8 @@ class DateMetadataLintTests(unittest.TestCase):
 
     def test_malformed_date_yields_error_with_ipd_m104_beside_conforming_control(self):
         good_text = _conforming_child()
-        malformed_text = good_text.replace(
-            "- Date: 2026-08-03", "- Date: 2026-07-23 (fleshed later)"
+        malformed_text = _conforming_child(
+            raw_fields={"Date": "2026-07-23 (fleshed later)"}
         )
 
         res_good = L.lint_text(good_text, checkpoint="author", directory="pending")

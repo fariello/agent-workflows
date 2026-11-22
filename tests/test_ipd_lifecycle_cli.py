@@ -22,12 +22,14 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+from agent_workflows import artifact_meta as AM
 from agent_workflows import cli
 from agent_workflows import ipd_authoring as A
 from agent_workflows import ipd_lifecycle as LC
 from agent_workflows import ipd_lint as L
 from agent_workflows import ipd_schema as S
 from tests import support
+from tests.record_builder import RecordBuilder
 
 
 def _init_git(root: Path) -> None:
@@ -48,6 +50,7 @@ def _ready_plan_text(
     *,
     plan_id: str = "abc123",
     scope_paths: str = "agent_workflows/demo.py, tests/test_demo.py",
+    status: str = "approved",
 ) -> str:
     """A conforming child IPD that lints CONFORMING at the pre-execution checkpoint.
 
@@ -57,17 +60,20 @@ def _ready_plan_text(
     function's note for why it resolves real vocabulary values rather than the `grandfathered` sentinel.
     """
 
-    return support.ready_plan_text(plan_id=plan_id, scope_paths=scope_paths)
+    return support.ready_plan_text(
+        plan_id=plan_id, scope_paths=scope_paths, status=status
+    )
 
 
 def _completed_plan_text(
     *,
     plan_id: str = "abc123",
     scope_paths: str = "agent_workflows/demo.py, tests/test_demo.py",
+    status: str = "approved",
 ) -> str:
     """A ready-plan whose single E-01/V-01 is marked performed/pass so it lints CONFORMING at
     the pre-transition checkpoint (finalize requires this)."""
-    t = _ready_plan_text(plan_id=plan_id, scope_paths=scope_paths)
+    t = _ready_plan_text(plan_id=plan_id, scope_paths=scope_paths, status=status)
     t = t.replace("- [ ] E-01 ", "- [x] E-01 ", 1).replace(
         "  - Execution state: pending", "  - Execution state: performed", 1
     )
@@ -173,9 +179,8 @@ class BeginHappyPathTests(unittest.TestCase):
         )
 
         # Scope addition invalidates
-        rescoped = self.plan.read_text(encoding="utf-8").replace(
-            "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py",
-            "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py, agent_workflows/extra.py",
+        rescoped = _ready_plan_text(
+            scope_paths="agent_workflows/demo.py, tests/test_demo.py, agent_workflows/extra.py"
         )
         self.assertFalse(LC.receipt_is_current(stored, rescoped))
 
@@ -284,11 +289,17 @@ class BeginHappyPathTests(unittest.TestCase):
                 1,
             )
             .replace("  - Result: pending", "  - Result: pass", 1)
-            .replace(
-                "## Workflow history\n",
-                "## Workflow history\n- 2026-09-28 executed (tester): finished.\n",
-                1,
-            )
+        )
+        executed = AM.render_legacy_text(
+            executed,
+            [{"op": "note", "message": "finished."}],
+            record_type="ipd",
+            render=AM.LegacyRender(
+                tag="executed",
+                day="2026-09-28",
+                actor_label="tester",
+                history=True,
+            ),
         )
         self.assertTrue(LC.receipt_is_current(stored, executed))
 
@@ -380,11 +391,7 @@ class BeginFailClosedTests(unittest.TestCase):
         self._no_receipt()
 
         # Non-conforming lint (draft status)
-        bad = (
-            self.plan.read_text(encoding="utf-8")
-            .replace("- Status: approved", "- Status: draft")
-            .replace("- Approval: 2026-08-24, human: approved\n", "")
-        )
+        bad = _ready_plan_text(status="draft")
         self.plan.write_text(bad, encoding="utf-8")
         _commit_all(self.root, "make plan draft")
         res2 = LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
@@ -393,7 +400,15 @@ class BeginFailClosedTests(unittest.TestCase):
         self._no_receipt()
 
         # Missing id
-        noid = bad.replace("- Id: abc123\n", "")
+        noid = str(
+            RecordBuilder().plan(
+                plan_id="abc123",
+                status="draft",
+                scope_paths="agent_workflows/demo.py, tests/test_demo.py",
+                raw_fields={"Id": None},
+                text_only=True,
+            )
+        )
         self.plan.write_text(noid, encoding="utf-8")
         _commit_all(self.root, "strip id")
         res3 = LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
@@ -467,11 +482,7 @@ class BeginCliTests(unittest.TestCase):
         self.assertEqual(rc1, LC.EXIT_CANNOT_RUN)
 
         # Non-conforming lint -> 1
-        bad = (
-            self.plan.read_text(encoding="utf-8")
-            .replace("- Status: approved", "- Status: draft")
-            .replace("- Approval: 2026-08-24, human: approved\n", "")
-        )
+        bad = _ready_plan_text(status="draft")
         self.plan.write_text(bad, encoding="utf-8")
         _commit_all(self.root, "draft")
         buf2 = io.StringIO()
@@ -659,9 +670,8 @@ class FinalizeTests(unittest.TestCase):
         self.setUp()
         self._begin()
         self.plan.write_text(
-            self.plan.read_text(encoding="utf-8").replace(
-                "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py",
-                "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py, agent_workflows/snuck_in.py",
+            _completed_plan_text(
+                scope_paths="agent_workflows/demo.py, tests/test_demo.py, agent_workflows/snuck_in.py"
             ),
             encoding="utf-8",
         )
@@ -933,9 +943,8 @@ class AdditiveScopeWideningTests(unittest.TestCase):
         (self.root / "tests" / "test_demo.py").write_text("y\n", encoding="utf-8")
         (self.root / added).write_text("z\n", encoding="utf-8")
         self.plan.write_text(
-            self.plan.read_text(encoding="utf-8").replace(
-                "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py",
-                "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py, " + added,
+            _completed_plan_text(
+                scope_paths=f"agent_workflows/demo.py, tests/test_demo.py, {added}"
             ),
             encoding="utf-8",
         )
@@ -1170,10 +1179,7 @@ class AdditiveScopeWideningTests(unittest.TestCase):
         self.setUp()
         (self.root / "agent_workflows" / "demo.py").write_text("y\n", encoding="utf-8")
         self.plan.write_text(
-            self.plan.read_text(encoding="utf-8").replace(
-                "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py",
-                "- Scope-Paths: agent_workflows/demo.py",
-            ),
+            _completed_plan_text(scope_paths="agent_workflows/demo.py"),
             encoding="utf-8",
         )
         _commit_all(self.root, "narrow the fence after begin")
@@ -2098,9 +2104,8 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         self.assertTrue(LC.receipt_path_for(self.root, "ghi789").exists())
 
         # Modify frozen region (e.g. modify Goal or Scope)
-        stale_text = stale_plan.read_text(encoding="utf-8").replace(
-            "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py",
-            "- Scope-Paths: agent_workflows/demo.py",
+        stale_text = _completed_plan_text(
+            plan_id="ghi789", scope_paths="agent_workflows/demo.py"
         )
         stale_plan.write_text(stale_text, encoding="utf-8")
 
@@ -2756,7 +2761,16 @@ class DelegationAndBypassRemovalTests(unittest.TestCase):
         pdir.mkdir(parents=True)
         prompt = pdir / "20260824-demoprompt-01-pr0mp7-x.prompt.md"
         prompt.write_text(
-            "# Prompt\n\n- Status: draft\n- Id: pr0mp7\n\nbody\n", encoding="utf-8"
+            str(
+                RecordBuilder().prompt(
+                    id6="pr0mp7",
+                    status="pending",
+                    set="demoprompt",
+                    body="# Prompt\n\nbody\n",
+                    text_only=True,
+                )
+            ),
+            encoding="utf-8",
         )
         _commit_all(self.root, "add prompt")
         rc, out = self._run_cli(["set", "executed", "pr0mp7", "--yes"])
@@ -2785,9 +2799,11 @@ class DelegationAndBypassRemovalTests(unittest.TestCase):
         # 3. Nonterminal plan transition (to approved) keeps raw path
         draft = _write_plan(
             self.root,
-            _completed_plan_text(plan_id="drf123", scope_paths="grandfathered")
-            .replace("- Status: approved", "- Status: to-review")
-            .replace("- Approval: 2026-08-24, human: approved\n", ""),
+            _completed_plan_text(
+                plan_id="drf123",
+                scope_paths="grandfathered",
+                status="to-review",
+            ),
             "20260824-demo-03-drf123-draft.ipd.md",
         )
         _commit_all(self.root, "add draft plan")
