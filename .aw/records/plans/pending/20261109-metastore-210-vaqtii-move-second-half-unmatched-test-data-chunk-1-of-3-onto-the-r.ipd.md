@@ -49,22 +49,22 @@ Batch rule, applied to every batch E-item of this plan (the `59aiyh` batch rule,
 
 ### Task group 1: batch items
 
-- [ ] E-01 (carried from `59aiyh` E-09, batch subset G7b; round-3 split 2026-11-09) Batch G7b, 4 of its 22 modules (the unmatched test modules whose basename sorts at or after `test_l`): `tests/test_legacy_finalize.py`, `tests/test_limit_reach_check_search.py`, `tests/test_live_conformance_sweep.py`, `tests/test_migrate_layout_cli.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_legacy_finalize` 26, `test_limit_reach_check_search` 5, `test_live_conformance_sweep` 1, `test_migrate_layout_cli` 6. Ensure `.aw/state/59aiyh/` exists (`mkdir -p .aw/state/59aiyh/`), run the codemod on these modules and apply the batch rule with `<batch>` = `G7b-vaqtii-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 300, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_legacy_finalize.py`: `write_plan`); a surviving helper is listed with its reason.
+- [x] E-01 (carried from `59aiyh` E-09, batch subset G7b; round-3 split 2026-11-09) Batch G7b, 4 of its 22 modules (the unmatched test modules whose basename sorts at or after `test_l`): `tests/test_legacy_finalize.py`, `tests/test_limit_reach_check_search.py`, `tests/test_live_conformance_sweep.py`, `tests/test_migrate_layout_cli.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_legacy_finalize` 26, `test_limit_reach_check_search` 5, `test_live_conformance_sweep` 1, `test_migrate_layout_cli` 6. Ensure `.aw/state/59aiyh/` exists (`mkdir -p .aw/state/59aiyh/`), run the codemod on these modules and apply the batch rule with `<batch>` = `G7b-vaqtii-1` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 300, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. Then delete each private record-building helper in these modules that no longer has a caller (at the split: `tests/test_legacy_finalize.py`: `write_plan`); a surviving helper is listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G7b-vaqtii-1` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 300) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `59aiyh` E-09, batch subset G7b; round-3 split 2026-11-09) Batch G7b, 4 of its 22 modules (the unmatched test modules whose basename sorts at or after `test_l`): `tests/test_mutation_result_facts.py`, `tests/test_notify_cli.py`, `tests/test_notify_core.py`, `tests/test_notify_groups.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_mutation_result_facts` 7, `test_notify_cli` 1, `test_notify_core` 1, `test_notify_groups` 1. Run the codemod on these modules and apply the batch rule with `<batch>` = `G7b-vaqtii-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 300, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
+- [x] E-02 (carried from `59aiyh` E-09, batch subset G7b; round-3 split 2026-11-09) Batch G7b, 4 of its 22 modules (the unmatched test modules whose basename sorts at or after `test_l`): `tests/test_mutation_result_facts.py`, `tests/test_notify_cli.py`, `tests/test_notify_core.py`, `tests/test_notify_groups.py`. F-01 legacy lines per module at `3d0ddb845` (context, not the bar): `test_mutation_result_facts` 7, `test_notify_cli` 1, `test_notify_core` 1, `test_notify_groups` 1. Run the codemod on these modules and apply the batch rule with `<batch>` = `G7b-vaqtii-2` (outcome lists identical); hand-convert ONLY the refusals that the `653ndz` F-30 rows of these modules list with disposition `hand`, plus the codemod's apply-time `not-equivalent` refusals, and state their count (at most 300, the batch rule's stop); leave each refusal the census marks `legacy-kept` in legacy form with its reason class. These modules held no private record-building helper at the split; a helper found now is deleted when it has no caller, or listed with its reason.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the `G7b-vaqtii-2` outcome lists; for each named module, its remaining legacy-string count and the reason class of every remaining line pasted; every deleted and surviving helper listed; the codemod report and the hand count (at most 300) pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G7b-vaqtii-1-files.txt .aw/state/59aiyh/G7b-vaqtii-2-files.txt)`) into `.aw/state/59aiyh/vaqtii-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit vaqtii -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
+- [x] E-03 Finish this part: run the batch rule's step-2 command once over every module of this plan (`$(cat .aw/state/59aiyh/G7b-vaqtii-1-files.txt .aw/state/59aiyh/G7b-vaqtii-2-files.txt)`) into `.aw/state/59aiyh/vaqtii-union-after.txt` and confirm it equals the sorted concatenation of the items' `-before.txt` lists; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit vaqtii -- <each changed path>`, one commit per item allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push. (The full-suite comparison stays in `59aiyh` E-12.)
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -156,20 +156,90 @@ No spec change; implements part of `4sd62s` section 6 and section 7 step 6.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `.aw/state/59aiyh/G7b-vaqtii-1-files.txt` and the empty `diff .aw/state/59aiyh/G7b-vaqtii-1-before.txt .aw/state/59aiyh/G7b-vaqtii-1-after.txt`; then, for each of `tests/test_legacy_finalize.py`, `tests/test_limit_reach_check_search.py`, `tests/test_live_conformance_sweep.py`, `tests/test_migrate_layout_cli.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G7b-vaqtii-1-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G7b-vaqtii-1-files.txt`:
+      - `tests/test_legacy_finalize.py`
+      - `tests/test_limit_reach_check_search.py`
+      - `tests/test_live_conformance_sweep.py`
+      - `tests/test_migrate_layout_cli.py`
+    - Partition check at starting HEAD `15715df24654a4a6559c8eb9d01eb58a16d22958`: all 4 named modules matched F-01 before conversion. Six post-split G7b modules matching F-01 are not named by any chunk plan (`tests/test_layout_inventory.py`, `tests/test_meta_repair_cli.py`, `tests/test_migrate_cli.py`, `tests/test_migration_corpus.py`, `tests/test_shared_flag_honored.py`, `tests/test_startup_preflight_perf_behavior.py`); per the batch rule they were not added here and are reported for `59aiyh` E-09.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G7b-vaqtii-1-before.txt .aw/state/59aiyh/G7b-vaqtii-1-after.txt`): empty output, exit code 0 (165 `PASSED` outcomes; re-verified on committed tree `d5d368d91596fb6c792a2750404fc9710e446e1a`).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_legacy_finalize.py`:
+        - F-01 `rg -c`: before 26, after 26 (unmodified; declared in `Scope-Paths`, left unmodified because every site is `legacy-kept`). Remaining matches (26 lines across 22 AST sites, all `legacy-format subject`, `legacy-kept` per codemod and F-30):
+          - `legacy-format subject` (26 lines): `LEGACY_PLAN` (line 32); `DeriveBaselineTests.test_finds_approval_commit_through_rename_and_edit` (line 135); `LegacyFinalizeTests.test_plain_finalize_moves_plan_and_records_baseline` (line 159); `LegacyFormatLintTests.test_legacy_keeps_state_and_identity_rules` (line 303); `BulkIdBackfillTests.setUp` (lines 325, 330); `BulkIdBackfillTests._ids` (line 338); `MigrationSkipsTerminalPlansTests.test_executed_plan_bytes_untouched_by_migration` (lines 374, 379, 387); `MigrationSkipsTerminalPlansTests.test_pre_existing_pending_plan_gets_id_backfilled` (lines 393, 399); `ANNOTATED_PLAN` (lines 432, 433, 434); `AnnotatedLegacyHeaderTests.test_annotated_draft_still_fails_the_execution_checkpoint` (line 459); `AnnotatedLegacyHeaderTests.test_finalize_completes_and_keeps_the_annotation` (lines 483, 484); `MigrationRenamesNotOutOfScopeTests.PLAN` (lines 493, 494); `BoldHeaderIdBackfillTests.test_bold_status_header_gets_an_id` (line 573); `ReviewTurnLeavesStatusBehindTests.BASE` (lines 668, 669); `ReviewTurnLeavesStatusBehindTests.test_attested_readiness_promotes_status_to_reviewed` (lines 693, 698); `ReviewTurnLeavesStatusBehindTests.test_no_readiness_leaves_status_alone` (line 709).
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-vaqtii-1-codemod.json`): `sites=22`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=22` (`legacy-format subject=22`, `hand=0`, `legacy-kept=22`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`, `changed=false`.
+        - `653ndz` F-30 row: `G7b | vaqtii | 22 | 0 | 0 | 0 | 0 | 0 | 22 | 0 | 0 | 0 | 0 | 22`.
+      - `tests/test_limit_reach_check_search.py`:
+        - F-01 `rg -c`: before 5, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-vaqtii-1-codemod.json`): `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=35774abdd80ca2bd2bf8c3b1d9f392d7701a0319b2f6a8ee0871f16d163b0219`, `after_hash=35774abdd80ca2bd2bf8c3b1d9f392d7701a0319b2f6a8ee0871f16d163b0219`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7b | vaqtii | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_live_conformance_sweep.py`:
+        - F-01 `rg -c`: before 1, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-vaqtii-1-codemod.json`): `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=38727e3b8352774c77607e8794c8138f6ce1db3db5637222acf0f3330a7a5de6`, `after_hash=38727e3b8352774c77607e8794c8138f6ce1db3db5637222acf0f3330a7a5de6`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7b | vaqtii | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_migrate_layout_cli.py`:
+        - F-01 `rg -c`: before 6, after 6 (unmodified; declared in `Scope-Paths`, left unmodified because every site is `legacy-kept`). Remaining matches (6 lines across 7 AST sites, all `legacy-format subject`, `legacy-kept` per codemod and F-30):
+          - `legacy-format subject` (6 lines / 7 AST sites): `MigrateLayoutCliTests.test_migrated_plan_without_id_gets_one` (line 273 legacy plan text, line 284 `ln.startswith("- Id: ")`, line 287 `text.index("- Id: ")`, line 288 `text.index("- Id: ")` and `text.index("- Status: approved")`); `MigrateLayoutCliTests.test_finalize_refusal_for_id_less_plan_names_the_fix` (line 292 id-less legacy plan); `MigrateLayoutCliTests.test_rollback_restores_original_plan_bytes` (line 331 original legacy plan bytes).
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-vaqtii-1-codemod.json`): `sites=7`, `rewrites=0` (`standard=0`, `invalid-input=0`), `refusals=7` (`legacy-format subject=7`, `hand=0`, `legacy-kept=7`), `before_hash=null`, `after_hash=null`, `equivalent=true`, `pytest_runs=0`, `changed=false`.
+        - `653ndz` F-30 row: `G7b | vaqtii | 7 | 0 | 0 | 0 | 0 | 0 | 7 | 0 | 0 | 0 | 0 | 7`.
+    - Hand count: 0 (0 static + 0 apply-time `not-equivalent`; <= 300; hand-converted sites: none).
+    - Post-edit codemod dry-run over all 4 modules: `tests/test_limit_reach_check_search.py` and `tests/test_live_conformance_sweep.py` at `sites=0`; `tests/test_legacy_finalize.py` at `sites=22` (`hand=0`, `legacy-kept=22`); `tests/test_migrate_layout_cli.py` at `sites=7` (`hand=0`, `legacy-kept=7`).
+    - Helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before: 1 match (`tests/test_legacy_finalize.py` line 70: `def write_plan(self, text: str, name: str) -> Path:`).
+      - After: 1 match (`tests/test_legacy_finalize.py` line 70: `def write_plan(self, text: str, name: str) -> Path:`).
+      - Deleted helpers (0): none.
+      - Surviving helpers (1): `tests/test_legacy_finalize.py::_Repo.write_plan` — still has 22 call sites across 13 test classes in `tests/test_legacy_finalize.py` because every legacy fixture in that module is `legacy-kept` (`legacy-format subject`) and `PostCutoverFinalizeTests` also writes `support.ready_plan_text(...)` through it.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `.aw/state/59aiyh/G7b-vaqtii-2-files.txt` and the empty `diff .aw/state/59aiyh/G7b-vaqtii-2-before.txt .aw/state/59aiyh/G7b-vaqtii-2-after.txt`; then, for each of `tests/test_mutation_result_facts.py`, `tests/test_notify_cli.py`, `tests/test_notify_core.py`, `tests/test_notify_groups.py` separately: its before and after F-01 `rg -c` count, the reason class of every remaining match, its rows of `.aw/state/59aiyh/G7b-vaqtii-2-codemod.json` (rewrites, refusals by reason code and disposition, before and after outcome-list hashes) and its `653ndz` F-30 row; the hand count with every hand-converted site listed (module, line, reason code); and the before and after helper census of the E-09 `rg` pattern over these modules with each deleted and surviving helper and its reason.
   - Observed evidence:
-  - Result: pending
+    - `.aw/state/59aiyh/G7b-vaqtii-2-files.txt`:
+      - `tests/test_mutation_result_facts.py`
+      - `tests/test_notify_cli.py`
+      - `tests/test_notify_core.py`
+      - `tests/test_notify_groups.py`
+    - Partition check at starting HEAD `15715df24654a4a6559c8eb9d01eb58a16d22958`: all 4 named modules matched F-01 before conversion.
+    - Outcome diff (`diff -u .aw/state/59aiyh/G7b-vaqtii-2-before.txt .aw/state/59aiyh/G7b-vaqtii-2-after.txt`): empty output, exit code 0 (59 `PASSED` outcomes; re-verified on committed tree `d5d368d91596fb6c792a2750404fc9710e446e1a`).
+    - Per-module F-01 counts, remaining classifications, codemod rows, and `653ndz` F-30 rows:
+      - `tests/test_mutation_result_facts.py`:
+        - F-01 `rg -c`: before 7, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-vaqtii-2-codemod.json`): `sites=11`, `rewrites=11` (`standard=11`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=4bdfba4b1dca45ab4cbfec73c2800fc899c13a16e828e55ae97eb22c73e26f4a`, `after_hash=4bdfba4b1dca45ab4cbfec73c2800fc899c13a16e828e55ae97eb22c73e26f4a`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7b | vaqtii | 11 | 11 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_notify_cli.py`:
+        - F-01 `rg -c`: before 1, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-vaqtii-2-codemod.json`): `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=2e538a44780d9347526fd4f5c5abed4166e7d148e87b58c3531c3e7255db4886`, `after_hash=2e538a44780d9347526fd4f5c5abed4166e7d148e87b58c3531c3e7255db4886`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7b | vaqtii | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_notify_core.py`:
+        - F-01 `rg -c`: before 1, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-vaqtii-2-codemod.json`): `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=62c7cb6e62c7cf69561f2c47ec062486efb21aae09d72c30271099b115a7a216`, `after_hash=62c7cb6e62c7cf69561f2c47ec062486efb21aae09d72c30271099b115a7a216`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7b | vaqtii | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+      - `tests/test_notify_groups.py`:
+        - F-01 `rg -c`: before 1, after 0. Remaining matches: none.
+        - Codemod JSON row (`.aw/state/59aiyh/G7b-vaqtii-2-codemod.json`): `sites=1`, `rewrites=1` (`standard=1`, `invalid-input=0`), `refusals=0` (`hand=0`, `legacy-kept=0`), `before_hash=e617f9c81625fa4244d8a2c18c086a1563e271a49ef19d0072381fd42ce4363d`, `after_hash=e617f9c81625fa4244d8a2c18c086a1563e271a49ef19d0072381fd42ce4363d`, `equivalent=true`, `pytest_runs=2`, `changed=true`.
+        - `653ndz` F-30 row: `G7b | vaqtii | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0`.
+    - Hand count: 0 (0 static + 0 apply-time `not-equivalent`; <= 300; hand-converted sites: none).
+    - Post-edit codemod dry-run over all 4 modules: all 4 modules at `sites=0` (`hand=0`, `legacy-kept=0`).
+    - Helper census (`rg -n "def _?(make|write|build|mk|seed)_(plan|spec|backlog|item|record|ipd|release|research|prompt|review|walkthrough)\w*"`):
+      - Before: `(none)` (0 matches).
+      - After: `(none)` (0 matches).
+      - Deleted helpers (0): none. Surviving helpers matched by the E-09 pattern: none. (Note: `tests/test_notify_core.py::_make_dummy_plan`, not matched by the E-09 regex, has 4 active test callers and now delegates its record text directly to `RecordBuilder().plan(id6=id6, text_only=True)`.)
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `diff` of the sorted concatenation of the `-before.txt` lists of `G7b-vaqtii-1`, `G7b-vaqtii-2` against `.aw/state/59aiyh/vaqtii-union-after.txt` (empty), the bare `python3 -m pytest` summary line and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit vaqtii` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union comparison (`diff -u .aw/state/59aiyh/vaqtii-union-before.txt .aw/state/59aiyh/vaqtii-union-after.txt`): empty output, exit code 0 (224 `PASSED` outcomes = 165 + 59 across all 8 modules; re-verified on committed tree `d5d368d91596fb6c792a2750404fc9710e446e1a`).
+    - Core gate (`aw suite`, running bare `python3 -m pytest` with 6 xdist workers): `2739 passed, 1 skipped, 11 warnings in 121.16s (0:02:01)`, exit code 0.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7084,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit vaqtii` outputs (all committed paths strictly inside Scope-Paths; `tests/test_legacy_finalize.py` and `tests/test_migrate_layout_cli.py` left unmodified because all their sites are `legacy-kept`; never pushed):
+      - E-01: `aw commit: committed 2 path(s): 900cb48bbfbdec618a99c75ad2d651a73d48bc40` (`tests/test_limit_reach_check_search.py`, `tests/test_live_conformance_sweep.py`).
+      - E-02: `aw commit: committed 4 path(s): d5d368d91596fb6c792a2750404fc9710e446e1a` (`tests/test_mutation_result_facts.py`, `tests/test_notify_cli.py`, `tests/test_notify_core.py`, `tests/test_notify_groups.py`).
+      - Plan evidence: committed via `aw commit vaqtii -- .aw/records/plans/pending/20261109-metastore-210-vaqtii-move-second-half-unmatched-test-data-chunk-1-of-3-onto-the-r.ipd.md`.
+  - Result: pass
 
 ## Approval and execution gate
 
