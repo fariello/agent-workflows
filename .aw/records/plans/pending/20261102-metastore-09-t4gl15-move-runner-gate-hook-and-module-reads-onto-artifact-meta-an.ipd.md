@@ -142,6 +142,7 @@ flowchart TD
   - Carrier: jq82as
 - Moved to h58z9n (split 2026-11-07 per maintainer step-complexity rule): E-01 rows for the gate, hook, readiness and lifecycle files plus the `aw check` baseline; E-02; E-03; E-04.
   - Carrier: h58z9n
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-33-h58z9n-move-the-check-engine-hook-and-setter-git-content-readers-on.ipd.md
 - Moved to y97k46 (split 2026-11-07 per maintainer step-complexity rule): E-01 rows for `runner_shared`, `oc_runipd`, `agy_runipd`; E-06; E-07 (as a selection subset and an execution subset); E-08; the runner rows of E-15.
   - Carrier: y97k46
 - Moved to jd7874 (split 2026-11-07 per maintainer step-complexity rule): E-01 rows for the other 31 files plus the INDEX baseline; E-09; E-10; E-16; the plans, research and prompts rows of E-15.
