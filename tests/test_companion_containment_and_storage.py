@@ -24,6 +24,7 @@ from agent_workflows.project_schema import DurabilityState
 from agent_workflows.storage import get_storage_status, init_records_storage
 from tests import support
 from tests.support import REPO_ROOT, init_repo
+from tests.record_builder import RecordBuilder
 
 WORKFLOWS_SOURCE = REPO_ROOT / ".aw" / "system" / "workflows"
 
@@ -486,30 +487,22 @@ class TestCompanionContainmentAndStorage(unittest.TestCase):
             comp_plan = companion / "records" / "plans" / "pending" / plan_name
             comp_plan.parent.mkdir(parents=True, exist_ok=True)
             comp_plan.write_text(
-                f"# IPD: Sample companion plan\n\n"
-                f"- Date: 2026-11-21\n"
-                f"- Kind: child\n"
-                f"- Concern: sample\n"
-                f"- Scope: `app.py`\n"
-                f"- Scope-Paths: app.py, .aw/records/plans/pending/leak.ipd.md\n"
-                f"- Status: approved\n"
-                f"- Short-Description: Sample plan\n"
-                f"- Work-Kind: bug\n"
-                f"- Priority: medium\n"
-                f"- Set: test\n"
-                f"- Order: 1\n"
-                f"- Highest E allocated: 01\n"
-                f"- Id: {plan_id}\n\n"
-                f"## Detailed Implementation Checklist (TODO)\n\n"
-                f"- [ ] E-01 Update app\n"
-                f"  - Depends on: none\n"
-                f"  - Expected outcome: Updated\n"
-                f"  - Execution state: pending\n\n"
-                f"## Validation and cross-check\n\n"
-                f"- [ ] V-01 validates E-01\n"
-                f"  - Required evidence: diff\n"
-                f"  - Observed evidence:\n"
-                f"  - Result: pending\n",
+                RecordBuilder().plan(
+                    title="Sample companion plan",
+                    when="2026-11-21",
+                    plan_role="child",
+                    scope_paths="app.py, .aw/records/plans/pending/leak.ipd.md",
+                    status="approved",
+                    short_description="Sample plan",
+                    work_kind="bug",
+                    priority="medium",
+                    set="test",
+                    order=1,
+                    highest_e_allocated="01",
+                    id6=plan_id,
+                    body="## Detailed Implementation Checklist (TODO)\n\n- [ ] E-01 Update app\n  - Depends on: none\n  - Expected outcome: Updated\n  - Execution state: pending\n\n## Validation and cross-check\n\n- [ ] V-01 validates E-01\n  - Required evidence: diff\n  - Observed evidence:\n  - Result: pending",
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
             gf_id = "ef34gh"
@@ -521,10 +514,13 @@ class TestCompanionContainmentAndStorage(unittest.TestCase):
                 / f"20261121-test-02-{gf_id}-grandfathered.ipd.md"
             )
             gf_plan.write_text(
-                f"# IPD: Grandfathered companion plan\n\n"
-                f"- Date: 2026-11-21\n"
-                f"- Status: approved\n"
-                f"- Id: {gf_id}\n",
+                RecordBuilder().plan(
+                    title="Grandfathered companion plan",
+                    when="2026-11-21",
+                    status="approved",
+                    id6=gf_id,
+                    text_only=True,
+                ),
                 encoding="utf-8",
             )
 

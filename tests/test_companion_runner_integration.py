@@ -28,6 +28,7 @@ from agent_workflows import (
 )
 from tests import support
 from tests.support import init_repo
+from tests.record_builder import RecordBuilder
 
 
 def _make_env(tmp_root: Path) -> dict[str, str]:
@@ -203,64 +204,71 @@ def _plan_text(
 ) -> str:
     if not extra_history and status in ("reviewed", "approved", "auto-approved"):
         extra_history = "- 2026-11-21 /plan-review (test): APPROVED"
-    hist = f"\n{extra_history}" if extra_history else ""
-    readiness_line = (
-        "- Readiness: go-pending-approval\n"
+    history_entries = [f"- 2026-11-21 {status} (test): seeded."]
+    if extra_history:
+        history_entries.extend(
+            line for line in extra_history.splitlines() if line.strip()
+        )
+    readiness = (
+        "go-pending-approval"
         if status in ("reviewed", "approved", "auto-approved")
-        else ""
+        else None
     )
-    return (
-        f"# IPD: Sample plan {id6}\n\n"
-        f"- Date: 2026-11-21\n"
-        f"- Kind: child\n"
-        f"- Concern: {slug}\n"
-        f"- Scope: `app.py`\n"
-        f"- Scope-Paths: app.py\n"
-        f"- Status: {status}\n"
-        f"{readiness_line}"
-        f"- Short-Description: Sample companion plan {id6}\n"
-        f"- Work-Kind: bug\n"
-        f"- Priority: high\n"
-        f"- Set: {setid}\n"
-        f"- Order: {order}\n"
-        f"- Highest E allocated: 01\n"
-        f"- Author: Test\n"
-        f"- Id: {id6}\n\n"
-        f"## Workflow history\n\n"
-        f"- 2026-11-21 {status} (test): seeded.{hist}\n\n"
-        f"## Goal\n\n"
-        f"Update `app.py` behavior safely.\n\n"
-        f"## Detailed Implementation Checklist (TODO)\n\n"
-        f"- [ ] E-01 Update `app.py`\n"
-        f"  - Depends on: none\n"
-        f"  - Expected outcome: `app.py` exports `VALUE = 2`.\n"
-        f"  - Execution state: pending\n\n"
-        f"## Project conventions discovered (Step 0)\n\n"
-        f"- `app.py` exports `VALUE`.\n\n"
-        f"## Findings\n\n"
-        f"1. `app.py` currently exports `VALUE = 1` instead of `2`.\n\n"
-        f"## Proposed changes (ordered, validatable)\n\n"
-        f"1. Update `app.py` to export `VALUE = 2`.\n\n"
-        f"## Deferred / out of scope (with reason)\n\n"
-        f"{deferred_block}\n\n"
-        f"## Scope check\n\n"
-        f"- Over-scope: none.\n"
-        f"- Under-scope: none.\n\n"
-        f"## Required tests / validation\n\n"
-        f"- `python3 -m pytest`\n\n"
-        f"## Spec / documentation sync\n\n"
-        f"- N/A.\n\n"
-        f"## Open questions\n\n"
-        f"None.\n\n"
-        f"## Validation and cross-check (verify before reporting done)\n\n"
-        f"- [ ] V-01 validates E-01\n"
-        f"  - Required evidence: Pasted test output proving `VALUE == 2`.\n"
-        f"  - Observed evidence:\n"
-        f"  - Result: pending\n\n"
-        f"## Approval and execution gate\n\n"
-        f"- Size assessment: standard\n"
-        f"- Cohesion rationale: not required\n\n"
-        f"Commit only modified paths through `aw commit {id6} -- <paths>` and never push.\n"
+    return str(
+        RecordBuilder().plan(
+            title=f"Sample plan {id6}",
+            when="2026-11-21",
+            plan_role="child",
+            scope_paths="app.py",
+            status=status,
+            readiness=readiness,
+            short_description=f"Sample companion plan {id6}",
+            work_kind="bug",
+            priority="high",
+            set=setid,
+            order=order,
+            highest_e_allocated="01",
+            author="Test",
+            id6=id6,
+            history=history_entries,
+            raw_fields={"Concern": slug, "Scope": "`app.py`"},
+            body=(
+                "## Goal\n\n"
+                "Update `app.py` behavior safely.\n\n"
+                "## Detailed Implementation Checklist (TODO)\n\n"
+                "- [ ] E-01 Update `app.py`\n"
+                "  - Depends on: none\n"
+                "  - Expected outcome: `app.py` exports `VALUE = 2`.\n"
+                "  - Execution state: pending\n\n"
+                "## Project conventions discovered (Step 0)\n\n"
+                "- `app.py` exports `VALUE`.\n\n"
+                "## Findings\n\n"
+                "1. `app.py` currently exports `VALUE = 1` instead of `2`.\n\n"
+                "## Proposed changes (ordered, validatable)\n\n"
+                "1. Update `app.py` to export `VALUE = 2`.\n\n"
+                "## Deferred / out of scope (with reason)\n\n"
+                f"{deferred_block}\n\n"
+                "## Scope check\n\n"
+                "- Over-scope: none.\n"
+                "- Under-scope: none.\n\n"
+                "## Required tests / validation\n\n"
+                "- `python3 -m pytest`\n\n"
+                "## Spec / documentation sync\n\n"
+                "- N/A.\n\n"
+                "## Open questions\n\n"
+                "None.\n\n"
+                "## Validation and cross-check (verify before reporting done)\n\n"
+                "- [ ] V-01 validates E-01\n"
+                "  - Required evidence: Pasted test output proving `VALUE == 2`.\n"
+                "  - Observed evidence:\n"
+                "  - Result: pending\n\n"
+                "## Approval and execution gate\n\n"
+                "- Size assessment: standard\n"
+                "- Cohesion rationale: not required\n\n"
+                f"Commit only modified paths through `aw commit {id6} -- <paths>` and never push."
+            ),
+            text_only=True,
+        )
     )
 
 
@@ -362,7 +370,10 @@ class CompanionPromptPurityTests(unittest.TestCase):
                 records_root / "specs" / "20261121-sp1111-01-sp1111-sample.spec.md"
             )
             spec_path.write_text(
-                "# Spec: sample\n\n- Id: sp1111\n- Status: approved\n", encoding="utf-8"
+                RecordBuilder().spec(
+                    title="sample", id6="sp1111", status="approved", text_only=True
+                ),
+                encoding="utf-8",
             )
             backlog_path = (
                 records_root
@@ -371,7 +382,10 @@ class CompanionPromptPurityTests(unittest.TestCase):
                 / "20261121-cmpset-01-bk2222-sample.backlog.md"
             )
             backlog_path.write_text(
-                "- Id: bk2222\n- Status: open\n- Summary: sample\n", encoding="utf-8"
+                RecordBuilder().backlog(
+                    id6="bk2222", status="open", summary="sample", text_only=True
+                ),
+                encoding="utf-8",
             )
 
             run_dir = td_path / "run-20261121T150000Z-9999"
@@ -613,7 +627,11 @@ class CompanionPromptPurityTests(unittest.TestCase):
                 )
                 rev_p.parent.mkdir(parents=True, exist_ok=True)
                 rev_p.write_text(
-                    "# Review findings: ipd dsp001\n\n- Verdict: APPROVE\n",
+                    str(
+                        RecordBuilder().review(
+                            subject="dsp001", verdict="APPROVE", text_only=True
+                        )
+                    ),
                     encoding="utf-8",
                 )
                 log_p = run_dir / "dsp001.log"
@@ -668,7 +686,9 @@ class CompanionPromptPurityTests(unittest.TestCase):
                 records_root / "specs" / "20261121-spc111-01-spc111-sample.spec.md"
             )
             spec_src.write_text(
-                "# Spec: sample\n\n- Id: spc111\n- Status: to-review\n",
+                RecordBuilder().spec(
+                    title="sample", id6="spc111", status="to-review", text_only=True
+                ),
                 encoding="utf-8",
             )
             run_dir = td_path / "run-20261121T152000Z-8888"
@@ -779,7 +799,9 @@ class CompanionPromptPurityTests(unittest.TestCase):
                     wt_spec, spec_src, records_root
                 )
                 staged_spec.write_text(
-                    "# Spec: sample\n\n- Id: spc111\n- Status: reviewed\n",
+                    RecordBuilder().spec(
+                        title="sample", id6="spc111", status="reviewed", text_only=True
+                    ),
                     encoding="utf-8",
                 )
                 lane_rev = (
@@ -991,7 +1013,11 @@ class CompanionRecordRoutingAndMergeGuardTests(unittest.TestCase):
                 )
                 review_file.parent.mkdir(parents=True, exist_ok=True)
                 review_file.write_text(
-                    "# Review findings: ipd rev001\n\n- Verdict: APPROVE\n",
+                    str(
+                        RecordBuilder().review(
+                            subject="rev001", verdict="APPROVE", text_only=True
+                        )
+                    ),
                     encoding="utf-8",
                 )
 

@@ -30,6 +30,7 @@ from agent_workflows import (
     run_dashboard,
     runner_shared,
 )
+from tests.record_builder import RecordBuilder
 
 
 class _FakeTTY(io.StringIO):
@@ -89,58 +90,68 @@ def _write_approved_plan(repo: Path, id6: str = "st1001") -> Path:
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        f"# IPD: Startup timing test plan\n\n"
-        f"- Date: 2026-11-20\n"
-        f"- Kind: child\n"
-        f"- Concern: startup timing test concern.\n"
-        f"- Scope: demo scope.\n"
-        f"- Scope-Paths: README.md\n"
-        f"- Item-Dependencies: none\n"
-        f"- Status: approved\n"
-        f"- Set: stset\n"
-        f"- Order: 1\n"
-        f"- Highest E allocated: 01\n"
-        f"- Priority: medium\n"
-        f"- Work-Kind: chore\n"
-        f"- Author: test\n"
-        f"- Id: {id6}\n"
-        f"- Approval: 2026-11-20, recorded via aw ipd set: status set to approved\n"
-        f"- Readiness: go-pending-approval\n\n"
-        f"## Workflow history\n\n"
-        f"- 2026-11-20 approved (aw set): status set to approved\n"
-        f"- 2026-11-20 /plan-review (test): APPROVE\n"
-        f"- 2026-11-20 draft (test): created.\n\n"
-        f"## Goal\n\nDemo goal sentence.\n\n"
-        f"## Detailed Implementation Checklist (TODO)\n\n"
-        f"Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.\n\n"
-        f"### Task group 1: demo\n\n"
-        f"- [ ] E-01 Update README.md.\n"
-        f"  - Depends on: none\n"
-        f"  - Expected outcome: README.md updated.\n"
-        f"  - Execution state: pending\n\n"
-        f"## Project conventions discovered (Step 0)\n\n- demo convention.\n\n"
-        f"## Findings\n\ndemo findings.\n\n"
-        f"## Proposed changes (ordered, validatable)\n\n1. README.md: update it.\n\n"
-        f"## Deferred / out of scope (with reason)\n\nnone.\n\n"
-        f"## Scope check\n\n- Over-scope: none.\n- Under-scope: none.\n\n"
-        f"## Required tests / validation\n\nManual check that README.md exists.\n\n"
-        f"## Spec / documentation sync\n\nN/A: demo only.\n\n"
-        f"## Open questions\n\n"
-        f"### OQ-01: none?\n\n"
-        f"- Blocking: no\n"
-        f"- Status: resolved\n"
-        f"- Owner: none\n"
-        f"- Resolution or deferral rationale: none.\n\n"
-        f"## Validation and cross-check (verify before reporting done)\n\n"
-        f"Validation-state rule: inspect evidence in a separate pass.\n\n"
-        f"- [ ] V-01 validates E-01\n"
-        f"  - Required evidence: README.md present.\n"
-        f"  - Observed evidence:\n"
-        f"  - Result: pending\n\n"
-        f"## Approval and execution gate\n\n"
-        f"- Size assessment: standard\n"
-        f"- Cohesion rationale: not required\n\n"
-        f"Execution contract: commit path-scoped; do not push.\n",
+        str(
+            RecordBuilder().plan(
+                title="Startup timing test plan",
+                when="2026-11-20",
+                plan_role="child",
+                scope_paths="README.md",
+                item_dependencies="none",
+                status="approved",
+                set="stset",
+                order=1,
+                highest_e_allocated="01",
+                priority="medium",
+                work_kind="chore",
+                author="test",
+                id6=id6,
+                approval="2026-11-20, recorded via aw ipd set: status set to approved",
+                readiness="go-pending-approval",
+                history=[
+                    "- 2026-11-20 approved (aw set): status set to approved",
+                    "- 2026-11-20 /plan-review (test): APPROVE",
+                    "- 2026-11-20 draft (test): created.",
+                ],
+                raw_fields={
+                    "Concern": "startup timing test concern.",
+                    "Scope": "demo scope.",
+                },
+                body=(
+                    "## Goal\n\nDemo goal sentence.\n\n"
+                    "## Detailed Implementation Checklist (TODO)\n\n"
+                    "Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.\n\n"
+                    "### Task group 1: demo\n\n"
+                    "- [ ] E-01 Update README.md.\n"
+                    "  - Depends on: none\n"
+                    "  - Expected outcome: README.md updated.\n"
+                    "  - Execution state: pending\n\n"
+                    "## Project conventions discovered (Step 0)\n\n- demo convention.\n\n"
+                    "## Findings\n\ndemo findings.\n\n"
+                    "## Proposed changes (ordered, validatable)\n\n1. README.md: update it.\n\n"
+                    "## Deferred / out of scope (with reason)\n\nnone.\n\n"
+                    "## Scope check\n\n- Over-scope: none.\n- Under-scope: none.\n\n"
+                    "## Required tests / validation\n\nManual check that README.md exists.\n\n"
+                    "## Spec / documentation sync\n\nN/A: demo only.\n\n"
+                    "## Open questions\n\n"
+                    "### OQ-01: none?\n\n"
+                    "- Blocking: no\n"
+                    "- Status: resolved\n"
+                    "- Owner: none\n"
+                    "- Resolution or deferral rationale: none.\n\n"
+                    "## Validation and cross-check (verify before reporting done)\n\n"
+                    "Validation-state rule: inspect evidence in a separate pass.\n\n"
+                    "- [ ] V-01 validates E-01\n"
+                    "  - Required evidence: README.md present.\n"
+                    "  - Observed evidence:\n"
+                    "  - Result: pending\n\n"
+                    "## Approval and execution gate\n\n"
+                    "- Size assessment: standard\n"
+                    "- Cohesion rationale: not required\n\n"
+                    "Execution contract: commit path-scoped; do not push."
+                ),
+                text_only=True,
+            )
+        ),
         encoding="utf-8",
     )
     subprocess.run(["git", "add", str(path)], cwd=repo, check=True, capture_output=True)

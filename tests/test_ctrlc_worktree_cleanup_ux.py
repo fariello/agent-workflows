@@ -20,6 +20,7 @@ from agent_workflows import (
     term,
     worktree_lease,
 )
+from tests.record_builder import RecordBuilder
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -58,7 +59,13 @@ def _create_dirty_lane(
     plan_file = handle.path / plan_rel
     plan_file.parent.mkdir(parents=True, exist_ok=True)
     plan_file.write_text(
-        f"# IPD: {lane_id}\n\n- Id: {lane_id}\n- Set: test-set\n- Short-Description: {short_desc}\n",
+        RecordBuilder().plan(
+            title=lane_id,
+            id6=lane_id,
+            set="test-set",
+            short_description=short_desc,
+            text_only=True,
+        ),
         encoding="utf-8",
     )
     dirty_file = handle.path / dirty_filename

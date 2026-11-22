@@ -28,6 +28,7 @@ from agent_workflows import (
 from agent_workflows.project_schema import DurabilityState, LogicalRoot, RecordsBackend
 from tests import support
 from tests.support import init_repo
+from tests.record_builder import RecordBuilder
 
 
 def _make_env(tmp_root: Path) -> dict[str, str]:
@@ -238,36 +239,45 @@ def _write_plan(
 ) -> Path:
     p = plans_root / bucket / f"20261121-{setid}-{order:02d}-{id6}-{slug}.ipd.md"
     p.parent.mkdir(parents=True, exist_ok=True)
-    text = (
-        f"# IPD: {slug}\n\n"
-        f"- Date: 2026-11-21\n"
-        f"- Kind: child\n"
-        f"- Concern: {slug}\n"
-        f"- Scope: `app.py`\n"
-        f"- Scope-Paths: app.py\n"
-        f"- Status: {status}\n"
-        f"- Short-Description: Test plan {id6}\n"
-        f"- Work-Kind: bug\n"
-        f"- Priority: high\n"
-        f"- Set: {setid}\n"
-        f"- Order: {order}\n"
-        f"- Highest E allocated: 01\n"
-        f"- Author: Test\n"
-        f"- Id: {id6}\n\n"
-        f"## Goal\n\nTest plan.\n\n"
-        f"## Detailed Implementation Checklist (TODO)\n\n"
-        f"- [ ] E-01 Do work\n"
-        f"  - Depends on: none\n"
-        f"  - Expected outcome: Done.\n"
-        f"  - Execution state: pending\n\n"
-        f"## Deferred / out of scope (with reason)\n\n"
-        f"{deferred_block}\n\n"
-        f"## Open questions\n\nNone.\n\n"
-        f"## Validation and cross-check (verify before reporting done)\n\n"
-        f"- [ ] V-01 validates E-01\n"
-        f"  - Required evidence: Done.\n"
-        f"  - Observed evidence:\n"
-        f"  - Result: pending\n"
+    raw_fields: dict[str, str] = {"Concern": slug, "Scope": "`app.py`"}
+    builder_status = status
+    if status == "pending":
+        builder_status = "draft"
+        raw_fields["Status"] = status
+    text = str(
+        RecordBuilder().plan(
+            title=slug,
+            when="2026-11-21",
+            plan_role="child",
+            scope_paths="app.py",
+            status=builder_status,
+            short_description=f"Test plan {id6}",
+            work_kind="bug",
+            priority="high",
+            set=setid,
+            order=order,
+            highest_e_allocated="01",
+            author="Test",
+            id6=id6,
+            raw_fields=raw_fields,
+            body=(
+                "## Goal\n\nTest plan.\n\n"
+                "## Detailed Implementation Checklist (TODO)\n\n"
+                "- [ ] E-01 Do work\n"
+                "  - Depends on: none\n"
+                "  - Expected outcome: Done.\n"
+                "  - Execution state: pending\n\n"
+                "## Deferred / out of scope (with reason)\n\n"
+                f"{deferred_block}\n\n"
+                "## Open questions\n\nNone.\n\n"
+                "## Validation and cross-check (verify before reporting done)\n\n"
+                "- [ ] V-01 validates E-01\n"
+                "  - Required evidence: Done.\n"
+                "  - Observed evidence:\n"
+                "  - Result: pending"
+            ),
+            text_only=True,
+        )
     )
     p.write_text(text, encoding="utf-8")
     return p
@@ -763,7 +773,9 @@ class TestCompanionCarriersAndEvidence(unittest.TestCase):
             )
             impl_spec.parent.mkdir(parents=True, exist_ok=True)
             impl_spec.write_text(
-                "# Spec: Done\n\n- Id: spc333\n- Status: implemented\n",
+                RecordBuilder().spec(
+                    title="Done", id6="spc333", status="implemented", text_only=True
+                ),
                 encoding="utf-8",
             )
             draft_spec = (
@@ -771,7 +783,9 @@ class TestCompanionCarriersAndEvidence(unittest.TestCase):
             )
             draft_spec.parent.mkdir(parents=True, exist_ok=True)
             draft_spec.write_text(
-                "# Spec: Draft\n\n- Id: spc444\n- Status: draft\n",
+                RecordBuilder().spec(
+                    title="Draft", id6="spc444", status="draft", text_only=True
+                ),
                 encoding="utf-8",
             )
 

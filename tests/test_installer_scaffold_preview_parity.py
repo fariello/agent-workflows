@@ -24,6 +24,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 from agent_workflows import engine
+from tests.record_builder import RecordBuilder
 
 
 def _run_diff(repo: Path) -> str:
@@ -248,7 +249,10 @@ def test_project_json_skipped_when_legacy_records_present(tmp_path: Path) -> Non
     )
     legacy_plan.parent.mkdir(parents=True)
     legacy_plan.write_text(
-        "# IPD: Legacy\n\n- Id: leg001\n- Status: draft\n", encoding="utf-8"
+        RecordBuilder().plan(
+            title="Legacy", id6="leg001", status="draft", text_only=True
+        ),
+        encoding="utf-8",
     )
 
     out = _run_diff(repo)

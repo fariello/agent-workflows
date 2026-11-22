@@ -9,6 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from agent_workflows import agy_runipd, runner_shared
+from tests.record_builder import RecordBuilder
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -40,67 +41,69 @@ def _init_repo(root: Path) -> Path:
 def _valid_ipd(
     id6: str, *, status: str, readiness: str | None = None, deferred_body: str = "None."
 ) -> str:
-    readiness_line = f"- Readiness: {readiness}\n" if readiness else ""
-    review_hist = (
-        f"- 2026-11-21 /plan-review (test): APPROVE; review record .aw/records/reviews/20261121-sample-01-{id6}-sample.review.md\n"
-        if readiness
-        else ""
-    )
-    return (
-        f"# IPD: Sample plan {id6}\n\n"
-        f"- Date: 2026-11-21\n"
-        f"- Kind: child\n"
-        f"- Concern: sample\n"
-        f"- Scope: `README.md`\n"
-        f"- Scope-Paths: README.md, .aw/records/plans/pending/20261121-sample-01-{id6}-sample.ipd.md\n"
-        f"- Item-Dependencies: none\n"
-        f"- Status: {status}\n"
-        f"{readiness_line}"
-        f"- Short-Description: Sample plan {id6}\n"
-        f"- Work-Kind: bug\n"
-        f"- Priority: high\n"
-        f"- Set: sample\n"
-        f"- Order: 1\n"
-        f"- Highest E allocated: 01\n"
-        f"- Author: Test\n"
-        f"- Id: {id6}\n\n"
-        f"## Workflow history\n\n"
-        f"{review_hist}"
-        f"- 2026-11-21 {status} (Test): ready.\n\n"
-        f"## Goal\n\n"
-        f"Verify {id6} cleanly.\n\n"
-        f"## Detailed Implementation Checklist (TODO)\n\n"
-        f"### Task group 1: Update\n\n"
-        f"- [ ] E-01 Update README.md\n"
-        f"  - Depends on: none\n"
-        f"  - Expected outcome: README.md updated.\n"
-        f"  - Execution state: pending\n\n"
-        f"## Project conventions discovered (Step 0)\n\n"
-        f"- Standard repo conventions.\n\n"
-        f"## Findings\n\n"
-        f"None.\n\n"
-        f"## Proposed changes (ordered, validatable)\n\n"
-        f"1. Edit README.md.\n\n"
-        f"## Deferred / out of scope (with reason)\n\n"
-        f"{deferred_body}\n\n"
-        f"## Scope check\n\n"
-        f"- Over-scope: none.\n"
-        f"- Under-scope: none.\n\n"
-        f"## Required tests / validation\n\n"
-        f"- Run targeted tests.\n\n"
-        f"## Spec / documentation sync\n\n"
-        f"- N/A: test fixture.\n\n"
-        f"## Open questions\n\n"
-        f"None.\n\n"
-        f"## Validation and cross-check (verify before reporting done)\n\n"
-        f"- [ ] V-01 validates E-01\n"
-        f"  - Required evidence: Pasted git diff of README.md.\n"
-        f"  - Observed evidence:\n"
-        f"  - Result: pending\n\n"
-        f"## Approval and execution gate\n\n"
-        f"- Size assessment: standard\n"
-        f"- Cohesion rationale: not required\n\n"
-        f"Approve before execution.\n"
+    history_entries: list[str] = []
+    if readiness:
+        history_entries.append(
+            f"- 2026-11-21 /plan-review (test): APPROVE; review record .aw/records/reviews/20261121-sample-01-{id6}-sample.review.md"
+        )
+    history_entries.append(f"- 2026-11-21 {status} (Test): ready.")
+    return str(
+        RecordBuilder().plan(
+            title=f"Sample plan {id6}",
+            when="2026-11-21",
+            plan_role="child",
+            scope_paths=f"README.md, .aw/records/plans/pending/20261121-sample-01-{id6}-sample.ipd.md",
+            item_dependencies="none",
+            status=status,
+            readiness=readiness,
+            short_description=f"Sample plan {id6}",
+            work_kind="bug",
+            priority="high",
+            set="sample",
+            order=1,
+            highest_e_allocated="01",
+            author="Test",
+            id6=id6,
+            history=history_entries,
+            raw_fields={"Concern": "sample", "Scope": "`README.md`"},
+            body=(
+                "## Goal\n\n"
+                f"Verify {id6} cleanly.\n\n"
+                "## Detailed Implementation Checklist (TODO)\n\n"
+                "### Task group 1: Update\n\n"
+                "- [ ] E-01 Update README.md\n"
+                "  - Depends on: none\n"
+                "  - Expected outcome: README.md updated.\n"
+                "  - Execution state: pending\n\n"
+                "## Project conventions discovered (Step 0)\n\n"
+                "- Standard repo conventions.\n\n"
+                "## Findings\n\n"
+                "None.\n\n"
+                "## Proposed changes (ordered, validatable)\n\n"
+                "1. Edit README.md.\n\n"
+                "## Deferred / out of scope (with reason)\n\n"
+                f"{deferred_body}\n\n"
+                "## Scope check\n\n"
+                "- Over-scope: none.\n"
+                "- Under-scope: none.\n\n"
+                "## Required tests / validation\n\n"
+                "- Run targeted tests.\n\n"
+                "## Spec / documentation sync\n\n"
+                "- N/A: test fixture.\n\n"
+                "## Open questions\n\n"
+                "None.\n\n"
+                "## Validation and cross-check (verify before reporting done)\n\n"
+                "- [ ] V-01 validates E-01\n"
+                "  - Required evidence: Pasted git diff of README.md.\n"
+                "  - Observed evidence:\n"
+                "  - Result: pending\n\n"
+                "## Approval and execution gate\n\n"
+                "- Size assessment: standard\n"
+                "- Cohesion rationale: not required\n\n"
+                "Approve before execution."
+            ),
+            text_only=True,
+        )
     )
 
 

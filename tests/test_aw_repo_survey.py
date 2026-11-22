@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from tests.support import clean_git_env
+from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
 
@@ -180,7 +181,10 @@ def test_registry_and_default_companion_are_surveyed(tmp_path: Path) -> None:
     (comp / "records" / "plans" / "pending").mkdir(parents=True)
     (
         comp / "records" / "plans" / "pending" / "20261101-s-01-cc0001-c.ipd.md"
-    ).write_text("# C\n\n- Id: cc0001\n- Status: draft\n", encoding="utf-8")
+    ).write_text(
+        RecordBuilder().plan(id6="cc0001", status="draft", text_only=True),
+        encoding="utf-8",
+    )
     _commit(comp)
     cfg = tmp_path / "home" / ".config" / "agent-workflows"
     cfg.mkdir(parents=True)
