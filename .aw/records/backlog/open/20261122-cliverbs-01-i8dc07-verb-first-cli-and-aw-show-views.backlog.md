@@ -106,15 +106,15 @@ Every top-level verb is a thin, well-documented front door over the existing cor
 ### OQ-05: What should happen to `aw reviews` once its read-only views move under `aw show`?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Context: Today `aw reviews` only exposes one subcommand (`aw reviews decisions`), which the maintainer identified as an awkward top-level noun.
+- Context: Today `aw reviews` only exposes one subcommand (`aw reviews decisions`), with 13 references across 6 files (`agent_workflows/reviews.py`, `agent_workflows/cli.py`, `agent_workflows/check_engine.py`, `tests/test_review_decisions.py`, `docs/cli-output-contract.md`, and `docs/artifact-lifecycles.md`).
 - Options:
   1. **Move `decisions` under `aw show decisions` and keep `aw reviews decisions` as a deprecated compatibility alias hidden from top-level `aw --help` (recommended).** Cleans up the CLI surface immediately without breaking existing scripts or references.
   2. **Remove `aw reviews` outright in the 2.0.0 release once `aw show decisions` ships.** Cleanest surface, acceptable if 2.0.0 permits breaking CLI removals.
   3. **Keep both `aw reviews` and `aw show` equally documented.** Avoids migration, but preserves two competing read-only surfaces.
-- Recommendation: Option 1 (consolidate under `aw show`, keep a hidden compatibility alias until removal is explicitly scheduled).
-- Resolution or deferral rationale:
+- Recommendation: Option 2 (remove `aw reviews` outright in 2.0.0 once `aw show decisions` ships, updating all 13 references).
+- Resolution or deferral rationale: RESOLVED 2026-11-22 by the user via /askme: Option B (remove `aw reviews` outright in 2.0.0 once `aw show decisions` ships, and update all 13 references across code, tests, and docs). No reason was given.
 
 ## Workflow history
 - 2026-11-22 created (aw backlog): Add verb-first top-level CLI commands and unify read-only views under aw show
