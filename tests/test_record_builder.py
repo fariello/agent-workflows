@@ -6,6 +6,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
@@ -21,7 +22,7 @@ from agent_workflows import (
 from agent_workflows import (
     review_findings as _review_findings,
 )
-from tests import repo_template, support
+from tests import record_builder, repo_template, support
 from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
@@ -407,3 +408,66 @@ class RecordBuilderGoldenTests(unittest.TestCase):
                 entry["text"],
                 f"ready_plan_text mismatch at golden index {idx}: {entry['args']!r}",
             )
+
+
+class RecordBuilderSwitchPointTests(unittest.TestCase):
+    """Single-switch-point proof (IPD ``59aiyh`` E-11 / V-11)."""
+
+    def test_switch_point_unknown_record_format_raises_for_every_method(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo = _fresh_records_repo(Path(td) / "repo")
+            rb_disk = RecordBuilder(repo)
+            rb_text = RecordBuilder()
+
+            raw_methods = (
+                ("plan", (), {"id6": "sw0001"}),
+                ("spec", (), {"id6": "sw0002"}),
+                ("backlog", (), {"id6": "sw0003"}),
+                ("research", (), {"id6": "sw0004"}),
+                ("release", (), {"id6": "sw0005"}),
+                ("prompt", (), {"id6": "sw0006"}),
+                ("walkthrough", (), {"id6": "sw0007"}),
+            )
+
+            with mock.patch.object(record_builder, "RECORD_FORMAT", "unknown-format"):
+                for method_name, args, kwargs in raw_methods:
+                    with self.subTest(method=method_name, mode="disk"):
+                        with self.assertRaises(ValueError) as ctx:
+                            getattr(rb_disk, method_name)(*args, **kwargs)
+                        self.assertIn("unknown-format", str(ctx.exception))
+
+                    with self.subTest(method=method_name, mode="text_only"):
+                        with self.assertRaises(ValueError) as ctx:
+                            getattr(rb_text, method_name)(
+                                *args, text_only=True, **kwargs
+                            )
+                        self.assertIn("unknown-format", str(ctx.exception))
+
+                    with self.subTest(method=method_name, mode="disk_raw_fields"):
+                        with self.assertRaises(ValueError) as ctx:
+                            getattr(rb_disk, method_name)(
+                                *args,
+                                raw_fields={"Status": "EXECUTED"},
+                                **kwargs,
+                            )
+                        self.assertIn("unknown-format", str(ctx.exception))
+
+                    with self.subTest(method=method_name, mode="text_only_raw_fields"):
+                        with self.assertRaises(ValueError) as ctx:
+                            getattr(rb_text, method_name)(
+                                *args,
+                                raw_fields={"Status": "EXECUTED"},
+                                text_only=True,
+                                **kwargs,
+                            )
+                        self.assertIn("unknown-format", str(ctx.exception))
+
+                with self.subTest(method="review", mode="disk"):
+                    with self.assertRaises(ValueError) as ctx:
+                        rb_disk.review("sw0001")
+                    self.assertIn("unknown-format", str(ctx.exception))
+
+                with self.subTest(method="review", mode="text_only"):
+                    with self.assertRaises(ValueError) as ctx:
+                        rb_text.review("sw0001", text_only=True)
+                    self.assertIn("unknown-format", str(ctx.exception))
