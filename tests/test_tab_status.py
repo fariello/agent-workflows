@@ -442,3 +442,68 @@ def test_runners_expose_title_style_flag() -> None:
                 else ["--title-style", "short", "run-123"]
             )
             assert ns.title_style == "short"
+
+
+def test_transient_list_panes_timeout_retries_and_reset_title_falls_back_to_active_tab() -> (
+    None
+):
+    assert tab_status.ZELLIJ_CMD_TIMEOUT_SECONDS >= 10.0
+
+    panes = [
+        {
+            "id": 5,
+            "is_plugin": False,
+            "tab_id": 20,
+            "tab_name": "▶ag4",
+            "is_focused": True,
+        }
+    ]
+    tabs = [{"tab_id": 20, "name": "▶ag4", "active": True}]
+    mock_run, _calls, tab_list = _make_zellij_mock(panes, tabs)
+
+    # 1. Transient failure on first list-panes call does not permanently disable RunnerTabStatus
+    attempts = {"list_panes": 0}
+
+    def _flaky_run(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if list(argv)[:3] == ["zellij", "action", "list-panes"]:
+            attempts["list_panes"] += 1
+            if attempts["list_panes"] == 1:
+                raise subprocess.TimeoutExpired(list(argv), 10.0)
+        return mock_run(argv)
+
+    tty = _FakeTTY()
+    env = {"ZELLIJ_SESSION_NAME": "aw", "ZELLIJ_PANE_ID": "5"}
+    ctrl = tab_status.RunnerTabStatus(
+        host="agy",
+        repo=Path("/tmp/demo"),
+        title_style="medium",
+        stream=tty,
+        env=env,
+        zellij_runner=_flaky_run,
+    )
+    assert ctrl.set_state(tab_status.STATE_EXECUTING) is False
+    assert ctrl.set_state(tab_status.STATE_REVIEWING) is True
+    assert tab_list[0]["name"] == "🆁ag4"
+
+    # 2. Interactive reset_title falls back to active tab when list-panes times out
+    def _timeout_panes(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if list(argv)[:3] == ["zellij", "action", "list-panes"]:
+            raise subprocess.TimeoutExpired(list(argv), 10.0)
+        return mock_run(argv)
+
+    res = tab_status.reset_title(env=env, zellij_runner=_timeout_panes)
+    assert res["changed"] is True
+    assert res["tab_id"] == 20
+    assert tab_list[0]["name"] == "ag4"
+
+    # 3. Background RunnerTabStatus NEVER falls back to active tab when ZELLIJ_PANE_ID is missing
+    ctrl_no_pane = tab_status.RunnerTabStatus(
+        host="agy",
+        repo=Path("/tmp/demo"),
+        title_style="medium",
+        stream=_FakeTTY(),
+        env={"ZELLIJ_SESSION_NAME": "aw"},
+        zellij_runner=mock_run,
+    )
+    assert ctrl_no_pane.set_state(tab_status.STATE_EXECUTING) is False
+    assert tab_list[0]["name"] == "ag4"

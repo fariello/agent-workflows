@@ -173,12 +173,15 @@ def _target_tty_stream(stream: Optional[TextIO] = None) -> Optional[TextIO]:
     return None
 
 
+ZELLIJ_CMD_TIMEOUT_SECONDS = 10.0
+
+
 def _default_zellij_runner(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         list(argv),
         capture_output=True,
         text=True,
-        timeout=2.0,
+        timeout=ZELLIJ_CMD_TIMEOUT_SECONDS,
         check=False,
     )
 
@@ -306,19 +309,31 @@ def _resolve_zellij_own_tab(
     ``zellij action list-panes --tab --json``. Returns ``(None, None)`` if the pane
     cannot be resolved, so a background process never renames the wrong tab.
     """
+    tab_id, tab_name, _transient = _resolve_zellij_own_tab_detail(
+        env=env, runner=runner
+    )
+    return (tab_id, tab_name)
+
+
+def _resolve_zellij_own_tab_detail(
+    *,
+    env: Optional[Mapping[str, str]] = None,
+    runner: ZellijRunnerFn = _default_zellij_runner,
+) -> tuple[Optional[int], Optional[str], bool]:
+    """Like ``_resolve_zellij_own_tab``, also returning ``transient_error`` bool."""
     source = os.environ if env is None else env
     pane_id = str(source.get("ZELLIJ_PANE_ID") or "").strip()
     if not pane_id:
-        return (None, None)
+        return (None, None, False)
     try:
         res = runner(["zellij", "action", "list-panes", "--tab", "--json"])
         if res.returncode != 0 or not res.stdout.strip():
-            return (None, None)
+            return (None, None, True)
         panes = json.loads(res.stdout)
     except Exception:
-        return (None, None)
+        return (None, None, True)
     if not isinstance(panes, list):
-        return (None, None)
+        return (None, None, True)
     for pane in panes:
         if not isinstance(pane, Mapping):
             continue
@@ -328,7 +343,35 @@ def _resolve_zellij_own_tab(
             tab_id = pane.get("tab_id")
             tab_name = pane.get("tab_name")
             if isinstance(tab_id, int):
-                return (tab_id, str(tab_name or ""))
+                return (tab_id, str(tab_name or ""), False)
+    return (None, None, False)
+
+
+def _resolve_zellij_active_tab(
+    *,
+    runner: ZellijRunnerFn = _default_zellij_runner,
+) -> tuple[Optional[int], Optional[str]]:
+    """Resolve ``(tab_id, name)`` of the active Zellij tab via ``list-tabs --all --json``.
+
+    Used only as a fallback by interactive ``aw reset-title`` when ``$ZELLIJ_PANE_ID`` is
+    missing or ``list-panes`` fails; background runners never use this fallback.
+    """
+    try:
+        res = runner(["zellij", "action", "list-tabs", "--all", "--json"])
+        if res.returncode != 0 or not res.stdout.strip():
+            return (None, None)
+        tabs = json.loads(res.stdout)
+    except Exception:
+        return (None, None)
+    if not isinstance(tabs, list):
+        return (None, None)
+    for tab in tabs:
+        if not isinstance(tab, Mapping):
+            continue
+        if tab.get("active") is True:
+            tab_id = tab.get("tab_id")
+            if isinstance(tab_id, int):
+                return (tab_id, str(tab.get("name") or ""))
     return (None, None)
 
 
@@ -386,6 +429,7 @@ class RunnerTabStatus:
         self._enabled = (not self.agent_mode) and (self.title_style != TITLE_STYLE_NONE)
         self._is_zellij = _is_in_zellij(self._env)
         self._tab_resolved = False
+        self._tab_resolve_failures = 0
         self._tab_id: Optional[int] = None
         self._base_tab_name: Optional[str] = None
         self.current_state: Optional[str] = None
@@ -410,12 +454,16 @@ class RunnerTabStatus:
     def _ensure_zellij_tab(self) -> bool:
         if self._tab_resolved:
             return self._tab_id is not None
-        self._tab_resolved = True
-        tab_id, current_name = _resolve_zellij_own_tab(
+        tab_id, current_name, transient = _resolve_zellij_own_tab_detail(
             env=self._env, runner=self._zellij_runner
         )
         if tab_id is None:
+            if transient and self._tab_resolve_failures < 2:
+                self._tab_resolve_failures += 1
+                return False
+            self._tab_resolved = True
             return False
+        self._tab_resolved = True
         self._tab_id = tab_id
         self._base_tab_name = strip_runner_glyphs(current_name or "")
         return True
@@ -696,11 +744,13 @@ def reset_title(
 
         tab_id, current_name = _resolve_zellij_own_tab(env=env, runner=runner)
         if tab_id is None:
+            tab_id, current_name = _resolve_zellij_active_tab(runner=runner)
+        if tab_id is None:
             return {
                 "environment": "zellij",
                 "changed": False,
                 "tabs_reset": [],
-                "message": "Could not resolve current Zellij tab from ZELLIJ_PANE_ID.",
+                "message": "Could not resolve current Zellij tab from ZELLIJ_PANE_ID or active tab.",
             }
         before = current_name or ""
         after = (
