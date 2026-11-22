@@ -52,7 +52,15 @@ class ReleasesClassTests(unittest.TestCase):
         self.assertIn("- Version: 2.0.0", text)
         self.assertEqual(releases.validate_release(p, text), [])
         # a bad status is flagged
-        bad = text.replace("- Status: planned", "- Status: bogus")
+        parsed = releases.parse_release(p, text)
+        bad = RecordBuilder().release(
+            id6=parsed.id6,
+            version="2.0.0",
+            status="planned",
+            summary="first .aw/ release",
+            raw_fields={"status": "bogus"},
+            text_only=True,
+        )
         drift = releases.validate_release(p, bad)
         self.assertTrue(any(d.rule == "release.status-invalid" for d in drift))
 
@@ -166,18 +174,44 @@ class ReleaseQueryPrimitiveTests(unittest.TestCase):
         # Items that GATE the planned release, across three trees + one that gates nothing.
         _write(
             self.rec / "backlog" / "open" / "20260102-g-01-gate01-blocker.backlog.md",
-            "- Id: gate01\n- Status: open\n- Set: g\n- Priority: high\n- Kind: bug\n"
-            "- Summary: gates the release\n- Blocks-Release: next\n",
+            RecordBuilder().backlog(
+                id6="gate01",
+                status="open",
+                set="g",
+                priority="high",
+                work_kind="bug",
+                summary="gates the release",
+                blocks_release="next",
+                when="2026-01-02",
+                text_only=True,
+            ),
         )
         _write(
             self.rec / "backlog" / "open" / "20260102-g-01-gate02-byid.backlog.md",
-            "- Id: gate02\n- Status: open\n- Set: g\n- Priority: low\n- Kind: chore\n"
-            "- Summary: gates by id6\n- Blocks-Release: aaaaaa\n",
+            RecordBuilder().backlog(
+                id6="gate02",
+                status="open",
+                set="g",
+                priority="low",
+                work_kind="chore",
+                summary="gates by id6",
+                blocks_release="aaaaaa",
+                when="2026-01-02",
+                text_only=True,
+            ),
         )
         _write(
             self.rec / "backlog" / "open" / "20260102-g-01-free01-nogate.backlog.md",
-            "- Id: free01\n- Status: open\n- Set: g\n- Priority: low\n- Kind: chore\n"
-            "- Summary: gates nothing\n",
+            RecordBuilder().backlog(
+                id6="free01",
+                status="open",
+                set="g",
+                priority="low",
+                work_kind="chore",
+                summary="gates nothing",
+                when="2026-01-02",
+                text_only=True,
+            ),
         )
         _write(
             self.rec / "plans" / "pending" / "20260102-g-01-gate03-a-plan.ipd.md",
