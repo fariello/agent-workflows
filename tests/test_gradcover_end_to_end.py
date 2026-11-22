@@ -19,7 +19,6 @@ import contextlib
 import io
 import json
 import os
-import re
 import subprocess
 import tempfile
 import unittest
@@ -31,6 +30,7 @@ import pytest
 
 from agent_workflows import (
     agy_runipd,
+    artifact_meta,
     cli,
     coverage_record,
     ipd_lint,
@@ -70,37 +70,6 @@ def _make_test_repo(path: Path) -> Path:
     return path
 
 
-def _write_backlog_item(
-    repo: Path,
-    *,
-    id6: str,
-    setid: str,
-    status: str = "open",
-    summary: str = "Fixture backlog bug",
-    slug: str = "fixture-bug",
-    gate: str = "rel001",
-    work_kind: str = "bug",
-    priority: str = "high",
-) -> Path:
-    """Write a conforming backlog item in the specified status folder."""
-    bkl_dir = repo / ".aw" / "records" / "backlog" / status
-    bkl_dir.mkdir(parents=True, exist_ok=True)
-    file_path = bkl_dir / f"20261004-{setid}-01-{id6}-{slug}.backlog.md"
-    content = RecordBuilder().backlog(
-        id6=id6,
-        status=status,
-        set=setid,
-        blocks_release=gate,
-        priority=priority,
-        work_kind=work_kind,
-        summary=summary,
-        history=[f"- 2026-10-04 {status} (tester): created item"],
-        text_only=True,
-    )
-    file_path.write_text(content, encoding="utf-8")
-    return file_path
-
-
 def _orchestrator_template(
     *,
     id6: str,
@@ -113,29 +82,7 @@ def _orchestrator_template(
     gate: str = "rel001",
 ) -> str:
     """Render an orchestrator document that lints conforming at author."""
-    return f"""# IPD: Test Orchestrator {id6}
-
-- Date: 2026-10-04
-- Kind: orchestrator
-- Id: {id6}
-- Set: {setid}
-- Order: 0
-- Status: {status}
-- From-Backlog: {backlog_id6}
-- Blocks-Release: {gate}
-- Priority: high
-- Work-Kind: bug
-- Author: test
-- Highest E allocated: 02
-- Concern: Test orchestrator concern.
-- Scope: Test orchestrator scope.
-- Scope-Paths: tests/test_gradcover_end_to_end.py
-- Item-Dependencies: none
-
-## Workflow history
-- 2026-10-04 {status} (test): created.
-
-## Goal
+    body = f"""## Goal
 Test orchestrator goal.
 
 ## Detailed Implementation Checklist (TODO)
@@ -191,8 +138,33 @@ Validation-state rule: inspect evidence.
   - Result: pending
 
 ## Approval and execution gate
-- None.
-"""
+- None."""
+    return str(
+        RecordBuilder().plan(
+            id6=id6,
+            plan_role="orchestrator",
+            title=f"Test Orchestrator {id6}",
+            when="2026-10-04",
+            set=setid,
+            order=0,
+            status=status,
+            from_backlog=backlog_id6,
+            blocks_release=gate,
+            priority="high",
+            work_kind="bug",
+            author="test",
+            scope_paths="tests/test_gradcover_end_to_end.py",
+            item_dependencies="none",
+            history=[f"- 2026-10-04 {status} (test): created."],
+            raw_fields={
+                "Concern": "Test orchestrator concern.",
+                "Scope": "Test orchestrator scope.",
+                "Highest E allocated": "02",
+            },
+            body=body,
+            text_only=True,
+        )
+    )
 
 
 def _child_template(
@@ -206,29 +178,7 @@ def _child_template(
     gate: str = "rel001",
 ) -> str:
     """Render a child document that lints conforming at author."""
-    return f"""# IPD: Test Child Plan {id6}
-
-- Date: 2026-10-04
-- Kind: child
-- Concern: Test child {id6} concern.
-- Scope: Test child {id6} scope.
-- Scope-Paths: tests/test_gradcover_end_to_end.py
-- Status: {status}
-- From-Backlog: {backlog_id6}
-- Blocks-Release: {gate}
-- Set: {setid}
-- Order: {order}
-- Highest E allocated: 01
-- Author: test
-- Priority: high
-- Work-Kind: bug
-- Id: {id6}
-- Item-Dependencies: {deps}
-
-## Workflow history
-- 2026-10-04 {status} (test): created.
-
-## Goal
+    body = f"""## Goal
 Test child {id6} goal.
 
 ## Detailed Implementation Checklist (TODO)
@@ -272,8 +222,33 @@ Validation-state rule: inspect evidence.
   - Result: pending
 
 ## Approval and execution gate
-- None.
-"""
+- None."""
+    return str(
+        RecordBuilder().plan(
+            id6=id6,
+            plan_role="child",
+            title=f"Test Child Plan {id6}",
+            when="2026-10-04",
+            set=setid,
+            order=order,
+            status=status,
+            from_backlog=backlog_id6,
+            blocks_release=gate,
+            priority="high",
+            work_kind="bug",
+            author="test",
+            scope_paths="tests/test_gradcover_end_to_end.py",
+            item_dependencies=deps,
+            history=[f"- 2026-10-04 {status} (test): created."],
+            raw_fields={
+                "Concern": f"Test child {id6} concern.",
+                "Scope": f"Test child {id6} scope.",
+                "Highest E allocated": "01",
+            },
+            body=body,
+            text_only=True,
+        )
+    )
 
 
 def _write_orchestrator_plan(
@@ -315,8 +290,9 @@ def _write_child_plan(
     deps: str = "none",
     status: str = "to-review",
     gate: str = "rel001",
+    disposition: str = "pending",
 ) -> Path:
-    p_dir = repo / ".aw" / "records" / "plans" / "pending"
+    p_dir = repo / ".aw" / "records" / "plans" / disposition
     p_dir.mkdir(parents=True, exist_ok=True)
     file_path = p_dir / f"20261004-{setid}-{order:02d}-{id6}-test-child-{order}.ipd.md"
     content = _child_template(
@@ -401,8 +377,17 @@ class TestGradcoverEndToEnd(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl001", setid="set001", gate="rel001"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl001",
+                        set="set001",
+                        status="open",
+                        blocks_release="rel001",
+                        priority="high",
+                        work_kind="bug",
+                        summary="Fixture backlog bug",
+                        slug="fixture-bug",
+                        when="2026-10-04",
+                        history=["- 2026-10-04 open (tester): created item"],
                     )
                     subprocess.run(["git", "add", "."], cwd=repo, check=True)
                     subprocess.run(
@@ -628,12 +613,35 @@ class TestGradcoverEndToEnd(unittest.TestCase):
                             w_dir.glob(f".aw/records/plans/pending/*-{t_id6}-*.ipd.md")
                         )
                         if p_files:
-                            txt = p_files[0].read_text(encoding="utf-8")
-                            if "- Readiness:" not in txt:
-                                txt = txt.replace(
-                                    "- Status:", "- Readiness: go\n- Status:"
+                            st = artifact_meta.read_text(
+                                p_files[0].read_text(encoding="utf-8"),
+                                record_type="ipd",
+                            )
+                            if not st.fields.get("readiness"):
+                                artifact_meta.append(
+                                    artifact_meta.LegacyTarget(
+                                        p_files[0], "ipd", id6=t_id6
+                                    ),
+                                    [
+                                        {
+                                            "op": "review",
+                                            "review_kind": "gate",
+                                            "round": 1,
+                                            "verdict": "APPROVE",
+                                            "readiness": "go",
+                                        }
+                                    ],
+                                    dry_run=False,
+                                    project_context=artifact_meta.legacy_context(w_dir),
+                                    actor={"tool": "test"},
+                                    legacy_render=artifact_meta.LegacyRender(
+                                        tag="/plan-review",
+                                        day="2026-10-04",
+                                        actor_label="test",
+                                        history=False,
+                                    ),
+                                    repo_root=w_dir,
                                 )
-                                p_files[0].write_text(txt, encoding="utf-8")
                         buf_cli = io.StringIO()
                         with contextlib.redirect_stdout(
                             buf_cli
@@ -700,17 +708,20 @@ class TestGradcoverEndToEnd(unittest.TestCase):
                     # -------------------------------------------------------------
                     # RUN C (E-07): Orchestrate run after children executed
                     # -------------------------------------------------------------
-                    # Move children to executed/ with - Status: executed
-                    exec_dir = repo / ".aw" / "records" / "plans" / "executed"
-                    exec_dir.mkdir(parents=True, exist_ok=True)
-                    for c_id in ("chd001", "chd002"):
+                    # Move children to executed/ with executed status
+                    for idx, c_id in enumerate(("chd001", "chd002"), start=1):
                         c_p = list(
                             repo.glob(f".aw/records/plans/pending/*-{c_id}-*.ipd.md")
                         )[0]
-                        c_txt = c_p.read_text(encoding="utf-8").replace(
-                            "- Status: reviewed", "- Status: executed"
+                        _write_child_plan(
+                            repo,
+                            id6=c_id,
+                            setid="set001",
+                            order=idx,
+                            backlog_id6="bkl001",
+                            status="executed",
+                            disposition="executed",
                         )
-                        (exec_dir / c_p.name).write_text(c_txt, encoding="utf-8")
                         c_p.unlink()
 
                     subprocess.run(["git", "add", "."], cwd=repo, check=True)
@@ -828,8 +839,17 @@ class TestGradcoverEndToEnd(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl002", setid="set002", gate="rel001"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl002",
+                        set="set002",
+                        status="open",
+                        blocks_release="rel001",
+                        priority="high",
+                        work_kind="bug",
+                        summary="Fixture backlog bug",
+                        slug="fixture-bug",
+                        when="2026-10-04",
+                        history=["- 2026-10-04 open (tester): created item"],
                     )
                     subprocess.run(["git", "add", "."], cwd=repo, check=True)
                     subprocess.run(
@@ -1063,8 +1083,17 @@ class TestGradcoverEndToEnd(unittest.TestCase):
             with self.subTest(host=host_label):
                 with tempfile.TemporaryDirectory() as td:
                     repo = _make_test_repo(Path(td))
-                    _write_backlog_item(
-                        repo, id6="bkl003", setid="set003", gate="rel001"
+                    RecordBuilder(repo).backlog(
+                        id6="bkl003",
+                        set="set003",
+                        status="open",
+                        blocks_release="rel001",
+                        priority="high",
+                        work_kind="bug",
+                        summary="Fixture backlog bug",
+                        slug="fixture-bug",
+                        when="2026-10-04",
+                        history=["- 2026-10-04 open (tester): created item"],
                     )
                     subprocess.run(["git", "add", "."], cwd=repo, check=True)
                     subprocess.run(
@@ -1266,26 +1295,21 @@ class TestGradcoverEndToEnd(unittest.TestCase):
                         "Resume handoff must not report BACKLOG-GRADUATE-COUNT",
                     )
 
-                    # Exactly one - Set: among active plans whose - From-Backlog: names bkl003
+                    # Exactly one Set among active plans whose From-Backlog names bkl003
                     active_plans = list(repo.glob(".aw/records/plans/pending/*.ipd.md"))
-                    linked_plans = [
-                        p
+                    linked_states = [
+                        st
                         for p in active_plans
-                        if "- From-Backlog: bkl003" in p.read_text(encoding="utf-8")
+                        if (
+                            st := artifact_meta.read_text(
+                                p.read_text(encoding="utf-8"), record_type="ipd"
+                            )
+                        ).fields.get("from_backlog")
+                        == "bkl003"
                     ]
-                    sets = {
-                        re.search(
-                            r"^- Set:\s*(\S+)", p.read_text(encoding="utf-8"), re.M
-                        ).group(1)
-                        for p in linked_plans
-                    }
+                    sets = {st.fields.get("set") for st in linked_states}
                     self.assertEqual(sets, {"set003"})
-                    ids = {
-                        re.search(
-                            r"^- Id:\s*(\S+)", p.read_text(encoding="utf-8"), re.M
-                        ).group(1)
-                        for p in linked_plans
-                    }
+                    ids = {st.fields.get("id") for st in linked_states}
                     self.assertEqual(ids, {"orc003", "chd001", "chd002"})
 
                     self.assertEqual(len(probe_calls_res), 1)
@@ -1465,7 +1489,18 @@ class TestGradcoverEndToEnd(unittest.TestCase):
             # -------------------------------------------------------------
             with tempfile.TemporaryDirectory() as td4:
                 repo4 = _make_test_repo(Path(td4))
-                _write_backlog_item(repo4, id6="bkl054", setid="set054", gate="rel001")
+                RecordBuilder(repo4).backlog(
+                    id6="bkl054",
+                    set="set054",
+                    status="open",
+                    blocks_release="rel001",
+                    priority="high",
+                    work_kind="bug",
+                    summary="Fixture backlog bug",
+                    slug="fixture-bug",
+                    when="2026-10-04",
+                    history=["- 2026-10-04 open (tester): created item"],
+                )
                 subprocess.run(["git", "add", "."], cwd=repo4, check=True)
                 subprocess.run(
                     ["git", "commit", "-qm", "add backlog"], cwd=repo4, check=True
@@ -1569,7 +1604,13 @@ class TestGradcoverEndToEnd(unittest.TestCase):
                     repo5, id6="orc055", setid="set055", backlog_id6="bkl055"
                 )
                 _write_child_plan(
-                    repo5, id6="chd001", setid="set055", order=1, backlog_id6="bkl055"
+                    repo5,
+                    id6="chd001",
+                    setid="set055",
+                    order=1,
+                    backlog_id6="bkl055",
+                    status="executed",
+                    disposition="executed",
                 )
                 _write_child_plan(
                     repo5,
@@ -1578,20 +1619,9 @@ class TestGradcoverEndToEnd(unittest.TestCase):
                     order=2,
                     backlog_id6="bkl055",
                     deps="none",
+                    status="executed",
+                    disposition="executed",
                 )
-
-                # Move children to executed/
-                exec_dir5 = repo5 / ".aw" / "records" / "plans" / "executed"
-                exec_dir5.mkdir(parents=True, exist_ok=True)
-                for cid in ("chd001", "chd002"):
-                    cp = list(
-                        repo5.glob(f".aw/records/plans/pending/*-{cid}-*.ipd.md")
-                    )[0]
-                    cp_txt = cp.read_text(encoding="utf-8").replace(
-                        "- Status: to-review", "- Status: executed"
-                    )
-                    (exec_dir5 / cp.name).write_text(cp_txt, encoding="utf-8")
-                    cp.unlink()
 
                 coverage_record.write(
                     orch5,

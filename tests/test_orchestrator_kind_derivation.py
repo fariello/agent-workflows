@@ -93,14 +93,7 @@ def _run_legacy_manifest_queue_build(
         d_pending = root / ".aw" / "records" / "plans" / "pending"
         d_pending.mkdir(parents=True, exist_ok=True)
         orc_path = d_pending / "20260906-qbuild-00-orcq01-synthetic.ipd.md"
-        orc_path.write_text(
-            "# IPD: synthetic\n\n"
-            "- Date: 2026-09-06\n- Kind: orchestrator\n- Concern: synthetic.\n- Scope: synthetic.\n"
-            "- Scope-Paths: none\n- Priority: medium\n- Work-Kind: chore\n- Status: approved\n"
-            "- Set: qbuild\n- Order: 0\n- Highest E allocated: 01\n- Author: synthetic\n- Id: orcq01\n"
-            "- Approval: 2026-09-06, synthetic\n- Readiness: go-pending-approval\n\n"
-            "## Workflow history\n\n- 2026-09-06 approved (synthetic): created.\n"
-            "- 2026-09-06 /plan-review (synthetic): APPROVE\n\n"
+        orc_body = (
             "## Goal\n\nSynthetic goal.\n\n"
             "## Detailed Implementation Checklist (TODO)\n\n"
             "- [ ] E-01 CONFIRM chiq01 REACHED executed\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: pending\n\n"
@@ -115,7 +108,37 @@ def _run_legacy_manifest_queue_build(
             "## Open questions\n\n- None.\n\n"
             "## Validation and cross-check (verify before reporting the Set complete)\n\n"
             "- [ ] V-01 validates E-01\n  - Required evidence: check.\n  - Observed evidence:\n  - Result: pending\n\n"
-            "## Approval and execution gate\n\n- None.\n",
+            "## Approval and execution gate\n\n- None."
+        )
+        orc_path.write_text(
+            str(
+                RecordBuilder().plan(
+                    title="synthetic",
+                    when="2026-09-06",
+                    plan_role="orchestrator",
+                    id6="orcq01",
+                    set="qbuild",
+                    order=0,
+                    status="approved",
+                    scope_paths="none",
+                    priority="medium",
+                    work_kind="chore",
+                    author="synthetic",
+                    approval="2026-09-06, synthetic",
+                    readiness="go-pending-approval",
+                    history=[
+                        "- 2026-09-06 approved (synthetic): created.",
+                        "- 2026-09-06 /plan-review (synthetic): APPROVE",
+                    ],
+                    raw_fields={
+                        "Concern": "synthetic.",
+                        "Scope": "synthetic.",
+                        "Highest E allocated": "01",
+                    },
+                    body=orc_body,
+                    text_only=True,
+                )
+            ),
             encoding="utf-8",
         )
         d_exec = root / ".aw" / "records" / "plans" / "executed"
