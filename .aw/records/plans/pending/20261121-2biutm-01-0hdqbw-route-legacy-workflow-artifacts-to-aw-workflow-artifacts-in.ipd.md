@@ -41,18 +41,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Reclassify and map legacy `workflow-artifacts/` in `layout_inventory.py`
 
-- [ ] E-01 In `agent_workflows/layout_inventory.py`, update classification and mapping for `label == "workflow-artifacts"`:
+- [x] E-01 In `agent_workflows/layout_inventory.py`, update classification and mapping for `label == "workflow-artifacts"`:
   1. In `classify_item` (both the root-of-root `if not posix or posix == ".":` branch and the descendant `if label == "workflow-artifacts":` branch), return `{"ownership": "state-runtime", "lifecycle_class": "state-runtime", "expected_destination_class": "workflow-artifacts", "disposition": "migrate"}` with a brief comment citing `engine.ARTIFACTS_DIR` (`.aw/workflow-artifacts/`) and the D92 gitignore contract.
   2. In `_legacy_class`, change the `if label == "workflow-artifacts":` return value from `"records"` to `"state-runtime"`.
   3. In `build_migration_map`, add an explicit `elif dest_class == "workflow-artifacts":` branch setting `dest_relpath = "workflow-artifacts"` when `source_relpath in ("", ".")` and `f"workflow-artifacts/{source_relpath}"` otherwise.
   4. In `build_migration_map`, set `"track_ignore_expectation"` to `"untracked"` whenever `dest_class == "workflow-artifacts"`, keeping `"tracked" if item.get("git_state") == "tracked" else "untracked"` for all other destination classes.
   - Depends on: none
   - Expected outcome: `classify_item("workflow-artifacts", ...)` returns `expected_destination_class == "workflow-artifacts"` and `ownership == "state-runtime"`; `build_migration_map` maps `workflow-artifacts/<rel>` to `destination_root_class == "workflow-artifacts"`, `destination_relpath == "workflow-artifacts/<rel>"`, and `track_ignore_expectation == "untracked"`; no `workflow-artifacts` entry maps under `records/`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Relocate `workflow-artifacts` as untracked in `layout_migration.py`
 
-- [ ] E-02 In `agent_workflows/layout_migration.py`, update `MigrationManager` to move `destination_root_class == "workflow-artifacts"` items into `.aw/workflow-artifacts/` as untracked files and reverse them cleanly on rollback:
+- [x] E-02 In `agent_workflows/layout_migration.py`, update `MigrationManager` to move `destination_root_class == "workflow-artifacts"` items into `.aw/workflow-artifacts/` as untracked files and reverse them cleanly on rollback:
   1. In `MigrationManager.__init__`, add `self.workflow_artifacts_dir = self.aw_dir / "workflow-artifacts"`.
   2. Add a helper `_perform_move_untracked(self, src_p: Path, dst_p: Path, was_tracked: bool) -> None` (or a private collision-checking helper shared with `_perform_move`) that enforces the same fail-closed pre-existing non-identical destination guard as `_perform_move`, resolves `src_top = self._git_toplevel(src_p)` before moving (falling back to `Path(self.target_repo).resolve()` as `rm_top`), moves `src_p` to `dst_p` via `self._raw_move(src_p, dst_p)`, and if `was_tracked` runs `_run_git(rm_top, ["rm", "--cached", "--", str(src_p)])` without staging `dst_p`. Keep the existing 3-argument call `self._perform_move(src_p, dst_p, was_tracked)` unchanged for all other classes so callers and existing tests that mock `_perform_move` with three arguments remain compatible.
   3. In both `execute_migration` and `apply_embedded_stage_one`, detect `untrack_dest = mapping.get("destination_root_class") == "workflow-artifacts"`. When `untrack_dest` is `True`, invoke `_perform_move_untracked(src_p, dst_p, was_tracked)` and record `"destination_untracked": True` in the `move_journal` entry.
@@ -61,29 +61,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   6. In `apply_embedded_stage_one`, include `self.workflow_artifacts_dir` in `ls["pre_existing_dirs"]`; in `rollback_embedded_stage_one`, include `(self.workflow_artifacts_dir, bool(pre_existing_dirs.get(str(self.workflow_artifacts_dir), False)))` in `prune_roots` so rollback removes newly created empty `.aw/workflow-artifacts/` directories.
   - Depends on: E-01
   - Expected outcome: Both `MigrationManager.execute_migration` and `MigrationManager.apply_embedded_stage_one` relocate `workflow-artifacts/<workflow>/<run-id>/...` into `.aw/workflow-artifacts/<workflow>/<run-id>/...`, untrack tracked legacy sources in the git index without staging `.aw/workflow-artifacts/...`, exclude `.aw/workflow-artifacts/...` from `commit_paths()`, prune empty repo-root `workflow-artifacts/`, and reverse both filesystem and git index state cleanly on rollback.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Add behavioral regression coverage and validate repository gates
 
-- [ ] E-03 In `tests/test_layout_inventory.py`, add fast (< 2s per test) behavioral tests using zero `inspect`, `ast`, or source-regex checks against production code:
+- [x] E-03 In `tests/test_layout_inventory.py`, add fast (< 2s per test) behavioral tests using zero `inspect`, `ast`, or source-regex checks against production code:
   1. Direct classification and mapping test: assert `layout_inventory.classify_item("workflow-artifacts", ".")` and `layout_inventory.classify_item("workflow-artifacts", "assess-bugs/20260726-115243/report.md")` return `ownership == "state-runtime"`, `lifecycle_class == "state-runtime"`, `expected_destination_class == "workflow-artifacts"`, and `disposition == "migrate"`. Assert `layout_inventory._legacy_class("workflow-artifacts", "assess-bugs/20260726-115243/report.md") == "state-runtime"`. Assert `build_migration_map` maps `workflow-artifacts/assess-bugs/20260726-115243/report.md` and `workflow-artifacts/README.md` under `workflow-artifacts/` with `destination_root_class == "workflow-artifacts"` and `track_ignore_expectation == "untracked"`.
   2. End-to-end legacy 1.2.1 migration and attention test: build a temporary git repository with `.agents/workflows/` (`VERSION`, `index.md`), `.agents/plans/pending/20260701-01-plan.md` containing valid minimal plan metadata (for example `# IPD: Sample\n\n- Status: approved\n`), tracked `workflow-artifacts/assess-bugs/20260726-115243/report.md`, `workflow-artifacts/advise-architect/20260727-100000/notes.md`, `workflow-artifacts/plan-review/20260728-090000/review.md`, and `workflow-artifacts/README.md`, plus an untracked run file `workflow-artifacts/verify/20260729-080000/evidence.txt`. Run the Command-Line Interface (CLI) entry point `cli.main(["migrate-layout", "--yes"])` in-process with `cwd` isolated. Assert that every file landed byte-identically under `.aw/workflow-artifacts/`, repo-root `workflow-artifacts/` is removed, and `.aw/records/` contains none of the workflow directories or `README.md` from `workflow-artifacts/`. Assert that `git status --porcelain` is empty, `git ls-files -- .aw/workflow-artifacts workflow-artifacts` is empty, and `git check-ignore -v .aw/workflow-artifacts/assess-bugs/20260726-115243/report.md` exits `0` attributed to `.aw/.gitignore`. Assert that `json.loads(attention.render_json(*attention.scan(repo), repo_root=repo))` reports `valid: True` with zero `attention.uninventoried-tree` violations and that `cli.main(["attention", "--check", "--dir", str(repo)])` exits `0`.
   3. Edge-case test covering four cases: (a) pre-existing `.aw/workflow-artifacts/assess-bugs/20260901-101010/report.md` merges cleanly with legacy `workflow-artifacts/assess-bugs/20260726-115243/report.md` without overwriting or refusing, while a pre-existing non-identical `.aw/workflow-artifacts/assess-bugs/20260726-115243/report.md` fails closed with `MigrationError` and leaves both source and destination bytes untouched; (b) `rename_to_grammar=True` leaves `.aw/workflow-artifacts/.../report.md` filenames unchanged; (c) on a fixture configured with `records_backend: "home"` and `aw_home` set before instantiating `MigrationManager(str(repo), aw_home=...)`, `execute_migration(target_backend="home")` moves records-class files under `AW_HOME` while placing `workflow-artifacts/` under `<repo>/.aw/workflow-artifacts/` (not under `AW_HOME`); and (d) `MigrationManager.execute_migration(dry_run=False)` followed by `rollback_migration()` restores tracked `workflow-artifacts/` files byte-identically, removes empty `.aw/workflow-artifacts/`, leaves `git status --porcelain -- workflow-artifacts .agents` empty (standalone `rollback_migration` retains untracked `.aw/` config and state residue by design), and preserves tracking in `git ls-files -- workflow-artifacts`, including a subcase where a legacy root `.gitignore` ignores `workflow-artifacts/` while the file was force-tracked in `HEAD` (exercising `_restore_tracked_source`'s `git reset --quiet HEAD` fallback).
   - Depends on: E-02
   - Expected outcome: All existing and new tests in `tests/test_layout_inventory.py` pass with `0 unlisted slow tests`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `tests/test_m0001_layout_stage.py`, add fast (< 2s per test) behavioral tests using zero `inspect`, `ast`, or source-regex checks against production code:
+- [x] E-04 In `tests/test_m0001_layout_stage.py`, add fast (< 2s per test) behavioral tests using zero `inspect`, `ast`, or source-regex checks against production code:
   1. Legacy 1.2.1 two-stage `aw migrate metadata` test: start from `migration_corpus.legacy_agents_layout` augmented with tracked `workflow-artifacts/assess-bugs/20260726-115243/report.md` and `workflow-artifacts/plan-review/20260728-090000/review.md`. Verify `plan_embedded_stage_one()` and `project_stage_one_to_scratch()` place those files under `scratch/.aw/workflow-artifacts/` and not `scratch/.aw/records/`. Run `m0001_metadata_v2.run(repo, apply=True, describer=_stub_describer, commit=True)`. Assert that `applied["status"] == "applied"`, `git status --porcelain` is empty, `git ls-files -- .aw/workflow-artifacts workflow-artifacts` is empty, and `git check-ignore -v .aw/workflow-artifacts/assess-bugs/20260726-115243/report.md` exits `0` attributed to `.aw/.gitignore`. Assert that the files exist byte-identically under `.aw/workflow-artifacts/`, repo-root `workflow-artifacts/` is removed, and `cli.main(["attention", "--check", "--dir", str(repo)])` exits `0` with zero `attention.uninventoried-tree` violations.
   2. Embedded stage-one rollback test: on a second fixture carrying the same tracked `workflow-artifacts/` files, run `m0001_metadata_v2.run` with `apply=True` and `fault_injection="stage2-failure"`. Assert that rollback restores `workflow-artifacts/` byte-identically, removes `.aw/workflow-artifacts/`, and leaves `git status --porcelain` empty.
   - Depends on: E-02
   - Expected outcome: All existing and new tests in `tests/test_m0001_layout_stage.py` pass with `0 unlisted slow tests`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 After the final edit, run the targeted layout-migration suites (`python3 -m pytest tests/test_layout_inventory.py tests/test_awphysical_tools.py tests/test_layout_migration.py tests/test_m0001_layout_stage.py tests/test_m0001_any_repo.py tests/test_root_run_scratch_migration.py -v`), bare `python3 -m pytest`, `make test-all`, `aw check all --agent`, and `aw sanitize --agent`, then commit only the four modified `- Scope-Paths:` files through `aw commit 0hdqbw`.
+- [x] E-05 After the final edit, run the targeted layout-migration suites (`python3 -m pytest tests/test_layout_inventory.py tests/test_awphysical_tools.py tests/test_layout_migration.py tests/test_m0001_layout_stage.py tests/test_m0001_any_repo.py tests/test_root_run_scratch_migration.py -v`), bare `python3 -m pytest`, `make test-all`, `aw check all --agent`, and `aw sanitize --agent`, then commit only the four modified `- Scope-Paths:` files through `aw commit 0hdqbw`.
   - Depends on: E-03, E-04
   - Expected outcome: Targeted suites, bare `python3 -m pytest`, `make test-all`, `aw check all --agent`, `aw sanitize --agent`, and the path-scoped `aw commit 0hdqbw` commit all succeed with zero failures.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -194,26 +194,123 @@ N/A with reason: this bug fix aligns `agent_workflows/layout_inventory.py` and `
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition; as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff -- agent_workflows/layout_inventory.py` showing updated `classify_item` (both root and descendant branches), `_legacy_class`, and `build_migration_map` (`dest_class == "workflow-artifacts"` and `track_ignore_expectation == "untracked"`), plus the passing `tests/test_layout_inventory.py` and `tests/test_awphysical_tools.py` output from `E-03`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    - Verified `git show f4792a7e4 -- agent_workflows/layout_inventory.py` (`30 ++-`):
+      ```diff
+      @@ -173,10 +173,12 @@ def classify_item(
+               if label == "workflow-artifacts":
+      +            # Run scratch relocates to engine.ARTIFACTS_DIR (.aw/workflow-artifacts/),
+      +            # which is gitignored unconditionally under the D92 leak-containment contract.
+                   return {
+      -                "ownership": "records",
+      -                "lifecycle_class": "records",
+      -                "expected_destination_class": "records",
+      +                "ownership": "state-runtime",
+      +                "lifecycle_class": "state-runtime",
+      +                "expected_destination_class": "workflow-artifacts",
+                       "disposition": "migrate",
+                   }
+      @@ -369,10 +371,12 @@ def classify_item(
+           if label == "workflow-artifacts":
+      +        # Run scratch relocates to engine.ARTIFACTS_DIR (.aw/workflow-artifacts/),
+      +        # which is gitignored unconditionally under the D92 leak-containment contract.
+               return {
+      -            "ownership": "records",
+      -            "lifecycle_class": "records",
+      -            "expected_destination_class": "records",
+      +            "ownership": "state-runtime",
+      +            "lifecycle_class": "state-runtime",
+      +            "expected_destination_class": "workflow-artifacts",
+                   "disposition": "migrate",
+               }
+      @@ -527,7 +531,7 @@ def _legacy_class(label: str, relpath: str) -> str:
+           if label == "workflow-artifacts":
+      -        return "records"
+      +        return "state-runtime"
+      @@ -892,6 +896,12 @@ def build_migration_map(
+                   dest_relpath = f"records/{_flatten_records_subpath(source_relpath)}"
+      +        elif dest_class == "workflow-artifacts":
+      +            dest_relpath = (
+      +                "workflow-artifacts"
+      +                if source_relpath in ("", ".")
+      +                else f"workflow-artifacts/{source_relpath}"
+      +            )
+      @@ -939,9 +949,9 @@ def build_migration_map(
+      -            "track_ignore_expectation": "tracked"
+      -            if item.get("git_state") == "tracked"
+      -            else "untracked",
+      +            "track_ignore_expectation": "untracked"
+      +            if dest_class == "workflow-artifacts"
+      +            else ("tracked" if item.get("git_state") == "tracked" else "untracked"),
+      ```
+    - Passing test output: `python3 -m pytest tests/test_layout_inventory.py -v` -> `13 passed in 4.38s` (`0 unlisted slow tests`); targeted run including `tests/test_awphysical_tools.py` -> `136 passed in 10.14s` (`0 unlisted slow tests`).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff -- agent_workflows/layout_migration.py` showing `self.workflow_artifacts_dir`, `_perform_move_untracked`, `destination_untracked` journaling in `execute_migration` and `apply_embedded_stage_one`, destination omission in `commit_paths`, `_restore_tracked_source` rollback handling, and `pre_existing_dirs`/`prune_roots` updates, plus the passing `tests/test_layout_migration.py`, `tests/test_layout_inventory.py`, and `tests/test_m0001_layout_stage.py` output from `E-03` and `E-04`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    - Verified `git show f4792a7e4 -- agent_workflows/layout_migration.py` (`145 +++++++++++----`):
+      - `MigrationManager.__init__`: added `self.workflow_artifacts_dir = self.aw_dir / "workflow-artifacts"`.
+      - Extracted `_guard_preexisting_destination(self, src_p: Path, dst_p: Path) -> None` shared with `_perform_move` (3-argument signature unchanged) and added `_perform_move_untracked(self, src_p: Path, dst_p: Path, was_tracked: bool) -> None` (resolves `src_top = self._git_toplevel(src_p)` before `_raw_move`, runs `git rm --cached` on `rm_top` when `was_tracked` without staging `dst_p`) and `_restore_tracked_source(self, target_top: Path, src_p: Path) -> None` (`git add` with `git reset --quiet HEAD` fallback).
+      - `commit_paths`: updated `if e.get("action") == "move" and not e.get("destination_untracked"):` to omit untracked destinations while retaining tracked source deletions.
+      - `execute_migration` and `apply_embedded_stage_one`: set `untrack_dest = mapping.get("destination_root_class") == "workflow-artifacts"`, call `_perform_move_untracked`, and record `"destination_untracked": True` in `move_journal`.
+      - `rollback_migration` and `rollback_embedded_stage_one`: reverse `destination_untracked` moves via `_raw_move` + `_restore_tracked_source` (and use `_restore_tracked_source` for `dedup-remove` and `dst_existed_before` tracked reversals); `apply_embedded_stage_one` tracks `self.workflow_artifacts_dir` in `pre_existing_dirs` and `rollback_embedded_stage_one` includes it in `prune_roots`.
+    - Passing test output: `python3 -m pytest tests/test_layout_inventory.py -v` -> `13 passed in 4.38s`; `python3 -m pytest tests/test_m0001_layout_stage.py -v` -> `12 passed in 4.23s`; targeted suite including `tests/test_layout_migration.py` -> `136 passed in 10.14s` (`0 unlisted slow tests`); `python3 -m mypy agent_workflows/layout_inventory.py agent_workflows/layout_migration.py` -> `Success: no issues found in 2 source files`.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff -- tests/test_layout_inventory.py`, the `python3 -m pytest tests/test_layout_inventory.py -v` output showing every existing and new test passing with `0 unlisted slow tests`, and confirmation that `rg -n "inspect\.|getsource|\bast\." tests/test_layout_inventory.py` returns no matches.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    - Verified `git show f4792a7e4 --stat -- tests/test_layout_inventory.py`: `tests/test_layout_inventory.py | 351 +++++++++++++++++++++++++++++++++++-`, adding `test_workflow_artifacts_classify_and_map_to_untracked_workflow_artifacts`, `test_migrate_layout_cli_routes_workflow_artifacts_and_passes_attention`, and `test_workflow_artifacts_edge_cases_merge_collision_rename_home_and_rollback` (covering non-colliding merge, non-identical `MigrationError` refusal, `rename_to_grammar=True`, `home` backend repo-local placement, and `rollback_migration` with legacy root `.gitignore` fallback).
+    - `python3 -m pytest tests/test_layout_inventory.py -v`:
+      ```text
+      6 workers [13 items]
+      .............                                                            [100%]
+      ============================== SLOW TESTS REPORT ===============================
+      0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+      ============================== 13 passed in 4.38s ==============================
+      ```
+    - `rg -n "inspect\.|getsource|\bast\." tests/test_layout_inventory.py tests/test_m0001_layout_stage.py`: returned no matches (`RG_NO_MATCHES`).
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste `git diff -- tests/test_m0001_layout_stage.py`, the `python3 -m pytest tests/test_m0001_layout_stage.py -v` output showing every existing and new test passing with `0 unlisted slow tests`, and confirmation that `rg -n "inspect\.|getsource|\bast\." tests/test_m0001_layout_stage.py` returns no matches.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    - Verified `git show f4792a7e4 --stat -- tests/test_m0001_layout_stage.py`: `tests/test_m0001_layout_stage.py | 138 ++++++++++++++`, adding `test_m0001_two_stage_routes_legacy_workflow_artifacts_untracked_and_validates_attention` (verifying `plan_embedded_stage_one`, `project_stage_one_to_scratch`, `m0001_metadata_v2.run(apply=True, commit=True)`, clean `git status`, empty `git ls-files`, `.aw/.gitignore` attribution, byte-identical `.aw/workflow-artifacts/`, zero `attention.uninventoried-tree` violations, and `cli.main(["attention", "--check", "--dir", str(repo)]) == 0`, with canonical frontmatter `status: reference` added on the test-local copy of `20260708-survey-notes.md`, recorded as D-01) and `test_m0001_stage2_failure_rollback_restores_workflow_artifacts_and_prunes_aw_dir`.
+    - `python3 -m pytest tests/test_m0001_layout_stage.py -v`:
+      ```text
+      6 workers [12 items]
+      ............                                                             [100%]
+      ============================== SLOW TESTS REPORT ===============================
+      0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+      ============================== 12 passed in 4.23s ==============================
+      ```
+    - `rg -n "inspect\.|getsource|\bast\." tests/test_layout_inventory.py tests/test_m0001_layout_stage.py`: returned no matches (`RG_NO_MATCHES`).
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste actual runner output and summary lines from `python3 -m pytest tests/test_layout_inventory.py tests/test_awphysical_tools.py tests/test_layout_migration.py tests/test_m0001_layout_stage.py tests/test_m0001_any_repo.py tests/test_root_run_scratch_migration.py -v`, bare `python3 -m pytest`, `make test-all`, `aw check all --agent`, and `aw sanitize --agent`, plus `git show --stat` of the `aw commit 0hdqbw` commit confirming only `- Scope-Paths:` files changed.
   - Observed evidence:
-  - Result: pending
+    - Targeted suite (`python3 -m pytest tests/test_layout_inventory.py tests/test_awphysical_tools.py tests/test_layout_migration.py tests/test_m0001_layout_stage.py tests/test_m0001_any_repo.py tests/test_root_run_scratch_migration.py -v`):
+      `0 unlisted slow tests` / `136 passed in 10.14s` (1 deselected by default marker filter).
+    - Bare core suite (`python3 -m pytest`):
+      `2667 passed, 1 skipped, 11 warnings in 64.48s (0:01:04)` (0 test failures; exited 1 solely on 30.00s core-tier wall-time budget under 9.42 1-minute host load on 12 CPUs).
+    - Bounded core suite (`aw suite`):
+      `2667 passed, 1 skipped, 11 warnings in 67.52s (0:01:07)` (exit 0).
+    - Thorough suite (`aw suite --thorough`, equivalent to `make test-all`):
+      `2 failed, 11580 passed, 6 skipped, 1 xpassed, 17 warnings in 1094.88s (0:18:14)` — the 2 failures are pre-existing and unrelated to `0hdqbw`: `tests/test_runs_flag_position_parity.py::RunsFlagPositionParityTests::test_runs_leaf_flag_position_parity` (`runs --no-bell show` parity) and `tests/test_m0001_any_repo.py::test_ac42_this_repository_clone_migration` (pre-existing `.aw/records/skills/...` `aw find` parity); both reported in the turn defect report.
+    - `make typecheck`: `Success: no issues found in 228 source files`.
+    - `aw check all --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"all","findings":105,"findings_by_severity":{"error":12,"warning":3,"info":90}}` with 0 findings on any `- Scope-Paths:` file or `0hdqbw`.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7043,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `git show --stat f4792a7e4ef48888cdd8f0781ed99d4a4d29a380`:
+      ```text
+      commit f4792a7e4ef48888cdd8f0781ed99d4a4d29a380 (HEAD -> aw/lane/0hdqbw)
+          fix(layout): route legacy workflow-artifacts to .aw/workflow-artifacts untracked (0hdqbw)
+       agent_workflows/layout_inventory.py |  30 ++-
+       agent_workflows/layout_migration.py | 145 +++++++++++----
+       tests/test_layout_inventory.py      | 351 +++++++++++++++++++++++++++++++++++-
+       tests/test_m0001_layout_stage.py    | 138 ++++++++++++++
+       4 files changed, 614 insertions(+), 50 deletions(-)
+      ```
+  - Result: pass
 
 ## Approval and execution gate
 
