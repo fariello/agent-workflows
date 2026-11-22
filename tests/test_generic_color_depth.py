@@ -770,7 +770,7 @@ class RawLiteralColorDepthTests(_DepthTestBase):
                     cwd="/repo/test",
                     run_id="run-1",
                 )
-                self.assertEqual(len(lines), 4)
+                self.assertEqual(len(lines), 5)
 
                 if pin == "none":
                     for line_out, line_plain in zip(lines, plain_lines):

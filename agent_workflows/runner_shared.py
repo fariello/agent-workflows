@@ -8720,60 +8720,64 @@ def integrate_under_repository_lock(
     deterministically; production passes the real ones (or nothing).
     """
 
+    from agent_workflows import tab_status as _tab_status
+
     consent = concurrent_driver_consent(state)
     _say = progress if progress is not None else (lambda _message: None)
 
-    if consent:
-        item["integration_serialization"] = {
-            "serialized": False,
-            "consent": consent,
-            "detail": (
-                "concurrent integration PERMITTED by --allow-concurrent-driver; the repository "
-                "integration lock was not taken"
-            ),
-        }
-        _say(
-            "concurrent integration permitted by --allow-concurrent-driver: " + consent
-        )
-        return integrate(item, handle)
+    with _tab_status.temporary_active_state(_tab_status.STATE_INTEGRATING):
+        if consent:
+            item["integration_serialization"] = {
+                "serialized": False,
+                "consent": consent,
+                "detail": (
+                    "concurrent integration PERMITTED by --allow-concurrent-driver; the repository "
+                    "integration lock was not taken"
+                ),
+            }
+            _say(
+                "concurrent integration permitted by --allow-concurrent-driver: "
+                + consent
+            )
+            return integrate(item, handle)
 
-    with integration_lock(
-        repo,
-        holder_label=holder_label,
-        timeout=timeout,
-        progress=_say,
-        sleep=sleep,
-        now=now,
-    ) as lock_outcome:
-        if not lock_outcome.acquired:
+        with integration_lock(
+            repo,
+            holder_label=holder_label,
+            timeout=timeout,
+            progress=_say,
+            sleep=sleep,
+            now=now,
+        ) as lock_outcome:
+            if not lock_outcome.acquired:
+                item["integration_serialization"] = {
+                    "serialized": True,
+                    "acquired": False,
+                    "holder": lock_outcome.holder,
+                    "waited_seconds": round(lock_outcome.waited_seconds, 3),
+                    "detail": lock_outcome.detail,
+                }
+                return (
+                    False,
+                    "integration deferred: " + lock_outcome.detail,
+                    INTEGRATION_REFUSAL_TRANSIENT,
+                )
+            tip = _resolved_main_tip(repo, run_checked=run_checked)
             item["integration_serialization"] = {
                 "serialized": True,
-                "acquired": False,
+                "acquired": True,
                 "holder": lock_outcome.holder,
                 "waited_seconds": round(lock_outcome.waited_seconds, 3),
+                "main_tip_in_lock": tip,
                 "detail": lock_outcome.detail,
             }
-            return (
-                False,
-                "integration deferred: " + lock_outcome.detail,
-                INTEGRATION_REFUSAL_TRANSIENT,
-            )
-        tip = _resolved_main_tip(repo, run_checked=run_checked)
-        item["integration_serialization"] = {
-            "serialized": True,
-            "acquired": True,
-            "holder": lock_outcome.holder,
-            "waited_seconds": round(lock_outcome.waited_seconds, 3),
-            "main_tip_in_lock": tip,
-            "detail": lock_outcome.detail,
-        }
-        if lock_outcome.waited_seconds > 0 and lock_outcome.holder:
-            _say(
-                format_integration_lock_acquired_message(
-                    lock_outcome.waited_seconds, lock_outcome.holder, tip
+            if lock_outcome.waited_seconds > 0 and lock_outcome.holder:
+                _say(
+                    format_integration_lock_acquired_message(
+                        lock_outcome.waited_seconds, lock_outcome.holder, tip
+                    )
                 )
-            )
-        return integrate(item, handle)
+            return integrate(item, handle)
 
 
 _UNRECORDED_LOCK_HOLDER = "an unrecorded holder"

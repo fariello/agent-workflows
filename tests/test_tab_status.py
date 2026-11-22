@@ -81,7 +81,8 @@ def test_glyph_mapping_and_stripping_idempotence() -> None:
         "executing": "▶",
         "validating": "☑",
         "graduating": "⇑",
-        "reviewing": "⌕",
+        "reviewing": "🆁",
+        "integrating": "⇄",
         "rerunning": "↻",
         "asking": "❓",
         "finished": "⏹",
@@ -89,6 +90,9 @@ def test_glyph_mapping_and_stripping_idempotence() -> None:
         "paused": "⏸",
     }
     assert tab_status.FAILURE_BADGE == "🚨"
+    assert tab_status.strip_runner_glyphs("⇄agy1") == "agy1"
+    assert tab_status.strip_runner_glyphs("🆁agy1") == "agy1"
+    assert tab_status.strip_runner_glyphs("⌕agy1") == "agy1"
 
     assert tab_status.strip_runner_glyphs("agy1") == "agy1"
     assert tab_status.strip_runner_glyphs("▶agy1") == "agy1"
@@ -396,6 +400,31 @@ def test_item_active_state_and_shared_hooks() -> None:
         pause_observed.append(ctrl.current_state)
     assert res == runner_stop.INTERRUPT_ACTION_RESUME
     assert pause_observed == [tab_status.STATE_PAUSED, tab_status.STATE_EXECUTING]
+
+    # integrate_under_repository_lock temporarily switches active controller to ⇄ (integrating)
+    tty_int = _FakeTTY()
+    int_observed: list[str | None] = []
+    with tab_status.runner_status_session(
+        host="agy", repo=Path("/tmp/demo"), title_style="short", stream=tty_int, env={}
+    ) as ctrl:
+        ctrl.set_state(tab_status.STATE_EXECUTING)
+        item_dict: dict[str, Any] = {"id6": "abc123"}
+        ok, _msg, _kind = runner_shared.integrate_under_repository_lock(
+            Path("/tmp/demo"),
+            item_dict,
+            None,
+            state={"options": {"allow_concurrent_driver": "test"}},
+            holder_label="test",
+            integrate=lambda _it, _h: (
+                int_observed.append(ctrl.current_state) is None,
+                "ok",
+                "",
+            ),
+        )
+        assert ok is True
+        int_observed.append(ctrl.current_state)
+    assert int_observed == [tab_status.STATE_INTEGRATING, tab_status.STATE_EXECUTING]
+    assert "\x1b]2;▶aw\x1b\\\x1b]2;⇄aw\x1b\\\x1b]2;▶aw\x1b\\" == tty_int.getvalue()
 
 
 def test_runners_expose_title_style_flag() -> None:

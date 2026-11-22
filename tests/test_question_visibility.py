@@ -167,7 +167,7 @@ class TestStatuslineQuestionVisibility(unittest.TestCase):
         self.assertEqual(runner_shared.parked_question_count(state_items_dict), 3)
 
     def test_statusline_reports_three_questions_and_names_answer(self) -> None:
-        """A10d: Statusline of a run with 3 parked items reports 3; A46: names aw runs answer <run-id>."""
+        """A10d: Statusline of a run with 3 parked items reports 3; pill names aw runs answer and top border keeps full run_id."""
         run_id = "run-20261017T120000Z-111111"
         lines = _sample_statusline_lines(
             run_id=run_id,
@@ -175,8 +175,9 @@ class TestStatuslineQuestionVisibility(unittest.TestCase):
             use_unicode=True,
         )
         joined = "\n".join(lines)
-        self.assertIn("3 questions", joined)
-        self.assertIn(f"aw runs answer {run_id}", joined)
+        self.assertIn(run_id, lines[0])
+        self.assertIn(" ? 3 questions · aw runs answer ", lines[-1])
+        self.assertNotIn(f"aw runs answer {run_id}", lines[-1])
         self.assertIn("·", joined)  # unicode middot
 
         # ASCII mode uses dash/hyphen
@@ -186,8 +187,8 @@ class TestStatuslineQuestionVisibility(unittest.TestCase):
             use_unicode=False,
         )
         joined_ascii = "\n".join(lines_ascii)
-        self.assertIn("3 questions", joined_ascii)
-        self.assertIn(f"aw runs answer {run_id}", joined_ascii)
+        self.assertIn(run_id, lines_ascii[0])
+        self.assertIn("[? 3 questions - aw runs answer]", lines_ascii[-1])
         self.assertIn("-", joined_ascii)
 
     def test_statusline_singular_question_rendering(self) -> None:

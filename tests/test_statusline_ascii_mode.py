@@ -51,9 +51,9 @@ class TestStatuslineAsciiModePurity:
                     pal=pal,
                     use_unicode=False,
                 )
-                if len(lines) != 4:
+                if len(lines) != 5:
                     failures.append(
-                        f"[{case_id}] Expected 4 lines, got {len(lines)} (why: statusline box height invariant)"
+                        f"[{case_id}] Expected 5 lines, got {len(lines)} (why: statusline box height invariant)"
                     )
                     continue
                 for i, line in enumerate(lines):
@@ -65,7 +65,7 @@ class TestStatuslineAsciiModePurity:
                 widths = {_T.visible_width(line) for line in lines}
                 if len(widths) != 1:
                     failures.append(
-                        f"[{case_id}] Non-uniform visible width across 4 lines: {widths} (why: uniform visible width invariant)"
+                        f"[{case_id}] Non-uniform visible width across 5 lines: {widths} (why: uniform visible width invariant)"
                     )
 
         if failures:
@@ -102,9 +102,9 @@ class TestStatuslineAsciiModePurity:
                 )
                 box = sl.render_line()
                 lines = box.splitlines()
-                if len(lines) != 4:
+                if len(lines) != 5:
                     failures.append(
-                        f"[{case_id}] Expected 4 lines in rendered statusline, got {len(lines)} (why: statusline box height invariant)"
+                        f"[{case_id}] Expected 5 lines in rendered statusline, got {len(lines)} (why: statusline box height invariant)"
                     )
                     continue
                 for i, line in enumerate(lines):
@@ -116,7 +116,7 @@ class TestStatuslineAsciiModePurity:
                 widths = {_T.visible_width(line) for line in lines}
                 if len(widths) != 1:
                     failures.append(
-                        f"[{case_id}] Expected uniform visible width across 4 statusline lines, got {widths} (why: uniform visible width invariant)"
+                        f"[{case_id}] Expected uniform visible width across 5 statusline lines, got {widths} (why: uniform visible width invariant)"
                     )
 
         if failures:

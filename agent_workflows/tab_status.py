@@ -7,7 +7,8 @@ glyph (and combines the failure badge ``🚨`` whenever at least one queue item 
     Executing an IPD        : ▶
     Validating an item      : ☑
     Graduating/planning     : ⇑
-    Reviewing any item      : ⌕
+    Reviewing any item      : 🆁
+    Integrating a lane      : ⇄
     Re-running / correction : ↻
     Asking a question       : ❓
     Paused / waiting        : ⏸
@@ -39,6 +40,7 @@ STATE_EXECUTING = "executing"
 STATE_VALIDATING = "validating"
 STATE_GRADUATING = "graduating"
 STATE_REVIEWING = "reviewing"
+STATE_INTEGRATING = "integrating"
 STATE_RERUNNING = "rerunning"
 STATE_ASKING = "asking"
 STATE_FINISHED = "finished"
@@ -51,7 +53,8 @@ STATE_GLYPHS: dict[str, str] = {
     STATE_EXECUTING: "▶",
     STATE_VALIDATING: "☑",
     STATE_GRADUATING: "⇑",
-    STATE_REVIEWING: "⌕",
+    STATE_REVIEWING: "🆁",
+    STATE_INTEGRATING: "⇄",
     STATE_RERUNNING: "↻",
     STATE_ASKING: "❓",
     STATE_FINISHED: "⏹",
@@ -59,7 +62,12 @@ STATE_GLYPHS: dict[str, str] = {
     STATE_PAUSED: "⏸",
 }
 
-ALL_RUNNER_GLYPHS: frozenset[str] = frozenset(STATE_GLYPHS.values()) | {FAILURE_BADGE}
+# Retired glyphs still recognized by strip_runner_glyphs / `aw reset-title`.
+_LEGACY_RUNNER_GLYPHS: frozenset[str] = frozenset({"⌕"})
+
+ALL_RUNNER_GLYPHS: frozenset[str] = (
+    frozenset(STATE_GLYPHS.values()) | {FAILURE_BADGE} | _LEGACY_RUNNER_GLYPHS
+)
 
 TITLE_STYLE_SHORT = "short"
 TITLE_STYLE_MEDIUM = "medium"

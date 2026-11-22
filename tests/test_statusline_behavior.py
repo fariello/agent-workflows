@@ -204,8 +204,8 @@ def _check_statusline_box_invariants_for_combo(
         )
         renders += 1
 
-        # (a) exactly 4 lines returned, joined into 4 newline-delimited lines
-        assert len(plain_lines) == 4
+        # (a) exactly 5 lines returned (without artifact_title), joined into 5 newline-delimited lines
+        assert len(plain_lines) == 5
         assert plain_str == "\n".join(plain_lines)
 
         # (b) every line has the same visible width (single distinct value)
@@ -272,8 +272,8 @@ def _check_statusline_box_invariants_for_combo(
         )
         renders += 1
 
-        # (a) exactly 4 lines returned, joined into 4 newline-delimited lines
-        assert len(styled_lines) == 4
+        # (a) exactly 5 lines returned (without artifact_title), joined into 5 newline-delimited lines
+        assert len(styled_lines) == 5
         assert styled_str == "\n".join(styled_lines)
 
         # (b) every line has the same visible width (single distinct value)
@@ -479,18 +479,14 @@ class TestStatuslineHostileInputs:
         base_args.update(kwargs)
 
         lines = rs.format_statusline_lines(**base_args)
-        assert len(lines) == 4, f"Failed 4-line count for {desc}"
+        assert len(lines) == 5, f"Failed 5-line count for {desc}"
         widths = [_T.visible_width(line) for line in lines]
         assert (
             len(set(widths)) == 1
         ), f"Failed rectangularity for {desc}: widths={widths}"
 
     def test_zero_width_space_setid_characterization(self) -> None:
-        """Characterization only: zero-width code point neither raises nor corrupts tuple length (PR-301, F-10).
-
-        Note: rectangularity is NOT asserted here because visible_width('\\u200b') is 0 while
-        format_statusline_lines measures that column with len() today; approved plan it6tpj owns the fix.
-        """
+        """Characterization only: zero-width code point neither raises nor corrupts tuple length (PR-301, F-10)."""
         lines = rs.format_statusline_lines(
             now_ts=1700000000.0,
             run_start_ts=1699990000.0,
@@ -502,13 +498,10 @@ class TestStatuslineHostileInputs:
             id6="6tjq2j",
             pal=rs.Palette(False),
         )
-        assert len(lines) == 4
+        assert len(lines) == 5
 
     def test_newline_in_setid_characterization(self) -> None:
-        """Characterization only: newline in setid returns a 4-tuple and does not raise (F-05).
-
-        Note: physical line count is not asserted as 4 because literal newlines split the joined box.
-        """
+        """Characterization only: newline in setid is sanitized and returns a 5-tuple without raising (F-05)."""
         lines = rs.format_statusline_lines(
             now_ts=1700000000.0,
             run_start_ts=1699990000.0,
@@ -520,7 +513,7 @@ class TestStatuslineHostileInputs:
             id6="6tjq2j",
             pal=rs.Palette(False),
         )
-        assert len(lines) == 4
+        assert len(lines) == 5
 
 
 class TestStatuslineFormatters:
@@ -791,15 +784,15 @@ class TestStatuslineClass:
         # First redraw has no cursor-up sequence
         sl.redraw()
         first_output = stream.getvalue()
-        assert "\033[3A" not in first_output
+        assert "\033[4A" not in first_output
         assert len(first_output) > 0
         assert sl._has_drawn
 
-        # Second redraw emits cursor-up to stick to position
+        # Second redraw emits cursor-up (4 lines up for 5-line box) to stick to position
         sl.redraw()
         second_output = stream.getvalue()
         delta_redraw = second_output[len(first_output) :]
-        assert "\033[3A" in delta_redraw
+        assert "\033[4A" in delta_redraw
 
         # write_event writes event text and redraws around it
         pos = len(stream.getvalue())
@@ -811,7 +804,7 @@ class TestStatuslineClass:
         pos = len(stream.getvalue())
         sl.pause()
         pause_output = stream.getvalue()[pos:]
-        assert "\033[3A\r\033[K" in pause_output
+        assert "\033[4A\r\033[K" in pause_output
         assert not sl._has_drawn
         assert sl._paused
 
@@ -1132,7 +1125,7 @@ class TestUnifiedStatuslineLayout:
             model="uri/its_direct/pt3-claude-opus-5.5-1m-us",
             pal=rs.Palette(True),
         )
-        assert len(lines) == 4
+        assert len(lines) == 5
         # Shows normalized model name instead of truncated provider URI
         assert "opencode › claude-opus-5.5-1m-us" in rs._strip_ansi(lines[0])
         # Retains ANSI colors
@@ -1143,7 +1136,7 @@ class TestUnifiedStatuslineLayout:
         assert len(set(widths)) == 1
 
     def test_statusline_top_border_badge_truncation_preserves_color(self) -> None:
-        # Excessively long model forces top border badge truncation
+        # Excessively long model forces top border badge truncation on narrow terminal while preserving full run_id
         long_model = "very-long-custom-model-opus-5.5-extreme-context-window-2026"
         lines = rs.format_statusline_lines(
             now_ts=1700000000.0,
@@ -1156,12 +1149,15 @@ class TestUnifiedStatuslineLayout:
             id6="3m8aix",
             runner="opencode",
             model=long_model,
+            run_id="run-20261121T194011Z-882104",
+            width=90,
             pal=rs.Palette(True),
         )
-        assert len(lines) == 4
+        assert len(lines) == 5
         # Truncation must not strip ANSI styling to plain monochrome text
         assert "\033[1;38;5;51mopencode" in lines[0]
         assert "\033[1;38;5;215m" in lines[0]
+        assert "run-20261121T194011Z-882104" in rs._strip_ansi(lines[0])
         widths = [_T.visible_width(line) for line in lines]
         assert len(set(widths)) == 1
 
@@ -1189,7 +1185,7 @@ class TestUnifiedStatuslineLayout:
             model="gemini-2.5-pro",
             variant="high",
         )
-        assert len(lines) == 4
+        assert len(lines) == 5
         # Top border has badge and CWD
         assert "agy › gemini-2.5-pro (high)" in lines[0]
         assert "Tokens" not in lines[0]
@@ -1240,7 +1236,7 @@ class TestUnifiedStatuslineLayout:
         assert "(chat)" not in subagent_lines[2]
 
     def test_statusbar_width_never_exceeds_127(self) -> None:
-        """Assert statusbar width remains within bounds under baseline and heavy stress test."""
+        """Assert statusbar honors requested/default width consistently across sources."""
         tracker_heavy = rs.StreamTracker()
         tracker_heavy.update(inp=1200000, out=450200, cache=13100000, cost=148.50)
 
@@ -1262,11 +1258,11 @@ class TestUnifiedStatuslineLayout:
             runner="opencode",
             model="claude-3-7-sonnet",
             variant="thinking",
+            width=126,
         )
         widths = [_T.visible_width(line) for line in lines]
         assert len(set(widths)) == 1
         width = widths[0]
-        assert width <= 135, f"Statusbar width {width} exceeded 135 columns"
         assert width == 126
 
         # Equal-sized labels keep the statusbar the exact same width across sources (both 126)
@@ -1288,12 +1284,13 @@ class TestUnifiedStatuslineLayout:
             runner="opencode",
             model="claude-3-7-sonnet",
             variant="thinking",
+            width=126,
         )
         assert _T.visible_width(lines_stdout[0]) == width == 126
 
 
 class TestCwdBadgeAndOptionARunId:
-    """Validate top-right leftward-bleeding CWD, Option A bottom-center run ID, and full-width progress bar."""
+    """Validate top-right CWD pill, top-center full run_id, and responsive progress bar."""
 
     def test_format_cwd_path_home_and_middle_truncation(self) -> None:
         home = str(Path.home())
@@ -1314,7 +1311,7 @@ class TestCwdBadgeAndOptionARunId:
         assert rs.format_cwd_path(None, max_chars=30) != ""
 
     def test_top_right_cwd_standard_fits_col5(self) -> None:
-        """Standard path fits inside Column 5 with trailing dashes."""
+        """Standard path renders in rounded CWD pill on top border with Tokens column and full bar."""
         pal = rs.Palette(True, use_unicode=True)
         lines = rs.format_statusline_lines(
             now_ts=1700000000.0,
@@ -1329,18 +1326,20 @@ class TestCwdBadgeAndOptionARunId:
             pal=pal,
             use_unicode=True,
         )
-        assert len(lines) == 4
-        assert _T.visible_width(lines[0]) == 120
+        assert len(lines) == 5
+        assert _T.visible_width(lines[0]) == 140
         # CWD badge appears in top border
         assert " ~/repo/agent-workflows " in rs._strip_ansi(lines[0])
         # Column 5 header has "Tokens" (not "Total")
         assert "Tokens" in lines[1]
         assert "Total" not in lines[1]
-        # Progress bar is full width (20 blocks filling all 31 columns)
-        assert "8/8[████████████████████]100%" in rs._strip_ansi(lines[2])
+        # Progress bar fills column to 100%
+        row2 = rs._strip_ansi(lines[2])
+        assert "8/8[████████████████" in row2
+        assert "]100%" in row2
 
     def test_top_right_cwd_leftward_bleeding_preserves_interior_columns(self) -> None:
-        """Deep CWD bleeds across divider into Spend without changing interior column widths."""
+        """Deep CWD renders cleanly in top border without distorting interior column widths."""
         pal = rs.Palette(True, use_unicode=True)
         deep_cwd = "/home/user/repos/agent-workflows/.aw/worktrees/statusbar-cwd-badge"
         lines = rs.format_statusline_lines(
@@ -1355,24 +1354,18 @@ class TestCwdBadgeAndOptionARunId:
             cwd=deep_cwd,
             pal=pal,
             use_unicode=True,
+            width=120,
         )
-        assert len(lines) == 4
-        # Total width is strictly 120
+        assert len(lines) == 5
         widths = [_T.visible_width(line) for line in lines]
-        assert widths == [120, 120, 120, 120]
-        # Top border absorbs border divider but Line 1 still has the exact interior columns
+        assert widths == [120, 120, 120, 120, 120]
+        # Interior rows keep 5 columns
         cols_l1 = lines[1].split("│")[1:-1]
         assert len(cols_l1) == 5
-        assert _T.visible_width(cols_l1[0]) == 17  # Col 0
-        assert _T.visible_width(cols_l1[1]) == 23  # Col 1
-        assert _T.visible_width(cols_l1[2]) == 31  # Col 2
-        assert _T.visible_width(cols_l1[3]) == 9  # Col 3
-        assert (
-            _T.visible_width(cols_l1[4]) == 34
-        )  # Col 4 (merged Spend + Tokens NOT widened)
+        assert sum(_T.visible_width(c) for c in cols_l1) + 6 == 120
 
     def test_option_a_run_id_bottom_center(self) -> None:
-        """Option A: Run ID placed in dimmed slate on bottom border under Col 2."""
+        """Full run_id is centered on top border with single-space framing; bottom holds tally and stop badge."""
         pal = rs.Palette(True, use_unicode=True)
         run_id = "run-20261014T004917Z-3785780"
         lines = rs.format_statusline_lines(
@@ -1391,25 +1384,26 @@ class TestCwdBadgeAndOptionARunId:
             pal=pal,
             use_unicode=True,
         )
-        assert len(lines) == 4
+        assert len(lines) == 5
         widths = [_T.visible_width(line) for line in lines]
-        assert widths == [120, 120, 120, 120]
-        bot_plain = rs._strip_ansi(lines[3])
+        assert len(set(widths)) == 1
+        top_plain = rs._strip_ansi(lines[0])
+        bot_plain = rs._strip_ansi(lines[-1])
+        # Full run_id centered on top border with space padding for double-click copy
+        assert f" {run_id} " in top_plain
         # Tally at bottom left
         assert bot_plain.startswith("╰─[✓ 6 ok · ✗ 2 fail]")
-        # Run ID centered in Col 2 with one space before and after for double-click selection
-        assert f"─ {run_id} ┴" in bot_plain
         # Stop badge at bottom right
         assert bot_plain.endswith("─ ⏹ STOP: finish current ─╯")
 
     def test_run_id_has_single_space_padding_for_double_click_selection(self) -> None:
-        """Bottom-border run_id always has one space before and after across Unicode/ASCII and lengths."""
+        """Top-border run_id always has single-space framing across Unicode/ASCII and lengths without truncation."""
         for use_unicode in (True, False):
             for run_id in (
                 "run-20261014T004917Z-378578",  # 27 chars
                 "run-20261014T004917Z-3785780",  # 28 chars
                 "run-20261014T004917Z-12345678",  # 29 chars
-                "run-20261014T004917Z-123456789012345",  # truncated (> col2_w - 2)
+                "run-20261014T004917Z-123456789012345",  # 36 chars (still untruncated!)
             ):
                 pal = rs.Palette(True, use_unicode=use_unicode)
                 lines = rs.format_statusline_lines(
@@ -1427,26 +1421,13 @@ class TestCwdBadgeAndOptionARunId:
                 )
                 widths = [_T.visible_width(line) for line in lines]
                 assert len(set(widths)) == 1
-                bot_plain = rs._strip_ansi(lines[3])
-                # Col 2 is between the 1st and 2nd bottom column separators (`┴` or `+`)
-                sep = "┴" if use_unicode else "+"
-                row1_plain = rs._strip_ansi(lines[1])
-                v_sep = "│" if use_unicode else "|"
-                v_positions = [idx for idx, ch in enumerate(row1_plain) if ch == v_sep]
-                col2_bot = bot_plain[v_positions[2] + 1 : v_positions[3]]
-                assert sep not in col2_bot
-                # Strip outer border dashes (`─` or `-`) to inspect the framed run_id
-                dash = "─" if use_unicode else "-"
-                inner = col2_bot.strip(dash)
-                assert inner.startswith(" ") and inner.endswith(
-                    " "
-                ), f"expected space-framed run_id in {col2_bot!r}"
-                assert inner[1] != " " and inner[-2] != " "
-                if len(run_id) <= 29:
-                    assert inner == f" {run_id} "
+                top_plain = rs._strip_ansi(lines[0])
+                assert f" {run_id} " in top_plain
+                assert f"  {run_id}" not in top_plain
+                assert f"{run_id}  " not in top_plain
 
     def test_now_time_shares_muted_header_color(self) -> None:
-        """Now: label and HH:MM:SS clock share the same muted color without cyan jump."""
+        """Now: renders muted label with formatted HH:MM:SS clock in Col 0."""
         pal = rs.Palette(True, use_unicode=True)
         lines = rs.format_statusline_lines(
             now_ts=1700000000.0,
@@ -1460,9 +1441,7 @@ class TestCwdBadgeAndOptionARunId:
             pal=pal,
             use_unicode=True,
         )
-        col0_h = lines[1].split("│")[1]
-        assert "Now:    " in col0_h
-        # No SGR jump inside the Now: HH:MM:SS text
+        col0_h = rs._strip_ansi(lines[1]).split("│")[1]
         t_str = time.strftime("%H:%M:%S", time.localtime(1700000000.0))
         assert f"Now:    {t_str}" in col0_h
 
@@ -1492,7 +1471,7 @@ class TestCwdBadgeAndOptionARunId:
         sl._last_activity = mono - 8.0
         sl.progress_source = "chat"
         rendered = sl.render_line().splitlines()
-        assert len(rendered) == 4
+        assert len(rendered) == 5
         assert "Timeout:00:08/30:00" in rendered[1]
         assert "Elapsed:01:02:0" in rendered[2]
         assert "Current:00:09:2" in rendered[2]

@@ -172,9 +172,9 @@ class TestStatuslineStopTallyRendering:
                             items_failed=f_arg,
                         )
 
-                        if len(lines) != 4:
+                        if len(lines) != 5:
                             failures.append(
-                                f"[{case_id}] Expected 4 lines, got {len(lines)} (why: statusline box height invariant)"
+                                f"[{case_id}] Expected 5 lines, got {len(lines)} (why: statusline box height invariant)"
                             )
                             continue
 
@@ -220,7 +220,7 @@ class TestStatuslineStopTallyRendering:
             items_passed=3,
             items_failed=1,
         )
-        bot = lines[3]
+        bot = lines[-1]
         assert "[✓ 3 ok · ✗ 1 fail]" in bot
         assert " ⏹ STOP: finish current " in bot
 

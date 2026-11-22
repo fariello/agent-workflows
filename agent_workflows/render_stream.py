@@ -32,6 +32,7 @@ import datetime as dt
 import json
 import os
 import re
+import shutil
 import signal
 import sys
 import threading
@@ -42,6 +43,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, TextIO
 
+from agent_workflows import agy_quota as _agy_quota
 from agent_workflows import lifecycle_style as _LS
 from agent_workflows import opencode_cli as _opencode_cli
 
@@ -50,6 +52,7 @@ from agent_workflows import opencode_cli as _opencode_cli
 # module-level first-party imports are exactly {selectors, status_set}, and neither
 # transitive closure reaches render_stream, runner_shared, or either driver (F-08).
 from agent_workflows import run_selection_policy
+from agent_workflows import statusline_layout as _statusline_layout
 from agent_workflows import term as _T
 
 # ANSI SGR codes. Kept local because they are the EVENT/severity palette (see the module
@@ -1793,474 +1796,85 @@ def format_statusline_lines(
     run_id: str | None = None,
     parked_questions: int | None = None,
     stall_timeout: float | None = None,
-) -> tuple[str, str, str, str]:
-    """Format the 4-line boxed runner statusline (top border, header line, value line, bottom border):
+    *,
+    width: int | None = None,
+    artifact_title: str | None = None,
+    eta_seconds: float | None = None,
+    avg_item_seconds: float | None = None,
+    avg_step_seconds: float | None = None,
+    validation_errors: int = 0,
+    retries: int = 0,
+    fix_its: int = 0,
+    attempt_no: int = 1,
+    retry_budget: int = 2,
+    step_tokens: int | None = None,
+    agy_quota: _agy_quota.AgyQuotaSnapshot | None = None,
+) -> tuple[str, ...]:
+    """Format the responsive boxed runner statusline (5 lines, or 7 with artifact_title).
 
-    ╭─ agy › Gemini 4 Argon (High) ───────────┬───────────────────────────────┬─────────┬──────────── ~/repo/agent-workflows ─╮
-    │Now:    22:20:11 │ Timeout:00:08/30:00   │ set: iosmvn       id6: cntxsm │ Execute │ Spend Tokens     In  Out  Cache  │
-    │Elapsed:01:30:41 │ Current:00:09:28 chat │ 8/8[████████████████████]100% │   IPD   │ $0.00  29.3m   1.4m 197k  27.7m  │
-    ╰─[✓ 6 ok · ✗ 2 fail]─────────────────────┴─run-20261014T004917Z-3785780──┴─────────┴────────── ⏹ STOP: finish current ─╯
+    Expands and contracts cleanly to ``width`` (defaulting to 140 columns when omitted),
+    keeping the full ``run_id`` centered on the top border (truncating model and CWD first),
+    optional full-width artifact description row inside the box, 3 metric rows (timers/ETA,
+    timeout/pace, set/id6 + progress + val-err/retry/fix, action/kind/attempt, and spend/tokens
+    or model-filtered ``agy`` quota with burnout warnings), and bottom tally + questions/stop pills.
     """
     tier = _effective_color_depth(pal is not None and pal.enabled, pal=pal)
-    color_enabled = tier != _T.DEPTH_NONE
-    t_str = time.strftime("%H:%M:%S", time.localtime(now_ts))
-
-    # Col 0: Now & Elapsed (script invocation elapsed)
-    run_elapsed = max(0, int(now_ts - run_start_ts))
-    run_el_str = format_digital_duration(run_elapsed)
-
-    h0_plain = f"Now:    {t_str} "
-    v0_plain = f"Elapsed:{run_el_str} "
-    col0_w = max(17, _T.visible_width(h0_plain), _T.visible_width(v0_plain))
-    pad_h0 = max(0, col0_w - _T.visible_width(h0_plain))
-    pad_v0 = max(0, col0_w - _T.visible_width(v0_plain))
-    h0 = f"{h0_plain}{' ' * pad_h0}"
-    v0 = f"{v0_plain}{' ' * pad_v0}"
-
-    # Col 1: Timeout (idle/limit) & Current step elapsed + progress source
-    idle = max(0, int(now_ts - last_act_ts))
-    idle_str = format_mmss_duration(idle)
-
-    if stall_remaining is not None:
-        limit_secs = (
-            float(stall_timeout)
-            if (stall_timeout is not None and stall_timeout > 0)
-            else (idle + float(stall_remaining))
-        )
-        t_disp_str = f"{idle_str}/{format_mmss_duration(limit_secs)}"
-    else:
-        t_disp_str = "--:--"
-
-    step_elapsed = max(0, int(now_ts - item_start_ts))
-    step_el_str = format_digital_duration(step_elapsed)
-
-    hdr1_plain = f" Timeout:{t_disp_str} "
-    src_tag = format_progress_source_tag(progress_source)
-    val1_right_plain = f"Current:{step_el_str} {src_tag}"
-
-    col1_w = max(
-        23,
-        _T.visible_width(hdr1_plain),
-        _T.visible_width(f" {val1_right_plain} "),
+    return _statusline_layout.render_option2_statusline_lines(
+        now_ts=now_ts,
+        run_start_ts=run_start_ts,
+        item_start_ts=item_start_ts,
+        last_act_ts=last_act_ts,
+        current_idx=current_idx,
+        total_items=total_items,
+        setid=setid,
+        id6=id6,
+        tracker=tracker,
+        stall_remaining=stall_remaining,
+        progress_source=progress_source,
+        action=action,
+        artifact_kind=artifact_kind,
+        use_unicode=use_unicode,
+        activity=activity,
+        runner=runner,
+        model=model,
+        variant=variant,
+        divider_style=divider_style,
+        stop_level=stop_level,
+        items_passed=items_passed,
+        items_failed=items_failed,
+        cwd=cwd,
+        run_id=run_id,
+        parked_questions=parked_questions,
+        stall_timeout=stall_timeout,
+        width=width,
+        artifact_title=artifact_title,
+        eta_seconds=eta_seconds,
+        avg_item_seconds=avg_item_seconds,
+        avg_step_seconds=avg_step_seconds,
+        validation_errors=validation_errors,
+        retries=retries,
+        fix_its=fix_its,
+        attempt_no=attempt_no,
+        retry_budget=retry_budget,
+        step_tokens=step_tokens,
+        agy_quota=agy_quota,
+        tier=tier,
+        sgr256=_sgr256,
+        sgr_bg256=_sgr_bg256,
+        sgr_dark_fg=_sgr_dark_fg,
+        format_digital_duration=format_digital_duration,
+        format_mmss_duration=format_mmss_duration,
+        format_progress_source_tag=format_progress_source_tag,
+        format_action_label=format_action_label,
+        format_artifact_kind_label=format_artifact_kind_label,
+        format_activity_cell=format_activity_cell,
+        format_compact_tokens=format_compact_tokens,
+        format_cwd_path=format_cwd_path,
+        make_badge=make_badge,
+        format_stop_badge=format_stop_badge,
+        format_tally_badge=format_tally_badge,
+        pal=pal,
     )
-    pad_h1 = max(0, col1_w - _T.visible_width(hdr1_plain))
-    pad_v1 = max(0, col1_w - _T.visible_width(f" {val1_right_plain}"))
-    h1 = f"{hdr1_plain}{' ' * pad_h1}"
-    v1 = f" {val1_right_plain}{' ' * pad_v1}"
-
-    # Col 2: Set & Progress Bar (without redundant internal spaces)
-    hdr2_left = f" set: {setid}"
-    hdr2_right = f"id6: {id6} "
-    pct = int(round((current_idx / total_items) * 100)) if total_items > 0 else 0
-    pct_str = f"{pct}%"
-
-    prefix = f" {current_idx}/{total_items}["
-    suffix = f"]{pct_str} "
-    min_w = _T.visible_width(prefix) + _T.visible_width(suffix) + 10
-
-    if setid and id6:
-        col2_w = max(
-            31,
-            _T.visible_width(hdr2_left) + _T.visible_width(hdr2_right) + 1,
-            min_w,
-        )
-        h2 = f"{hdr2_left}{' ' * max(0, col2_w - _T.visible_width(hdr2_left) - _T.visible_width(hdr2_right))}{hdr2_right}"
-    elif setid:
-        col2_w = max(31, _T.visible_width(setid) + 8, min_w)
-        h2 = f" set: {setid} " + (
-            " " * max(0, col2_w - _T.visible_width(f" set: {setid} "))
-        )
-    elif id6:
-        col2_w = max(31, _T.visible_width(id6) + 8, min_w)
-        h2 = f" id6: {id6} " + (
-            " " * max(0, col2_w - _T.visible_width(f" id6: {id6} "))
-        )
-    else:
-        col2_w = max(31, min_w)
-        h2 = " -" + (" " * max(0, col2_w - _T.visible_width(" -")))
-
-    pct_clamped = max(0, min(100, pct))
-    bar_w = max(1, col2_w - _T.visible_width(prefix) - _T.visible_width(suffix))
-    filled_len = int(round((pct_clamped / 100.0) * bar_w))
-    empty_len = max(0, bar_w - filled_len)
-    if use_unicode:
-        bar_plain = ("█" * filled_len) + (" " * empty_len)
-    else:
-        bar_plain = ("=" * filled_len) + (" " * empty_len)
-    val2 = f"{prefix}{bar_plain}{suffix}"
-    pad_v2 = max(0, col2_w - _T.visible_width(val2))
-    v2 = f"{val2}{' ' * pad_v2}"
-
-    # Col 3: Action / Artifact Kind (plus live ACTIVITY when signalled)
-    act_str = format_action_label(action)
-    art_str = format_artifact_kind_label(artifact_kind)
-    activity_cell, activity_w = format_activity_cell(activity, pal)
-    if activity_cell:
-        col3_w = max(9, activity_w + 2, _T.visible_width(art_str) + 2)
-        pad3 = max(0, col3_w - activity_w)
-        left3 = pad3 // 2
-        right3 = pad3 - left3
-        plain_activity = _strip_ansi(activity_cell)
-        h3 = (" " * left3) + plain_activity + (" " * right3)
-    else:
-        col3_w = max(9, _T.visible_width(act_str) + 2, _T.visible_width(art_str) + 2)
-        h3 = _pad_to(act_str, col3_w, align="center", use_unicode=use_unicode)
-        left3, right3 = 0, 0
-    v3 = _pad_to(art_str, col3_w, align="center", use_unicode=use_unicode)
-
-    # Col 4: Unified Spend + Tokens (Spend, Tokens, In, Out, Cache - no vertical divider)
-    cost = tracker.cost if tracker is not None else 0.0
-    cost_str = f"${cost:.2f}"
-    w_spend = max(7, _T.visible_width(cost_str) + 2)
-
-    tot_tok = (
-        (tracker.input_tokens + tracker.output_tokens + tracker.cache_tokens)
-        if tracker is not None
-        else 0
-    )
-    tot_str = format_compact_tokens(tot_tok)
-    in_tok = tracker.input_tokens if tracker is not None else 0
-    in_str = format_compact_tokens(in_tok)
-    out_tok = tracker.output_tokens if tracker is not None else 0
-    out_str = format_compact_tokens(out_tok)
-    cache_tok = tracker.cache_tokens if tracker is not None else 0
-    cache_str = format_compact_tokens(cache_tok)
-
-    w_tot = max(6, _T.visible_width(tot_str) + 1)
-    w_in = max(5, _T.visible_width(in_str) + 1)
-    w_out = max(5, _T.visible_width(out_str) + 1)
-    w_cache = max(9, _T.visible_width(cache_str) + 2)
-
-    col45_w = w_spend + w_tot + w_in + w_out + w_cache
-    if col45_w < 34:
-        w_cache += 34 - col45_w
-        col45_w = 34
-
-    # Bottom-Right Stop Badge visible width check (expand col45_w if badge exceeds col45_w - 2):
-    colored_stop, plain_stop = format_stop_badge(
-        stop_level, use_unicode=use_unicode, color=color_enabled, depth=tier
-    )
-    s_vis = _T.visible_width(plain_stop)
-    if s_vis > 0:
-        needed_stop_w = s_vis + 2
-        if col45_w < needed_stop_w:
-            w_cache += needed_stop_w - col45_w
-            col45_w = needed_stop_w
-
-    has_questions = parked_questions is not None and parked_questions >= 1
-    if has_questions:
-        n_q = parked_questions
-        q_noun = "question" if n_q == 1 else "questions"
-        sep_q = " · " if use_unicode else " - "
-        q_prefix = f"? {n_q} {q_noun}{sep_q}"
-        vis_prefix = _T.visible_width(q_prefix)
-        r_str = str(run_id) if run_id else ""
-        full_hint = f"aw runs answer {r_str}".strip() if r_str else "aw runs answer"
-        min_hint = "aw runs answer"
-        full_badge_text = f"{q_prefix}{full_hint}"
-        vis_full = _T.visible_width(full_badge_text)
-
-        if s_vis > 0:
-            min_span3 = vis_prefix + len(min_hint) + 2
-            ideal_span3 = vis_full + 2
-            target_span3 = max(min_span3, min(ideal_span3, 65))
-            if col3_w < target_span3:
-                col3_w = target_span3
-                if activity_cell:
-                    pad3 = max(0, col3_w - activity_w)
-                    left3 = pad3 // 2
-                    right3 = pad3 - left3
-                    plain_activity = _strip_ansi(activity_cell)
-                    h3 = (" " * left3) + plain_activity + (" " * right3)
-                else:
-                    h3 = _pad_to(
-                        act_str, col3_w, align="center", use_unicode=use_unicode
-                    )
-                v3 = _pad_to(art_str, col3_w, align="center", use_unicode=use_unicode)
-        else:
-            min_col45 = vis_prefix + len(min_hint) + 2
-            ideal_col45 = vis_full + 2
-            target_col45 = max(min_col45, min(ideal_col45, 65))
-            if col45_w < target_col45:
-                diff = target_col45 - col45_w
-                w_cache += diff
-                col45_w = target_col45
-
-    h_spend = _pad_to(" Spend", w_spend, align="left", use_unicode=use_unicode)
-    h_tot = _pad_to("Tokens", w_tot, align="right", use_unicode=use_unicode)
-    h_in = _pad_to("In", w_in, align="right", use_unicode=use_unicode)
-    h_out = _pad_to("Out", w_out, align="right", use_unicode=use_unicode)
-    h_cache = _pad_to("Cache", w_cache, align="center", use_unicode=use_unicode)
-
-    v_spend = _pad_to(cost_str + " ", w_spend, align="right", use_unicode=use_unicode)
-    v_tot = _pad_to(tot_str, w_tot, align="right", use_unicode=use_unicode)
-    v_in = _pad_to(in_str, w_in, align="right", use_unicode=use_unicode)
-    v_out = _pad_to(out_str, w_out, align="right", use_unicode=use_unicode)
-    v_cache = _pad_to(cache_str + " ", w_cache, align="right", use_unicode=use_unicode)
-
-    h45 = f"{h_spend}{h_tot}{h_in}{h_out}{h_cache}"
-    v45_tokens = f"{v_tot}{v_in}{v_out}{v_cache}"
-    v45 = f"{v_spend}{v45_tokens}"
-
-    hdrs = [h0, h1, h2, h3, h45]
-    vals = [v0, v1, v2, v3, v45]
-
-    if use_unicode:
-        c_tl, c_tm, c_tr = "╭", "┬", "╮"
-        c_bl, c_bm, c_br = "╰", "┴", "╯"
-        c_v, c_h = "│", "─"
-    else:
-        c_tl, c_tm, c_tr = "+", "+", "+"
-        c_bl, c_bm, c_br = "+", "+", "+"
-        c_v, c_h = "|", "-"
-
-    bdr_color = _sgr256(67, depth=tier) if color_enabled else ""
-    reset = _ANSI_RESET if color_enabled else ""
-
-    # -------------------------------------------------------------------------
-    # TOP BORDER:
-    # -------------------------------------------------------------------------
-    span01 = col0_w + 1 + col1_w
-    if model:
-        colored_badge, plain_badge = make_badge(
-            runner=runner,
-            model=model,
-            variant=variant,
-            divider_style=divider_style,
-            use_unicode=use_unicode,
-            color=color_enabled,
-            depth=tier,
-        )
-        b_vis = _T.visible_width(plain_badge)
-        if b_vis > span01 - 2:
-            plain_badge = _T.truncate_visible(plain_badge, span01 - 2)
-            colored_badge = _T.truncate_visible(colored_badge, span01 - 2)
-            b_vis = _T.visible_width(plain_badge)
-        rem_top01 = max(0, span01 - 1 - b_vis)
-        top_seg01_plain = f"{c_h}{plain_badge}{c_h * rem_top01}"
-        top_seg01_color = f"{c_h}{colored_badge}{bdr_color}{c_h * rem_top01}"
-    else:
-        top_seg01_plain = f"{c_h * col0_w}{c_tm}{c_h * col1_w}"
-        top_seg01_color = f"{c_h * col0_w}{bdr_color}{c_tm}{c_h * col1_w}"
-
-    top_seg2_plain = c_h * col2_w
-    top_seg2_color = c_h * col2_w
-
-    # CWD Tab (Top-Right): anchored on right, growing to the left across Spend & Execute
-    display_cwd = format_cwd_path(cwd, max_chars=30)
-    if display_cwd:
-        if use_unicode:
-            plain_cwd = f" {display_cwd} "
-            if color_enabled:
-                bg_frame = _sgr_bg256(67, depth=tier)
-                fg_frame = _sgr256(67, depth=tier)
-                fg_dark = _sgr_dark_fg(depth=tier)
-                badge_cwd_color = f"{fg_frame}{bg_frame}{fg_dark} {display_cwd} {reset}{fg_frame}{bdr_color}"
-            else:
-                badge_cwd_color = plain_cwd
-        else:
-            plain_cwd = f"[{display_cwd}]"
-            badge_cwd_color = plain_cwd
-    else:
-        plain_cwd = ""
-        badge_cwd_color = ""
-
-    vis_cwd = _T.visible_width(plain_cwd)
-    base_chars = [c_h] * col3_w + [c_tm] + [c_h] * col45_w
-    if vis_cwd > 0:
-        end_idx = len(base_chars) - 1
-        start_idx = max(0, end_idx - vis_cwd)
-        seg_before = "".join(base_chars[:start_idx])
-        top_seg_right_plain = f"{seg_before}{plain_cwd}{c_h}"
-        top_seg_right_color = f"{seg_before}{badge_cwd_color}{c_h}"
-    else:
-        top_seg_right_plain = "".join(base_chars)
-        top_seg_right_color = top_seg_right_plain
-
-    top_border_plain = f"{c_tl}{top_seg01_plain}{c_tm}{top_seg2_plain}{c_tm}{top_seg_right_plain}{c_tr}"
-    top_border_color = (
-        f"{bdr_color}{c_tl}{top_seg01_color}{bdr_color}{c_tm}"
-        f"{bdr_color}{top_seg2_color}{bdr_color}{c_tm}"
-        f"{bdr_color}{top_seg_right_color}{bdr_color}{c_tr}{reset}"
-    )
-
-    # -------------------------------------------------------------------------
-    # BOTTOM BORDER:
-    # -------------------------------------------------------------------------
-    # Bottom-Left Tally:
-    if items_passed is not None or items_failed is not None:
-        p_num = items_passed or 0
-        f_num = items_failed or 0
-        colored_tally, plain_tally = format_tally_badge(
-            p_num, f_num, use_unicode=use_unicode, color=color_enabled, depth=tier
-        )
-        vis_tally = _T.visible_width(plain_tally)
-        rem_bot01 = max(0, span01 - 1 - vis_tally)
-        bot_seg01_plain = f"{c_h}{plain_tally}{c_h * rem_bot01}"
-        bot_seg01_color = f"{c_h}{colored_tally}{bdr_color}{c_h * rem_bot01}"
-    else:
-        bot_seg01_plain = f"{c_h * col0_w}{c_bm}{c_h * col1_w}"
-        bot_seg01_color = f"{c_h * col0_w}{bdr_color}{c_bm}{c_h * col1_w}"
-
-    # Bottom-Center Run ID (Option A): wrap with one space on each side so double-clicking selects it.
-    if run_id:
-        r_str = str(run_id)
-        max_run_w = max(1, col2_w - 2)
-        if _T.visible_width(r_str) > max_run_w:
-            display_run = _T.truncate_visible(r_str, max_run_w)
-        else:
-            display_run = r_str
-        vis_run = _T.visible_width(display_run) + 2
-        pad_run = max(0, col2_w - vis_run)
-        pad_run_l = min(1, pad_run)
-        pad_run_r = max(0, pad_run - pad_run_l)
-        c_dim_run = _sgr256(244, depth=tier) if color_enabled else ""
-        bot_seg2_plain = f"{c_h * pad_run_l} {display_run} {c_h * pad_run_r}"
-        bot_seg2_color = (
-            f"{c_h * pad_run_l} {c_dim_run}{display_run}{bdr_color} {c_h * pad_run_r}"
-        )
-    else:
-        bot_seg2_plain = c_h * col2_w
-        bot_seg2_color = c_h * col2_w
-
-    bot_seg3_plain = c_h * col3_w
-    bot_seg3_color = c_h * col3_w
-
-    if has_questions:
-        c_q = _sgr256(214, bold=True, depth=tier) if color_enabled else ""
-        if s_vis > 0:
-            max_avail = col3_w - 2 if col3_w >= 4 else col3_w
-            if vis_full <= max_avail:
-                badge_text = full_badge_text
-            else:
-                avail_hint = max_avail - vis_prefix
-                avail_hint = max(avail_hint, len(min_hint))
-                truncated_hint = _T.truncate_visible(full_hint, avail_hint)
-                badge_text = f"{q_prefix}{truncated_hint}"
-
-            vis_q = _T.visible_width(badge_text)
-            rem_q = col3_w - vis_q
-            pad_q_r = 1 if rem_q >= 2 else (1 if rem_q == 1 else 0)
-            pad_q_l = max(0, rem_q - pad_q_r)
-
-            colored_q = f"{c_q}{badge_text}{bdr_color}" if color_enabled else badge_text
-            bot_seg3_plain = f"{c_h * pad_q_l}{badge_text}{c_h * pad_q_r}"
-            bot_seg3_color = f"{c_h * pad_q_l}{colored_q}{c_h * pad_q_r}"
-
-            rem_stop = col45_w - s_vis
-            pad_stop_r = 1
-            pad_stop_l = max(0, rem_stop - pad_stop_r)
-            bot_seg45_plain = f"{c_h * pad_stop_l}{plain_stop}{c_h * pad_stop_r}"
-            bot_seg45_color = (
-                f"{c_h * pad_stop_l}{colored_stop}{bdr_color}{c_h * pad_stop_r}"
-            )
-        else:
-            max_avail = col45_w - 2 if col45_w >= 4 else col45_w
-            if vis_full <= max_avail:
-                badge_text = full_badge_text
-            else:
-                avail_hint = max_avail - vis_prefix
-                avail_hint = max(avail_hint, len(min_hint))
-                truncated_hint = _T.truncate_visible(full_hint, avail_hint)
-                badge_text = f"{q_prefix}{truncated_hint}"
-
-            vis_q = _T.visible_width(badge_text)
-            rem_q = col45_w - vis_q
-            pad_q_r = 1 if rem_q >= 2 else (1 if rem_q == 1 else 0)
-            pad_q_l = max(0, rem_q - pad_q_r)
-
-            colored_q = f"{c_q}{badge_text}{bdr_color}" if color_enabled else badge_text
-            bot_seg45_plain = f"{c_h * pad_q_l}{badge_text}{c_h * pad_q_r}"
-            bot_seg45_color = f"{c_h * pad_q_l}{colored_q}{c_h * pad_q_r}"
-    else:
-        if s_vis > 0:
-            rem_stop = col45_w - s_vis
-            pad_stop_r = 1
-            pad_stop_l = max(0, rem_stop - pad_stop_r)
-            bot_seg45_plain = f"{c_h * pad_stop_l}{plain_stop}{c_h * pad_stop_r}"
-            bot_seg45_color = (
-                f"{c_h * pad_stop_l}{colored_stop}{bdr_color}{c_h * pad_stop_r}"
-            )
-        else:
-            bot_seg45_plain = c_h * col45_w
-            bot_seg45_color = c_h * col45_w
-
-    bot_border_plain = (
-        f"{c_bl}{bot_seg01_plain}{c_bm}"
-        f"{bot_seg2_plain}{c_bm}"
-        f"{bot_seg3_plain}{c_bm}"
-        f"{bot_seg45_plain}{c_br}"
-    )
-    bot_border_color = (
-        f"{bdr_color}{c_bl}{bot_seg01_color}{bdr_color}{c_bm}"
-        f"{bdr_color}{bot_seg2_color}{bdr_color}{c_bm}"
-        f"{bdr_color}{bot_seg3_color}{bdr_color}{c_bm}"
-        f"{bdr_color}{bot_seg45_color}{bdr_color}{c_br}{reset}"
-    )
-
-    div_plain = c_v
-    l1_plain = div_plain + div_plain.join(hdrs) + div_plain
-    l2_plain = div_plain + div_plain.join(vals) + div_plain
-
-    if not color_enabled:
-        return top_border_plain, l1_plain, l2_plain, bot_border_plain
-
-    # Colorized 256-color palette styling:
-    b_blue = _sgr256(117, bold=True, depth=tier)  # soft bold sky light blue
-    b_clock = _sgr256(123, bold=True, depth=tier)  # pale bright cyan
-    b_bar = _sgr256(78, bold=True, depth=tier)  # light emerald green
-    b_target = _sgr256(229, bold=True, depth=tier)  # soft cream/yellow
-    b_cost = _sgr256(114, bold=True, depth=tier)  # light green
-    b_warn = _sgr256(208, bold=True, depth=tier)  # warm amber/orange for countdown
-    b_crit = "\033[1;31m"  # red for urgent timeout
-    c_variant_color = _sgr256(183, bold=True, depth=tier)  # soft lavender
-    c_data = _sgr256(153, depth=tier)  # soft light slate for tokens
-    dim_hdr = _sgr256(110, depth=tier)  # soft muted slate blue for headers
-
-    c_h0 = f"{dim_hdr}Now:    {t_str}{reset} {' ' * pad_h0}"
-    c_v0 = f"{dim_hdr}Elapsed:{b_blue}{run_el_str}{reset} {' ' * pad_v0}"
-
-    if stall_remaining is not None:
-        t_color = (
-            b_crit
-            if stall_remaining < 60
-            else (b_warn if stall_remaining < 300 else b_clock)
-        )
-        c_h1 = f" {dim_hdr}Timeout:{t_color}{t_disp_str}{reset} {' ' * pad_h1}"
-    else:
-        c_h1 = f" {dim_hdr}Timeout:{dim_hdr}--:--{reset} {' ' * pad_h1}"
-
-    val1_right_colored = f"{dim_hdr}Current:{b_blue}{step_el_str}{reset} {c_variant_color}{src_tag}{reset}"
-    c_v1 = f" {val1_right_colored}{' ' * pad_v1}"
-
-    c_h2 = f"{b_target}{h2}"
-    if use_unicode:
-        bar_colored = f"{b_bar}{'█' * filled_len}{reset}{' ' * empty_len}"
-    else:
-        bar_colored = f"{b_bar}{'=' * filled_len}{reset}{' ' * empty_len}"
-    c_v2 = f" {b_blue}{current_idx}/{total_items}{reset}[{bar_colored}]{b_target}{pct_str}{reset} {' ' * pad_v2}"
-
-    if activity_cell:
-        c_h3 = (" " * left3) + activity_cell + (" " * right3)
-    else:
-        c_h3 = f"{dim_hdr}{h3}"
-    c_v3 = f"{b_target}{v3}"
-
-    c_h45 = f"{dim_hdr}{h45}{reset}"
-    c_v45 = f"{b_cost}{v_spend}{c_data}{v45_tokens}{reset}"
-
-    c_hdrs = [c_h0, c_h1, c_h2, c_h3, c_h45]
-    c_vals = [c_v0, c_v1, c_v2, c_v3, c_v45]
-
-    div_color = f"{bdr_color}{c_v}{reset}"
-    l1_color = (
-        f"{bdr_color}{c_v}{reset}" + div_color.join(c_hdrs) + f"{bdr_color}{c_v}{reset}"
-    )
-    l2_color = (
-        f"{bdr_color}{c_v}{reset}" + div_color.join(c_vals) + f"{bdr_color}{c_v}{reset}"
-    )
-
-    return top_border_color, l1_color, l2_color, bot_border_color
 
 
 def format_statusline(
@@ -2291,8 +1905,21 @@ def format_statusline(
     run_id: str | None = None,
     parked_questions: int | None = None,
     stall_timeout: float | None = None,
+    *,
+    width: int | None = None,
+    artifact_title: str | None = None,
+    eta_seconds: float | None = None,
+    avg_item_seconds: float | None = None,
+    avg_step_seconds: float | None = None,
+    validation_errors: int = 0,
+    retries: int = 0,
+    fix_its: int = 0,
+    attempt_no: int = 1,
+    retry_budget: int = 2,
+    step_tokens: int | None = None,
+    agy_quota: _agy_quota.AgyQuotaSnapshot | None = None,
 ) -> str:
-    """Format the 4-line unified runner statusline box as a newline-delimited string."""
+    """Format the responsive unified runner statusline box as a newline-delimited string."""
     item_ts = start_ts if item_start_ts is None else item_start_ts
     lines = format_statusline_lines(
         now_ts=now_ts,
@@ -2322,6 +1949,18 @@ def format_statusline(
         run_id=run_id,
         parked_questions=parked_questions,
         stall_timeout=stall_timeout,
+        width=width,
+        artifact_title=artifact_title,
+        eta_seconds=eta_seconds,
+        avg_item_seconds=avg_item_seconds,
+        avg_step_seconds=avg_step_seconds,
+        validation_errors=validation_errors,
+        retries=retries,
+        fix_its=fix_its,
+        attempt_no=attempt_no,
+        retry_budget=retry_budget,
+        step_tokens=step_tokens,
+        agy_quota=agy_quota,
     )
     return "\n".join(lines)
 
@@ -2400,8 +2039,38 @@ class _StatuslineStreamProxy:
         return getattr(self._orig_stream, name)
 
 
+def _live_terminal_width(stream: TextIO | None) -> int | None:
+    """Return live terminal column width for a real TTY stream, else None."""
+    if stream is None or not (getattr(stream, "isatty", None) and stream.isatty()):
+        return None
+    try:
+        fd = stream.fileno()
+    except Exception:
+        env_cols = os.environ.get("COLUMNS", "").strip()
+        if env_cols.isdigit() and int(env_cols) > 0:
+            return int(env_cols)
+        return None
+    try:
+        cols = os.get_terminal_size(fd).columns
+        return cols if cols > 0 else None
+    except OSError:
+        try:
+            cols = shutil.get_terminal_size(
+                (_statusline_layout.DEFAULT_STATUSLINE_WIDTH, 24)
+            ).columns
+            return cols if cols > 0 else None
+        except Exception:
+            return None
+
+
+def _tracker_total_tokens(tracker: StreamTracker | None) -> int | None:
+    if tracker is None:
+        return None
+    return int(tracker.input_tokens + tracker.output_tokens + tracker.cache_tokens)
+
+
 class Statusline:
-    """A live sticky 4-line boxed statusline pinned to the bottom of the terminal during execution."""
+    """A live sticky boxed statusline pinned to the bottom of the terminal during execution."""
 
     def __init__(
         self,
@@ -2433,6 +2102,8 @@ class Statusline:
         stall_timeout: float | None = None,
         redirect_stdio: bool = False,
         item: Mapping[str, Any] | None = None,
+        artifact_title: str | None = None,
+        width: int | None = None,
     ) -> None:
         self.pal = pal
         self.use_unicode = use_unicode if use_unicode is not None else pal.use_unicode
@@ -2469,6 +2140,11 @@ class Statusline:
         self._stall_timeout = stall_timeout
         self._redirect_stdio = bool(redirect_stdio)
         self._item = item
+        self.width = width
+        self.artifact_title = self._resolve_initial_title(
+            artifact_title, item, state, id6, cwd
+        )
+        self._step_start_tokens = _tracker_total_tokens(tracker)
         self._turn_activity_override = False
         self._saved_stdio: tuple[TextIO, TextIO] | None = None
         self._stdio_proxies: (
@@ -2486,7 +2162,37 @@ class Statusline:
         self._lock = threading.RLock()
         self._is_tty = bool(getattr(stream, "isatty", None) and stream.isatty())
         self._has_drawn = False
+        self._drawn_lines = 0
         self._paused = False
+
+    @staticmethod
+    def _resolve_initial_title(
+        explicit_title: str | None,
+        item: Mapping[str, Any] | None,
+        state: Mapping[str, Any] | None,
+        id6: str,
+        cwd: str | Path | None,
+    ) -> str | None:
+        if explicit_title is not None:
+            return explicit_title
+        repo = (state.get("repo") if isinstance(state, Mapping) else None) or cwd
+        if item is not None:
+            resolved = _statusline_layout.resolve_artifact_title(item, repo=repo)
+            return resolved or None
+        if id6 and isinstance(state, Mapping):
+            queue = state.get("queue")
+            if isinstance(queue, list):
+                for entry in queue:
+                    if (
+                        isinstance(entry, Mapping)
+                        and str(entry.get("id6") or "") == id6
+                    ):
+                        resolved = _statusline_layout.resolve_artifact_title(
+                            entry, repo=repo
+                        )
+                        if resolved:
+                            return resolved
+        return None
 
     def touch(self, source: str | None = None) -> None:
         with self._lock:
@@ -2545,11 +2251,13 @@ class Statusline:
         activity: str | None = None,
         model: str | None = None,
         variant: str | None = None,
+        artifact_title: str | None = None,
     ) -> None:
         with self._lock:
             self.current_idx = current_idx
             self.total_items = total_items
             self._item_start_mono = time.monotonic()
+            self._step_start_tokens = _tracker_total_tokens(self.tracker)
             if setid:
                 self.setid = setid
             if id6:
@@ -2564,6 +2272,8 @@ class Statusline:
                 self.model = model
             if variant is not None:
                 self.variant = variant
+            if artifact_title is not None:
+                self.artifact_title = artifact_title
 
     def attach_turn(
         self,
@@ -2605,7 +2315,7 @@ class Statusline:
             self._last_activity = time.monotonic()
             self.redraw()
 
-    def _render_lines_unlocked(self) -> tuple[str, str, str, str]:
+    def _render_lines_unlocked(self) -> tuple[str, ...]:
         now_wall = time.time()
         cur_mono = time.monotonic()
         run_wall = now_wall - (cur_mono - self._run_start_mono)
@@ -2663,6 +2373,29 @@ class Statusline:
         else:
             eff_activity = self.activity
 
+        telemetry = _statusline_layout.compute_queue_telemetry(
+            self.state,
+            current_item=self._item,
+            now_ts=now_wall,
+            run_start_ts=run_wall,
+        )
+
+        cur_tot = _tracker_total_tokens(self.tracker)
+        if cur_tot is not None and self._step_start_tokens is not None:
+            step_tokens: int | None = max(0, cur_tot - self._step_start_tokens)
+        else:
+            step_tokens = None
+
+        agy_quota = (
+            _agy_quota.load_agy_quota_snapshot()
+            if str(self.runner or "").strip().lower() in ("agy", "antigravity")
+            else None
+        )
+
+        eff_width = (
+            self.width if self.width is not None else _live_terminal_width(self.stream)
+        )
+
         return format_statusline_lines(
             now_ts=now_wall,
             run_start_ts=run_wall,
@@ -2691,12 +2424,23 @@ class Statusline:
             run_id=run_id,
             parked_questions=parked_questions,
             stall_timeout=self.stall_limit(),
+            width=eff_width,
+            artifact_title=self.artifact_title,
+            eta_seconds=telemetry["eta_seconds"],
+            avg_item_seconds=telemetry["avg_item_seconds"],
+            avg_step_seconds=telemetry["avg_step_seconds"],
+            validation_errors=telemetry["validation_errors"],
+            retries=telemetry["retries"],
+            fix_its=telemetry["fix_its"],
+            attempt_no=telemetry["attempt_no"],
+            retry_budget=telemetry["retry_budget"],
+            step_tokens=step_tokens,
+            agy_quota=agy_quota,
         )
 
     def render_line(self) -> str:
         with self._lock:
-            top, l1, l2, bot = self._render_lines_unlocked()
-            return f"{top}\n{l1}\n{l2}\n{bot}"
+            return "\n".join(self._render_lines_unlocked())
 
     def redraw(self) -> None:
         if not self._is_tty or self._paused:
@@ -2704,17 +2448,24 @@ class Statusline:
         with self._lock:
             if self._paused:
                 return
-            top, l1, l2, bot = self._render_lines_unlocked()
-            if self._has_drawn:
-                self.stream.write(
-                    f"{_CURSOR_HIDE}\033[3A\r\033[K{top}\n\r\033[K{l1}\n\r\033[K{l2}\n\r\033[K{bot}"
-                )
+            lines = self._render_lines_unlocked()
+            new_n = len(lines)
+            body = "\n".join(f"\r\033[K{line}" for line in lines)
+            if self._has_drawn and self._drawn_lines > 0:
+                prev_n = self._drawn_lines
+                up = f"\033[{prev_n - 1}A" if prev_n > 1 else ""
+                if prev_n > new_n:
+                    extra = prev_n - new_n
+                    clear_tail = "".join("\n\r\033[K" for _ in range(extra))
+                    back_up = f"\033[{extra}A"
+                    self.stream.write(f"{_CURSOR_HIDE}{up}{body}{clear_tail}{back_up}")
+                else:
+                    self.stream.write(f"{_CURSOR_HIDE}{up}{body}")
             else:
-                self.stream.write(
-                    f"{_CURSOR_HIDE}\r\033[K{top}\n\r\033[K{l1}\n\r\033[K{l2}\n\r\033[K{bot}"
-                )
+                self.stream.write(f"{_CURSOR_HIDE}{body}")
             self.stream.flush()
             self._has_drawn = True
+            self._drawn_lines = new_n
 
     def pause(self) -> None:
         """Temporarily pause redrawing and clear the active statusline."""
@@ -2735,21 +2486,28 @@ class Statusline:
         with self._lock:
             if not self._is_tty or not self._has_drawn:
                 return
-            self.stream.write(
-                f"\033[3A\r\033[K\n\r\033[K\n\r\033[K\n\r\033[K\033[3A\r{_CURSOR_SHOW}"
-            )
+            prev_n = max(1, self._drawn_lines)
+            up = f"\033[{prev_n - 1}A" if prev_n > 1 else ""
+            wipe = "\n".join("\r\033[K" for _ in range(prev_n))
+            self.stream.write(f"{up}{wipe}{up}\r{_CURSOR_SHOW}")
             self.stream.flush()
             self._has_drawn = False
+            self._drawn_lines = 0
 
     def write_event(self, rendered_text: str) -> None:
-        """Write a log event line above the live 4-line boxed statusline."""
+        """Write a log event line above the live boxed statusline."""
         with self._lock:
             if self._is_tty and self._has_drawn:
-                top, l1, l2, bot = self._render_lines_unlocked()
+                prev_n = max(1, self._drawn_lines)
+                lines = self._render_lines_unlocked()
+                up = f"\033[{prev_n - 1}A" if prev_n > 1 else ""
+                wipe = "\n".join("\r\033[K" for _ in range(prev_n))
+                body = "\n".join(lines)
                 self.stream.write(
-                    f"\033[3A\r\033[K\n\r\033[K\n\r\033[K\n\r\033[K\033[3A\r{rendered_text}\n{_CURSOR_HIDE}{top}\n{l1}\n{l2}\n{bot}"
+                    f"{up}{wipe}{up}\r{rendered_text}\n{_CURSOR_HIDE}{body}"
                 )
                 self.stream.flush()
+                self._drawn_lines = len(lines)
             else:
                 self.stream.write(f"{rendered_text}\n")
                 self.stream.flush()
@@ -2819,8 +2577,9 @@ def print_final_statusline(
     variant: str | None = None,
     divider_style: str = "chevron",
     stream: TextIO | None = None,
+    width: int | None = None,
 ) -> None:
-    """Print the final 4-line statusline box as the closing runner output."""
+    """Print the final boxed statusline as the closing runner output."""
     if state is not None and isinstance(state, dict):
         if state.get("_final_statusline_printed"):
             return
@@ -2869,6 +2628,7 @@ def print_final_statusline(
     setid = ""
     id6 = ""
     action = None
+    last_item: Mapping[str, Any] | None = None
     if state:
         setid = state.get("setid") or ""
         id6 = state.get("id6") or ""
@@ -2886,6 +2646,8 @@ def print_final_statusline(
                     if isinstance(it, Mapping) and it.get("action"):
                         action = it["action"]
                         break
+            if len(queue) == 1 and isinstance(queue[0], Mapping):
+                last_item = queue[0]
 
     options = state.get("options") if state else {}
     if not model and options:
@@ -2928,7 +2690,25 @@ def print_final_statusline(
         except Exception:
             parked_questions = None
 
-    top, l1, l2, bot = format_statusline_lines(
+    telemetry = _statusline_layout.compute_queue_telemetry(
+        state,
+        current_item=last_item,
+        now_ts=now_wall,
+        run_start_ts=run_start_ts,
+    )
+    agy_quota = (
+        _agy_quota.load_agy_quota_snapshot()
+        if str(runner or "").strip().lower() in ("agy", "antigravity")
+        else None
+    )
+    artifact_title = (
+        _statusline_layout.resolve_artifact_title(last_item, repo=cwd) or None
+        if last_item is not None
+        else None
+    )
+    eff_width = width if width is not None else _live_terminal_width(stream)
+
+    lines = format_statusline_lines(
         now_ts=now_wall,
         run_start_ts=run_start_ts,
         item_start_ts=now_wall,
@@ -2955,9 +2735,20 @@ def print_final_statusline(
         cwd=cwd,
         run_id=run_id,
         parked_questions=parked_questions,
+        width=eff_width,
+        artifact_title=artifact_title,
+        eta_seconds=telemetry["eta_seconds"],
+        avg_item_seconds=telemetry["avg_item_seconds"],
+        avg_step_seconds=telemetry["avg_step_seconds"],
+        validation_errors=telemetry["validation_errors"],
+        retries=telemetry["retries"],
+        fix_its=telemetry["fix_its"],
+        attempt_no=telemetry["attempt_no"],
+        retry_budget=telemetry["retry_budget"],
+        agy_quota=agy_quota,
     )
 
-    stream.write(f"{top}\n{l1}\n{l2}\n{bot}\n")
+    stream.write("\n".join(lines) + "\n")
     if getattr(stream, "isatty", None) and stream.isatty():
         stream.write(_CURSOR_SHOW)
     stream.flush()
@@ -3011,6 +2802,12 @@ def item_statusline(
     if run_start_mono is None:
         run_start_mono = time.monotonic()
     active_tty_clean = is_tty and output_mode == "clean"
+    artifact_title = (
+        _statusline_layout.resolve_artifact_title(
+            item, repo=state.get("repo") or state.get("cwd")
+        )
+        or None
+    )
     sl = Statusline(
         pal=pal,
         stream=out_stream,
@@ -3031,6 +2828,7 @@ def item_statusline(
         state=state,
         redirect_stdio=active_tty_clean,
         item=item,
+        artifact_title=artifact_title,
     )
     with sl:
         yield sl

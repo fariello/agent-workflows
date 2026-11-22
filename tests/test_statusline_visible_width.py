@@ -69,7 +69,7 @@ _CELL_CASES = [
 
 
 def test_statusline_box_is_rectangular() -> None:
-    """The 4-line statusline box must have exactly one visible width across all 32 cell/style/unicode combinations."""
+    """The 5-line statusline box (no artifact_title) must have one visible width across all 32 cell/style/unicode combinations."""
     failures = []
     for case_name, case_kwargs in _CELL_CASES:
         for styled in [False, True]:
@@ -83,9 +83,9 @@ def test_statusline_box_is_rectangular() -> None:
                     "use_unicode": use_unicode,
                 }
                 lines = render_stream.format_statusline_lines(**kwargs)
-                if len(lines) != 4:
+                if len(lines) != 5:
                     failures.append(
-                        f"[{case_id}] Expected 4 lines, got {len(lines)} (why: statusline box height invariant)"
+                        f"[{case_id}] Expected 5 lines, got {len(lines)} (why: statusline box height invariant)"
                     )
                     continue
 
@@ -111,7 +111,7 @@ def test_activity_case_is_live() -> None:
         _cell, w = render_stream.format_activity_cell(act, pal)
         assert w > 0, f"Expected non-zero visible width for stage {act!r}, got {w}"
 
-    # Verify that activity presence alters the box width compared to no activity
+    # Verify that activity presence renders the live activity cell in Col 3 while keeping box width fixed
     no_act_kwargs = {
         **_BASE_KWARGS,
         "setid": "s\u26a0\ufe0e1",
@@ -123,11 +123,12 @@ def test_activity_case_is_live() -> None:
     no_act_lines = render_stream.format_statusline_lines(**no_act_kwargs)
     act_lines = render_stream.format_statusline_lines(**act_kwargs)
 
-    no_act_w = _T.visible_width(no_act_lines[0])
-    act_w = _T.visible_width(act_lines[0])
-    assert (
-        act_w != no_act_w
-    ), f"Activity box width ({act_w}) should differ from no-activity box width ({no_act_w})"
+    act_cell, _ = render_stream.format_activity_cell("abandoned", pal)
+    act_plain = render_stream._strip_ansi(act_cell)
+    assert _T.visible_width(act_lines[0]) == _T.visible_width(no_act_lines[0])
+    assert act_lines[1] != no_act_lines[1]
+    assert act_plain in act_lines[1]
+    assert act_plain not in no_act_lines[1]
 
 
 def test_ascii_input_byte_identity_invariant() -> None:
