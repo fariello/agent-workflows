@@ -54,15 +54,15 @@ Every top-level verb is a thin, well-documented front door over the existing cor
 ### OQ-01: How should verb-first runner commands (`aw review`, `aw exec`, `aw plan`) pick the execution host (`agy` vs `oc`)?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Context: Today the host is positional (`aw agy run ...` vs `aw oc run ...`). Top-level verbs (`aw rev`, `aw exec`, `aw grad`) omit the host from the command prefix.
+- Context: `agent_workflows/runner_profiles.py` already stores `default_runner` (`agy` or `oc`), named runner profiles (host, model, variant), per-runner default profiles, and role mappings (consumed by `aw run ipd` and `aw run as <profile>`). Top-level verbs (`aw rev`, `aw exec`, `aw grad`) omit the host prefix and need a resolution rule for host, profile, and per-action/per-state defaults.
 - Options:
   1. **Read a configured default host (from repo/user config or `AW_HOST` env var), with `--host agy|oc` (or `--as <profile>`) to override per call, and refuse cleanly with a clear hint if no default host is configured (recommended).**
   2. **Infer the host automatically from the current environment or installed binaries (`agy` on PATH vs `opencode` on PATH), with `--host` override.** Convenient on single-host machines, but unpredictable when both `agy` and `oc` are installed.
   3. **Require `--as <profile>` or `--host <host>` whenever the verb dispatches an AI runner.** Explicit, but re-adds boilerplate to every command.
 - Recommendation: Option 1 (configured default host + `AW_HOST` + `--host` / `--as` override).
-- Resolution or deferral rationale:
+- Resolution or deferral rationale: RESOLVED 2026-11-22 by the user via /askme: Reuse `runner_profiles.py` (`default_runner`, named profiles, `--host` / `--as` / `AW_HOST` overrides) with automatic fallback to PATH detection when `default_runner` is unset (if a single host binary is available), PLUS per-verb / per-state default profile configuration and command-line control (e.g., backlog graduations default to model A, IPD executions to model B, validations to model C). User rationale: wants per-verb/per-state config and CLI control across workflow stages and automatic PATH fallback when `default_runner` is unset.
 
 ### OQ-02: How should `aw show` distinguish named read-only views (`stale-reviews`, `decisions`, `board`, etc.) from artifact selectors (`id6`, Set ID, filename fragment, status)?
 
