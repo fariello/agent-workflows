@@ -15,6 +15,7 @@ from pathlib import Path
 
 from agent_workflows import plans_archive as A
 from agent_workflows import plans_index as I
+from tests.record_builder import RecordBuilder
 
 
 def _init_git(root: Path):
@@ -37,27 +38,35 @@ def _plan(
 ):
     d = root / ".agents" / "plans" / disposition
     d.mkdir(parents=True, exist_ok=True)
-    meta = []
-    if include_date:
-        date_line = (
-            f"- Date: {raw_date}" if raw_date is not None else f"- Date: {date_}"
+    when = (
+        f"{date_[:4]}-{date_[4:6]}-{date_[6:8]}"
+        if len(date_) == 8 and date_.isdigit()
+        else date_
+    )
+    raw_fields: dict[str, str | None] = {"Concern": "x.", "Scope": "x."}
+    if not include_date:
+        raw_fields["Date"] = None
+    elif raw_date is not None:
+        raw_fields["Date"] = raw_date
+    if not set_id:
+        raw_fields["Set"] = None
+        raw_fields["Order"] = None
+    text = str(
+        RecordBuilder().plan(
+            id6=plan_id,
+            kind="child",
+            title="x",
+            author="t",
+            when=when,
+            set=set_id or "demo",
+            order=int(order) if set_id and order is not None else 1,
+            status="executed",
+            body="## Goal\n\nx\n",
+            raw_fields=raw_fields,
+            text_only=True,
         )
-        meta.append(date_line)
-    meta.extend(
-        [
-            "- Kind: child",
-            "- Concern: x.",
-            "- Scope: x.",
-            "- Status: executed",
-            "- Author: t",
-            f"- Id: {plan_id}",
-        ]
     )
-    if set_id:
-        meta += [f"- Set: {set_id}", f"- Order: {order}"]
-    (d / name).write_text(
-        "# IPD: x\n\n" + "\n".join(meta) + "\n\n## Goal\n\nx\n", encoding="utf-8"
-    )
+    (d / name).write_text(text, encoding="utf-8")
     return d / name
 
 

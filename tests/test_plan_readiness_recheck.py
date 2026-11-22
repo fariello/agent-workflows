@@ -45,6 +45,7 @@ from pathlib import Path
 from agent_workflows import ipd_schema as S
 from agent_workflows import plan_readiness as pr
 from agent_workflows import review_findings as rf
+from tests.record_builder import RecordBuilder
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -79,17 +80,15 @@ def _oq(
     status: str = "open",
     finding: str | None = None,
 ) -> str:
-    lines = [
-        f"### {qid}: does the escalated finding still stop execution?",
-        "",
-        f"- Blocking: {blocking}",
-        f"- Status: {status}",
-        "- Owner: maintainer",
-    ]
-    if finding is not None:
-        lines.append(f"- Finding: {finding}")
-    lines.append("- Resolution or deferral rationale: recorded")
-    return "\n".join(lines) + "\n"
+    finding_line = f"- Finding: {finding}\n" if finding is not None else ""
+    return (
+        f"### {qid}: does the escalated finding still stop execution?\n\n"
+        f"- Blocking: {blocking}\n"
+        f"- Status: {status}\n"
+        "- Owner: maintainer\n"
+        f"{finding_line}"
+        "- Resolution or deferral rationale: recorded\n"
+    )
 
 
 def _plan(
@@ -103,39 +102,34 @@ def _plan(
     history: str | None = None,
     with_id: bool = True,
 ) -> Path:
-    p = (
-        repo
-        / ".aw"
-        / "records"
-        / "plans"
-        / lane
-        / f"20260910-rdy-01-{id6}-recheck-fixture.ipd.md"
-    )
-    meta = [
-        "- Date: 2026-09-10",
-        "- Kind: child",
-        "- Scope-Paths: x.py",
-        "- Item-Dependencies: none",
-        f"- Status: {status}",
-    ]
-    if readiness is not None:
-        meta.append(f"- Readiness: {readiness}")
-    meta.append("- Set: rdy")
-    meta.append("- Order: 1")
-    if with_id:
-        meta.append(f"- Id: {id6}")
+    raw_fields: dict[str, str | None] = {}
+    eff_readiness: str | None = readiness
+    if readiness is not None and readiness not in S.READINESS_VALUES:
+        eff_readiness = None
+        raw_fields["Readiness"] = readiness
+    if not with_id:
+        raw_fields["Id"] = None
     hist = history if history is not None else _review_history()
-    body = (
-        f"# IPD: recheck fixture {id6}\n\n"
-        + "\n".join(meta)
-        + "\n\n## Workflow history\n\n"
-        + hist
-        + "\n\n## Goal\ng\n"
+    path = RecordBuilder(repo).plan(
+        id6=id6,
+        kind="child",
+        title=f"recheck fixture {id6}",
+        when="2026-09-10",
+        set="rdy",
+        order=1,
+        slug="recheck-fixture",
+        disposition=lane,
+        status=status,
+        scope_paths="x.py",
+        item_dependencies="none",
+        readiness=eff_readiness,
+        history=[hist],
+        body="## Goal\n\ng\n",
+        open_questions=open_questions or None,
+        raw_fields=raw_fields or None,
     )
-    if open_questions:
-        body += f"\n## Open questions\n\n{open_questions}"
-    p.write_text(body, encoding="utf-8")
-    return p
+    assert isinstance(path, Path)
+    return path
 
 
 def _finding(
