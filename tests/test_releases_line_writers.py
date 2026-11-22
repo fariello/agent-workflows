@@ -31,8 +31,22 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import releases
-from tests.support import run_cli
 from tests.record_builder import RecordBuilder
+from tests.support import run_cli
+
+_MINIMAL_PLAN_CLEAR: dict[str, None] = {
+    "Kind": None,
+    "Concern": None,
+    "Scope": None,
+    "Scope-Paths": None,
+    "Item-Dependencies": None,
+    "Work-Kind": None,
+    "Priority": None,
+    "Set": None,
+    "Order": None,
+    "Highest E allocated": None,
+    "Author": None,
+}
 
 
 class TestSetBlocksReleaseLine(unittest.TestCase):
@@ -40,91 +54,200 @@ class TestSetBlocksReleaseLine(unittest.TestCase):
 
     def test_blocks_release_empty_value_replaced(self) -> None:
         """An empty-valued - Blocks-Release: line is replaced, resulting in exactly one line."""
-        text = (
-            "# Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Status: open\n"
-            "- Blocks-Release:\n"
-            "- Id: aaaaaa\n"
+        raw_text = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="aaaaaa",
+            status="draft",
+            body="",
+            history=[],
+            raw_fields={
+                **_MINIMAL_PLAN_CLEAR,
+                "Status": "open",
+                "Blocks-Release": "",
+            },
+            text_only=True,
         )
+        text = "\n".join(ln.rstrip(" ") for ln in raw_text.splitlines()) + "\n"
         result = releases.set_blocks_release_line(text, "next")
         self.assertEqual(result.count("- Blocks-Release:"), 1)
-        expected = (
-            "# Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Status: open\n"
-            "- Blocks-Release: next\n"
-            "- Id: aaaaaa\n"
+        expected = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="aaaaaa",
+            status="draft",
+            body="",
+            history=[],
+            raw_fields={
+                **_MINIMAL_PLAN_CLEAR,
+                "Status": "open",
+                "Blocks-Release": "next",
+            },
+            text_only=True,
         )
         self.assertEqual(result, expected)
 
     def test_blocks_release_whitespace_value_replaced(self) -> None:
         """A whitespace-only - Blocks-Release: line is replaced, resulting in exactly one line."""
-        text = (
-            "# Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Status: open\n"
-            "- Blocks-Release:   \n"
-            "- Id: aaaaaa\n"
+        text = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="aaaaaa",
+            status="draft",
+            body="",
+            history=[],
+            raw_fields={
+                **_MINIMAL_PLAN_CLEAR,
+                "Status": "open",
+                "Blocks-Release": "   ",
+            },
+            text_only=True,
         )
         result = releases.set_blocks_release_line(text, "next")
         self.assertEqual(result.count("- Blocks-Release:"), 1)
-        expected = (
-            "# Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Status: open\n"
-            "- Blocks-Release: next\n"
-            "- Id: aaaaaa\n"
+        expected = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="aaaaaa",
+            status="draft",
+            body="",
+            history=[],
+            raw_fields={
+                **_MINIMAL_PLAN_CLEAR,
+                "Status": "open",
+                "Blocks-Release": "next",
+            },
+            text_only=True,
         )
         self.assertEqual(result, expected)
 
     def test_blocks_release_normally_valued_replaced(self) -> None:
         """A normally-valued - Blocks-Release: line is replaced with the new value."""
-        text = (
-            "# Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Status: open\n"
-            "- Blocks-Release: old123\n"
-            "- Id: aaaaaa\n"
+        text = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="aaaaaa",
+            status="draft",
+            body="",
+            history=[],
+            raw_fields={
+                **_MINIMAL_PLAN_CLEAR,
+                "Status": "open",
+                "Blocks-Release": "old123",
+            },
+            text_only=True,
         )
         result = releases.set_blocks_release_line(text, "next")
         self.assertEqual(result.count("- Blocks-Release:"), 1)
-        expected = (
-            "# Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Status: open\n"
-            "- Blocks-Release: next\n"
-            "- Id: aaaaaa\n"
+        expected = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="aaaaaa",
+            status="draft",
+            body="",
+            history=[],
+            raw_fields={
+                **_MINIMAL_PLAN_CLEAR,
+                "Status": "open",
+                "Blocks-Release": "next",
+            },
+            text_only=True,
         )
         self.assertEqual(result, expected)
 
     def test_blocks_release_absent_inserted_after_status(self) -> None:
         """An absent line is inserted immediately after - Status:, preserving surrounding bullets."""
-        text = "# Plan\n\n" "- Date: 2026-09-30\n" "- Status: open\n" "- Id: aaaaaa\n"
+        text = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="aaaaaa",
+            status="draft",
+            body="",
+            history=[],
+            raw_fields={**_MINIMAL_PLAN_CLEAR, "Status": "open"},
+            text_only=True,
+        )
         result = releases.set_blocks_release_line(text, "next")
         self.assertEqual(result.count("- Blocks-Release:"), 1)
         self.assertIn("- Status: open\n- Blocks-Release: next\n- Id: aaaaaa\n", result)
 
     def test_blocks_release_fallback_after_id(self) -> None:
         """When - Status: is absent, insertion falls back to immediately after - Id:."""
-        text = "# Plan\n\n" "- Date: 2026-09-30\n" "- Id: aaaaaa\n" "- Scope: test\n"
+        text = RecordBuilder().spec(
+            title="Plan",
+            when="2026-09-30",
+            id6="aaaaaa",
+            status="draft",
+            history=[],
+            raw_fields={"Status": None, "Author": None, "Scope": "test"},
+            text_only=True,
+        )
         result = releases.set_blocks_release_line(text, "next")
         self.assertEqual(result.count("- Blocks-Release:"), 1)
         self.assertIn("- Id: aaaaaa\n- Blocks-Release: next\n- Scope: test\n", result)
 
     def test_blocks_release_idempotent(self) -> None:
         """Calling set_blocks_release_line twice with the same value is byte-identical."""
-        text = "# Plan\n\n" "- Date: 2026-09-30\n" "- Status: open\n" "- Id: aaaaaa\n"
+        text = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="aaaaaa",
+            status="draft",
+            body="",
+            history=[],
+            raw_fields={**_MINIMAL_PLAN_CLEAR, "Status": "open"},
+            text_only=True,
+        )
         first = releases.set_blocks_release_line(text, "next")
         second = releases.set_blocks_release_line(first, "next")
         self.assertEqual(first, second)
 
     def test_blocks_release_clear_dash_and_none(self) -> None:
         """'-' and None remove - Blocks-Release: and leave NO residue, even from empty-valued lines."""
+        raw_empty = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="aaaaaa",
+            status="draft",
+            body="",
+            history=[],
+            raw_fields={
+                **_MINIMAL_PLAN_CLEAR,
+                "Status": "open",
+                "Blocks-Release": "",
+            },
+            text_only=True,
+        )
         for initial in (
-            "- Date: 2026-09-30\n- Status: open\n- Blocks-Release: next\n- Id: aaaaaa\n",
-            "- Date: 2026-09-30\n- Status: open\n- Blocks-Release:\n- Id: aaaaaa\n",
-            "- Date: 2026-09-30\n- Status: open\n- Blocks-Release:   \n- Id: aaaaaa\n",
+            RecordBuilder().plan(
+                title="Plan",
+                when="2026-09-30",
+                id6="aaaaaa",
+                status="draft",
+                body="",
+                history=[],
+                raw_fields={
+                    **_MINIMAL_PLAN_CLEAR,
+                    "Status": "open",
+                    "Blocks-Release": "next",
+                },
+                text_only=True,
+            ),
+            "\n".join(ln.rstrip(" ") for ln in raw_empty.splitlines()) + "\n",
+            RecordBuilder().plan(
+                title="Plan",
+                when="2026-09-30",
+                id6="aaaaaa",
+                status="draft",
+                body="",
+                history=[],
+                raw_fields={
+                    **_MINIMAL_PLAN_CLEAR,
+                    "Status": "open",
+                    "Blocks-Release": "   ",
+                },
+                text_only=True,
+            ),
         ):
             cleared_dash = releases.set_blocks_release_line(initial, "-")
             self.assertEqual(cleared_dash.count("- Blocks-Release:"), 0)
@@ -136,22 +259,36 @@ class TestSetBlocksReleaseLine(unittest.TestCase):
 
     def test_blocks_release_repair_duplicate(self) -> None:
         """A text that already carries the duplicate corruption is healed to exactly one line."""
-        text = (
-            "# Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Status: open\n"
-            "- Blocks-Release:\n"
-            "- Blocks-Release: old123\n"
-            "- Id: aaaaaa\n"
+        raw_dup = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="aaaaaa",
+            status="draft",
+            body="",
+            history=[],
+            raw_fields={
+                **_MINIMAL_PLAN_CLEAR,
+                "Status": "open",
+                "Blocks-Release": "\n- Blocks-Release: old123",
+            },
+            text_only=True,
         )
+        text = "\n".join(ln.rstrip(" ") for ln in raw_dup.splitlines()) + "\n"
         result = releases.set_blocks_release_line(text, "next")
         self.assertEqual(result.count("- Blocks-Release:"), 1)
-        expected = (
-            "# Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Status: open\n"
-            "- Blocks-Release: next\n"
-            "- Id: aaaaaa\n"
+        expected = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="aaaaaa",
+            status="draft",
+            body="",
+            history=[],
+            raw_fields={
+                **_MINIMAL_PLAN_CLEAR,
+                "Status": "open",
+                "Blocks-Release": "next",
+            },
+            text_only=True,
         )
         self.assertEqual(result, expected)
 
@@ -161,68 +298,94 @@ class TestSetFromBacklogLine(unittest.TestCase):
 
     def test_from_backlog_empty_value_replaced(self) -> None:
         """An empty-valued - From-Backlog: line is replaced, resulting in exactly one line."""
-        text = (
-            "# Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Status: to-review\n"
-            "- From-Backlog:\n"
-            "- Id: abc123\n"
+        raw_text = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="abc123",
+            status="to-review",
+            body="",
+            history=[],
+            raw_fields={**_MINIMAL_PLAN_CLEAR, "From-Backlog": ""},
+            text_only=True,
         )
+        text = "\n".join(ln.rstrip(" ") for ln in raw_text.splitlines()) + "\n"
         result = releases.set_from_backlog_line(text, "zzz999")
         self.assertEqual(result.count("- From-Backlog:"), 1)
-        expected = (
-            "# Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Status: to-review\n"
-            "- From-Backlog: zzz999\n"
-            "- Id: abc123\n"
+        expected = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="abc123",
+            status="to-review",
+            body="",
+            history=[],
+            raw_fields={**_MINIMAL_PLAN_CLEAR, "From-Backlog": "zzz999"},
+            text_only=True,
         )
         self.assertEqual(result, expected)
 
     def test_from_backlog_whitespace_value_replaced(self) -> None:
         """A whitespace-only - From-Backlog: line is replaced, resulting in exactly one line."""
-        text = (
-            "# Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Status: to-review\n"
-            "- From-Backlog:   \n"
-            "- Id: abc123\n"
+        text = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="abc123",
+            status="to-review",
+            body="",
+            history=[],
+            raw_fields={**_MINIMAL_PLAN_CLEAR, "From-Backlog": "   "},
+            text_only=True,
         )
         result = releases.set_from_backlog_line(text, "zzz999")
         self.assertEqual(result.count("- From-Backlog:"), 1)
-        expected = (
-            "# Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Status: to-review\n"
-            "- From-Backlog: zzz999\n"
-            "- Id: abc123\n"
+        expected = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="abc123",
+            status="to-review",
+            body="",
+            history=[],
+            raw_fields={**_MINIMAL_PLAN_CLEAR, "From-Backlog": "zzz999"},
+            text_only=True,
         )
         self.assertEqual(result, expected)
 
     def test_from_backlog_normally_valued_replaced(self) -> None:
         """A normally-valued - From-Backlog: line is replaced with the new value."""
-        text = (
-            "# Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Status: to-review\n"
-            "- From-Backlog: old123\n"
-            "- Id: abc123\n"
+        text = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="abc123",
+            status="to-review",
+            body="",
+            history=[],
+            raw_fields={**_MINIMAL_PLAN_CLEAR, "From-Backlog": "old123"},
+            text_only=True,
         )
         result = releases.set_from_backlog_line(text, "zzz999")
         self.assertEqual(result.count("- From-Backlog:"), 1)
-        expected = (
-            "# Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Status: to-review\n"
-            "- From-Backlog: zzz999\n"
-            "- Id: abc123\n"
+        expected = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="abc123",
+            status="to-review",
+            body="",
+            history=[],
+            raw_fields={**_MINIMAL_PLAN_CLEAR, "From-Backlog": "zzz999"},
+            text_only=True,
         )
         self.assertEqual(result, expected)
 
     def test_from_backlog_absent_inserted_after_status(self) -> None:
         """An absent line is inserted immediately after - Status:, preserving surrounding bullets."""
-        text = (
-            "# Plan\n\n" "- Date: 2026-09-30\n" "- Status: to-review\n" "- Id: abc123\n"
+        text = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="abc123",
+            status="to-review",
+            body="",
+            history=[],
+            raw_fields=_MINIMAL_PLAN_CLEAR,
+            text_only=True,
         )
         result = releases.set_from_backlog_line(text, "zzz999")
         self.assertEqual(result.count("- From-Backlog:"), 1)
@@ -232,15 +395,30 @@ class TestSetFromBacklogLine(unittest.TestCase):
 
     def test_from_backlog_fallback_after_id(self) -> None:
         """When - Status: is absent, insertion falls back to immediately after - Id:."""
-        text = "# Plan\n\n" "- Date: 2026-09-30\n" "- Id: abc123\n" "- Scope: test\n"
+        text = RecordBuilder().spec(
+            title="Plan",
+            when="2026-09-30",
+            id6="abc123",
+            status="draft",
+            history=[],
+            raw_fields={"Status": None, "Author": None, "Scope": "test"},
+            text_only=True,
+        )
         result = releases.set_from_backlog_line(text, "zzz999")
         self.assertEqual(result.count("- From-Backlog:"), 1)
         self.assertIn("- Id: abc123\n- From-Backlog: zzz999\n- Scope: test\n", result)
 
     def test_from_backlog_idempotent(self) -> None:
         """Calling set_from_backlog_line twice with the same value is byte-identical."""
-        text = (
-            "# Plan\n\n" "- Date: 2026-09-30\n" "- Status: to-review\n" "- Id: abc123\n"
+        text = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="abc123",
+            status="to-review",
+            body="",
+            history=[],
+            raw_fields=_MINIMAL_PLAN_CLEAR,
+            text_only=True,
         )
         first = releases.set_from_backlog_line(text, "zzz999")
         second = releases.set_from_backlog_line(first, "zzz999")
@@ -248,10 +426,38 @@ class TestSetFromBacklogLine(unittest.TestCase):
 
     def test_from_backlog_clear_dash_and_none(self) -> None:
         """'-' and None remove - From-Backlog: and leave NO residue, even from empty-valued lines."""
+        raw_empty = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="abc123",
+            status="to-review",
+            body="",
+            history=[],
+            raw_fields={**_MINIMAL_PLAN_CLEAR, "From-Backlog": ""},
+            text_only=True,
+        )
         for initial in (
-            "- Date: 2026-09-30\n- Status: to-review\n- From-Backlog: zzz999\n- Id: abc123\n",
-            "- Date: 2026-09-30\n- Status: to-review\n- From-Backlog:\n- Id: abc123\n",
-            "- Date: 2026-09-30\n- Status: to-review\n- From-Backlog:   \n- Id: abc123\n",
+            RecordBuilder().plan(
+                title="Plan",
+                when="2026-09-30",
+                id6="abc123",
+                status="to-review",
+                body="",
+                history=[],
+                raw_fields={**_MINIMAL_PLAN_CLEAR, "From-Backlog": "zzz999"},
+                text_only=True,
+            ),
+            "\n".join(ln.rstrip(" ") for ln in raw_empty.splitlines()) + "\n",
+            RecordBuilder().plan(
+                title="Plan",
+                when="2026-09-30",
+                id6="abc123",
+                status="to-review",
+                body="",
+                history=[],
+                raw_fields={**_MINIMAL_PLAN_CLEAR, "From-Backlog": "   "},
+                text_only=True,
+            ),
         ):
             cleared_dash = releases.set_from_backlog_line(initial, "-")
             self.assertEqual(cleared_dash.count("- From-Backlog:"), 0)
@@ -263,22 +469,31 @@ class TestSetFromBacklogLine(unittest.TestCase):
 
     def test_from_backlog_repair_duplicate(self) -> None:
         """A text that already carries the duplicate corruption is healed to exactly one line."""
-        text = (
-            "# Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Status: to-review\n"
-            "- From-Backlog:\n"
-            "- From-Backlog: old123\n"
-            "- Id: abc123\n"
+        raw_dup = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="abc123",
+            status="to-review",
+            body="",
+            history=[],
+            raw_fields={
+                **_MINIMAL_PLAN_CLEAR,
+                "From-Backlog": "\n- From-Backlog: old123",
+            },
+            text_only=True,
         )
+        text = "\n".join(ln.rstrip(" ") for ln in raw_dup.splitlines()) + "\n"
         result = releases.set_from_backlog_line(text, "zzz999")
         self.assertEqual(result.count("- From-Backlog:"), 1)
-        expected = (
-            "# Plan\n\n"
-            "- Date: 2026-09-30\n"
-            "- Status: to-review\n"
-            "- From-Backlog: zzz999\n"
-            "- Id: abc123\n"
+        expected = RecordBuilder().plan(
+            title="Plan",
+            when="2026-09-30",
+            id6="abc123",
+            status="to-review",
+            body="",
+            history=[],
+            raw_fields={**_MINIMAL_PLAN_CLEAR, "From-Backlog": "zzz999"},
+            text_only=True,
         )
         self.assertEqual(result, expected)
 

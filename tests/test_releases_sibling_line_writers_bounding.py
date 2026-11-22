@@ -20,8 +20,8 @@ from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
 from agent_workflows import releases, selectors
-from tests.support import run_cli
 from tests.record_builder import RecordBuilder
+from tests.support import run_cli
 
 WriterTuple = Tuple[Callable[[str, Optional[str]], str], str, str, str]
 
@@ -41,31 +41,38 @@ WRITERS: List[WriterTuple] = [
 
 
 def _make_fixture(field: str, val: str) -> str:
-    return (
-        "# Plan Title\n\n"
-        "- Id: pln111\n"
-        "- Status: draft\n"
-        "- Scope-Paths: agent_workflows/releases.py\n"
-        f"- {field}: {val}\n"
-        "- Set: testset\n\n"
-        "## Description\n"
-        "Here is a quoted configuration bullet in the body:\n"
-        f"- {field}: {val}\n"
-        "Trailing body text.\n"
+    return RecordBuilder().plan(
+        title="Plan Title",
+        id6="pln111",
+        status="draft",
+        scope_paths="agent_workflows/releases.py",
+        set="testset",
+        body=(
+            "## Description\n"
+            "Here is a quoted configuration bullet in the body:\n"
+            f"- {field}: {val}\n"
+            "Trailing body text."
+        ),
+        raw_fields={field: val},
+        text_only=True,
     )
 
 
 def _make_fixture_no_field(field: str) -> str:
-    return (
-        "# Plan Title\n\n"
-        "- Id: pln111\n"
-        "- Status: draft\n"
-        "- Scope-Paths: agent_workflows/releases.py\n"
-        "- Set: testset\n\n"
-        "## Description\n"
-        "Here is a quoted configuration bullet in the body:\n"
-        f"- {field}: quote_val\n"
-        "Trailing body text.\n"
+    return RecordBuilder().plan(
+        title="Plan Title",
+        id6="pln111",
+        status="draft",
+        scope_paths="agent_workflows/releases.py",
+        set="testset",
+        body=(
+            "## Description\n"
+            "Here is a quoted configuration bullet in the body:\n"
+            f"- {field}: quote_val\n"
+            "Trailing body text."
+        ),
+        raw_fields={field: None},
+        text_only=True,
     )
 
 
@@ -151,15 +158,19 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
         """
         # Part 1: set_item_dependencies_line preferred anchor is - Scope-Paths:, fallback is - Status:
         # Region has - Status: and - Id:, but NO - Scope-Paths:. Body quotes - Scope-Paths:.
-        text_deps = (
-            "# Plan Title\n\n"
-            "- Id: pln111\n"
-            "- Status: draft\n"
-            "- Set: testset\n\n"
-            "## Description\n"
-            "Quoted scope in body:\n"
-            "- Scope-Paths: agent_workflows/releases.py\n"
-            "Trailing body.\n"
+        text_deps = RecordBuilder().plan(
+            title="Plan Title",
+            id6="pln111",
+            status="draft",
+            set="testset",
+            body=(
+                "## Description\n"
+                "Quoted scope in body:\n"
+                "- Scope-Paths: agent_workflows/releases.py\n"
+                "Trailing body."
+            ),
+            raw_fields={"Scope-Paths": None, "Item-Dependencies": None},
+            text_only=True,
         )
         body_before_deps = text_deps.partition("## Description")[2]
         res_deps = releases.set_item_dependencies_line(text_deps, "executed:abc123")
@@ -177,14 +188,19 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
             with self.subTest(
                 writer=writer.__name__, field=field, case="anchor_fallback"
             ):
-                text_stat = (
-                    "# Plan Title\n\n"
-                    "- Id: pln111\n"
-                    "- Set: testset\n\n"
-                    "## Description\n"
-                    "Quoted status in body:\n"
-                    "- Status: draft\n"
-                    "Trailing body.\n"
+                text_stat = RecordBuilder().plan(
+                    title="Plan Title",
+                    id6="pln111",
+                    status="draft",
+                    set="testset",
+                    body=(
+                        "## Description\n"
+                        "Quoted status in body:\n"
+                        "- Status: draft\n"
+                        "Trailing body."
+                    ),
+                    raw_fields={"Status": None, "Priority": None, "Work-Kind": None},
+                    text_only=True,
                 )
                 body_before = text_stat.partition("## Description")[2]
                 res = writer(text_stat, new_val)
@@ -198,15 +214,28 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
         # Body quotes - Status:. Bounded writer must return text unchanged without searching body.
         for writer, field, _, new_val in WRITERS:
             with self.subTest(writer=writer.__name__, field=field, case="no_anchor"):
-                text_no_anchor = (
-                    "# Plan Title\n\n"
-                    "- Date: 2026-10-12\n"
-                    "- Set: testset\n\n"
-                    "## Description\n"
-                    "Quoted status in body:\n"
-                    "- Status: draft\n"
-                    "- Id: pln111\n"
-                    "Trailing body.\n"
+                text_no_anchor = RecordBuilder().plan(
+                    title="Plan Title",
+                    when="2026-10-12",
+                    id6="pln111",
+                    status="draft",
+                    set="testset",
+                    body=(
+                        "## Description\n"
+                        "Quoted status in body:\n"
+                        "- Status: draft\n"
+                        "- Id: pln111\n"
+                        "Trailing body."
+                    ),
+                    raw_fields={
+                        "Status": None,
+                        "Id": None,
+                        "Scope-Paths": None,
+                        "Priority": None,
+                        "Work-Kind": None,
+                        "Item-Dependencies": None,
+                    },
+                    text_only=True,
                 )
                 res = writer(text_no_anchor, new_val)
                 self.assertEqual(res, text_no_anchor)
