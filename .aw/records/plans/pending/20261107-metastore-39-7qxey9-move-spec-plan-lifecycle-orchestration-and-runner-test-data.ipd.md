@@ -150,6 +150,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-186-xxiou0-move-spec-plan-lifecycle-and-orchestration-test-data-chunk-5.ipd.md
 - Moved to 3k142n (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subsets G4a, G4b (items E-02, E-03; F-41 names each module).
   - Carrier: 3k142n
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-187-3k142n-move-spec-plan-lifecycle-and-orchestration-test-data-chunk-6.ipd.md
 - Moved to 2etvye (round-3 split 2026-11-09 per research nj8zdp guidance): 7 modules of subset G4b (items E-03; F-41 names each module).
   - Carrier: 2etvye
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-188-2etvye-move-spec-plan-lifecycle-and-orchestration-test-data-chunk-7.ipd.md
