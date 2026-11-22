@@ -4481,7 +4481,7 @@ class SplitBrainLayoutGuardTests(unittest.TestCase):
                     result = CLI._split_brain_guard(stub_term_mig, repo_mig, args_mig)
         self.assertEqual(result, "proceed")
         MockMgr.return_value.execute_migration.assert_called_once_with(
-            target_backend="repository", leftover_disposition="defer"
+            target_backend="repository", leftover_disposition="defer", dry_run=False
         )
 
     def test_cli_split_brain_skip_behaviors(self):
@@ -4633,7 +4633,9 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
                         repo, self._args(to_aw=True, leftovers=requested), self.term
                     )
                 MockMgr.return_value.execute_migration.assert_called_once_with(
-                    target_backend="repository", leftover_disposition=expected
+                    target_backend="repository",
+                    leftover_disposition=expected,
+                    dry_run=False,
                 )
 
         # 2. interactive confirm path
@@ -4651,8 +4653,40 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
                                 repo, self._args(leftovers=requested), self.term
                             )
                 MockMgr.return_value.execute_migration.assert_called_once_with(
-                    target_backend="repository", leftover_disposition=expected
+                    target_backend="repository",
+                    leftover_disposition=expected,
+                    dry_run=False,
                 )
+
+        # 3. dry_run=True path (--to-aw and interactive/default migrate)
+        for site, extra_args in (
+            ("to_aw_dry_run", {"to_aw": True, "dry_run": True}),
+            ("default_dry_run", {"dry_run": True}),
+        ):
+            with self.subTest(site=site):
+                repo = self._legacy_repo(f"dry-run-{site}")
+                buf = io.StringIO()
+                term_buf = Term(color=False, stream=buf)
+                with mock.patch(
+                    "agent_workflows.layout_migration.MigrationManager"
+                ) as MockMgr:
+                    with mock.patch(
+                        "agent_workflows.cli._report_leftover_removal"
+                    ) as mock_report:
+                        kept = CLI._handle_legacy_migration(
+                            repo, self._args(**extra_args), term_buf
+                        )
+                self.assertFalse(kept)
+                MockMgr.return_value.execute_migration.assert_called_once_with(
+                    target_backend="repository",
+                    leftover_disposition="remove",
+                    dry_run=True,
+                )
+                mock_report.assert_not_called()
+                out = buf.getvalue()
+                self.assertIn("[DRY RUN]", out)
+                self.assertIn("would migrate legacy layout to .aw/", out)
+                self.assertNotIn("migrated legacy layout to .aw/", out)
 
     def test_legacy_migration_precedence_and_defaults(self):
         """Four precedence cases: flag > saved true > saved false > nothing saved under --yes."""
@@ -4750,7 +4784,9 @@ class InstallLeftoverDispositionThreadingTests(unittest.TestCase):
                                 self.term, repo, self._args(leftovers=requested)
                             )
                 MockMgr.return_value.execute_migration.assert_called_once_with(
-                    target_backend="repository", leftover_disposition=expected
+                    target_backend="repository",
+                    leftover_disposition=expected,
+                    dry_run=False,
                 )
 
 

@@ -8567,8 +8567,8 @@ def install_into_repo(
                 file=sys.stderr,
             )
 
-    save_created_files_record(plan.repo_root, timestamp, newly_created)
-    prune_old_backups(plan.repo_root)
+        save_created_files_record(plan.repo_root, timestamp, newly_created)
+        prune_old_backups(plan.repo_root)
 
     # Honest tracking notice + already-tracked scan (IPD 03). Informational; skip on dry-run.
     if not dry_run:

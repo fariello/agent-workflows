@@ -46,6 +46,7 @@ from agent_workflows.project_schema import (
     parse_local_binding,
     parse_portable_policy,
 )
+from agent_workflows import term as _term_mod
 from agent_workflows.term import Term
 
 
@@ -997,18 +998,28 @@ def collect_policy_interactive(
     *,
     allow_placement_switch: bool = False,
     allow_records_switch: bool = False,
+    interactive: Optional[bool] = None,
+    dry_run: bool = False,
 ) -> ProjectPolicy:
     """Collect policy interactively with preset-first subflows and pre-write plan preview (E-01..E-06)."""
     if existing_policy is None:
         existing_policy = resolve_existing_policy(repo_path)
 
-    # Check if we can run interactively (or if testing with mocked StringIO stdin)
-    is_interactive = not assume_yes and (
-        (hasattr(sys.stdin, "isatty") and sys.stdin.isatty())
-        or isinstance(sys.stdin, io.StringIO)
+    forced_noninteractive = (
+        (interactive is False)
+        or (_term_mod.get_interactive_override() is False)
+        or _term_mod.is_forced_noninteractive()
     )
+    if assume_yes or forced_noninteractive:
+        is_interactive = False
+    elif interactive is True:
+        is_interactive = True
+    else:
+        is_interactive = _term_mod.is_interactive() or isinstance(
+            sys.stdin, io.StringIO
+        )
 
-    if not is_interactive:
+    if not is_interactive or (dry_run and existing_policy is not None):
         return resolve_policy_noninteractive(
             repo_path=repo_path,
             existing_policy=existing_policy,
