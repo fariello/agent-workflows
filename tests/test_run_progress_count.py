@@ -93,5 +93,195 @@ class ResumedItemProgressTests(unittest.TestCase):
         self.assertEqual(render_stream.completed_work_count(queue[4], state), 0)
 
 
+class ZeroAttemptSettledProgressTests(unittest.TestCase):
+    """Programmatically settled zero-attempt entries count in completed_work_count and execution_index."""
+
+    def test_retired_orchestrator_and_executed_child_match_tally_and_progress(self):
+        queue = [
+            {
+                "id6": "orch00",
+                "position": 1,
+                "action": "orchestrate",
+                "initial_status": "approved",
+                "status": "executed",
+                "attempts": [],
+                "set": "s",
+                "order": 0,
+            },
+            {
+                "id6": "chld01",
+                "position": 2,
+                "action": "execute",
+                "initial_status": "approved",
+                "status": "executed",
+                "attempts": [{"n": 1}],
+                "set": "s",
+                "order": 1,
+            },
+            {
+                "id6": "chld02",
+                "position": 3,
+                "action": "execute",
+                "initial_status": "approved",
+                "status": "running",
+                "attempts": [{"n": 1}],
+                "set": "s",
+                "order": 2,
+            },
+            {
+                "id6": "chld03",
+                "position": 4,
+                "action": "execute",
+                "initial_status": "approved",
+                "status": "queued",
+                "attempts": [],
+                "set": "s",
+                "order": 3,
+            },
+        ]
+        state = {"queue": queue}
+        running = queue[2]
+        total = render_stream.dispatchable_work_total(queue)
+        done = render_stream.completed_work_count(running, state)
+        passed, failed = render_stream.compute_queue_tally(
+            queue, in_flight_id6="chld02"
+        )
+
+        self.assertEqual(total, 4)
+        self.assertEqual((passed, failed), (2, 0))
+        self.assertEqual(done, 2)
+        self.assertEqual(render_stream.execution_index(running, state), 3)
+        self.assertIn("2/4", render_stream.format_progress_bar(done, total))
+
+    def test_zero_attempt_settled_block_and_failures_are_counted(self):
+        for status in (
+            "dependency-blocked",
+            "fail-depend",
+            "fail-begin",
+            "fail-gate",
+            "not-run",
+        ):
+            with self.subTest(status=status):
+                queue = [
+                    {
+                        "id6": "blk001",
+                        "position": 1,
+                        "action": "execute",
+                        "initial_status": "approved",
+                        "status": status,
+                        "attempts": [],
+                        "set": "s",
+                        "order": 1,
+                    },
+                    {
+                        "id6": "run002",
+                        "position": 2,
+                        "action": "execute",
+                        "initial_status": "approved",
+                        "status": "running",
+                        "attempts": [{"n": 1}],
+                        "set": "s",
+                        "order": 2,
+                    },
+                ]
+                state = {"queue": queue}
+                self.assertEqual(render_stream.completed_work_count(queue[1], state), 1)
+                self.assertEqual(render_stream.execution_index(queue[1], state), 2)
+
+    def test_unstarted_approved_execute_entry_without_attempts_not_counted(self):
+        queue = [
+            {
+                "id6": "run001",
+                "position": 1,
+                "action": "execute",
+                "initial_status": "approved",
+                "status": "running",
+                "attempts": [{"n": 1}],
+                "set": "s",
+                "order": 1,
+            },
+            {
+                "id6": "wait02",
+                "position": 2,
+                "action": "execute",
+                "initial_status": "approved",
+                "status": "approved",
+                "attempts": [],
+                "set": "s",
+                "order": 2,
+            },
+        ]
+        state = {"queue": queue}
+        self.assertEqual(render_stream.completed_work_count(queue[0], state), 0)
+        self.assertEqual(render_stream.execution_index(queue[0], state), 1)
+
+    def test_settled_approved_review_outcome_with_attempt_is_counted(self):
+        queue = [
+            {
+                "id6": "rev001",
+                "position": 1,
+                "action": "review",
+                "initial_status": "to-review",
+                "status": "approved",
+                "attempts": [{"n": 1}],
+                "set": "s",
+                "order": 1,
+            },
+            {
+                "id6": "rev002",
+                "position": 2,
+                "action": "review",
+                "initial_status": "to-review",
+                "status": "running",
+                "attempts": [{"n": 1}],
+                "set": "s",
+                "order": 2,
+            },
+        ]
+        state = {"queue": queue}
+        self.assertEqual(render_stream.completed_work_count(queue[1], state), 1)
+        self.assertEqual(render_stream.execution_index(queue[1], state), 2)
+
+    def test_pre_existing_initial_executed_still_excluded_alongside_retired_orchestrator(
+        self,
+    ):
+        queue = [
+            {
+                "id6": "old001",
+                "position": 1,
+                "action": "execute",
+                "initial_status": "executed",
+                "status": "executed",
+                "attempts": [],
+                "set": "s",
+                "order": 1,
+            },
+            {
+                "id6": "orch00",
+                "position": 2,
+                "action": "orchestrate",
+                "initial_status": "approved",
+                "status": "executed",
+                "attempts": [],
+                "set": "s",
+                "order": 0,
+            },
+            {
+                "id6": "run002",
+                "position": 3,
+                "action": "execute",
+                "initial_status": "approved",
+                "status": "running",
+                "attempts": [{"n": 1}],
+                "set": "s",
+                "order": 2,
+            },
+        ]
+        state = {"queue": queue}
+        self.assertEqual(render_stream.dispatchable_work_total(queue), 2)
+        self.assertEqual(render_stream.completed_work_count(queue[2], state), 1)
+        self.assertEqual(render_stream.execution_index(queue[2], state), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -3455,6 +3455,24 @@ _SETTLED_PROGRESS_STATUSES: frozenset[str] = frozenset(
 )
 
 
+def _item_is_settled_progress(item: Mapping[str, Any]) -> bool:
+    """Whether a dispatchable queue entry has settled in this run for progress counting.
+
+    Zero-attempt settled entries (such as a programmatically retired orchestrator with
+    ``action="orchestrate", status="executed", attempts=[]`` or pre-turn settled blocks/failures
+    like ``dependency-blocked``, ``fail-depend``, ``fail-begin``, ``fail-gate``, or ``not-run``)
+    count as settled without requiring an agent attempt. Only ``status == "approved"`` is ambiguous
+    when ``attempts`` is empty (an unstarted execute entry can carry ``status="approved"`` alongside
+    a settled review/approve outcome), so ``"approved"`` requires at least one recorded attempt.
+    """
+    status = item.get("status")
+    if status not in _SETTLED_PROGRESS_STATUSES:
+        return False
+    if status == "approved" and not item.get("attempts"):
+        return False
+    return True
+
+
 def completed_work_count(item: Mapping[str, Any], state: Mapping[str, Any]) -> int:
     """How many OTHER dispatchable entries have settled: the live statusline's progress numerator.
 
@@ -3462,8 +3480,10 @@ def completed_work_count(item: Mapping[str, Any], state: Mapping[str, Any]) -> i
     resumes after later items finished. Measured on `run-20261118T041454Z-805005`: `z403j4` (first
     in the run order) paused for a question while `5qqgfb` was reviewed, and on resume the live box
     read `0/3` beside `1 ok`. Counting settled entries keeps the live box consistent with its tally.
-    An entry counts only once this run has attempted it: a queued execute entry starts `approved`,
-    which is also a settled review outcome.
+    Pre-existing `initial_status == "executed"` and unattempted `status == "reviewed"` entries are
+    excluded by `item_is_dispatchable_work`, while `_item_is_settled_progress` counts zero-attempt
+    programmatic settlements (such as retired orchestrators and pre-turn dependency blocks) without
+    counting unstarted `status == "approved"` execute entries.
     """
     id6 = str(item.get("id6") or "")
     return sum(
@@ -3472,8 +3492,7 @@ def completed_work_count(item: Mapping[str, Any], state: Mapping[str, Any]) -> i
         if isinstance(it, Mapping)
         and str(it.get("id6") or "") != id6
         and item_is_dispatchable_work(it)
-        and it.get("attempts")
-        and it.get("status") in _SETTLED_PROGRESS_STATUSES
+        and _item_is_settled_progress(it)
     )
 
 
@@ -3508,7 +3527,7 @@ def execution_index(item: dict[str, Any], state: dict[str, Any]) -> int:
         if str(it.get("id6")) in not_work:
             continue
         if str(it.get("id6")) != id6 and (
-            it.get("status") in _SETTLED_PROGRESS_STATUSES
+            _item_is_settled_progress(it)
             or (it.get("attempts") and it.get("status") != "queued")
         ):
             completed += 1
