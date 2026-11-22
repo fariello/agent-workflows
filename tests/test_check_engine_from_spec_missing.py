@@ -214,12 +214,14 @@ class TestSetFromSpecLine(unittest.TestCase):
             text_only=True,
         )
         result = releases.set_from_spec_line(text, "c4gd2h")
-        expected = text.replace(
-            "- Status: approved\n",
-            "- Status: approved\n- From-Spec: c4gd2h\n",
-            1,
+        self.assertEqual(
+            result,
+            text.replace(
+                "- Status: approved\n",
+                "- Status: approved\n- From-Spec: c4gd2h\n",
+                1,
+            ),
         )
-        self.assertEqual(result, expected)
 
     def test_idempotence(self) -> None:
         text = RecordBuilder().plan(
@@ -272,12 +274,14 @@ class TestSetFromSpecLine(unittest.TestCase):
             text_only=True,
         )
         result = releases.set_from_spec_line(text, "c4gd2h")
-        expected = text.replace(
-            "- Id: 0ykozn\n",
-            "- Id: 0ykozn\n- From-Spec: c4gd2h\n",
-            1,
+        self.assertEqual(
+            result,
+            text.replace(
+                "- Id: 0ykozn\n",
+                "- Id: 0ykozn\n- From-Spec: c4gd2h\n",
+                1,
+            ),
         )
-        self.assertEqual(result, expected)
 
     def test_replace_preexisting_empty_value(self) -> None:
         """F-11 regression guard: an empty - From-Spec: line must be replaced, not duplicated."""
