@@ -58,6 +58,7 @@ from agent_workflows.command_surface import (
     discover_parser_roots,
     get_all_declarations,
 )
+from tests.record_builder import RecordBuilder
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 GOLDEN_DIR = Path(__file__).resolve().parent / "fixtures" / "conformance_goldens"
@@ -1115,42 +1116,28 @@ def build_seeded_project_template(base_dir: Path) -> InstalledProjectTemplate:
     # Seed plan f36de0 (approved pending plan)
     plan_dir = proj / ".aw" / "records" / "plans" / "pending"
     plan_dir.mkdir(parents=True, exist_ok=True)
-    plan_content = """# IPD: Seeded Plan for Conformance
-
-- Date: 2026-10-16
-- Kind: child
-- Scope: Seeded fixture plan
-- Scope-Paths: tests/
-- Item-Dependencies: none
-- Status: approved
-- Readiness: go-pending-approval
-- Work-Kind: chore
-- Priority: low
-- Set: seeded
-- Order: 1
-- Highest E allocated: 01
-- Author: test
-- Id: f36de0
-
-## Workflow history
-- 2026-10-16 approved: status set to approved
-- 2026-10-16 to-review: drafted
-
-## Goal
-Seeded fixture goal.
-
-## Detailed Implementation Checklist (TODO)
-- [ ] E-01 Seeded task
-  - Depends on: none
-  - Expected outcome: done
-  - Execution state: pending
-
-## Validation and cross-check (verify before reporting done)
-- [ ] V-01 validates E-01
-  - Required evidence: done
-  - Observed evidence:
-  - Result: pending
-"""
+    plan_content = RecordBuilder().plan(
+        title="Seeded Plan for Conformance",
+        when="2026-10-16",
+        plan_role="child",
+        scope_paths="tests/",
+        item_dependencies="none",
+        status="approved",
+        readiness="go-pending-approval",
+        work_kind="chore",
+        priority="low",
+        set="seeded",
+        order=1,
+        highest_e_allocated="01",
+        author="test",
+        id6="f36de0",
+        history=[
+            "- 2026-10-16 approved: status set to approved",
+            "- 2026-10-16 to-review: drafted",
+        ],
+        body="## Goal\nSeeded fixture goal.\n\n## Detailed Implementation Checklist (TODO)\n- [ ] E-01 Seeded task\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: pending\n\n## Validation and cross-check (verify before reporting done)\n- [ ] V-01 validates E-01\n  - Required evidence: done\n  - Observed evidence:\n  - Result: pending",
+        text_only=True,
+    )
     (plan_dir / "20261016-seeded-01-f36de0-seeded-plan.ipd.md").write_text(
         plan_content, encoding="utf-8"
     )
@@ -1158,25 +1145,26 @@ Seeded fixture goal.
     # Seed spec 25kzda
     spec_dir = proj / ".aw" / "records" / "specs" / "approved"
     spec_dir.mkdir(parents=True, exist_ok=True)
-    spec_content = """# SPEC: Seeded Spec for Conformance
-
-- Id: 25kzda
-- Status: approved
-- Title: Seeded Spec
-- Slug: seeded-spec
-- Scope-Paths: tests/
-- Author: test
-
-## Summary
-Seeded spec summary.
-
-## Workflow history
-- 2026-08-26 approved: status set to approved
-
-## Requirements
-### R-01 Seeded Requirement
-Seeded requirement text.
-"""
+    spec_content = str(
+        RecordBuilder().spec(
+            id6="25kzda",
+            title="Seeded Spec for Conformance",
+            status="approved",
+            author="test",
+            when="2026-08-26",
+            set="25kzda",
+            order=1,
+            history=["- 2026-08-26 approved: status set to approved"],
+            body=(
+                "## Summary\n"
+                "Seeded spec summary.\n\n"
+                "## Requirements\n"
+                "### R-01 Seeded Requirement\n"
+                "Seeded requirement text."
+            ),
+            text_only=True,
+        )
+    )
     (spec_dir / "20260826-25kzda-01-25kzda-seeded-spec.spec.md").write_text(
         spec_content, encoding="utf-8"
     )
@@ -1184,23 +1172,31 @@ Seeded requirement text.
     # Seed review f36de0
     rev_dir = proj / ".aw" / "records" / "reviews"
     rev_dir.mkdir(parents=True, exist_ok=True)
-    rev_content = """# Review findings: plan f36de0
-
-- Subject-Id: f36de0
-- Subject-Type: ipd
-- Reviewed-At: 2026-10-16
-- Reviewer: test-reviewer
-- Verdict: APPROVE WITH REVISIONS APPLIED
-
-## Round 1
-Seeded review text.
-
-### Decisions
-
-| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
-|----|----------|--------|-------------------------|-------|------------|
-| D-1 | Seeded question? | Yes | No | Basis text | yes |
-"""
+    rev_content = str(
+        RecordBuilder().review(
+            "f36de0",
+            subject_type="ipd",
+            reviewed_at="2026-10-16",
+            reviewer="test-reviewer",
+            verdict="APPROVE WITH REVISIONS APPLIED",
+            rounds=[
+                {
+                    "number": 1,
+                    "decisions": [
+                        {
+                            "id": "D-1",
+                            "question": "Seeded question?",
+                            "chosen": "Yes",
+                            "alternatives": "No",
+                            "basis": "Basis text",
+                            "reversible": "yes",
+                        }
+                    ],
+                }
+            ],
+            text_only=True,
+        )
+    )
     (rev_dir / "20261016-seeded-01-f36de0-seeded-plan.review.md").write_text(
         rev_content, encoding="utf-8"
     )
@@ -1208,16 +1204,16 @@ Seeded review text.
     # Seed backlog item
     bklg_dir = proj / ".aw" / "records" / "backlog" / "open"
     bklg_dir.mkdir(parents=True, exist_ok=True)
-    bklg_content = """- Id: bklg01
-- Status: open
-- Set: seeded
-- Priority: low
-- Work-Kind: chore
-- Summary: Seeded backlog item
-
-## Workflow history
-- 2026-10-16 created: created
-"""
+    bklg_content = RecordBuilder().backlog(
+        id6="bklg01",
+        status="open",
+        set="seeded",
+        priority="low",
+        work_kind="chore",
+        summary="Seeded backlog item",
+        history=["- 2026-10-16 created: created"],
+        text_only=True,
+    )
     (bklg_dir / "20261016-seeded-01-bklg01-seeded-item.backlog.md").write_text(
         bklg_content, encoding="utf-8"
     )
@@ -1225,23 +1221,21 @@ Seeded review text.
     # Seed research record
     rsch_dir = proj / ".aw" / "records" / "research"
     rsch_dir.mkdir(parents=True, exist_ok=True)
-    rsch_content = """---
-id: rsch01
-created: 20261016
-set: seeded
-order: 01
-topic: [testing]
-model: test
-kind: assessment
-status: reference
-outcome: informational
-summary: Seeded research record
-consumed-by: []
----
-
-# Seeded research record
-Seeded research content.
-"""
+    rsch_content = RecordBuilder().research(
+        id6="rsch01",
+        when="2026-10-16",
+        set="seeded",
+        order=1,
+        topic=["testing"],
+        model="test",
+        research_kind="assessment",
+        status="reference",
+        outcome="informational",
+        summary="Seeded research record",
+        consumed_by=[],
+        body="\n# Seeded research record\nSeeded research content.\n",
+        text_only=True,
+    )
     (rsch_dir / "20261016-seeded-01-rsch01-seeded-research.assessment.md").write_text(
         rsch_content, encoding="utf-8"
     )

@@ -45,6 +45,7 @@ from tests.test_agent_surface_conformance import (
     UNIVERSE,
 )
 from tests.test_usage_refusal_agent_record import REQUIRED_LEAVES, _capture_cli
+from tests.record_builder import RecordBuilder
 
 # --------------------------------------------------------------------------------------------------
 # Known broken ceiling (E-04b)
@@ -473,15 +474,18 @@ def test_partition_fields_branch_behavior(tmp_path: Path) -> None:
     ok_pending.mkdir(parents=True, exist_ok=True)
     for idx, id6 in ((1, "pk0001"), (2, "pk0002")):
         (ok_pending / f"20261101-okset-{idx:02d}-{id6}-sample.ipd.md").write_text(
-            f"# IPD: Sample {idx}\n\n"
-            f"- Date: 2026-11-01\n"
-            f"- Kind: child\n"
-            f"- Set: okset\n"
-            f"- Order: {idx}\n"
-            f"- Id: {id6}\n"
-            f"- Status: approved\n"
-            f"- Item-Dependencies: none\n"
-            f"- Scope-Paths: src/mod_{idx}.py\n",
+            RecordBuilder().plan(
+                title=f"Sample {idx}",
+                when="2026-11-01",
+                plan_role="child",
+                set="okset",
+                order=idx,
+                id6=id6,
+                status="approved",
+                item_dependencies="none",
+                scope_paths=f"src/mod_{idx}.py",
+                text_only=True,
+            ),
             encoding="utf-8",
         )
 

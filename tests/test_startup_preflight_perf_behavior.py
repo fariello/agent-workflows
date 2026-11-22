@@ -29,32 +29,33 @@ def _write_plan(
     deps: str = "none",
     from_backlog: str | None = None,
 ) -> Path:
+    from tests.record_builder import RecordBuilder
+
     p = repo / ".aw" / "records" / "plans" / "pending" / filename
     p.parent.mkdir(parents=True, exist_ok=True)
-    lines = [
-        f"# Plan {id6}",
-        "",
-        f"- Id: {id6}",
-        "- Set: demo (Demo Set)",
-        "- Order: 01",
-        f"- Status: {status}",
-        "- Date: 2026-11-19",
-        f"- Item-Dependencies: {deps}",
-    ]
+    extra: dict[str, object] = {}
     if from_backlog:
-        lines.append(f"- From-Backlog: {from_backlog}")
-    lines.extend(
-        [
-            "",
-            "## Execution checklist",
-            "- [ ] E-01: Do work.",
-            "",
-            "## Validation checklist",
-            "- [ ] V-01: Verify work.",
-            "",
-        ]
+        extra["from_backlog"] = from_backlog
+    text = str(
+        RecordBuilder().plan(
+            id6=id6,
+            title=f"Plan {id6}",
+            set="demo",
+            order=1,
+            status=status,
+            when="2026-11-19",
+            item_dependencies=deps,
+            body=(
+                "## Execution checklist\n"
+                "- [ ] E-01: Do work.\n\n"
+                "## Validation checklist\n"
+                "- [ ] V-01: Verify work."
+            ),
+            text_only=True,
+            **extra,
+        )
     )
-    p.write_text("\n".join(lines), encoding="utf-8")
+    p.write_text(text, encoding="utf-8")
     return p
 
 
