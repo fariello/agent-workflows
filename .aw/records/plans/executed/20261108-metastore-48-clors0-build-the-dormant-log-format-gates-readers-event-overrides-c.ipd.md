@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 5.2 makes the cutover ONE attended commit (`cxxmyv`, Order 13), and C10a requires `main` to read and write exactly one on-disk format at every commit. `cxxmyv` carried, inside that one attended turn, several pieces of code whose behavior only matters once logs exist: the post-cutover gates (E-05), the post-cutover readers (E-15), the event `overrides` list and the `--date` refusal (E-14), two new commands (E-06), path-bearing `rename` events (half of E-04) and the mechanism that lets the migration's one commit carry the code changes (the open question inside E-17). Each can be built and tested now WITHOUT changing `main`'s format, because `artifact_meta` already dispatches by storage format (`artifact_meta._storage_format` returns `log` only when `meta/<id6>.jsonl` exists, and no record on `main` has one until the migration) and the metadata stamp (`metadata_schema`) stays below 2 until the migration writes it. Moving them out shrinks the attended turn and lets each be reviewed and merged on its own. Split from `cxxmyv` 2026-11-07.
 - Scope: Round-3 split 2026-11-09: E-05 moved to `6jd6mh`, E-15 and E-14 to `wilgfy`, E-06 to `724acb`, E-18 to `v45j1n`. This plan keeps E-19, the one-commit mechanism of `cxxmyv` E-17 (an explicit extra-path list for `m0001`'s commit step, with the spec 5.2 step 7 amendment); and a finishing item E-20 that re-checks dormancy for the whole family. EXCLUDES: the format switch (`cxxmyv` E-03), retiring the sidecar writer, the rename ledger, the INDEX ignore lines and skip names (`cxxmyv` E-04), the builder switch (`cxxmyv` E-07), the documentation patch (`cxxmyv` E-08), the `Kind` option renames (`cxxmyv` E-16), the rehearsal, the real migration and every real-repository demonstration (`cxxmyv` E-01, E-02, E-09 to E-13, E-17).
 - Scope-Paths: agent_workflows/migrations/m0001_metadata_v2.py, .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, tests/test_m0001_extra_paths.py, .aw/records/plans/pending/20261108-metastore-48-clors0-build-the-dormant-log-format-gates-readers-event-overrides-c.ipd.md
+- Scope-Exceeded: agent_workflows/cli.py (E-19 names an `aw migrate metadata --apply --include-paths` argument the argparse definition and its read in _run_migrate_metadata live only in cli.py); agent_workflows/migrations/chain.py (the CLI reaches m0001 only through chain.Migration.run and chain._m0001_run, which must forward the new include_paths keyword)
 - Item-Dependencies: executed:1ajqaa, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15, executed:xexn45, executed:ya4ee4, executed:6jd6mh, executed:wilgfy, executed:724acb, executed:v45j1n
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 20
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: clors0
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 This plan conforms to the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`.
 
 ## Workflow history
+- 2026-11-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: clors0 verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/cli.py: E-19 names an `aw migrate metadata --apply --include-paths` argument; the argparse definition and its read in _run_migrate_metadata live only in cli.py; out-of-scope agent_workflows/migrations/chain.py: the CLI reaches m0001 only through chain.Migration.run and chain._m0001_run, which must forward the new include_paths keyword]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
