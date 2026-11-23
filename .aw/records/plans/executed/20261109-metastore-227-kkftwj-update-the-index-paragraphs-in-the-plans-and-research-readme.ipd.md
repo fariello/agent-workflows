@@ -5,8 +5,9 @@
 - Concern: After Order 220 no `aw` command writes `INDEX.json` or `INDEX.md`, so the INDEX paragraphs of `.aw/records/plans/README.md`, `.aw/records/research/README.md` and its installed template `.aw/system/workflows/templates/agents-docs-research-README.md` become wrong (C10a of spec `4sd62s`). `tests/test_installed_text_current.py` checks the template text, and today quotes `check.stale-index-missing` and `check.stale-index-stale`, which Order 229 deletes. This is part 9 of the round-3 split of `q6epwc` (Order 41), carrying the README and template subset of `q6epwc` E-15.
 - Scope: rewrite the three INDEX paragraphs and keep `tests/test_installed_text_current.py` green. EXCLUDES `docs/`, `README.md`, `CONTRIBUTING.md` and `CHANGELOG.md` (Order 226).
 - Scope-Paths: .aw/records/plans/README.md, .aw/records/research/README.md, .aw/system/workflows/templates/agents-docs-research-README.md, tests/test_installed_text_current.py, .aw/records/plans/pending/20261109-metastore-227-kkftwj-update-the-index-paragraphs-in-the-plans-and-research-readme.ipd.md
+- Scope-Exceeded: agent_workflows/engine.py (D1: pin retired research README template hash in RETIRED_RESEARCH_README_HASHES so installed targets receive the updated text)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:6qh68x, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sdzcur, executed:t4gl15, executed:tqknnc
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: kkftwj
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-23 executed (antigravity): finalize kkftwj after run-20261123T035302Z-2681364 (commits 1ddfb7f91/412ba7120 landed directly on main due to vl3pvt; verified with full pytest suite: 2898 passed, 1 skipped) [Scope reconciliation - out-of-scope agent_workflows/engine.py: D1: pin retired research README template hash in RETIRED_RESEARCH_README_HASHES so installed targets receive the updated text] [Scope attribution - 9 changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not attributable to this execution (evidence: commit-cohesion), so no --scope-reason was demanded for them: .aw/records/backlog/done/20261123-tg3v86-01-tg3v86-statusline-spend-resets-on-restart.backlog.md, .aw/records/backlog/open/20261123-metastore-01-bdimw6-unowned-reader-and-grammar-hits.backlog.md, .aw/records/backlog/open/20261123-metastore-01-gapf1m-plans-cite-deleted-in-metadata-region.backlog.md, agent_workflows/agy_runipd.py, agent_workflows/oc_runipd.py (... and 4 more; see disregarded_no_evidence_paths in the finalize evidence)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
