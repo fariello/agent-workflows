@@ -6492,6 +6492,100 @@ def set_legacy_bullet_line(
     return region + rest
 
 
+# Private copies of the `releases` value writers (metastore 6bxlzb, `k6jd6l` E-08 copy step).
+# They keep the exact behavior of the `releases` originals so callers can be retargeted onto
+# `artifact_meta` (Orders 281 to 283) before Order 284 (`zs7a45`) deletes the originals.
+
+
+def _legacy_in_metadata_region(
+    text: str,
+    label: str,
+    value: Optional[str],
+    *,
+    anchors: Tuple[Tuple[str, str], ...] = (("Status", "after"), ("Id", "after")),
+) -> str:
+    """Bounded bullet surgery inside ``selectors.metadata_region`` for the value writers below.
+
+    Copy of ``releases._set_bullet_via_meta``, which replaced ``releases._in_metadata_region`` in
+    ``3466h8``: bounding edits to the metadata region stops a QUOTED field bullet in a record's body
+    from being deleted during stripping or matched as an insertion anchor (b92m14 E-07, 7afjyu).
+    For YAML-fenced records the region is the leading fence, and a region with no valid anchor
+    yields the documented 'leave unchanged' fallback without searching into the body.
+    """
+    return set_legacy_bullet_line(text, label, value, anchors=anchors)
+
+
+def _legacy_set_blocks_release_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- Blocks-Release:` metadata line set to `value`, or removed when
+    `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
+    (falling back to after `- Id:`, or leaving unchanged). Tolerates any value so an existing
+    malformed line is still replaced. Copy of ``releases.set_blocks_release_line``."""
+    return _legacy_in_metadata_region(text, "Blocks-Release", value)
+
+
+def _legacy_set_priority_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- Priority:` metadata line set to `value`, or removed when `value` is
+    '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:` (falling back
+    to after `- Id:`, or leaving unchanged). The ENUM check (value in backlog.PRIORITIES) is enforced
+    by `aw check`, not here; any value is tolerated so an existing malformed line is still replaced.
+    Copy of ``releases.set_priority_line``."""
+    return _legacy_in_metadata_region(text, "Priority", value)
+
+
+def _legacy_set_work_kind_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- Work-Kind:` metadata line set to `value`, or removed when `value` is
+    '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:` (falling back
+    to after `- Id:`, or leaving unchanged). Mirrors `_legacy_set_priority_line` exactly, so the two
+    optional fields cannot drift on anchor or clearing semantics. The ENUM check (value in
+    backlog.KINDS) is enforced by `aw check` / validate_spec, not here. Never touches
+    `- Gate-Kind:` or `- Kind:`. Copy of ``releases.set_work_kind_line``."""
+    return _legacy_in_metadata_region(text, "Work-Kind", value)
+
+
+def _legacy_set_from_backlog_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- From-Backlog:` metadata line set to `value`, or removed when
+    `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
+    (falling back to after `- Id:`, or leaving unchanged). Mirrors `_legacy_set_blocks_release_line`
+    and `_legacy_set_from_spec_line`; tolerates any value so an existing malformed line is still
+    replaced. Copy of ``releases.set_from_backlog_line``."""
+    return _legacy_in_metadata_region(text, "From-Backlog", value)
+
+
+def _legacy_set_from_spec_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- From-Spec:` metadata line set to `value`, or removed when
+    `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
+    (falling back to after `- Id:`, or leaving unchanged). Spec-side sibling of
+    `_legacy_set_from_backlog_line`; tolerates any value so an existing malformed or empty-valued
+    line is still replaced. Copy of ``releases.set_from_spec_line``."""
+    return _legacy_in_metadata_region(text, "From-Spec", value)
+
+
+def _legacy_set_item_dependencies_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- Item-Dependencies:` metadata line set to `value`, or removed when
+    `value` is '-' or None. Idempotent: replaces an existing line or inserts one.
+
+    ANCHOR: spec 25kzda 2.7 places this field IMMEDIATELY AFTER `- Scope-Paths:` (and before
+    `Blocks-Release`/`From-Backlog`), DELIBERATELY unlike the after-`- Status:` siblings, because in
+    the real block order (`... Scope-Paths, Status, Set, Order ...`) after Status is the wrong place.
+    When `- Scope-Paths:` is absent, insert BEFORE `- Status:`, then after `- Id:`, else leave the
+    text unchanged. Copy of ``releases.set_item_dependencies_line``."""
+    return _legacy_in_metadata_region(
+        text,
+        "Item-Dependencies",
+        value,
+        anchors=(("Scope-Paths", "after"), ("Status", "before"), ("Id", "after")),
+    )
+
+
+def _legacy_set_graduated_to_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- Graduated-To:` metadata line set to `value`, or removed when `value`
+    is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:` (falling
+    back to after `- Id:`, or leaving unchanged). Mirrors `_legacy_set_from_backlog_line` on anchor
+    and clearing semantics. The value (a comma-separated setid list) is written VERBATIM; the shape
+    check lives in the setter and in `aw check`. Copy of ``releases.set_graduated_to_line``."""
+    return _legacy_in_metadata_region(text, "Graduated-To", value)
+
+
 def _set_bullet(
     text: str, label: str, value: Optional[str], *, anchors: Tuple[str, ...]
 ) -> str:
@@ -7135,22 +7229,18 @@ def _render_field(
             val = f"{val:02d}"
         return _render_yaml_field(text, _RESEARCH_YAML_KEY[field], val)
 
-    bullet_writers: Dict[str, Tuple[str, Tuple[Tuple[str, str], ...]]] = {
-        "blocks_release": ("Blocks-Release", (("Status", "after"), ("Id", "after"))),
-        "priority": ("Priority", (("Status", "after"), ("Id", "after"))),
-        "work_kind": ("Work-Kind", (("Status", "after"), ("Id", "after"))),
-        "from_backlog": ("From-Backlog", (("Status", "after"), ("Id", "after"))),
-        "from_spec": ("From-Spec", (("Status", "after"), ("Id", "after"))),
-        "item_dependencies": (
-            "Item-Dependencies",
-            (("Scope-Paths", "after"), ("Status", "before"), ("Id", "after")),
-        ),
-        "graduated_to": ("Graduated-To", (("Status", "after"), ("Id", "after"))),
+    bullet_writers: Dict[str, Callable[[str, Optional[str]], str]] = {
+        "blocks_release": _legacy_set_blocks_release_line,
+        "priority": _legacy_set_priority_line,
+        "work_kind": _legacy_set_work_kind_line,
+        "from_backlog": _legacy_set_from_backlog_line,
+        "from_spec": _legacy_set_from_spec_line,
+        "item_dependencies": _legacy_set_item_dependencies_line,
+        "graduated_to": _legacy_set_graduated_to_line,
     }
     if field in bullet_writers:
-        wlabel, wanchors = bullet_writers[field]
         formatted = _format_legacy_value(field, value) if value is not None else "-"
-        return set_legacy_bullet_line(text, wlabel, formatted, anchors=wanchors)
+        return bullet_writers[field](text, formatted)
 
     from agent_workflows import backlog as _backlog
 
