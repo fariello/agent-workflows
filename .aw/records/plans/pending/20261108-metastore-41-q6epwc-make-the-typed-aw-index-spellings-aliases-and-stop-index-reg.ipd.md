@@ -97,6 +97,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-220-tqknnc-make-the-typed-aw-index-spellings-aliases-of-aw-index-rebuil.ipd.md
 - Moved to lywgzs (round-3 split 2026-11-09 per research nj8zdp guidance): E-04 subset 1, `ipd_lifecycle._refresh_plans_index_fail_loud`, its call in `_finalize_transaction`, its five `ipd_lifecycle` comment sites and the `lane_containment.inventory_lane` comment, with `tests/test_orchestrator_retirement.py`.
   - Carrier: lywgzs
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-221-lywgzs-stop-the-finalize-transaction-regenerating-the-plans-index.ipd.md
 - Moved to mv0j4k (round-3 split 2026-11-09 per research nj8zdp guidance): E-04 subset 2, `status_set._auto_index_types` and its two calls, the four `artifact_rename` sites, with `tests/test_rename_group_machine_output.py`, `tests/test_research_rename_frontmatter.py`, `tests/test_group_verb_policy.py`.
   - Carrier: mv0j4k
 - Moved to 9eqgcl (round-3 split 2026-11-09 per research nj8zdp guidance): E-04 subset 3, `research_cmd` (two sites), `research_refs` (with the "manifest was not regenerated" note), `plans_refs.apply_renames`, `artifact_adopt._default_refresh_index`, with `tests/test_artifact_refs_rewrite.py`, and E-04's whole-family expected outcome and V-04's `producers` test. Subsets 1 to 3 equal E-04's list.
