@@ -42,30 +42,30 @@ PIN RULE (carried from `9o83cr`): before the edit, save the named test modules' 
 
 ### Task group 1: pin, delete, retarget
 
-- [ ] E-01 Create `.aw/state/6qh68x/` (`mkdir -p .aw/state/6qh68x/`) and pin `tests/test_drift_rule_registration.py`, `tests/test_research_index.py` and `tests/test_index_check_agent_records.py` (PIN RULE, `E-01-before.txt`).
+- [x] E-01 Create `.aw/state/6qh68x/` (`mkdir -p .aw/state/6qh68x/`) and pin `tests/test_drift_rule_registration.py`, `tests/test_research_index.py` and `tests/test_index_check_agent_records.py` (PIN RULE, `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `.aw/state/6qh68x/E-01-before.txt` exists.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Delete the code in `research_index.check_drift` that emits `check.stale-index-missing` and `check.stale-index-stale`; keep its other rules (`stale-state-to-promote`, `dangling-consumed-by`, `adopted-without-consumer`, `unrecognized-model`, `research.frontmatter-key-repeated`, `status-tier-mismatch`, `check.research-companion-orphaned`).
+- [x] E-02 Delete the code in `research_index.check_drift` that emits `check.stale-index-missing` and `check.stale-index-stale`; keep its other rules (`stale-state-to-promote`, `dangling-consumed-by`, `adopted-without-consumer`, `unrecognized-model`, `research.frontmatter-key-repeated`, `status-tier-mismatch`, `check.research-companion-orphaned`).
   - Depends on: E-01
   - Expected outcome: `rg -n "stale-index" agent_workflows/research_index.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `agent_workflows/check_engine.py`, delete the `check.stale-index-missing` and `check.stale-index-stale` entries of `check_engine.RULE_REGISTRY`, and rewrite the comment lines that describe them or cite them as a severity precedent so each keeps its reasoning without naming a deleted rule.
+- [x] E-03 In `agent_workflows/check_engine.py`, delete the `check.stale-index-missing` and `check.stale-index-stale` entries of `check_engine.RULE_REGISTRY`, and rewrite the comment lines that describe them or cite them as a severity precedent so each keeps its reasoning without naming a deleted rule.
   - Depends on: E-02
   - Expected outcome: `rg -n "stale-index" agent_workflows/check_engine.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Retarget `tests/test_drift_rule_registration.py` to the new rule set, and the stale-index cases `test_stale_index_detected` and `test_missing_index_is_informational_not_failing` in `tests/test_research_index.py`, and `test_human_drifting_output_per_verb`, `test_human_stale_output_per_verb` and `test_all_partial_stale_fixture` in `tests/test_index_check_agent_records.py` (each assertion that names a `check.stale-index-*` id). Save `E-04-after.txt`.
+- [x] E-04 Retarget `tests/test_drift_rule_registration.py` to the new rule set, and the stale-index cases `test_stale_index_detected` and `test_missing_index_is_informational_not_failing` in `tests/test_research_index.py`, and `test_human_drifting_output_per_verb`, `test_human_stale_output_per_verb` and `test_all_partial_stale_fixture` in `tests/test_index_check_agent_records.py` (each assertion that names a `check.stale-index-*` id). Save `E-04-after.txt`.
   - Depends on: E-03
   - Expected outcome: the three modules pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Run the three modules and `rg -n "stale-index" agent_workflows`, then commit E-02 to E-04 together through `aw commit 6qh68x -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-05 Run the three modules and `rg -n "stale-index" agent_workflows`, then commit E-02 to E-04 together through `aw commit 6qh68x -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-04
   - Expected outcome: `rg` lists only `doctor` lines (Order 225) and the `engine.py` `.aw/.gitignore` template comment (cutover); one commit holds the registry and emitter deletion.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -129,30 +129,117 @@ No spec change; implements part of `4sd62s` 4.5.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `wc -l .aw/state/6qh68x/E-01-before.txt` and one line from each of the three named modules.
   - Observed evidence:
-  - Result: pending
+    ```
+$ wc -l .aw/state/6qh68x/E-01-before.txt
+73 .aw/state/6qh68x/E-01-before.txt
+PASSED tests/test_drift_rule_registration.py::DriftRuleRegistrationTests::test_property_1_registration_resolves_non_default_spec
+PASSED tests/test_research_index.py::CheckDriftTests::test_clean_after_regen
+FAILED tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_agent_stale_fixture_emits_valid_record
+```
+    Baseline note: 67 PASSED, 6 FAILED before any edit. All six FAILED cases are in `tests/test_index_check_agent_records.py` (`test_agent_stale_fixture_emits_valid_record`, `test_all_partial_stale_fixture`, `test_human_drifting_output_per_verb`, `test_human_stale_output_per_verb`, `test_json_check_data_shape_and_no_leak_across_modes`, `test_json_stale_fixture_emits_json_document`). They already failed because `tqknnc` made `aw index <type> --check` filter out `check.stale-index-*` and `w819as` removed the plans/prompts emitters, so the stale fixture no longer exits 1; `tqknnc`'s V-04 pinned them FAILED. E-04 retargets all six.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "stale-index" agent_workflows/research_index.py` printing nothing, and `aw check research --all --agent` on a fixture with one `dangling-consumed-by` research doc and no INDEX file, showing that rule and no `check.stale-index-*`. Code path: `check_engine.check_content` -> `research_index.check_drift` (E-02).
   - Observed evidence:
-  - Result: pending
+    ```
+$ rg -n "stale-index" agent_workflows/research_index.py; echo "rc=$?"
+rc=1
 
-- [ ] V-03 validates E-03
+# Fixture: git-initialised tmp repo, one research doc .aw/records/research/20260701-fx-00-dang01-dangle.research-report.md
+# (status todo, outcome none-yet, consumed-by: [zzzzz9] which resolves to nothing); no INDEX.json / INDEX.md
+# (`ls -a .aw/records/research` -> `.  ..  20260701-fx-00-dang01-dangle.research-report.md`).
+$ aw check research --all --agent; echo rc=$?
+{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"research","findings":2,"findings_by_severity":{"error":1,"warning":0,"info":1},"evidence":["inventory","rules"],"diagnostics":[{"location":"20260701-fx-00-dang01-dangle.research-report.md","rule":"dangling-consumed-by"},{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"aw check all"}
+rc=1
+```
+    `dangling-consumed-by` is reported; no `check.stale-index-*` diagnostic appears although both INDEX files are absent.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "stale-index" agent_workflows/check_engine.py` printing nothing, and `python3 -c "from agent_workflows import check_engine as c;print([k for k in c.RULE_REGISTRY if 'stale-index' in k])"` printing `[]`.
   - Observed evidence:
-  - Result: pending
+    ```
+$ rg -n "stale-index" agent_workflows/check_engine.py; echo "rc=$?"
+rc=1
+$ python3 -c "from agent_workflows import check_engine as c;print([k for k in c.RULE_REGISTRY if 'stale-index' in k])"
+[]
+```
+    The 16 comment lines were rewritten so each keeps its reasoning: precedents now cite `check.ipd-draft-ready-to-review`, `check.ipd-carrier-finished-unverified`, `check.system-layout-*`/`check.system-layout-drift`, or state the `info`-only-non-failing reason directly.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `diff .aw/state/6qh68x/E-01-before.txt .aw/state/6qh68x/E-04-after.txt` with each removed name of the five named cases mapped, and the summary line of `python3 -m pytest -o addopts="" tests/test_drift_rule_registration.py tests/test_research_index.py tests/test_index_check_agent_records.py` passing.
   - Observed evidence:
-  - Result: pending
+    ```
+$ diff .aw/state/6qh68x/E-01-before.txt .aw/state/6qh68x/E-04-after.txt
+1,6c1
+< FAILED tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_agent_stale_fixture_emits_valid_record
+< FAILED tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_all_partial_stale_fixture
+< FAILED tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_human_drifting_output_per_verb
+< FAILED tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_human_stale_output_per_verb
+< FAILED tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_json_check_data_shape_and_no_leak_across_modes
+< FAILED tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_json_stale_fixture_emits_json_document
+---
+> PASSED tests/test_drift_rule_registration.py::DriftRuleRegistrationTests::test_deleted_stale_index_rules_are_not_registered
+14a10
+> PASSED tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_agent_stale_fixture_emits_valid_record
+16a13
+> PASSED tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_all_partial_stale_fixture
+18a16,17
+> PASSED tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_human_drifting_output_per_verb
+> PASSED tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_human_stale_output_per_verb
+19a19
+> PASSED tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_json_check_data_shape_and_no_leak_across_modes
+21a22
+> PASSED tests/test_index_check_agent_records.py::IndexCheckSubprocessTests::test_json_stale_fixture_emits_json_document
+25,26c26,27
+< PASSED tests/test_research_index.py::CheckDriftTests::test_missing_index_is_informational_not_failing
+< PASSED tests/test_research_index.py::CheckDriftTests::test_stale_index_detected
+---
+> PASSED tests/test_research_index.py::CheckDriftTests::test_missing_index_file_is_not_drift
+> PASSED tests/test_research_index.py::CheckDriftTests::test_stale_index_file_is_not_drift
 
-- [ ] V-05 validates E-05
+$ python3 -m pytest -o addopts="" tests/test_drift_rule_registration.py tests/test_research_index.py tests/test_index_check_agent_records.py
+============================== 74 passed in 8.49s ==============================
+```
+    Name mapping (no case dropped; 73 -> 74): `test_research_index.py::test_stale_index_detected` -> `test_stale_index_file_is_not_drift` (same input: regen then overwrite INDEX.md; now asserts no drift, exit 0). `test_research_index.py::test_missing_index_is_informational_not_failing` -> `test_missing_index_file_is_not_drift` (same input: regen then unlink INDEX.json; now asserts no drift, exit 0). `test_index_check_agent_records.py::test_human_drifting_output_per_verb`, `test_human_stale_output_per_verb`, `test_all_partial_stale_fixture` keep their names and fixtures, FAILED -> PASSED, now asserting clean output / exit 0 and no `check.stale-index-*`; the other three pinned-FAILED cases in that module (`test_agent_stale_fixture_emits_valid_record`, `test_json_stale_fixture_emits_json_document`, `test_json_check_data_shape_and_no_leak_across_modes`) keep names and inputs with the stale-mode expected exit changed from 1 to 0. `test_drift_rule_registration.py::test_property_4_emitter_stamp_reaches_gate_on_fixture` keeps its name; it no longer writes INDEX files and additionally asserts no `check.stale-index-*`. Added: `test_deleted_stale_index_rules_are_not_registered`. Removed by "subject removed": none.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `rg -n "stale-index" agent_workflows` listing only `doctor.py` and `engine.py` lines, and `git show --stat` of the single `aw commit 6qh68x` commit listing `agent_workflows/research_index.py` and `agent_workflows/check_engine.py` together and only Scope-Paths files.
   - Observed evidence:
-  - Result: pending
+    ```
+$ rg -n "stale-index" agent_workflows
+agent_workflows/engine.py:6520:# `aw index research`; a fresh clone has none until then, which `check.stale-index-missing` reports
+agent_workflows/doctor.py:1534:    # old conflated `stale-index` rule into `check.stale-index-missing` / `check.stale-index-stale`,
+agent_workflows/doctor.py:1535:    # and both new ids CONTAIN `stale-index`, so this match (and the four other `"stale-index" in
+agent_workflows/doctor.py:1543:    if "stale-index" in rule or rule.startswith("doctor.index-"):
+agent_workflows/doctor.py:1544:        if rule == "check.stale-index-missing":
+agent_workflows/doctor.py:1546:        elif rule == "check.stale-index-stale":
+agent_workflows/doctor.py:1676:        # leak/stale-index).
+agent_workflows/doctor.py:1864:    # 4. stale-index ("aw index" or "aw index <type>")
+agent_workflows/doctor.py:1976:            or "stale-index" in rule
+
+$ git show --stat 419e01d67
+commit 419e01d67640d13f63998c0c09c64d36b8195d46
+    6qh68x: delete the research stale-index emitter and the two stale-index registry entries (spec 4sd62s 4.5)
+ agent_workflows/check_engine.py         | 72 ++++++++++-----------------------
+ agent_workflows/meta_cli.py             | 16 +++-----
+ agent_workflows/research_index.py       | 57 ++++----------------------
+ tests/test_drift_rule_registration.py   | 31 +++++++++-----
+ tests/test_index_check_agent_records.py | 47 ++++++++++++---------
+ tests/test_research_index.py            | 26 +++++-------
+ 6 files changed, 94 insertions(+), 155 deletions(-)
+
+$ aw suite   (core tier)
+2897 passed, 1 skipped, 11 warnings in 147.53s (0:02:27)
+```
+    One commit holds the registry and emitter deletion. Out-of-fence path: `agent_workflows/meta_cli.py` (recorded with `--scope-reason` on the commit): `meta_cli._index_alias_drift` filtered `check.stale-index-*` findings via `_STALE_INDEX_RULE_PREFIX`; once this plan removed the last emitter the filter was dead code naming a deleted rule, and without removing it this V-item's `rg` would list a `meta_cli.py` line besides `doctor.py`/`engine.py`. Non-core: the 18 modules naming these rules or `research_index`/`check_drift` were also run (`18 failed, 286 passed`); all 18 failures are in `tests/test_index_write_agent_records.py` (17) and `tests/test_research_set_assign_date_containment.py` (1) and reproduce identically on an unmodified `git archive HEAD` copy (`18 failed, 22 passed`); they are pinned to `f6y2yy` (Order 231) and `6966zq` (Order 232) by `tqknnc` V-04.
+  - Result: pass
 
 ## Approval and execution gate
 
