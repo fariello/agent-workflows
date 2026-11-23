@@ -17,17 +17,13 @@ import sys
 from pathlib import Path
 from typing import Any, Container, Mapping, NamedTuple, Sequence
 
+from agent_workflows import artifact_core as _core
+from agent_workflows import artifact_meta as _am
+from agent_workflows import artifact_naming as _an
 from agent_workflows import check_engine as _ce
 from agent_workflows import ipd_lint as _lint
-from agent_workflows import plans_refs as _pr
-from agent_workflows import specs as _specs
 
-_PLAN_ID_RE = re.compile(r"(?m)^-[ \t]*Id:[ \t]*([0-9a-z]{6})[ \t]*$")
-_ITEM_DEPS_RE = re.compile(r"(?m)^-[ \t]*Item-Dependencies:[ \t]*(.*?)[ \t]*$")
-_SCOPE_PATHS_RE = re.compile(r"(?m)^-[ \t]*Scope-Paths:[ \t]*(.*?)[ \t]*$")
 _CARRIER_RULE = "check.ipd-uncarried-obligation"
-_ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^-[ \t]*From-Backlog:[ \t]*([^\n]*?)[ \t]*$")
-_SET_RE = re.compile(r"(?m)^-[ \t]*Set:[ \t]*(\S+)")
 _TERMINAL_DISPOSITIONS = frozenset(("executed", "superseded", "not-executed"))
 
 # Spec requirement IDs cutover (spec 89xjll Section 5.1 / IPD rtvdak E-06): specs adopt
@@ -84,6 +80,178 @@ class HandoffPlan(NamedTuple):
         return self.set
 
 
+def _meta_context(repo: Path) -> tuple[Any, Path, Path]:
+    """Return ``(project_context, records_root, scan_repo)`` for ``artifact_meta`` reads."""
+    ctx = _am.legacy_context(repo)
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _am._scan_repo_root(ctx, records_root) or Path(repo).resolve()
+    return ctx, records_root, scan_repo
+
+
+def _plan_id_from_state(st: Any, path: Path) -> str:
+    """Extract 6-char plan id from an ``artifact_meta.State``, falling back to filename."""
+    if st is not None:
+        if (
+            not getattr(st, "id_derived", False)
+            and getattr(st, "id6", None)
+            and _core.is_valid_id6(st.id6)
+        ):
+            return str(st.id6)
+        loose_id = getattr(st, "loose_id", None)
+        if loose_id and _core.is_valid_id6(str(loose_id)):
+            return str(loose_id)
+    parts = path.stem.split("-")
+    if len(parts) >= 4 and len(parts[3]) == 6:
+        return parts[3]
+    return path.stem
+
+
+def _from_backlog_from_state(st: Any) -> str | None:
+    """Return usable ``From-Backlog`` id6 from an ``artifact_meta.State`` (plan okp2o4)."""
+    if st is None:
+        return None
+    raw = (getattr(st, "fields", None) or {}).get("from_backlog")
+    if raw is None:
+        return None
+    cls = _lint.S.classify_source_link(str(raw))
+    if cls.verdict == _lint.S.SOURCE_LINK_USABLE:
+        return cls.id6
+    return None
+
+
+def _from_spec_from_state(st: Any) -> str | None:
+    """Return stripped ``From-Spec`` value from an ``artifact_meta.State``, or None."""
+    if st is None:
+        return None
+    raw = (getattr(st, "fields", None) or {}).get("from_spec")
+    if raw is None:
+        return None
+    val = str(raw).strip()
+    return val or None
+
+
+def _blocks_release_from_state(st: Any) -> str | None:
+    """Return stripped ``Blocks-Release`` value from an ``artifact_meta.State``, or None."""
+    if st is None:
+        return None
+    raw = (getattr(st, "fields", None) or {}).get("blocks_release")
+    if not raw:
+        raw = getattr(st, "loose_blocks_release", None)
+    if raw is None:
+        return None
+    val = str(raw).strip()
+    return val or None
+
+
+def _set_from_state(st: Any) -> str | None:
+    """Return declared terse Set token from an ``artifact_meta.State``, or None."""
+    if st is None:
+        return None
+    raw = getattr(st, "legacy_raw_set", None)
+    if raw:
+        val = str(raw).strip()
+        return val or None
+    if getattr(st, "created_at", None) is not None and getattr(st, "set_id", None):
+        val = str(st.set_id).strip()
+        return val or None
+    return None
+
+
+def _read_plan_state(repo: Path, path: Path, text: str | None = None) -> Any:
+    """Read plan metadata via ``artifact_meta.resolve``/``read``, falling back to ``read_text``."""
+    resolved = path.resolve()
+    ctx, records_root, scan_repo = _meta_context(repo)
+    try:
+        stored = _am.stored_path(resolved, records_root, scan_repo)
+    except ValueError:
+        stored = None
+
+    if stored is not None:
+        with _am.scan_once(), _am.ephemeral_if_uninitialized():
+            try:
+                canonical_stored = _am.resolve(stored, project_context=ctx)
+            except Exception:
+                canonical_stored = None
+            if canonical_stored:
+                parts = _an.identity_parts(resolved.name)
+                cand_id6 = parts[3] if (parts and parts[3]) else None
+                if cand_id6 and _core.is_valid_id6(cand_id6):
+                    try:
+                        if (
+                            _am.resolve(cand_id6, project_context=ctx)
+                            == canonical_stored
+                        ):
+                            return _am.read(cand_id6, project_context=ctx)
+                    except Exception:
+                        pass
+                try:
+                    rows = _am.query(
+                        type="ipd", path=canonical_stored, project_context=ctx
+                    )
+                    for row in rows.rows:
+                        if row.id6 and row.path == canonical_stored:
+                            return _am.read(row.id6, project_context=ctx)
+                except Exception:
+                    pass
+
+    raw_text = text if text is not None else resolved.read_text(encoding="utf-8")
+    return _am.read_text(raw_text, record_type="ipd")
+
+
+def _iter_cached_plans(repo: Path) -> list[tuple[Path, Any]]:
+    """Query cached plan IPDs under either layout's plans tree, skipping excluded/ignored dirs."""
+    from agent_workflows.project_context import project_records_dir
+
+    repo = Path(repo)
+    ctx, records_root, scan_repo = _meta_context(repo)
+    ignored_dirs = _core.get_ignored_dirs(repo)
+    plan_bases = [
+        b.resolve()
+        for b in (
+            project_records_dir(repo) / "plans",
+            repo / ".agents" / "plans",
+        )
+        if b.is_dir() and not _core.is_ignored_path(b, repo, ignored_dirs)
+    ]
+    if not plan_bases:
+        return []
+
+    with _am.scan_once(), _am.ephemeral_if_uninitialized():
+        res = _am.query(type="ipd", project_context=ctx, include_fields=True)
+
+    out: list[tuple[Path, Any]] = []
+    seen: set[Path] = set()
+    for st in res.rows:
+        if not st.path:
+            continue
+        try:
+            p = _am.source_path(st.path, records_root, scan_repo)
+        except ValueError:
+            continue
+        if not p.name.endswith(".ipd.md") or p.name in _ce._SKIP_NAMES:
+            continue
+        p_res = p.resolve()
+        if p_res in seen:
+            continue
+        matched_base: Path | None = None
+        for base in plan_bases:
+            try:
+                p_res.relative_to(base)
+                matched_base = base
+                break
+            except ValueError:
+                continue
+        if matched_base is None:
+            continue
+        if _ce._is_record_excluded_dir(p_res, matched_base) or _core.is_ignored_path(
+            p, repo, ignored_dirs
+        ):
+            continue
+        seen.add(p_res)
+        out.append((p, st))
+    return sorted(out, key=lambda item: str(item[0]))
+
+
 def existing_handoff_plans(
     repo: Path,
     source_type: str,
@@ -95,32 +263,28 @@ def existing_handoff_plans(
     repo = Path(repo)
     source_id6 = str(source_id6).strip().lower()
     results: list[HandoffPlan] = []
-    for p, text in _ce._iter_plan_ipds(repo):
+    for p, st in _iter_cached_plans(repo):
         disp = _ce._plan_disposition(repo, p)
         if disp in _TERMINAL_DISPOSITIONS:
             continue
-        p_id = _extract_plan_id(p, text)
+        p_id = _plan_id_from_state(st, p)
         if exclude_ids is not None and p_id in exclude_ids:
             continue
 
         if source_type in ("backlog", "From-Backlog"):
-            from_bkl = _read_from_backlog(text)
+            from_bkl = _from_backlog_from_state(st)
             if not from_bkl or from_bkl.lower() != source_id6:
                 continue
         elif source_type in ("spec", "From-Spec"):
-            m_from = _ce._ITEM_FROM_SPEC_RE.search(text)
-            from_spec = m_from.group(1).strip() if m_from else None
+            from_spec = _from_spec_from_state(st)
             if not from_spec or from_spec.lower() != source_id6:
                 continue
         else:
             continue
 
-        m_status = _ce._PLAN_STATUS_RE.search(text)
-        status = m_status.group(1).strip() if m_status else ""
-        doc = _lint.parse(text)
-        kind = (doc.meta_fields.get("Kind") or "").strip()
-        m_set = _SET_RE.search(text)
-        set_val = m_set.group(1).strip() if m_set else None
+        status = _ce._plan_status_from_state(st) or ""
+        kind = str((st.fields or {}).get("plan_role") or "").strip()
+        set_val = _set_from_state(st)
 
         results.append(
             HandoffPlan(
@@ -136,41 +300,61 @@ def existing_handoff_plans(
 
 def _read_from_backlog(text: str) -> str | None:
     """The plan's `- From-Backlog:` id6, or None when absent, sentinel, or malformed (plan okp2o4)."""
-    m = _ITEM_FROM_BACKLOG_RE.search(text)
-    if not m:
-        return None
-    cls = _lint.S.classify_source_link(m.group(1))
-    if cls.verdict == _lint.S.SOURCE_LINK_USABLE:
-        return cls.id6
-    return None
+    return _from_backlog_from_state(_am.read_text(text, record_type="ipd"))
 
 
 def _extract_plan_id(path: Path, text: str) -> str:
     """Extract 6-char plan id from frontmatter or filename."""
-    m = _PLAN_ID_RE.search(text)
-    if m:
-        return m.group(1).strip()
-    m_ref = _pr._read_id(text)
-    if m_ref:
-        return m_ref.strip()
-    parts = path.stem.split("-")
-    if len(parts) >= 4 and len(parts[3]) == 6:
-        return parts[3]
-    return path.stem
+    return _plan_id_from_state(_am.read_text(text, record_type="ipd"), path)
+
+
+def _find_spec_state_and_path(
+    repo: Path, spec_id6: str
+) -> tuple[Any | None, Path | None]:
+    """Find cached ``artifact_meta.State`` and path for a given spec id6."""
+    repo = Path(repo)
+    target_id6 = str(spec_id6).strip().lower()
+    if not target_id6:
+        return None, None
+    ctx, records_root, scan_repo = _meta_context(repo)
+    with _am.scan_once(), _am.ephemeral_if_uninitialized():
+        if _core.is_valid_id6(target_id6):
+            try:
+                st = _am.read(target_id6, project_context=ctx)
+                if st.type == "spec" and st.path:
+                    p = _am.source_path(st.path, records_root, scan_repo)
+                    if p.is_file():
+                        return st, p
+            except Exception:
+                pass
+        res = _am.query(type="spec", project_context=ctx, include_fields=True)
+        for st in res.rows:
+            if not st.path:
+                continue
+            try:
+                p = _am.source_path(st.path, records_root, scan_repo)
+            except ValueError:
+                continue
+            if not p.is_file():
+                continue
+            if not st.id_derived and st.id6.lower() == target_id6:
+                return st, p
+            if target_id6 in p.name.lower():
+                return st, p
+    return None, None
 
 
 def _find_spec_text_and_path(
     repo: Path, spec_id6: str
 ) -> tuple[Path | None, str | None]:
     """Find the spec file path and content for a given spec id6."""
-    target_id6 = str(spec_id6).strip().lower()
-    for p, text in _ce._iter_spec_records(repo):
-        m = _specs._SPEC_ID_BULLET_RE.search(text)
-        if m and m.group(1).strip().lower() == target_id6:
-            return p, text
-        if target_id6 in p.name.lower():
-            return p, text
-    return None, None
+    _st, p = _find_spec_state_and_path(repo, spec_id6)
+    if p is None:
+        return None, None
+    try:
+        return p, p.read_text(encoding="utf-8")
+    except OSError:
+        return None, None
 
 
 def spec_plan_count(
@@ -198,11 +382,10 @@ def spec_plan_count(
 
     # Find new plans linking a different spec (or none)
     unlinked_new_plans: list[str] = []
-    for p, text in _ce._iter_plan_ipds(repo):
-        p_id = _extract_plan_id(p, text)
+    for p, st in _iter_cached_plans(repo):
+        p_id = _plan_id_from_state(st, p)
         if p_id not in baseline_ids:
-            m_from = _ce._ITEM_FROM_SPEC_RE.search(text)
-            from_spec = m_from.group(1).strip() if m_from else None
+            from_spec = _from_spec_from_state(st)
             if from_spec != spec_id6:
                 unlinked_new_plans.append(p_id)
 
@@ -287,7 +470,8 @@ def _check_ipd_conformance(
     except OSError as exc:
         return "<unknown>", [("check.readable", f"cannot read {p}: {exc}")]
 
-    plan_id = _extract_plan_id(p, text)
+    st = _read_plan_state(repo, p, text)
+    plan_id = _plan_id_from_state(st, p)
     diags: list[tuple[str, str]] = []
 
     # 1. Bucket: sits under pending/
@@ -296,8 +480,7 @@ def _check_ipd_conformance(
         diags.append(("check.plan-bucket", f"plan is in {disp!r}, expected 'pending'"))
 
     # 2. Status: to-review (or legitimate status for continued plans)
-    m_status = _ce._PLAN_STATUS_RE.search(text)
-    status_val = m_status.group(1).strip() if m_status else ""
+    status_val = _ce._plan_status_from_state(st) or ""
     is_continued = continued_ids is not None and plan_id in continued_ids
     if is_continued:
         if status_val not in ("to-review", "reviewed", "approved", "auto-approved"):
@@ -318,20 +501,22 @@ def _check_ipd_conformance(
 
     # 3. Origin link: carries expected_origin_id6
     if expected_origin_field == "From-Spec":
-        m_from = _ce._ITEM_FROM_SPEC_RE.search(text)
-        from_val = m_from.group(1).strip() if m_from else ""
+        from_val = _from_spec_from_state(st) or ""
         if from_val != expected_origin_id6:
             diags.append(("check.from-spec", "missing or invalid From-Spec field"))
     elif expected_origin_field == "From-Backlog":
-        from_val = _read_from_backlog(text) or ""
+        from_val = _from_backlog_from_state(st) or ""
         if from_val != expected_origin_id6:
             diags.append(
                 ("check.from-backlog", "missing or invalid From-Backlog field")
             )
 
     # 4. Scope-Paths: concrete (not empty, not TODO, not grandfathered)
-    m_scope = _SCOPE_PATHS_RE.search(text)
-    scope_val = m_scope.group(1).strip() if m_scope else ""
+    raw_scope = (st.fields or {}).get("scope_paths")
+    if isinstance(raw_scope, list):
+        scope_val = ", ".join(str(x).strip() for x in raw_scope if str(x).strip())
+    else:
+        scope_val = str(raw_scope or "").strip()
     if not scope_val or "TODO" in scope_val or scope_val == "grandfathered":
         diags.append(
             (
@@ -346,9 +531,17 @@ def _check_ipd_conformance(
             diags.append(("check.scope-paths", detail))
 
     # 5. Item-Dependencies: resolved (not unresolved)
-    m_deps = _ITEM_DEPS_RE.search(text)
-    deps_val = m_deps.group(1).strip() if m_deps else ""
-    if "unresolved" in deps_val.lower():
+    dep_decl = (
+        str((st.fields or {}).get("dependency_declaration") or "").strip().lower()
+    )
+    raw_deps = (st.fields or {}).get("item_dependencies")
+    if isinstance(raw_deps, list):
+        deps_val = ", ".join(
+            str(d.get("raw", d) if isinstance(d, dict) else d) for d in raw_deps
+        )
+    else:
+        deps_val = str(raw_deps or "").strip()
+    if dep_decl == "unresolved" or "unresolved" in deps_val.lower():
         diags.append(
             ("check.item-dependencies", "Item-Dependencies contains 'unresolved'")
         )
@@ -420,11 +613,11 @@ def spec_plan_set(
             text = p.read_text(encoding="utf-8")
         except OSError:
             continue
-        doc = _lint.parse(text)
-        if (doc.meta_fields.get("Kind") or "").strip() != "orchestrator":
+        st = _read_plan_state(repo, p, text)
+        if str((st.fields or {}).get("plan_role") or "").strip() != "orchestrator":
             continue
 
-        plan_id = _extract_plan_id(p, text)
+        plan_id = _plan_id_from_state(st, p)
         readiness = _orch_readiness.review_readiness(
             repo,
             p,
@@ -497,11 +690,8 @@ def spec_plan_gate_carry(
     repo = Path(repo)
     findings: list[tuple[str, str, str]] = []
 
-    _spec_path, spec_text = _find_spec_text_and_path(repo, spec_id6)
-    spec_gate: str | None = None
-    if spec_text:
-        m_sg = _ce._META_BLOCKS_RELEASE_RE.search(spec_text)
-        spec_gate = m_sg.group(1).strip() if m_sg else None
+    spec_st, _spec_path = _find_spec_state_and_path(repo, spec_id6)
+    spec_gate = _blocks_release_from_state(spec_st)
 
     for p_raw in produced_paths:
         p = Path(p_raw)
@@ -512,9 +702,9 @@ def spec_plan_gate_carry(
         except OSError:
             continue
 
-        plan_id = _extract_plan_id(p, text)
-        m_pg = _ce._META_BLOCKS_RELEASE_RE.search(text)
-        plan_gate = m_pg.group(1).strip() if m_pg else None
+        st = _read_plan_state(repo, p, text)
+        plan_id = _plan_id_from_state(st, p)
+        plan_gate = _blocks_release_from_state(st)
 
         if not _ce._same_release(repo, spec_gate, plan_gate):
             msg = (
@@ -679,17 +869,15 @@ def _find_executed_linked_plans(repo: Path, spec_id6: str) -> list[Path]:
     executed_dir = project_records_dir(repo) / "plans" / "executed"
     if not executed_dir.is_dir():
         return []
+    executed_resolved = executed_dir.resolve()
     plans: list[Path] = []
-    for p in sorted(executed_dir.glob("*.ipd.md")):
-        try:
-            text = p.read_text(encoding="utf-8")
-        except OSError:
+    for p, st in _iter_cached_plans(repo):
+        if p.parent.resolve() != executed_resolved or not p.name.endswith(".ipd.md"):
             continue
-        m_from = _ce._ITEM_FROM_SPEC_RE.search(text)
-        from_spec = m_from.group(1).strip() if m_from else None
+        from_spec = _from_spec_from_state(st)
         if from_spec and from_spec.lower() == target_id6:
             plans.append(p)
-    return plans
+    return sorted(plans)
 
 
 class _SpecTraceCoverage(NamedTuple):
@@ -766,7 +954,10 @@ def _compute_spec_trace_coverage(
         except OSError:
             continue
         doc = _lint.parse(text)
-        is_orch = (doc.meta_fields.get("Kind") or "").strip() == "orchestrator"
+        st = _read_plan_state(repo, p, text)
+        is_orch = (
+            str((st.fields or {}).get("plan_role") or "").strip() == "orchestrator"
+        )
 
         # Search E leaves
         for leaf in doc.exec_leaves:
@@ -860,7 +1051,7 @@ def spec_plan_trace(
                 p = repo / p
             try:
                 p_text = p.read_text(encoding="utf-8")
-                pid = _extract_plan_id(p, p_text)
+                pid = _plan_id_from_state(_read_plan_state(repo, p, p_text), p)
             except OSError:
                 pid = p.stem
             if continued_ids is None or pid not in continued_ids:
@@ -903,22 +1094,53 @@ def spec_plan_trace_deferred(repo: Path, spec_id6: str) -> list[str]:
     return sorted(id_name for id_name, m in markers.items() if m == "Deferred")
 
 
+def _find_backlog_state_and_path(
+    repo: Path, item_id6: str
+) -> tuple[Any | None, Path | None]:
+    """Find cached ``artifact_meta.State`` and path for a given backlog id6."""
+    repo = Path(repo)
+    target_id6 = str(item_id6).strip().lower()
+    if not target_id6:
+        return None, None
+    ctx, records_root, scan_repo = _meta_context(repo)
+    with _am.scan_once(), _am.ephemeral_if_uninitialized():
+        if _core.is_valid_id6(target_id6):
+            try:
+                st = _am.read(target_id6, project_context=ctx)
+                if st.type == "backlog" and st.path:
+                    p = _am.source_path(st.path, records_root, scan_repo)
+                    if p.is_file():
+                        return st, p
+            except Exception:
+                pass
+        res = _am.query(type="backlog", project_context=ctx, include_fields=True)
+        for st in res.rows:
+            if not st.path:
+                continue
+            try:
+                p = _am.source_path(st.path, records_root, scan_repo)
+            except ValueError:
+                continue
+            if not p.is_file():
+                continue
+            if not st.id_derived and st.id6.lower() == target_id6:
+                return st, p
+            if target_id6 in p.name.lower():
+                return st, p
+    return None, None
+
+
 def _find_backlog_text_and_path(
     repo: Path, item_id6: str
 ) -> tuple[Path | None, str | None]:
     """Find the backlog item file path and content for a given backlog id6."""
-    from agent_workflows import backlog as _backlog
-
-    target_id6 = str(item_id6).strip().lower()
-    for p in _backlog._iter_items(Path(repo)):
-        try:
-            text = p.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        item = _backlog.parse_item(text)
-        if item.id and item.id.lower() == target_id6:
-            return p, text
-    return None, None
+    _st, p = _find_backlog_state_and_path(repo, item_id6)
+    if p is None:
+        return None, None
+    try:
+        return p, p.read_text(encoding="utf-8")
+    except OSError:
+        return None, None
 
 
 def backlog_graduate_count(
@@ -946,10 +1168,10 @@ def backlog_graduate_count(
 
     # Find new plans linking a different item (or none)
     unlinked_new_plans: list[str] = []
-    for p, text in _ce._iter_plan_ipds(repo):
-        p_id = _extract_plan_id(p, text)
+    for p, st in _iter_cached_plans(repo):
+        p_id = _plan_id_from_state(st, p)
         if p_id not in baseline_ids:
-            if _read_from_backlog(text) != item_id6:
+            if _from_backlog_from_state(st) != item_id6:
                 unlinked_new_plans.append(p_id)
 
     # Condition (a): after the turn there is no active plan linking the item at all
@@ -1052,11 +1274,11 @@ def backlog_graduate_set(
             text = p.read_text(encoding="utf-8")
         except OSError:
             continue
-        doc = _lint.parse(text)
-        if (doc.meta_fields.get("Kind") or "").strip() != "orchestrator":
+        st = _read_plan_state(repo, p, text)
+        if str((st.fields or {}).get("plan_role") or "").strip() != "orchestrator":
             continue
 
-        plan_id = _extract_plan_id(p, text)
+        plan_id = _plan_id_from_state(st, p)
         readiness = _orch_readiness.review_readiness(
             repo,
             p,
@@ -1133,11 +1355,8 @@ def backlog_gate_handoff(
     repo = Path(repo)
     findings: list[tuple[str, str, str]] = []
 
-    _bkl_path, bkl_text = _find_backlog_text_and_path(repo, item_id6)
-    bkl_gate: str | None = None
-    if bkl_text:
-        m_bg = _ce._META_BLOCKS_RELEASE_RE.search(bkl_text)
-        bkl_gate = m_bg.group(1).strip() if m_bg else None
+    bkl_st, _bkl_path = _find_backlog_state_and_path(repo, item_id6)
+    bkl_gate = _blocks_release_from_state(bkl_st)
 
     # If backlog does not block a release, no gate handoff requirement on IPD
     if not bkl_gate:
@@ -1152,9 +1371,9 @@ def backlog_gate_handoff(
         except OSError:
             continue
 
-        plan_id = _extract_plan_id(p, text)
-        m_pg = _ce._META_BLOCKS_RELEASE_RE.search(text)
-        plan_gate = m_pg.group(1).strip() if m_pg else None
+        st = _read_plan_state(repo, p, text)
+        plan_id = _plan_id_from_state(st, p)
+        plan_gate = _blocks_release_from_state(st)
 
         if not _ce._same_release(repo, bkl_gate, plan_gate):
             release_val = bkl_gate
@@ -1200,7 +1419,7 @@ def backlog_cross_tree(
         pass
 
     target_paths: set[str] = set()
-    bkl_p, _ = _find_backlog_text_and_path(repo, item_id6)
+    _bkl_st, bkl_p = _find_backlog_state_and_path(repo, item_id6)
     if bkl_p:
         try:
             target_paths.add(str(bkl_p.resolve()))
@@ -1226,7 +1445,7 @@ def backlog_cross_tree(
             target_paths.add(str(p).replace("\\", "/"))
         try:
             p_text = p.read_text(encoding="utf-8")
-            produced_ids.add(_extract_plan_id(p, p_text))
+            produced_ids.add(_plan_id_from_state(_read_plan_state(repo, p, p_text), p))
         except OSError:
             pass
 
@@ -1291,29 +1510,43 @@ def backlog_graduate_legitimacy(
     if status_before != "open":
         return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
 
-    from agent_workflows import backlog as _backlog
-
-    bkl_path, bkl_text = _find_backlog_text_and_path(repo, item_id6)
-    if not bkl_path or not bkl_text:
+    bkl_state, bkl_path = _find_backlog_state_and_path(repo, item_id6)
+    if not bkl_state or not bkl_path:
         return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
 
-    item = _backlog.parse_item(bkl_text)
-    if item.status != "graduated" or "/graduated/" not in str(bkl_path).replace(
+    bkl_status = str(bkl_state.status or "").strip()
+    if bkl_status != "graduated" or "/graduated/" not in str(bkl_path).replace(
         "\\", "/"
     ):
         return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
 
-    # Clause 2: through setter (Workflow history carries setter record)
-    history_records = _backlog._prior_history_records(bkl_text)
-    if not history_records:
+    # Clause 2 & 4: through setter (cached artifact_meta history carries setter record citing artifacts)
+    ctx, _records_root, _scan_repo = _meta_context(repo)
+    with _am.scan_once(), _am.ephemeral_if_uninitialized():
+        try:
+            raw_history = _am.history(bkl_state.id6, project_context=ctx)
+        except Exception:
+            raw_history = []
+    history_rows = [row for row in raw_history if row.get("op") != "review"]
+    if not history_rows:
         return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
 
-    # Clause 4: history cites the generated artifacts
-    newest = history_records[0]
-    if "graduated" not in newest:
-        return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
-    if not re.search(r"[a-z0-9]{6}|run-[0-9a-zA-Z]+", newest):
-        return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
+    if "line" in history_rows[0]:
+        newest = str(history_rows[0]["line"])
+        if "graduated" not in newest:
+            return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
+        if not re.search(r"[a-z0-9]{6}|run-[0-9a-zA-Z]+", newest):
+            return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
+    else:
+        newest_ev = history_rows[-1]
+        if (
+            newest_ev.get("op") != "transition"
+            or str(newest_ev.get("to") or "").strip().lower() != "graduated"
+        ):
+            return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
+        ev_msg = str(newest_ev.get("message") or "")
+        if not re.search(r"[a-z0-9]{6}|run-[0-9a-zA-Z]+", ev_msg):
+            return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
 
     # Clause 3: only after the handoff commit (commit ancestry check)
     if handoff_commit:

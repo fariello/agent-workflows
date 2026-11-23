@@ -1,4 +1,4 @@
-"""Behavioral pinning tests for review and orchestration module readers (IPDs y4spqy, 0i0zsg).
+"""Behavioral pinning tests for review, orchestration, production, work, and adoption readers (IPDs y4spqy, 0i0zsg, awmsyq).
 
 Pins the observable behavior of:
 - ``agent_workflows.review_findings``: ``parse_review_text``, ``parse_review_file``,
@@ -13,6 +13,10 @@ Pins the observable behavior of:
 - ``agent_workflows.review_rereview``: ``rereview_triggers``, ``check_limit_s7``.
 - ``agent_workflows.orchestrator_readiness``: ``resolve_all_set_memberships``,
   ``review_readiness``, ``run_coverage``.
+- ``agent_workflows.production_checks``: ``existing_handoff_plans``, ``_extract_plan_id``,
+  ``_read_from_backlog``, ``spec_plan_count``, ``spec_plan_conformance``,
+  ``spec_plan_gate_carry``, ``spec_plan_trace``, ``backlog_graduate_count``,
+  ``backlog_graduate_ipd``, ``backlog_gate_handoff``, ``backlog_graduate_legitimacy``.
 
 All fixtures live in isolated ``tmp_path`` repositories; no test reads production source or the
 live repository's ``.aw/records/`` tree.
@@ -22,6 +26,7 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
 from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
@@ -32,6 +37,7 @@ from agent_workflows import (
     artifact_audit,
     coverage_record,
     orchestrator_readiness,
+    production_checks,
     review_rereview,
     review_sequence,
     review_tier,
@@ -1526,3 +1532,377 @@ class TestOrchestratorReadinessReaders:
         assert rc_non == 2
         payload_non = json.loads(buf_non.getvalue())
         assert payload_non["outcome"] == "cannot-run"
+
+
+def _init_git_repo(repo: Path) -> None:
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"], cwd=repo, check=True
+    )
+    subprocess.run(["git", "config", "user.name", "Tester"], cwd=repo, check=True)
+    (repo / "README.md").write_text("# Demo\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "init"], cwd=repo, check=True)
+
+
+def _conforming_production_plan(
+    repo: Path,
+    *,
+    id6: str,
+    setid: str = "pset",
+    order: int = 1,
+    status: str = "to-review",
+    bucket: str = "pending",
+    plan_role: str = "child",
+    from_spec: str | None = None,
+    from_backlog: str | None = None,
+    blocks_release: str | None = None,
+    scope_paths: str = "README.md",
+    item_dependencies: str = "none",
+    body: str | None = None,
+) -> Path:
+    extra: dict[str, object] = {}
+    if from_spec is not None:
+        extra["from_spec"] = from_spec
+    if from_backlog is not None:
+        extra["from_backlog"] = from_backlog
+    if blocks_release is not None:
+        extra["blocks_release"] = blocks_release
+    plan_body = body or (
+        f"## Goal\n\nGoal for {id6}.\n\n"
+        "## Detailed Implementation Checklist (TODO)\n\n"
+        "### Task group 1: work\n\n"
+        "- [ ] E-01 Work item\n"
+        "  - Depends on: none\n"
+        "  - Expected outcome: done\n"
+        "  - Execution state: pending\n\n"
+        "## Project conventions discovered (Step 0)\n\nNone.\n\n"
+        "## Findings\n\nNone.\n\n"
+        "## Proposed changes (ordered, validatable)\n\n1. Do work (E-01).\n\n"
+        "## Deferred / out of scope (with reason)\n\nNone.\n\n"
+        "## Scope check\n\n- None.\n\n"
+        "## Required tests / validation\n\n- None.\n\n"
+        "## Spec / documentation sync\n\n- None.\n\n"
+        "## Open questions\n\n- None.\n\n"
+        "## Validation and cross-check (verify before reporting done)\n\n"
+        "- [ ] V-01 validates E-01\n"
+        "  - Required evidence: check.\n"
+        "  - Observed evidence:\n"
+        "  - Result: pending\n\n"
+        "## Approval and execution gate\n\n"
+        "- Size assessment: standard\n"
+        "- Cohesion rationale: not required\n"
+    )
+    return Path(
+        RecordBuilder(repo).plan(
+            id6=id6,
+            title=f"Plan {id6}",
+            when="2026-11-09",
+            plan_role=plan_role,
+            status=status,
+            set=setid,
+            order=order,
+            slug=f"plan-{id6}",
+            disposition=bucket,
+            scope_paths=scope_paths,
+            item_dependencies=item_dependencies,
+            priority="medium",
+            work_kind="feature",
+            highest_e_allocated="01",
+            author="tester",
+            history=[f"- 2026-11-09 {status} (tester): authored."],
+            body=plan_body,
+            raw_fields={"Concern": f"Concern {id6}.", "Scope": f"Scope {id6}."},
+            **extra,
+        )
+    )
+
+
+class TestProductionChecksReaders:
+    """Pins production_checks metadata, backlog, spec, and history readers."""
+
+    def test_production_checks_handoff_and_helper_readers(self, tmp_path: Path) -> None:
+        # _read_from_backlog handles usable id6, sentinels, malformed lists, and absent field.
+        assert (
+            production_checks._read_from_backlog(
+                "# IPD: A\n\n- Id: pl1001\n- From-Backlog: bk1001\n"
+            )
+            == "bk1001"
+        )
+        assert (
+            production_checks._read_from_backlog(
+                "# IPD: A\n\n- Id: pl1001\n- From-Backlog: -\n"
+            )
+            is None
+        )
+        assert (
+            production_checks._read_from_backlog(
+                "# IPD: A\n\n- Id: pl1001\n- From-Backlog: bk1001, bk1002\n"
+            )
+            is None
+        )
+        assert (
+            production_checks._read_from_backlog("# IPD: A\n\n- Id: pl1001\n") is None
+        )
+
+        # _extract_plan_id prefers - Id:, falls back to filename slot, then stem.
+        assert (
+            production_checks._extract_plan_id(
+                Path("20261109-demo-01-fn1111-s.ipd.md"), "- Id: id2222\n"
+            )
+            == "id2222"
+        )
+        assert (
+            production_checks._extract_plan_id(
+                Path("20261109-demo-01-fn1111-s.ipd.md"), "# IPD: No id\n"
+            )
+            == "fn1111"
+        )
+        assert (
+            production_checks._extract_plan_id(
+                Path("custom-plan.ipd.md"), "# IPD: No id\n"
+            )
+            == "custom-plan.ipd"
+        )
+
+        # existing_handoff_plans filters by source type/id6, excludes terminal buckets and exclude_ids.
+        p_bkl = _conforming_production_plan(
+            tmp_path,
+            id6="pl1001",
+            setid="bset",
+            order=1,
+            from_backlog="bk1001",
+        )
+        _conforming_production_plan(
+            tmp_path,
+            id6="pl1002",
+            setid="bset",
+            order=2,
+            status="executed",
+            bucket="executed",
+            from_backlog="bk1001",
+        )
+        p_spc = _conforming_production_plan(
+            tmp_path,
+            id6="pl1003",
+            setid="sset",
+            order=1,
+            status="reviewed",
+            from_spec="sp1001",
+        )
+
+        bkl_plans = production_checks.existing_handoff_plans(
+            tmp_path, "backlog", "bk1001"
+        )
+        assert [(hp.id6, hp.status, hp.kind, hp.set) for hp in bkl_plans] == [
+            ("pl1001", "to-review", "child", "bset")
+        ]
+        assert bkl_plans[0].path.resolve() == p_bkl.resolve()
+        assert (
+            production_checks.existing_handoff_plans(
+                tmp_path, "backlog", "bk1001", exclude_ids={"pl1001"}
+            )
+            == []
+        )
+
+        spc_plans = production_checks.existing_handoff_plans(tmp_path, "spec", "sp1001")
+        assert [(hp.id6, hp.status, hp.kind, hp.set) for hp in spc_plans] == [
+            ("pl1003", "reviewed", "child", "sset")
+        ]
+        assert spc_plans[0].path.resolve() == p_spc.resolve()
+
+    def test_production_checks_spec_count_conformance_gate_and_trace(
+        self, tmp_path: Path
+    ) -> None:
+        builder = RecordBuilder(tmp_path)
+        builder.release(version="1.0.0", id6="rel100", status="planned")
+        builder.spec(
+            id6="sp2001",
+            status="approved",
+            title="Production spec",
+            when="2026-11-09",
+            slug="prod-spec",
+            disposition="approved",
+            blocks_release="next",
+            body=(
+                "## Requirements\n"
+                "- R-1 First requirement.\n"
+                "- R-2 Second requirement.\n"
+                "- R-3 [Deferred] Deferred requirement.\n\n"
+                "## Acceptance Criteria\n"
+                "- AC-1 First criterion.\n"
+            ),
+        )
+
+        # Executed linked plan covers R-1; active pending plan covers R-2 and AC-1.
+        _conforming_production_plan(
+            tmp_path,
+            id6="pl2000",
+            setid="sp2set",
+            order=1,
+            status="executed",
+            bucket="executed",
+            from_spec="sp2001",
+            blocks_release="next",
+            body=(
+                "## Goal\nDone.\n\n## Detailed Implementation Checklist (TODO)\n"
+                "- [x] E-01 Implements `sp2001` R-1\n"
+                "  - Depends on: none\n  - Expected outcome: ok\n  - Execution state: performed\n\n"
+                "## Validation and cross-check (verify before reporting done)\n"
+                "- [x] V-01 validates E-01\n  - Required evidence: ok\n  - Observed evidence: ok\n  - Result: pass\n"
+            ),
+        )
+        active_plan = _conforming_production_plan(
+            tmp_path,
+            id6="pl2001",
+            setid="sp2set",
+            order=2,
+            status="to-review",
+            from_spec="sp2001",
+            blocks_release="next",
+            body=(
+                "## Goal\nActive.\n\n## Detailed Implementation Checklist (TODO)\n\n"
+                "### Task group 1: work\n\n"
+                "- [ ] E-01 Implements `sp2001` R-2\n"
+                "  - Depends on: none\n  - Expected outcome: ok\n  - Execution state: pending\n\n"
+                "## Project conventions discovered (Step 0)\n\nNone.\n\n"
+                "## Findings\n\nNone.\n\n"
+                "## Proposed changes (ordered, validatable)\n\n1. E-01.\n\n"
+                "## Deferred / out of scope (with reason)\n\nNone.\n\n"
+                "## Scope check\n\n- None.\n\n"
+                "## Required tests / validation\n\n- None.\n\n"
+                "## Spec / documentation sync\n\n- None.\n\n"
+                "## Open questions\n\n- None.\n\n"
+                "## Validation and cross-check (verify before reporting done)\n\n"
+                "- [ ] V-01 validates E-01 (`sp2001` AC-1)\n"
+                "  - Required evidence: ok\n  - Observed evidence:\n  - Result: pending\n\n"
+                "## Approval and execution gate\n\n"
+                "- Size assessment: standard\n- Cohesion rationale: not required\n"
+            ),
+        )
+
+        assert production_checks.spec_plan_count(tmp_path, "sp2001", {"pl2000"}) == []
+        assert (
+            production_checks.spec_plan_conformance(tmp_path, "sp2001", [active_plan])
+            == []
+        )
+        assert (
+            production_checks.spec_plan_gate_carry(tmp_path, "sp2001", [active_plan])
+            == []
+        )
+        assert (
+            production_checks.spec_plan_trace(tmp_path, "sp2001", [active_plan]) == []
+        )
+        assert production_checks.spec_plan_trace_vacuity(tmp_path, "sp2001") is None
+        assert production_checks.spec_plan_trace_deferred(tmp_path, "sp2001") == ["R-3"]
+        assert production_checks.spec_uncited_trace_ids(tmp_path, "sp2001") == []
+
+        # Plan omitting Blocks-Release fails spec_plan_gate_carry; unresolved deps & TODO scope fail conformance.
+        bad_plan = _conforming_production_plan(
+            tmp_path,
+            id6="pl2002",
+            setid="sp2set",
+            order=3,
+            status="draft",
+            from_spec="sp2001",
+            blocks_release=None,
+            scope_paths="TODO",
+            item_dependencies="unresolved",
+        )
+        gate_findings = production_checks.spec_plan_gate_carry(
+            tmp_path, "sp2001", [bad_plan]
+        )
+        assert len(gate_findings) == 1
+        assert gate_findings[0][0] == "SPEC-PLAN-GATE-CARRY"
+
+        conf_findings = production_checks.spec_plan_conformance(
+            tmp_path, "sp2001", [bad_plan]
+        )
+        conf_msgs = " ".join(msg for _, _, msg in conf_findings)
+        assert "check.plan-status" in conf_msgs
+        assert "check.scope-paths" in conf_msgs
+        assert "check.item-dependencies" in conf_msgs
+
+    def test_production_checks_backlog_verifiers_and_history_legitimacy(
+        self, tmp_path: Path
+    ) -> None:
+        _init_git_repo(tmp_path)
+        builder = RecordBuilder(tmp_path)
+        builder.release(version="1.0.0", id6="rel200", status="planned")
+        builder.backlog(
+            id6="bk3001",
+            status="open",
+            blocks_release="next",
+            work_kind="feature",
+            priority="high",
+            summary="Production backlog item",
+            slug="prod-item",
+            when="2026-11-09",
+            history=["- 2026-11-09 open (tester): created item"],
+        )
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "seed backlog"], cwd=tmp_path, check=True
+        )
+
+        plan_p = _conforming_production_plan(
+            tmp_path,
+            id6="pl3001",
+            setid="bk3set",
+            order=1,
+            from_backlog="bk3001",
+            blocks_release="next",
+        )
+        subprocess.run(["git", "add", str(plan_p)], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-qm", "add plan"], cwd=tmp_path, check=True)
+        handoff_sha = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=tmp_path, text=True
+        ).strip()
+
+        assert production_checks.backlog_graduate_count(tmp_path, "bk3001", set()) == []
+        assert (
+            production_checks.backlog_graduate_ipd(tmp_path, "bk3001", [plan_p]) == []
+        )
+        assert (
+            production_checks.backlog_gate_handoff(tmp_path, "bk3001", [plan_p]) == []
+        )
+
+        # Transition backlog open -> graduated with history citing pl3001.
+        grad_p = builder.backlog(
+            id6="bk3001",
+            status="graduated",
+            disposition="graduated",
+            blocks_release="next",
+            work_kind="feature",
+            priority="high",
+            summary="Production backlog item",
+            slug="prod-item",
+            when="2026-11-09",
+            history=[
+                "- 2026-11-09 graduated (aw backlog set): graduated by run run-01: pl3001",
+                "- 2026-11-09 open (tester): created item",
+            ],
+        )
+        open_p = tmp_path / ".aw" / "records" / "backlog" / "open"
+        for old in open_p.glob("*bk3001*.backlog.md"):
+            old.unlink()
+        subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "graduate backlog"], cwd=tmp_path, check=True
+        )
+        assert Path(grad_p).is_file()
+
+        assert (
+            production_checks.backlog_graduate_legitimacy(
+                tmp_path, "bk3001", handoff_sha, status_before="open"
+            )
+            == []
+        )
+        assert (
+            len(
+                production_checks.backlog_graduate_legitimacy(
+                    tmp_path, "bk3001", handoff_sha, status_before="done"
+                )
+            )
+            == 1
+        )
