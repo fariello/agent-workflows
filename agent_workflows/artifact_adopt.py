@@ -67,13 +67,27 @@ INBOX_REL = ".aw/inbox"
 # Body identity scanning: the two front-matter dialects, and the forged-identity guard
 # --------------------------------------------------------------------------------------
 
-# The BULLET dialect (`- Id: <id6>`), used by plans/specs/backlog/releases.
-_BULLET_ID_RE = re.compile(r"(?m)^-[ \t]*Id:[ \t]*([0-9a-z]{6})[ \t]*$")
 # The YAML dialect (`---` fenced, `id: <id6>`), used by RESEARCH per spec
 # `20260730-2152-01-agents-artifact-organization` section 5.8 and emitted by
 # `research_cmd.build_frontmatter`. This is the dialect the likeliest destination actually uses, so
 # a guard written against the bullet form alone would miss the case it meets first.
 _YAML_ID_RE = re.compile(r"(?m)^[ \t]*id:[ \t]*([0-9a-z]{6})[ \t]*$")
+
+
+def _iter_body_bullet_id6s(text: str) -> List[str]:
+    """Extract column-zero ``- Id: <id6>`` tokens from untrusted raw drop or research body text."""
+    found: List[str] = []
+    for line in text.splitlines():
+        if not line.startswith("-"):
+            continue
+        rest = line[1:].lstrip(" \t")
+        if not rest.startswith("Id:"):
+            continue
+        val = rest[3:].strip(" \t")
+        if _core.ID6_RE.fullmatch(val):
+            found.append(val)
+    return found
+
 
 # How many body id6-shaped tokens to name in a preview before summarizing the rest.
 # `artifact_core.iter_id6_in_text` matches ANY 6-char base36 word, so on a long technical document
@@ -132,7 +146,7 @@ def scan_declared_identities(text: str) -> FrozenSet[str]:
     Matches `scan_body_identities(text).declared` without scanning the full prose body
     for 6-char tokens (`iter_id6_in_text`), which is orders of magnitude faster on large corpora.
     """
-    declared = set(_BULLET_ID_RE.findall(text))
+    declared = set(_iter_body_bullet_id6s(text))
     block = _yaml_frontmatter_block(text)
     if block:
         declared.update(_YAML_ID_RE.findall(block))
@@ -147,7 +161,7 @@ def scan_body_identities(text: str) -> BodyIdentities:
     look identical to not having checked.
     """
 
-    bullet = tuple(dict.fromkeys(_BULLET_ID_RE.findall(text)))
+    bullet = tuple(dict.fromkeys(_iter_body_bullet_id6s(text)))
     block = _yaml_frontmatter_block(text)
     yaml_ids = tuple(dict.fromkeys(_YAML_ID_RE.findall(block))) if block else ()
     declared = set(bullet) | set(yaml_ids)
@@ -198,41 +212,86 @@ def repository_id6s(repo_root: Path) -> Set[str]:
     Three sources are UNIONED, because each alone is incomplete and minting a duplicate is only
     discovered after the destination is written and the original deleted:
 
-    1. every filename IDENTITY-SLOT id6 (the invariant ``check.id6-identity-slot`` polices);
-    2. every BULLET-declared ``- Id:`` (what ``check_engine._ID_LINE_RE`` reads);
-    3. every YAML-declared ``id:`` in a leading front-matter block (which the bullet reader MISSES,
-       so a set built the way ``aw check`` builds its declared-id map would omit every research id).
+    1. every cached declared ``id6`` from ``artifact_meta.query`` across all record types
+       (D-3: plans, specs, backlog, releases, research, prompts, walkthroughs, roadmaps;
+       skipping synthetic ``id_derived`` rows for id-less legacy files);
+    2. every filename IDENTITY-SLOT id6 (the invariant ``check.id6-identity-slot`` polices);
+    3. conservative body-quoted declarations in research reports (pinned by ``ztx39t`` so
+       minting never selects an id6 quoted inside an adopted research document).
 
     The id6 invariant is repository-WIDE and fail-closed, so a tree-scoped set (which is what
     ``research_cmd._existing_id6s`` produces) is insufficient by construction.
     """
 
+    from agent_workflows import artifact_meta as _am
     from agent_workflows import artifact_naming as _naming
     from agent_workflows import check_engine as _check
+    from agent_workflows import research_contract as _R
 
     repo_root = Path(repo_root)
     found: Set[str] = set()
+    scanned_research: Set[Path] = set()
+
+    def _add_filename_id(name: str) -> None:
+        m = _naming.parse_clustered(name)
+        if m:
+            found.add(m.group("id6"))
+            return
+        try:
+            parsed, _err = _R.parse_name(name)
+        except Exception:  # pragma: no cover - defensive
+            parsed = None
+        if parsed is not None:
+            found.add(parsed.id6)
+
+    # 1. Cached record metadata inventory via artifact_meta.query (D-3).
+    try:
+        ctx = _am.legacy_context(repo_root)
+        records_root = Path(ctx.logical_roots["records"])
+        scan_repo = _am._scan_repo_root(ctx, records_root) or repo_root.resolve()
+        with _am.scan_once(), _am.ephemeral_if_uninitialized():
+            qres = _am.query(project_context=ctx)
+        for st in qres.rows:
+            if (
+                not getattr(st, "id_derived", False)
+                and st.id6
+                and _core.is_valid_id6(st.id6)
+            ):
+                found.add(st.id6)
+            if not st.path:
+                continue
+            _add_filename_id(Path(st.path).name)
+            if st.type in ("research", "roadmap"):
+                try:
+                    src_p = _am.source_path(st.path, records_root, scan_repo)
+                    src_res = src_p.resolve()
+                    if src_res not in scanned_research:
+                        scanned_research.add(src_res)
+                        found.update(
+                            scan_declared_identities(src_p.read_text(encoding="utf-8"))
+                        )
+                except (OSError, UnicodeDecodeError, ValueError):
+                    pass
+    except Exception:
+        pass
+
+    # 2. Filename identity slots across all trees (including retired) and any uncached research bodies.
     for record_type in _check.SUPPORTED:
         for p in _check._iter_type_files(repo_root, record_type, include_retired=True):
-            m = _naming.parse_clustered(p.name)
-            if m:
-                found.add(m.group("id6"))
-            else:
-                # Research carries its own `.<model>.<kind>.md` grammar; ask its parser too.
+            _add_filename_id(p.name)
+            if record_type == "research":
                 try:
-                    from agent_workflows import research_contract as _R
-
-                    parsed, _err = _R.parse_name(p.name)
-                except Exception:  # pragma: no cover - defensive
-                    parsed = None
-                if parsed is not None:
-                    found.add(parsed.id6)
-            try:
-                text = p.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                continue
-            ids = scan_body_identities(text)
-            found.update(ids.declared)
+                    p_res = p.resolve()
+                except OSError:
+                    continue
+                if p_res in scanned_research:
+                    continue
+                scanned_research.add(p_res)
+                try:
+                    text = p.read_text(encoding="utf-8")
+                except (OSError, UnicodeDecodeError):
+                    continue
+                found.update(scan_declared_identities(text))
     return found
 
 

@@ -19,6 +19,9 @@ Pins the observable behavior of:
   ``backlog_graduate_ipd``, ``backlog_gate_handoff``, ``backlog_graduate_legitimacy``.
 - ``agent_workflows.work_cmd``: ``_plan_id6``, ``_plan_status``, ``_plan_scope_paths``,
   ``_warn_if_begin_skipped``, ``_default_commit_message``, ``run_commit``, ``run_test``.
+- ``agent_workflows.artifact_adopt``: ``repository_id6s`` (D-3 cached ids for plans, specs,
+  backlog, releases plus conservative research body scan), ``scan_declared_identities``,
+  ``scan_body_identities``, ``plan_adoption``.
 
 All fixtures live in isolated ``tmp_path`` repositories; no test reads production source or the
 live repository's ``.aw/records/`` tree.
@@ -37,6 +40,7 @@ from types import SimpleNamespace
 import pytest
 
 from agent_workflows import (
+    artifact_adopt,
     artifact_audit,
     coverage_record,
     orchestrator_readiness,
@@ -2075,3 +2079,128 @@ class TestWorkCmdReaders:
             ["git", "log", "-1", "--format=%s"], cwd=tmp_path, text=True
         ).strip()
         assert subj == "work(wk2004): Plan wk2004"
+
+
+class TestArtifactAdoptReaders:
+    """Pins artifact_adopt identity inventory (D-3) and body declaration scanners."""
+
+    def test_adopt_repository_id6s_reads_cached_types_and_preserves_quoted_superset(
+        self, tmp_path: Path
+    ) -> None:
+        from agent_workflows import artifact_meta as _am
+
+        _init_git_repo(tmp_path)
+        builder = RecordBuilder(tmp_path)
+        builder.plan(
+            id6="adp001",
+            status="approved",
+            when="2026-11-09",
+            set="adset",
+            order=1,
+            slug="adopt-plan",
+        )
+        builder.spec(
+            id6="ads001",
+            status="approved",
+            when="2026-11-09",
+            slug="adopt-spec",
+            disposition="approved",
+        )
+        builder.backlog(
+            id6="adb001",
+            status="open",
+            when="2026-11-09",
+            set="adset",
+            order=1,
+            slug="adopt-backlog",
+        )
+        builder.release(version="1.0.0", id6="adr001", status="planned")
+        res_dir = tmp_path / ".aw" / "records" / "research"
+        res_dir.mkdir(parents=True, exist_ok=True)
+        (res_dir / "20261109-adset-01-ady001-quoting.research-report.md").write_text(
+            RecordBuilder().research(
+                id6="ady001",
+                when="2026-11-09",
+                set="adset",
+                order=1,
+                research_kind="research-report",
+                body="\n# Report\n\n```markdown\n- Id: adq001\n```\n",
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
+        # Id-less legacy spec must not contribute a derived id6 to repository_id6s.
+        idless_spec = (
+            tmp_path
+            / ".aw"
+            / "records"
+            / "specs"
+            / "approved"
+            / "20260101-1200-01-legacy-idless.spec.md"
+        )
+        idless_spec.write_text(
+            "# Legacy Spec\n\n- Status: approved\n", encoding="utf-8"
+        )
+
+        ids_cold = artifact_adopt.repository_id6s(tmp_path)
+        assert {"adp001", "ads001", "adb001", "adr001", "ady001", "adq001"} <= ids_cold
+
+        # Warm the SQLite cache and verify derived ids stay excluded while declared ids match.
+        ctx = _am.legacy_context(tmp_path)
+        all_rows = _am.query(project_context=ctx).rows
+        derived_ids = {st.id6 for st in all_rows if st.id_derived}
+        assert derived_ids
+        assert derived_ids.isdisjoint(ids_cold)
+
+        ids_warm = artifact_adopt.repository_id6s(tmp_path)
+        assert ids_warm == ids_cold
+        assert derived_ids.isdisjoint(ids_warm)
+
+    def test_adopt_scan_identities_and_collision_guard(self, tmp_path: Path) -> None:
+        _init_git_repo(tmp_path)
+        builder = RecordBuilder(tmp_path)
+        builder.plan(
+            id6="adc001",
+            status="approved",
+            when="2026-11-09",
+            set="adset",
+            order=1,
+            slug="live-owner",
+        )
+
+        raw = (
+            "---\nid: yml001\n---\n\n# Drop\n\n"
+            "- Id: bul001\n"
+            "  - Id: ind001\n"
+            "- Id: UPPER1\n"
+            "- Id: bul002 extra\n"
+            "-\tId:\tbul003  \n"
+        )
+        body_ids = artifact_adopt.scan_body_identities(raw)
+        assert body_ids.bullet_declared == ("bul001", "bul003")
+        assert body_ids.yaml_declared == ("yml001",)
+        assert artifact_adopt.scan_declared_identities(raw) == frozenset(
+            {"bul001", "bul003", "yml001"}
+        )
+
+        # Colliding bullet `- Id:` in an inbox drop is refused; unowned bullet `- Id:` is allowed.
+        inbox = tmp_path / ".aw" / "inbox"
+        inbox.mkdir(parents=True, exist_ok=True)
+        colliding_drop = inbox / "collide-research-report.md"
+        colliding_drop.write_text("# Drop\n\n- Id: adc001\n", encoding="utf-8")
+        plan_bad, err_bad = artifact_adopt.plan_adoption(
+            repo_root=tmp_path, source=colliding_drop
+        )
+        assert plan_bad is None
+        assert err_bad is not None
+        assert "adc001" in err_bad
+
+        safe_drop = inbox / "safe-research-report.md"
+        safe_drop.write_text("# Drop\n\n- Id: zzz999\n", encoding="utf-8")
+        plan_ok, err_ok = artifact_adopt.plan_adoption(
+            repo_root=tmp_path, source=safe_drop
+        )
+        assert err_ok is None
+        assert plan_ok is not None
+        assert plan_ok.id6 != "zzz999"
+        assert plan_ok.body_identities.bullet_declared == ("zzz999",)
