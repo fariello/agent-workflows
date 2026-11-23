@@ -43,10 +43,10 @@ The pin-first rule of `ffceq0` applies to every move here (carried from `t4gl15`
 
 Round-3 note (2026-11-09): Task groups 1 and 2 (E-01, E-02) moved to `y4spqy`, `0i0zsg` and `awmsyq`, all `- Item-Dependencies:` edges of this plan, so E-03's former `Depends on: E-02` is carried by those edges.
 
-- [ ] E-03 (carried from `t4gl15` E-15, this plan's module subset) Before the first run, ensure `.aw/state/t4gl15/` exists (`mkdir -p .aw/state/t4gl15/`). Run `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" <files>` and `rg -n "Workflow history" <files>` over the ten production modules named in F-04 (17 hits in 10 functions at `ac76110f4`, before this plan: `review_findings` 2, `artifact_audit` 1, `review_sequence` 3, `orchestrator_readiness` 1, `production_checks` 6, `work_cmd` 3, `artifact_adopt` 1) and write table F-04 in this plan listing every remaining hit with its owner: writer (Orders 06/07, named; for example the write half of `review_sequence.restore_pre_s7_plan`), body-prose bullet kept by N3 (named pattern), or a parser that Order 11 deletes. A reader hit with no such owner is a defect of this plan and is moved before finishing. Then run every module named in `y4spqy` E-01, `0i0zsg` E-01/E-02 and `awmsyq` E-01 to E-03 (the moved E-01 and E-02) and the bare core gate `python3 -m pytest`, and commit through `aw commit 2zpw22 -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-03 (carried from `t4gl15` E-15, this plan's module subset) Before the first run, ensure `.aw/state/t4gl15/` exists (`mkdir -p .aw/state/t4gl15/`). Run `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" <files>` and `rg -n "Workflow history" <files>` over the ten production modules named in F-04 (17 hits in 10 functions at `ac76110f4`, before this plan: `review_findings` 2, `artifact_audit` 1, `review_sequence` 3, `orchestrator_readiness` 1, `production_checks` 6, `work_cmd` 3, `artifact_adopt` 1) and write table F-04 in this plan listing every remaining hit with its owner: writer (Orders 06/07, named; for example the write half of `review_sequence.restore_pre_s7_plan`), body-prose bullet kept by N3 (named pattern), or a parser that Order 11 deletes. A reader hit with no such owner is a defect of this plan and is moved before finishing. Then run every module named in `y4spqy` E-01, `0i0zsg` E-01/E-02 and `awmsyq` E-01 to E-03 (the moved E-01 and E-02) and the bare core gate `python3 -m pytest`, and commit through `aw commit 2zpw22 -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: none
   - Expected outcome: F-04 has no unowned reader hit; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -63,8 +63,33 @@ Measured 2026-11-07 at `ac76110f4`.
 | Id | Evidence | Finding |
 |---|---|---|
 | F-01 | AST pass over `rg` hits of each module's reader symbols (`_META_RE`, `_STATUS_LINE_RE`, `meta_fields`, `read_readiness(`, `_BATCH_META_RE`, `_PLAN_ID_RE`, `_ITEM_DEPS_RE`, `_SCOPE_PATHS_RE`, `_ITEM_FROM_BACKLOG_RE`, `_SET_RE`, `parse_item(`, `_plan_id6(`, `_plan_status(`, `_BULLET_ID_RE`, `_resolve_selector_paths`, `collect_decisions`, `review_attestation_missing`, `read_declared_status`, plus the `^-` regex pattern): `review_findings` 8 sites in 5 functions, `artifact_audit` 7 in 4, `reviews` 5 in 3 | `y4spqy` E-01 (formerly E-01 here): 12 functions. |
-| F-04 | (written by E-03) residual hits with owners, over `agent_workflows/review_findings.py`, `artifact_audit.py`, `reviews.py`, `review_sequence.py`, `review_tier.py`, `review_rereview.py`, `orchestrator_readiness.py`, `production_checks.py`, `work_cmd.py` and `artifact_adopt.py` | Input to `t4gl15` E-15 and Order 11. |
+| F-04 | Executed 2026-11-22 at `bb0b36963` (E-03): 1 total hit across the ten audited modules (0 `^-` regex hits, 1 `Workflow history` hit): `agent_workflows/review_findings.py` 1 (0 regex, 1 history), and 0 each in `agent_workflows/artifact_audit.py`, `agent_workflows/reviews.py`, `agent_workflows/review_sequence.py`, `agent_workflows/review_tier.py`, `agent_workflows/review_rereview.py`, `agent_workflows/orchestrator_readiness.py`, `agent_workflows/production_checks.py`, `agent_workflows/work_cmd.py`, and `agent_workflows/artifact_adopt.py`; down from 17 hits in 10 functions at `ac76110f4`. Every hit is classified with its owner in Table F-04 below; 0 unowned reader hits. | Input to `t4gl15` E-15 and Order 11 (`9o83cr`). |
 | F-02 | Same pass: `review_sequence` 13 sites in 5 functions, `review_tier` 3 in 1, `review_rereview` 5 in 2, `orchestrator_readiness` 8 in 4, `production_checks` 28 in 11, `work_cmd` 16 in 11, `artifact_adopt` 5 in 2 | `0i0zsg` and `awmsyq` (formerly E-02 here): 36 functions. |
+
+### Table F-04: Residual `^-` regex and `Workflow history` audit (E-03, commit `bb0b36963`, 1 hit)
+
+Per-module hit counts across all ten audited modules under `agent_workflows/`:
+
+- `agent_workflows/review_findings.py`: 1 hit (0 `^-` regex, 1 `Workflow history`; down from 2 at `ac76110f4` after `y4spqy` E-01 deleted `_META_RE`).
+- `agent_workflows/artifact_audit.py`: 0 hits (0 `^-` regex, 0 `Workflow history`; down from 1 at `ac76110f4` after `y4spqy` E-01 deleted `_STATUS_LINE_RE`).
+- `agent_workflows/reviews.py`: 0 hits (0 `^-` regex, 0 `Workflow history`; unchanged from 0 at `ac76110f4`).
+- `agent_workflows/review_sequence.py`: 0 hits (0 `^-` regex, 0 `Workflow history`; down from 3 at `ac76110f4` after `7yr827` E-04 and `0i0zsg` E-01).
+- `agent_workflows/review_tier.py`: 0 hits (0 `^-` regex, 0 `Workflow history`; unchanged from 0 at `ac76110f4`).
+- `agent_workflows/review_rereview.py`: 0 hits (0 `^-` regex, 0 `Workflow history`; unchanged from 0 at `ac76110f4`).
+- `agent_workflows/orchestrator_readiness.py`: 0 hits (0 `^-` regex, 0 `Workflow history`; down from 1 at `ac76110f4` after `0i0zsg` E-02 deleted `_BATCH_META_RE`).
+- `agent_workflows/production_checks.py`: 0 hits (0 `^-` regex, 0 `Workflow history`; down from 6 at `ac76110f4` after `awmsyq` E-01).
+- `agent_workflows/work_cmd.py`: 0 hits (0 `^-` regex, 0 `Workflow history`; down from 3 at `ac76110f4` after `awmsyq` E-02).
+- `agent_workflows/artifact_adopt.py`: 0 hits (0 `^-` regex, 0 `Workflow history`; down from 1 at `ac76110f4` after `awmsyq` E-03).
+
+| # | File and symbol | Query | Matched code | Class | Owner / Action |
+|---|---|---|---|---|---|
+| 1 | `agent_workflows/review_findings.py` (module docstring, line 6) | `Workflow history` | `` `## Workflow history`, plus the session transcript. Nothing deterministic could read them, which is `` | docstring prose | Non-reader / non-writer docstring prose explaining why typed review files exist; excluded by Order 11 (`9o83cr` E-14) / documentation polish in Order 12 (`90iqr1`). |
+
+Supplementary non-matching patterns verified across the ten modules during E-03 (0 unowned metadata readers):
+
+- `agent_workflows/review_findings.py::_OQ_FINDING_REF_RE` and `agent_workflows/review_findings.py::_resolved_escalated_questions` (`(?mi)^-` / `(?i)^-`): body-prose sub-bullets inside `## Open questions` (`### OQ-NN:`), kept by spec `4sd62s` N3.
+- `agent_workflows/review_sequence.py::count_verdict_bearing_entries`: delegates to `plan_readiness.history_block`, owned by Order 11 (`ay6sxp` E-02, Order 291; deferred in `0i0zsg`).
+- `agent_workflows/artifact_adopt.py::_YAML_ID_RE` and `agent_workflows/artifact_adopt.py::_iter_body_bullet_id6s`: scan untrusted raw drop files in `.aw/inbox/` (not tracked records) for forged-identity warnings; `research_contract.parse_frontmatter(plan.frontmatter)` in the adoption writer parses freshly synthesized front matter before `artifact_meta.create` (owned by Order 11 `sq6v7i`, Order 288).
 
 READER LEDGER (copied from `t4gl15`):
 
