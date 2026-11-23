@@ -182,10 +182,32 @@ No spec change. Implements the runner part of `4sd62s` C5a and section 7 step 5,
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the two `rg` commands of E-06 and the F-04 table with a per-file hit count for each of `agent_workflows/runner_shared.py`, `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` (every remaining hit with its owner, none unowned); the summary line of `python3 -m pytest -o addopts="" -v tests/test_readers_runner.py` and of each of the ten `k86yq7` baseline modules, named one per line with 0 failed; the bare `python3 -m pytest` summary line and wall time; and every `aw commit y97k46` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - E-06 residual `rg` commands (at commit `5667955c6`):
+      - `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/runner_shared.py agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` -> 15 hits (all 15 in `agent_workflows/runner_shared.py`; 0 in `agent_workflows/oc_runipd.py`; 0 in `agent_workflows/agy_runipd.py`).
+      - `rg -n "Workflow history" agent_workflows/runner_shared.py agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` -> 17 hits (15 in `agent_workflows/runner_shared.py`; 2 in `agent_workflows/oc_runipd.py`; 0 in `agent_workflows/agy_runipd.py`).
+      - Per-file totals (32 hits total, every hit classified with its owner in Table F-04 above, 0 unowned reader hits):
+        - `agent_workflows/runner_shared.py`: 30 hits (15 `^-` regex, 15 `Workflow history`)
+        - `agent_workflows/oc_runipd.py`: 2 hits (0 `^-` regex, 2 `Workflow history`)
+        - `agent_workflows/agy_runipd.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+    - Pin module (`python3 -m pytest -o addopts="" -v tests/test_readers_runner.py`): `16 passed in 2.37s` (0 failed).
+    - Ten `k86yq7` E-03/E-04 baseline modules (`python3 -m pytest -m "" <mod>`, 512 passed, 0 failed):
+      - `tests/test_front_matter_loose_whitespace.py`: `4 passed in 2.29s`
+      - `tests/test_runner_shared.py`: `143 passed in 11.13s`
+      - `tests/test_oc_runipd.py`: `177 passed in 36.59s`
+      - `tests/test_agy_runipd_cli.py`: `56 passed in 11.41s`
+      - `tests/test_typed_queue_entries.py`: `22 passed in 6.76s`
+      - `tests/test_run_selection_policy.py`: `64 passed in 2.95s`
+      - `tests/test_spec_review_dispatch.py`: `7 passed in 10.83s`
+      - `tests/test_readiness_absence_invariant.py`: `10 passed in 4.37s`
+      - `tests/test_attended_session.py`: `13 passed in 3.85s`
+      - `tests/test_freeze_time_refusal.py`: `16 passed in 13.97s`
+    - Core tier gate (`aw suite` / bare `python3 -m pytest`): `2753 passed, 1 skipped, 11 warnings in 134.84s (0:02:14)` (exit 0; host 1-minute load average 11.39 on 12 CPUs).
+    - Leak scan (`aw sanitize --agent`): `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7087,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - Path-scoped `aw commit y97k46` output: `aw commit: committed 1 path(s): 1d3a8a7c8e39a68917d4cfdec004b2d1531f09cc` (`git show --stat`: 1 file changed, `.aw/records/plans/pending/20261107-metastore-34-y97k46-pin-the-runner-reads-and-move-the-runner-selection-and-git-c.ipd.md` — sole declared Scope-Path), followed by the final `aw commit y97k46` recording this V-06 evidence on the same Scope-Path.
+  - Result: pass
 
 ## Approval and execution gate
 
