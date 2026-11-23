@@ -6586,6 +6586,118 @@ def _legacy_set_graduated_to_line(text: str, value: Optional[str]) -> str:
     return _legacy_in_metadata_region(text, "Graduated-To", value)
 
 
+_LEGACY_RELEASE_EXEMPT_KIND_LINE_RE = re.compile(
+    r"(?m)^- Release-Exempt-Kind:[ \t]*[^\n]*$\n?"
+)
+_LEGACY_RELEASE_EXEMPT_REF_LINE_RE = re.compile(
+    r"(?m)^- Release-Exempt-Ref:[ \t]*[^\n]*$\n?"
+)
+_LEGACY_CLOSE_EVIDENCE_LINE_RE = re.compile(r"(?m)^- Close-Evidence:[ \t]*[^\n]*$\n?")
+
+
+def _legacy_insert_after_status_or_id(text: str, new_line: str) -> str:
+    """Insert ``new_line`` after the first `- Status:` line, else after `- Id:`, else leave unchanged."""
+    for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+        m = re.search(anchor, text)
+        if m:
+            i = m.end()
+            return text[:i] + new_line + text[i:]
+    return text
+
+
+def _legacy_set_release_exempt_kind_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- Release-Exempt-Kind:` metadata line set to `value`, or removed when
+    `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
+    (falling back to after `- Id:`, or leaving unchanged). Copy of
+    ``backlog.set_release_exempt_kind_line``."""
+    text = _LEGACY_RELEASE_EXEMPT_KIND_LINE_RE.sub("", text)
+    if value in (None, "-"):
+        return text
+    return _legacy_insert_after_status_or_id(text, f"- Release-Exempt-Kind: {value}\n")
+
+
+def _legacy_set_release_exempt_ref_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- Release-Exempt-Ref:` metadata line set to `value`, or removed when
+    `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
+    (falling back to after `- Id:`, or leaving unchanged). Copy of
+    ``backlog.set_release_exempt_ref_line``."""
+    text = _LEGACY_RELEASE_EXEMPT_REF_LINE_RE.sub("", text)
+    if value in (None, "-"):
+        return text
+    return _legacy_insert_after_status_or_id(text, f"- Release-Exempt-Ref: {value}\n")
+
+
+def _legacy_set_close_evidence_line(
+    text: str,
+    value: Optional[str],
+    repo_root: Optional[Union[Path, str]] = None,
+) -> str:
+    """Return `text` with the `- Close-Evidence:` metadata line set to `value`, or removed when
+    `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
+    (falling back to after `- Id:`, or leaving unchanged).
+
+    Normalizes an absolute `value` to a repo-relative POSIX path against `repo_root` (gh409m byzkr7
+    E-02); an already-relative value is preserved byte-identical. Copy of
+    ``backlog.set_close_evidence_line``."""
+    text = _LEGACY_CLOSE_EVIDENCE_LINE_RE.sub("", text)
+    if value in (None, "-"):
+        return text
+    val_str = str(value).strip()
+    if Path(val_str).is_absolute() or val_str.startswith(("/", "\\")):
+        if repo_root is None:
+            raise ValueError(
+                f"cannot normalize absolute evidence citation '{val_str}' without repo_root"
+            )
+        root_path = Path(repo_root).resolve()
+        target_path = Path(val_str).resolve()
+        try:
+            norm_value = target_path.relative_to(root_path).as_posix()
+        except ValueError:
+            raise ValueError(
+                f"evidence citation '{val_str}' is outside repository root '{repo_root}'"
+            )
+    else:
+        norm_value = val_str
+    return _legacy_insert_after_status_or_id(text, f"- Close-Evidence: {norm_value}\n")
+
+
+def _legacy_research_set_priority_line(text: str, value: Optional[str]) -> str:
+    """Return ``text`` with an optional `priority:` frontmatter line set to ``value`` or removed.
+
+    `priority` is OPTIONAL (xprio 6vgd0k), so this INSERTS the line when absent and REMOVES it on
+    clear. Operates ONLY inside the FIRST `--- ... ---` block; inserts after the last content line
+    (before the closing fence). `value` None/'-' clears. Preserves every other line and the body
+    byte-for-byte; a text with no complete leading block is returned unchanged. Copy of
+    ``research_cmd._set_priority_line``."""
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return text
+    fm_end = None
+    prio_idx = None
+    last_content_idx = 0
+    for i in range(1, len(lines)):
+        stripped = lines[i].strip()
+        if stripped == "---":
+            fm_end = i
+            break
+        if stripped.startswith("priority:"):
+            prio_idx = i
+        if stripped:
+            last_content_idx = i
+    if fm_end is None:
+        return text
+    if value in (None, "-"):
+        if prio_idx is not None:
+            del lines[prio_idx]
+        return "".join(lines)
+    if prio_idx is not None:
+        newline = "\n" if lines[prio_idx].endswith("\n") else ""
+        lines[prio_idx] = f"priority: {value}{newline}"
+    else:
+        lines.insert(last_content_idx + 1, f"priority: {value}\n")
+    return "".join(lines)
+
+
 def _set_bullet(
     text: str, label: str, value: Optional[str], *, anchors: Tuple[str, ...]
 ) -> str:
@@ -7242,16 +7354,14 @@ def _render_field(
         formatted = _format_legacy_value(field, value) if value is not None else "-"
         return bullet_writers[field](text, formatted)
 
-    from agent_workflows import backlog as _backlog
-
     writers = {
         "release_exempt_kind": (
             "Release-Exempt-Kind",
-            _backlog.set_release_exempt_kind_line,
+            _legacy_set_release_exempt_kind_line,
         ),
         "release_exempt_ref": (
             "Release-Exempt-Ref",
-            _backlog.set_release_exempt_ref_line,
+            _legacy_set_release_exempt_ref_line,
         ),
     }
     if field in writers:
@@ -7267,7 +7377,7 @@ def _render_field(
         return wfn(text, formatted)
     if field == "close_evidence":
         formatted = _format_legacy_value(field, value) if value is not None else "-"
-        return _backlog.set_close_evidence_line(text, formatted, repo_root=repo_root)
+        return _legacy_set_close_evidence_line(text, formatted, repo_root=repo_root)
     if value is None and field in _LEGACY_REMOVE_RE:
         pat = _LEGACY_REMOVE_RE[field]
         return "\n".join(ln for ln in text.split("\n") if not pat.match(ln))

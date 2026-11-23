@@ -3525,8 +3525,21 @@ def run_set_command(
     #       application is available via --skip-refused or interactive confirmation per IPD f42oxd).
     # The predicate is evaluated against `repo_root`: the positional path has no `--gate-dir` concept
     # (honored only by `backlog.run_set` for runner split-tree lane closes).
+    from agent_workflows import artifact_meta as _am
     from agent_workflows import check_engine as _ce
-    from agent_workflows import releases as _releases
+
+    _gate_render = _am.LegacyRender(tag="", day="", actor_label="", history=False)
+
+    def _render_gate_fields(text: str, fields: dict[str, Any]) -> str:
+        """Render one `set` event of gate-relevant fields into `text` via `artifact_meta` (pure)."""
+        rendered, _notes = _am.render_legacy(
+            text,
+            "backlog",
+            [{"op": "set", "fields": fields}],
+            _gate_render,
+            repo_root=repo_root,
+        )
+        return rendered
 
     backlog_close_verdicts: dict[Path, _ce.CloseVerdict] = {}
     for rec in matched_records:
@@ -3542,18 +3555,18 @@ def run_set_command(
         # are judged against the state the item will actually carry.
         item_text = rec.raw_text
         if getattr(args, "priority", None) is not None:
-            item_text = _releases.set_priority_line(
-                item_text, getattr(args, "priority", None)
+            item_text = _render_gate_fields(
+                item_text, {"priority": getattr(args, "priority", None)}
             )
         if getattr(args, "work_kind", None) is not None:
-            item_text = _releases.set_work_kind_line(
-                item_text, getattr(args, "work_kind", None)
+            item_text = _render_gate_fields(
+                item_text, {"work_kind": getattr(args, "work_kind", None)}
             )
 
         _cached = _record_state(rec, repo_root)
         br_arg = getattr(args, "blocks_release", None)
         if br_arg is not None:
-            item_text = _releases.set_blocks_release_line(item_text, br_arg)
+            item_text = _render_gate_fields(item_text, {"blocks_release": br_arg})
         else:
             _current_text = item_text
             _effective_kind = getattr(args, "work_kind", None) or _cached.get(
@@ -3580,8 +3593,8 @@ def run_set_command(
                 is_exempt=_is_exempt,
             )
             if _gate_default is not None:
-                item_text = _releases.set_blocks_release_line(
-                    _current_text, _gate_default
+                item_text = _render_gate_fields(
+                    _current_text, {"blocks_release": _gate_default}
                 )
 
         ev_arg = getattr(args, "evidence", None)
