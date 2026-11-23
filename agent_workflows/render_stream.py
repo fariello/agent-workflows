@@ -1708,13 +1708,19 @@ def compute_queue_tally(
     *,
     in_flight_id6: str | None = None,
 ) -> tuple[int, int]:
-    """Compute (passed_count, failed_count) for items that have finished so far in the queue.
+    """Compute (passed_count, failed_count) for dispatchable items settled in this run.
+
+    Excludes entries this run did not dispatch: ``action == "skip"`` items, pre-executed entries
+    with ``initial_status == "executed"``, and frozen unattempted ``reviewed`` entries awaiting
+    approval (when ``action != "review"``). This keeps the bottom-border tally aligned with the
+    progress counter (`completed_work_count` / `dispatchable_work_total`) so prior completed work
+    never inflates `ok` or `fail`.
 
     ``in_flight_id6`` names the item the driver is still working on; its FAILURE is not counted
-    (its success is). Between the
-    agent turn and integration the runner holds a PROVISIONAL `fail-gate` on it (a self-claimed
-    `executed` is not completion authority until verify + merge land), so counting it showed a
-    phantom "1 fail" for minutes on every item that went on to succeed.
+    (its success is). Between the agent turn and integration the runner holds a PROVISIONAL
+    `fail-gate` on it (a self-claimed `executed` is not completion authority until verify + merge
+    land), so counting it showed a phantom "1 fail" for minutes on every item that went on to
+    succeed.
     """
     if not queue:
         return 0, 0
@@ -1725,8 +1731,15 @@ def compute_queue_tally(
     for it in queue:
         if not isinstance(it, Mapping):
             continue
+        action = str(it.get("action") or "").strip()
+        if action == "skip":
+            continue
+        if str(it.get("initial_status") or "").strip() == "executed":
+            continue
         st = it.get("status")
         if not st or st in ("queued", "not-run", "not-started"):
+            continue
+        if st == "reviewed" and action != "review" and not it.get("attempts"):
             continue
         if item_reached_success(it):
             passed += 1

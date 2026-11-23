@@ -131,6 +131,129 @@ class TestComputeQueueTally:
         text = "\n".join(sl._render_lines_unlocked())
         assert "1 ok" in text and "0 fail" in text, text
 
+    def test_excludes_pre_skipped_and_pre_executed_and_frozen_reviewed_items(
+        self,
+    ) -> None:
+        """Tally counts only work settled in this run, matching completed_work_count."""
+        queue = [
+            # Already executed before this run started (action="skip")
+            {
+                "id6": "pre001",
+                "action": "skip",
+                "initial_status": "executed",
+                "status": "executed",
+                "attempts": [],
+            },
+            # Pre-executed entry without explicit action="skip"
+            {
+                "id6": "pre002",
+                "action": "execute",
+                "initial_status": "executed",
+                "status": "executed",
+                "attempts": [],
+            },
+            # Skipped retired/reviewed entry
+            {
+                "id6": "pre003",
+                "action": "skip",
+                "initial_status": "reviewed",
+                "status": "reviewed",
+                "attempts": [],
+            },
+            # Frozen awaiting approval (not dispatched, must not count as ok or fail)
+            {
+                "id6": "frz004",
+                "action": "execute",
+                "initial_status": "reviewed",
+                "status": "reviewed",
+                "attempts": [],
+            },
+            # Actually executed in this run
+            {
+                "id6": "run005",
+                "action": "execute",
+                "initial_status": "approved",
+                "status": "executed",
+                "attempts": [{"n": 1}],
+            },
+            # Programmatically retired orchestrator in this run (0 attempts, still counts)
+            {
+                "id6": "orc006",
+                "action": "orchestrate",
+                "initial_status": "approved",
+                "status": "executed",
+                "attempts": [],
+            },
+            # Failed in this run
+            {
+                "id6": "bad007",
+                "action": "execute",
+                "initial_status": "approved",
+                "status": "failed",
+                "attempts": [{"n": 1}],
+            },
+            # Still queued
+            {
+                "id6": "que008",
+                "action": "execute",
+                "initial_status": "approved",
+                "status": "queued",
+                "attempts": [],
+            },
+        ]
+        assert rs.compute_queue_tally(queue) == (2, 1)
+
+    def test_statusline_badge_excludes_pre_skipped_items(self) -> None:
+        """Rendered live statusline matches 1/2 progress with 1 ok, not inflated by skips."""
+        import io
+
+        state = {
+            "queue": [
+                {
+                    "id6": "skp001",
+                    "action": "skip",
+                    "initial_status": "executed",
+                    "status": "executed",
+                    "attempts": [],
+                },
+                {
+                    "id6": "skp002",
+                    "action": "skip",
+                    "initial_status": "executed",
+                    "status": "executed",
+                    "attempts": [],
+                },
+                {
+                    "id6": "run001",
+                    "action": "execute",
+                    "initial_status": "approved",
+                    "status": "executed",
+                    "attempts": [{"n": 1}],
+                },
+                {
+                    "id6": "run002",
+                    "action": "execute",
+                    "initial_status": "approved",
+                    "status": "running",
+                    "attempts": [{"n": 1}],
+                },
+            ]
+        }
+        sl = rs.Statusline(
+            pal=rs.Palette(False, use_unicode=True),
+            stream=io.StringIO(),
+            interval=0.0,
+            current_idx=1,
+            total_items=2,
+            setid="metastore",
+            id6="run002",
+            state=state,
+        )
+        text = "\n".join(sl._render_lines_unlocked())
+        assert "1/2" in text, text
+        assert "1 ok" in text and "0 fail" in text, text
+        assert "3 ok" not in text, text
+
 
 class TestStatuslineStopTallyRendering:
     def test_statusline_rectangular_with_badges(self) -> None:
