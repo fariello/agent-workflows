@@ -1179,44 +1179,6 @@ def run_rename_generic(
                 print(f"rewrote {e.hits}x '{e.old}' -> '{e.new}' in {rel_f}")
             touched.append(rel_f)
 
-    # Auto-index if supported. NOTE: this block is UNREACHABLE dead code at present.
-    # `artifact_types.TYPE_BACKENDS` routes plans -> `plans_refs` and research ->
-    # `research_refs`, so this module only ever receives specs/prompts/backlog/
-    # walkthroughs/roadmaps/releases/other and this condition is never true. It is left in
-    # place (rather than deleted) because removing the regeneration is a separate refactor;
-    # its commit-path contribution WAS removed, since generated manifests are no longer
-    # committed by any `aw` verb (idxuntrack `4r0qp1` E-03).
-    if artifact_type in {"plans", "research"}:
-        try:
-            if artifact_type == "plans":
-                from agent_workflows import plans_index as _pidx
-
-                _pidx.run_index(
-                    argparse.Namespace(
-                        dir=str(repo_root),
-                        check=False,
-                        as_agent=False,
-                        json=False,
-                        no_color=True,
-                        limit=None,
-                        quiet=True,
-                    )
-                )
-            elif artifact_type == "research":
-                from agent_workflows import research_index as _ridx
-
-                _ridx.run_index(
-                    argparse.Namespace(
-                        dir=str(repo_root),
-                        check=False,
-                        agent=False,
-                        limit=None,
-                        quiet=True,
-                    )
-                )
-        except Exception:
-            pass
-
     applied_target_id6 = minted_id6 or _read_existing_id6(dst, artifact_type) or ""
     if not applied_target_id6:
         m_id = _UNIFORM_RE.match(dst.name)
@@ -1639,44 +1601,6 @@ def run_group_generic(
             if emit_human:
                 print(f"rewrote {e.hits}x '{e.old}' -> '{e.new}' in {rel_f}")
             touched.append(rel_f)
-
-    # Auto-index if supported. NOTE: this block is UNREACHABLE dead code at present.
-    # `artifact_types.TYPE_BACKENDS` routes plans -> `plans_refs` and research ->
-    # `research_refs`, so this module only ever receives specs/prompts/backlog/
-    # walkthroughs/roadmaps/releases/other and this condition is never true. It is left in
-    # place (rather than deleted) because removing the regeneration is a separate refactor;
-    # its commit-path contribution WAS removed, since generated manifests are no longer
-    # committed by any `aw` verb (idxuntrack `4r0qp1` E-03).
-    if artifact_type in {"plans", "research"}:
-        try:
-            if artifact_type == "plans":
-                from agent_workflows import plans_index as _pidx
-
-                _pidx.run_index(
-                    argparse.Namespace(
-                        dir=str(repo_root),
-                        check=False,
-                        as_agent=False,
-                        json=False,
-                        no_color=True,
-                        limit=None,
-                        quiet=True,
-                    )
-                )
-            elif artifact_type == "research":
-                from agent_workflows import research_index as _ridx
-
-                _ridx.run_index(
-                    argparse.Namespace(
-                        dir=str(repo_root),
-                        check=False,
-                        agent=False,
-                        limit=None,
-                        quiet=True,
-                    )
-                )
-        except Exception:
-            pass
 
     applied_mutation_edits = tuple(
         MutationRefEdit(

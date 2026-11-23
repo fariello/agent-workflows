@@ -39,7 +39,6 @@ from agent_workflows import lifecycle_style as _LS
 from agent_workflows import plans as _plans_mod
 from agent_workflows import research_contract as _research_contract
 from agent_workflows import selectors as _sel
-from agent_workflows.result_types import Change
 from agent_workflows.term import Term
 
 # Recognized status sets per artifact type
@@ -2199,87 +2198,6 @@ def apply_status_change(
     )
 
 
-def _auto_index_types(
-    touched_types: set[str],
-    repo_root: Path,
-    changes: list[Change] | None = None,
-) -> None:
-    """Automatically refresh manifest indices for modified artifact types that maintain an index."""
-    for rtype in sorted(touched_types):
-        if rtype == "plans":
-            with contextlib.suppress(Exception):
-                from agent_workflows import plans_index as _pidx
-
-                _pidx.run_index(
-                    argparse.Namespace(
-                        dir=str(repo_root),
-                        check=False,
-                        as_agent=False,
-                        json=False,
-                        no_color=True,
-                        limit=None,
-                        quiet=True,
-                    )
-                )
-                _, plans_dir = _pidx._dirs(argparse.Namespace(dir=str(repo_root)))
-                if changes is not None and plans_dir.is_dir():
-                    idx_json = plans_dir / "INDEX.json"
-                    idx_md = plans_dir / "INDEX.md"
-                    if idx_json.exists():
-                        changes.append(
-                            Change(
-                                path=str(idx_json),
-                                kind="update",
-                                applied=True,
-                                detail="manifest index auto-refreshed",
-                            )
-                        )
-                    if idx_md.exists():
-                        changes.append(
-                            Change(
-                                path=str(idx_md),
-                                kind="update",
-                                applied=True,
-                                detail="manifest index auto-refreshed",
-                            )
-                        )
-        elif rtype == "research":
-            with contextlib.suppress(Exception):
-                from agent_workflows import research_index as _ridx
-
-                _ridx.run_index(
-                    argparse.Namespace(
-                        dir=str(repo_root),
-                        check=False,
-                        agent=False,
-                        limit=None,
-                        quiet=True,
-                    )
-                )
-                _, res_dir = _ridx._roots(argparse.Namespace(dir=str(repo_root)))
-                if changes is not None and res_dir.is_dir():
-                    idx_json = res_dir / "INDEX.json"
-                    idx_md = res_dir / "INDEX.md"
-                    if idx_json.exists():
-                        changes.append(
-                            Change(
-                                path=str(idx_json),
-                                kind="update",
-                                applied=True,
-                                detail="manifest index auto-refreshed",
-                            )
-                        )
-                    if idx_md.exists():
-                        changes.append(
-                            Change(
-                                path=str(idx_md),
-                                kind="update",
-                                applied=True,
-                                detail="manifest index auto-refreshed",
-                            )
-                        )
-
-
 # Flags declared on any `set` family spelling that are safe to echo.
 # This is an explicit ALLOW-LIST of non-path flags (IPD 5poaqh E-02, F-19).
 # Path-valued flags (--dir, --evidence, --gate-dir, --scope-reason, --scope-ack)
@@ -2566,9 +2484,8 @@ def _offer_self_commit(
     ``offer_commit``: TTY prompts, non-interactive-without-``--commit`` is a NO-OP; path-scoped, no
     push, no ``add -A``, unrelated dirty files never folded in.
 
-    The regenerated INDEX.json/INDEX.md are deliberately NOT in this path-set. They are still
-    refreshed on disk by `_auto_index_types` and still REPORTED in the agent-mode changes list; they
-    are simply generated output that no `aw` verb commits (idxuntrack `4r0qp1` E-02)."""
+    No INDEX.json/INDEX.md is in this path-set: a `set` no longer regenerates INDEX files, since
+    the SQLite cache replaces them (spec `4sd62s` 4.5, metastore `mv0j4k` E-02)."""
     if not touched_paths:
         return
     from agent_workflows import git_commit_helper as _gch
@@ -4148,7 +4065,6 @@ def run_set_command(
         return 0
 
     results: list[tuple[Path, str, ArtifactRecord, bool]] = []
-    touched_types: set[str] = set()
     touched_paths: list[str] = []
     demotion_warnings: list[tuple[Path, str]] = []
     for rec in matched_records:
@@ -4172,7 +4088,6 @@ def run_set_command(
         changed = (old_text != new_text) or (dest_path.resolve() != rec.path.resolve())
         results.append((dest_path, norm_stat, rec, changed))
         if changed:
-            touched_types.add(rec.record_type)
             try:
                 dest_rel = (
                     dest_path.resolve().relative_to(repo_root.resolve()).as_posix()
@@ -4189,7 +4104,6 @@ def run_set_command(
                 touched_paths.append(dest_rel)
         if log_p is not None and log_p.read_bytes() != old_log:
             # A log-format record's change lives in its event log; commit it with the file.
-            touched_types.add(rec.record_type)
             try:
                 log_rel = log_p.resolve().relative_to(repo_root.resolve()).as_posix()
             except ValueError:
@@ -4367,7 +4281,6 @@ def run_set_command(
             )
         if hasattr(args, "_citation_changes") and args._citation_changes:
             changes.extend(args._citation_changes)
-        _auto_index_types(touched_types, repo_root, changes=changes)
         _offer_self_commit(
             args,
             repo_root,
@@ -4473,8 +4386,6 @@ def run_set_command(
             complete=True,
         )
         return get_renderer(ctx).emit(res, ctx)
-
-    _auto_index_types(touched_types, repo_root)
 
     for _, w in demotion_warnings:
         sys.stderr.write(f"{w}\n")

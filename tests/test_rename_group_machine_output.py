@@ -678,14 +678,6 @@ def test_all_expansion_single_record(temp_repo: Path):
 # --------------------------------------------------------------------------------------
 
 
-_NESTED_PLANS_INDEX_LINE = (
-    "wrote        .aw/records/plans/INDEX.json, INDEX.md (1 plans)\n"
-)
-_NESTED_RESEARCH_INDEX_LINE = (
-    "wrote        .aw/records/research/INDEX.json, INDEX.md (1 docs)\n"
-)
-
-
 def test_human_stdout_byte_identical(temp_repo: Path):
     pdir = temp_repo / ".aw/records/plans"
     pdir.mkdir(parents=True, exist_ok=True)
@@ -1061,7 +1053,7 @@ def test_commit_path_set_unchanged_plans(temp_repo: Path):
     assert not any("INDEX" in f for f in committed_files)
 
 
-def test_index_verbs_unaffected(temp_repo: Path):
+def test_index_verbs_rebuild_cache_without_index_files(temp_repo: Path):
     pdir = temp_repo / ".aw/records/plans"
     pdir.mkdir(parents=True, exist_ok=True)
     pf = pdir / "20261001-eeiytw-01-abc123-demo.ipd.md"
@@ -1106,7 +1098,10 @@ def test_index_verbs_unaffected(temp_repo: Path):
         text=True,
         check=True,
     )
-    assert "INDEX.json, INDEX.md" in res_p.stdout
+    assert "rebuilt .aw/state/index.db" in res_p.stdout
+    assert "INDEX files are no longer generated" in res_p.stderr
+    assert not (pdir / "INDEX.json").exists()
+    assert not (pdir / "INDEX.md").exists()
 
     res_r = subprocess.run(
         [
@@ -1122,4 +1117,7 @@ def test_index_verbs_unaffected(temp_repo: Path):
         text=True,
         check=True,
     )
-    assert "INDEX.json, INDEX.md" in res_r.stdout
+    assert "rebuilt .aw/state/index.db" in res_r.stdout
+    assert "INDEX files are no longer generated" in res_r.stderr
+    assert not (rdir / "INDEX.json").exists()
+    assert not (rdir / "INDEX.md").exists()

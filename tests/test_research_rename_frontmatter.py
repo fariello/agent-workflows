@@ -2,7 +2,7 @@
 
 Covers IPD ax8eg1 (backlog f7a2kc):
 - Frontmatter set, order, kind, and model (conditional on name facet) updated in same transaction as rename.
-- Prevents silent failure of INDEX generation.
+- `aw find research` resolves a regrouped record to its new path.
 - Preserves document body byte-for-byte even when body contains literal frontmatter keys.
 - Preserves unrelated frontmatter keys and model provenance on facet-less names.
 - Idempotent repeated regrouping.
@@ -189,8 +189,8 @@ def test_mv_kind_updates_kind_frontmatter(temp_git_repo: Path):
     assert fm["kind"] == "findings"
 
 
-def test_regroup_preserves_generated_index_path_resolution(temp_git_repo: Path):
-    """E-02: After a regroup, generated INDEX.json points to a path that exists on disk."""
+def test_regroup_find_resolves_regrouped_path(temp_git_repo: Path):
+    """E-02: After a regroup, `aw find research` shows the regrouped path, which exists on disk."""
     _commit_research_shard_file(
         temp_git_repo,
         "20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md",
@@ -211,12 +211,6 @@ def test_regroup_preserves_generated_index_path_resolution(temp_git_repo: Path):
             )
         ),
     )
-    rc_idx, out_idx, err_idx = _run_cli(
-        ["index", "research", "--apply", "--dir", str(temp_git_repo)]
-    )
-    assert rc_idx == 0, f"index failed: {out_idx}\n{err_idx}"
-    idx_path = temp_git_repo / ".aw" / "records" / "research" / "INDEX.json"
-    assert idx_path.exists(), "INDEX.json should exist"
 
     rc, out, err = _run_cli(
         [
@@ -234,14 +228,16 @@ def test_regroup_preserves_generated_index_path_resolution(temp_git_repo: Path):
     )
     assert rc == 0, f"group failed: {out}\n{err}"
 
-    idx_data = json.loads(idx_path.read_text(encoding="utf-8"))
-    entries = [e for e in idx_data if e.get("id6") == "k7m2xq"]
-    assert len(entries) == 1, f"Expected entry for k7m2xq in index: {idx_data}"
-    rel_path = entries[0]["path"]
-    target_file = temp_git_repo / ".aw" / "records" / "research" / rel_path
-    assert (
-        target_file.exists()
-    ), f"Path {rel_path} recorded in INDEX.json does not exist on disk"
+    regrouped = _find_doc_by_id6(temp_git_repo, "k7m2xq")
+    assert "-newsetid-01-k7m2xq-" in regrouped.name
+    rel_path = regrouped.relative_to(temp_git_repo).as_posix()
+
+    rc_find, out_find, err_find = _run_cli(
+        ["find", "research", "k7m2xq", "--dir", str(temp_git_repo)]
+    )
+    assert rc_find == 0, f"find failed: {out_find}\n{err_find}"
+    assert rel_path in out_find, f"find did not show {rel_path}: {out_find}"
+    assert "oldsetid" not in out_find
 
 
 def test_alternate_spelling_research_set_assign(temp_git_repo: Path):
