@@ -287,7 +287,7 @@ class TestLinkedWorktreeCompanionContext(unittest.TestCase):
     """E-01/V-01: Linked worktree companion context inheritance, durability, and cache invalidation."""
 
     def setUp(self) -> None:
-        self.enterContext(support.execution_role(None))
+        support.declare_execution_role(self)
 
     def test_committed_project_json_with_gitignored_local_and_attachment(self) -> None:
         """Linked worktree with committed project.json inherits primary local.json,
@@ -565,7 +565,7 @@ class TestCompanionDoctorDiagnostics(unittest.TestCase):
     """E-02/V-02: Companion doc-reference remapping, path-leak prevention, and stray-records warning."""
 
     def setUp(self) -> None:
-        self.enterContext(support.execution_role(None))
+        support.declare_execution_role(self)
 
     def test_fresh_companion_install_has_zero_dangling_doc_refs_and_no_abs_leak(
         self,
@@ -726,7 +726,7 @@ class TestCompanionCarriersAndEvidence(unittest.TestCase):
     """E-03/V-03: Companion carrier resolution, evidence containment, and stray-dir non-blindness."""
 
     def setUp(self) -> None:
-        self.enterContext(support.execution_role(None))
+        support.declare_execution_role(self)
 
     def test_carriers_evidence_finished_remedy_and_stray_dir_from_primary_and_worktree(
         self,

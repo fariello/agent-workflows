@@ -1521,7 +1521,7 @@ class TestOrchestratorReadinessReaders:
         assert payload["outcome"] == "clean"
         assert payload["data"]["id6"] == "or4001"
         assert payload["data"]["ready"] is True
-        assert str(child_p) in payload["data"]["not_applicable"]
+        assert child_rel in payload["data"]["not_applicable"]
 
         # Selecting only a non-orchestrator returns exit 2 (cannot-run).
         buf_non = io.StringIO()

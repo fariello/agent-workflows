@@ -526,19 +526,22 @@ class MembershipReadsThePlansTree(SyntheticSetCase):
         self.assertIn("not as a Set name", d.detail)
 
         # Real repository setids
-        for setid in (
-            "awhelp",
-            "clianx",
-            "rstodo",
-            "agyrun",
-            "ackme8",
-            "ocsync",
-            "awuiux",
-            "detrun",
-        ):
-            m_repo = rs.read_set_membership(REPO_ROOT, setid)
-            self.assertEqual(m_repo.resolution_note, "")
-            self.assertTrue(m_repo.members, f"{setid} resolved to nothing")
+        from agent_workflows import artifact_meta as _am
+
+        with _am.scan_once():
+            for setid in (
+                "awhelp",
+                "clianx",
+                "rstodo",
+                "agyrun",
+                "ackme8",
+                "ocsync",
+                "awuiux",
+                "detrun",
+            ):
+                m_repo = rs.read_set_membership(REPO_ROOT, setid)
+                self.assertEqual(m_repo.resolution_note, "")
+                self.assertTrue(m_repo.members, f"{setid} resolved to nothing")
 
 
 # ==================================================================================================

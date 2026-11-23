@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import io
 import itertools
+import os
 import sys
 import threading
 import time
+import unittest.mock
 from pathlib import Path
 from typing import Any
 
@@ -961,43 +963,46 @@ class TestStatuslineClass:
             artifact_kind="backlog",
             item=item,
         )
-        with outer:
-            with rs.open_or_reuse_statusline(
-                pal=rs.Palette(False),
-                stream=stream,
-                interval=0.02,
-                current_idx=1,
-                total_items=2,
-                setid="vo0y6q",
-                id6="vo0y6q",
-                watchdog=FakeWatchdog(),
-                action="plan",
-                artifact_kind="backlog",
-                activity=None,
-            ) as inner:
-                assert inner is outer
-                assert inner.watchdog is not None
-                inner.write_event("  \u2713 Antigravity turn finished: SUCCESS")
+        with unittest.mock.patch(
+            "shutil.get_terminal_size", return_value=os.terminal_size((140, 40))
+        ):
+            with outer:
+                with rs.open_or_reuse_statusline(
+                    pal=rs.Palette(False),
+                    stream=stream,
+                    interval=0.02,
+                    current_idx=1,
+                    total_items=2,
+                    setid="vo0y6q",
+                    id6="vo0y6q",
+                    watchdog=FakeWatchdog(),
+                    action="plan",
+                    artifact_kind="backlog",
+                    activity=None,
+                ) as inner:
+                    assert inner is outer
+                    assert inner.watchdog is not None
+                    inner.write_event("  \u2713 Antigravity turn finished: SUCCESS")
 
-            # After the child turn finishes, the outer statusline stays active, clear of the
-            # subprocess watchdog, immediately redrawn below the finish line, and still ticking.
-            assert rs.get_active_statusline() is outer
-            assert outer._has_drawn is True
-            assert outer.watchdog is None
-            assert outer._thread is not None and outer._thread.is_alive()
+                # After the child turn finishes, the outer statusline stays active, clear of the
+                # subprocess watchdog, immediately redrawn below the finish line, and still ticking.
+                assert rs.get_active_statusline() is outer
+                assert outer._has_drawn is True
+                assert outer.watchdog is None
+                assert outer._thread is not None and outer._thread.is_alive()
 
-            size_after_detach = len(stream.getvalue())
-            deadline = time.monotonic() + 1.0
-            while (
-                len(stream.getvalue()) <= size_after_detach
-                and time.monotonic() < deadline
-            ):
-                time.sleep(0.02)
-            assert len(stream.getvalue()) > size_after_detach
-            assert "Timeout:--:--" in outer.render_line()
+                size_after_detach = len(stream.getvalue())
+                deadline = time.monotonic() + 1.0
+                while (
+                    len(stream.getvalue()) <= size_after_detach
+                    and time.monotonic() < deadline
+                ):
+                    time.sleep(0.02)
+                assert len(stream.getvalue()) > size_after_detach
+                assert "Timeout:--:--" in outer.render_line()
 
-            item["integration_signal"] = "integrating"
-            assert "Integrtg" in outer.render_line()
+                item["integration_signal"] = "integrating"
+                assert "Integrtg" in outer.render_line()
 
         assert rs.get_active_statusline() is None
 

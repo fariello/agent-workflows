@@ -35,7 +35,7 @@ class AgentsBlockTargetNeutralTests(unittest.TestCase):
     """Test suite ensuring installed AGENTS.md is target-neutral and probes detect dangling paths."""
 
     def setUp(self):
-        self.enterContext(support.execution_role(None))
+        support.declare_execution_role(self)
 
     def _make_env(self, tmp_home: Path) -> dict[str, str]:
         env = dict(os.environ)

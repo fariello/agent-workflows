@@ -573,6 +573,13 @@ class RecordBuilder:
     ) -> tuple[Path, str]:
         if ctx is not None:
             records_dir = Path(ctx.logical_roots["records"])
+            if self.repo_root is not None:
+                try:
+                    rel_records = records_dir.relative_to(self.repo_root.resolve())
+                except ValueError:
+                    pass
+                else:
+                    records_dir = self.repo_root / rel_records
         else:
             records_dir = Path(".aw") / "records"
         if disposition:

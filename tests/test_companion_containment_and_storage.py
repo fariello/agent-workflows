@@ -201,7 +201,7 @@ class TestCompanionContainmentAndStorage(unittest.TestCase):
     """End-to-end tests for companion layout, Git detection, containment, and guidance."""
 
     def setUp(self) -> None:
-        self.enterContext(support.execution_role(None))
+        support.declare_execution_role(self)
 
     def test_a_and_b_companion_layout_and_git_detection(self) -> None:
         """(a)-(b) Companion creates <companion>/records/ (no decoy .aw/records/), detects <companion>/.git,

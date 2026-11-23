@@ -17050,12 +17050,12 @@ def _plan_record_from_state(
                 id6 = part
                 break
     try:
-        rel = str(resolved.relative_to(repo.resolve()))
+        rel = resolved.relative_to(repo.resolve()).as_posix()
     except ValueError:
         try:
-            rel = str(path.relative_to(repo))
+            rel = path.relative_to(repo).as_posix()
         except ValueError:
-            rel = str(path)
+            rel = path.as_posix()
     if not id6:
         id6 = hashlib.sha256(rel.encode("utf-8")).hexdigest()[:6]
     if not setid:

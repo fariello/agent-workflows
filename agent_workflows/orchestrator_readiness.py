@@ -1084,7 +1084,14 @@ def run_coverage(
             "finding_codes": first.get("finding_codes", []),
         }
         if non_orchestrator_plans:
-            data_block["not_applicable"] = [str(p) for p in non_orchestrator_plans]
+            resolved_root = repo_root.resolve()
+            not_app: list[str] = []
+            for p in non_orchestrator_plans:
+                try:
+                    not_app.append(p.resolve().relative_to(resolved_root).as_posix())
+                except ValueError:
+                    not_app.append(p.name)
+            data_block["not_applicable"] = not_app
 
         rec = {
             "schema": _as.SCHEMA_VERSION,
