@@ -5,8 +5,9 @@
 - Concern: `clors0` E-06 built two commands that `90iqr1` documents, `aw reviews record` and `aw walkthrough new`. They refuse while `metadata_schema` is below 2, so they are dormant on `main` (C10a). Round-3 split (research `nj8zdp`): one item per command plus the declarations.
 - Scope: `clors0` E-06, split: `aw reviews record`; `aw walkthrough new`; the two `command_surface` leaves and the `aw reviews` namespace text. `aw meta repair` is NOT here (`ffceq0` E-11).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/reviews.py, agent_workflows/set_records.py, agent_workflows/command_surface.py, tests/test_reviews_record_walkthrough_new.py, tests/test_command_surface_declarations.py, .aw/records/plans/pending/20261109-metastore-268-724acb-build-the-dormant-reviews-record-and-walkthrough-new-command.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261123-9py8oq-01-9py8oq-every-new-required-argument-cli-leaf-must-edit-the.backlog.md (the defect-report contract requires a durable backlog carrier for each finding this item records the REQUIRED_LEAVES census friction found during this execution); tests/test_usage_refusal_agent_record.py (the core-tier REQUIRED_LEAVES census counts every parser leaf with a required argument the two new leaves raise it from 70 to 72, and the test fails without the update same edit a5ijjx and h06gs7 made...)
 - Item-Dependencies: executed:1ajqaa, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15, executed:xexn45, executed:ya4ee4
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 724acb
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: 724acb verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261123-9py8oq-01-9py8oq-every-new-required-argument-cli-leaf-must-edit-the.backlog.md: the defect-report contract requires a durable backlog carrier for each finding; this item records the REQUIRED_LEAVES census friction found during this execution; out-of-scope tests/test_usage_refusal_agent_record.py: the core-tier REQUIRED_LEAVES census counts every parser leaf with a required argument; the two new leaves raise it from 70 to 72, and the test fails without the update (same edit a5ijjx and h06gs7 made for meta repair and describe); in-scope-unmodified tests/test_command_surface_declarations.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
