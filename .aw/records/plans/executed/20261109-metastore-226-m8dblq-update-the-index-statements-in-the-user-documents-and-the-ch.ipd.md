@@ -6,7 +6,7 @@
 - Scope: edit the named INDEX sentences of `docs/cli-output-contract.md`, `docs/cli-agent-protocol.md`, `CONTRIBUTING.md` and `README.md`, and add one `CHANGELOG.md` line. EXCLUDES the plans and research READMEs and the installed template (Order 227).
 - Scope-Paths: docs/cli-output-contract.md, docs/cli-agent-protocol.md, CONTRIBUTING.md, README.md, CHANGELOG.md, .aw/records/plans/pending/20261109-metastore-226-m8dblq-update-the-index-statements-in-the-user-documents-and-the-ch.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sdzcur, executed:t4gl15, executed:tqknnc
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: m8dblq
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-23 executed (antigravity): finalize m8dblq after run-20261123T035302Z-2681364 (commits 6d9caaf56/35966fbf3 landed directly on main due to vl3pvt; verified with full pytest suite: 2898 passed, 1 skipped) [Scope attribution - 9 changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not attributable to this execution (evidence: commit-cohesion), so no --scope-reason was demanded for them: .aw/records/backlog/done/20261123-tg3v86-01-tg3v86-statusline-spend-resets-on-restart.backlog.md, .aw/records/backlog/open/20261123-metastore-01-bdimw6-unowned-reader-and-grammar-hits.backlog.md, .aw/records/backlog/open/20261123-metastore-01-gapf1m-plans-cite-deleted-in-metadata-region.backlog.md, agent_workflows/agy_runipd.py, agent_workflows/oc_runipd.py (... and 4 more; see disregarded_no_evidence_paths in the finalize evidence)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
