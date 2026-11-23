@@ -148,6 +148,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-34-y97k46-pin-the-runner-reads-and-move-the-runner-selection-and-git-c.ipd.md
 - Moved to jd7874 (split 2026-11-07 per maintainer step-complexity rule): E-01 rows for the other 31 files plus the INDEX baseline; E-09; E-10; E-16; the plans, research and prompts rows of E-15.
   - Carrier: jd7874
+  - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-35-jd7874-move-the-plans-research-and-prompts-module-reads-onto-artifa.ipd.md
 - Moved to 2zpw22 (split 2026-11-07 per maintainer step-complexity rule): E-11; E-12; the review and orchestration rows of E-15.
   - Carrier: 2zpw22
 - The readers of `selectors`, `aw find`/`aw search`/`aw ipd board`, `attention`, `check_engine` working-tree rules and `ipd_lint`; `aw check meta`; `aw meta repair`; `artifact_meta.read_text`.

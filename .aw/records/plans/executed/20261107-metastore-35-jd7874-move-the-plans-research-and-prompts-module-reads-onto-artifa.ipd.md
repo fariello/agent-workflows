@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5a requires every record module to read metadata through the cache, and AC-9 requires that no reader depend on an INDEX file. Measured 2026-11-07 at `ac76110f4`: the plans modules read metadata with their own regexes (`plans_index._META_RE` 7 patterns, `plans_archive` 5 `^-` regexes, `plans_refs` 5), the research modules through `research_contract.parse_frontmatter` and `research_index._META_ID_RE`, and `prompts_index` through `_parse_metadata_comment`; `research_index._doc_entry` also computes `has_body` in a way the 4.1 `aw-managed` banner will break (F-09). Part 3 of the split of `t4gl15` (Order 09).
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance). E-01 and E-02 (INDEX baseline, 4.4 search rows, plans modules) moved to `kyl3m4` (Order 148); E-03 and E-04 (research and prompts modules, banner-blind research body test) moved to `cb5eda` (Order 153). This plan keeps E-05: the residual-audit rows of `t4gl15` E-15 for the eight plans, research and prompts modules, and the final runs. EXCLUDES: the review, orchestration, production-check and work modules (Order 36, `2zpw22`); deleting the INDEX writers and parsers (Order 11).
 - Scope-Paths: .aw/records/plans/pending/20261107-metastore-35-jd7874-move-the-plans-research-and-prompts-module-reads-onto-artifa.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261122-napot2-01-napot2-prevent-ipd-lint-continuation-loop-from-stopping-o.backlog.md (Mandatory defect-report backlog carrier for adjacent ipd_lint continuation-loop bug encountered during jd7874 validation)
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45, executed:kyl3m4, executed:cb5eda
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: jd7874
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-23 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: jd7874 verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261122-napot2-01-napot2-prevent-ipd-lint-continuation-loop-from-stopping-o.backlog.md: Mandatory defect-report backlog carrier for adjacent ipd_lint continuation-loop bug encountered during jd7874 validation]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, audit targets, execution gate, and state directory initialization; findings PR-001..PR-005 fixed; marked reviewed and go-pending-approval.
@@ -43,10 +44,10 @@ Round-3 note (2026-11-09): Task groups 1 and 2 (E-01 to E-04) moved to `kyl3m4` 
 
 ### Task group 3: residual audit and finish
 
-- [ ] E-05 (carried from `t4gl15` E-15, this plan's module subset) Ensure `.aw/state/t4gl15/` exists (`mkdir -p .aw/state/t4gl15/`). Run `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" <files>` and `rg -n "Workflow history" <files>` over the eight modules listed in F-04 (18 hits in 10 functions at `ac76110f4`, before this plan) and write table F-04 in this plan listing every remaining hit with its owner: writer (Orders 06/07, named; for example `plans_refs._set_metadata`), body-prose bullet kept by N3 (named pattern), or a parser that Order 11 deletes. A reader hit with no such owner is a defect of this plan and is moved before finishing. Then run every module named in `kyl3m4` E-02 and `cb5eda` E-01 to E-03 (the moved E-02 to E-04) and the bare core gate `python3 -m pytest`, and commit through `aw commit jd7874 -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-05 (carried from `t4gl15` E-15, this plan's module subset) Ensure `.aw/state/t4gl15/` exists (`mkdir -p .aw/state/t4gl15/`). Run `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" <files>` and `rg -n "Workflow history" <files>` over the eight modules listed in F-04 (18 hits in 10 functions at `ac76110f4`, before this plan) and write table F-04 in this plan listing every remaining hit with its owner: writer (Orders 06/07, named; for example `plans_refs._set_metadata`), body-prose bullet kept by N3 (named pattern), or a parser that Order 11 deletes. A reader hit with no such owner is a defect of this plan and is moved before finishing. Then run every module named in `kyl3m4` E-02 and `cb5eda` E-01 to E-03 (the moved E-02 to E-04) and the bare core gate `python3 -m pytest`, and commit through `aw commit jd7874 -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: none
   - Expected outcome: F-04 has no unowned reader hit; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -65,8 +66,27 @@ Measured 2026-11-07 at `ac76110f4`; F-09 copied from `t4gl15` (measured 2026-11-
 | F-01 | AST pass over `rg` hits of each module's reader symbols (`_META_RE`, `_ID_RE`, `_DATE_RE`, `_SET_LINE_RE`, `_ORDER_LINE_RE`, `scan_plans(`, `parse_frontmatter(`, `_parse_metadata_comment(`, `_META_ID_RE`, `_plan_status(` and the `^-` regex pattern): `plans_index` 12 sites in 6 functions, `plans_archive` 11 in 8, `plans_refs` 22 in 6, `ipd_set_plan` 1, `completion` 2, `research_index` 6 in 4, `research_archive` 2, `prompts_index` 3 | `kyl3m4` E-02 has 23 functions; `cb5eda` E-01/E-02 have 9. |
 | F-02 | The 21 functions outside the gate and runner files with a `show`/`cat-file`/`ls-files -s`/`:0:` hit at `ac76110f4`: `cli.<module>`, `cli._build_parser`, `cli._dispatch`, `cli._oc_profile_show`, `cli._rewrite_help_token`, `cli._run_oc_profile`, `cli._run_show`, `cli._run_show_meta`, `command_surface.<module>`, `completion.complete_query`, `layout_migration._is_removable_leftover`, `leak_sanitizer.scan_staged_counted`, `leak_sanitizer.scan_working_tree_counted`, `meta_cli.show_history`, `meta_cli.show_json`, `project_context._git_cached_entries`, `run_analytics_taxonomy.<module>`, `run_cli.run_cli`, `run_viewer.<module>`, `typecheck_gate._tree_declares_mypy`, `worktree_lease._lane_base_sha` | Most are the `show` sub-command NAME, not `git show`; `t4gl15` F-07 classified the rest as path-only or non-metadata. |
 | F-03 | (written by `kyl3m4` E-01 since the round-3 split; formerly E-01 here) the classified rows | 4.4 says the list is a minimum. |
-| F-04 | (written by E-05) residual `^-` regex and `Workflow history` hits in this plan's eight modules (the files `plans_index.py`, `plans_archive.py`, `plans_refs.py`, `ipd_set_plan.py`, `completion.py`, `research_index.py`, `research_archive.py` and `prompts_index.py` under `agent_workflows/`), with owners. Measured at the split: `plans_index` 6, `plans_archive` 5, `plans_refs` 5, `research_index` 2, the other four 0 | Input to `t4gl15` E-15 and Order 11. |
+| F-04 | Executed 2026-11-22 at `eb6dbb4cd` (E-05): 3 total hits across the eight audited modules (3 `^-` regex hits, 0 `Workflow history` hits): `agent_workflows/plans_refs.py` 3 (3 regex, 0 history), and 0 each in `agent_workflows/plans_index.py`, `agent_workflows/plans_archive.py`, `agent_workflows/ipd_set_plan.py`, `agent_workflows/completion.py`, `agent_workflows/research_index.py`, `agent_workflows/research_archive.py`, and `agent_workflows/prompts_index.py`; down from 18 hits in 10 functions at `ac76110f4`. Every hit is classified with its owner in Table F-04 below; 0 unowned reader hits. | Input to `t4gl15` E-15 and Order 11 (`9o83cr`). |
 | F-09 | `research_index._doc_entry` sets `has_body` true for any non-blank text after the closing `---`, and `derive_pipeline_positions` uses it to place a Set `unrun`, `partial` or `synthesized`. `4sd62s` 4.1 puts the `aw-managed` banner after the front matter of every artifact; forcing every `has_body` true moves Set `awclia` from `unrun` to `synthesized`, because its reconciliation report `v912ed` has no body today. Found by research `53jbi5` findings E-2/E-3. | `cb5eda` E-03 (formerly E-04 here) fixes it before Order 13 (`cxxmyv`). |
+
+### Table F-04: Residual `^-` regex and `Workflow history` audit (E-05, commit `eb6dbb4cd`, 3 hits)
+
+Per-module hit counts across all eight audited modules under `agent_workflows/`:
+
+- `agent_workflows/plans_index.py`: 0 hits (0 `^-` regex, 0 `Workflow history`; down from 6 at `ac76110f4` after `kyl3m4`).
+- `agent_workflows/plans_archive.py`: 0 hits (0 `^-` regex, 0 `Workflow history`; down from 5 at `ac76110f4` after `kyl3m4`).
+- `agent_workflows/plans_refs.py`: 3 hits (3 `^-` regex, 0 `Workflow history`; down from 5 at `ac76110f4` after `fnu6kw` and `kyl3m4`).
+- `agent_workflows/ipd_set_plan.py`: 0 hits (0 `^-` regex, 0 `Workflow history`; unchanged from 0 at `ac76110f4`).
+- `agent_workflows/completion.py`: 0 hits (0 `^-` regex, 0 `Workflow history`; unchanged from 0 at `ac76110f4`).
+- `agent_workflows/research_index.py`: 0 hits (0 `^-` regex, 0 `Workflow history`; down from 2 at `ac76110f4` after `cb5eda`).
+- `agent_workflows/research_archive.py`: 0 hits (0 `^-` regex, 0 `Workflow history`; unchanged from 0 at `ac76110f4`).
+- `agent_workflows/prompts_index.py`: 0 hits (0 `^-` regex, 0 `Workflow history`; unchanged from 0 at `ac76110f4`).
+
+| # | File and symbol | Query | Matched code | Class | Owner / Action |
+|---|---|---|---|---|---|
+| 1 | `agent_workflows/plans_refs.py::_ORDER_LINE_RE` (module level, line 52) | `^-` regex | `_ORDER_LINE_RE = re.compile(r"(?m)^- Order:\s*(-?\d+)\s*$")` | writer (Order 07) / parser Order 11 deletes | Writer-side fail-safe regex used only by `plans_refs._check_order_lines` (called by writer `plans_refs._set_metadata` and writer pre-validation in `plans_refs.apply_renames`), retained by Order 07 (`fnu6kw` E-01/E-03, `xexn45`) for the `yqv6b7` E-03 `- Order:` guard; deleted by Order 11 (`9o83cr` / `0xsx2n` / `tbvx4r` E-02 after adapter deletion in `v0ucnz` E-01). |
+| 2 | `agent_workflows/plans_refs.py::_ORDER_LINE_RAW_RE` (module level, line 53) | `^-` regex | `_ORDER_LINE_RAW_RE = re.compile(r"(?m)^- Order:[^\r\n]*")` | writer (Order 07) / parser Order 11 deletes | Writer-side fail-safe regex used only by `plans_refs._check_order_lines` (called by writer `plans_refs._set_metadata` and writer pre-validation in `plans_refs.apply_renames`), introduced by Order 07 (`fnu6kw` E-01/E-03, `xexn45`) to hold the `- Order:` check for the `yqv6b7` E-03 guard; deleted by Order 11 (`9o83cr` / `0xsx2n` / `tbvx4r` E-02 after adapter deletion in `v0ucnz` E-01). |
+| 3 | `agent_workflows/plans_refs.py::_SIGNED_INT_RE` (module level, line 55) | `^-` regex | `_SIGNED_INT_RE = re.compile(r"^-?\d+$")` | non-metadata regex (integer validator; false-positive match on `^-`) | Validates an optional-minus signed integer string in `plans_refs._preserved_order` on values already read from `artifact_meta.State` (`state.fields.get("order")`) or `artifact_meta.read_text`; does not parse Markdown metadata bullets (`- `). |
 
 READER LEDGER (copied from `t4gl15`):
 
@@ -126,10 +146,37 @@ No spec change. Implements the record-module part of `4sd62s` C5a.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the two `rg` commands of E-05 and the F-04 table with a per-module hit count for each of the eight modules named in F-04 (every remaining hit with its owner, none unowned); the summary line of each re-run baseline module of `kyl3m4` E-02 and `cb5eda` E-01 to E-03, named one per line with 0 failed; the bare `python3 -m pytest` summary line and wall time; and every `aw commit jd7874` output listing only Scope-Paths (or paths justified at finalize).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified 2026-11-22 at `eb6dbb4cd`: `.aw/state/t4gl15/` ensured (`mkdir -p .aw/state/t4gl15/`, exit 0); 3 owned residual hits (0 unowned); all 11 baseline/pin modules passed (251 passed, 0 failed); core tier gate passed (`2753 passed, 1 skipped`).
+    - E-05 residual `rg` commands (at commit `eb6dbb4cd`):
+      - `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/plans_index.py agent_workflows/plans_archive.py agent_workflows/plans_refs.py agent_workflows/ipd_set_plan.py agent_workflows/completion.py agent_workflows/research_index.py agent_workflows/research_archive.py agent_workflows/prompts_index.py` -> 3 hits (all 3 in `agent_workflows/plans_refs.py`: `52:_ORDER_LINE_RE = re.compile(r"(?m)^- Order:\s*(-?\d+)\s*$")`, `53:_ORDER_LINE_RAW_RE = re.compile(r"(?m)^- Order:[^\r\n]*")`, `55:_SIGNED_INT_RE = re.compile(r"^-?\d+$")`; 0 in the other seven modules).
+      - `rg -n "Workflow history" agent_workflows/plans_index.py agent_workflows/plans_archive.py agent_workflows/plans_refs.py agent_workflows/ipd_set_plan.py agent_workflows/completion.py agent_workflows/research_index.py agent_workflows/research_archive.py agent_workflows/prompts_index.py` -> 0 hits across all eight modules.
+      - Per-module totals (3 hits total, every hit classified with its owner in Table F-04 above, 0 unowned reader hits):
+        - `agent_workflows/plans_index.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/plans_archive.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/plans_refs.py`: 3 hits (3 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/ipd_set_plan.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/completion.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/research_index.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/research_archive.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/prompts_index.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+    - Pin and baseline modules of `kyl3m4` E-02 and `cb5eda` E-01 to E-03 (`python3 -m pytest -m "" <mod>`, 251 passed, 0 failed):
+      - `tests/test_readers_record_modules.py`: `20 passed in 2.50s`
+      - `tests/test_plans_index.py`: `19 passed in 3.29s`
+      - `tests/test_plans_archive.py`: `15 passed in 3.75s`
+      - `tests/test_plans_archive_selectors.py`: `13 passed in 2.12s`
+      - `tests/test_ipd_set_plan.py`: `34 passed in 2.22s`
+      - `tests/test_completion.py`: `31 passed in 5.27s`
+      - `tests/test_research_index.py`: `52 passed in 3.69s`
+      - `tests/test_research_archive.py`: `26 passed in 2.08s`
+      - `tests/test_research_companion.py`: `10 passed in 6.65s`
+      - `tests/test_prompts_index.py`: `15 passed in 1.64s`
+      - `tests/test_index_check_agent_records.py`: `16 passed in 3.76s`
+    - Core tier gate (`aw suite` / bare `python3 -m pytest`): `2753 passed, 1 skipped, 11 warnings in 144.79s (0:02:24)` (exit 0; host 1-minute load average 13.69 on 12 CPUs).
+    - Leak scan (`aw sanitize --agent`): `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7087,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - Path-scoped `aw commit jd7874` output: `aw commit: committed 1 path(s): 7df69294584b1682966675afdb7458b65f966de3` (`git show --stat`: 1 file changed, `.aw/records/plans/pending/20261107-metastore-35-jd7874-move-the-plans-research-and-prompts-module-reads-onto-artifa.ipd.md`, sole declared Scope-Path), followed by the final `aw commit jd7874` recording this V-05 evidence on the same Scope-Path.
+  - Result: pass
 
 ## Approval and execution gate
 
