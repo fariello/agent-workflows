@@ -869,8 +869,11 @@ registry now. Whichever spec is implemented second must agree with the other (se
 - Functions: `read(id6) -> State`, `history(id6) -> list[Event]`, `query(...)` (for queries across
   all records, used by find, attention and the board), `append(id6, events, *, expect_seq)`,
   `create(...)`, `resolve(path|id6)`, `read_at(id6, rev)` for a staged or committed revision
-  (4.4), and `read_text(text, *, record_type=None) -> State`. `read_text` runs the same loader as
-  `read_at`, caches nothing, and exists for in-memory text in phase B.
+  (4.4), `read_text(text, *, record_type=None) -> State`, and
+  `check_staged_log_append(id6) -> list[str]` (refusal reasons for a staged `meta/<id6>.jsonl`
+  change, reading HEAD and staged blobs through `read_at`'s blob path and the loader, 4.8).
+  `read_text` runs the same loader as `read_at`, caches nothing, and exists for in-memory text in
+  phase B.
 - THE CACHE ANSWERS EVERY READ (C5a). Before each public read function answers, it brings the cache
   up to date for the data that it will return. Then it answers with a SQL query. Neither of the two
   checks below is sufficient alone, so the function does both (round 8, finding SR-704):
@@ -2416,6 +2419,7 @@ for concurrency.
 
 ## Workflow history
 
+- 2026-11-23 note (aw specs): jq82as E-01: add check_staged_log_append(id6) -> list[str] to 4.3 function list
 - 2026-11-18 note (aw specs): cdglt1 E-03: add read_text(text, *, record_type=None) -> State to 4.3 function list
 - 2026-11-17 note (aw specs): 6oi2nu: phase-B extra-root path form and derived id6 (D-1, D-3)
 - 2026-11-17 note (aw specs): Amended 4.2 path-root sentence (plan 9qhtrc OQ-03): out_of_scope_paths and widened_paths (plus 37am1y changed_paths/from_path) are repository-relative while path stays records-root-relative; spec stays approved.

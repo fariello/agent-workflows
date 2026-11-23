@@ -5376,6 +5376,16 @@ def _git_blob_sha(repo_dir: Path, rev: str, repo_rel_path: str) -> Optional[str]
     return sha or None
 
 
+def _read_git_blob_bytes(repo_dir: Path, blob_sha: str) -> Optional[bytes]:
+    """Read exact raw bytes of git object ``blob_sha`` via ``git cat-file -p``."""
+    cat = subprocess.run(
+        ["git", "cat-file", "-p", blob_sha],
+        cwd=repo_dir,
+        capture_output=True,
+    )
+    return cat.stdout if cat.returncode == 0 else None
+
+
 def _read_git_blob(repo_dir: Path, blob_sha: str) -> Optional[str]:
     """Read raw UTF-8 text of git object ``blob_sha`` via ``git cat-file -p``."""
     cat = subprocess.run(
@@ -5815,6 +5825,213 @@ def read_at(
     finally:
         if should_close:
             conn.close()
+
+
+def check_staged_log_append(
+    id6: str,
+    *,
+    project_context: Any = None,
+) -> List[str]:
+    """Validate that a staged ``meta/<id6>.jsonl`` change only appends valid whole event lines.
+
+    Reads the HEAD and staged (``:0:``) log blobs through ``read_at``'s blob path and the
+    ``artifact_meta`` loader so no caller outside ``artifact_meta`` opens log bytes (spec
+    ``4sd62s`` 4.3, 4.8).
+
+    Returns a list of teaching refusal messages naming the log path; an empty list means
+    the staged log change is acceptable (or no staged log change exists for ``id6``).
+    """
+    validate_id6(id6)
+    ctx = project_context or _proj_ctx.resolve_project_context()
+    records_root = Path(ctx.logical_roots["records"])
+    _require_schema(ctx, records_root)
+
+    repo_dir = _proj_ctx.record_git_root(records_root)
+    if repo_dir is None:
+        return [
+            f"meta/{id6}.jsonl: unversioned placement (no git repository found); "
+            "cannot validate staged append rules."
+        ]
+
+    try:
+        rel_repo = str(records_root.resolve().relative_to(repo_dir.resolve())).replace(
+            "\\", "/"
+        )
+    except Exception:
+        rel_repo = ""
+    log_path = f"meta/{id6}.jsonl"
+    rel_log = log_path if not rel_repo or rel_repo == "." else f"{rel_repo}/{log_path}"
+
+    head_blob_sha = _git_blob_sha(repo_dir, "HEAD", rel_log)
+    staged_blob_sha = _git_blob_sha(repo_dir, ":0:", rel_log)
+
+    if head_blob_sha is None and staged_blob_sha is None:
+        return []
+
+    if head_blob_sha is not None and staged_blob_sha is None:
+        return [
+            f"{rel_log}: staged commit deletes an existing metadata event log; "
+            "metadata event logs are append-only. Restore the HEAD log with "
+            f"`git checkout HEAD -- {rel_log}` and record changes through aw tools."
+        ]
+
+    if head_blob_sha is not None and staged_blob_sha == head_blob_sha:
+        return []
+
+    assert staged_blob_sha is not None
+    staged_bytes = _read_git_blob_bytes(repo_dir, staged_blob_sha)
+    if staged_bytes is None:
+        return [f"{rel_log}: cannot read staged git blob {staged_blob_sha}."]
+
+    try:
+        staged_text = staged_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        return [
+            f"{rel_log}: staged metadata event log is not valid UTF-8 ({exc}); "
+            "append valid canonical JSONL events through aw tools."
+        ]
+
+    if head_blob_sha is not None:
+        head_bytes = _read_git_blob_bytes(repo_dir, head_blob_sha)
+        if head_bytes is None:
+            return [f"{rel_log}: cannot read HEAD git blob {head_blob_sha}."]
+
+        if not staged_bytes.startswith(head_bytes):
+            head_lines = head_bytes.splitlines(keepends=True)
+            staged_lines = staged_bytes.splitlines(keepends=True)
+            first_diff = 0
+            while (
+                first_diff < len(head_lines)
+                and first_diff < len(staged_lines)
+                and head_lines[first_diff] == staged_lines[first_diff]
+            ):
+                first_diff += 1
+            if len(staged_lines) < len(head_lines) and (
+                staged_lines == head_lines[: len(staged_lines)]
+                or all(ln in head_lines for ln in staged_lines)
+            ):
+                return [
+                    f"{rel_log}: staged log deleted line(s) from HEAD "
+                    f"(HEAD has {len(head_lines)} line(s), staged has {len(staged_lines)}); "
+                    "metadata event logs are append-only. Restore the HEAD lines unchanged "
+                    "and append new events through aw tools instead of editing the log by hand."
+                ]
+            if first_diff < len(head_lines):
+                return [
+                    f"{rel_log}: staged log rewrote earlier line {first_diff + 1} "
+                    "(staged bytes do not preserve the HEAD prefix verbatim); "
+                    "metadata event logs are append-only. Restore the HEAD bytes unchanged "
+                    "and append new events through aw tools instead of editing the log by hand."
+                ]
+            return [
+                f"{rel_log}: staged bytes do not preserve the HEAD log prefix verbatim; "
+                "metadata event logs are append-only. Restore HEAD and append new events "
+                "through aw tools."
+            ]
+
+        if head_bytes and not head_bytes.endswith(b"\n"):
+            return [
+                f"{rel_log}: HEAD log does not end with LF, so staged bytes cannot append "
+                "whole new lines; repair the log before appending."
+            ]
+
+        appended_bytes = staged_bytes[len(head_bytes) :]
+        if not appended_bytes.endswith(b"\n"):
+            return [
+                f"{rel_log}: appended line in staged log does not end with LF "
+                "(whole new lines only); append canonical JSONL events through aw tools."
+            ]
+
+        appended_text = appended_bytes.decode("utf-8")
+        appended_lines = appended_text.splitlines(keepends=True)
+        appended_events: List[Dict[str, Any]] = []
+        for offset, raw_ln in enumerate(appended_lines, start=1):
+            try:
+                ev = decode_line(raw_ln)
+            except Exception as exc:
+                return [
+                    f"{rel_log}: invalid appended event at new line {offset} ({exc}); "
+                    "append valid canonical JSONL events through aw tools."
+                ]
+            appended_events.append(ev)
+
+        head_res = read_at(id6, "HEAD", project_context=ctx)
+        if head_res.kind == "ok" and head_res.state is not None:
+            expected_seq = head_res.state.last_seq + 1
+            for offset, ev in enumerate(appended_events, start=1):
+                ev_seq = ev.get("seq")
+                if ev_seq != expected_seq:
+                    return [
+                        f"{rel_log}: appended event at new line {offset} has seq {ev_seq!r}, "
+                        f"expected consecutive seq {expected_seq} after HEAD seq "
+                        f"{head_res.state.last_seq}; append events with consecutive seq "
+                        "numbers through aw tools."
+                    ]
+                expected_seq += 1
+            if appended_events and appended_events[0].get("append") != appended_events[
+                0
+            ].get("seq"):
+                first_app = appended_events[0]
+                return [
+                    f"{rel_log}: first appended event at seq {first_app.get('seq')!r} "
+                    f"has append {first_app.get('append')!r} (a new staged write must start "
+                    "a fresh append run with append == seq); append events through aw tools."
+                ]
+    else:
+        if not staged_bytes:
+            return [
+                f"{rel_log}: new metadata event log is empty; a new log must start with "
+                "a `create` event (seq 1) or a `checkpoint` event (seq 0)."
+            ]
+        if not staged_bytes.endswith(b"\n"):
+            return [
+                f"{rel_log}: new staged log does not end with LF (whole canonical JSONL "
+                "lines only); create metadata event logs through aw tools."
+            ]
+        staged_lines = staged_text.splitlines(keepends=True)
+        try:
+            first_ev = decode_line(staged_lines[0])
+        except Exception as exc:
+            return [
+                f"{rel_log}: invalid first event in new log ({exc}); a new log must start "
+                "with a `create` event (seq 1) or a `checkpoint` event (seq 0)."
+            ]
+        first_op = first_ev.get("op")
+        first_seq = first_ev.get("seq")
+        if not (
+            (first_op == "create" and first_seq == 1)
+            or (first_op == "checkpoint" and first_seq == 0)
+        ):
+            return [
+                f"{rel_log}: bad first event in new log (got op={first_op!r}, "
+                f"seq={first_seq!r}); a new metadata event log must start with `create` "
+                "at seq 1 or `checkpoint` at seq 0."
+            ]
+        expected_seq = first_seq
+        for line_no, raw_ln in enumerate(staged_lines, start=1):
+            try:
+                ev = decode_line(raw_ln)
+            except Exception as exc:
+                return [
+                    f"{rel_log}: invalid event at line {line_no} ({exc}); "
+                    "write valid canonical JSONL events through aw tools."
+                ]
+            if ev.get("seq") != expected_seq:
+                return [
+                    f"{rel_log}: event at line {line_no} has seq {ev.get('seq')!r}, "
+                    f"expected consecutive seq {expected_seq}; events in a staged log "
+                    "must have consecutive seq numbers."
+                ]
+            expected_seq += 1
+
+    staged_res = read_at(id6, ":0:", project_context=ctx)
+    if staged_res.kind != "ok":
+        detail = staged_res.error or f"staged log validation failed ({staged_res.kind})"
+        return [
+            f"{rel_log}: loader refused staged log ({detail}); "
+            "append only valid events with consecutive seq and valid append values through aw tools."
+        ]
+    return []
 
 
 # --------------------------------------------------------------------------------------
