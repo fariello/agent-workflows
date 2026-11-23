@@ -5,8 +5,9 @@
 - Concern: `clors0` carried the post-cutover readers (E-15) and the event `overrides` list with the `--date` refusal (E-14). Both are dormant on `main` (log-format records only, or `metadata_schema` 2), so C10a allows them before the cutover. Round-3 split (research `nj8zdp`).
 - Scope: `clors0` E-15 (`last_history_at` from events; the `aw check meta` path-drift row) and E-14 (`overrides` on setter events; `aw specs set --date` refusal at schema 2), with their test modules.
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/meta_cli.py, agent_workflows/status_set.py, agent_workflows/cli.py, tests/test_cutover_log_readers.py, tests/test_event_overrides.py, .aw/records/plans/pending/20261109-metastore-267-wilgfy-build-the-dormant-post-cutover-readers-and-event-overrides.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261123-0q2x1a-01-0q2x1a-specs-set-actor-label-differs-by-spelling.backlog.md (defect found during execution, filed per the run contract); agent_workflows/attention.py (spec 4sd62s 4.4 requires aw attention to publish last_history_at from the newest post-cutover event with last_history_precision dormant behind log format plus metadata_schema 2)
 - Item-Dependencies: executed:1ajqaa, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15, executed:xexn45, executed:ya4ee4
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: wilgfy
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: wilgfy verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261123-0q2x1a-01-0q2x1a-specs-set-actor-label-differs-by-spelling.backlog.md: defect found during execution, filed per the run contract; out-of-scope agent_workflows/attention.py: spec 4sd62s 4.4 requires aw attention to publish last_history_at from the newest post-cutover event with last_history_precision; dormant behind log format plus metadata_schema 2; in-scope-unmodified agent_workflows/cli.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/meta_cli.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
