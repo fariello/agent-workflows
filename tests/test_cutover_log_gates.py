@@ -156,7 +156,7 @@ def _plan_text(id6: str, status: str) -> str:
 def _write(repo: Path, rel: str, text: str) -> str:
     path = repo / ".aw" / "records" / rel
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    path.write_bytes(text.encode("utf-8"))
     return f".aw/records/{rel}"
 
 

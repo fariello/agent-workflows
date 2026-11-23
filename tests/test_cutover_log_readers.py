@@ -59,8 +59,8 @@ def _init_repo(
 def _write_log(repo: Path, events: List[Dict[str, Any]]) -> None:
     meta_dir = repo / ".aw" / "records" / "meta"
     meta_dir.mkdir(parents=True, exist_ok=True)
-    (meta_dir / f"{_ID6}.jsonl").write_text(
-        "".join(meta.encode_event(e) for e in events), encoding="utf-8"
+    (meta_dir / f"{_ID6}.jsonl").write_bytes(
+        "".join(meta.encode_event(e) for e in events).encode("utf-8")
     )
 
 
