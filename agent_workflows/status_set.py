@@ -662,6 +662,43 @@ def _resolve_record_lifecycle(record_type: str, native_status: str) -> _LS.Resol
     return _T.resolve_lifecycle(family, native_status)
 
 
+def _spec_date_refusal(repo_root: Path) -> None:
+    """Refuse `aw specs set --date` once `metadata_schema` is 2 (spec `4sd62s` 4.2 `overrides`)."""
+    from agent_workflows.migrations import chain as _chain
+
+    if (_chain.read_metadata_schema(repo_root) or 0) >= 2:
+        raise ValueError(
+            "--date is refused once metadata_schema is 2: an event's `at` is always its "
+            "write time. Put the original day in --message instead."
+        )
+
+
+def _log_path_for_record(rec: ArtifactRecord, repo_root: Path) -> Path | None:
+    """The `meta/<id6>.jsonl` log of a log-format record, else None."""
+    if not _is_log_format_record(rec, repo_root):
+        return None
+    from agent_workflows import artifact_meta as _meta
+
+    records = Path(_meta.legacy_context(repo_root).logical_roots["records"])
+    return records / "meta" / f"{rec.id6}.jsonl"
+
+
+def _is_log_format_record(rec: ArtifactRecord, repo_root: Path) -> bool:
+    """True when `rec` has a `meta/<id6>.jsonl` log (post-cutover). Its file carries only the
+    in-file mirror, so the bullet-format spec backstop does not apply to it."""
+    from agent_workflows import artifact_meta as _meta
+
+    if not rec.id6:
+        return False
+    try:
+        ctx = _meta.legacy_context(repo_root)
+        return (
+            _meta._storage_format(Path(ctx.logical_roots["records"]), rec.id6) == "log"
+        )
+    except Exception:
+        return False
+
+
 def _state_for_record(rec: ArtifactRecord, repo_root: Path | None = None) -> Any:
     """Return `artifact_meta.State` (with per-type `fields`) for `rec`."""
     from agent_workflows import artifact_meta as _meta
@@ -1514,6 +1551,7 @@ def _prepare_status_change(
     is_same_status = old_status == norm_status.strip().lower()
     # E-02: Carry --date override into shared engine, type-scoped to specs, preserving UTC default
     if rec.record_type == "specs" and getattr(args, "date", None):
+        _spec_date_refusal(repo_root)
         today = str(args.date)
     else:
         today = _core.utc_history_date()
@@ -1911,7 +1949,7 @@ def _prepare_status_change(
     notes: list[str] = []
 
     def _preview(evs: list[dict[str, Any]], *, history: bool) -> Any:
-        return _am.append(
+        res = _am.append(
             target,
             evs,
             legacy_render=dataclasses.replace(render, history=history),
@@ -1925,6 +1963,21 @@ def _prepare_status_change(
             from_status=old_status,
             notes_out=notes if history == should_write_history else None,
         )
+        if isinstance(res, Mapping):
+            # A log-format record's dry run returns the prepared events, not rendered text: the
+            # file then carries only the in-file mirror, which is what the judges below read.
+            art_type = _am._LEGACY_PLURAL_TO_TYPE.get(rec.record_type, "ipd")
+            rendered = _am.apply_in_file_mirror(
+                text, rec.id6 or "", art_type, norm_status
+            )
+            return _am.WritePreview(
+                text=rendered,
+                destination=dest_path,
+                source=rec.path,
+                changed=rendered != text,
+                events=list(res.get("events") or []),
+            )
+        return res
 
     # The SATISFIED close records its evidence; the close verdict judges the rendered item text.
     if rec.record_type == "backlog":
@@ -2050,7 +2103,11 @@ def apply_status_change(
     if rec.record_type == "specs":
         from agent_workflows import specs as _specs_mod
 
-        residual = _specs_mod.validate_spec(prep.dest_path, prep.updated_text)
+        residual = (
+            []
+            if _is_log_format_record(rec, repo_root)
+            else _specs_mod.validate_spec(prep.dest_path, prep.updated_text)
+        )
         if residual:
             raise ValueError(
                 f"the resulting spec would not conform; refused (file unchanged): "
@@ -3068,6 +3125,14 @@ def run_set_command(
         target_status = raw_args[0]
         selector_tokens = raw_args[1:]
 
+    if scoped_type == "specs" and getattr(args, "date", None):
+        try:
+            _spec_date_refusal(repo_root)
+        except ValueError as exc:
+            label = getattr(args, "_verb_label", None) or "aw specs set"
+            term.status("fail", f"{label}: {exc}")
+            return 1
+
     if not selector_tokens:
         term.status(
             "fail",
@@ -3769,7 +3834,11 @@ def run_set_command(
         from agent_workflows import specs as _specs_mod
 
         prep = _prepare_status_change(rec, target_status, repo_root, args, quiet=True)
-        residual = _specs_mod.validate_spec(prep.dest_path, prep.updated_text)
+        residual = (
+            []
+            if _is_log_format_record(rec, repo_root)
+            else _specs_mod.validate_spec(prep.dest_path, prep.updated_text)
+        )
         if residual:
             findings = [f"{d.rule}: {d.detail}" for d in residual]
             refusals.append(
@@ -4071,6 +4140,8 @@ def run_set_command(
     demotion_warnings: list[tuple[Path, str]] = []
     for rec in matched_records:
         old_text = rec.raw_text
+        log_p = _log_path_for_record(rec, repo_root)
+        old_log = log_p.read_bytes() if log_p is not None else None
         res = apply_status_change(
             rec,
             target_status,
@@ -4103,6 +4174,15 @@ def run_set_command(
                 touched_paths.append(src_rel)
             if dest_rel not in touched_paths:
                 touched_paths.append(dest_rel)
+        if log_p is not None and log_p.read_bytes() != old_log:
+            # A log-format record's change lives in its event log; commit it with the file.
+            touched_types.add(rec.record_type)
+            try:
+                log_rel = log_p.resolve().relative_to(repo_root.resolve()).as_posix()
+            except ValueError:
+                log_rel = log_p.as_posix()
+            if log_rel not in touched_paths:
+                touched_paths.append(log_rel)
         if hasattr(res, "rewritten_paths"):
             for rp in res.rewritten_paths:
                 if rp not in touched_paths:
