@@ -50,20 +50,20 @@ Round-3 note (2026-11-09): Task group 1 (E-05, the staged `meta/*.jsonl` append 
 
 ### Task group 2: parity, offline proof and finish
 
-- [ ] E-13 Add `tests/test_readers_gate_cache_parity.py` (AC-1a, the setter and pre-commit gate cases): on a staged fixture repository, run a setter (`aw ipd set to-review <plan>`), `aw ipd-status-untooled-gate`, `aw ipd-executed-gate` and `aw backlog-blocking-close-gate` with a cold cache, a warm cache, a deleted `.aw/state/index.db` and an `index.db` overwritten with random bytes; assert identical exit codes and normalized outputs. Then stage an external edit to a record and assert each gate sees it with no rebuild; replace the staged blob with an unparseable record and assert the gate fails closed naming the record.
+- [x] E-13 Add `tests/test_readers_gate_cache_parity.py` (AC-1a, the setter and pre-commit gate cases): on a staged fixture repository, run a setter (`aw ipd set to-review <plan>`), `aw ipd-status-untooled-gate`, `aw ipd-executed-gate` and `aw backlog-blocking-close-gate` with a cold cache, a warm cache, a deleted `.aw/state/index.db` and an `index.db` overwritten with random bytes; assert identical exit codes and normalized outputs. Then stage an external edit to a record and assert each gate sees it with no rebuild; replace the staged blob with an unparseable record and assert the gate fails closed naming the record.
   - Depends on: none
   - Expected outcome: every case passes; the module is marked `core` unless its git work exceeds the core budget, in which case `slow` with the reason recorded.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-14 Prove AC-12's setter case and the absence of network use in this plan's surfaces: in `tests/test_readers_gate_cache_parity.py`, run `aw ipd set to-review <plan>` and `aw ipd-executed-gate` with `PATH` stripped of `opencode`, `agy` and `claude` and with `socket.socket` patched to raise through a `sitecustomize` on `PYTHONPATH`; both succeed.
+- [x] E-14 Prove AC-12's setter case and the absence of network use in this plan's surfaces: in `tests/test_readers_gate_cache_parity.py`, run `aw ipd set to-review <plan>` and `aw ipd-executed-gate` with `PATH` stripped of `opencode`, `agy` and `claude` and with `socket.socket` patched to raise through a `sitecustomize` on `PYTHONPATH`; both succeed.
   - Depends on: E-13
   - Expected outcome: both runs exit 0.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-15 Record the residual audit and finish: run `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows` and `rg -n "Workflow history" agent_workflows`, and write table F-04 in this plan. The split parts already wrote F-04 tables for their modules (`h58z9n`: the hooks, `plan_readiness`, `ipd_lifecycle`; `y97k46`: `runner_shared`, `oc_runipd`, `agy_runipd`; `jd7874`: the plans, research and prompts modules; `2zpw22`: the review, orchestration, production-check, work and adoption modules), and `ffceq0` F-12 covers its own modules (`check_engine`, `status_set`, `selectors`, `attention`, `ipd_lint` and the others in its Scope-Paths): cite each of those tables by plan id and re-verify only that their hit counts still match. Classify every hit in the REMAINING modules one row per function (measured at the split, `ac76110f4`: `backlog` 30 hits in 7 functions, `coverage_record` 9 in 2, `artifact_rename` 5 in 1, `ipd_authoring` 3 in 2, `record_history` 3 in 3, `run_viewer` 3 in 1, `set_records` 2 in 2, `engine` 2 in 2, `doctor`, `git_commit_helper`, `lane_containment` and `readiness_recheck` 1 each: 24 functions) with its owner: writer (Orders 06/07, named), body-prose bullet kept by N3 (named pattern), legacy grammar inside `artifact_meta.py`, or a parser that Order 11 deletes. A reader hit with no such owner is a defect of this plan and is moved before finishing. Run every module named in E-13 and E-14, `tests/test_meta_log_append_gate.py` (from `jq82as`), the bare core gate `python3 -m pytest`, `make test-all`, `aw check all --agent` (rule-id multiset equal to the F-10 table of `snh19k` (written there since the round-3 split; formerly `h58z9n`), any difference traced to a record changed in between), and `aw sanitize --agent`; add a `CHANGELOG.md` `2.0.0 (pending)` line for the new hook, with no em or en dashes in that user-facing prose; commit through `aw commit t4gl15 -- <each changed path>`, one commit per task group allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-15 Record the residual audit and finish: run `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows` and `rg -n "Workflow history" agent_workflows`, and write table F-04 in this plan. The split parts already wrote F-04 tables for their modules (`h58z9n`: the hooks, `plan_readiness`, `ipd_lifecycle`; `y97k46`: `runner_shared`, `oc_runipd`, `agy_runipd`; `jd7874`: the plans, research and prompts modules; `2zpw22`: the review, orchestration, production-check, work and adoption modules), and `ffceq0` F-12 covers its own modules (`check_engine`, `status_set`, `selectors`, `attention`, `ipd_lint` and the others in its Scope-Paths): cite each of those tables by plan id and re-verify only that their hit counts still match. Classify every hit in the REMAINING modules one row per function (measured at the split, `ac76110f4`: `backlog` 30 hits in 7 functions, `coverage_record` 9 in 2, `artifact_rename` 5 in 1, `ipd_authoring` 3 in 2, `record_history` 3 in 3, `run_viewer` 3 in 1, `set_records` 2 in 2, `engine` 2 in 2, `doctor`, `git_commit_helper`, `lane_containment` and `readiness_recheck` 1 each: 24 functions) with its owner: writer (Orders 06/07, named), body-prose bullet kept by N3 (named pattern), legacy grammar inside `artifact_meta.py`, or a parser that Order 11 deletes. A reader hit with no such owner is a defect of this plan and is moved before finishing. Run every module named in E-13 and E-14, `tests/test_meta_log_append_gate.py` (from `jq82as`), the bare core gate `python3 -m pytest`, `make test-all`, `aw check all --agent` (rule-id multiset equal to the F-10 table of `snh19k` (written there since the round-3 split; formerly `h58z9n`), any difference traced to a record changed in between), and `aw sanitize --agent`; add a `CHANGELOG.md` `2.0.0 (pending)` line for the new hook, with no em or en dashes in that user-facing prose; commit through `aw commit t4gl15 -- <each changed path>`, one commit per task group allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-14
   - Expected outcome: F-04 has no unowned reader hit; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -88,12 +88,75 @@ Measured 2026-11-02 at `0cbfcc706`.
 | F-01 | Reader module split (see `ffceq0` F-02). This plan: `runner_shared` (20 `^-` regex sites in 30+ functions), `oc_runipd`, `agy_runipd`, `hooks/executed_transition_gate` (1 regex plus inline `re.search` calls), `hooks/ipd_dependency_statement_gate`, `hooks/status_untooled_gate`, `hooks/backlog_blocking_close_gate`, `check_engine` git readers (12 `_blob_text` call sites), `status_set._prepare_status_change`, `plan_readiness` (6 regex sites; `review_staleness_index`), `ipd_lifecycle._release_own_plan_edit_before_landing`, `plans_index` (6), `plans_archive` (5), `plans_refs` (read side), `ipd_set_plan`, `completion`, `research_index` (2), `research_archive`, `prompts_index`, `artifact_audit` (1), `review_findings` (1), `review_sequence` (2), `review_tier`, `review_rereview`, `orchestrator_readiness` (1), `production_checks` (5), `work_cmd` (2), `artifact_adopt` (1) | 27 reader modules. |
 | F-02 | `git show`/`cat-file`/`:0:` metadata readers: `check_engine._blob_text` callers `check_status_untooled`, `check_status_untooled_range`, `check_staged_illegal_backlog_transition`, `_lane_carrier_is_executed`, `check_release_gate_consistency` (via `_staged_backlog_done_items`); `hooks.executed_transition_gate._blob_at`; `hooks.ipd_dependency_statement_gate._staged_ipd_overlay` (through `check_engine._blob_text`/`_status_meta`); `status_set._prepare_status_change` (HEAD status through `check_engine._blob_text`); `plan_readiness.review_staleness_index` (`git cat-file --batch`); `runner_shared.backlog_item_paths_for_commit` (`git show <sha>:<path>` then `backlog.parse_item`), `check_review_lane_artifacts` (`git show <branch>:<path>`), `read_merge_stage`, `classify_conflict_set_for_rederivation` (`git cat-file -p`), `integrate_lane_branch` (`git cat-file -p <tree>:<path>` then `check_engine._metadata_status`); `ipd_lifecycle._release_own_plan_edit_before_landing` (`git show <landed>:<path>`) | 15 functions, matching the 4.4 list; E-01 re-runs the search at execution time and records it as F-03. |
 | F-03 | (written by the split parts' E-01 items: `h58z9n`, `y97k46`, `jd7874`, each for its file subset) the re-run 4.4 search with each hit classified | 4.4 says the list is a minimum. |
-| F-04 | (written by E-15) residual `^-` regex and `Workflow history` hits after this plan, with owners | Input to Order 11. |
+| F-04 | Measured 2026-11-22 at `d5c3c3109`: 243 total hits across `agent_workflows/` (134 `^-` regex + 109 `Workflow history`). All 5 cited tables re-verified (103 hits) and all remaining modules classified in Table F-04 below (140 hits); 0 unowned reader hits. | Input to Order 11 (`9o83cr`). |
 | F-05 | `runner_shared.discover_plans(repo)` returns 1,719 records on this checkout | Baseline for E-07's parity check. |
 | F-06 | `aw oc run` sub-commands are `start, resume, status, report, stop, integrate, audit`; none has a dry-run option | E-07 compares `discover_plans` output instead of a queue preview. |
 | F-07 | Path-only git readers (no change): `work_cmd` (`diff --name-only --cached`), `git_commit_helper`, `commit_lock`, `clean_delta`, `cli`, `placement_switch`, `engine`, `layout_migration`; non-metadata readers: `leak_sanitizer.scan_working_tree_counted` (reads every tracked file as text, which will include `meta/*.jsonl`), `artifact_audit.FinalizeEvidenceIndex` (commit subjects), `project_context` (`ls-files -s` modes) | Matches 4.4's "not metadata readers"; recorded so the E-01 classification is checkable. |
 | F-08 | No hook inspects `meta/*.jsonl`; 4.8 requires one | `jq82as` adds it (formerly E-05 here). |
 | F-09 | Measured 2026-11-05: `research_index._doc_entry` sets `has_body` true for any non-blank text after the closing `---`, and `derive_pipeline_positions` uses it to place a Set `unrun`, `partial` or `synthesized`. `4sd62s` 4.1 puts the `aw-managed` banner after the front matter of every artifact. Re-running `derive_pipeline_positions` on this checkout's 164 research entries with every `has_body` forced true (the post-cutover state if the banner counts as body) moves Set `awclia` from `unrun` to `synthesized`, because its reconciliation report `v912ed` has no body today. Found by research `53jbi5` findings E-2/E-3. | A defect the cutover would introduce whether or not any other spec lands; E-16 fixes it before Order 13 (`cxxmyv`). |
+
+### Table F-04: Repository-wide residual `^-` regex and `Workflow history` audit (E-15, commit `d5c3c3109`, 243 hits total, 0 unowned reader hits)
+
+Commands run:
+- `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows`: 134 hits.
+- `rg -n "Workflow history" agent_workflows`: 109 hits.
+
+#### Part A: Cited split-part and Order 08 tables (re-verified at `d5c3c3109`, 103 hits)
+
+| Cited plan & table | Audited modules | Recorded count | Re-verified at `d5c3c3109` | Match status |
+|---|---|---:|---:|---|
+| `h58z9n` Table F-04 | `hooks/executed_transition_gate.py` (1), `hooks/status_untooled_gate.py` (3), `hooks/ipd_dependency_statement_gate.py` (0), `hooks/backlog_blocking_close_gate.py` (0), `plan_readiness.py` (11: 5 `^-`, 6 `Workflow history`), `ipd_lifecycle.py` (6) | 21 | 21 (5 `^-`, 16 `Workflow history`) | Exact match |
+| `y97k46` Table F-04 | `runner_shared.py` (30: 15 `^-`, 15 `Workflow history`), `oc_runipd.py` (2), `agy_runipd.py` (0) | 32 | 32 (15 `^-`, 17 `Workflow history`) | Exact match |
+| `jd7874` Table F-04 | `plans_refs.py` (3 `^-`), `plans_index.py` (0), `plans_archive.py` (0), `ipd_set_plan.py` (0), `completion.py` (0), `research_index.py` (0), `research_archive.py` (0), `prompts_index.py` (0) | 3 | 3 (3 `^-`, 0 `Workflow history`) | Exact match |
+| `2zpw22` Table F-04 | `review_findings.py` (1 `Workflow history`), `artifact_audit.py` (0), `reviews.py` (0), `review_sequence.py` (0), `review_tier.py` (0), `review_rereview.py` (0), `orchestrator_readiness.py` (0), `production_checks.py` (0), `work_cmd.py` (0), `artifact_adopt.py` (0) | 1 | 1 (0 `^-`, 1 `Workflow history`) | Exact match |
+| `ffceq0` Table F-12 | `selectors.py` (0 `^-`, 2 comment `Workflow history`), `plans.py` (0), `attention.py` (3 `^-`, 3 `Workflow history` in `_history_block` owned by `csobg7`), `ipd_lint.py` (1 `^-`, 6 comment/message `Workflow history`), `check_engine.py` (22 `^-`, 9 comment/message `Workflow history`) | 26 `^-` (25 rows, `_ITEM_FROM_SPEC_RE` x2) | 46 (26 `^-`, 20 `Workflow history`) | Exact match on all 26 `^-` regex hits; 17 `Workflow history` hits are comments/messages and 3 are `attention._history_block` (Order 11 `csobg7`) |
+
+#### Part B: Remaining modules (one row per function/scope, 140 hits: 85 `^-`, 55 `Workflow history`)
+
+Note: `agent_workflows/set_records.py` dropped from 2 hits at `ac76110f4` to 0 hits after Order 07 (`n5sxxk`).
+
+| Module & function/scope | `^-` | `Workflow history` | Patterns / symbols | Class & owner |
+|---|---:|---:|---|---|
+| `agent_workflows/artifact_meta.py` (`<module>`, `LegacyRender`, `_extract_legacy_lineage`, `load_legacy_artifact`, `_bullet_re`, `set_legacy_bullet_line`, `_set_bullet`, `_render_status`, `_render_create_fields`, `_render_field`, `_render_checkpoint`, `_render_gate`, `_render_approval`, `_render_history`, `render_legacy`, `_canonicalize_work_kind`, `restore_legacy_snapshot`) | 30 | 10 | `_STRICT_BULLET_RE`, `_LOOSE_BULLET_RE`, `_META_BULLET_LINE_RE`, phase-B bullet and `## Workflow history` loader/renderer | Legacy grammar inside `artifact_meta.py` (spec `4sd62s` 4.3 canonical loader/writer). |
+| `agent_workflows/migrations/chain.py::<module>` | 0 | 1 | `_WORKFLOW_HISTORY_RE` | Migration `m0001` legacy converter (`dcerjg` / `g5hpbb`). |
+| `agent_workflows/migrations/m0001_convert.py` (`<module>`, `_find_history_section_span`, `_strip_history_section_from_text`, `rewrite_review_file`) | 2 | 3 | `_BULLET_LINE_RE`, `_DATED_PREFIX_RE`, history-section stripper | Migration `m0001` legacy converter (`dcerjg` / `ghhzb6` / `hpedmn`). |
+| `agent_workflows/migrations/m0001_discover.py::<module>` | 0 | 1 | Module docstring prose | Migration `m0001` discovery docstring (`g5hpbb`). |
+| `agent_workflows/migrations/m0001_renames.py` (`<module>`, `_find_protected_spans`, `plan_citation_rewrites`) | 0 | 4 | Protected `## Workflow history` span detection during citation rewrite | Migration `m0001` rename planner (`dky26u`). |
+| `agent_workflows/backlog.py::<module>` | 12 | 2 | `_ID_RE`, `_STATUS_RE`, `_SET_RE`, `_PRIORITY_RE`, `_WORK_KIND_RE`, `_KIND_RE`, `_SUMMARY_RE`, `_BLOCKS_RELEASE_RE`, `_CLOSE_EVIDENCE_RE`, `_TOP_KEY_RE`, `_RELEASE_EXEMPT_REF_LINE_RE`, `_CLOSE_EVIDENCE_LINE_RE`, `_WORKFLOW_HISTORY_HEADING_RE`, module docstring | Parser/writer constants Order 11 deletes (`po3o1c` Order 298, `vw88h0` Order 299, `zs7a45` Order 284, `ay6sxp` Order 291; writers moved in Order 07 `g6tw94`). |
+| `agent_workflows/backlog.py::_strip_metadata_and_history` | 0 | 1 | Docstring describing body-only extraction after `## Workflow history` | Parser Order 11 updates/deletes (`vw88h0` Order 299 / `ay6sxp` Order 291). |
+| `agent_workflows/backlog.py::validate_item` | 0 | 1 | Missing `## Workflow history` diagnostic string | Diagnostic prose (Order 12 `90iqr1` / Order 13 `cxxmyv`). |
+| `agent_workflows/attention_contract.py::<module>` | 5 | 3 | `SPEC_STATUS_RE`, `GATE_KIND_RE`, `GATE_REF_RE`, `GATE_SUMMARY_RE`, `HISTORY_RECORD_RE`, `_WORKFLOW_HISTORY_HEADING_RE`, module docstring | Parser Order 11 deletes (`tdhav3` Order 248, `bxupy8` Order 290, `csobg7` Order 292). |
+| `agent_workflows/attention_contract.py::history_block` | 0 | 2 | Docstring for history-block parser | Parser Order 11 retires (`bxupy8` Order 290 / `csobg7` Order 292). |
+| `agent_workflows/attention_contract.py::newest_history_record` | 0 | 1 | Docstring prose | Contract docstring (Order 11 `csobg7` / Order 12 `90iqr1`). |
+| `agent_workflows/attention_contract.py::last_history_at` | 0 | 1 | Docstring prose | Contract docstring (Order 11 `csobg7` / Order 12 `90iqr1`). |
+| `agent_workflows/attention_contract.py::actor_refusal` | 0 | 1 | Docstring prose | Contract docstring (Order 12 `90iqr1`). |
+| `agent_workflows/specs.py::<module>` | 8 | 0 | `_BLOCKS_RELEASE_RE`, `_SPEC_ID_RE`, `_PRIORITY_RE`, `_WORK_KIND_RE`, `_SCOPE_RE`, `_SUMMARY_RE`, `_TOP_KEY_RE`, `_SPEC_ID_BULLET_RE` | Parser Order 11 deletes (`um2kvx` Order 297, `csobg7` Order 292; writers moved in Order 07 `g6tw94`). |
+| `agent_workflows/specs.py::_history_lines` | 0 | 1 | `line.strip() == "## Workflow history"` | Parser Order 11 deletes (`csobg7` Order 292 / `um2kvx` Order 297). |
+| `agent_workflows/specs.py::run_migrate` | 1 | 0 | `re.match(r"^- Status:\s*(.*)$", line)` | Legacy spec migration helper; Order 11 deletes (`um2kvx` Order 297). |
+| `agent_workflows/specs.py::validate_spec` | 0 | 1 | Missing `## Workflow history` diagnostic string | Diagnostic prose (Order 12 `90iqr1` / Order 13 `cxxmyv`). |
+| `agent_workflows/releases.py::<module>` | 6 | 0 | `_ID_RE`, `_STATUS_RE`, `_VERSION_RE`, `_SUMMARY_RE`, `_ITEM_FROM_BACKLOG_RE`, `_ITEM_GRADUATED_TO_RE` | Parser/writer constants Order 11 deletes (`kmf6w4` Order 243, `zs7a45` Order 284; writers moved in Order 07 `g6tw94`). |
+| `agent_workflows/releases.py::ReleaseRecord` | 0 | 1 | Class docstring prose | Docstring prose (Order 11 `kmf6w4` / Order 12 `90iqr1`). |
+| `agent_workflows/releases.py::_history_lines` | 0 | 2 | `re.search(r"(?m)^##[ \t]+Workflow history[ \t]*$", text)` + docstring | Parser Order 11 deletes (`kmf6w4` Order 243). |
+| `agent_workflows/cli.py::<module>` | 0 | 3 | Command help prose | CLI help prose (Order 12 `90iqr1`). |
+| `agent_workflows/cli.py::_build_parser` | 0 | 4 | Argument help / comment prose | CLI help prose (Order 12 `90iqr1`). |
+| `agent_workflows/cli.py::_run_search` | 1 | 0 | `_YAML_FENCE_CLOSE_RE = re.compile(r"(?m)^---[ \t]*\r?$")` | Body-prose YAML front-matter fence skip kept by N3 (full-text body search). |
+| `agent_workflows/ipd_schema.py::<module>` | 4 | 1 | `_META_LINE_RE`, `_READINESS_LINE_RE`, `V_ROW_RE`, `E_ROW_RE`, `H_WORKFLOW_HISTORY` | `V_ROW_RE` / `E_ROW_RE` kept by N3 (E/V checklist grammar); `_META_LINE_RE`, `_READINESS_LINE_RE`, `H_WORKFLOW_HISTORY` owned by Order 11 (`nx7fws` Order 246, `ad86ym` Order 287). |
+| `agent_workflows/ipd_schema.py::plan_requires_attended` | 1 | 0 | `re.search(r"(?m)^- Attended:\s*(\S+)\s*$", head)` | Parser Order 11 deletes (`nx7fws` Order 246). |
+| `agent_workflows/artifact_rename.py::<module>` | 5 | 0 | `_SET_LINE_RE`, `_ORDER_LINE_RE`, `_ID_LINE_RE`, `_STATUS_LINE_RE`, `_DATE_LINE_RE` | Writer leftovers (Order 07 `bsl45u`) that Order 11 deletes (`qttoyc` Order 245, `v0ucnz` Order 285). |
+| `agent_workflows/coverage_record.py::<module>` | 2 | 1 | `_COVERAGE_LINE_RE`, `_ID_LINE_RE`, module docstring | Parser Order 11 deletes (`akhrp5` Order 247; writer moved in Order 07 `8q27jt`). |
+| `agent_workflows/ipd_authoring.py::<module>` | 2 | 0 | `_ID_LINE_RE`, `_WATERMARK_RE` | Parser Order 11 deletes (`nx7fws` Order 246). |
+| `agent_workflows/ipd_authoring.py::build_skeleton` | 0 | 1 | Docstring prose | Writer (Order 07 `n5sxxk`) / docstring prose. |
+| `agent_workflows/record_history.py` (`<module>`, `append_advisory`, `_inline_history_records`) | 0 | 3 | `_HIST_HEADING`, advisory warning, docstring | Sidecar writer/history helper retired at cutover (`g45vyv` Order 256 / `cxxmyv`; `tdhav3` Order 248). |
+| `agent_workflows/run_viewer.py::load_run_summary` | 3 | 0 | `- Created:`, `- Updated:`, `- Selectors:` in `.aw/state/runs/<run>/report.md` | Non-artifact runtime run-report fallback parser (not an `.aw/records/` artifact; kept by N3). |
+| `agent_workflows/engine.py` (`<module>`, `agents_pointer_prose`) | 0 | 2 | Comment and managed AGENTS.md template prose | Managed template/comment prose (Order 12 `90iqr1`). |
+| `agent_workflows/artifact_core.py::<module>` | 0 | 1 | Comment naming UTC date helper | Comment prose. |
+| `agent_workflows/artifact_refs.py::classify_citing_plans_for_rewrite` | 1 | 0 | `re.search(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$", text)` | Parser Order 11 deletes (`qttoyc` Order 245). |
+| `agent_workflows/doctor.py::build_remediation` | 0 | 1 | CLI remediation string | Remediation prose (Order 12 `90iqr1`). |
+| `agent_workflows/git_commit_helper.py::<module>` | 1 | 0 | `_DIVIDER_RE = re.compile(r"^---(\s|$)")` | Non-artifact git commit-message divider (not an artifact metadata bullet). |
+| `agent_workflows/lane_containment.py::inventory_lane` | 0 | 1 | Comment prose | Comment prose. |
+| `agent_workflows/readiness_recheck.py::_run_stale_findings` | 1 | 0 | `re.search(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$", text)` | Parser Order 11 deletes (`akhrp5` Order 247). |
+| `agent_workflows/status_set.py::apply_status_change` | 0 | 1 | Docstring prose | Writer (Order 06 `2xwb9b`) / docstring prose. |
+| **Part B Total** | **85** | **55** | **140 hits across 21 modules (0 in `set_records.py`)** | **0 unowned reader hits** |
 
 READER LEDGER: prior behavior, the pinning test, and the result. (Since the 2026-11-07 split each row is carried, with its moved item, by the part named in `## Deferred / out of scope`; kept here as the decision record.)
 
@@ -219,20 +282,82 @@ No spec text changes in this plan after the round-3 split. The ONE spec amendmen
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition; as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
-- [ ] V-13 validates E-13
+- [x] V-13 validates E-13
   - Required evidence: paste `python3 -m pytest -o addopts="" -v --durations=0 tests/test_readers_gate_cache_parity.py -k parity` with every (command x cache state) test PASSED for the setter and the three gate leaves across the four cache states, the staged external-edit test, and the invalid staged record test asserting a non-zero exit naming the record; and the module's marker (`core` or `slow` with the docstring reason).
   - Observed evidence:
-  - Result: pending
+    Module marker: `pytestmark = pytest.mark.core` in `tests/test_readers_gate_cache_parity.py` (0 unlisted slow tests; longest call 0.69s, total serial wall time 8.69s). Also fixed three small fail-open bugs uncovered by E-13's unparseable-staged-record tests (justified via `--scope-reason` on commit `d5c3c3109`): `artifact_meta._read_git_blob` now decodes UTF-8 strictly, and `check_engine._read_plan_state_at_checked`/`check_status_untooled`/`check_release_gate_consistency` and `hooks/executed_transition_gate._staged_plan_executed_transitions` fail closed naming the record on `ReadAtResult(kind="corrupt")`.
+    Command: `python3 -m pytest -o addopts="" -v --durations=0 tests/test_readers_gate_cache_parity.py -k parity`
+    ```text
+    collected 25 items
+    tests/test_readers_gate_cache_parity.py::test_gate_and_setter_cache_state_parity[deleted-ipd_set_to_review] PASSED [  4%]
+    tests/test_readers_gate_cache_parity.py::test_gate_and_setter_cache_state_parity[deleted-backlog_blocking_close_gate] PASSED [  8%]
+    tests/test_readers_gate_cache_parity.py::test_invalid_staged_record_fails_closed_parity[backlog-blocking-close-gate-invalid_utf8_md] PASSED [ 12%]
+    tests/test_readers_gate_cache_parity.py::test_gate_and_setter_cache_state_parity[cold-ipd_set_to_review] PASSED [ 16%]
+    tests/test_readers_gate_cache_parity.py::test_invalid_staged_record_fails_closed_parity[ipd-status-untooled-gate-invalid_utf8_md] PASSED [ 20%]
+    tests/test_readers_gate_cache_parity.py::test_gate_and_setter_cache_state_parity[cold-backlog_blocking_close_gate] PASSED [ 24%]
+    tests/test_readers_gate_cache_parity.py::test_offline_ipd_set_to_review_no_host_binaries_no_network PASSED [ 28%]
+    tests/test_readers_gate_cache_parity.py::test_invalid_staged_record_fails_closed_parity[backlog-blocking-close-gate-corrupt_meta_log] PASSED [ 32%]
+    tests/test_readers_gate_cache_parity.py::test_gate_and_setter_cache_state_parity[warm-backlog_blocking_close_gate] PASSED [ 36%]
+    tests/test_readers_gate_cache_parity.py::test_gate_and_setter_cache_state_parity[corrupt-ipd_set_to_review] PASSED [ 40%]
+    tests/test_readers_gate_cache_parity.py::test_gate_and_setter_cache_state_parity[deleted-ipd_executed_gate] PASSED [ 44%]
+    tests/test_readers_gate_cache_parity.py::test_invalid_staged_record_fails_closed_parity[ipd-status-untooled-gate-corrupt_meta_log] PASSED [ 48%]
+    tests/test_readers_gate_cache_parity.py::test_gate_and_setter_cache_state_parity[corrupt-ipd_executed_gate] PASSED [ 52%]
+    tests/test_readers_gate_cache_parity.py::test_gate_and_setter_cache_state_parity[cold-ipd_executed_gate] PASSED [ 56%]
+    tests/test_readers_gate_cache_parity.py::test_staged_external_edit_visible_without_rebuild_parity PASSED [ 60%]
+    tests/test_readers_gate_cache_parity.py::test_gate_and_setter_cache_state_parity[warm-ipd_set_to_review] PASSED [ 64%]
+    tests/test_readers_gate_cache_parity.py::test_gate_and_setter_cache_state_parity[corrupt-ipd_status_untooled_gate] PASSED [ 68%]
+    tests/test_readers_gate_cache_parity.py::test_gate_and_setter_cache_state_parity[deleted-ipd_status_untooled_gate] PASSED [ 72%]
+    tests/test_readers_gate_cache_parity.py::test_gate_and_setter_cache_state_parity[warm-ipd_status_untooled_gate] PASSED [ 76%]
+    tests/test_readers_gate_cache_parity.py::test_invalid_staged_record_fails_closed_parity[ipd-executed-gate-invalid_utf8_md] PASSED [ 80%]
+    tests/test_readers_gate_cache_parity.py::test_gate_and_setter_cache_state_parity[cold-ipd_status_untooled_gate] PASSED [ 84%]
+    tests/test_readers_gate_cache_parity.py::test_gate_and_setter_cache_state_parity[warm-ipd_executed_gate] PASSED [ 88%]
+    tests/test_readers_gate_cache_parity.py::test_gate_and_setter_cache_state_parity[corrupt-backlog_blocking_close_gate] PASSED [ 92%]
+    tests/test_readers_gate_cache_parity.py::test_invalid_staged_record_fails_closed_parity[ipd-executed-gate-corrupt_meta_log] PASSED [ 96%]
+    tests/test_readers_gate_cache_parity.py::test_offline_ipd_executed_gate_no_host_binaries_no_network PASSED [100%]
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    slowest durations: 0.71s setup (deleted-ipd_set_to_review), 0.69s call (test_staged_external_edit_visible_without_rebuild_parity), 0.57s call (offline setter), 0.50s call (warm-ipd_status_untooled_gate)
+    ============================== 25 passed in 8.69s ==============================
+    ```
+  - Result: pass
 
-- [ ] V-14 validates E-14
+- [x] V-14 validates E-14
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_readers_gate_cache_parity.py -k offline` with both tests PASSED, each asserting exit 0 with host binaries removed from `PATH` and sockets disabled.
   - Observed evidence:
-  - Result: pending
+    Command: `python3 -m pytest -o addopts="" -v tests/test_readers_gate_cache_parity.py -k offline`
+    ```text
+    collected 25 items / 23 deselected / 2 selected
+    tests/test_readers_gate_cache_parity.py::test_offline_ipd_executed_gate_no_host_binaries_no_network PASSED [ 50%]
+    tests/test_readers_gate_cache_parity.py::test_offline_ipd_set_to_review_no_host_binaries_no_network PASSED [100%]
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ======================= 2 passed, 23 deselected in 1.27s =======================
+    ```
+  - Result: pass
 
-- [ ] V-15 validates E-15
+- [x] V-15 validates E-15
   - Required evidence: paste the two `rg` commands of E-15 and the F-04 table (every remaining hit with its owner, none unowned); the bare `python3 -m pytest` summary line and wall time; the `make test-all` summary line; `aw check all --agent` rule-id counts diffed against the F-10 table of `snh19k` (written there since the round-3 split; formerly `h58z9n`) (empty, or each difference traced); the four part F-04 tables and `ffceq0` F-12 cited by plan id with their re-verified hit counts; the `aw sanitize --agent` result with zero `fail`; and every `aw commit t4gl15` output listing only Scope-Paths (or paths justified at finalize).
   - Observed evidence:
-  - Result: pending
+    1. Residual `rg` audit and Table F-04 (recorded above in `## Findings` -> `### Table F-04`):
+       - `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows`: 134 hits.
+       - `rg -n "Workflow history" agent_workflows`: 109 hits.
+       - Grand total: 243 hits (103 in the 5 cited tables re-verified at `d5c3c3109`: `h58z9n` F-04 = 21, `y97k46` F-04 = 32, `jd7874` F-04 = 3, `2zpw22` F-04 = 1, `ffceq0` F-12 = 46 with all 26 `^-` regex hits matching F-12's 25 rows; 140 across the 21 remaining modules in Table F-04 Part B; 0 unowned reader hits).
+    2. Named modules + bare core gate + thorough suite + typecheck:
+       - `python3 -m pytest tests/test_meta_log_append_gate.py`: `18 passed in 2.79s`
+       - `make typecheck` (`python3 -m mypy agent_workflows`): `Success: no issues found in 232 source files`
+       - Bare `python3 -m pytest`: `2803 passed, 1 skipped, 11 warnings in 132.48s (0:02:12)` (0 test failures; core-tier wall-time budget exceeded under concurrent host load 7.74 on 12 CPUs; 0 tests from `tests/test_readers_gate_cache_parity.py` in slow report).
+       - Thorough suite (`aw suite --thorough`, equivalent to `make test-all` `tests/ -m ''` with bounded 6 workers): `3 failed, 11753 passed, 6 skipped, 1 xpassed, 17 warnings in 1020.32s (0:17:00)`. All 3 failures were in `tests/test_runner_resume_clears_stop.py` caused solely by the outer driver's inherited `AW_DRIVER_RESTART=4` / `AW_INVOCATION_START_WALL=1795370482.610867` environment variables (pre-existing driver defect tracked by pending plan `z6wodh`); re-running with scrubbed driver env `env -u AW_DRIVER_RESTART -u AW_INVOCATION_START_WALL python3 -m pytest -v tests/test_runner_resume_clears_stop.py` yielded `13 passed in 3.15s`.
+    3. `aw check all --agent` rule-id multiset diffed against `snh19k` Table F-10 (`0a8d832e1`, 87 findings -> current 96 findings; every non-zero diff traced):
+       - Unchanged (9 rules): `check.graduated-to-dangling` (1), `check.identity-absent-from-name` (1), `check.ipd-uncarried-obligation` (1), `check.name-nonconformant` (4), `check.prompt-metadata-missing` (6), `check.scope-drift` (1), `check.source-test-citation-dangling` (42), `check.spec-criteria-uncovered` (2), `check.system-layout-missing` (1), `spec.prose-dash` (2).
+       - `check.ipd-carrier-finished-unverified`: 3 -> 1 (-2; `h58z9n` and `2zpw22` executed since `0a8d832e1`; remaining 1 is `t4gl15` itself before finalization).
+       - `check.lifecycle-transition-unvalidated`: 23 -> 33 (+10; 10 pending plans authored 2026-11-21 after `0a8d832e1`, including `dogfood-bugs` 00..06 and `2cv6rz`/`svpml2`/`z6wodh`/`qpvem9`/`zeopzs`).
+       - `check.plan-spec-link-missing`: 0 -> 1 (+1; `.aw/records/plans/pending/20261121-83kkzh-01-bebahq-join-rev-mirrors-with-rev-log-states-in-artifact-meta-read-a.ipd.md` authored 2026-11-21).
+    4. `aw sanitize --agent`:
+       `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7091,"findings":0,"evidence":["leak-scan"],"next":null}`
+    5. `CHANGELOG.md` line added under `## 2.0.0 (pending)` (no em or en dashes):
+       `- Added: opt-in pre-commit hook \`aw meta-log-append-gate\` (backed by \`artifact_meta.check_staged_log_append\`) refuses staged changes to \`.aw/records/meta/*.jsonl\` unless they append whole, loader-valid JSONL events without modifying existing bytes.`
+    6. Commits via `aw commit t4gl15`:
+       - Work commit (`tests/test_readers_gate_cache_parity.py`, `CHANGELOG.md`, plus 3 fail-closed bugfix files justified with `--scope-reason` recorded in begin receipt): `aw commit: committed 5 path(s): d5c3c31091105b39c93c3ca3b15a0d378ca47429`.
+       - Plan-evidence commit: `.aw/records/plans/pending/20261102-metastore-09-t4gl15-move-runner-gate-hook-and-module-reads-onto-artifact-meta-an.ipd.md` (committed immediately after `aw ipd lint --phase pre-transition` passes).
+  - Result: pass
 
 
 ## Approval and execution gate
