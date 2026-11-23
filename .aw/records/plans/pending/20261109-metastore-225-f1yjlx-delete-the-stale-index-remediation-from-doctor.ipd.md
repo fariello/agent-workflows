@@ -42,25 +42,25 @@ PIN RULE (carried from `9o83cr`): before the edit, save the named test modules' 
 
 ### Task group 1: pin, delete, retarget
 
-- [ ] E-01 Pin `tests/test_doctor.py` (PIN RULE, `mkdir -p .aw/state/f1yjlx && ` capture to `E-01-before.txt`).
+- [x] E-01 Pin `tests/test_doctor.py` (PIN RULE, `mkdir -p .aw/state/f1yjlx && ` capture to `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `.aw/state/f1yjlx/E-01-before.txt` exists.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `doctor.build_remediation`, delete the `"stale-index" in rule` branch (with its `check.stale-index-missing` and `check.stale-index-stale` sub-cases and the comment that ties the five sites together).
+- [x] E-02 In `doctor.build_remediation`, delete the `"stale-index" in rule` branch (with its `check.stale-index-missing` and `check.stale-index-stale` sub-cases and the comment that ties the five sites together).
   - Depends on: E-01
   - Expected outcome: `rg -n "stale-index" agent_workflows/doctor.py` no longer lists any line inside `build_remediation`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `doctor.resolve_next_actions`, delete the priority-4 stale-index case, and remove `stale-index` from the substring tests in `doctor.classify_summary_buckets` and the `leak/stale-index` comment.
+- [x] E-03 In `doctor.resolve_next_actions`, delete the priority-4 stale-index case, and remove `stale-index` from the substring tests in `doctor.classify_summary_buckets` and the `leak/stale-index` comment.
   - Depends on: E-02
   - Expected outcome: `rg -n "stale-index" agent_workflows/doctor.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `tests/test_doctor.py`, remove the two `check.stale-index-*` `core.Drift` fixtures from `DoctorRemediationTests` (the `doctor.index-stale` fixture stays if that rule survives) and adjust `test_remediation_family_guard` and `test_resolve_next_actions_advisory_rules_return_no_action` if they count them. Save `E-04-after.txt`, run the module, and commit through `aw commit f1yjlx -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-04 In `tests/test_doctor.py`, remove the two `check.stale-index-*` `core.Drift` fixtures from `DoctorRemediationTests` (the `doctor.index-stale` fixture stays if that rule survives) and adjust `test_remediation_family_guard` and `test_resolve_next_actions_advisory_rules_return_no_action` if they count them. Save `E-04-after.txt`, run the module, and commit through `aw commit f1yjlx -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-03
   - Expected outcome: `tests/test_doctor.py` passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -116,25 +116,104 @@ No spec change; implements part of `4sd62s` 4.5.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `wc -l .aw/state/f1yjlx/E-01-before.txt` and the `DoctorRemediationTests` lines from it.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ wc -l .aw/state/f1yjlx/E-01-before.txt
+    38 .aw/state/f1yjlx/E-01-before.txt
+    $ grep DoctorRemediationTests .aw/state/f1yjlx/E-01-before.txt
+    PASSED tests/test_doctor.py::DoctorRemediationTests::test_remediation_blocks_release_dangling
+    PASSED tests/test_doctor.py::DoctorRemediationTests::test_remediation_fallback_prefers_recovery_non_regressive_over_representative_drifts
+    PASSED tests/test_doctor.py::DoctorRemediationTests::test_remediation_fallback_prefers_recovery_when_populated
+    PASSED tests/test_doctor.py::DoctorRemediationTests::test_remediation_fallback_sentinel_vs_real_path
+    PASSED tests/test_doctor.py::DoctorRemediationTests::test_remediation_family_guard
+    PASSED tests/test_doctor.py::DoctorRemediationTests::test_remediation_git_dirty_and_staged
+    PASSED tests/test_doctor.py::DoctorRemediationTests::test_remediation_name_nonconformant_clustered_and_freeform
+    PASSED tests/test_doctor.py::DoctorRemediationTests::test_remediation_setid_collision
+    PASSED tests/test_doctor.py::DoctorRemediationTests::test_remediation_status_untooled
+    PASSED tests/test_doctor.py::DoctorRemediationTests::test_resolve_next_actions_advisory_rules_return_no_action
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `git diff` hunk of `doctor.build_remediation` removing the `"stale-index" in rule` branch.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ git show 972cff4cf -- agent_workflows/doctor.py   (build_remediation hunk)
+    @@ -1530,32 +1530,6 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
+    -    # idxuntrack 02 (yvvf98) E-03: the SUBSTRING test is deliberate and load-bearing. E-02 split the
+    -    # old conflated `stale-index` rule into `check.stale-index-missing` / `check.stale-index-stale`,
+    -    # ... (8 more comment lines removed)
+    -    if "stale-index" in rule or rule.startswith("doctor.index-"):
+    -        if rule == "check.stale-index-missing":
+    -            title = "Manifest index has not been generated yet"
+    -        elif rule == "check.stale-index-stale":
+    -            title = "Manifest index is out of date"
+    -        else:
+    -            title = "Manifest index is missing or out of date"
+    -        cmd = f"aw index {art_type}" if art_type else "aw index"
+    -        return Remediation(
+    -            title=title,
+    -            summary_fix="aw index",
+    -            detailed_fix=f"run '{cmd}' to regenerate the manifest index.",
+    -            command=cmd,
+    -            file_path=loc,
+    -        )
+    -
+         if "release-sentinel-absent" in rule:
+    ```
+    `rg -n "doctor\.index-" agent_workflows` before the edit listed only this branch, so the prefix match was removed with it.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "stale-index" agent_workflows/doctor.py` printing nothing, `rg -n "stale-index" agent_workflows` listing only the `engine.py` template comment, and `aw doctor --agent` run in a fresh `git clone` of this repository at the plan's commit with no `index` diagnostic. Code path: `doctor.resolve_next_actions` (E-03).
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "stale-index" agent_workflows/doctor.py
+    (no output, exit 1)
+    $ rg -n "stale-index|doctor.index-" agent_workflows
+    agent_workflows/engine.py:6520:# `aw index research`; a fresh clone has none until then, which `check.stale-index-missing` reports
+    $ git clone -q . /tmp/opencode/f1yjlx-clone && cd /tmp/opencode/f1yjlx-clone && git log --oneline -1
+    972cff4cf f1yjlx: delete the stale-index remediation from doctor (spec 4sd62s 4.5)
+    $ PYTHONPATH=. python3 -m agent_workflows doctor --agent   (rule set of all 183 diagnostics)
+    ['adopted-without-consumer', 'check.ipd-dependency-findings-blocked', 'check.lifecycle-transition-unvalidated',
+     'check.name-nonconformant', 'check.plan-spec-link-missing', 'check.prompt-metadata-missing',
+     'check.spec-criteria-uncovered', 'check.system-layout-missing', 'dangling-citation',
+     'doctor.dangling-doc-reference', 'name-invalid', 'spec.prose-dash', 'stale-state-to-promote',
+     'status-tier-mismatch', 'unrecognized-model']
+    ```
+    No `index` rule; the only occurrence of "index" in the output is a location field naming plan `c74ey2`'s filename. Code path: `doctor.resolve_next_actions` no longer ranks `aw index` (diff hunk `@@ -1878,11 +1851,6 @@`); `classify_summary_buckets` now reads `elif rule.startswith("check.") or rule.startswith("attention."):`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `diff .aw/state/f1yjlx/E-01-before.txt .aw/state/f1yjlx/E-04-after.txt` with each removed name mapped, `python3 -m pytest -o addopts="" -v tests/test_doctor.py -k "Remediation or next_actions"` with every case PASSED, and `git show --stat` of the `aw commit f1yjlx` commit listing only Scope-Paths files.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ diff .aw/state/f1yjlx/E-01-before.txt .aw/state/f1yjlx/E-04-after.txt && echo IDENTICAL
+    IDENTICAL
+    $ python3 -m pytest -o addopts="" -v tests/test_doctor.py -k "Remediation or next_actions"
+    tests/test_doctor.py::DoctorRemediationTests::test_remediation_family_guard PASSED [  9%]
+    tests/test_doctor.py::DoctorRemediationTests::test_remediation_setid_collision PASSED [ 18%]
+    tests/test_doctor.py::DoctorRemediationTests::test_remediation_name_nonconformant_clustered_and_freeform PASSED [ 27%]
+    tests/test_doctor.py::DoctorRemediationTests::test_remediation_status_untooled PASSED [ 36%]
+    tests/test_doctor.py::DoctorRemediationTests::test_resolve_next_actions_advisory_rules_return_no_action PASSED [ 45%]
+    tests/test_doctor.py::DoctorRemediationTests::test_remediation_fallback_sentinel_vs_real_path PASSED [ 54%]
+    tests/test_doctor.py::DoctorRemediationTests::test_remediation_fallback_prefers_recovery_non_regressive_over_representative_drifts PASSED [ 63%]
+    tests/test_doctor.py::DoctorRemediationTests::test_remediation_git_dirty_and_staged PASSED [ 72%]
+    tests/test_doctor.py::DoctorRemediationTests::test_remediation_fallback_prefers_recovery_when_populated PASSED [ 81%]
+    tests/test_doctor.py::DoctorRemediationTests::test_remediation_blocks_release_dangling PASSED [ 90%]
+    tests/test_doctor.py::DoctorTests::test_probe_sanitizer_reports_leak_and_remediation PASSED [100%]
+    ====================== 11 passed, 27 deselected in 0.39s =======================
+    $ git show --stat 972cff4cf
+     agent_workflows/doctor.py | 42 +++---------------------------------------
+     tests/test_doctor.py      | 11 -----------
+     2 files changed, 3 insertions(+), 50 deletions(-)
+    $ python3 -m pytest   (core gate)
+    2897 passed, 1 skipped, 11 warnings in 85.41s (0:01:25)
+    ```
+    No test name removed (lists identical). The three removed fixtures were rows of the `REPRESENTATIVE_DRIFTS` table (`check.stale-index-missing`, `check.stale-index-stale`, `doctor.index-stale`); the `doctor.index-stale` row was removed too because no `doctor.index-*` rule survives in `agent_workflows`. The two named tests count no fixtures and needed no change.
+  - Result: pass
 
 ## Approval and execution gate
 
