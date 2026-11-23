@@ -40,30 +40,30 @@ DORMANCY RULE, applied to every item of this plan (added at the split so the mov
 
 ### Task group 1: work
 
-- [ ] E-01 Before the first edit, save the dormancy baseline: run `mkdir -p .aw/state/6jd6mh/before/ && aw check all --agent` and `aw check all --all --agent` on this repository and store each rule multiset under `.aw/state/6jd6mh/before/` (this is this plan's share of `clors0` E-20's baseline).
+- [x] E-01 Before the first edit, save the dormancy baseline: run `mkdir -p .aw/state/6jd6mh/before/ && aw check all --agent` and `aw check all --all --agent` on this repository and store each rule multiset under `.aw/state/6jd6mh/before/` (this is this plan's share of `clors0` E-20's baseline).
   - Depends on: none
   - Expected outcome: two baseline files exist under `.aw/state/6jd6mh/before/`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (part of `clors0` E-05.) In `agent_workflows/check_engine.py`, add the two post-cutover rules "mirrored status differs from replayed state" and "staged log violates append rules", applied only to a record with a log or a staged `meta/*.jsonl`; add their log-format and legacy-format cases to `tests/test_cutover_log_gates.py`.
+- [x] E-02 (part of `clors0` E-05.) In `agent_workflows/check_engine.py`, add the two post-cutover rules "mirrored status differs from replayed state" and "staged log violates append rules", applied only to a record with a log or a staged `meta/*.jsonl`; add their log-format and legacy-format cases to `tests/test_cutover_log_gates.py`.
   - Depends on: E-01
   - Expected outcome: each rule reports its planted violation on a log-format fixture and nothing on a legacy-format fixture.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 (part of `clors0` E-05.) In `agent_workflows/hooks/executed_transition_gate.py`, accept the executed transition on a log-format record only as a finalize append or an orchestrator rollup-retirement append (`t4gl15`, AC-16 case 2); a legacy-format executed transition keeps today's rule. Add the cases to `tests/test_cutover_log_gates.py`.
+- [x] E-03 (part of `clors0` E-05.) In `agent_workflows/hooks/executed_transition_gate.py`, accept the executed transition on a log-format record only as a finalize append or an orchestrator rollup-retirement append (`t4gl15`, AC-16 case 2); a legacy-format executed transition keeps today's rule. Add the cases to `tests/test_cutover_log_gates.py`.
   - Depends on: E-01
   - Expected outcome: a raw transition into `executed` on a log-format fixture is refused; a finalize append and a rollup-retirement append are accepted; the legacy case is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 (part of `clors0` E-05.) In `agent_workflows/hooks/meta_log_append_gate.py` (added by `t4gl15` E-05), add the terminal-log rules of the `meta/*.jsonl` append-only hook, accepting only the appends that spec OQ-30 allows (`9o83cr`; about 8 cases). Add one case per accepted append and the refusals to `tests/test_cutover_log_gates.py`.
+- [x] E-04 (part of `clors0` E-05.) In `agent_workflows/hooks/meta_log_append_gate.py` (added by `t4gl15` E-05), add the terminal-log rules of the `meta/*.jsonl` append-only hook, accepting only the appends that spec OQ-30 allows (`9o83cr`; about 8 cases). Add one case per accepted append and the refusals to `tests/test_cutover_log_gates.py`.
   - Depends on: E-01
   - Expected outcome: a non-append log edit and a `set` of `readiness` on a terminal log are refused; each OQ-30 append is accepted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Finish this part (its share of `clors0` E-20): run `tests/test_cutover_log_gates.py`, the bare core gate `python3 -m pytest`, `aw check all --agent` and `aw check all --all --agent` (rule multisets must equal the E-01 baseline: dormancy on `main`), and `aw sanitize --agent`; commit through `aw commit 6jd6mh -- <paths>` with only Scope-Paths files; never push.
+- [x] E-05 Finish this part (its share of `clors0` E-20): run `tests/test_cutover_log_gates.py`, the bare core gate `python3 -m pytest`, `aw check all --agent` and `aw check all --all --agent` (rule multisets must equal the E-01 baseline: dormancy on `main`), and `aw sanitize --agent`; commit through `aw commit 6jd6mh -- <paths>` with only Scope-Paths files; never push.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: the named modules pass; both `aw check all` multisets are unchanged; every commit's `git show --stat` lists only Scope-Paths files.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -140,30 +140,120 @@ No spec change.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `ls -l .aw/state/6jd6mh/before/` and the rule-count line of each saved multiset.
   - Observed evidence:
-  - Result: pending
+    `ls -l .aw/state/6jd6mh/before/`:
+    ```
+    -rw-r--r-- 1 <user> <user> 13104 Nov 22 22:55 check-all.agent.out
+    -rw-r--r-- 1 <user> <user> 84572 Nov 22 22:56 check-all-all.agent.out
+    -rw-r--r-- 1 <user> <user> 64349 Nov 22 22:56 check-all-all.multiset.txt
+    -rw-r--r-- 1 <user> <user> 11013 Nov 22 22:56 check-all.multiset.txt
+    ```
+    Rule-count lines:
+    ```
+    check-all.multiset.txt: # rule-count: 94 diagnostics, 11 rules: check.graduated-to-dangling=1, check.identity-absent-from-name=1, check.ipd-uncarried-obligation=1, check.lifecycle-transition-unvalidated=33, check.name-nonconformant=4, check.plan-spec-link-missing=1, check.prompt-metadata-missing=6, check.source-test-citation-dangling=42, check.spec-criteria-uncovered=2, check.system-layout-missing=1, spec.prose-dash=2
+    check-all-all.multiset.txt: # rule-count: 542 diagnostics, 19 rules: adopted-without-consumer=35, check.graduated-to-dangling=1, check.identity-absent-from-name=12, check.ipd-dependency-findings-blocked=1, check.ipd-uncarried-obligation=1, check.lifecycle-transition-unvalidated=33, check.name-nonconformant=7, check.plan-spec-link-missing=1, check.prompt-metadata-missing=6, check.source-test-citation-dangling=42, check.spec-criteria-uncovered=2, check.stale-index-missing=4, check.system-layout-missing=1, dangling-citation=355, name-invalid=1, spec.prose-dash=4, stale-state-to-promote=30, status-tier-mismatch=2, unrecognized-model=4
+    ```
+    Both baseline runs exited 1 on pre-existing findings (the multiset, not the exit code, is the dormancy baseline).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_cutover_log_gates.py -k check_engine` showing the mirror-differs case reported, the append-violation case reported, and the legacy-format cases unchanged, each as its own PASSED node id.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest -o addopts="" -v tests/test_cutover_log_gates.py -k check_engine` (mirror-differs case: `test_check_engine_mirror_differs_from_log_is_reported` and `..._from_log_only_change_is_reported`; append-violation case: `test_check_engine_append_violation_is_reported` and `..._terminal_append_violation_is_reported`; legacy-format case: `test_check_engine_legacy_status_change_is_unchanged`):
+    ```
+    tests/test_cutover_log_gates.py::test_check_engine_legacy_status_change_is_unchanged PASSED
+    tests/test_cutover_log_gates.py::test_check_engine_mirror_differs_from_log_is_reported PASSED
+    tests/test_cutover_log_gates.py::test_check_engine_rules_are_registered_errors PASSED
+    tests/test_cutover_log_gates.py::test_check_engine_mirror_matching_log_is_clean PASSED
+    tests/test_cutover_log_gates.py::test_check_engine_mirror_drift_from_log_only_change_is_reported PASSED
+    tests/test_cutover_log_gates.py::test_check_engine_terminal_append_violation_is_reported PASSED
+    tests/test_cutover_log_gates.py::test_check_engine_append_violation_is_reported PASSED
+    ======================= 7 passed, 26 deselected in 1.82s =======================
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `tests/test_cutover_log_gates.py -k executed` run with one PASSED node id each for the raw-transition refusal, the finalize append, the rollup-retirement append and the legacy case.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest -o addopts="" -v tests/test_cutover_log_gates.py -k executed` (raw-transition refusals: `..._raw_mirror_flip_...`, `..._bare_transition_append_...`, `..._id_replacement_...`; finalize append: `test_executed_finalize_append_on_log_format_is_accepted`; rollup-retirement append: `test_executed_rollup_retirement_append_on_log_format_is_accepted`; legacy case: `test_executed_legacy_raw_transition_keeps_todays_rule`, which asserts today's refusal text byte-for-byte):
+    ```
+    tests/test_cutover_log_gates.py::test_executed_id_replacement_on_log_format_is_refused PASSED
+    tests/test_cutover_log_gates.py::test_executed_finalize_append_on_log_format_is_accepted PASSED
+    tests/test_cutover_log_gates.py::test_executed_rollup_retirement_append_on_log_format_is_accepted PASSED
+    tests/test_cutover_log_gates.py::test_executed_raw_mirror_flip_on_log_format_is_refused PASSED
+    tests/test_cutover_log_gates.py::test_executed_bare_transition_append_on_log_format_is_refused PASSED
+    tests/test_cutover_log_gates.py::test_executed_edit_of_already_executed_log_format_plan_passes PASSED
+    tests/test_cutover_log_gates.py::test_executed_legacy_raw_transition_keeps_todays_rule PASSED
+    ======================= 7 passed, 26 deselected in 1.64s =======================
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `tests/test_cutover_log_gates.py -k terminal` run with one PASSED node id per OQ-30 accepted append, plus the non-append refusal and the `readiness` refusal.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest -o addopts="" -v tests/test_cutover_log_gates.py -k terminal` (OQ-30 accepted appends: note, review, rename verb archive/group/rename, rename+set of set/order, set and unset of short_description, plus the recorded allow-terminal-reopen escape hatch; `turn` is a reserved op the loader refuses today, so it has no accept case until spec `37am1y` registers it, DECISION 6jd6mh-D2; non-append refusal: `test_terminal_refuses_non_append_edit`; readiness refusal: `test_terminal_refuses_set_readiness` and `..._review_carrying_readiness`):
+    ```
+    tests/test_cutover_log_gates.py::test_terminal_rules_skip_non_terminal_log PASSED
+    tests/test_cutover_log_gates.py::test_check_engine_terminal_append_violation_is_reported PASSED
+    tests/test_cutover_log_gates.py::test_terminal_reopen_with_override_is_accepted PASSED
+    tests/test_cutover_log_gates.py::test_terminal_refuses_coverage_event PASSED
+    tests/test_cutover_log_gates.py::test_terminal_accepts_set_short_description PASSED
+    tests/test_cutover_log_gates.py::test_terminal_refuses_frozen_field_set[blocks_release] PASSED
+    tests/test_cutover_log_gates.py::test_terminal_refuses_non_append_edit PASSED
+    tests/test_cutover_log_gates.py::test_terminal_refuses_review_carrying_readiness PASSED
+    tests/test_cutover_log_gates.py::test_terminal_accepts_unset_short_description PASSED
+    tests/test_cutover_log_gates.py::test_terminal_refuses_frozen_field_set[priority] PASSED
+    tests/test_cutover_log_gates.py::test_terminal_accepts_rename_verb[rename] PASSED
+    tests/test_cutover_log_gates.py::test_terminal_accepts_note PASSED       [
+    tests/test_cutover_log_gates.py::test_terminal_rules_dormant_on_legacy_format PASSED
+    tests/test_cutover_log_gates.py::test_terminal_accepts_rename_with_set_and_order PASSED
+    tests/test_cutover_log_gates.py::test_terminal_accepts_review PASSED     [
+    tests/test_cutover_log_gates.py::test_terminal_refuses_set_readiness PASSED
+    tests/test_cutover_log_gates.py::test_terminal_refuses_frozen_field_set[order-without-rename] PASSED
+    tests/test_cutover_log_gates.py::test_terminal_accepts_rename_verb[archive] PASSED
+    tests/test_cutover_log_gates.py::test_terminal_refuses_scope_result_set PASSED
+    tests/test_cutover_log_gates.py::test_terminal_accepts_rename_verb[group] PASSED
+    ====================== 20 passed, 13 deselected in 2.78s =======================
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste one result line per named test module (`tests/test_cutover_log_gates.py`), the two `aw check all` multiset diffs against `.aw/state/6jd6mh/before/` (empty), the bare core gate summary line beside them, `aw sanitize --agent` with zero `fail`, and `git show --stat` of every `aw commit 6jd6mh` commit.
   - Observed evidence:
-  - Result: pending
+    Named module: `python3 -m pytest -o addopts="" -v tests/test_cutover_log_gates.py`
+    ```
+    ============================== 33 passed in 5.65s ==============================
+    ```
+    Bare core gate `python3 -m pytest`:
+    ```
+    2837 passed, 1 skipped, 11 warnings in 225.23s (0:03:45)
+    ```
+    Dormancy diffs (`diff .aw/state/6jd6mh/before/<n>.multiset.txt .aw/state/6jd6mh/after/<n>.multiset.txt`, produced by the same multiset script as E-01):
+    ```
+    --- diff check-all:
+    diff-rc=0
+    --- diff check-all-all:
+    diff-rc=0
+    ```
+    (both `aw check all` runs exited 1, as at baseline; both diffs empty.)
+    `aw sanitize --agent`:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7098,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    `git show --stat` of the work commit (`aw commit 6jd6mh`):
+    ```
+    71c572e7c3761b940850c3eb24dd236638b2ee07 feat(6jd6mh): dormant post-cutover gates for log-format records
+
+     agent_workflows/check_engine.py                   | 204 +++++++
+     agent_workflows/hooks/executed_transition_gate.py | 171 +++++-
+     agent_workflows/hooks/meta_log_append_gate.py     | 185 ++++++-
+     tests/test_cutover_log_gates.py                   | 620 ++++++++++++++++++++++
+     4 files changed, 1158 insertions(+), 22 deletions(-)
+    ```
+    Every listed path is a Scope-Path. The second `aw commit 6jd6mh` commit carries only this plan file (its own Scope-Path); its stat is recorded in the execution report, since a commit cannot contain its own stat.
+  - Result: pass
 
 ## Approval and execution gate
 
