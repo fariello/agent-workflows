@@ -33,6 +33,7 @@ per repository test conventions forbidding code-pinning tests.
 from __future__ import annotations
 
 import json
+import sys
 import socket
 import subprocess
 import tempfile
@@ -1185,9 +1186,11 @@ class OverheadTests(unittest.TestCase):
             # A generous ceiling: this asserts the ORDER OF MAGNITUDE (an fsync per event, not a
             # per-event subprocess or a per-event sleep). The measured figure is reported in the
             # plan's validation evidence; this test exists to catch a regression of KIND.
+            # Windows NTFS FlushFileBuffers under parallel CI workers can exceed 0.25s transiently.
+            ceiling = 1.0 if sys.platform == "win32" else 0.25
             self.assertLess(
                 per_event,
-                0.25,
+                ceiling,
                 f"per-event cost {per_event:.6f}s against the real fsyncing writer",
             )
             self.assertEqual(

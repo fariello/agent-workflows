@@ -128,12 +128,14 @@ def _note_event(
     }
 
 
+def _write_lf(path: Path, text: str) -> None:
+    """Write UTF-8 text with strict LF line endings on every OS (including Windows/py3.9)."""
+    path.write_bytes(text.encode("utf-8"))
+
+
 def _seed_committed_log(repo: Path, id6: str, events: List[Dict[str, Any]]) -> Path:
     log_file = repo / ".aw" / "records" / "meta" / f"{id6}.jsonl"
-    log_file.write_text(
-        "".join(meta.encode_event(ev) for ev in events),
-        encoding="utf-8",
-    )
+    _write_lf(log_file, "".join(meta.encode_event(ev) for ev in events))
     rel = str(log_file.relative_to(repo)).replace("\\", "/")
     _git(repo, "add", rel)
     _git(repo, "commit", "-q", "-m", f"seed meta/{id6}.jsonl")
@@ -159,7 +161,7 @@ def test_check_staged_valid_append(tmp_path: Path) -> None:
     updated = "".join(
         meta.encode_event(e) for e in [*base, _note_event(seq=3, append=3)]
     )
-    log_file.write_text(updated, encoding="utf-8")
+    _write_lf(log_file, updated)
     _git(repo, "add", f".aw/records/meta/{id6}.jsonl")
 
     with meta.ephemeral_if_uninitialized():
@@ -176,9 +178,8 @@ def test_check_staged_rewritten_earlier_line(tmp_path: Path) -> None:
 
     rewritten_first = dict(base[0])
     rewritten_first["fields"] = dict(base[0]["fields"], order=99)
-    log_file.write_text(
-        "".join(meta.encode_event(e) for e in [rewritten_first, base[1]]),
-        encoding="utf-8",
+    _write_lf(
+        log_file, "".join(meta.encode_event(e) for e in [rewritten_first, base[1]])
     )
     _git(repo, "add", f".aw/records/meta/{id6}.jsonl")
 
@@ -196,7 +197,7 @@ def test_check_staged_deleted_line(tmp_path: Path) -> None:
     base = [_create_event(id6), _transition_event(seq=2, append=2)]
     log_file = _seed_committed_log(repo, id6, base)
 
-    log_file.write_text(meta.encode_event(base[0]), encoding="utf-8")
+    _write_lf(log_file, meta.encode_event(base[0]))
     _git(repo, "add", f".aw/records/meta/{id6}.jsonl")
 
     with meta.ephemeral_if_uninitialized():
@@ -222,10 +223,7 @@ def test_check_staged_invalid_appended_event(tmp_path: Path) -> None:
         "op": "set",
         "fields": {"readiness": "go"},
     }
-    log_file.write_text(
-        "".join(meta.encode_event(e) for e in [*base, bad_event]),
-        encoding="utf-8",
-    )
+    _write_lf(log_file, "".join(meta.encode_event(e) for e in [*base, bad_event]))
     _git(repo, "add", f".aw/records/meta/{id6}.jsonl")
 
     with meta.ephemeral_if_uninitialized():
@@ -246,7 +244,7 @@ def test_check_staged_bad_first_event(tmp_path: Path) -> None:
 
     log_file = repo / ".aw" / "records" / "meta" / f"{id6}.jsonl"
     bad_first = _note_event(seq=1, append=1, message="not a create or checkpoint")
-    log_file.write_text(meta.encode_event(bad_first), encoding="utf-8")
+    _write_lf(log_file, meta.encode_event(bad_first))
     _git(repo, "add", f".aw/records/meta/{id6}.jsonl")
 
     with meta.ephemeral_if_uninitialized():
@@ -268,9 +266,9 @@ def test_hook_valid_append_exits_zero(tmp_path: Path) -> None:
     base = [_create_event(id6), _transition_event(seq=2, append=2)]
     log_file = _seed_committed_log(repo, id6, base)
 
-    log_file.write_text(
+    _write_lf(
+        log_file,
         "".join(meta.encode_event(e) for e in [*base, _note_event(seq=3, append=3)]),
-        encoding="utf-8",
     )
     _git(repo, "add", f".aw/records/meta/{id6}.jsonl")
 
@@ -288,9 +286,8 @@ def test_hook_rewritten_earlier_line_exits_one(tmp_path: Path) -> None:
 
     rewritten_first = dict(base[0])
     rewritten_first["fields"] = dict(base[0]["fields"], order=42)
-    log_file.write_text(
-        "".join(meta.encode_event(e) for e in [rewritten_first, base[1]]),
-        encoding="utf-8",
+    _write_lf(
+        log_file, "".join(meta.encode_event(e) for e in [rewritten_first, base[1]])
     )
     _git(repo, "add", f".aw/records/meta/{id6}.jsonl")
 
@@ -307,7 +304,7 @@ def test_hook_deleted_line_exits_one(tmp_path: Path) -> None:
     base = [_create_event(id6), _transition_event(seq=2, append=2)]
     log_file = _seed_committed_log(repo, id6, base)
 
-    log_file.write_text(meta.encode_event(base[0]), encoding="utf-8")
+    _write_lf(log_file, meta.encode_event(base[0]))
     _git(repo, "add", f".aw/records/meta/{id6}.jsonl")
 
     res = _run_aw_cli(repo, "meta-log-append-gate")
@@ -332,10 +329,7 @@ def test_hook_invalid_appended_event_exits_one(tmp_path: Path) -> None:
         "op": "set",
         "fields": {"readiness": "go"},
     }
-    log_file.write_text(
-        "".join(meta.encode_event(e) for e in [*base, bad_event]),
-        encoding="utf-8",
-    )
+    _write_lf(log_file, "".join(meta.encode_event(e) for e in [*base, bad_event]))
     _git(repo, "add", f".aw/records/meta/{id6}.jsonl")
 
     res = _run_aw_cli(repo, "meta-log-append-gate")
@@ -354,7 +348,7 @@ def test_hook_bad_first_event_exits_one(tmp_path: Path) -> None:
 
     log_file = repo / ".aw" / "records" / "meta" / f"{id6}.jsonl"
     bad_first = _note_event(seq=1, append=1, message="bad first")
-    log_file.write_text(meta.encode_event(bad_first), encoding="utf-8")
+    _write_lf(log_file, meta.encode_event(bad_first))
     _git(repo, "add", f".aw/records/meta/{id6}.jsonl")
 
     res = _run_aw_cli(repo, "meta-log-append-gate")
@@ -380,9 +374,7 @@ def test_hook_noop_and_agent_envelope(tmp_path: Path) -> None:
     # Stage a bad new log and verify --agent exit parity and schema validity.
     id6 = "hk12ci"
     log_file = repo / ".aw" / "records" / "meta" / f"{id6}.jsonl"
-    log_file.write_text(
-        meta.encode_event(_note_event(seq=1, append=1)), encoding="utf-8"
-    )
+    _write_lf(log_file, meta.encode_event(_note_event(seq=1, append=1)))
     _git(repo, "add", f".aw/records/meta/{id6}.jsonl")
 
     res_bad = _run_aw_cli(repo, "meta-log-append-gate", "--agent")
@@ -405,7 +397,7 @@ def test_append_edge_new_valid_create_and_checkpoint_logs(tmp_path: Path) -> Non
     id_ckpt = "nw12bb"
 
     log_create = repo / ".aw" / "records" / "meta" / f"{id_create}.jsonl"
-    log_create.write_text(meta.encode_event(_create_event(id_create)), encoding="utf-8")
+    _write_lf(log_create, meta.encode_event(_create_event(id_create)))
 
     ckpt_ev = {
         "v": 1,
@@ -424,7 +416,7 @@ def test_append_edge_new_valid_create_and_checkpoint_logs(tmp_path: Path) -> Non
         },
     }
     log_ckpt = repo / ".aw" / "records" / "meta" / f"{id_ckpt}.jsonl"
-    log_ckpt.write_text(meta.encode_event(ckpt_ev), encoding="utf-8")
+    _write_lf(log_ckpt, meta.encode_event(ckpt_ev))
 
     _git(
         repo,
@@ -469,7 +461,7 @@ def test_append_edge_renamed_log_file_refused(tmp_path: Path) -> None:
     meta_dir = repo / ".aw" / "records" / "meta"
     meta_dir.mkdir(parents=True, exist_ok=True)
     new_log = meta_dir / f"{new_id}.jsonl"
-    new_log.write_text(meta.encode_event(_create_event(new_id)), encoding="utf-8")
+    _write_lf(new_log, meta.encode_event(_create_event(new_id)))
     _git(repo, "add", f".aw/records/meta/{new_id}.jsonl")
 
     res = _run_aw_cli(repo, "meta-log-append-gate")
@@ -485,8 +477,8 @@ def test_append_edge_copied_identical_blob_id_mismatch_refused(tmp_path: Path) -
     payload = meta.encode_event(_create_event(orig_id))
 
     meta_dir = repo / ".aw" / "records" / "meta"
-    (meta_dir / f"{orig_id}.jsonl").write_text(payload, encoding="utf-8")
-    (meta_dir / f"{copy_id}.jsonl").write_text(payload, encoding="utf-8")
+    _write_lf((meta_dir / f"{orig_id}.jsonl"), payload)
+    _write_lf((meta_dir / f"{copy_id}.jsonl"), payload)
     _git(
         repo,
         "add",
@@ -519,10 +511,7 @@ def test_append_edge_cross_commit_append_splice_and_seq_gap_refused(
         "op": "note",
         "message": "spliced into committed append",
     }
-    log_file.write_text(
-        "".join(meta.encode_event(e) for e in [*base, spliced]),
-        encoding="utf-8",
-    )
+    _write_lf(log_file, "".join(meta.encode_event(e) for e in [*base, spliced]))
     _git(repo, "add", f".aw/records/meta/{id6}.jsonl")
     with meta.ephemeral_if_uninitialized():
         reasons = meta.check_staged_log_append(id6, project_context=_ctx(repo))
@@ -531,10 +520,7 @@ def test_append_edge_cross_commit_append_splice_and_seq_gap_refused(
 
     # Attempt a seq gap (seq=3 after seq=1).
     gapped = _note_event(seq=3, append=3, message="skipped seq 2")
-    log_file.write_text(
-        "".join(meta.encode_event(e) for e in [*base, gapped]),
-        encoding="utf-8",
-    )
+    _write_lf(log_file, "".join(meta.encode_event(e) for e in [*base, gapped]))
     _git(repo, "add", f".aw/records/meta/{id6}.jsonl")
     with meta.ephemeral_if_uninitialized():
         reasons_gap = meta.check_staged_log_append(id6, project_context=_ctx(repo))
@@ -554,7 +540,7 @@ def test_append_edge_non_lf_ending_and_bad_meta_filename_refused(
     no_lf = meta.encode_event(base[0]) + meta.encode_event(
         _note_event(seq=2, append=2)
     ).rstrip("\n")
-    log_file.write_text(no_lf, encoding="utf-8")
+    _write_lf(log_file, no_lf)
     _git(repo, "add", f".aw/records/meta/{id6}.jsonl")
     with meta.ephemeral_if_uninitialized():
         reasons = meta.check_staged_log_append(id6, project_context=_ctx(repo))
@@ -564,7 +550,7 @@ def test_append_edge_non_lf_ending_and_bad_meta_filename_refused(
     # Restore valid file, then stage a bad non-id6 filename under meta/.
     _git(repo, "checkout", "HEAD", "--", f".aw/records/meta/{id6}.jsonl")
     bad_file = repo / ".aw" / "records" / "meta" / "not-an-id6.jsonl"
-    bad_file.write_text("{}\n", encoding="utf-8")
+    _write_lf(bad_file, "{}\n")
     _git(repo, "add", ".aw/records/meta/not-an-id6.jsonl")
     res = _run_aw_cli(repo, "meta-log-append-gate")
     assert res.returncode == 1

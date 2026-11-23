@@ -765,7 +765,7 @@ def test_read_at_commits_rev_mirrors_and_rev_log_states_cache(tmp_path: Path) ->
     )
     meta_dir = records_root / "meta"
     meta_dir.mkdir(parents=True, exist_ok=True)
-    (meta_dir / "cm0002.jsonl").write_text(
+    (meta_dir / "cm0002.jsonl").write_bytes(
         meta.encode_event(
             {
                 "v": 1,
@@ -783,8 +783,7 @@ def test_read_at_commits_rev_mirrors_and_rev_log_states_cache(tmp_path: Path) ->
                     "order": 2,
                 },
             }
-        ),
-        encoding="utf-8",
+        ).encode("utf-8")
     )
     _git(tmp_path, "add", "-A")
     _git(tmp_path, "commit", "-q", "-m", "seed cache fixtures")

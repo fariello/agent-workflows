@@ -78,7 +78,7 @@ def _create_plan_log(
             cur = target
             seq += 1
 
-    log_p.write_text("".join(meta.encode_event(e) for e in events), encoding="utf-8")
+    log_p.write_bytes("".join(meta.encode_event(e) for e in events).encode("utf-8"))
     return log_p
 
 
@@ -402,7 +402,7 @@ def test_read_at_rename_case(tmp_path: Path):
         "to": "executed",
         "path": "plans/executed/rn0001.ipd.md",
     }
-    with open(log_p, "a", encoding="utf-8") as f:
+    with open(log_p, "a", encoding="utf-8", newline="\n") as f:
         f.write(meta.encode_event(ev2))
     subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
     subprocess.run(["git", "commit", "-m", "rename commit"], cwd=repo_dir, check=True)
