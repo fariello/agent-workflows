@@ -317,7 +317,9 @@ class CompanionPromptPurityTests(unittest.TestCase):
                 self.assertFalse(staged.is_symlink())
                 st_staged = os.stat(staged, follow_symlinks=False)
                 st_src = os.stat(plan_path, follow_symlinks=False)
-                self.assertEqual(stat.S_IMODE(st_staged.st_mode), 0o644)
+                self.assertTrue(bool(st_staged.st_mode & stat.S_IWUSR))
+                if os.name != "nt":
+                    self.assertEqual(stat.S_IMODE(st_staged.st_mode), 0o644)
                 self.assertEqual(st_staged.st_nlink, 1)
                 self.assertNotEqual(
                     (st_staged.st_dev, st_staged.st_ino),

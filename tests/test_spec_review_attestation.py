@@ -742,8 +742,8 @@ class AttestationPredicateTests(unittest.TestCase):
             p = _write_record(root, "aaa111")
             _break_record(p)
             self.assertEqual(
-                rf.subject_review_records(root, "aaa111"),
-                (p,),
+                tuple(r.resolve() for r in rf.subject_review_records(root, "aaa111")),
+                (p.resolve(),),
                 "a malformed record must still be LISTED; if enumeration hides it, the refusal "
                 "message above names a file the operator cannot locate",
             )

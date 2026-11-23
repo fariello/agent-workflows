@@ -284,7 +284,7 @@ class TestSpecReviewDispatchE07(unittest.TestCase):
 
                     # Verify discover_specs finds it at the new path
                     resolved = queue_artifact_path(repo, item)
-                    self.assertEqual(resolved, new_path)
+                    self.assertEqual(resolved.resolve(), new_path.resolve())
 
     def test_case3_refusal_unchanged_status_when_agent_writes_nothing(self):
         """Case (3): fake agent exits 0 and writes nothing.

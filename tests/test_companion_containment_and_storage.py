@@ -12,6 +12,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -338,7 +339,11 @@ class TestCompanionContainmentAndStorage(unittest.TestCase):
             )
 
             # (b5) If <companion>/.git is absent, init_records_storage initializes <companion>/.git (not records/.git)
-            shutil.rmtree(companion / ".git")
+            def _handle_readonly(func, p, _exc_info):
+                os.chmod(p, stat.S_IWRITE)
+                func(p)
+
+            shutil.rmtree(companion / ".git", onerror=_handle_readonly)
             st_unversioned = get_storage_status(
                 repo_path=str(target), aw_home=env["AW_HOME"]
             )
@@ -546,7 +551,9 @@ class TestCompanionContainmentAndStorage(unittest.TestCase):
                 res_no_plan.returncode, 1, res_no_plan.stdout + res_no_plan.stderr
             )
             self.assertIn("aw path records", res_no_plan.stdout)
-            self.assertIn(str(companion.resolve()), res_no_plan.stdout)
+            self.assertIn(
+                companion.resolve().as_posix(), res_no_plan.stdout.replace("\\", "/")
+            )
             self.assertIn(stray_rel, res_no_plan.stdout)
             self.assertEqual(_git_head(target), head_before)
 

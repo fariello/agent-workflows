@@ -619,7 +619,9 @@ class AgyExecutionLifecycleTests(unittest.TestCase):
                     if m_plan:
                         plan_p = pathlib.Path(m_plan.group(1).strip())
                         if plan_p.is_file():
-                            exec_p = pathlib.Path(str(plan_p).replace("/pending/", "/executed/"))
+                            exec_p = pathlib.Path(
+                                plan_p.as_posix().replace("/pending/", "/executed/")
+                            )
                             exec_p.parent.mkdir(parents=True, exist_ok=True)
                             plan_p.rename(exec_p)
                     print(json.dumps({{"event":"result","result":{{"status":"SUCCESS","conversation_id":session,"response":"Execution complete"}}}}))
