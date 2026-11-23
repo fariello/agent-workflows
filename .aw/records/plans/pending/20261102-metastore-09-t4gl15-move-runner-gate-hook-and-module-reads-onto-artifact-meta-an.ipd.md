@@ -140,6 +140,7 @@ flowchart TD
 
 - E-05 (the staged `meta/*.jsonl` append hook and `artifact_meta.check_staged_log_append` with its spec 4.3 entry). Moved to jq82as (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: jq82as
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-141-jq82as-add-the-staged-meta-log-append-hook-over-artifact-meta.ipd.md
 - Moved to h58z9n (split 2026-11-07 per maintainer step-complexity rule): E-01 rows for the gate, hook, readiness and lifecycle files plus the `aw check` baseline; E-02; E-03; E-04.
   - Carrier: h58z9n
   - Carrier-Evidence: .aw/records/plans/executed/20261107-metastore-33-h58z9n-move-the-check-engine-hook-and-setter-git-content-readers-on.ipd.md
