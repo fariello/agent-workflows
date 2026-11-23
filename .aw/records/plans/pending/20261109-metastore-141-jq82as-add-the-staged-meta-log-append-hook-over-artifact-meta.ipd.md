@@ -41,15 +41,15 @@ This plan moves no existing reader, so the pin-first rule and decisions D-1 to D
 
 ### Task group 1: the staged metadata-log append hook (4.8)
 
-- [ ] E-01 (carried from `t4gl15` E-05, function step) Add ONE additive function, `artifact_meta.check_staged_log_append(id6) -> list[str]` (refusal reasons; empty when acceptable), that reads the HEAD and staged log blobs through `read_at`'s blob path and the loader, so no caller reads log bytes itself. It refuses unless the staged bytes are the HEAD bytes plus whole new lines that the loader accepts (valid events, consecutive `seq`, valid `append`); a deleted or rewritten line, a new invalid event, or a new file whose first event is not `create` seq 1 or `checkpoint` seq 0 is refused with a teaching message. Add the function to the spec `4sd62s` 4.3 function list (a `note` through `aw specs note`, then the text edit; the same kind of additive amendment `cdglt1` makes for `read_text`). Test it directly in `tests/test_meta_log_append_gate.py` on `git init` fixtures.
+- [x] E-01 (carried from `t4gl15` E-05, function step) Add ONE additive function, `artifact_meta.check_staged_log_append(id6) -> list[str]` (refusal reasons; empty when acceptable), that reads the HEAD and staged log blobs through `read_at`'s blob path and the loader, so no caller reads log bytes itself. It refuses unless the staged bytes are the HEAD bytes plus whole new lines that the loader accepts (valid events, consecutive `seq`, valid `append`); a deleted or rewritten line, a new invalid event, or a new file whose first event is not `create` seq 1 or `checkpoint` seq 0 is refused with a teaching message. Add the function to the spec `4sd62s` 4.3 function list (a `note` through `aw specs note`, then the text edit; the same kind of additive amendment `cdglt1` makes for `read_text`). Test it directly in `tests/test_meta_log_append_gate.py` on `git init` fixtures.
   - Depends on: none
   - Expected outcome: fixtures for a valid append (empty list), a rewritten earlier line, a deleted line, an invalid appended event and a bad first event (each a non-empty list naming the log) pass; the spec diff is the one function-list entry.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `t4gl15` E-05, hook step) Add `agent_workflows/hooks/meta_log_append_gate.py`, wired as `aw meta-log-append-gate` in `cli` and `command_surface` (and covered in `tests/conformance_matrix.py`) and offered as an optional pre-commit hook beside the four existing ones in the `engine` hook template: for every staged `.aw/records/meta/*.jsonl` it calls `artifact_meta.check_staged_log_append` and exits 1 with the reasons when any is non-empty. In phase B no log exists in this repository, so the hook is a no-op here and is proven on fixtures in `tests/test_meta_log_append_gate.py` through the real CLI leaf.
+- [x] E-02 (carried from `t4gl15` E-05, hook step) Add `agent_workflows/hooks/meta_log_append_gate.py`, wired as `aw meta-log-append-gate` in `cli` and `command_surface` (and covered in `tests/conformance_matrix.py`) and offered as an optional pre-commit hook beside the four existing ones in the `engine` hook template: for every staged `.aw/records/meta/*.jsonl` it calls `artifact_meta.check_staged_log_append` and exits 1 with the reasons when any is non-empty. In phase B no log exists in this repository, so the hook is a no-op here and is proven on fixtures in `tests/test_meta_log_append_gate.py` through the real CLI leaf.
   - Depends on: E-01
   - Expected outcome: the five E-01 fixtures driven through `aw meta-log-append-gate` give exit 0 for the valid append and exit 1 for each refusal; `aw meta-log-append-gate` exits 0 on this checkout.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -116,15 +116,59 @@ ONE spec amendment, carried from `t4gl15`: `4sd62s` 4.3 gains `check_staged_log_
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_meta_log_append_gate.py -k check_staged` with five named tests PASSED (valid append returns an empty list; rewritten line, deleted line, invalid appended event and bad first event each return a reason naming the log), and `git diff` of the spec showing only the `check_staged_log_append` function-list entry.
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest -o addopts="" -v tests/test_meta_log_append_gate.py -k check_staged`:
+      `tests/test_meta_log_append_gate.py::test_check_staged_bad_first_event PASSED [ 20%]`
+      `tests/test_meta_log_append_gate.py::test_check_staged_valid_append PASSED [ 40%]`
+      `tests/test_meta_log_append_gate.py::test_check_staged_invalid_appended_event PASSED [ 60%]`
+      `tests/test_meta_log_append_gate.py::test_check_staged_deleted_line PASSED [ 80%]`
+      `tests/test_meta_log_append_gate.py::test_check_staged_rewritten_earlier_line PASSED [100%]`
+      `======================= 5 passed, 11 deselected in 0.55s =======================`
+    - `git diff -- .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md`:
+      `@@ -869,8 +869,11 @@`
+      `-  (4.4), and read_text(text, *, record_type=None) -> State. read_text runs the same loader as`
+      `-  read_at, caches nothing, and exists for in-memory text in phase B.`
+      `+  (4.4), read_text(text, *, record_type=None) -> State, and`
+      `+  check_staged_log_append(id6) -> list[str] (refusal reasons for a staged meta/<id6>.jsonl`
+      `+  change, reading HEAD and staged blobs through read_at's blob path and the loader, 4.8).`
+      `+  read_text runs the same loader as read_at, caches nothing, and exists for in-memory text in`
+      `+  phase B.`
+      `@@ -2416,6 +2419,7 @@`
+      `+- 2026-11-23 note (aw specs): jq82as E-01: add check_staged_log_append(id6) -> list[str] to 4.3 function list`
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_meta_log_append_gate.py -k hook` all PASSED, each test driving the real `aw meta-log-append-gate` leaf on a staged fixture and asserting exit 0 for the valid append and exit 1 with the function's reason for each refusal; `aw meta-log-append-gate; echo $?` on this checkout printing 0; `rg -n "meta-log-append-gate" agent_workflows/cli.py agent_workflows/command_surface.py agent_workflows/engine.py tests/conformance_matrix.py` showing one registration in each.
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest -o addopts="" -v tests/test_meta_log_append_gate.py -k hook`:
+      `tests/test_meta_log_append_gate.py::test_hook_noop_and_agent_envelope PASSED [ 16%]`
+      `tests/test_meta_log_append_gate.py::test_hook_deleted_line_exits_one PASSED [ 33%]`
+      `tests/test_meta_log_append_gate.py::test_hook_valid_append_exits_zero PASSED [ 50%]`
+      `tests/test_meta_log_append_gate.py::test_hook_rewritten_earlier_line_exits_one PASSED [ 66%]`
+      `tests/test_meta_log_append_gate.py::test_hook_invalid_appended_event_exits_one PASSED [ 83%]`
+      `tests/test_meta_log_append_gate.py::test_hook_bad_first_event_exits_one PASSED [100%]`
+      `======================= 6 passed, 10 deselected in 2.89s =======================`
+    - Full module `python3 -m pytest -o addopts="" -v tests/test_meta_log_append_gate.py`: `16 passed in 4.06s` (0 unlisted slow tests).
+    - `aw meta-log-append-gate; echo $?`: printed `0`.
+    - `rg -n "meta-log-append-gate" agent_workflows/cli.py agent_workflows/command_surface.py agent_workflows/engine.py tests/conformance_matrix.py`:
+      `agent_workflows/command_surface.py:2608: command="meta-log-append-gate",`
+      `tests/conformance_matrix.py:146: "meta-log-append-gate": [],`
+      `agent_workflows/cli.py:794: "meta-log-append-gate": (`
+      `agent_workflows/cli.py:8296: "meta-log-append-gate",`
+      `agent_workflows/cli.py:22311: if args.command == "meta-log-append-gate":`
+      `agent_workflows/engine.py:6855: - id: meta-log-append-gate`
+      `agent_workflows/engine.py:6857: entry: python3 -m agent_workflows meta-log-append-gate`
+      `agent_workflows/engine.py:6888: - id: meta-log-append-gate`
+      `agent_workflows/engine.py:6890: entry: python3 -m agent_workflows meta-log-append-gate`
+      `agent_workflows/engine.py:7277: _META_LOG_APPEND_GATE_HOOK_ID = "meta-log-append-gate"`
+      `agent_workflows/engine.py:7281: - id: meta-log-append-gate`
+      `agent_workflows/engine.py:7283: entry: python3 -m agent_workflows meta-log-append-gate`
+    - Core test suite `aw suite`: `2776 passed, 1 skipped, 11 warnings in 121.96s (0:02:01)`.
+    - Conformance and completion suite (`test_command_surface_declarations.py`, `test_conformance_matrix_structure.py`, `test_exit_contract_conformance.py`, `test_agent_surface_conformance.py`, `test_live_conformance_sweep.py`, `test_completion.py`): `263 passed in 32.78s`.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7089,"findings":0,"evidence":["leak-scan"],"next":null}`.
+  - Result: pass
 
 ## Approval and execution gate
 
