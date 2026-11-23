@@ -42,10 +42,10 @@ DORMANCY RULE, applied to every item of this plan (added at the split so the mov
 
 ### Task group 1: dormant post-cutover code
 
-- [ ] E-19 (`cxxmyv` E-17, mechanism half) Ensure directory `.aw/state/clors0/before` exists (`mkdir -p .aw/state/clors0/before`) and save the baseline dormancy check multisets before edits. Settle how the migration's ONE commit carries code, test and documentation changes: spec 5.2 step 7 commits "the migration's own list of paths" and the step-4a marker matches only the exact staged tree (`dcerjg` E-11), so a cutover whose code switch is uncommitted needs a supported way to stage extra paths. Add one under `agent_workflows/migrations/` (for example an explicit `--include-paths <pathspec>...` argument of `aw migrate metadata --apply` that stages the named paths BEFORE the step-4a marker is written, so the marker's `git write-tree` id covers them) and amend spec 5.2 step 7 in the same change to say so, because that step is the contract the AC-16 hooks and the step-4a marker are reviewed against. New test module `tests/test_m0001_extra_paths.py`: in a `tmp_path` fixture repository with the installed hooks, an uncommitted code change plus `--apply --include-paths` produces ONE commit holding the migrated records and the extra paths, passing every installed hook without `--force` or `--no-verify`; an extra path staged AFTER the marker is refused by the hooks. (Dormancy: the argument is inert without `--apply`, and `aw migrate metadata --apply` is not run on `main` before `cxxmyv`.) Measured units: 1 argument, 1 staging step, 1 spec paragraph, 1 test module with three cases: about 7.
+- [x] E-19 (`cxxmyv` E-17, mechanism half) Ensure directory `.aw/state/clors0/before` exists (`mkdir -p .aw/state/clors0/before`) and save the baseline dormancy check multisets before edits. Settle how the migration's ONE commit carries code, test and documentation changes: spec 5.2 step 7 commits "the migration's own list of paths" and the step-4a marker matches only the exact staged tree (`dcerjg` E-11), so a cutover whose code switch is uncommitted needs a supported way to stage extra paths. Add one under `agent_workflows/migrations/` (for example an explicit `--include-paths <pathspec>...` argument of `aw migrate metadata --apply` that stages the named paths BEFORE the step-4a marker is written, so the marker's `git write-tree` id covers them) and amend spec 5.2 step 7 in the same change to say so, because that step is the contract the AC-16 hooks and the step-4a marker are reviewed against. New test module `tests/test_m0001_extra_paths.py`: in a `tmp_path` fixture repository with the installed hooks, an uncommitted code change plus `--apply --include-paths` produces ONE commit holding the migrated records and the extra paths, passing every installed hook without `--force` or `--no-verify`; an extra path staged AFTER the marker is refused by the hooks. (Dormancy: the argument is inert without `--apply`, and `aw migrate metadata --apply` is not run on `main` before `cxxmyv`.) Measured units: 1 argument, 1 staging step, 1 spec paragraph, 1 test module with three cases: about 7.
   - Depends on: none
   - Expected outcome: the fixture produces one commit with both kinds of path and passes every hook; the late extra path is refused; the spec 5.2 step 7 amendment is in the diff.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
@@ -131,10 +131,62 @@ E-19 amends spec `4sd62s` 5.2 step 7 ("the migration's own list of paths") to sa
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-19 validates E-19
+- [x] V-19 validates E-19
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_m0001_extra_paths.py` with the one-commit case (its `git show --stat` listing both migrated records and the extra paths, and the hook output without `--force` or `--no-verify`) and the late-path refusal PASSED, and the `git diff` hunk of the spec 5.2 step 7 amendment.
   - Observed evidence:
-  - Result: pending
+    Mechanism: `m0001_metadata_v2.normalize_include_paths` validates the list before anything is written (outside the repo, inside the records root, a directory, a git-ignored file, or a path neither tracked nor on disk refuses with `PreflightGateError`); the list is journaled as `tx_data["include_paths"]` and `_collect_stageable_paths` stages it in `_stage_migration_paths`, which runs before `_step_4a_write_marker`. CLI: `aw migrate metadata --apply --include-paths PATH...` (threaded through `chain.Migration.run` / `chain._m0001_run`).
+    ```
+    $ python3 -m pytest -o addopts="" -v tests/test_m0001_extra_paths.py
+    tests/test_m0001_extra_paths.py::test_extra_path_staged_after_the_marker_is_refused_by_the_installed_hooks PASSED [ 33%]
+    tests/test_m0001_extra_paths.py::test_include_paths_are_inert_without_apply_and_bad_paths_refuse_before_writing PASSED [ 66%]
+    tests/test_m0001_extra_paths.py::test_apply_with_include_paths_makes_one_commit_that_passes_every_installed_hook PASSED [100%]
+    ============================== 3 passed in 4.06s ===============================
+    ```
+    One-commit case, re-driven by hand from the test's fixture (installed pre-commit hook runs `ipd-executed-gate` and `backlog-blocking-close-gate`; commit made by `aw migrate metadata --apply --no-describe --include-paths src/feature.py tests/test_feature.py docs/guide.md`, no `--force`, no `--no-verify`):
+    ```
+    rc 0
+    OK       Applied 7 file operation(s) (commit c934c4d6d7efae87de8daf10a5b0ee7d02b31e72).
+    c934c4d chore(migrate): apply m0001 metadata-v2 migration
+    06bec1d seed legacy repository
+
+    $ git show --stat HEAD
+     .aw/.gitignore                                             |  2 --
+     .aw/config/project.json                                    |  3 ++-
+     .../done/20261101-demo-01-bk9001-blocking.backlog.md       | 14 ++++++++------
+     .aw/records/meta/bk9001.jsonl                              |  1 +
+     .aw/records/meta/pl9001.jsonl                              |  3 +++
+     .../plans/executed/20261101-0900-01-legacy-exec.ipd.md     | 11 -----------
+     .../executed/20261101-demo-01-pl9001-legacy-exec.ipd.md    |  6 ++++++
+     docs/guide.md                                              |  2 +-
+     src/feature.py                                             |  2 +-
+     tests/test_feature.py                                      |  2 ++
+     10 files changed, 24 insertions(+), 22 deletions(-)
+    ```
+    Late-path refusal (marker written with two include paths, then `docs/guide.md` staged by hand and `git commit` run through the same hooks):
+    ```
+    status applied include_paths ['src/feature.py', 'tests/test_feature.py']
+    late commit rc 1
+    warning: m0001 terminal commit marker tree_id mismatch (expected 1e9150bb38c12a6667677df71800619e32f0af47, staged 8ab9cf7732c6bae23cf830471ab168e18352a675); falling back to standard gate checks.
+    aw ipd executed-transition gate REFUSED this commit (local prevention; the raw plan->executed path bypasses the finalize gates):
+      - .aw/records/plans/executed/20261101-demo-01-pl9001-legacy-exec.ipd.md (pl9001): raw plan->executed transition (moved into executed/) on a log-format plan: ...
+    ```
+    Spec 5.2 step 7 amendment (`git diff -U0`):
+    ```
+    @@ -1981 +1981,11 @@ flowchart LR
+    -7. COMMIT. Commit with `aw commit --no-plan` and the migration's own list of paths.
+    +7. COMMIT. Commit with `aw commit --no-plan` and the migration's own list of paths. The one
+    +   migration commit may also carry the cutover's code, test and documentation changes: `aw migrate
+    +   metadata --apply --include-paths <path>...` names each extra repository file explicitly, and the
+    +   migration stages those files together with its own paths BEFORE step 4a writes the terminal-commit
+    +   marker, so the marker's `git write-tree` id covers them and the AC-16 hooks accept the commit
+    +   through the marker without `--force` or `--no-verify`. Every named path is validated before
+    +   anything is written: a path outside the repository, inside the records root (which the migration
+    +   itself rewrites), a directory, a git-ignored file, or a path neither tracked nor present on disk
+    +   refuses the whole run. The list is journaled so a resume stages the same files. Without `--apply`
+    +   the argument stages nothing. A path staged AFTER the marker changes the staged tree, so the marker
+    +   no longer matches and the hooks refuse the commit.
+    ```
+  - Result: pass
 
 - [ ] V-20 validates E-20
   - Required evidence: paste one result line per named test module (the six family modules, `tests/test_command_surface_declarations.py`, each `tests/test_m0001_*.py` module), the bare `python3 -m pytest` and `make test-all` summary lines beside them, the `aw check all --agent` and `aw check all --all --agent` rule multiset diffs against `.aw/state/clors0/before/` (empty), `aw sanitize --agent` with zero `fail`, and `git show --stat` of every `aw commit clors0` commit listing only Scope-Paths files.

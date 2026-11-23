@@ -1978,7 +1978,17 @@ flowchart LR
    no findings, and run `aw sanitize --agent` on the staged cutover tree: about 87 sidecar records
    and every generated description become tracked here for the first time, so any `fail`
    diagnostic refuses `--apply` (AC-16). Then write the stamp `metadata_schema: 2`.
-7. COMMIT. Commit with `aw commit --no-plan` and the migration's own list of paths.
+7. COMMIT. Commit with `aw commit --no-plan` and the migration's own list of paths. The one
+   migration commit may also carry the cutover's code, test and documentation changes: `aw migrate
+   metadata --apply --include-paths <path>...` names each extra repository file explicitly, and the
+   migration stages those files together with its own paths BEFORE step 4a writes the terminal-commit
+   marker, so the marker's `git write-tree` id covers them and the AC-16 hooks accept the commit
+   through the marker without `--force` or `--no-verify`. Every named path is validated before
+   anything is written: a path outside the repository, inside the records root (which the migration
+   itself rewrites), a directory, a git-ignored file, or a path neither tracked nor present on disk
+   refuses the whole run. The list is journaled so a resume stages the same files. Without `--apply`
+   the argument stages nothing. A path staged AFTER the marker changes the staged tree, so the marker
+   no longer matches and the hooks refuse the commit.
 
 After the cutover, the legacy readers exist ONLY in `migrations/m0001_metadata_v2.py`, and they do
 not change. A later change deletes them when no supported version needs to migrate from 1.x (C9).

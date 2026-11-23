@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 import re
 import tempfile
-from typing import Any, Callable, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 from agent_workflows import attention_contract
 from agent_workflows import project_context
@@ -51,8 +51,12 @@ class Migration:
         force_worktree: bool = False,
         describer: Optional[Any] = None,
         fault_injection: Optional[str] = None,
+        include_paths: Optional[Sequence[str]] = None,
     ) -> Any:
         """Execute (or dry-run when ``apply=False``) this migration against ``repo``."""
+        kwargs: Dict[str, Any] = {}
+        if include_paths is not None:
+            kwargs["include_paths"] = include_paths
         return self._run(
             repo,
             apply=apply,
@@ -60,6 +64,7 @@ class Migration:
             force_worktree=force_worktree,
             describer=describer,
             fault_injection=fault_injection,
+            **kwargs,
         )
 
 
@@ -347,6 +352,7 @@ def _m0001_run(
     force_worktree: bool = False,
     describer: Optional[Any] = None,
     fault_injection: Optional[str] = None,
+    include_paths: Optional[Sequence[str]] = None,
 ) -> Any:
     from agent_workflows.migrations import m0001_metadata_v2
 
@@ -357,6 +363,7 @@ def _m0001_run(
         force_worktree=force_worktree,
         describer=describer,
         fault_injection=fault_injection,
+        include_paths=include_paths,
     )
 
 

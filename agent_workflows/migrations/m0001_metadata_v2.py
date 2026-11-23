@@ -1082,6 +1082,8 @@ def _collect_stageable_paths(
             _add_candidate(op.get("src"))
     for extra in tx_data.get("extra_stage_paths") or []:
         _add_candidate(extra)
+    for included in tx_data.get("include_paths") or []:
+        _add_candidate(included)
 
     if not candidates:
         return [], []
@@ -1122,6 +1124,98 @@ def _collect_stageable_paths(
         if rel in already_staged:
             stageable.append(rel)
     return stageable, addable
+
+
+def normalize_include_paths(
+    repo: Union[str, Path],
+    include_paths: Optional[Sequence[Union[str, Path]]],
+    *,
+    records_root: Optional[Path] = None,
+) -> List[str]:
+    """Validate ``--include-paths`` and return them as sorted repo-relative POSIX paths.
+
+    Spec 4sd62s 5.2 step 7: the one migration commit may also carry explicitly named extra
+    paths (the cutover's code, test and documentation changes). Each must be a file (or a
+    tracked file's deletion) inside the repository, not git-ignored, and outside the records
+    root that the migration itself rewrites. Raises ``PreflightGateError`` naming every bad
+    path before anything is written.
+    """
+    if not include_paths:
+        return []
+    repo_path = Path(repo)
+    try:
+        repo_resolved = repo_path.resolve()
+    except OSError:
+        repo_resolved = repo_path
+    eff_records = records_root or project_context.project_records_dir(repo_path)
+    try:
+        records_resolved: Optional[Path] = eff_records.resolve()
+    except OSError:
+        records_resolved = None
+
+    problems: List[str] = []
+    accepted: List[str] = []
+    for raw in include_paths:
+        text = str(raw).strip()
+        if not text:
+            problems.append("an empty path")
+            continue
+        cand = Path(text)
+        if not cand.is_absolute():
+            cand = repo_path / cand
+        try:
+            resolved = cand.resolve()
+            rel = resolved.relative_to(repo_resolved).as_posix()
+        except (OSError, ValueError):
+            problems.append(f"{text}: outside the repository")
+            continue
+        if rel in ("", ".") or rel == ".git" or rel.startswith(".git/"):
+            problems.append(f"{text}: not a repository file")
+            continue
+        if records_resolved is not None:
+            try:
+                resolved.relative_to(records_resolved)
+                problems.append(
+                    f"{text}: inside the records root, which the migration itself rewrites"
+                )
+                continue
+            except ValueError:
+                pass
+        if resolved.is_dir():
+            problems.append(f"{text}: a directory (name each file explicitly)")
+            continue
+        tracked = (
+            subprocess.run(
+                ["git", "-C", str(repo_path), "ls-files", "--error-unmatch", "--", rel],
+                capture_output=True,
+                check=False,
+            ).returncode
+            == 0
+        )
+        if not tracked:
+            if not (resolved.exists() or resolved.is_symlink()):
+                problems.append(f"{text}: neither tracked nor present on disk")
+                continue
+            ignored = (
+                subprocess.run(
+                    ["git", "-C", str(repo_path), "check-ignore", "-q", "--", rel],
+                    capture_output=True,
+                    check=False,
+                ).returncode
+                == 0
+            )
+            if ignored:
+                problems.append(f"{text}: ignored by git")
+                continue
+        if rel not in accepted:
+            accepted.append(rel)
+
+    if problems:
+        raise layout_migration.PreflightGateError(
+            "m0001 --include-paths refused (nothing was written):\n- "
+            + "\n- ".join(problems)
+        )
+    return sorted(accepted)
 
 
 def _stage_migration_paths(repo_path: Path, tx_data: Dict[str, Any]) -> List[str]:
@@ -1376,6 +1470,7 @@ def _format_run_report(
         "orphan_counts": tx_data.get("orphan_counts") or {},
         "applied_files": list(tx_data.get("applied_files") or []),
         "staged_paths": list(tx_data.get("staged_paths") or []),
+        "include_paths": list(tx_data.get("include_paths") or []),
         "minted_ids": dict(tx_data.get("minted_ids") or {}),
         "rename_map": dict(tx_data.get("rename_map") or {}),
         "terminal_commit_marker": tx_data.get("terminal_commit_marker"),
@@ -2027,8 +2122,12 @@ def _resume_applying_journal(
     describer: Optional[Any] = None,
     fault_injection: Optional[str] = None,
     commit: bool = True,
+    include_paths: Optional[Sequence[str]] = None,
 ) -> Dict[str, Any]:
-    """Resume an interrupted ``status == 'applying'`` run from stage one or ``journal_dir / 'scratch'``."""
+    """Resume an interrupted ``status == 'applying'`` run from stage one or ``journal_dir / 'scratch'``.
+
+    ``include_paths`` of ``None`` keeps the list the interrupted run journaled; a list replaces it.
+    """
     preflight = m0001_preflight.check_preflight(
         repo_path,
         records_root=records_root,
@@ -2057,6 +2156,9 @@ def _resume_applying_journal(
                 raise layout_migration.MigrationError(
                     f"Journal at {mgr.transaction_file} is no longer in 'applying' state."
                 )
+            if include_paths is not None:
+                tx_data["include_paths"] = list(include_paths)
+                mgr._save_transaction(tx_data)
             ls = tx_data.get("layout_stage")
             stage1_interrupted = isinstance(ls, dict) and ls.get("status") not in (
                 None,
@@ -2165,8 +2267,14 @@ def run(
     describer: Optional[Any] = None,
     fault_injection: Optional[str] = None,
     commit: bool = True,
+    include_paths: Optional[Sequence[Union[str, Path]]] = None,
 ) -> Dict[str, Any]:
-    """Execute (or dry-run when ``apply=False``) migration m0001 against ``repo``."""
+    """Execute (or dry-run when ``apply=False``) migration m0001 against ``repo``.
+
+    ``include_paths`` (spec 4sd62s 5.2 step 7) names extra repository files that the one
+    migration commit also carries. They are validated in both modes but staged only under
+    ``apply=True``, before the step-4a marker captures ``git write-tree``.
+    """
     repo_path = Path(repo)
     eff_describer = m0001_describe.Describer() if describer is None else describer
     if isinstance(eff_describer, m0001_describe.Describer) and (
@@ -2189,6 +2297,9 @@ def run(
         }
 
     journal_dir, records_root = _journal_dir_for(repo_path)
+    included = normalize_include_paths(
+        repo_path, include_paths, records_root=records_root
+    )
 
     existing_peek = _peek_journal(journal_dir)
     if (
@@ -2205,6 +2316,7 @@ def run(
             describer=eff_describer,
             fault_injection=fault_injection,
             commit=commit,
+            include_paths=included if include_paths is not None else None,
         )
 
     # Step 1: preflight (writes nothing on refusal).
@@ -2290,6 +2402,7 @@ def run(
                 "backups": [],
                 "operations": [],
                 "extra_stage_paths": [],
+                "include_paths": list(included),
                 "descriptions": dict(prior_tx.get("descriptions") or {}),
                 "sidecar_events": {},
                 "orphan_export_path": None,
@@ -2400,6 +2513,7 @@ def resume(
     describer: Optional[Any] = None,
     fault_injection: Optional[str] = None,
     commit: bool = True,
+    include_paths: Optional[Sequence[Union[str, Path]]] = None,
 ) -> Dict[str, Any]:
     """Resume an interrupted m0001 migration apply from its journal and scratch dir."""
     repo_path = Path(repo)
@@ -2411,6 +2525,11 @@ def resume(
         describer=describer,
         fault_injection=fault_injection,
         commit=commit,
+        include_paths=(
+            normalize_include_paths(repo_path, include_paths, records_root=records_root)
+            if include_paths is not None
+            else None
+        ),
     )
 
 

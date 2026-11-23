@@ -5949,6 +5949,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Describe at most N uncached records this run; remaining uncached records are listed as still lacking a description.",
     )
     p_migrate_metadata.add_argument(
+        "--include-paths",
+        nargs="+",
+        default=None,
+        metavar="PATH",
+        help="With --apply, also stage these repository files (outside the records root) into the "
+        "one migration commit, before the step-4a marker records the staged tree, so the cutover's "
+        "code, test and documentation changes land in the same commit. Each file is named "
+        "explicitly; a directory, an ignored file or a records-root path is refused.",
+    )
+    p_migrate_metadata.add_argument(
         "--no-describe",
         action="store_true",
         help="Skip short-description generation (no record text is sent to any model) and list undescribed records as still lacking a description.",
@@ -19464,6 +19474,7 @@ def _run_migrate_metadata(
     describe_model = getattr(args, "describe_model", None)
     describe_limit = getattr(args, "describe_limit", None)
     no_describe = bool(getattr(args, "no_describe", False))
+    include_paths = getattr(args, "include_paths", None)
 
     m0001 = next((m for m in _chain.MIGRATIONS if m.number == 1), None)
     if m0001 is None:
@@ -19505,6 +19516,7 @@ def _run_migrate_metadata(
             force_worktree=force_wt,
             describer=describer,
             fault_injection=fault_inj,
+            include_paths=include_paths,
         )
     except (
         _lm.PreflightGateError,
