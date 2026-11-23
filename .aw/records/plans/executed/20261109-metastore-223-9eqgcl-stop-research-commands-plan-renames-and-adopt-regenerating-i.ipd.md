@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 4.5 says the SQLite cache replaces the INDEX files. Today `aw research set-outcome` and `aw research set-priority` call `research_index.run_index` twice in `research_cmd`, the research and plan citation rewriters call `run_index` once each, and `aw adopt` refreshes the research INDEX through `artifact_adopt._default_refresh_index`. This is part 4 of the round-3 split of `q6epwc` (Order 41), carrying the `research_cmd`, `research_refs`, `plans_refs` and `artifact_adopt` subset of `q6epwc` E-04 and the `producers` case of `q6epwc` V-04.
 - Scope: delete those five call sites and the default refresher, pin the two test modules that assert their INDEX lines, and add the `producers` case to `tests/test_index_aliases.py` (created by Order 220). EXCLUDES: the finalize refresh (Order 221), `status_set` and `artifact_rename` (Order 222), the `run_index` calls inside `plans_archive._refresh_index` and `research_archive`, which write INDEX files directly and are deleted with the writers by `snin8q`.
 - Scope-Paths: agent_workflows/research_cmd.py, agent_workflows/research_refs.py, agent_workflows/plans_refs.py, agent_workflows/artifact_adopt.py, tests/test_artifact_refs_rewrite.py, tests/test_artifact_adopt.py, tests/test_index_aliases.py, .aw/records/plans/pending/20261109-metastore-223-9eqgcl-stop-research-commands-plan-renames-and-adopt-regenerating-i.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261123-nls1nk-01-nls1nk-group-plans-silent-success.backlog.md (defect found while writing the E-05 producers test aw group plans --apply prints nothing on success reproduced on the pre-change base d6f2b2f03, so pre-existing the runner contract requires filing eac...); tests/test_mutation_result_facts.py (test_research_index_refusal_captured_on_drift asserted the research_refs._apply_renames run_index drift note that E-03 deletes retargeted to assert no manifest is regenerated and drift is still report...); tests/test_rename_group_machine_output.py (test_manifest_refresh_in_payload asserted the plans_refs.apply_renames INDEX.json refresh row that E-03 deletes retargeted to assert the payload names no INDEX path)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:lywgzs, executed:mv0j4k, executed:sdzcur, executed:t4gl15, executed:tqknnc
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9eqgcl
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: 9eqgcl verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261123-nls1nk-01-nls1nk-group-plans-silent-success.backlog.md: defect found while writing the E-05 producers test (aw group plans --apply prints nothing on success; reproduced on the pre-change base d6f2b2f03, so pre-existing); the runner contract requires filing each finding as a backlog item; out-of-scope tests/test_mutation_result_facts.py: test_research_index_refusal_captured_on_drift asserted the research_refs._apply_renames run_index drift note that E-03 deletes; retargeted to assert no manifest is regenerated and drift is still reported by aw index research --check; out-of-scope tests/test_rename_group_machine_output.py: test_manifest_refresh_in_payload asserted the plans_refs.apply_renames INDEX.json refresh row that E-03 deletes; retargeted to assert the payload names no INDEX path]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, callers deletion, and execution gate; marked reviewed and go-pending-approval.
