@@ -10,7 +10,7 @@ Verifies:
    - cited ONLY in a ## Findings body row (must return [])
    - a six-letter word that is not a known spec id (must return [])
    - the same id cited on two bullets (dedupes)
-2. set_from_spec_line:
+2. the From-Spec value write through artifact_meta:
    - inserts after - Status:
    - idempotent under a second call
    - removes on '-' or None
@@ -47,8 +47,26 @@ from unittest import mock
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import check_engine
-from agent_workflows import releases
+from typing import Optional
+
+from agent_workflows import artifact_meta
 from tests.record_builder import RecordBuilder
+
+_RENDER = artifact_meta.LegacyRender(
+    "same-status", "2026-09-28", "aw set", history=False
+)
+
+
+def _set_from_spec(text: str, value: Optional[str]) -> str:
+    """Render a From-Spec set (or, for '-'/None, an unset) on a plan via artifact_meta."""
+    event = (
+        {"op": "unset", "fields": ["from_spec"]}
+        if value in (None, "-")
+        else {"op": "set", "fields": {"from_spec": value}}
+    )
+    return artifact_meta.render_legacy_text(
+        text, [event], record_type="ipd", render=_RENDER
+    )
 
 
 def _create_minimal_repo(root: Path) -> Path:
@@ -204,7 +222,7 @@ class TestParseCitedSpecIds(unittest.TestCase):
 
 
 class TestSetFromSpecLine(unittest.TestCase):
-    """E-01 / V-01: releases.set_from_spec_line writer tests."""
+    """E-01 / V-01: From-Spec value write tests through artifact_meta."""
 
     def test_insert_after_status(self) -> None:
         text = RecordBuilder().plan(
@@ -213,7 +231,7 @@ class TestSetFromSpecLine(unittest.TestCase):
             when="2026-09-28",
             text_only=True,
         )
-        result = releases.set_from_spec_line(text, "c4gd2h")
+        result = _set_from_spec(text, "c4gd2h")
         self.assertEqual(
             result,
             text.replace(
@@ -230,8 +248,8 @@ class TestSetFromSpecLine(unittest.TestCase):
             when="2026-09-28",
             text_only=True,
         )
-        once = releases.set_from_spec_line(text, "c4gd2h")
-        twice = releases.set_from_spec_line(once, "c4gd2h")
+        once = _set_from_spec(text, "c4gd2h")
+        twice = _set_from_spec(once, "c4gd2h")
         self.assertEqual(once, twice)
 
     def test_remove_with_dash(self) -> None:
@@ -250,7 +268,7 @@ class TestSetFromSpecLine(unittest.TestCase):
             },
             text_only=True,
         )
-        result = releases.set_from_spec_line(text, "-")
+        result = _set_from_spec(text, "-")
         self.assertNotIn("- From-Spec:", result)
         self.assertIn("- Status: approved\n- Id: 0ykozn\n", result)
 
@@ -262,7 +280,7 @@ class TestSetFromSpecLine(unittest.TestCase):
             from_spec="c4gd2h",
             text_only=True,
         )
-        result = releases.set_from_spec_line(text, None)
+        result = _set_from_spec(text, None)
         self.assertNotIn("- From-Spec:", result)
 
     def test_fallback_after_id(self) -> None:
@@ -273,7 +291,7 @@ class TestSetFromSpecLine(unittest.TestCase):
             raw_fields={"Status": None, "Scope": "test"},
             text_only=True,
         )
-        result = releases.set_from_spec_line(text, "c4gd2h")
+        result = _set_from_spec(text, "c4gd2h")
         self.assertEqual(
             result,
             text.replace(
@@ -292,7 +310,7 @@ class TestSetFromSpecLine(unittest.TestCase):
             raw_fields={"From-Spec": ""},
             text_only=True,
         )
-        result = releases.set_from_spec_line(text, "c4gd2h")
+        result = _set_from_spec(text, "c4gd2h")
         self.assertEqual(result.count("- From-Spec:"), 1)
         self.assertIn("- From-Spec: c4gd2h\n", result)
 

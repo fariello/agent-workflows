@@ -743,7 +743,9 @@ class TestBoundaryAndNonRegressions(_BaseResearchRepo):
         self.assertEqual(before, after)
 
     def test_deliberate_under_scope_text_writers_unchanged(self):
-        """E-06(e), V-06: update_frontmatter_fields and _set_priority_line remain text writers (deliberate under-scope)."""
+        """E-06(e), V-06: update_frontmatter_fields remains a text writer (deliberate under-scope);
+        the research priority write now goes through artifact_meta, which refuses the same unsafe
+        multi-line value instead of splicing it into the front matter."""
         base = C.build_frontmatter(
             id6="t3st99",
             created="20261001",
@@ -761,6 +763,24 @@ class TestBoundaryAndNonRegressions(_BaseResearchRepo):
         substituted = C.update_frontmatter_fields(base, {"consumed-by": unsafe_raw})
         self.assertIn(unsafe_raw, substituted)
 
+        from agent_workflows import artifact_meta
+
+        render = artifact_meta.LegacyRender(
+            "set-priority", "2026-10-01", "aw research", history=False
+        )
+
+        def _set_priority(value: str) -> str:
+            return artifact_meta.render_legacy_text(
+                base,
+                [{"op": "set", "fields": {"priority": value}}],
+                record_type="research",
+                render=render,
+            )
+
         unsafe_prio = "high\nstatus: active"
-        prio_sub = C._set_priority_line(base, unsafe_prio)
-        self.assertIn(unsafe_prio, prio_sub)
+        with self.assertRaises(ValueError) as refused:
+            _set_priority(unsafe_prio)
+        self.assertIn("newline", str(refused.exception))
+        prio_sub = _set_priority("high")
+        self.assertIn("priority: high\n", prio_sub)
+        self.assertNotIn("status: active", prio_sub)

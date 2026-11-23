@@ -9,7 +9,7 @@ Covers:
   (2) Multi-bullet preservation: an artifact with two valid-id6 From-Backlog bullets
       remains indexed under both keys in build_graduation_reverse_index.
   (3) Operator surface: check_engine.graduation_cluster attributes no artifact to the junk token.
-  (4) Writer idempotency: releases.set_from_backlog_line called twice on text already carrying
+  (4) Writer idempotency: the From-Backlog write through artifact_meta, applied twice on text already carrying
       a multi-token value leaves 1 line with clean metadata parse; clearing with '-' removes it.
   (5) Malformed rule reachability: releases.check_from_backlog reports check.from-backlog-malformed
       on spaced and no-space multi-token values and does not report -dangling for them;
@@ -26,6 +26,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import (
+    artifact_meta,
     check_engine,
     ipd_schema,
     production_checks,
@@ -33,6 +34,22 @@ from agent_workflows import (
     runner_shared,
 )
 from tests.record_builder import RecordBuilder
+
+_RENDER = artifact_meta.LegacyRender(
+    "same-status", "2026-09-01", "aw set", history=False
+)
+
+
+def _set_from_backlog(text: str, value: str) -> str:
+    """Render a From-Backlog set (or, for '-', an unset) on a plan via artifact_meta."""
+    event = (
+        {"op": "unset", "fields": ["from_backlog"]}
+        if value == "-"
+        else {"op": "set", "fields": {"from_backlog": value}}
+    )
+    return artifact_meta.render_legacy_text(
+        text, [event], record_type="ipd", render=_RENDER
+    )
 
 
 def _create_minimal_repo(root: Path) -> Path:
@@ -219,7 +236,7 @@ class TestFromBacklogCardinality(unittest.TestCase):
         )
 
     def test_writer_idempotency_and_metadata_parse(self) -> None:
-        """releases.set_from_backlog_line is idempotent on multi-token lines and clears with '-'."""
+        """The artifact_meta From-Backlog write is idempotent on multi-token lines and clears with '-'."""
         text = RecordBuilder().plan(
             title="Writer Test",
             id6="wrtpln",
@@ -231,12 +248,12 @@ class TestFromBacklogCardinality(unittest.TestCase):
             text_only=True,
         )
         # First write: overwrite multi-token value with single token
-        written_1 = releases.set_from_backlog_line(text, "cccccc")
+        written_1 = _set_from_backlog(text, "cccccc")
         self.assertEqual(written_1.count("- From-Backlog:"), 1)
         self.assertIn("- From-Backlog: cccccc", written_1)
 
         # Second write: overwrite single token with another single token
-        written_2 = releases.set_from_backlog_line(written_1, "dddddd")
+        written_2 = _set_from_backlog(written_1, "dddddd")
         self.assertEqual(written_2.count("- From-Backlog:"), 1)
         self.assertIn("- From-Backlog: dddddd", written_2)
 
@@ -251,7 +268,7 @@ class TestFromBacklogCardinality(unittest.TestCase):
         self.assertEqual(fields.get("From-Backlog"), "dddddd")
 
         # Verify clearing with '-'
-        cleared = releases.set_from_backlog_line(written_2, "-")
+        cleared = _set_from_backlog(written_2, "-")
         self.assertNotIn("- From-Backlog:", cleared)
 
     def test_malformed_rule_reachability_and_separation(self) -> None:

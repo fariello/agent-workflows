@@ -460,11 +460,17 @@ class CheckEngineSpecCriteriaTests(unittest.TestCase):
             drift_before = check_engine.check_spec_criteria_uncovered(repo)
             self.assertEqual(len(drift_before), 0)
 
-            # Now add - From-Spec: c4gd2h
-            from agent_workflows import releases
+            # Now add - From-Spec: c4gd2h through the artifact_meta value write
+            from agent_workflows import artifact_meta
 
-            new_text = releases.set_from_spec_line(
-                plan_path.read_text(encoding="utf-8"), spec_id6
+            new_text = artifact_meta.render_legacy_text(
+                plan_path.read_text(encoding="utf-8"),
+                [{"op": "set", "fields": {"from_spec": spec_id6}}],
+                record_type="ipd",
+                render=artifact_meta.LegacyRender(
+                    "same-status", "2026-09-28", "aw set", history=False
+                ),
+                repo_root=repo,
             )
             plan_path.write_text(new_text, encoding="utf-8")
 

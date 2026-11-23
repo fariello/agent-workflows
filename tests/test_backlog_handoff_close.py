@@ -1092,8 +1092,10 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
             self.assertEqual(verdict_copied.path, "SATISFIED")
 
     def test_case_6f_satisfied_evidence_leak_safety_home_shaped_root(self) -> None:
-        """(6f) Storing an absolute citation under a home-shaped root yields zero leak scanner findings."""
-        from agent_workflows import backlog, leak_sanitizer
+        """(6f) An absolute citation under a home-shaped root is never stored: the artifact_meta
+        write refuses the raw home path, and the repo-relative form it is normalized to is stored
+        with zero leak scanner findings."""
+        from agent_workflows import artifact_meta, leak_sanitizer
 
         # Construct path from runtime fragments to avoid tripping local-leaks scan on this file
         fake_home = "/home/" + "fixtureuser"
@@ -1114,9 +1116,27 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
             history=["- 2026-10-02 done (tester): closed"],
             text_only=True,
         )
-        stored_text = backlog.set_close_evidence_line(
-            item_text, str(fake_abs_ev), repo_root=fake_root
+        render = artifact_meta.LegacyRender(
+            "same-status", "2026-10-02", "aw backlog", history=False
         )
+
+        def _write(value: str) -> str:
+            return artifact_meta.render_legacy_text(
+                item_text,
+                [{"op": "set", "fields": {"close_evidence": value}}],
+                record_type="backlog",
+                render=render,
+                repo_root=fake_root,
+            )
+
+        # The raw absolute home-shaped citation is refused before anything is rendered.
+        with self.assertRaises(ValueError) as refused:
+            _write(str(fake_abs_ev))
+        self.assertIn("home-path", str(refused.exception))
+
+        # The repo-relative form (what the backlog setter normalizes an absolute citation to
+        # before it writes) is the value stored.
+        stored_text = _write(fake_abs_ev.relative_to(fake_root).as_posix())
         self.assertIn(
             "- Close-Evidence: .aw/records/reviews/20260901-test.review.md", stored_text
         )
