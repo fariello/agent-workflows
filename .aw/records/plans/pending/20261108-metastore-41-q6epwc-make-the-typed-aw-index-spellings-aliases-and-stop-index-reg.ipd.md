@@ -91,6 +91,7 @@ flowchart TD
 
 - Moved to sdzcur (round-3 split 2026-11-09 per research nj8zdp guidance): E-01 (baseline), committed as table F-28.
   - Carrier: sdzcur
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-228-sdzcur-record-the-baseline-for-the-index-alias-and-stale-index-fami.ipd.md
 - Moved to tqknnc (round-3 split 2026-11-09 per research nj8zdp guidance): E-02 (aliases), split there into E-01 to E-05; the `producers` case of V-04 moved to 9eqgcl.
   - Carrier: tqknnc
 - Moved to lywgzs (round-3 split 2026-11-09 per research nj8zdp guidance): E-04 subset 1, `ipd_lifecycle._refresh_plans_index_fail_loud`, its call in `_finalize_transaction`, its five `ipd_lifecycle` comment sites and the `lane_containment.inventory_lane` comment, with `tests/test_orchestrator_retirement.py`.
