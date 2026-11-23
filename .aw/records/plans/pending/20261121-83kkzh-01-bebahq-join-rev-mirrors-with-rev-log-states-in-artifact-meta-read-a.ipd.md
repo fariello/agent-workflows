@@ -128,6 +128,7 @@ flowchart TD
 
 - Post-cutover `check_engine` mirror-drift rules (`state.mirror_status != state.status`) and post-cutover hook rules in `agent_workflows/check_engine.py` and `agent_workflows/hooks/`:
   - Carrier: 6jd6mh
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-266-6jd6mh-build-the-dormant-post-cutover-gates-for-log-format-records.ipd.md
 - Modifying `rev_log_states` or `rev_mirrors` columns in `agent_workflows/artifact_meta.py::generate_schema`:
   - Carrier-Declined: `4sd62s` Section 4.5a and `tests/test_artifact_meta_cache.py` lock `rev_log_states` and `rev_mirrors` to their existing columns, and joining on `l.id6 = m.id6` works without schema changes.
 - Changing working-tree cache queries (`read`, `history`, `resolve`, `query`) or Phase B legacy `read_at` helpers (`_load_legacy_at_blob`, `read_path_at`):

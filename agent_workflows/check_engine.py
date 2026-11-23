@@ -159,6 +159,18 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.staged-illegal-backlog-transition": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
     ),
+    # Post-cutover log-format gates (catalog I-03, IPD 6jd6mh E-02, spec 4sd62s 4.3 "Gate rules change
+    # as follows"). Both are commit-scoped and DORMANT until a `meta/<id6>.jsonl` log is in the index:
+    # a staged record whose mirrored `status` differs from its replayed log state (drift), and a
+    # staged log change that violates the append rules, including the OQ-30 terminal-log rules
+    # (untooled). The second carries the SAME id the `meta-log-append-gate` hook reports, because both
+    # read one predicate (`hooks.meta_log_append_gate.staged_log_messages`).
+    "check.meta-mirror-drift": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
+    ),
+    "check.meta-log-append": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
+    ),
     # Setid SEMANTICS (catalog I-16, spec `2lcqno` N5): a setid used within ONE type with two
     # different descriptives. NOT I-09, which is filename-grammar conformance: I-09 governs a name's
     # SHAPE, while this rule governs whether one token may be REUSED, which the grammar is silent on.
@@ -3870,6 +3882,183 @@ def check_status_untooled_range(
     return drift
 
 
+_META_MIRROR_DRIFT_RULE = "check.meta-mirror-drift"
+_META_LOG_APPEND_RULE = "check.meta-log-append"
+# Types whose in-file mirror carries no status (spec 4sd62s 4.1), so a status comparison is undefined.
+_STATUSLESS_MIRROR_TYPES = frozenset(("walkthrough", "roadmap"))
+
+
+def _staged_meta_layout(repo_root: Path, ctx: Any) -> Tuple[Path, str]:
+    """Return ``(repo_dir, rel_records)`` for the records root ``ctx`` resolves inside its git repo."""
+    from agent_workflows import project_context as _proj_ctx
+
+    records_root = Path(ctx.logical_roots["records"])
+    repo_dir = _proj_ctx.record_git_root(records_root) or Path(repo_root)
+    try:
+        rel_records = (
+            records_root.resolve().relative_to(Path(repo_dir).resolve()).as_posix()
+        )
+    except ValueError:
+        rel_records = ".aw/records"
+    return Path(repo_dir), "" if rel_records == "." else rel_records
+
+
+def _indexed_meta_logs(repo_dir: Path, rel_records: str) -> Dict[str, str]:
+    """``{id6: repo-relative log path}`` for every `meta/<id6>.jsonl` in the INDEX (empty pre-cutover)."""
+    meta_dir = f"{rel_records}/meta" if rel_records else "meta"
+    rc, out, _err = _git_capture(
+        repo_dir, ["-c", "core.quotepath=false", "ls-files", "--cached", "--", meta_dir]
+    )
+    if rc != 0 or not out.strip():
+        return {}
+    logs: Dict[str, str] = {}
+    prefix = f"{meta_dir}/"
+    for line in out.splitlines():
+        rel = line.strip()
+        if not (rel.startswith(prefix) and rel.endswith(".jsonl")):
+            continue
+        stem = rel[len(prefix) : -len(".jsonl")]
+        if "/" not in stem and _core.ID6_RE.fullmatch(stem):
+            logs[stem] = rel
+    return logs
+
+
+def check_staged_meta_mirror_drift(repo_root: Path) -> List[_core.Drift]:
+    """COMMIT-SCOPED post-cutover rule: a staged record's mirrored status differs from its log.
+
+    Spec ``4sd62s`` 4.3 rewords "the status changed with no matching history line" for a log-format
+    record as "the mirrored ``status`` differs from the replayed state". This examines only records
+    this commit touches - a staged ``meta/<id6>.jsonl`` change, or a staged ``.md`` whose declared id6
+    has a log in the index - and compares the staged in-file mirror (``artifact_meta.resolve_mirror_at``)
+    with the staged replayed state (``artifact_meta.read_at``).
+
+    DORMANT on a legacy-format repository (IPD ``6jd6mh`` DORMANCY RULE): when the index holds no
+    ``meta/*.jsonl`` log it returns ``[]`` before reading any record, so no pre-cutover verdict moves.
+    A corrupt staged log is NOT reported here; ``check_staged_meta_log_append`` owns that finding.
+    """
+    from agent_workflows import artifact_meta as _meta
+
+    ctx = _git_read_at_context(Path(repo_root))
+    repo_dir, rel_records = _staged_meta_layout(Path(repo_root), ctx)
+    logs = _indexed_meta_logs(repo_dir, rel_records)
+    if not logs:
+        return []
+    rec_prefix = f"{rel_records}/" if rel_records else ""
+    rc, out, _err = _git_capture(
+        repo_dir,
+        [
+            "-c",
+            "core.quotepath=false",
+            "diff",
+            "--cached",
+            "--no-renames",
+            "--name-only",
+            "--diff-filter=ACMR",
+            "--",
+            rel_records or ".",
+        ],
+    )
+    if rc != 0 or not out.strip():
+        return []
+    meta_prefix = f"{rec_prefix}meta/"
+    log_ids: List[str] = []
+    md_paths: List[str] = []
+    for line in out.splitlines():
+        rel = line.strip()
+        if rel.startswith(meta_prefix):
+            stem = (
+                rel[len(meta_prefix) : -len(".jsonl")] if rel.endswith(".jsonl") else ""
+            )
+            if stem in logs:
+                log_ids.append(stem)
+        elif rel.endswith(".md") and rel.startswith(rec_prefix):
+            md_paths.append(rel)
+
+    drift: List[_core.Drift] = []
+    seen: set = set()
+    with _meta.ephemeral_if_uninitialized():
+        pairs: List[Tuple[str, Optional[str]]] = [(i, None) for i in log_ids]
+        for md in md_paths:
+            declared = _meta.resolve_id_at(md, ":0:", project_context=ctx)
+            if declared and declared in logs:
+                pairs.append((declared, md))
+        for id6, md in pairs:
+            res = _meta.read_at(id6, ":0:", project_context=ctx)
+            if res.kind != "ok" or res.state is None:
+                continue
+            st = res.state
+            if st.type in _STATUSLESS_MIRROR_TYPES:
+                continue
+            if md is None and st.path:
+                sp = str(st.path)
+                md = sp[len("@repo/") :] if sp.startswith("@repo/") else rec_prefix + sp
+            if not md or (id6, md) in seen:
+                continue
+            seen.add((id6, md))
+            mirror_id, mirror_status, exists = _meta.resolve_mirror_at(
+                md, ":0:", project_context=ctx
+            )
+            if not exists:
+                continue
+            want = (st.status or "").strip().lower() or None
+            got = (mirror_status or "").strip().lower() or None
+            if mirror_id == id6 and got == want:
+                continue
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        md,
+                        _META_MIRROR_DRIFT_RULE,
+                        (
+                            f"staged in-file mirror (id {mirror_id!r}, status {got!r}) differs "
+                            f"from the replayed `meta/{id6}.jsonl` state (id {id6!r}, status "
+                            f"{want!r}); the log is the source of truth (spec 4sd62s 4.3)"
+                        ),
+                    ),
+                    observed=f"mirror status: {got}",
+                    required=f"mirror status equals the replayed log status {want!r}",
+                    recovery=(
+                        "change metadata only through aw tools (`aw set`, `aw ipd set`, ...), "
+                        f"which append to `meta/{id6}.jsonl` and rewrite the mirror; run "
+                        "`aw meta repair` to re-render a hand-edited mirror from the log"
+                    ),
+                )
+            )
+    return drift
+
+
+def check_staged_meta_log_append(repo_root: Path) -> List[_core.Drift]:
+    """COMMIT-SCOPED post-cutover rule: a staged `meta/*.jsonl` change violates the append rules.
+
+    Spec ``4sd62s`` 4.3 rewords the untooled-transition rule for a log-format record as "the staged
+    log violates the allowed event-append rules". The predicate is the one the opt-in
+    ``meta-log-append-gate`` hook runs (``hooks.meta_log_append_gate.staged_log_messages``: the
+    append-only byte rules, the loader, and the OQ-30 terminal-log rules), so the hook and ``aw check``
+    cannot disagree. DORMANT pre-cutover: with no staged ``meta/`` path it returns ``[]``.
+    """
+    from agent_workflows.hooks import meta_log_append_gate as _gate
+
+    root = Path(repo_root)
+    if not (root / ".git").exists():
+        return []
+    drift: List[_core.Drift] = []
+    for msg in _gate.staged_log_messages(root):
+        loc, _sep, detail = msg.partition(": ")
+        if not detail:
+            loc, detail = "meta", msg
+        drift.append(
+            enrich_drift(
+                _core.Drift(loc, _META_LOG_APPEND_RULE, detail),
+                required="a staged `meta/<id6>.jsonl` change only appends valid events",
+                recovery=(
+                    f"restore the HEAD log with `git checkout HEAD -- {loc}` and record the change "
+                    "through aw tools, which append valid events"
+                ),
+            )
+        )
+    return drift
+
+
 def check_staged_illegal_backlog_transition(repo_root: Path) -> List[_core.Drift]:
     """COMMIT-SCOPED detector for staged hand-edited illegal backlog status transitions (IPD miimjb, backlog qbn1dx).
 
@@ -4948,6 +5137,9 @@ def check_commit_invariants(repo_root: Path) -> List[_core.Drift]:
       plan status change;
     * ``check.staged-illegal-backlog-transition`` (``check_staged_illegal_backlog_transition``) - a
       staged hand-edited illegal backlog status transition;
+    * ``check.meta-mirror-drift`` (``check_staged_meta_mirror_drift``) and ``check.meta-log-append``
+      (``check_staged_meta_log_append``) - the post-cutover log-format rules (IPD 6jd6mh), dormant
+      until a ``meta/*.jsonl`` log is in the index;
     * ``check.blocking-item-closed-without-gate`` (``check_release_gate_consistency``) - a staged
       release-blocking backlog item closed without a preserved gate;
     * ``check.scope-drift`` (``check_scope_drift``) - for a plan with a LIVE begin receipt, a
@@ -4970,6 +5162,8 @@ def check_commit_invariants(repo_root: Path) -> List[_core.Drift]:
     for fn in (
         check_status_untooled,
         check_staged_illegal_backlog_transition,
+        check_staged_meta_mirror_drift,
+        check_staged_meta_log_append,
         check_release_gate_consistency,
         check_scope_drift,
     ):
@@ -5309,6 +5503,16 @@ def check_types(
         # (a fast no-op when no backlog change is staged). It joins staged items by ID6.
         try:
             drift.extend(check_staged_illegal_backlog_transition(repo_root))
+        except Exception:
+            pass
+        # IPD 6jd6mh E-02: the post-cutover log-format rules (spec 4sd62s 4.3), commit-scoped and
+        # dormant until a `meta/*.jsonl` log is in the index. Own try/except each, per this block.
+        try:
+            drift.extend(check_staged_meta_mirror_drift(repo_root))
+        except Exception:
+            pass
+        try:
+            drift.extend(check_staged_meta_log_append(repo_root))
         except Exception:
             pass
         # gateci 2vw35i: the complete release-gate rule family runs here via the shared
