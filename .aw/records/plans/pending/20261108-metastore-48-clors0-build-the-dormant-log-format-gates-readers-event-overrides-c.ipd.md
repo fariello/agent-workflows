@@ -91,6 +91,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-267-wilgfy-build-the-dormant-post-cutover-readers-and-event-overrides.ipd.md
 - E-06 (`aw reviews record`, `aw walkthrough new`). Moved to 724acb (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 724acb
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-268-724acb-build-the-dormant-reviews-record-and-walkthrough-new-command.ipd.md
 - E-18 (log-format `rename` events). Moved to v45j1n (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: v45j1n
 - The format switch, the legacy loader move into `m0001`, `CURRENT_METADATA_SCHEMA = 2`, retiring the sidecar writer, the rename ledger, the INDEX ignore lines and the skip names, the builder switch, the documentation patch, the `Kind` option renames with the `90iqr1` F-07 test updates, the rehearsal, the real migration and the real-repository demonstrations: each changes the on-disk format or needs the migrated repository, so C10a keeps them in the one cutover commit or after it.
