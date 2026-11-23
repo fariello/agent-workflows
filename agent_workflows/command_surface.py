@@ -572,7 +572,9 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     CommandDeclaration(
         command="index",
         # metastore `1ajqaa`: `aw index rebuild` is a positional value of this leaf (exit 0 ok, 1
-        # invalid records found, 2 cannot-run), so it shares this declaration.
+        # invalid records found, 2 cannot-run), so it shares this declaration. metastore `tqknnc`:
+        # the typed values (`plans`, `research`, `prompts`, `all`) are aliases of `rebuild` served by
+        # `meta_cli.index_alias`; `--check` on them exits 0 clean or 1 on a content drift finding.
         command_class="read",
         human_recipe="list",
         agent_record_kind="result",
@@ -1610,15 +1612,19 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--agent",),
         exit_contract=(0, 1, 2),
     ),
+    # metastore `tqknnc` (spec `4sd62s` 4.5): `aw research index` is an alias of `aw index rebuild`
+    # served by `meta_cli.index_alias`, which also serves the typed `aw index <type>` spellings
+    # (those are positional values of the `index` leaf above, so they share its declaration).
     CommandDeclaration(
         command="research index",
-        command_class="mutation",
+        command_class="alias",
         human_recipe="list",
         agent_record_kind="result",
-        mutation_gate="dry_run_default",
-        empty_error_renderer="renderer_boundary",
+        mutation_gate="none",
+        empty_error_renderer="delegated",
         legacy_flags=("--check", "--limit", "--agent"),
         exit_contract=(0, 1, 2),
+        canonical_command="index rebuild",
     ),
     CommandDeclaration(
         command="research find",

@@ -182,16 +182,24 @@ def test_d_typed_index_refreshes_cache(tmp_path: Path) -> None:
     assert "rb0003" in {s.id6 for s in artifact_meta.query(project_context=ctx)}
 
 
-def test_f_invalid_log_does_not_change_typed_index_output_or_exit(
+def test_f_invalid_log_makes_typed_index_alias_report_as_rebuild(
     tmp_path: Path,
 ) -> None:
+    # `aw index plans` is an alias of `aw index rebuild` (IPD `tqknnc`), so an invalid log
+    # surfaces exactly as rebuild reports it, after the one alias diagnostic.
     clean = _repo(tmp_path / "clean")
     dirty = _repo(tmp_path / "dirty")
     _invalid_log(dirty)
+    alias = {"location": "aw index plans", "rule": "index-alias"}
     rc_c, out_c, _ = _run(clean, ["plans", "--agent"])
+    rec_c = _record(out_c)
+    assert rc_c == 0 and rec_c["exit"] == 0 and rec_c["diagnostics"] == [alias]
     rc_d, out_d, _ = _run(dirty, ["plans", "--agent"])
-    assert rc_c == rc_d == 0
-    assert _record(out_c) == _record(out_d)
+    rc_r, out_r, _ = _run(dirty, ["rebuild", "--agent"])
+    rec_d, rec_r = _record(out_d), _record(out_r)
+    assert rc_d == rc_r == 1 and rec_d["outcome"] == rec_r["outcome"] == "findings"
+    assert rec_d["diagnostics"] == [alias] + rec_r["diagnostics"]
+    assert "invalid:1" in rec_d["evidence"]
 
 
 def test_e_rebuild_reports_invalid_record_as_finding(tmp_path: Path) -> None:

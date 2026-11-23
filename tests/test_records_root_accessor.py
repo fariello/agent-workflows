@@ -206,7 +206,10 @@ def test_home_records_reproduction_history_sidecar(home_records_env):
 
 
 def test_home_records_reproduction_prompts_index(home_records_env):
-    """aw index prompts must succeed and write under AW_HOME, not fail with FileNotFoundError.
+    """aw index prompts must succeed on a home-backed project, not fail with FileNotFoundError.
+
+    It is an alias of `aw index rebuild` (IPD `tqknnc`), so it writes no INDEX file in the
+    target or under AW_HOME.
 
     The home-backed prompts directory is pre-created first, exactly where the resolver
     places it (as `aw install` does), because index writes refuse on an absent records
@@ -227,11 +230,13 @@ def test_home_records_reproduction_prompts_index(home_records_env):
     assert not (
         target / ".aw" / "records" / "prompts"
     ).exists(), "Found target/.aw/records/prompts"
+    assert "is an alias of `aw index rebuild`" in res.stderr
     projects_dir = aw_home / "projects"
-    index_files = list(projects_dir.glob("*/records/prompts/INDEX.json"))
+    index_files = list(projects_dir.glob("*/records/prompts/INDEX.*"))
     assert (
-        len(index_files) == 1
-    ), f"Expected 1 INDEX.json under AW_HOME, found: {index_files}"
+        index_files == []
+    ), f"Expected no INDEX file under AW_HOME, found: {index_files}"
+    assert list(target.rglob("INDEX.*")) == []
 
 
 def test_home_records_prompts_index_refuses_absent_dir(home_records_env):

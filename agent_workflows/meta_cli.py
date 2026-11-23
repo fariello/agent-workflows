@@ -43,7 +43,7 @@ __all__ = [
     "show_history",
     "show_json",
     "index_rebuild",
-    "refresh_cache",
+    "index_alias",
     "render_history_human",
     "check_meta",
     "render_check_meta_human",
@@ -601,24 +601,156 @@ def index_rebuild(repo_root: Path) -> CommandResult:
     )
 
 
-def refresh_cache(repo_root: Path) -> None:
-    """Best-effort freshness pass after a typed `aw index <type>` (IPD `1ajqaa` E-06).
+# --------------------------------------------------------------------------------------------------
+# aw index plans|research|prompts|all and aw research index (spec 4sd62s 4.5, IPD tqknnc)
+# --------------------------------------------------------------------------------------------------
 
-    Swallows every error: the typed spellings keep their own output and exit code in phase A, and
-    `aw index rebuild` is the command that reports invalid records.
+_STALE_INDEX_RULE_PREFIX = "check.stale-index-"
+
+# The clean lines the per-type `run_index --check` printed, kept byte-identical for scripts.
+_INDEX_ALIAS_CLEAN: Dict[str, str] = {
+    "plans": "plans index --check: clean",
+    "research": "index --check: clean",
+    "prompts": "prompts index --check: clean",
+    "all": "all index --check: clean",
+}
+
+
+def _index_alias_drift(args: Any, artifact_type: str) -> List[Any]:
+    """The surviving (non-INDEX) drift classes the typed `--check` gated before (`q6epwc` OQ-01).
+
+    Each type's directory is resolved by the same resolver its `run_index` used, so `--check` reads
+    the tree it always read and reports what `aw check <type> --all` reports from `check_drift`,
+    minus the INDEX drift classes (`check.stale-index-*`): no command writes an INDEX file any more,
+    so a missing or stale one is not drift `aw index <type>` can repair (OQ-01: "the non-INDEX
+    drift classes"). The rules themselves are deleted by Orders 224 and 229.
     """
-    with contextlib.suppress(Exception):
-        ctx = meta_context(repo_root)
-        # A repository with neither a records tree nor an extra record root gets no cache: the
-        # typed spelling refused (or had nothing to index), and creating `.aw/state/` there would
-        # write into a non-project dir.
-        if not _has_any_record_root(ctx):
-            return
-        conn = _meta.open_cache(ctx.records_root, ctx.state_root)
-        try:
-            _meta.check_freshness(conn, ctx.records_root, repo_root=ctx.repo_root)
-        finally:
-            conn.close()
+    from agent_workflows import check_engine as _ce
+    from agent_workflows import plans_index as _pidx
+    from agent_workflows import prompts_index as _pridx
+    from agent_workflows import research_index as _ridx
+
+    if artifact_type == "plans":
+        repo_root, root = _pidx._dirs(args)
+        found = _pidx.check_drift(repo_root, root)
+    elif artifact_type == "research":
+        repo_root, root = _ridx._roots(args)
+        found = _ridx.check_drift(repo_root, root)
+    elif artifact_type == "prompts":
+        repo_root, root = _pridx._dirs(args)
+        found = _pridx.check_drift(repo_root, root)
+    else:
+        return []
+    return [
+        _ce.enrich_drift(d)
+        for d in found
+        if not str(d.rule).startswith(_STALE_INDEX_RULE_PREFIX)
+    ]
+
+
+def _index_alias_check(
+    args: Any, repo_root: Path, artifact_type: str, spelling: str
+) -> CommandResult:
+    from agent_workflows import agent_schema as _schema
+    from agent_workflows import artifact_core as _core
+
+    # `aw index all --check` reports in the order and shape the per-type loop it replaced used:
+    # plans, prompts, research, one human block each, and a `by_type` summary.
+    types = (
+        ("plans", "prompts", "research") if artifact_type == "all" else (artifact_type,)
+    )
+    drift: List[Any] = []
+    human = ""
+    by_type: Dict[str, Dict[str, Any]] = {}
+    for t in types:
+        found = _index_alias_drift(args, t)
+        rc_t = _core.drift_exit_code(found)
+        by_type[t] = {
+            "status": "conforms" if rc_t == 0 else "findings",
+            "exit_code": rc_t,
+            "findings": len(found),
+        }
+        if found:
+            human += "".join(f"{d.location}: {d.rule}: {d.detail}\n" for d in found)
+        else:
+            human += _INDEX_ALIAS_CLEAN.get(t, f"{spelling} --check: clean") + "\n"
+        drift.extend(found)
+    exit_code = _core.drift_exit_code(drift)
+    clean = _INDEX_ALIAS_CLEAN.get(artifact_type, f"{spelling} --check: clean")
+    summary = (
+        clean
+        if not drift
+        else f"{len(drift)} finding(s) detected across {artifact_type}"
+    )
+    data: Dict[str, Any] = {"target": artifact_type, "human_rendered": human}
+    if artifact_type == "all":
+        data["by_type"] = by_type
+    return CommandResult(
+        command="index",
+        target=artifact_type,
+        status="conforms" if exit_code == 0 else "findings",
+        exit_code=exit_code,
+        summary=summary,
+        diagnostics=[
+            Diagnostic(
+                location=_schema.normalize_repo_path(d.location, repo_root),
+                rule=d.rule,
+                detail=d.detail,
+                severity=d.severity or "error",
+                fix=d.recovery or None,
+            )
+            for d in drift
+        ],
+        data=data,
+        repo_root=repo_root,
+        verified=True,
+        complete=True,
+    )
+
+
+def index_alias(
+    args: Any,
+    *,
+    artifact_type: Optional[str] = None,
+    spelling: Optional[str] = None,
+) -> int:
+    """Serve `aw index plans|research|prompts|all` and `aw research index` as aliases (4.5).
+
+    Without `--check` this runs `aw index rebuild` and exits as it does. `--limit` is accepted and
+    ignored. With `--check` it runs the surviving content drift rules of the type and exits as
+    `aw check <type> --all` would on them (`q6epwc` OQ-01); it does not touch the cache. Either way
+    one information line names the alias: an `info` diagnostic under `--agent`/`--json`, a stderr
+    line for a human. Writes no tracked file and no INDEX file.
+    """
+    from agent_workflows.project_context import resolve_verb_repo_root
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import select_output
+
+    t = artifact_type or getattr(args, "resolved_type", None) or "all"
+    said = spelling or f"aw index {t}"
+    notice = f"`{said}` is an alias of `aw index rebuild`; INDEX files are no longer generated"
+    ctx = select_output(args)
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    if getattr(args, "check", False):
+        result = _index_alias_check(args, repo_root, t, said)
+    else:
+        result = index_rebuild(repo_root)
+    if ctx.is_human:
+        with contextlib.suppress(BrokenPipeError, OSError):
+            ctx.stderr.write(notice + "\n")
+            ctx.stderr.flush()
+    else:
+        result.data.pop("human_rendered", None)
+        result.diagnostics.insert(
+            0,
+            Diagnostic(
+                location=said,
+                rule="index-alias",
+                detail=notice,
+                severity="info",
+            ),
+        )
+    return get_renderer(ctx).emit(result, ctx)
 
 
 # --------------------------------------------------------------------------------------------------

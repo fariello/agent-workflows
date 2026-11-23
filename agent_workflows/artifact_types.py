@@ -75,14 +75,14 @@ def expand_types(token: str, supported: Sequence[str]) -> List[str]:
 # resolves to None -> the router reports "not supported for <type>" (exit 2).
 TYPE_BACKENDS: Dict[str, Dict[str, str]] = {
     "plans": {
-        "index": "plans_index.run_index",
+        "index": "meta_cli.index_alias",
         "find": "plans_index.run_find",
         "rename": "plans_refs.run_mv",
         "group": "plans_refs.run_set_assign",
         "archive": "plans_archive.run_archive",
     },
     "research": {
-        "index": "research_index.run_index",
+        "index": "meta_cli.index_alias",
         "find": "research_index.run_find",
         "rename": "research_refs.run_mv",
         "group": "research_refs.run_set_assign",
@@ -95,7 +95,7 @@ TYPE_BACKENDS: Dict[str, Dict[str, str]] = {
     },
     "prompts": {
         "new": "prompts.run_new",
-        "index": "prompts_index.run_index",
+        "index": "meta_cli.index_alias",
         "rename": "artifact_rename.run_rename_prompts",
         "group": "artifact_rename.run_group_prompts",
     },

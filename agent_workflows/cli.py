@@ -378,8 +378,9 @@ _DESCRIPTIONS = {
         "resolve) across the scanned trees. Read-only detector; useful as a standalone gate."
     ),
     "research index": (
-        "Regenerate the research INDEX.json and INDEX.md from doc front matter. With "
-        "--check, fail (nonzero) on drift instead of rewriting (CI gate)."
+        "Alias of `aw index rebuild`: rebuilds the metadata cache and prints one notice; INDEX files "
+        "are no longer generated. With --check, run the research content drift rules instead and "
+        "exit nonzero on a finding, as `aw check research --all` would."
     ),
     "research find": (
         "Query the research index by --id/--set/--topic/--status without reading the corpus "
@@ -582,10 +583,12 @@ _DESCRIPTIONS = {
     "find": "Find artifacts of a given TYPE by selector (id6, status, Set, filename fragment), or across all types when omitted.",
     "search": "Search the artifacts of a given TYPE for matching content (regex-enabled), or across all types when omitted. Groups matches by file with color highlighting.",
     "index": (
-        "Rebuild and print the manifest/index for a given artifact TYPE (this also refreshes the "
-        "metadata cache). `aw index rebuild` deletes and rebuilds the metadata cache "
+        "`aw index rebuild` deletes and rebuilds the metadata cache "
         "(.aw/state/index.db) from the tracked records and reports artifact, review and event counts; "
-        "it writes no tracked file and exits 1 when a record is invalid."
+        "it writes no tracked file and exits 1 when a record is invalid. `aw index plans`, "
+        "`aw index research`, `aw index prompts` and `aw index all` are aliases of it that print one "
+        "notice; INDEX files are no longer generated, and `--limit` is ignored. With --check, a TYPE "
+        "spelling runs that type's content drift rules instead, exiting as `aw check <type> --all` would."
     ),
     "rename": "Rename or move an artifact of a given TYPE, rewriting references to it across the repo.",
     "group": "Assign an artifact of a given TYPE to a Set/group, re-clustering its name.",
@@ -4245,7 +4248,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_research_index = research_sub.add_parser(
         "index",
         parents=[common],
-        help="Regenerate INDEX.json + INDEX.md from frontmatter; --check fails on drift.",
+        help="Alias of `aw index rebuild` (INDEX files are no longer generated); --check runs the research drift rules.",
     )
     p_research_index.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
@@ -4253,13 +4256,13 @@ def _build_parser() -> argparse.ArgumentParser:
     p_research_index.add_argument(
         "--check",
         action="store_true",
-        help="Fail (nonzero) on drift instead of regenerating.",
+        help="Run the research content drift rules instead of rebuilding; exit nonzero on a finding.",
     )
     p_research_index.add_argument(
         "--limit",
         type=int,
         default=None,
-        help="Hot-window size for INDEX.md (default 40).",
+        help="Accepted and ignored (INDEX.md is no longer generated).",
     )
 
     p_research_find = research_sub.add_parser(
@@ -5415,7 +5418,7 @@ def _build_parser() -> argparse.ArgumentParser:
         ("search", "Search artifacts of a TYPE (or across all types if omitted)."),
         (
             "index",
-            "Rebuild/print the index for a TYPE, or `rebuild` the metadata cache.",
+            "Rebuild the metadata cache (`rebuild`); a TYPE spelling is an alias of it.",
         ),
         ("rename", "Rename/move an artifact of a TYPE (rewriting references)."),
         ("group", "Assign an artifact of a TYPE to a Set/group."),
@@ -15463,11 +15466,19 @@ def _run_noun_verb(
         MutationResult,
     )
 
+    # metastore `tqknnc` (spec `4sd62s` 4.5): every typed `aw index` spelling is ONE alias of
+    # `aw index rebuild`, so `aw index all` runs one rebuild and prints one notice instead of
+    # looping the per-type backends. The backends all name `meta_cli.index_alias`.
+    if verb == "index":
+        norm_type = "all" if len(types) > 1 else types[0]
+        fn = at.resolve_backend(types[0], verb)
+        if fn is not None:
+            b_args = _nv_backend_args(args, norm_type)
+            return fn(b_args)
+
     rc = 0
     results_by_type: list[tuple[str, Any]] = []
     touched_all: list[str] = []
-    collect_index_results = not emit_human and verb == "index" and len(types) > 1
-    index_results: list[CommandResult] = []
     for t in types:
         fn = at.resolve_backend(t, verb)
         if fn is None:
@@ -15494,8 +15505,6 @@ def _run_noun_verb(
             )
             continue
         b_args = _nv_backend_args(args, t)
-        if collect_index_results:
-            b_args._index_result_sink = index_results
         if verb in ("group", "rename"):
             result = fn(b_args, emit_human=emit_human)
         else:
@@ -15506,15 +15515,6 @@ def _run_noun_verb(
             touched_all.extend(result.touched_paths)
         elif isinstance(result, int):
             rc = max(rc, result)
-
-    # metastore `1ajqaa` E-06: a typed `aw index <type>` (and `aw index all`) ALSO refreshes the
-    # metadata cache after its existing INDEX work. Best effort by construction: `refresh_cache`
-    # swallows every error, so neither the output nor the exit code of the typed spelling changes.
-    # `--check` is read-only drift detection and does not refresh.
-    if verb == "index" and not getattr(args, "check", False):
-        from agent_workflows import meta_cli
-
-        meta_cli.refresh_cache(resolve_verb_repo_root(getattr(args, "dir", None)))
 
     if verb in ("group", "rename") and touched_all:
         repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
@@ -15562,14 +15562,6 @@ def _run_noun_verb(
             repo_root=repo_root,
             args=args,
             target_label=target_label,
-        )
-        return get_renderer(ctx).emit(cmd_res, ctx)
-
-    if collect_index_results:
-        from agent_workflows import artifact_core as _core
-
-        cmd_res = _core.aggregate_index_results(
-            index_results, check=bool(getattr(args, "check", False)), rc=rc
         )
         return get_renderer(ctx).emit(cmd_res, ctx)
 
@@ -22306,9 +22298,11 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
 
             return rr.run_check_refs(args)
         if research_cmd == "index":
-            from agent_workflows import research_index as ri
+            from agent_workflows import meta_cli
 
-            return ri.run_index(args)
+            return meta_cli.index_alias(
+                args, artifact_type="research", spelling="aw research index"
+            )
         if research_cmd == "find":
             from agent_workflows import research_index as ri
 

@@ -130,17 +130,20 @@ class TestResearchCompanion(unittest.TestCase):
             encoding="utf-8",
         )
 
-        # Regenerate index
+        # `aw research index` is an alias of `aw index rebuild` (IPD `tqknnc`): it writes no
+        # INDEX file, and the cache it rebuilds lists the report but not the companion's .md.
         rc, out, err = self._run_cli(["research", "index"])
         self.assertEqual(rc, 0, f"index failed: {err}")
-        self.assertIn("(1 docs)", out)
+        self.assertIn("is an alias of `aw index rebuild`", err)
+        self.assertFalse((self.research_root / "INDEX.json").exists())
 
-        index_json_path = self.research_root / "INDEX.json"
-        self.assertTrue(index_json_path.is_file())
-        entries = json.loads(index_json_path.read_text(encoding="utf-8"))
-        self.assertEqual(len(entries), 1)
-        self.assertEqual(entries[0]["id6"], id6)
-        self.assertEqual(entries[0]["companion"], f"{stem}.data")
+        rc_find, out_find, err_find = self._run_cli(["find", "research", "--json"])
+        self.assertEqual(rc_find, 0, f"find failed: {err_find}")
+        found = json.loads(out_find)["data"]
+        self.assertEqual(found["count"], 1)
+        self.assertEqual(len(found["paths"]), 1)
+        self.assertIn(id6, found["paths"][0])
+        self.assertNotIn(".data/", found["paths"][0])
 
         # Confirm notes.md did not cause drift
         rc_check, out_check, err_check = self._run_cli(["research", "index", "--check"])

@@ -1880,6 +1880,13 @@ def check_content(
                 drift.extend(validate_prompt_content(p, repo_root=repo_root))
             except OSError:
                 continue
+        # metastore `tqknnc` E-04: the prompts `name-metadata-mismatch` rule was reached only through
+        # `aw index prompts --check`; it now also runs on the `--all` path, like plans and research.
+        from agent_workflows import prompts_index as _pridx
+
+        dirs = _type_dirs(repo_root, "prompts")
+        if dirs and include_retired:
+            drift.extend(_pridx.check_drift(repo_root, dirs[0]))
     # walkthroughs / roadmaps: no content validator today -> []
     return drift
 
