@@ -94,15 +94,15 @@ Every filter flag should be repeatable (and accept comma-separated values consis
 ### OQ-03: What expression syntax and timestamp sources should `--date`, `--modified-time` (`--mtime`), and `--created-time` (`--ctime`) use?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Context: Users may want to match an exact date (`20261122`), a month prefix (`202611`), a range (`20261101..20261115`), a comparison (`>=2026-11-01`, `<2026-11-15`), or a relative window (`7d`, `24h`, matching `aw runs --since`). For `--created-time` and `--modified-time`, filesystem `stat` timestamps are unreliable across git checkouts and rebases (and Linux `st_ctime` is inode change time, not file creation time), whereas git commit history and `## Workflow history` / metadata timestamps are durable but slower unless cached.
+- Context: Users may want to match an exact date (`20261122`), a month prefix (`202611`), a range (`20261101..20261115` or open range `20261101..` / `..20261115`), a comparison (`>=2026-11-01`, `<2026-11-15`), or a relative window (`7d`, `24h`, matching `aw runs --since`). Today `aw att --order-by mtime|ctime` reads raw filesystem `stat()` (`st.st_mtime`, `st.st_ctime`), which resets on git checkouts/rebases/clones (and Linux `st_ctime` is inode change time, not creation time).
 - Options:
-  1. **Unified expression syntax (`YYYYMMDD`, `YYYY-MM-DD`, prefixes like `202611`, ranges `A..B`, comparators `>=`/`<=`/`>`/`<`, and relative windows like `7d` / `24h` for mtime/ctime); git/metadata timestamps for `--created-time` and `--modified-time` with filesystem fallback for untracked/modified working-tree files (recommended).**
-  2. **Separate `--since` / `--until` style pairs per timestamp (`--date-since`, `--date-before`, `--mtime-since`, `--ctime-since`).** Simpler parser (no shell quoting needed for `>`/`<`), but multiplies the number of flags.
-  3. **Filesystem `stat` timestamps only for `--mtime` / `--ctime`, matching `aw att --order-by mtime|ctime`.** Fastest and matches current `aw att` sort keys, but resets on fresh clones and rebase/checkout operations.
-- Recommendation: Option 1, and align `aw att --order-by mtime|ctime` with the same timestamp authority so sorting and filtering never disagree.
-- Resolution or deferral rationale:
+  1. **Unified expression syntax (`YYYYMMDD`, `YYYY-MM-DD`, prefixes like `202611`, ranges `A..B`, open ranges `A..` / `..B`, comparators `>=`/`<=`/`>`/`<`, and relative windows like `7d` / `24h`); batched git/artifact history timestamps for `--created-time` and `--modified-time` with filesystem fallback for uncommitted/untracked files, and align `aw att --order-by mtime|ctime` to the same source (recommended).**
+  2. **Same unified expression syntax, using raw filesystem `stat()` timestamps only for `--mtime` / `--ctime`.**
+  3. **Separate `--since` / `--until` style pairs per timestamp (`--date-since`, `--date-before`, `--mtime-since`, `--ctime-since`).**
+- Recommendation: Option 1 (unified expression syntax with durable batched git/history timestamps and working-tree fallback, aligned with `aw att --order-by mtime|ctime`).
+- Resolution or deferral rationale: RESOLVED 2026-11-22 by the user via /askme: Option A (unified expression syntax supporting exact dates, prefixes, closed/open `..` ranges, quoted comparators, and relative windows like `7d`/`24h`; backed by batched git/artifact history timestamps with filesystem fallback for uncommitted/untracked files, and aligning `aw att --order-by mtime|ctime` to the same source). No reason was given.
 
 ### OQ-04: How should existing short-flag collisions (`-p`, `-S`, `-s`, `-t`) be resolved across commands?
 
