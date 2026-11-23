@@ -97,6 +97,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-150-0i0zsg-move-the-review-sequence-tier-rereview-and-orchestrator-read.ipd.md
 - E-02, production, work and adoption subset (`production_checks`, `work_cmd`, `artifact_adopt`). Moved to awmsyq (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: awmsyq
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-154-awmsyq-move-the-production-checks-work-cmd-and-artifact-adopt-reads.ipd.md
 - The WRITE half of `review_sequence.restore_pre_s7_plan`.
   - Carrier: xexn45
   - Carrier-Evidence: .aw/records/plans/executed/20261102-metastore-07-xexn45-move-the-remaining-metadata-writers-onto-artifact-meta.ipd.md
