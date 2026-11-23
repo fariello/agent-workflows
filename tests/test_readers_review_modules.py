@@ -17,6 +17,8 @@ Pins the observable behavior of:
   ``_read_from_backlog``, ``spec_plan_count``, ``spec_plan_conformance``,
   ``spec_plan_gate_carry``, ``spec_plan_trace``, ``backlog_graduate_count``,
   ``backlog_graduate_ipd``, ``backlog_gate_handoff``, ``backlog_graduate_legitimacy``.
+- ``agent_workflows.work_cmd``: ``_plan_id6``, ``_plan_status``, ``_plan_scope_paths``,
+  ``_warn_if_begin_skipped``, ``_default_commit_message``, ``run_commit``, ``run_test``.
 
 All fixtures live in isolated ``tmp_path`` repositories; no test reads production source or the
 live repository's ``.aw/records/`` tree.
@@ -24,10 +26,11 @@ live repository's ``.aw/records/`` tree.
 
 from __future__ import annotations
 
+import argparse
 import io
 import json
 import subprocess
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -42,6 +45,7 @@ from agent_workflows import (
     review_sequence,
     review_tier,
     reviews,
+    work_cmd,
 )
 from agent_workflows import review_findings as rf
 from tests.record_builder import RecordBuilder
@@ -1906,3 +1910,168 @@ class TestProductionChecksReaders:
             )
             == 1
         )
+
+
+class TestWorkCmdReaders:
+    """Pins work_cmd metadata readers (_plan_id6, _plan_status, _warn_if_begin_skipped, _plan_scope_paths, _default_commit_message)."""
+
+    def test_work_cmd_plan_helpers_and_default_commit_message(self) -> None:
+        plan_text = _snapshot_plan(
+            id6="wk1001",
+            status="approved",
+            scope_paths="agent_workflows/work_cmd.py, tests/test_scope_match.py",
+        )
+        assert work_cmd._plan_id6(plan_text) == "wk1001"
+        assert work_cmd._plan_status(plan_text) == "approved"
+        paths, is_gf = work_cmd._plan_scope_paths(plan_text)
+        assert paths == ["agent_workflows/work_cmd.py", "tests/test_scope_match.py"]
+        assert is_gf is False
+        assert (
+            work_cmd._default_commit_message(
+                plan_text,
+                ".aw/records/plans/pending/20261109-demo-01-wk1001-pin.ipd.md",
+            )
+            == "work(wk1001): Pinning snapshot plan"
+        )
+
+        # Titleless plan still extracts - Id: and falls back to filename slug.
+        titleless = "\n".join(
+            ln for ln in plan_text.splitlines() if not ln.startswith("# ")
+        )
+        assert work_cmd._plan_id6(titleless) == "wk1001"
+        assert (
+            work_cmd._default_commit_message(
+                titleless,
+                ".aw/records/plans/pending/20261109-demo-01-wk1001-pin-slug.ipd.md",
+            )
+            == "work(wk1001): pin-slug"
+        )
+
+        # Missing id6 and status return None and fall back to plan_rel.
+        bare = "# Notes\n\nNo front matter.\n"
+        assert work_cmd._plan_id6(bare) is None
+        assert work_cmd._plan_status(bare) is None
+        assert work_cmd._plan_scope_paths(bare) == ([], False)
+        assert (
+            work_cmd._default_commit_message(bare, "notes/raw.md")
+            == "work: notes/raw.md"
+        )
+
+    def test_work_cmd_warn_if_begin_skipped_and_commit_flow(
+        self, tmp_path: Path
+    ) -> None:
+        _init_git_repo(tmp_path)
+        (tmp_path / ".gitignore").write_text(".aw/state/\n", encoding="utf-8")
+        cfg_dir = tmp_path / ".aw" / "config"
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        (cfg_dir / "project.json").write_text(
+            json.dumps({"cutovers": {"ipd_begin_receipt": "2026-09-01"}}) + "\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "app.py").write_text("v = 1\n", encoding="utf-8")
+
+        # Post-cutover approved plan with no date in filename -> uses - Date: fallback.
+        plans_dir = tmp_path / ".aw" / "records" / "plans" / "pending"
+        plans_dir.mkdir(parents=True, exist_ok=True)
+        nodate_plan = plans_dir / "custom-nodate.ipd.md"
+        nodate_text = RecordBuilder().plan(
+            id6="wk2001",
+            title="No-date approved plan",
+            when="2026-11-09",
+            status="approved",
+            set="wkset",
+            order=1,
+            scope_paths="src/app.py",
+            item_dependencies="none",
+            priority="medium",
+            work_kind="feature",
+            highest_e_allocated="01",
+            author="tester",
+            history=["- 2026-11-09 approved (aw set): approved"],
+            body=_SNAPSHOT_BODY,
+            text_only=True,
+        )
+        nodate_plan.write_text(nodate_text, encoding="utf-8")
+
+        # Pre-cutover approved plan with no date in filename -> suppressed by - Date: fallback.
+        old_plan = plans_dir / "legacy-nodate.ipd.md"
+        old_text = nodate_text.replace("2026-11-09", "2020-01-01").replace(
+            "wk2001", "wk2002"
+        )
+        old_plan.write_text(old_text, encoding="utf-8")
+
+        # Non-approved plan -> never warns.
+        review_plan = _conforming_production_plan(
+            tmp_path,
+            id6="wk2003",
+            setid="wkset",
+            order=3,
+            status="to-review",
+            scope_paths="src/app.py",
+        )
+        review_text = review_plan.read_text(encoding="utf-8")
+
+        err_post = io.StringIO()
+        with redirect_stderr(err_post):
+            work_cmd._warn_if_begin_skipped(
+                "aw commit", tmp_path, nodate_plan, nodate_text
+            )
+        assert "no begin receipt for wk2001" in err_post.getvalue()
+
+        err_pre = io.StringIO()
+        with redirect_stderr(err_pre):
+            work_cmd._warn_if_begin_skipped("aw commit", tmp_path, old_plan, old_text)
+        assert err_pre.getvalue() == ""
+
+        err_non_approved = io.StringIO()
+        with redirect_stderr(err_non_approved):
+            work_cmd._warn_if_begin_skipped(
+                "aw commit", tmp_path, review_plan, review_text
+            )
+        assert err_non_approved.getvalue() == ""
+
+        # Full aw test + aw commit path with a tracked conforming approved plan.
+        live_plan = _conforming_production_plan(
+            tmp_path,
+            id6="wk2004",
+            setid="wkset",
+            order=4,
+            status="approved",
+            scope_paths="src/app.py",
+        )
+        subprocess.run(
+            ["git", "add", ".gitignore", "src/app.py", str(live_plan)],
+            cwd=tmp_path,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-qm", "seed work plan"], cwd=tmp_path, check=True
+        )
+
+        buf_test = io.StringIO()
+        with redirect_stdout(buf_test), redirect_stderr(io.StringIO()):
+            rc_t = work_cmd.run_test(
+                argparse.Namespace(
+                    plan="wk2004",
+                    dir=str(tmp_path),
+                    cmd_argv=["--", "python3", "-c", "print('ok')"],
+                )
+            )
+        assert rc_t == 0
+        assert "recorded evidence for wk2004" in buf_test.getvalue()
+
+        (tmp_path / "src" / "app.py").write_text("v = 2\n", encoding="utf-8")
+        buf_commit = io.StringIO()
+        with redirect_stdout(buf_commit), redirect_stderr(io.StringIO()):
+            rc_c = work_cmd.run_commit(
+                argparse.Namespace(
+                    path_argv=["wk2004", "--dir", str(tmp_path), "--", "src/app.py"],
+                    trailers=[],
+                )
+            )
+        assert rc_c == 0, buf_commit.getvalue()
+        subj = subprocess.check_output(
+            ["git", "log", "-1", "--format=%s"], cwd=tmp_path, text=True
+        ).strip()
+        assert subj == "work(wk2004): Plan wk2004"

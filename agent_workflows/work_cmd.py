@@ -210,22 +210,92 @@ def _resolve_plan(
     return res.paths[0], None
 
 
-def _plan_id6(text: str) -> Optional[str]:
-    import re
+def _plan_id6_from_state(st) -> Optional[str]:
+    if st is None:
+        return None
+    if (
+        not getattr(st, "id_derived", False)
+        and getattr(st, "id6", None)
+        and _core.is_valid_id6(st.id6)
+    ):
+        return str(st.id6)
+    loose_id = getattr(st, "loose_id", None)
+    if loose_id and _core.is_valid_id6(str(loose_id)):
+        return str(loose_id)
+    return None
 
-    m = re.search(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", text)
-    return m.group(1) if m else None
+
+def _plan_status_from_state(st) -> Optional[str]:
+    status = _ce._plan_status_from_state(st)
+    if status:
+        return status
+    loose = getattr(st, "loose_status", None)
+    if loose:
+        return str(loose).strip() or None
+    return None
+
+
+def _read_plan_state(repo_root: Path, plan_path: Path, text: Optional[str] = None):
+    """Read plan metadata via ``artifact_meta.resolve``/``read``, falling back to ``read_text``."""
+    from agent_workflows import artifact_meta as _am
+    from agent_workflows import artifact_naming as _an
+
+    if repo_root.is_dir() and plan_path.is_file():
+        try:
+            resolved = plan_path.resolve()
+            ctx = _am.legacy_context(repo_root)
+            records_root = Path(ctx.logical_roots["records"])
+            scan_repo = _am._scan_repo_root(ctx, records_root) or repo_root.resolve()
+            stored = _am.stored_path(resolved, records_root, scan_repo)
+        except Exception:
+            stored = None
+
+        if stored is not None:
+            with _am.scan_once(), _am.ephemeral_if_uninitialized():
+                try:
+                    canonical_stored = _am.resolve(stored, project_context=ctx)
+                except Exception:
+                    canonical_stored = None
+                if canonical_stored:
+                    parts = _an.identity_parts(resolved.name)
+                    cand_id6 = parts[3] if (parts and parts[3]) else None
+                    if cand_id6 and _core.is_valid_id6(cand_id6):
+                        try:
+                            if (
+                                _am.resolve(cand_id6, project_context=ctx)
+                                == canonical_stored
+                            ):
+                                return _am.read(cand_id6, project_context=ctx)
+                        except Exception:
+                            pass
+                    try:
+                        rows = _am.query(
+                            type="ipd", path=canonical_stored, project_context=ctx
+                        )
+                        for row in rows.rows:
+                            if row.id6 and row.path == canonical_stored:
+                                return _am.read(row.id6, project_context=ctx)
+                    except Exception:
+                        pass
+
+    raw_text = text if text is not None else plan_path.read_text(encoding="utf-8")
+    return _am.read_text(raw_text, record_type="ipd")
+
+
+def _plan_id6(text: str) -> Optional[str]:
+    from agent_workflows import artifact_meta as _am
+
+    return _plan_id6_from_state(_am.read_text(text, record_type="ipd"))
 
 
 def _plan_status(text: str) -> Optional[str]:
-    import re
+    from agent_workflows import artifact_meta as _am
 
-    m = re.search(r"(?m)^- Status:\s*(\S+)\s*$", text)
-    return m.group(1) if m else None
+    return _plan_status_from_state(_am.read_text(text, record_type="ipd"))
 
 
 def _warn_if_begin_skipped(
-    verb: str, repo_root: Path, plan_path: Path, text: str
+    verb: str, repo_root: Path, plan_path: Path, text: str, *, state=None
 ) -> None:
     """legacyfin `18kg7o` E-06: warn, at the moment it can still be fixed, that `begin` was skipped.
 
@@ -235,11 +305,18 @@ def _warn_if_begin_skipped(
     """
 
     try:
-        if (_plan_status(text) or "").lower() not in ("approved", "auto-approved"):
+        st = (
+            state if state is not None else _read_plan_state(repo_root, plan_path, text)
+        )
+        if (_plan_status_from_state(st) or "").lower() not in (
+            "approved",
+            "auto-approved",
+        ):
             return
-        plan_id = _plan_id6(text)
+        plan_id = _plan_id6_from_state(st)
         if not plan_id:
             return
+        from agent_workflows import artifact_meta as _am
         from agent_workflows import config as _config
         from agent_workflows import ipd_lifecycle as _life
 
@@ -248,10 +325,18 @@ def _warn_if_begin_skipped(
         baseline = _life.derive_baseline(repo_root, plan_path)
         date = baseline.date if baseline else None
         if date is None:
-            import re
-
-            m = re.search(r"(?m)^- Date:\s*(\S+)", text)
-            date = m.group(1) if m else None
+            raw_date = (
+                (getattr(st, "fields", None) or {}).get("date")
+                or getattr(st, "created_day", None)
+                or getattr(st, "filename_date", None)
+            )
+            if not raw_date and text:
+                raw_date = (_am.read_text(text, record_type="ipd").fields or {}).get(
+                    "date"
+                )
+            if raw_date:
+                toks = str(raw_date).strip().split()
+                date = toks[0] if toks else None
         if _config.plan_predates_cutover(repo_root, "ipd_begin_receipt", date):
             return
         sys.stderr.write(
@@ -263,14 +348,20 @@ def _warn_if_begin_skipped(
         return
 
 
-def _plan_scope_paths(text: str) -> Tuple[List[str], bool]:
+def _plan_scope_paths(text: str, *, state=None) -> Tuple[List[str], bool]:
     """The plan's declared Scope-Paths (entries, is_grandfathered). Empty list when absent."""
-    from agent_workflows import ipd_lint as _lint
+    from agent_workflows import artifact_meta as _am
     from agent_workflows import ipd_schema as _schema
 
-    doc = _lint.parse(text)
-    sp_value = doc.meta_fields.get(_schema.META_SCOPE_PATHS)
-    if not sp_value:
+    st = state if state is not None else _am.read_text(text, record_type="ipd")
+    raw_sp = (getattr(st, "fields", None) or {}).get("scope_paths")
+    if not raw_sp:
+        return [], False
+    if isinstance(raw_sp, list):
+        sp_value = ", ".join(str(x).strip() for x in raw_sp if str(x).strip())
+    else:
+        sp_value = str(raw_sp)
+    if not sp_value.strip():
         return [], False
     paths, is_grandfathered, _errs = _schema.parse_scope_paths(sp_value)
     return paths, is_grandfathered
@@ -377,7 +468,8 @@ def run_work_begin(args: argparse.Namespace) -> int:
     except OSError as exc:
         print(f"error: cannot read plan: {exc}")
         return 2
-    plan_id = _plan_id6(text) or plan_path.stem
+    plan_state = _read_plan_state(repo_root, plan_path, text)
+    plan_id = _plan_id6_from_state(plan_state) or plan_path.stem
 
     # Validate BEFORE mutating (findings 7.4): fail closed on error-severity findings; warnings are printed as advisories.
     blocking, advisory = _validate_plan_via_engine(repo_root, plan_path)
@@ -521,8 +613,9 @@ def run_test(args: argparse.Namespace) -> int:
     except OSError as exc:
         print(f"error: cannot read plan: {exc}")
         return 2
-    plan_id = _plan_id6(text) or plan_path.stem
-    _warn_if_begin_skipped("aw test", repo_root, plan_path, text)
+    plan_state = _read_plan_state(repo_root, plan_path, text)
+    plan_id = _plan_id6_from_state(plan_state) or plan_path.stem
+    _warn_if_begin_skipped("aw test", repo_root, plan_path, text, state=plan_state)
 
     # Capture the git HEAD + tree the evidence is bound to (BEFORE running, the state under test).
     _rc, head_out, _e = _git(repo_root, ["rev-parse", "HEAD"])
@@ -836,7 +929,7 @@ def _runner_from_args(args: argparse.Namespace) -> str:
     return _gch.RUNNER_AW_COMMIT
 
 
-def _default_commit_message(plan_text: str, plan_rel: str) -> str:
+def _default_commit_message(plan_text: str, plan_rel: str, *, state=None) -> str:
     """Derive the default commit message for ``aw commit <plan>`` (backlog qivywd, IPD isgno7).
 
     Derives:
@@ -847,7 +940,16 @@ def _default_commit_message(plan_text: str, plan_rel: str) -> str:
 
     Pure (no I/O); never raises (any parse failure falls through to the next rung).
     """
-    id6 = _plan_id6(plan_text)
+    st = state
+    if st is None:
+        try:
+            from agent_workflows import artifact_meta as _am
+
+            st = _am.read_text(plan_text, record_type="ipd")
+        except Exception:
+            st = None
+
+    id6 = _plan_id6_from_state(st)
     if not (id6 and _core.is_valid_id6(id6)):
         id6 = None
         try:
@@ -866,10 +968,7 @@ def _default_commit_message(plan_text: str, plan_rel: str) -> str:
 
     title = ""
     try:
-        from agent_workflows import ipd_lint as _lint
-
-        parsed = _lint.parse(plan_text)
-        raw_title = parsed.title.strip() if parsed and parsed.title else ""
+        raw_title = (getattr(st, "title", None) or "").strip() if st is not None else ""
         if raw_title.startswith("IPD:"):
             raw_title = raw_title[4:].strip()
         title = raw_title
@@ -1006,7 +1105,8 @@ def run_commit(args: argparse.Namespace) -> int:
         except OSError as exc:
             print(f"error: cannot read plan: {exc}")
             return 2
-        plan_id = _plan_id6(plan_text) or plan_path.stem
+        plan_state_sr = _read_plan_state(repo_root, plan_path, plan_text)
+        plan_id = _plan_id6_from_state(plan_state_sr) or plan_path.stem
 
         _rc, _msg, evidence, _findings = _life.finalize_precheck(repo_root, plan_path)
         scope_audit = evidence.get("scope_audit", {}) or {}
@@ -1046,15 +1146,19 @@ def run_commit(args: argparse.Namespace) -> int:
     is_grandfathered = False
     plan_rel = ""
     plan_id = ""
+    plan_state = None
     if plan_path is not None:
         try:
             text = plan_path.read_text(encoding="utf-8")
         except OSError as exc:
             print(f"error: cannot read plan: {exc}")
             return 2
-        scope_paths, is_grandfathered = _plan_scope_paths(text)
-        plan_id = _plan_id6(text) or plan_path.stem
-        _warn_if_begin_skipped("aw commit", repo_root, plan_path, text)
+        plan_state = _read_plan_state(repo_root, plan_path, text)
+        scope_paths, is_grandfathered = _plan_scope_paths(text, state=plan_state)
+        plan_id = _plan_id6_from_state(plan_state) or plan_path.stem
+        _warn_if_begin_skipped(
+            "aw commit", repo_root, plan_path, text, state=plan_state
+        )
         try:
             plan_rel = str(plan_path.relative_to(repo_root)).replace("\\", "/")
         except ValueError:
@@ -1129,7 +1233,9 @@ def run_commit(args: argparse.Namespace) -> int:
             return 1
 
     # Commit ONLY the requested paths by REUSING the shared path-scoped helper.
-    message = getattr(args, "message", None) or _default_commit_message(text, plan_rel)
+    message = getattr(args, "message", None) or _default_commit_message(
+        text, plan_rel, state=plan_state
+    )
     outcome = _gch.offer_commit(
         repo_root,
         paths,
@@ -1180,7 +1286,8 @@ def run_finish(args: argparse.Namespace) -> int:
     except OSError as exc:
         print(f"error: cannot read plan: {exc}")
         return 2
-    plan_id = _plan_id6(text) or plan_path.stem
+    plan_state = _read_plan_state(repo_root, plan_path, text)
+    plan_id = _plan_id6_from_state(plan_state) or plan_path.stem
     target = getattr(args, "to", None)
 
     # Authority honesty (hard MUST): aw finish must NEVER perform the authoritative terminal
