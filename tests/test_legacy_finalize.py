@@ -555,8 +555,15 @@ class IndexFindingOnAnotherPlanTests(_Repo):
         )
         self.assertEqual(code, 0, out + err)
         self.assertNotIn("COMMITTED-INCOMPLETE", out + err)
-        self.assertIn("20260702-0001-01-other.ipd.md: id-missing", out + err)
+        # Plan `lywgzs` (spec `4sd62s` AC-26): finalize no longer scans the plans index, so the
+        # neighbour's `id-missing` is neither a failure nor a finalize warning; `aw check` reports it.
+        self.assertNotIn("id-missing", out + err)
         self.assertIsNone(LC.read_finalize_journal(self.root, "lg0001"))
+        self.assertTrue(
+            (
+                self.root / ".aw/records/plans/executed/20260701-0001-01-legacy.ipd.md"
+            ).is_file()
+        )
 
 
 class BoldHeaderIdBackfillTests(_Repo):

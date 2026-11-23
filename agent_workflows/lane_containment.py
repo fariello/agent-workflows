@@ -3936,10 +3936,12 @@ def inventory_lane(
             [path]
         ):
             # THE GENERATED INDEX MANIFESTS (`INDEX.json`/`INDEX.md`) are driver-written too, and this
-            # is MEASURED rather than anticipated: `aw ipd finalize` - which the DRIVER runs, inside
-            # the lane - calls `ipd_lifecycle._refresh_plans_index_fail_loud`, so EVERY successfully
-            # finalized lane holds them. Without this clause the gate preserved every successful lane
-            # forever, which is the "refusing always" failure that would make the whole rule useless.
+            # was MEASURED rather than anticipated: `aw ipd finalize` - which the DRIVER runs, inside
+            # the lane - used to regenerate them on every success, so EVERY successfully finalized lane
+            # held them. Finalize no longer writes them (plan `lywgzs`, spec `4sd62s` 4.5), but other
+            # `aw` verbs a lane may run can still regenerate them, and a lane can inherit stale copies.
+            # Without this clause the gate preserved every such lane forever, which is the "refusing
+            # always" failure that would make the whole rule useless.
             #
             # THE PREDICATE IS THE EXISTING SHARED ONE (`generated_manifest_paths`, spec R6.1), not a
             # second name list: the repository already has ONE definition of "this file is a generated

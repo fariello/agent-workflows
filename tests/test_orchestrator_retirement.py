@@ -2682,6 +2682,12 @@ class NoReceiptIsRequiredAndNoneIsLeftBehind(RollupTransitionCase):
         self.assertEqual(changed - expected, set())
         self.assertNotIn(".aw/records/plans/INDEX.json", changed)
         self.assertNotIn(".aw/records/plans/INDEX.md", changed)
+        # Plan `lywgzs` (spec `4sd62s` AC-26): the retirement writes no INDEX file to disk either.
+        for name in ("INDEX.json", "INDEX.md"):
+            self.assertFalse(
+                (self.root / ".aw" / "records" / "plans" / name).exists(),
+                f"the retirement created {name}",
+            )
 
         # Dirty orchestrator refused
         orch_d = self.make_set("dirty", [("aaa111", 1, "executed", "executed")])
@@ -2937,31 +2943,6 @@ class TheSharedGatesActuallyFireOnTheRollupPath(RollupTransitionCase):
             ).is_file()
         )
 
-    def test_a_FAILING_plans_index_refresh_fails_the_whole_transaction(self):
-        from unittest import mock
-        from agent_workflows import ipd_lifecycle as LC
-
-        orch = self.make_set("idx", [("aaa111", 1, "executed", "executed")])
-        head = _git(self.root, "rev-parse", "HEAD").strip()
-        with mock.patch.object(
-            LC, "_refresh_plans_index_fail_loud", side_effect=RuntimeError("index boom")
-        ):
-            res = self.retire(orch, "idx", apply=True)
-        self.assertNotEqual(res.exit_code, LC.EXIT_OK)
-        self.assertIn("index boom", res.message)
-        self.assertIn("COMMITTED-INCOMPLETE", res.message)
-        journal = LC.read_finalize_journal(self.root, "orc000")
-        assert journal is not None
-        self.assertEqual(journal["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
-        self.assertNotEqual(_git(self.root, "rev-parse", "HEAD").strip(), head)
-        self.assertEqual(res.commit, _git(self.root, "rev-parse", "HEAD").strip())
-        self.assertTrue(
-            (
-                self.root
-                / ".aw/records/plans/executed/20260906-idx-00-orc000-synthetic.ipd.md"
-            ).is_file()
-        )
-
 
 class GateParityBetweenTheTwoPaths(unittest.TestCase):
     """V-02: pin the ACCEPTED COST of shape (b) - two paths can DRIFT.
@@ -2971,8 +2952,9 @@ class GateParityBetweenTheTwoPaths(unittest.TestCase):
     gates BY NAME rather than by inspecting control flow, because the failure mode being defended
     against is precisely a gate silently missing from one path.
 
-    THE ENUMERATION IS DELIBERATELY LONGER THAN THE OBVIOUS FIVE. An earlier draft listed status
-    legality, the plan move, the index refresh, the commit and post-transition lint. `finalize` also
+    THE ENUMERATION IS DELIBERATELY LONGER THAN THE OBVIOUS FOUR. An earlier draft listed status
+    legality, the plan move, the commit and post-transition lint (plus an index refresh that plan
+    `lywgzs` removed from both paths, spec `4sd62s` AC-26). `finalize` also
     takes an EXCLUSIVE LOCK, writes a two-phase JOURNAL, performs EARLY CRASH RECOVERY and refuses an
     empty actor. A drift test built from the short list would pass while the rollup ran lockless and
     journal-less inside a live runner in a shared checkout.
@@ -2989,7 +2971,6 @@ class GateParityBetweenTheTwoPaths(unittest.TestCase):
         "transaction-journal": "PHASE_PREPARED..PHASE_COMPLETE two-phase journal",
         "status-legality": "checkpoint_allows_status('pre-transition', ...)",
         "plan-move": "status_set.apply_status_change moves the plan",
-        "plans-index-refresh-fail-loud": "_refresh_plans_index_fail_loud raises",
         "path-scoped-lifecycle-commit": "git commit -- <owned_paths>",
         "post-transition-lint": "_complete_after_commit lints post-transition",
         # plan `u23gbn` E-06. Listed HERE, in the contract table, for the same reason the lock and the
@@ -3017,7 +2998,6 @@ class GateParityBetweenTheTwoPaths(unittest.TestCase):
             "exclusive-finalize-lock",
             "transaction-journal",
             "early-crash-recovery",
-            "plans-index-refresh-fail-loud",
         ):
             self.assertIn(gate, LC.ROLLUP_SHARED_GATES)
 
@@ -4604,7 +4584,7 @@ class TheSharedCheckoutIsNotWhereTheMutationHappens(RollupTransitionCase):
     to the real one.
 
     THE ASSERTION IS A COMPARISON, NOT A CLAIM OF CLEANLINESS. The pre-change baseline, measured at
-    HEAD `73e284a6` by patching `_refresh_plans_index_fail_loud` (post-move) and
+    HEAD `73e284a6` by patching the then-existing post-move plans-index refresh (post-move) and
     `commit_lock.commit_isolated` (pre-commit), was:
 
         post-move:   RM .aw/records/plans/pending/<plan> -> .aw/records/plans/executed/<plan>
@@ -4630,11 +4610,11 @@ class TheSharedCheckoutIsNotWhereTheMutationHappens(RollupTransitionCase):
       shared-tree commit step is caught.
 
     THE RESIDUE THAT REMAINS, enumerated rather than left to be inferred: the peer's own unrelated
-    dirty file (never ours to touch), and after the transaction the two GITIGNORED plans manifests
-    (`INDEX.json`/`INDEX.md`), which are regenerated generated views that no `aw` verb commits and
-    which do not appear in this repository's own `git status` at all because `.aw/.gitignore` ignores
-    them. What must NOT appear at either instant is a staged rename of the plan or the plan present at
-    its `executed/` path in the shared tree.
+    dirty file (never ours to touch), and nothing else. The two `?? INDEX.json`/`INDEX.md` lines of
+    the old baseline are gone too: since plan `lywgzs` finalize regenerates no INDEX file at all
+    (spec `4sd62s` 4.5 and AC-26), so the shared tree holds no manifest residue after the transaction.
+    What must NOT appear at either instant is a staged rename of the plan or the plan present at its
+    `executed/` path in the shared tree.
     """
 
     def _retire_with_samples(self, setid: str):
@@ -5049,87 +5029,40 @@ class TheSharedTreeIsReconciledByARefusingFastForward(RollupTransitionCase):
         self.assertTrue(orch.is_file())
 
 
-class TheIndexGateIsStillLiveUnderTheNewOrdering(RollupTransitionCase):
-    """E-07/V-07: prove the `plans-index-refresh-fail-loud` gate GUARDS, not merely that it is named.
+class FinalizeWritesNoPlansIndexAfterTheReconciliation(RollupTransitionCase):
+    """Plan `lywgzs` (spec `4sd62s` 4.5 and AC-26): the transaction regenerates no INDEX file.
 
-    F-9 established that the test pinning this gate asserts only that its NAME appears in
-    `ROLLUP_SHARED_GATES`, so a gate lost IN FACT would be invisible. F-12 then measured exactly such
-    a loss: with the relocation moved into the coordinator worktree, a refresh left in its old position
-    scanned a shared disk that still showed `pending/`, converged against the OLD layout, and PASSED,
-    after which the merge made the manifest instantly stale.
+    This class used to prove the fail-loud plans-index refresh ran AFTER the reconciliation and raised
+    on non-convergence. That refresh is gone: the SQLite metadata cache replaces the INDEX files and
+    its freshness rule replaces the refresh. The success-path case is kept and retargeted to the new
+    contract: the reconciliation still lands the commit, and no `INDEX.json`/`INDEX.md` appears.
     """
 
-    def _manifest(self) -> str:
-        return (self.root / ".aw" / "records" / "plans" / "INDEX.json").read_text(
-            encoding="utf-8"
-        )
-
-    def _index_check_rc(self) -> int:
-        import argparse
-
-        from agent_workflows import plans_index as PIDX
-
-        return PIDX.run_index(
-            argparse.Namespace(
-                dir=str(self.root),
-                check=True,
-                agent=False,
-                json=False,
-                no_color=True,
-                limit=None,
-                quiet=True,
-            )
-        )
-
-    def test_index_gate_refreshes_after_reconciliation_and_fails_loud_on_non_convergence(
-        self,
-    ):
+    def test_retirement_reconciles_and_writes_no_plans_index(self):
         from unittest import mock
         from agent_workflows import ipd_lifecycle as LC
 
-        # 1. Success path: refresh runs AFTER reconciliation, manifest updated, check is clean
         orch = self.make_set("idxorder", [("aaa111", 1, "executed", "executed")])
+        plans = self.root / ".aw" / "records" / "plans"
+        for name in ("INDEX.json", "INDEX.md"):
+            self.assertFalse((plans / name).exists(), f"fixture sanity: {name}")
         order: list[str] = []
         real_land = LC.land_worktree_commit
-        real_refresh = LC._refresh_plans_index_fail_loud
 
         def spy_land(repo_root, landed, *, expected_base=None):
             order.append("reconcile")
             return real_land(repo_root, landed, expected_base=expected_base)
 
-        def spy_refresh(repo_root, **kwargs):
-            order.append("refresh")
-            return real_refresh(repo_root, **kwargs)
-
         with mock.patch.object(LC, "land_worktree_commit", spy_land):
-            with mock.patch.object(LC, "_refresh_plans_index_fail_loud", spy_refresh):
-                res = self.retire(orch, "idxorder", apply=True)
+            res = self.retire(orch, "idxorder", apply=True)
         self.assertEqual(res.exit_code, 0, res.message)
-        self.assertEqual(
-            order,
-            ["reconcile", "refresh"],
-            "the refresh must scan a disk that already holds the final layout",
-        )
-        manifest = self._manifest()
+        self.assertEqual(order, ["reconcile"])
         name = "20260906-idxorder-00-orc000-synthetic.ipd.md"
-        self.assertIn(f"executed/{name}", manifest)
-        self.assertNotIn(f"pending/{name}", manifest)
-        self.assertEqual(self._index_check_rc(), 0)
-
-        # 2. Genuine non-convergence fails loud post-commit
-        orch2 = self.make_set("idxrefuse", [("aaa111", 1, "executed", "executed")])
-        with mock.patch.object(
-            LC,
-            "_refresh_plans_index_fail_loud",
-            side_effect=RuntimeError("did not converge"),
-        ):
-            res2 = self.retire(orch2, "idxrefuse", apply=True)
-        self.assertNotEqual(res2.exit_code, LC.EXIT_OK, res2.message)
-        self.assertIn("did not converge", res2.message)
-        self.assertIn("COMMITTED-INCOMPLETE", res2.message)
-        journal = LC.read_finalize_journal(self.root, "orc000")
-        assert journal is not None
-        self.assertEqual(journal["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
+        self.assertTrue((plans / "executed" / name).is_file())
+        self.assertFalse((plans / "pending" / name).exists())
+        for idx in ("INDEX.json", "INDEX.md"):
+            self.assertFalse((plans / idx).exists(), f"the retirement created {idx}")
+        self.assertIsNone(LC.read_finalize_journal(self.root, "orc000"))
 
 
 class AFailedRetirementCannotDestroyAPeersInFlightEdit(RollupTransitionCase):
@@ -5283,25 +5216,46 @@ class AFailedRetirementLeavesTheManifestsAsItFoundThem(RollupTransitionCase):
             )
         )
 
+    def _seed_manifests(self) -> None:
+        """Write both manifests with `aw index plans`, so the PRESENT-beforehand case has bytes."""
+        import argparse
+
+        from agent_workflows import plans_index as PIDX
+
+        rc = PIDX.run_index(
+            argparse.Namespace(
+                dir=str(self.root),
+                check=False,
+                agent=False,
+                json=False,
+                no_color=True,
+                limit=None,
+                quiet=True,
+            )
+        )
+        self.assertEqual(rc, 0)
+
     def test_failed_retirement_preserves_manifest_absence_presence_and_peer_writes(
         self,
     ):
         from unittest import mock
         from agent_workflows import ipd_lifecycle as LC
 
-        # Case 1: ABSENT beforehand -> remains absent and no refresh called
-        calls: list[str] = []
-        real_refresh = LC._refresh_plans_index_fail_loud
+        from agent_workflows import plans_index as PIDX
 
-        def spy_refresh(repo_root):
-            calls.append(str(repo_root))
-            return real_refresh(repo_root)
+        # Case 1: ABSENT beforehand -> remains absent and no regeneration called
+        calls: list[str] = []
+        real_run_index = PIDX.run_index
+
+        def spy_refresh(args):
+            calls.append(str(getattr(args, "dir", "")))
+            return real_run_index(args)
 
         orch = self.make_set("mfabs", [("aaa111", 1, "executed", "executed")])
         for p in self._manifest_paths():
             self.assertFalse(p.exists(), f"fixture sanity: {p.name} must start absent")
 
-        with mock.patch.object(LC, "_refresh_plans_index_fail_loud", spy_refresh):
+        with mock.patch.object(PIDX, "run_index", spy_refresh):
             res = self.retire(orch, "mfabs", apply=True, fault_injection="after_move")
         self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN, res.message)
 
@@ -5312,7 +5266,7 @@ class AFailedRetirementLeavesTheManifestsAsItFoundThem(RollupTransitionCase):
 
         # Case 2: PRESENT beforehand -> remains byte-identical
         orch2 = self.make_set("mfpres", [("aaa111", 1, "executed", "executed")])
-        LC._refresh_plans_index_fail_loud(self.root)
+        self._seed_manifests()
         before = self._manifest_state()
         for name, data in before.items():
             self.assertIsNotNone(data, f"fixture sanity: {name} must start present")
@@ -5324,7 +5278,7 @@ class AFailedRetirementLeavesTheManifestsAsItFoundThem(RollupTransitionCase):
 
         # Case 3: Peer's manifest write inside window is not clobbered
         orch3 = self.make_set("mfpeer", [("aaa111", 1, "executed", "executed")])
-        LC._refresh_plans_index_fail_loud(self.root)
+        self._seed_manifests()
         target = self.root / ".aw" / "records" / "plans" / "INDEX.json"
         peer_bytes = '{"peer": "wrote this during the window"}\n'
         real = LC._rollback_precommit
@@ -5342,21 +5296,22 @@ class AFailedRetirementLeavesTheManifestsAsItFoundThem(RollupTransitionCase):
         self.assertEqual(target.read_text(encoding="utf-8"), peer_bytes)
         self.assertIn("rolled back", res3.message)
 
-    def test_success_path_regenerates_index_and_failure_reporting_invariants(self):
+    def test_success_path_writes_no_index_and_failure_reporting_invariants(self):
         from unittest import mock
         from agent_workflows import ipd_lifecycle as LC
 
-        # Success path updates manifests
+        # Success path writes no manifests (plan `lywgzs`, spec `4sd62s` AC-26)
         orch = self.make_set("mfok", [("aaa111", 1, "executed", "executed")])
+        for p in self._manifest_paths():
+            self.assertFalse(p.exists(), f"fixture sanity: {p.name} must start absent")
         res = self.retire(orch, "mfok", apply=True)
         self.assertEqual(res.exit_code, LC.EXIT_OK, f"{res.message} {res.findings}")
-        manifest = (self.root / ".aw" / "records" / "plans" / "INDEX.json").read_text(
-            encoding="utf-8"
-        )
         name = "20260906-mfok-00-orc000-synthetic.ipd.md"
-        self.assertIn(f"executed/{name}", manifest)
-        self.assertNotIn(f"pending/{name}", manifest)
-        self.assertEqual(self._index_check_rc(), 0)
+        self.assertTrue(
+            (self.root / ".aw" / "records" / "plans" / "executed" / name).is_file()
+        )
+        for p in self._manifest_paths():
+            self.assertFalse(p.exists(), f"a SUCCESSFUL retirement created {p.name}")
 
         # Real cause failure reports unknown-outcome
         orch2 = self.make_set("mfarm", [("aaa111", 1, "executed", "executed")])
@@ -5401,7 +5356,7 @@ class AFailedRetirementLeavesTheManifestsAsItFoundThem(RollupTransitionCase):
                     f"inv{i}", [("aaa111", 1, "executed", "executed")]
                 )
                 if present:
-                    LC._refresh_plans_index_fail_loud(self.root)
+                    self._seed_manifests()
                 else:
                     for p in self._manifest_paths():
                         p.unlink(missing_ok=True)

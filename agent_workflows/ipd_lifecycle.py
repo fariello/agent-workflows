@@ -3862,81 +3862,6 @@ def finalize_precheck(
     )
 
 
-def _refresh_plans_index_fail_loud(
-    repo_root: Path, plan_name: Optional[str] = None
-) -> List[str]:
-    """Refresh the owned plans index FAIL-LOUD (never the status_set swallow).
-
-    Regenerates the index, then verifies freshness via `--check`. Raises RuntimeError on any
-    failure so finalize treats a stale/failed index as a TRANSACTION failure, not a silent success.
-
-    FINDINGS ABOUT OTHER PLANS ARE RETURNED, NOT RAISED (legacyfin `9en4fy` E-06). With
-    ``plan_name`` (the finalized plan's file name), a finding located on a DIFFERENT plan file (for
-    example a legacy pending plan with no `- Id:`) cannot be caused or fixed by this transition, so it
-    comes back as a warning line and the finalize completes. MEASURED: one unrelated id-less pending
-    plan left a successful move reported as COMMITTED-INCOMPLETE, and re-running could not help. A
-    finding on the manifests themselves or on THIS plan still raises.
-    """
-    import argparse
-
-    from agent_workflows import artifact_core as _core
-    from agent_workflows import plans_index as _pidx
-
-    # Regenerate (no swallow: any exception propagates).
-    _pidx.run_index(
-        argparse.Namespace(
-            dir=str(repo_root),
-            check=False,
-            as_agent=False,
-            agent=False,
-            json=False,
-            no_color=True,
-            limit=None,
-            quiet=True,
-        )
-    )
-    # Verify it is now fresh.
-    resolved_repo_root, plans_dir = _pidx._dirs(argparse.Namespace(dir=str(repo_root)))
-    drift = _pidx.check_drift(
-        resolved_repo_root, plans_dir, limit=_pidx.DEFAULT_INDEX_LIMIT
-    )
-    rc = _core.drift_exit_code(drift)
-    other_plan_warnings: List[str] = []
-    if rc != 0 and plan_name:
-        failing_all = [d for d in drift if getattr(d, "severity", "") != "info"]
-
-        # PER-PLAN metadata rules only: a missing/invalid Id or a name/metadata mismatch is a fact
-        # about ONE plan file. Stale/missing manifests and dangling citations are not, and still raise.
-        per_plan_rules = ("id-missing", "id-invalid", "name-metadata-mismatch")
-
-        def _about_other_plan(d: Any) -> bool:
-            if getattr(d, "rule", "") not in per_plan_rules:
-                return False
-            loc = str(getattr(d, "location", "")).replace("\\", "/")
-            return loc.rsplit("/", 1)[-1] != plan_name
-
-        others = [d for d in failing_all if _about_other_plan(d)]
-        if others and len(others) == len(failing_all):
-            return [
-                f"plans index: {d.location}: {d.rule}: {d.detail} (another plan; not caused by "
-                "this finalize; fix it separately)"
-                for d in others
-            ]
-    if rc != 0:
-        failing = [d for d in drift if getattr(d, "severity", "") != "info"]
-        rendered = [f"{d.location}: {d.rule}: {d.detail}" for d in failing[:10]]
-        if len(failing) > 10:
-            rendered.append(f"... ({len(failing) - 10} more findings omitted)")
-        msg = (
-            "owned plans index refresh did not converge (aw index plans --check nonzero); "
-            "finalize fails closed rather than committing a stale index."
-        )
-        if rendered:
-            msg = f"{msg}\n" + "\n".join(rendered)
-        raise RuntimeError(msg)
-    return other_plan_warnings
-
-
 def _pre_commit_phase_leaves_manifests_untouched() -> str:
     """The invariant that lets :func:`_rollback_precommit` restore the manifests by NOT writing them.
 
@@ -3955,14 +3880,15 @@ def _pre_commit_phase_leaves_manifests_untouched() -> str:
     * the manifests are GITIGNORED, so a fresh worktree never receives them and any regeneration
       inside one is discarded with the worktree (see :func:`_finalize_transaction`).
 
-    So the only shared-tree manifest write in the transaction is
-    :func:`_refresh_plans_index_fail_loud`, and it is called on the SUCCESS path only, deliberately
-    AFTER the reconciliation.
+    The SUCCESS path writes them no longer either (plan `lywgzs`, spec `4sd62s` 4.5 and AC-26): a
+    finalize regenerates no INDEX file at all, because the SQLite metadata cache replaces the INDEX
+    files and its own freshness rule keeps readers current. So no phase of the transaction, success or
+    failure, writes the shared manifests.
     """
     return (
         "the pre-commit phase performs its mutations in a coordinator worktree and the plans "
-        "manifests are gitignored, so the SHARED INDEX.json/INDEX.md are untouched until the "
-        "post-reconciliation refresh; a rollback therefore restores them by not writing them."
+        "manifests are gitignored, and no phase of finalize regenerates them, so the SHARED "
+        "INDEX.json/INDEX.md are never written; a rollback therefore restores them by not writing them."
     )
 
 
@@ -4694,11 +4620,12 @@ def _rollback_precommit(
     an otherwise clean rollback on the last-resort path.
 
     CONSEQUENCE, STATED PLAINLY (plan `4xt6u4` E-01): a rollback NO LONGER FAILS because of manifest
-    trouble. The old step 4 raised through `_refresh_plans_index_fail_loud` and became
-    `(False, "rollback index regeneration failed: ...")`; that arm is gone with its subject. This is
-    deliberate and is not a weakened gate: the SUCCESS path's fail-loud refresh is untouched (it
-    still runs after the reconciliation and still raises, see :func:`_finalize_transaction`), an
-    absent manifest is only `check.stale-index-missing` at severity `info`, and escalating a rollback
+    trouble. The old step 4 raised through the fail-loud plans-index refresh and became
+    `(False, "rollback index regeneration failed: ...")`; that arm is gone with its subject. Since
+    plan `lywgzs` the SUCCESS path regenerates no INDEX file either (spec `4sd62s` 4.5: the SQLite
+    metadata cache replaces the INDEX files, and AC-26's cache freshness rule replaces the refresh),
+    so no finalize path writes the manifests. An absent manifest is only
+    `check.stale-index-missing` at severity `info`, and escalating a rollback
     to `PHASE_UNKNOWN_OUTCOME` over a file `aw index plans` regenerates would block an operator for
     no safety gain. This function's own failure arms (destination changed, origin holds a peer's
     content, cannot remove/restore) are unaffected and still report `unknown-outcome`.
@@ -4970,7 +4897,7 @@ def _early_recovery_result(
 #
 # HE ALSO ACCEPTED THE COST EXPLICITLY: two transition paths CAN DRIFT. Two things manage that. The
 # gates that can be SHARED are shared as code (`_early_recovery_result`, `acquire_finalize_lock`,
-# `_refresh_plans_index_fail_loud`, `_finalize_transaction`, `_complete_after_commit`), so they are
+# `_finalize_transaction`, `_complete_after_commit`), so they are
 # not on the drift surface at all; and `ROLLUP_SHARED_GATES` / `ROLLUP_OMITTED_GATES` below name the
 # full gate set explicitly so a test can FAIL when one path gains a gate the other lacks.
 # --------------------------------------------------------------------------------------
@@ -5014,14 +4941,9 @@ ROLLUP_SHARED_GATES: Tuple[str, ...] = (
     # COORDINATOR-OWNED WORKTREE since plan `u23gbn`, not in the shared checkout, so the shared tree is
     # never mid-move; the shared tree is then brought into line by the refusing fast-forward below.
     "plan-move",
-    # The FAIL-LOUD owned plans-index refresh, which re-runs `--check` and RAISES if it did not
-    # converge (`_refresh_plans_index_fail_loud`), so a stale index is a transaction failure. It runs
-    # AFTER the reconciliation (plan `u23gbn` E-07): with the move relocated to the worktree, refreshing
-    # earlier scanned a shared disk that did not yet reflect the transition, so the manifest converged
-    # against the OLD layout and the gate PASSED while leaving the repository in the exact
-    # `check.stale-index-stale` state it exists to prevent. Being post-commit, a failure here is
-    # committed-incomplete rather than a rollback; it is still fail-loud and still refuses.
-    "plans-index-refresh-fail-loud",
+    # NO PLANS-INDEX REFRESH (plan `lywgzs`). Neither path regenerates `INDEX.json`/`INDEX.md` any
+    # more: spec `4sd62s` 4.5 replaces the INDEX files with the SQLite metadata cache, and AC-26 makes
+    # finalize rely on that cache's freshness rule instead, so there is no index gate to share.
     # The single PATH-SCOPED lifecycle commit over exactly `owned_paths` (never `git add -A`), produced
     # in the coordinator worktree and landed in the shared checkout by the fast-forward below.
     "path-scoped-lifecycle-commit",
@@ -5894,9 +5816,9 @@ def _finalize_transaction(
 
     plans_dir = _plans_dir_of(repo_root, plan_path)
     dest_rel = _repo_relative(repo_root, plans_dir / "executed" / Path(plan_path).name)
-    # The generated plans manifests (INDEX.json/INDEX.md) are deliberately ABSENT here. They are
-    # still REGENERATED by the MUTATING phase below (`_refresh_plans_index_fail_loud`, a fail-loud
-    # gate), but they are generated output and are no longer committed by any `aw` verb, so naming
+    # The generated plans manifests (INDEX.json/INDEX.md) are deliberately ABSENT here. Finalize no
+    # longer writes them at all (plan `lywgzs`, spec `4sd62s` 4.5: the SQLite metadata cache replaces
+    # them), and they are generated output that no `aw` verb commits, so naming
     # them here would (a) put a gitignored path in the `git add` set, which exits 1 and stages
     # NOTHING, wedging the whole transaction, and (b) make `_rollback_precommit`'s
     # `git restore --staged -- <p>` emit a spurious "pathspec did not match" error for an untracked
@@ -6286,48 +6208,10 @@ def _finalize_transaction(
     journal["lifecycle_commit"] = lifecycle_commit
     _write_finalize_journal(repo_root, journal)
 
-    # --- THE FAIL-LOUD PLANS-INDEX REFRESH, DELIBERATELY AFTER THE RECONCILIATION (`u23gbn` E-07). ---
-    #
-    # THIS ORDERING IS LOAD-BEARING, NOT TIDINESS. The refresh regenerates the manifests by SCANNING
-    # THE PLANS TREE ON DISK and then re-runs `--check`, RAISING if it did not converge. While the
-    # relocation happened in the shared tree, running it inside the mutating phase was correct: the
-    # disk already showed the plan at `executed/`. Once the relocation moved into the coordinator
-    # worktree, the shared disk still showed `pending/` at that point, so the manifest was generated
-    # describing the OLD layout, converged against it, and the gate PASSED -- and then the merge
-    # relocated the file and the manifest was instantly stale. MEASURED: the manifest named the
-    # `pending/` path and not the `executed/` one, and `aw index plans --check` returned rc=1 with
-    # `check.stale-index-stale` on BOTH manifests, which is exactly the state the gate exists to
-    # prevent, reported as success. So the gate did not merely mis-order, it INVERTED.
-    #
-    # DO NOT INSTEAD REGENERATE IN THE WORKTREE. The manifests are GITIGNORED, so a fresh worktree
-    # never receives them, a regeneration there is discarded with the worktree, and the shared copies
-    # keep their stale bytes.
-    #
-    # A FAILURE HERE IS NOW POST-COMMIT, hence COMMITTED-INCOMPLETE rather than a rollback: the journal
-    # is already in that phase above, the commit has LANDED, and a landed lifecycle commit is resumed,
-    # never reverted. The remedy is mechanical and local (`aw index plans`), because the manifests are
-    # gitignored generated views that no `aw` verb commits.
-    try:
-        index_warnings = _refresh_plans_index_fail_loud(
-            repo_root, plan_name=Path(dest_path).name
-        )
-        if index_warnings:
-            evidence["plans_index_warnings"] = index_warnings
-        _fault("after_index")
-    except Exception as exc:
-        evidence["plans_index_refresh"] = {"error": str(exc)}
-        return FinalizeResult(
-            EXIT_FINDINGS,
-            lifecycle_commit,
-            f"finalize is COMMITTED-INCOMPLETE for {plan_id}: the lifecycle commit "
-            f"{lifecycle_commit[:12]} LANDED, but the fail-loud plans-index refresh did not converge "
-            f"({exc}). The commit is NOT rolled back (a landed lifecycle commit is resumed, never "
-            "reverted) and the manifests are gitignored generated views, so the remedy is to run "
-            f"`aw index plans` and then re-run the SAME command to resume.",
-            evidence,
-            (f"plans-index refresh failed after the lifecycle commit: {exc}",),
-        )
-
+    # NO PLANS-INDEX REFRESH HERE (plan `lywgzs`). Finalize used to regenerate `INDEX.json`/`INDEX.md`
+    # at this point and fail the transaction when they did not converge. Spec `4sd62s` 4.5 replaces the
+    # INDEX files with the SQLite metadata cache, and AC-26 makes finalize rely on that cache's
+    # freshness rule instead, so a landed lifecycle commit goes straight to post-transition lint.
     return _complete_after_commit(
         repo_root, dest_path, plan_id, lifecycle_commit, actor, evidence
     )
@@ -6386,8 +6270,6 @@ def _complete_after_commit(
         f"finalized {plan_id} -> executed at {commit_hash[:12]} (actor {actor})."
         + _disregarded_unowned_note(evidence),
         evidence,
-        # legacyfin `9en4fy` E-06: index findings on OTHER plans, reported as warnings.
-        tuple(evidence.get("plans_index_warnings", ()) or ()),
     )
 
 

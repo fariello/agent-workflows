@@ -710,21 +710,21 @@ class FinalizeTests(unittest.TestCase):
             [f for f in findings if "stale" in f.lower() or "digest" in f.lower()]
         )
 
-    def test_fail_loud_index_refresh_aborts_transaction(self):
-        """A failing owned plans-index refresh must FAIL the transaction, never swallow + succeed."""
+    def test_finalize_writes_no_plans_index_files(self):
+        """Finalize completes without creating or rewriting INDEX.json/INDEX.md (spec 4sd62s AC-26)."""
+        plans = self.root / ".aw" / "records" / "plans"
         self._begin()
         self._do_inscope_work_and_commit()
-        with mock.patch.object(
-            LC, "_refresh_plans_index_fail_loud", side_effect=RuntimeError("index boom")
-        ):
-            result = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
-        self.assertNotEqual(result.exit_code, LC.EXIT_OK)
-        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
-        self.assertIn("index", result.message.lower())
-        self.assertIn("COMMITTED-INCOMPLETE", result.message)
-        journal = LC.read_finalize_journal(self.root, "abc123")
-        assert journal is not None
-        self.assertEqual(journal["phase"], LC.PHASE_COMMITTED_INCOMPLETE)
+        for name in ("INDEX.json", "INDEX.md"):
+            self.assertFalse((plans / name).exists(), f"fixture sanity: {name}")
+        result = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+        self.assertEqual(
+            result.exit_code, LC.EXIT_OK, f"{result.message} / {result.findings}"
+        )
+        self.assertTrue((plans / "executed" / self.plan.name).is_file())
+        for name in ("INDEX.json", "INDEX.md"):
+            self.assertFalse((plans / name).exists(), f"finalize created {name}")
+        self.assertIsNone(LC.read_finalize_journal(self.root, "abc123"))
 
 
 class ReconciliationTests(unittest.TestCase):
@@ -3590,8 +3590,13 @@ class MachineOutputPurityAndFailLoudDetailTests(unittest.TestCase):
         parsed_refuse = [json.loads(ln) for ln in agent_lines]
         self.assertTrue(any(r.get("schema") == "aw.agent/v1" for r in parsed_refuse))
 
-    def test_fail_loud_arm_refuses_on_genuine_non_convergence(self) -> None:
-        """(c) Genuine non-convergence (name-metadata-mismatch) refuses as COMMITTED-INCOMPLETE."""
+    def test_name_metadata_mismatch_finalizes_and_is_left_to_aw_check(self) -> None:
+        """(c) A filename id6 that disagrees with `- Id:` no longer fails finalize (plan `lywgzs`).
+
+        Finalize used to catch this through its plans-index refresh (`name-metadata-mismatch`) and
+        report COMMITTED-INCOMPLETE. That refresh is gone (spec `4sd62s` 4.5 and AC-26), so the
+        finalize completes, writes no INDEX file, and the mismatch is still reported by `aw check all`.
+        """
         self._setup_plan(
             filename="20260824-demo-01-zzzz99-demo.ipd.md", plan_id="abc123"
         )
@@ -3612,83 +3617,28 @@ class MachineOutputPurityAndFailLoudDetailTests(unittest.TestCase):
                 "--json",
             ]
         )
-        self.assertEqual(res_f.returncode, LC.EXIT_FINDINGS)
-        journal = LC.read_finalize_journal(self.root, "abc123")
-        self.assertIsNotNone(journal)
-        self.assertEqual(journal.get("phase"), LC.PHASE_COMMITTED_INCOMPLETE)
-        lifecycle_commit = journal.get("lifecycle_commit")
-        self.assertIsNotNone(lifecycle_commit)
-
-        # Lifecycle commit is NOT rolled back
-        proc = subprocess.run(
-            ["git", "cat-file", "-e", lifecycle_commit],
-            cwd=self.root,
-            capture_output=True,
+        self.assertEqual(res_f.returncode, 0, f"{res_f.stdout}\n{res_f.stderr}")
+        self.assertIsNone(LC.read_finalize_journal(self.root, "abc123"))
+        plans = self.root / ".aw" / "records" / "plans"
+        self.assertTrue(
+            (plans / "executed" / "20260824-demo-01-zzzz99-demo.ipd.md").is_file()
         )
-        self.assertEqual(
-            proc.returncode,
-            0,
-            f"lifecycle commit {lifecycle_commit} was rolled back or pruned",
-        )
-        head = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+        for name in ("INDEX.json", "INDEX.md"):
+            self.assertFalse((plans / name).exists(), f"finalize created {name}")
+        subject = subprocess.run(
+            ["git", "log", "-1", "--format=%s"],
             cwd=self.root,
             capture_output=True,
             text=True,
             check=True,
-        ).stdout.strip()
-        self.assertEqual(head, lifecycle_commit)
+        ).stdout
+        self.assertIn("abc123", subject)
 
-    def test_fail_loud_detail_reaches_payload(self) -> None:
-        """(d) Drift detail (name-metadata-mismatch) reaches the JSON payload summary/diagnostics."""
-        self._setup_plan(
-            filename="20260824-demo-01-zzzz99-demo.ipd.md", plan_id="abc123"
-        )
-        res_b = self._run_cli(["ipd", "begin", "abc123", "--actor", "opencode/test"])
-        self.assertEqual(res_b.returncode, 0, res_b.stderr)
-        self._do_inscope_work()
-
-        res_f = self._run_cli(
-            [
-                "ipd",
-                "finalize",
-                "abc123",
-                "--actor",
-                "opencode/test",
-                "-m",
-                "done",
-                "--apply",
-                "--json",
-            ]
-        )
-        self.assertEqual(res_f.returncode, LC.EXIT_FINDINGS)
-
-        # Recover payload
-        stdout = res_f.stdout.strip()
-        idx = stdout.find("{")
-        self.assertNotEqual(idx, -1, f"no JSON object found in stdout: {stdout}")
-        data = json.loads(
-            stdout[idx:]
-        )  # aw-unbounded-ok: JSON payload recovery from CLI stdout, json.loads enforces EOF
-
-        summary = data.get("summary", "")
-        diag_details = [d.get("detail", "") for d in data.get("diagnostics", [])]
-
-        # The literal rule name 'name-metadata-mismatch' must reach summary or diagnostic detail
-        has_rule = "name-metadata-mismatch" in summary or any(
-            "name-metadata-mismatch" in dt for dt in diag_details
-        )
-        self.assertTrue(
-            has_rule,
-            f"'name-metadata-mismatch' missing from summary and diagnostic details: summary={summary!r}, diag_details={diag_details!r}",
-        )
-
-        # Original sentence must still be present as prefix/substring (additive)
-        orig_sentence = (
-            "owned plans index refresh did not converge (aw index plans --check nonzero); "
-            "finalize fails closed rather than committing a stale index."
-        )
-        self.assertIn(orig_sentence, summary)
+        res_c = self._run_cli(["check", "all", "--json"])
+        self.assertNotEqual(res_c.returncode, 0, res_c.stdout)
+        data = json.loads(res_c.stdout)
+        rules = {d.get("rule") for d in data.get("diagnostics", [])}
+        self.assertIn("check.id6-identity-slot", rules, res_c.stdout)
 
 
 if __name__ == "__main__":
