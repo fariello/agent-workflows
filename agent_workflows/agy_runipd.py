@@ -2575,6 +2575,11 @@ def run_agy_turn(
     from agent_workflows import ipd_lifecycle
 
     child_env = pinned_child_env()
+    # vl3pvt: mirror of the oc twin. Strip inherited PWD/OLDPWD so the child agent and its shells
+    # resolve their working directory from the OS cwd (`agent_dir`) rather than the driver's main
+    # checkout.
+    child_env.pop("PWD", None)
+    child_env.pop("OLDPWD", None)
     self_finalize = options.get("self_finalize", True)
     if work_dir and self_finalize:
         child_env[ipd_lifecycle.EXECUTION_ROLE_ENV] = ipd_lifecycle.ROLE_WORKER

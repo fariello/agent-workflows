@@ -936,6 +936,9 @@ def run_checked(
     # module argv built by `pinned_module_argv`, which supplies the SUPPRESSING half that makes
     # the selecting half actually bite. One definition of the pin, not two.
     merged_env = env_builder(env)
+    if cwd is not None:
+        merged_env.pop("PWD", None)
+        merged_env.pop("OLDPWD", None)
     result = subprocess.run(
         argv,
         cwd=str(cwd) if cwd else None,
@@ -24157,6 +24160,8 @@ def ask_orchestrator_probe(
         else:  # pragma: no cover - the real spawn; every test injects `runner`
             _assert_probe_spawn_is_permitted(argv)
             probe_env = dict(os.environ)
+            probe_env.pop("PWD", None)
+            probe_env.pop("OLDPWD", None)
             probe_env["AW_NONINTERACTIVE"] = "1"
             completed = subprocess.run(
                 list(argv),

@@ -2588,6 +2588,7 @@ def observe_opencode_policy(
     opencode: str,
     child_env: dict[str, str],
     requested: dict[str, str],
+    cwd: str | Path | None = None,
 ) -> lane_containment.PolicyObservation:
     """Ask the host what its EFFECTIVE permission policy is, under the SAME env the child will get.
 
@@ -2602,6 +2603,7 @@ def observe_opencode_policy(
     will, rather than the driver's.
     """
 
+    probe_cwd = str(cwd) if cwd is not None else None
     version: str | None = None
     try:
         version_proc = subprocess.run(  # noqa: S603 - fixed argv, no shell
@@ -2610,6 +2612,7 @@ def observe_opencode_policy(
             text=True,
             timeout=_POLICY_PROBE_TIMEOUT_SECONDS,
             env=child_env,
+            cwd=probe_cwd,
         )
         if version_proc.returncode == 0:
             version = version_proc.stdout.strip().splitlines()[-1].strip() or None
@@ -2623,6 +2626,7 @@ def observe_opencode_policy(
             text=True,
             timeout=_POLICY_PROBE_TIMEOUT_SECONDS,
             env=child_env,
+            cwd=probe_cwd,
         )
     except Exception as exc:
         return lane_containment.evaluate_policy_observation(
@@ -2970,6 +2974,13 @@ def run_opencode(
     from agent_workflows import ipd_lifecycle
 
     child_env = pinned_child_env()
+    # vl3pvt: OpenCode v2 dropped `run --dir` and resolves its workspace from `$PWD` before
+    # `getcwd()`. `pinned_child_env()` copies the driver's environment (whose `$PWD` points at the
+    # main checkout), so a lane turn spawned with `cwd=agent_dir` would bind its session and shell
+    # to the main checkout instead of the isolated worktree. Stripping `PWD` and `OLDPWD` forces
+    # OpenCode and its child shells to resolve the working directory from the OS cwd (`agent_dir`).
+    child_env.pop("PWD", None)
+    child_env.pop("OLDPWD", None)
     self_finalize = options.get("self_finalize", True)
     if work_dir and self_finalize:
         child_env[ipd_lifecycle.EXECUTION_ROLE_ENV] = ipd_lifecycle.ROLE_WORKER
@@ -3069,7 +3080,9 @@ def run_opencode(
     # `unverified` and the turn CONTINUES: the probe is a DIAGNOSTIC, and the R4.4 bounds below
     # hold regardless of what the host decided, so letting a probe failure propagate would abort
     # turns that were otherwise fine.
-    observation = observe_opencode_policy(opencode, child_env, policy_request.policy)
+    observation = observe_opencode_policy(
+        opencode, child_env, policy_request.policy, cwd=agent_dir
+    )
     # The RECORDING is host-neutral (`lane_containment.record_host_posture`), so the record shape
     # is identical on both hosts and only the posture VALUE differs. See the agy twin for the
     # sanctioned asymmetry: that host passes no observation because it has no policy to observe.
