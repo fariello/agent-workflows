@@ -3446,6 +3446,7 @@ def run_queue(
     _integrate_stranded_lanes(run_dir, state)
 
     tracker = StreamTracker()
+    tracker.seed_from_state(state)
     state["_tracker"] = tracker
     if invocation_start_mono is None:
         invocation_start_mono = time.monotonic()

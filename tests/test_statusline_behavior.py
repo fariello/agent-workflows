@@ -998,7 +998,7 @@ class TestStatuslineClass:
             assert "Timeout:--:--" in outer.render_line()
 
             item["integration_signal"] = "integrating"
-            assert "Integrtg" in outer.render_line()
+            assert "Integrating" in outer.render_line()
 
         assert rs.get_active_statusline() is None
 
@@ -1191,25 +1191,18 @@ class TestUnifiedStatuslineLayout:
         assert "agy › gemini-2.5-pro (high)" in lines[0]
         assert "Tokens" not in lines[0]
 
-        # Line 1 has Now, Timeout (idle/limit), and unified Spend + Tokens subheaders
+        # Line 1 has Now, Timeout (idle/limit), and compact Tok: breakdown
         assert "Now:    " in lines[1]
         assert "Timeout:00:08/09:59" in lines[1]
-        assert "Spend" in lines[1]
-        assert "Tokens" in lines[1]
-        assert "In" in lines[1]
-        assert "Out" in lines[1]
-        assert "Cache" in lines[1]
+        assert "Tok:4.7m (in:119k out:110.7k c:4.5m)" in lines[1]
         # Spend and Tokens share one column with no vertical divider between them
         assert len(lines[1].split("│")[1:-1]) == 5
 
-        # Line 2 has Elapsed, Current, and unparenthesized out tag
+        # Line 2 has Elapsed, Current, unparenthesized out tag, and Spend
         assert "Elapsed:00:27:48" in lines[2]
         assert "Current:00:27:48 out " in lines[2]
         assert "(out)" not in lines[2]
-        assert "4.7m" in lines[2]
-        assert "119k" in lines[2]
-        assert "110.7k" in lines[2]
-        assert "4.5m" in lines[2]
+        assert "Spend:$6.16 ($6.16/item)" in lines[2]
 
         # 2. Subagent active: unparenthesized 'chat' displayed
         subagent_lines = rs.format_statusline_lines(
@@ -1331,8 +1324,8 @@ class TestCwdBadgeAndOptionARunId:
         assert _T.visible_width(lines[0]) == 140
         # CWD badge appears in top border
         assert " ~/repo/agent-workflows " in rs._strip_ansi(lines[0])
-        # Column 5 header has "Tokens" (not "Total")
-        assert "Tokens" in lines[1]
+        # Column 5 header has compact "Tok:" (not "Total")
+        assert "Tok:" in lines[1]
         assert "Total" not in lines[1]
         # Progress bar fills column to 100%
         row2 = rs._strip_ansi(lines[2])

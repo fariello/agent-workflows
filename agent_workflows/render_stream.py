@@ -519,6 +519,79 @@ class StreamTracker:
         self.cache_tokens += cache
         self.cost += cost
 
+    def seed_from_state(self, state: Mapping[str, Any] | None) -> None:
+        """Seed cumulative run cost and token totals from persisted attempts in ``state['queue']``.
+
+        Prevents driver restarts/resumes from resetting the live statusbar's Spend and Tokens back
+        to zero (backlog ``tg3v86``). Reads each attempt's ``cost`` and ``tokens`` (and any nested
+        ``verification`` usage dict), ignoring malformed or non-numeric fields.
+        """
+        if not isinstance(state, Mapping):
+            return
+        queue = state.get("queue")
+        if not isinstance(queue, list):
+            return
+
+        def _accumulate_usage(rec: Mapping[str, Any]) -> None:
+            raw_cost = rec.get("cost")
+            if raw_cost is not None:
+                try:
+                    self.cost += float(raw_cost)
+                except (TypeError, ValueError):
+                    pass
+            tok = rec.get("tokens")
+            if isinstance(tok, Mapping):
+                for key, attr in (
+                    ("input", "input_tokens"),
+                    ("input_tokens", "input_tokens"),
+                    ("output", "output_tokens"),
+                    ("output_tokens", "output_tokens"),
+                    ("cache", "cache_tokens"),
+                    ("cache_tokens", "cache_tokens"),
+                ):
+                    if key in tok and tok[key] is not None:
+                        # Prefer canonical short key if both short and long are present.
+                        if key.endswith("_tokens") and key[:-7] in tok:
+                            continue
+                        try:
+                            setattr(self, attr, getattr(self, attr) + int(tok[key]))
+                        except (TypeError, ValueError):
+                            pass
+                if "cache" not in tok and "cache_tokens" not in tok:
+                    for ck in ("cache_read", "cache_write"):
+                        if tok.get(ck) is not None:
+                            try:
+                                self.cache_tokens += int(tok[ck])
+                            except (TypeError, ValueError):
+                                pass
+            else:
+                for key, attr in (
+                    ("input_tokens", "input_tokens"),
+                    ("output_tokens", "output_tokens"),
+                    ("cache_tokens", "cache_tokens"),
+                ):
+                    if rec.get(key) is not None:
+                        try:
+                            setattr(self, attr, getattr(self, attr) + int(rec[key]))
+                        except (TypeError, ValueError):
+                            pass
+
+        for entry in queue:
+            if not isinstance(entry, Mapping):
+                continue
+            attempts = entry.get("attempts")
+            if not isinstance(attempts, list):
+                continue
+            for att in attempts:
+                if not isinstance(att, Mapping):
+                    continue
+                _accumulate_usage(att)
+                ver = att.get("verification")
+                if isinstance(ver, Mapping) and (
+                    ver.get("cost") is not None or ver.get("tokens") is not None
+                ):
+                    _accumulate_usage(ver)
+
 
 def todo_items_from_state(state: dict[str, Any]) -> list[dict[str, Any]] | None:
     """Extract the todo item list from a ``todowrite`` tool state (E-02).
@@ -1182,6 +1255,8 @@ ACTION_DISPLAY_MAP: dict[str, str] = {
 ARTIFACT_DISPLAY_MAP: dict[str, str] = {
     "ipd": "IPD",
     "plan": "IPD",
+    "child": "IPD",
+    "orchestrator": "IPD",
     "spec": "Spec",
     "prompt": "Prompt",
     "roadmap": "Roadmap",
@@ -1191,17 +1266,14 @@ ARTIFACT_DISPLAY_MAP: dict[str, str] = {
 }
 
 
-#: The compact statusline label for each Section 7.1 ACTIVITY. Seven characters or fewer, matching
-#: :data:`ACTION_DISPLAY_MAP`'s existing truncation convention (`Graduat`, `Orchest`), because this
-#: shares that column. The spec's activity WORDS are `reviewing`/`executing`/`verifying`/
-#: `integrating`/`recovering`; these are their cell forms, and the full word is still what the
-#: summary table and the finish line print.
+#: The statusline label for each Section 7.1 ACTIVITY. Full readable words are used on responsive
+#: columns (`_pad_pair` still truncates cleanly on ultra-narrow widths).
 ACTIVITY_DISPLAY_MAP: dict[str, str] = {
-    _LS.REVIEWING: "Reviewng",
-    _LS.EXECUTING: "Executng",
-    _LS.VERIFYING: "Verifyng",
-    _LS.INTEGRATING: "Integrtg",
-    _LS.RECOVERING: "Recovrng",
+    _LS.REVIEWING: "Reviewing",
+    _LS.EXECUTING: "Executing",
+    _LS.VERIFYING: "Verifying",
+    _LS.INTEGRATING: "Integrating",
+    _LS.RECOVERING: "Recovering",
     _LS.ACTIVE: "Active",
     _LS.WAITING_INPUT: "Waiting",
 }
@@ -1671,6 +1743,7 @@ def format_tally_badge(
     passed: int,
     failed: int,
     *,
+    dep_blocked: int = 0,
     use_unicode: bool = True,
     color: bool = True,
     depth: str | None = None,
@@ -1682,50 +1755,60 @@ def format_tally_badge(
     c_ok = _sgr256(78, bold=True, depth=tier) if styled else ""
     if styled:
         c_fail = "\033[1;31m" if failed > 0 else _sgr256(244, depth=tier)
+        c_dep = (
+            _sgr256(214, bold=True, depth=tier)
+            if dep_blocked > 0
+            else _sgr256(244, depth=tier)
+        )
     else:
         c_fail = ""
+        c_dep = ""
     bdr_color = _sgr256(67, depth=tier) if styled else ""
     reset = _ANSI_RESET if styled else ""
 
     if use_unicode:
-        plain = f"[✓ {passed} ok · ✗ {failed} fail]"
+        dep_p = f" · ⊘ {dep_blocked} dep" if dep_blocked > 0 else ""
+        plain = f"[✓ {passed} ok · ✗ {failed} fail{dep_p}]"
         if styled:
-            colored = f"{bdr_color}[{c_ok}✓ {passed} ok{bdr_color} · {c_fail}✗ {failed} fail{bdr_color}]{reset}"
+            dep_c = (
+                f"{bdr_color} · {c_dep}⊘ {dep_blocked} dep" if dep_blocked > 0 else ""
+            )
+            colored = f"{bdr_color}[{c_ok}✓ {passed} ok{bdr_color} · {c_fail}✗ {failed} fail{dep_c}{bdr_color}]{reset}"
         else:
             colored = plain
     else:
-        plain = f"[{passed} ok, {failed} fail]"
+        dep_p = f", {dep_blocked} dep" if dep_blocked > 0 else ""
+        plain = f"[{passed} ok, {failed} fail{dep_p}]"
         if styled:
-            colored = f"{bdr_color}[{c_ok}{passed} ok{bdr_color}, {c_fail}{failed} fail{bdr_color}]{reset}"
+            dep_c = f"{bdr_color}, {c_dep}{dep_blocked} dep" if dep_blocked > 0 else ""
+            colored = f"{bdr_color}[{c_ok}{passed} ok{bdr_color}, {c_fail}{failed} fail{dep_c}{bdr_color}]{reset}"
         else:
             colored = plain
 
     return colored, plain
 
 
-def compute_queue_tally(
+#: Queue statuses representing upstream dependency blocks rather than direct item failures.
+_DEP_BLOCKED_TALLY_STATUSES: frozenset[str] = frozenset(
+    {"fail-depend", "dependency-blocked"}
+)
+
+
+def compute_queue_tally_detailed(
     queue: Sequence[Mapping[str, Any]] | None,
     *,
     in_flight_id6: str | None = None,
-) -> tuple[int, int]:
-    """Compute (passed_count, failed_count) for dispatchable items settled in this run.
+) -> tuple[int, int, int]:
+    """Compute (passed_count, failed_count, dep_blocked_count) for dispatchable items settled in this run.
 
-    Excludes entries this run did not dispatch: ``action == "skip"`` items, pre-executed entries
-    with ``initial_status == "executed"``, and frozen unattempted ``reviewed`` entries awaiting
-    approval (when ``action != "review"``). This keeps the bottom-border tally aligned with the
-    progress counter (`completed_work_count` / `dispatchable_work_total`) so prior completed work
-    never inflates `ok` or `fail`.
-
-    ``in_flight_id6`` names the item the driver is still working on; its FAILURE is not counted
-    (its success is). Between the agent turn and integration the runner holds a PROVISIONAL
-    `fail-gate` on it (a self-claimed `executed` is not completion authority until verify + merge
-    land), so counting it showed a phantom "1 fail" for minutes on every item that went on to
-    succeed.
+    Separates ``fail-depend`` and ``dependency-blocked`` items into ``dep_blocked_count`` so direct
+    failures are not inflated by cascading upstream dependency blocks.
     """
     if not queue:
-        return 0, 0
+        return 0, 0, 0
     passed = 0
     failed = 0
+    dep_blocked = 0
     from agent_workflows.runner_shared import item_reached_success, TERMINAL_STATES
 
     for it in queue:
@@ -1744,12 +1827,31 @@ def compute_queue_tally(
         if item_reached_success(it):
             passed += 1
         elif in_flight_id6 and it.get("id6") == in_flight_id6:
-            # Only the FAILURE side is deferred: a success is final the moment it is recorded, while a
-            # genuine failure of this item is counted as soon as the driver moves to the next item.
             continue
+        elif str(st) in _DEP_BLOCKED_TALLY_STATUSES:
+            dep_blocked += 1
         elif st in TERMINAL_STATES or str(st).startswith("fail") or "error" in str(st):
             failed += 1
-    return passed, failed
+    return passed, failed, dep_blocked
+
+
+def compute_queue_tally(
+    queue: Sequence[Mapping[str, Any]] | None,
+    *,
+    in_flight_id6: str | None = None,
+) -> tuple[int, int]:
+    """Compute (passed_count, failed_count) for dispatchable items settled in this run.
+
+    Excludes entries this run did not dispatch: ``action == "skip"`` items, pre-executed entries
+    with ``initial_status == "executed"``, and frozen unattempted ``reviewed`` entries awaiting
+    approval (when ``action != "review"``). This keeps the bottom-border tally aligned with the
+    progress counter (`completed_work_count` / `dispatchable_work_total`) so prior completed work
+    never inflates `ok` or `fail`.
+    """
+    passed, failed, dep_blocked = compute_queue_tally_detailed(
+        queue, in_flight_id6=in_flight_id6
+    )
+    return passed, failed + dep_blocked
 
 
 def format_cwd_path(cwd: str | Path | None = None, max_chars: int = 30) -> str:
@@ -1805,6 +1907,7 @@ def format_statusline_lines(
     stop_level: int | str | None = None,
     items_passed: int | None = None,
     items_failed: int | None = None,
+    items_dep_blocked: int = 0,
     cwd: str | Path | None = None,
     run_id: str | None = None,
     parked_questions: int | None = None,
@@ -1820,6 +1923,7 @@ def format_statusline_lines(
     fix_its: int = 0,
     attempt_no: int = 1,
     retry_budget: int = 2,
+    attempted_items: int | None = None,
     step_tokens: int | None = None,
     agy_quota: _agy_quota.AgyQuotaSnapshot | None = None,
 ) -> tuple[str, ...]:
@@ -1855,6 +1959,7 @@ def format_statusline_lines(
         stop_level=stop_level,
         items_passed=items_passed,
         items_failed=items_failed,
+        items_dep_blocked=items_dep_blocked,
         cwd=cwd,
         run_id=run_id,
         parked_questions=parked_questions,
@@ -1869,6 +1974,7 @@ def format_statusline_lines(
         fix_its=fix_its,
         attempt_no=attempt_no,
         retry_budget=retry_budget,
+        attempted_items=attempted_items,
         step_tokens=step_tokens,
         agy_quota=agy_quota,
         tier=tier,
@@ -1914,6 +2020,7 @@ def format_statusline(
     stop_level: int | str | None = None,
     items_passed: int | None = None,
     items_failed: int | None = None,
+    items_dep_blocked: int = 0,
     cwd: str | Path | None = None,
     run_id: str | None = None,
     parked_questions: int | None = None,
@@ -1929,6 +2036,7 @@ def format_statusline(
     fix_its: int = 0,
     attempt_no: int = 1,
     retry_budget: int = 2,
+    attempted_items: int | None = None,
     step_tokens: int | None = None,
     agy_quota: _agy_quota.AgyQuotaSnapshot | None = None,
 ) -> str:
@@ -1958,6 +2066,7 @@ def format_statusline(
         stop_level=stop_level,
         items_passed=items_passed,
         items_failed=items_failed,
+        items_dep_blocked=items_dep_blocked,
         cwd=cwd,
         run_id=run_id,
         parked_questions=parked_questions,
@@ -1972,6 +2081,7 @@ def format_statusline(
         fix_its=fix_its,
         attempt_no=attempt_no,
         retry_budget=retry_budget,
+        attempted_items=attempted_items,
         step_tokens=step_tokens,
         agy_quota=agy_quota,
     )
@@ -2347,12 +2457,13 @@ class Statusline:
         if self.items_passed is not None or self.items_failed is not None:
             passed = self.items_passed or 0
             failed = self.items_failed or 0
+            dep_blocked = 0
         elif self.state is not None and self.state.get("queue"):
-            passed, failed = compute_queue_tally(
+            passed, failed, dep_blocked = compute_queue_tally_detailed(
                 self.state.get("queue"), in_flight_id6=self.id6 or None
             )
         else:
-            passed, failed = None, None
+            passed, failed, dep_blocked = None, None, 0
 
         # Resolve CWD
         cwd = self.cwd
@@ -2433,6 +2544,7 @@ class Statusline:
             stop_level=stop_level,
             items_passed=passed,
             items_failed=failed,
+            items_dep_blocked=dep_blocked,
             cwd=cwd,
             run_id=run_id,
             parked_questions=parked_questions,
@@ -2447,6 +2559,7 @@ class Statusline:
             fix_its=telemetry["fix_its"],
             attempt_no=telemetry["attempt_no"],
             retry_budget=telemetry["retry_budget"],
+            attempted_items=telemetry["attempted_items"],
             step_tokens=step_tokens,
             agy_quota=agy_quota,
         )
@@ -2624,7 +2737,7 @@ def print_final_statusline(
                 pass
 
     queue = state.get("queue") if state else None
-    passed, failed = compute_queue_tally(queue)
+    passed, failed, dep_blocked = compute_queue_tally_detailed(queue)
     total_items = len(queue) if queue else 0
     finished_count = (
         sum(
@@ -2670,6 +2783,16 @@ def print_final_statusline(
 
     if tracker is None and state and "_tracker" in state:
         tracker = state.get("_tracker")
+    if tracker is None and state and queue:
+        fallback_tracker = StreamTracker()
+        fallback_tracker.seed_from_state(state)
+        if (
+            fallback_tracker.cost > 0
+            or fallback_tracker.input_tokens > 0
+            or fallback_tracker.output_tokens > 0
+            or fallback_tracker.cache_tokens > 0
+        ):
+            tracker = fallback_tracker
 
     stop_level = None
     if state and "_stop_level" in state:
@@ -2745,6 +2868,7 @@ def print_final_statusline(
         stop_level=stop_level,
         items_passed=passed if queue else None,
         items_failed=failed if queue else None,
+        items_dep_blocked=dep_blocked if queue else 0,
         cwd=cwd,
         run_id=run_id,
         parked_questions=parked_questions,
@@ -2758,6 +2882,7 @@ def print_final_statusline(
         fix_its=telemetry["fix_its"],
         attempt_no=telemetry["attempt_no"],
         retry_budget=telemetry["retry_budget"],
+        attempted_items=telemetry["attempted_items"],
         agy_quota=agy_quota,
     )
 

@@ -151,6 +151,7 @@ def compute_queue_telemetry(
         "fix_its": 0,
         "attempt_no": 1,
         "retry_budget": 2,
+        "attempted_items": 0,
     }
     if not isinstance(state, Mapping):
         return out
@@ -172,6 +173,7 @@ def compute_queue_telemetry(
     fix_its = 0
     completed_count = 0
     remaining_count = 0
+    attempted_items = 0
 
     for entry in queue:
         if not isinstance(entry, Mapping):
@@ -183,6 +185,8 @@ def compute_queue_telemetry(
 
         attempts = entry.get("attempts")
         att_list = attempts if isinstance(attempts, list) else []
+        if att_list or status in ("running", "in-progress"):
+            attempted_items += 1
         if len(att_list) > 1:
             retries += len(att_list) - 1
         elif entry.get("requeue_from_status"):
@@ -269,6 +273,7 @@ def compute_queue_telemetry(
     out["validation_errors"] = val_errors
     out["retries"] = retries
     out["fix_its"] = fix_its
+    out["attempted_items"] = attempted_items
     return out
 
 
@@ -712,6 +717,7 @@ def render_option2_statusline_lines(
     stop_level: int | str | None = None,
     items_passed: int | None = None,
     items_failed: int | None = None,
+    items_dep_blocked: int = 0,
     cwd: str | Path | None = None,
     run_id: str | None = None,
     parked_questions: int | None = None,
@@ -726,6 +732,7 @@ def render_option2_statusline_lines(
     fix_its: int = 0,
     attempt_no: int = 1,
     retry_budget: int = 2,
+    attempted_items: int | None = None,
     step_tokens: int | None = None,
     agy_quota: Optional[_aq.AgyQuotaSnapshot] = None,
     # Injected primitives from render_stream to keep one color/formatting authority:
@@ -951,10 +958,11 @@ def render_option2_statusline_lines(
     # -------------------------------------------------------------------------
     # BOTTOM BORDER: tally left, rounded questions pill + stop badge right
     # -------------------------------------------------------------------------
-    if items_passed is not None or items_failed is not None:
+    if items_passed is not None or items_failed is not None or items_dep_blocked > 0:
         tc, tp = format_tally_badge(
             items_passed or 0,
             items_failed or 0,
+            dep_blocked=items_dep_blocked,
             use_unicode=use_unicode,
             color=color_enabled,
             depth=tier,
@@ -1253,51 +1261,69 @@ def render_option2_statusline_lines(
                 else cs_r3_p
             )
     else:
-        avg_cost = cost / max(1, current_idx)
-        if sw >= 34:
-            cs_r1_p = f" {'Spend':<7}{'Tokens':>7}{'In':>6}{'Out':>6}{'Cache':>7}"
-            cs_r1_c = f"{dim_hdr}{cs_r1_p}{reset}" if color_enabled else cs_r1_p
-            cs_r2_p = f" {cost_str:<7}{tot_str:>7}{in_str:>6}{out_str:>6}{cache_str:>7}"
+        cost_denom = (
+            attempted_items
+            if (attempted_items is not None and attempted_items > 0)
+            else max(1, current_idx)
+        )
+        avg_cost = cost / max(1, cost_denom)
+        if sw >= 38:
+            cs_r1_p = f" Tok:{tot_str} (in:{in_str} out:{out_str} c:{cache_str})"
+            cs_r1_c = (
+                f" {dim_hdr}Tok:{c_data}{tot_str}{c_muted} (in:{in_str} out:{out_str} c:{cache_str}){reset}"
+                if color_enabled
+                else cs_r1_p
+            )
+            cs_r2_p = f" Spend:{cost_str} (${avg_cost:.2f}/item)"
             cs_r2_c = (
-                f" {b_cost}{cost_str:<7}{c_data}{tot_str:>7}{in_str:>6}{out_str:>6}{cache_str:>7}{reset}"
+                f" {dim_hdr}Spend:{b_cost}{cost_str}{c_muted} (${avg_cost:.2f}/item){reset}"
                 if color_enabled
                 else cs_r2_p
             )
-            st_s = f"  step:{step_tok_str} tok" if step_tok_str else ""
-            cs_r3_p = f" ${avg_cost:.2f}/item{st_s}"
-            cs_r3_c = (
-                f" {b_cost}${avg_cost:.2f}/item{c_muted}{st_s}{reset}"
+            if step_tok_str:
+                cs_r3_p = f" Step:{step_tok_str} tok"
+                cs_r3_c = (
+                    f" {dim_hdr}Step:{c_data}{step_tok_str} tok{reset}"
+                    if color_enabled
+                    else cs_r3_p
+                )
+            elif attempted_items is not None and attempted_items > 0:
+                cs_r3_p = f" {attempted_items} attempted"
+                cs_r3_c = (
+                    f" {c_muted}{attempted_items} attempted{reset}"
+                    if color_enabled
+                    else cs_r3_p
+                )
+            else:
+                cs_r3_p = ""
+                cs_r3_c = ""
+        elif sw >= 24:
+            st_tail = f" {dot_ch} st:{step_tok_str}" if step_tok_str else ""
+            cs_r1_p = f" Tok:{tot_str} ({out_str}o{st_tail})"
+            cs_r1_c = (
+                f" {dim_hdr}Tok:{c_data}{tot_str}{c_muted} ({out_str}o{st_tail}){reset}"
                 if color_enabled
-                else cs_r3_p
+                else cs_r1_p
             )
-        elif sw >= 22:
-            cs_r1_p = " Spend   Tokens"
-            cs_r1_c = f"{dim_hdr}{cs_r1_p}{reset}" if color_enabled else cs_r1_p
-            cs_r2_p = f" {cost_str:<7} {tot_str} ({out_str}o)"
+            cs_r2_p = f" Spend:{cost_str} (${avg_cost:.2f}/it)"
             cs_r2_c = (
-                f" {b_cost}{cost_str:<7} {c_data}{tot_str} ({out_str}o){reset}"
+                f" {dim_hdr}Spend:{b_cost}{cost_str}{c_muted} (${avg_cost:.2f}/it){reset}"
                 if color_enabled
                 else cs_r2_p
             )
-            cs_r3_p = f" ${avg_cost:.2f}/it" + (
-                f" {step_tok_str}/st" if step_tok_str else ""
-            )
+            cs_r3_p = f" Step:{step_tok_str} tok" if step_tok_str else ""
             cs_r3_c = (
-                f" {b_cost}${avg_cost:.2f}/it{c_muted}"
-                + (f" {step_tok_str}/st" if step_tok_str else "")
-                + reset
-                if color_enabled
+                f" {dim_hdr}Step:{c_data}{step_tok_str} tok{reset}"
+                if (color_enabled and step_tok_str)
                 else cs_r3_p
             )
         else:
-            cs_r1_p = " Spend/Tok"
-            cs_r1_c = f"{dim_hdr}{cs_r1_p}{reset}" if color_enabled else cs_r1_p
-            cs_r2_p = f" {cost_str} {tot_str}"
-            cs_r2_c = (
-                f" {b_cost}{cost_str} {c_data}{tot_str}{reset}"
-                if color_enabled
-                else cs_r2_p
+            cs_r1_p = f" Tok:{tot_str}"
+            cs_r1_c = (
+                f" {dim_hdr}Tok:{c_data}{tot_str}{reset}" if color_enabled else cs_r1_p
             )
+            cs_r2_p = f" {cost_str}"
+            cs_r2_c = f" {b_cost}{cost_str}{reset}" if color_enabled else cs_r2_p
             cs_r3_p = f" ${avg_cost:.2f}/it"
             cs_r3_c = (
                 f" {c_muted}${avg_cost:.2f}/it{reset}" if color_enabled else cs_r3_p

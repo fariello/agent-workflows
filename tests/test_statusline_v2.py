@@ -602,7 +602,7 @@ def test_statusline_dynamic_height_tty_redraw_clear_and_write_event() -> None:
 def test_integrating_activity_shows_double_arrow_across_widths_and_under_integration_lock() -> (
     None
 ):
-    """Both wide and narrow statusbars render '⇄Integrtg' during integrating, and integrate_under_repository_lock switches the live Statusline."""
+    """Both wide and narrow statusbars render '⇄Integrating' during integrating, and integrate_under_repository_lock switches the live Statusline."""
     from agent_workflows import runner_shared
 
     now = time.time()
@@ -627,8 +627,8 @@ def test_integrating_activity_shows_double_arrow_across_widths_and_under_integra
             )
             joined = "\n".join(lines)
             assert (
-                "⇄Integrtg" in joined
-            ), f"missing ⇄Integrtg for runner={runner} at width={w}:\n{joined}"
+                "⇄Integrating" in joined
+            ), f"missing ⇄Integrating for runner={runner} at width={w}:\n{joined}"
 
     tty = _FakeTTY()
     sl = rs.Statusline(
@@ -659,4 +659,125 @@ def test_integrating_activity_shows_double_arrow_across_widths_and_under_integra
         assert ok is True
         observed_activities.append(sl.activity)
     assert observed_activities == ["integrating", "executing"]
-    assert "⇄Integrtg" in tty.getvalue()
+    assert "⇄Integrating" in tty.getvalue()
+
+
+def test_tg3v86_seed_from_state_dep_blocked_tally_full_labels_and_unified_oc_col5() -> (
+    None
+):
+    """tg3v86: StreamTracker seeds persisted usage on restart, $/item divides by attempted items, dep-blocked is separated, and OC col 5 uses compact Tok:/Spend:."""
+    state: dict[str, Any] = {
+        "run_id": "run-20261123T035302Z-2681364",
+        "repo": "/tmp/demo",
+        "options": {"model": "claude-opus-5.5", "variant": "high"},
+        "queue": [
+            {
+                "id6": "ok0001",
+                "setid": "metastore",
+                "action": "execute",
+                "kind": "child",
+                "status": "executed",
+                "attempts": [
+                    {
+                        "cost": 50.0,
+                        "tokens": {"input": 1000, "output": 20000, "cache": 10000000},
+                    }
+                ],
+            },
+            {
+                "id6": "ok0002",
+                "setid": "metastore",
+                "action": "execute",
+                "kind": "child",
+                "status": "executed",
+                "attempts": [
+                    {
+                        "cost": 70.0,
+                        "tokens": {"input": 2000, "output": 30000, "cache": 20000000},
+                    }
+                ],
+            },
+            {
+                "id6": "fv0001",
+                "setid": "metastore",
+                "action": "execute",
+                "kind": "child",
+                "status": "fail-verify",
+                "attempts": [
+                    {
+                        "cost": 10.0,
+                        "tokens": {"input": 500, "output": 5000, "cache": 1000000},
+                    }
+                ],
+            },
+            *[
+                {
+                    "id6": f"dp{i:04d}",
+                    "setid": "metastore",
+                    "action": "execute",
+                    "kind": "child",
+                    "status": "fail-depend",
+                    "attempts": [],
+                }
+                for i in range(1, 11)
+            ],
+            {
+                "id6": "cur001",
+                "setid": "metastore",
+                "action": "execute",
+                "kind": "child",
+                "status": "running",
+                "attempts": [],
+            },
+        ],
+    }
+
+    tracker = rs.StreamTracker()
+    tracker.seed_from_state(state)
+    assert tracker.cost == pytest.approx(130.0)
+    assert tracker.input_tokens == 3500
+    assert tracker.output_tokens == 55000
+    assert tracker.cache_tokens == 31000000
+
+    tracker.update(inp=100, out=5000, cache=1000000, cost=10.0)
+    assert tracker.cost == pytest.approx(140.0)
+
+    passed, failed, dep_blocked = rs.compute_queue_tally_detailed(
+        state["queue"], in_flight_id6="cur001"
+    )
+    assert (passed, failed, dep_blocked) == (2, 1, 10)
+
+    tel = _sl.compute_queue_telemetry(state, current_item=state["queue"][-1])
+    assert tel["attempted_items"] == 4
+
+    tty = _FakeTTY()
+    sl = rs.Statusline(
+        rs.Palette(False, use_unicode=True),
+        tty,
+        tracker=tracker,
+        interval=0.0,
+        current_idx=13,
+        total_items=14,
+        setid="metastore",
+        id6="cur001",
+        action="execute",
+        artifact_kind="child",
+        activity="executing",
+        runner="opencode",
+        model="claude-opus-5.5",
+        variant="high",
+        state=state,
+        item=state["queue"][-1],
+        width=160,
+    )
+    rendered = sl.render_line()
+    assert "[✓ 2 ok · ✗ 1 fail · ⊘ 10 dep]" in rendered
+    assert "▶Executing" in rendered
+    assert "IPD" in rendered and "Child" not in rendered
+    assert "Tok:32.1m (in:3.6k out:60k c:32m)" in rendered
+    assert "Spend:$140.00 ($35.00/item)" in rendered
+
+    _c_asc, p_asc = rs.format_tally_badge(
+        2, 1, dep_blocked=10, use_unicode=False, color=False
+    )
+    assert p_asc == "[2 ok, 1 fail, 10 dep]"
