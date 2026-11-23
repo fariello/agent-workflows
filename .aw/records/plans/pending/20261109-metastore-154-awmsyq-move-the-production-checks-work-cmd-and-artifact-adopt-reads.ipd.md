@@ -44,20 +44,20 @@ Commit through `aw commit awmsyq -- <each changed path>`, one commit per item al
 
 ### Task group 1: production, work and adoption modules
 
-- [ ] E-01 (carried from `2zpw22` E-02, `production_checks` subset) Pin, then move, `production_checks` (`_PLAN_ID_RE`, `_ITEM_DEPS_RE`, `_SCOPE_PATHS_RE`, `_ITEM_FROM_BACKLOG_RE`, `_SET_RE`, `parse_item`, the history clause) onto `artifact_meta.read`/`query`/`history`. Most of its 11 reader functions read through the module-level regexes and the shared helpers `_extract_plan_id`/`_read_from_backlog`, so the edits concentrate there. Pin in `tests/test_readers_review_modules.py` and run `tests/test_production_checks_trace.py` and `tests/test_backlog_production.py` green before and after (outcome lists `E-12c-before.txt`/`E-12c-after.txt`).
+- [x] E-01 (carried from `2zpw22` E-02, `production_checks` subset) Pin, then move, `production_checks` (`_PLAN_ID_RE`, `_ITEM_DEPS_RE`, `_SCOPE_PATHS_RE`, `_ITEM_FROM_BACKLOG_RE`, `_SET_RE`, `parse_item`, the history clause) onto `artifact_meta.read`/`query`/`history`. Most of its 11 reader functions read through the module-level regexes and the shared helpers `_extract_plan_id`/`_read_from_backlog`, so the edits concentrate there. Pin in `tests/test_readers_review_modules.py` and run `tests/test_production_checks_trace.py` and `tests/test_backlog_production.py` green before and after (outcome lists `E-12c-before.txt`/`E-12c-after.txt`).
   - Depends on: none
   - Expected outcome: both modules pass before and after; `production_checks` contains no `^-` metadata regex call.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `2zpw22` E-02, `work_cmd` subset) Pin, then move, `work_cmd` (`_plan_id6`, `_plan_status`, and the `- Date:` regex read in `_warn_if_begin_skipped`) onto `artifact_meta.read`; its 11 reader functions read through those helpers. Pin in `tests/test_readers_review_modules.py` and run `tests/test_scope_match.py` green before and after (outcome lists `E-12d-before.txt`/`E-12d-after.txt`).
+- [x] E-02 (carried from `2zpw22` E-02, `work_cmd` subset) Pin, then move, `work_cmd` (`_plan_id6`, `_plan_status`, and the `- Date:` regex read in `_warn_if_begin_skipped`) onto `artifact_meta.read`; its 11 reader functions read through those helpers. Pin in `tests/test_readers_review_modules.py` and run `tests/test_scope_match.py` green before and after (outcome lists `E-12d-before.txt`/`E-12d-after.txt`).
   - Depends on: E-01
   - Expected outcome: the module passes before and after; `work_cmd` contains no `^-` metadata regex call.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 (carried from `2zpw22` E-02, `artifact_adopt` subset) Pin, then move, `artifact_adopt` (`_BULLET_ID_RE` in the adoption id inventory) onto `artifact_meta.query` (D-3: the bullet `- Id:` inventory reads the cached `id` for plans, specs, backlog and releases). Pin in `tests/test_readers_review_modules.py` and run `tests/test_artifact_adopt.py` and `tests/test_id6_global_mint.py` green before and after (outcome lists `E-12e-before.txt`/`E-12e-after.txt`).
+- [x] E-03 (carried from `2zpw22` E-02, `artifact_adopt` subset) Pin, then move, `artifact_adopt` (`_BULLET_ID_RE` in the adoption id inventory) onto `artifact_meta.query` (D-3: the bullet `- Id:` inventory reads the cached `id` for plans, specs, backlog and releases). Pin in `tests/test_readers_review_modules.py` and run `tests/test_artifact_adopt.py` and `tests/test_id6_global_mint.py` green before and after (outcome lists `E-12e-before.txt`/`E-12e-after.txt`).
   - Depends on: E-02
   - Expected outcome: the module passes before and after; `artifact_adopt` contains no `^-` metadata regex call.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -129,20 +129,20 @@ No spec change. Implements the production-check, work and adoption part of `4sd6
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `diff .aw/state/t4gl15/E-12c-before.txt .aw/state/t4gl15/E-12c-after.txt` (outcome lists of `tests/test_production_checks_trace.py tests/test_backlog_production.py`) printing nothing, `python3 -m pytest -o addopts="" -v tests/test_readers_review_modules.py -k production` all PASSED, and the empty output of `rg -n "re\.\w+\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/production_checks.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `diff .aw/state/t4gl15/E-12c-before.txt .aw/state/t4gl15/E-12c-after.txt` exited 0 with empty output (45/45 baseline outcomes PASSED before and after across `tests/test_production_checks_trace.py` and `tests/test_backlog_production.py`). `python3 -m pytest -o addopts="" -v tests/test_readers_review_modules.py -k production` ran green before (3 passed in 2.44s) and after: `TestProductionChecksReaders::test_production_checks_spec_count_conformance_gate_and_trace PASSED`, `TestProductionChecksReaders::test_production_checks_backlog_verifiers_and_history_legitimacy PASSED`, `TestProductionChecksReaders::test_production_checks_handoff_and_helper_readers PASSED` (`3 passed, 22 deselected in 2.24s`). `rg -n "re\.\w+\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/production_checks.py` printed nothing (exit 1, zero matches). Additional suites (`test_from_backlog_cardinality.py`, `test_production_set_check.py`, `test_production_resume_handoff.py`, `test_implementing_spec_replan.py`, `test_backlog_already_complete.py`, `test_spec_production.py`): `75 passed in 24.71s`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `diff .aw/state/t4gl15/E-12d-before.txt .aw/state/t4gl15/E-12d-after.txt` (outcome list of `tests/test_scope_match.py`) printing nothing, `python3 -m pytest -o addopts="" -v tests/test_readers_review_modules.py -k work` all PASSED, and the empty output of `rg -n "re\.\w+\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/work_cmd.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `diff .aw/state/t4gl15/E-12d-before.txt .aw/state/t4gl15/E-12d-after.txt` exited 0 with empty output (6/6 baseline outcomes PASSED before and after in `tests/test_scope_match.py`). `python3 -m pytest -o addopts="" -v tests/test_readers_review_modules.py -k work` ran green before (2 passed in 1.65s) and after: `TestWorkCmdReaders::test_work_cmd_warn_if_begin_skipped_and_commit_flow PASSED`, `TestWorkCmdReaders::test_work_cmd_plan_helpers_and_default_commit_message PASSED` (`2 passed, 25 deselected in 1.59s`). `rg -n "re\.\w+\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/work_cmd.py` printed nothing (exit 1, zero matches). Additional suites (`test_commit_default_message.py`, `test_commit_scope_reason.py`, `test_commit_run_trailers_env.py`, `test_scope_exceeded.py`, `test_clean_target_control_state.py`, `test_companion_containment_and_storage.py`): `48 passed in 12.88s`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `diff .aw/state/t4gl15/E-12e-before.txt .aw/state/t4gl15/E-12e-after.txt` (outcome list of `tests/test_artifact_adopt.py` and `tests/test_id6_global_mint.py`) printing nothing, `python3 -m pytest -o addopts="" -v tests/test_readers_review_modules.py -k adopt` all PASSED, and the empty output of `rg -n "re\.\w+\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/artifact_adopt.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `diff .aw/state/t4gl15/E-12e-before.txt .aw/state/t4gl15/E-12e-after.txt` exited 0 with empty output (41/41 baseline outcomes PASSED before and after across `tests/test_artifact_adopt.py` and `tests/test_id6_global_mint.py`). `python3 -m pytest -o addopts="" -v tests/test_readers_review_modules.py -k adopt` ran green before (2 passed in 1.83s) and after: `TestArtifactAdoptReaders::test_adopt_scan_identities_and_collision_guard PASSED`, `TestArtifactAdoptReaders::test_adopt_repository_id6s_reads_cached_types_and_preserves_quoted_superset PASSED` (`2 passed, 27 deselected in 1.79s`). `rg -n "re\.\w+\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/artifact_adopt.py` printed nothing (exit 1, zero matches). Combined `tests/test_readers_review_modules.py`, `tests/test_artifact_meta_shapes.py`, and `tests/test_m0001_renames.py`: `52 passed in 4.91s`. Core gate `aw suite`: `2760 passed, 1 skipped, 11 warnings in 170.28s (0:02:50)`. `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7089,"findings":0,"evidence":["leak-scan"],"next":null}`.
+  - Result: pass
 
 ## Approval and execution gate
 
