@@ -105,6 +105,7 @@ flowchart TD
   - Carrier: 9eqgcl
 - Moved to w819as (round-3 split 2026-11-09 per research nj8zdp guidance): E-05 subset 1, the emitters in `plans_index.check_drift` and `prompts_index.check_drift`, the three `ipd_lifecycle` comments, with `tests/test_nv_backend_args_climb.py` and the stale-index cases of `tests/test_plans_index.py` and `tests/test_prompts_index.py`.
   - Carrier: w819as
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-224-w819as-delete-the-stale-index-rules-from-the-registry-and-the-check.ipd.md
 - Moved to 6qh68x (round-3 split 2026-11-09 per research nj8zdp guidance): E-05 subset 2, the two `check_engine.RULE_REGISTRY` entries, the `research_index.check_drift` emitter, the 16 `check_engine` comment lines, with `tests/test_drift_rule_registration.py` and the stale-index cases of `tests/test_research_index.py` and `tests/test_index_check_agent_records.py`.
   - Carrier: 6qh68x
 - Moved to f1yjlx (round-3 split 2026-11-09 per research nj8zdp guidance): E-05 subset 3, the eight `doctor` sites, with `tests/test_doctor.py`. Subsets 1 to 3 equal E-05's list.
