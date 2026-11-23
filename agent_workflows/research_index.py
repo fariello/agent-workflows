@@ -20,9 +20,10 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import artifact_meta as _am
 from agent_workflows import attention_contract as A
 from agent_workflows import research_contract as R
 from agent_workflows import research_refs as RF
@@ -62,6 +63,282 @@ class DocEntry(NamedTuple):
 # The generic drift record is the shared core's (plans-adopter Order 01); re-export it.
 Drift = _core.Drift
 
+# Spec 4sd62s section 4.1: match a single leading `<!-- aw-managed: ... -->` banner comment
+# (plus surrounding whitespace) after front matter; never match arbitrary HTML comments.
+_LEADING_AW_MANAGED_BANNER_RE = re.compile(
+    r"\A[ \t\r\n]*<!--\s*aw-managed:.*?-->[ \t\r\n]*", re.DOTALL
+)
+_ISO_DAY_RE = re.compile(r"\A(\d{4})-(\d{2})-(\d{2})\Z")
+
+
+def has_research_body(text: str) -> bool:
+    """Return True when research markdown ``text`` has body content after front matter.
+
+    Ignores at most one leading 4.1 ``<!-- aw-managed: ... -->`` banner comment plus whitespace,
+    and treats any other text (including non-banner HTML comments) as real body content.
+    """
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return False
+    closing_idx = -1
+    for idx in range(1, len(lines)):
+        if lines[idx].strip() == "---":
+            closing_idx = idx
+            break
+    if closing_idx == -1:
+        return False
+    after_fm = "".join(lines[closing_idx + 1 :])
+    stripped = _LEADING_AW_MANAGED_BANNER_RE.sub("", after_fm, count=1)
+    return bool(stripped.strip())
+
+
+def _meta_context_for_research_root(
+    research_root: Path,
+    *,
+    repo_root: Optional[Path] = None,
+) -> Tuple[Any, Path, Optional[Path]]:
+    """Build an ``artifact_meta`` context covering ``research_root``."""
+    rroot = research_root.resolve()
+    resolved_repo: Optional[Path] = Path(repo_root).resolve() if repo_root else None
+    if resolved_repo is None:
+        for cand in (rroot, *rroot.parents):
+            cparts = cand.parts
+            if len(cparts) >= 4 and cparts[-3:] == (".aw", "records", "research"):
+                resolved_repo = cand.parents[2]
+                break
+            if len(cparts) >= 4 and cparts[-3:] == (".agents", "docs", "research"):
+                resolved_repo = cand.parents[2]
+                break
+    if resolved_repo is None:
+        from agent_workflows import project_context as _proj_ctx
+
+        resolved_repo = _proj_ctx.record_owner_root(rroot)
+    if resolved_repo is not None:
+        ctx = _am.legacy_context(resolved_repo)
+        records_root = Path(ctx.logical_roots["records"])
+        scan_repo = _am._scan_repo_root(ctx, records_root)
+        if rroot.is_relative_to(records_root.resolve()) or (
+            scan_repo is not None
+            and rroot.is_relative_to((scan_repo / ".agents").resolve())
+        ):
+            return ctx, records_root, scan_repo
+    research_ancestor: Optional[Path] = None
+    for cand in (rroot, *rroot.parents):
+        if cand.name == "research":
+            research_ancestor = cand
+            break
+    if research_ancestor is not None:
+        parent = research_ancestor.parent
+        if parent.name == "records":
+            records_root = parent
+            state_root = parent.parent / "state"
+        elif parent.name == "docs" and parent.parent.name == ".agents":
+            records_root = parent.parent
+            state_root = records_root / ".aw-state"
+        else:
+            records_root = research_ancestor
+            state_root = research_ancestor / ".aw-state"
+    else:
+        records_root = rroot
+        state_root = rroot / ".aw-state"
+    ctx = type(
+        "LegacyContext",
+        (),
+        {
+            "logical_roots": {"records": str(records_root), "state": str(state_root)},
+            "repo_root": resolved_repo or records_root,
+        },
+    )()
+    return ctx, records_root, resolved_repo
+
+
+def _cached_research_states(
+    research_root: Path,
+    *,
+    repo_root: Optional[Path] = None,
+    include_fields: bool = True,
+) -> Dict[Path, Any]:
+    """Query ``artifact_meta.query(type='research')`` indexed by resolved path under ``research_root``."""
+    if not research_root.is_dir():
+        return {}
+    rroot_res = research_root.resolve()
+    ctx, records_root, scan_repo = _meta_context_for_research_root(
+        rroot_res, repo_root=repo_root
+    )
+    with _am.scan_once(), _am.ephemeral_if_uninitialized():
+        res = _am.query(
+            type="research", project_context=ctx, include_fields=include_fields
+        )
+    by_path: Dict[Path, Any] = {}
+    for st in res.rows:
+        if not st.path:
+            continue
+        try:
+            abs_p = _am.source_path(st.path, records_root, scan_repo).resolve()
+        except Exception:
+            continue
+        if abs_p.is_relative_to(rroot_res):
+            by_path[abs_p] = st
+    return by_path
+
+
+def _parse_cached_list(val: object) -> object:
+    """Convert a cached list or YAML inline-list string ``[a, b]`` into a list of strings."""
+    if isinstance(val, list):
+        return [str(x) for x in val]
+    if isinstance(val, str):
+        s = val.strip()
+        if s.startswith("[") and s.endswith("]"):
+            inner = s[1:-1].strip()
+            return [x.strip() for x in inner.split(",")] if inner else []
+    return val
+
+
+def _is_log_backed_research_state(st: Any, rt: Any) -> bool:
+    """True when ``st`` is backed by an ``artifact_meta`` event log rather than legacy YAML only."""
+    if st is None:
+        return False
+    if getattr(st, "created_at", None) is not None:
+        return True
+    st_fields = getattr(st, "fields", None) or {}
+    rt_fields = getattr(rt, "fields", None) or {}
+    probe_keys = ("outcome", "created", "summary", "topic", "consumed_by")
+    has_st_meta = any(st_fields.get(k) is not None for k in probe_keys)
+    has_rt_meta = any(k in rt_fields for k in probe_keys)
+    return has_st_meta and not has_rt_meta
+
+
+def _normalize_created_compact(raw: object) -> str:
+    s = str(raw or "").strip()
+    m = _ISO_DAY_RE.match(s)
+    if m:
+        return f"{m.group(1)}{m.group(2)}{m.group(3)}"
+    return s
+
+
+def _state_to_frontmatter(
+    st: Any,
+    text: str,
+    *,
+    parsed: Optional[R.ResearchName] = None,
+) -> Optional[Dict[str, object]]:
+    """Build a research frontmatter mapping from ``artifact_meta`` state and ``read_text``."""
+    rt = _am.read_text(text, record_type="research")
+    if _is_log_backed_research_state(st, rt):
+        f = st.fields or {}
+        fm: Dict[str, object] = {"id": st.id6}
+        created_raw = (
+            f.get("created")
+            or st.created_day
+            or (st.created_at[:10] if st.created_at else None)
+            or st.filename_date
+            or (parsed.date if parsed else None)
+        )
+        if created_raw is not None:
+            fm["created"] = _normalize_created_compact(created_raw)
+        set_raw = st.set_id or f.get("set")
+        if set_raw is not None:
+            fm["set"] = str(set_raw)
+        ord_raw = f.get("order") if f.get("order") is not None else st.order_nn
+        if ord_raw is not None:
+            fm["order"] = (
+                f"{int(ord_raw):02d}" if isinstance(ord_raw, int) else str(ord_raw)
+            )
+        raw_topic = f.get("topic")
+        fm["topic"] = _parse_cached_list(raw_topic) if raw_topic is not None else []
+        fm["model"] = str(f.get("model") or "")
+        kind_raw = f.get("research_kind") or (parsed.kind if parsed else None)
+        if kind_raw is not None:
+            fm["kind"] = str(kind_raw)
+        if st.status is not None:
+            fm["status"] = str(st.status)
+        fm["outcome"] = str(f.get("outcome") or "")
+        fm["summary"] = str(f.get("summary") or st.short_description or "")
+        raw_cb = f.get("consumed_by")
+        fm["consumed-by"] = _parse_cached_list(raw_cb) if raw_cb is not None else []
+        if f.get("priority"):
+            fm["priority"] = str(f["priority"])
+        return fm
+
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---" or not rt.fields:
+        return None
+
+    f = (st.fields or {}) if st is not None else {}
+    fm = {}
+    if "id" in rt.fields:
+        raw_id = str(rt.fields["id"])
+        if not R.is_valid_id6(raw_id):
+            fm["id"] = raw_id
+        elif st is not None and not st.id_derived and st.id6:
+            fm["id"] = st.id6
+        else:
+            fm["id"] = rt.id6 or raw_id
+    if "created" in rt.fields:
+        val = f.get("created") if f.get("created") is not None else rt.fields["created"]
+        fm["created"] = str(val)
+    if "set" in rt.fields:
+        val = (
+            st.legacy_raw_set
+            if (st is not None and st.legacy_raw_set is not None)
+            else rt.fields["set"]
+        )
+        fm["set"] = str(val)
+    if "order" in rt.fields:
+        raw_ord = str(rt.fields["order"])
+        cached_ord = f.get("order")
+        if isinstance(cached_ord, int) and raw_ord.isdigit():
+            width = max(2, len(raw_ord))
+            fm["order"] = f"{cached_ord:0{width}d}"
+        else:
+            fm["order"] = raw_ord
+    if "topic" in rt.fields:
+        raw_t = f.get("topic") if f.get("topic") is not None else rt.fields["topic"]
+        fm["topic"] = _parse_cached_list(raw_t)
+    if "model" in rt.fields:
+        if rt.fields["model"] == "":
+            fm["model"] = ""
+        else:
+            val = f.get("model") if f.get("model") is not None else rt.fields["model"]
+            fm["model"] = str(val)
+    if "kind" in rt.fields:
+        val = (
+            f.get("research_kind")
+            if f.get("research_kind") is not None
+            else rt.fields["kind"]
+        )
+        fm["kind"] = str(val)
+    if "status" in rt.fields:
+        if rt.fields["status"] == "":
+            fm["status"] = ""
+        elif st is not None and st.legacy_raw_status is not None:
+            fm["status"] = str(st.legacy_raw_status)
+        elif st is not None and st.status is not None:
+            fm["status"] = str(st.status)
+        else:
+            fm["status"] = str(rt.fields["status"])
+    if "outcome" in rt.fields:
+        val = f.get("outcome") if f.get("outcome") is not None else rt.fields["outcome"]
+        fm["outcome"] = str(val)
+    if "summary" in rt.fields:
+        val = f.get("summary") if f.get("summary") is not None else rt.fields["summary"]
+        fm["summary"] = str(val)
+    if "consumed_by" in rt.fields:
+        raw_cb = (
+            f.get("consumed_by")
+            if f.get("consumed_by") is not None
+            else rt.fields["consumed_by"]
+        )
+        fm["consumed-by"] = _parse_cached_list(raw_cb)
+    if "priority" in rt.fields:
+        val = (
+            f.get("priority")
+            if f.get("priority") is not None
+            else rt.fields["priority"]
+        )
+        fm["priority"] = str(val)
+    return fm
+
 
 def _doc_entry(
     research_root: Path,
@@ -69,8 +346,9 @@ def _doc_entry(
     *,
     ignored_dirs: set[str],
     repo_root: Optional[Path] = None,
+    _states: Optional[Dict[Path, Any]] = None,
 ) -> Tuple[Optional[DocEntry], List[Drift]]:
-    """Parse a single research doc at ``p`` under ``research_root``.
+    """Build a ``DocEntry`` for a single research doc at ``p`` via ``artifact_meta``.
 
     Returns (entry, drift). Returns (None, []) or (None, drift) for skipped docs
     (non-conformant name, missing/invalid frontmatter, or excluded).
@@ -90,13 +368,20 @@ def _doc_entry(
     except ValueError:
         return None, []
 
+    states = (
+        _states
+        if _states is not None
+        else _cached_research_states(research_root, repo_root=repo_root)
+    )
+    st = states.get(p.resolve())
+
     parsed, name_err = R.parse_name(p.name, repo_root=repo_root)
     if parsed is None:
         # Non-conformant filename: not an indexable research doc; skip quietly (migration
         # handles back-fill). Only report a name-vs-frontmatter mismatch for files that DO
         # carry research frontmatter.
         text = p.read_text(encoding="utf-8")
-        if R.parse_frontmatter(text) is not None:
+        if _state_to_frontmatter(st, text, parsed=None) is not None:
             return None, [
                 Drift(
                     p.name,
@@ -106,7 +391,7 @@ def _doc_entry(
             ]
         return None, []
     text = p.read_text(encoding="utf-8")
-    fm = R.parse_frontmatter(text)
+    fm = _state_to_frontmatter(st, text, parsed=parsed)
     if fm is None:
         return None, [Drift(rel, "frontmatter-missing", "no valid frontmatter block")]
     errs = R.validate_frontmatter(fm, repo_root=repo_root)
@@ -178,15 +463,7 @@ def _doc_entry(
     consumed_list = (
         [str(c) for c in consumed_val] if isinstance(consumed_val, list) else []
     )
-    # Check body presence after the closing ---
-    has_body = False
-    lines = text.splitlines()
-    if lines and lines[0].strip() == "---":
-        for idx, line in enumerate(lines[1:], start=1):
-            if line.strip() == "---":
-                body_text = "\n".join(lines[idx + 1 :]).strip()
-                has_body = bool(body_text)
-                break
+    has_body = has_research_body(text)
     comp_dir = R.companion_dir_for(p)
     comp_rel = (
         comp_dir.relative_to(research_root).as_posix() if comp_dir.is_dir() else ""
@@ -217,18 +494,25 @@ def _scan_docs(
     *,
     repo_root: Optional[Path] = None,
 ) -> Tuple[List[DocEntry], List[Drift]]:
-    """Scan every research doc; return (entries, drift) where drift covers frontmatter/name classes."""
+    """Scan every research doc via ``artifact_meta.query``; return (entries, drift)."""
 
     entries: List[DocEntry] = []
     drift: List[Drift] = []
     if not research_root.is_dir():
         return entries, drift
     ignored_dirs = _core.get_ignored_dirs(research_root)
+    states = _cached_research_states(
+        research_root, repo_root=repo_root, include_fields=True
+    )
     for p in sorted(research_root.rglob("*.md")):
         if R.companion_owner_stem(p, research_root) is not None:
             continue
         entry, item_drift = _doc_entry(
-            research_root, p, ignored_dirs=ignored_dirs, repo_root=repo_root
+            research_root,
+            p,
+            ignored_dirs=ignored_dirs,
+            repo_root=repo_root,
+            _states=states,
         )
         if entry is not None:
             entries.append(entry)
@@ -486,44 +770,45 @@ def _plan_is_executed(path: Path, repo_root: Path) -> bool:
 
 
 def _spec_is_implemented(text: str) -> bool:
-    from agent_workflows import attention_contract as _A
-
-    lines = text.splitlines()
-    end = len(lines)
-    for i, line in enumerate(lines):
-        if line.startswith("## "):
-            end = i
-            break
-    for i in range(end):
-        m = _A.SPEC_STATUS_RE.match(lines[i])
-        if m:
-            return m.group("value") == "implemented"
-    return False
+    return _am.read_text(text, record_type="spec").status == "implemented"
 
 
 def _backlog_is_done(path: Path, text: str) -> bool:
-    # Directory disposition takes precedence (an item under done/ is done), then the bullet Status.
+    # Directory disposition takes precedence (an item under done/ is done), then cached/parsed status.
     if path.parent.name == "done":
         return True
-    for line in text.split("\n"):
-        if line.startswith("## "):
-            break
-        m = re.match(r"^- Status:[ \t]*(?P<value>\S+)[ \t]*$", line)
-        if m:
-            return m.group("value") == "done"
-    return False
+    return _am.read_text(text, record_type="backlog").status == "done"
 
 
 def cited_by_executed_ids(repo_root: Path, research_root: Path) -> set:
     """Return the research id6s that are cited by an EXECUTED artifact.
 
     An artifact is executed when: it is a plan file under an ``executed/`` disposition dir; OR a
-    spec whose metadata ``Status:`` is ``implemented``; OR a backlog item that is ``done`` (its
-    ``done/`` dir or a ``- Status: done`` bullet). A citation from a merely pending/draft artifact
-    does NOT count. Reuses ``iter_scan_files`` + ``R.iter_id6_citations`` (the shared citation
-    primitives); the research tree itself is excluded so a doc citing another research doc is not
-    treated as an executed-artifact citation here.
+    spec whose status in ``artifact_meta`` is ``implemented``; OR a backlog item that is ``done``
+    (its ``done/`` dir or ``status == 'done'`` in ``artifact_meta``). A citation from a merely
+    pending/draft artifact does NOT count. Reuses ``iter_scan_files`` + ``R.iter_id6_citations``
+    (the shared citation primitives); the research tree itself is excluded so a doc citing another
+    research doc is not treated as an executed-artifact citation here.
     """
+
+    ctx = _am.legacy_context(repo_root)
+    records_root = Path(ctx.logical_roots["records"])
+    scan_repo = _am._scan_repo_root(ctx, records_root)
+    spec_states: Dict[Path, Any] = {}
+    backlog_states: Dict[Path, Any] = {}
+    with _am.scan_once(), _am.ephemeral_if_uninitialized():
+        for rec_type, target_map in (
+            ("spec", spec_states),
+            ("backlog", backlog_states),
+        ):
+            for st in _am.query(type=rec_type, project_context=ctx).rows:
+                if not st.path:
+                    continue
+                try:
+                    abs_p = _am.source_path(st.path, records_root, scan_repo).resolve()
+                except Exception:
+                    continue
+                target_map[abs_p] = st
 
     cited: set = set()
     for f in _core.iter_scan_files(repo_root):
@@ -538,19 +823,40 @@ def cited_by_executed_ids(repo_root: Path, research_root: Path) -> set:
             continue
         if is_plan and not _plan_is_executed(f, repo_root):
             continue
-        try:
-            text = f.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue
         executed = False
+        text: Optional[str] = None
         if is_plan:
             executed = True
         elif is_spec:
-            executed = _spec_is_implemented(text)
+            st = spec_states.get(f.resolve())
+            if st is not None:
+                executed = st.status == "implemented"
+            else:
+                try:
+                    text = f.read_text(encoding="utf-8")
+                except (OSError, UnicodeDecodeError):
+                    continue
+                executed = _spec_is_implemented(text)
         elif is_backlog:
-            executed = _backlog_is_done(f, text)
+            if f.parent.name == "done":
+                executed = True
+            else:
+                st = backlog_states.get(f.resolve())
+                if st is not None:
+                    executed = st.status == "done"
+                else:
+                    try:
+                        text = f.read_text(encoding="utf-8")
+                    except (OSError, UnicodeDecodeError):
+                        continue
+                    executed = _backlog_is_done(f, text)
         if not executed:
             continue
+        if text is None:
+            try:
+                text = f.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
         for cid in R.iter_id6_citations(text):
             cited.add(cid)
     return cited
@@ -558,35 +864,25 @@ def cited_by_executed_ids(repo_root: Path, research_root: Path) -> set:
 
 # --------------------------------------------------------------------------------------
 # consumer-id resolution (IPD xjrdjp E-03): the resolvable id6 set spanning the PLAN, SPEC, and
-# BACKLOG trees (consumed-by points at those, NOT at research ids). Assembled from the `- Id:`
-# metadata of each artifact via the shared scan roots; this is a cross-tree set, deliberately
-# NOT the research-only resolver (research_refs) nor a release-only resolver.
+# BACKLOG trees (consumed-by points at those, NOT at research ids). Assembled from artifact_meta;
+# this is a cross-tree set, deliberately NOT the research-only resolver (research_refs) nor a
+# release-only resolver.
 # --------------------------------------------------------------------------------------
-
-_META_ID_RE = re.compile(r"(?m)^- Id:[ \t]*([0-9a-z]{6})[ \t]*$")
 
 
 def resolvable_consumer_ids(repo_root: Path) -> set:
-    """Return every id6 declared by a plan, spec, or backlog artifact (its ``- Id:`` metadata).
+    """Return every id6 declared by a plan, spec, or backlog artifact via ``artifact_meta.query``.
 
-    These are the artifacts a research doc's ``consumed-by`` may legitimately point at. Scans the
-    plan/spec/backlog files under the shared scan roots and extracts the first-block ``- Id:``.
+    These are the artifacts a research doc's ``consumed-by`` may legitimately point at.
     """
 
+    ctx = _am.legacy_context(repo_root)
     ids: set = set()
-    for f in _core.iter_scan_files(repo_root):
-        parts = f.parts
-        if not ("plans" in parts or "specs" in parts or "backlog" in parts):
-            continue
-        if not f.name.endswith(".md"):
-            continue
-        try:
-            text = f.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue
-        m = _META_ID_RE.search(text)
-        if m:
-            ids.add(m.group(1))
+    with _am.scan_once(), _am.ephemeral_if_uninitialized():
+        for rec_type in ("ipd", "spec", "backlog"):
+            for st in _am.query(type=rec_type, project_context=ctx).rows:
+                if st.id6 and not st.id_derived:
+                    ids.add(st.id6)
     return ids
 
 

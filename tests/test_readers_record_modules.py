@@ -1,12 +1,15 @@
-"""Behavioral pinning tests for record-module readers (IPD kyl3m4 E-02).
+"""Behavioral pinning tests for record-module readers (IPDs kyl3m4 E-02, cb5eda E-01..E-03).
 
-Pins observable behavior of the plans record modules before and after moving their metadata
-reads onto ``artifact_meta.query`` / ``artifact_meta.read_text``:
+Pins observable behavior of the plans, research, and prompts record modules before and after
+moving their metadata reads onto ``artifact_meta.query`` / ``artifact_meta.read_text``:
 - ``agent_workflows.plans_index``
 - ``agent_workflows.plans_archive``
 - ``agent_workflows.plans_refs`` (read side)
 - ``agent_workflows.ipd_set_plan``
 - ``agent_workflows.completion`` (plan id6 and Set id candidates)
+- ``agent_workflows.research_index`` (including banner-blind ``has_body``)
+- ``agent_workflows.research_archive``
+- ``agent_workflows.prompts_index``
 
 Tests assert only observable outputs and side effects; none inspects production source code.
 """
@@ -15,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 from datetime import date
 from pathlib import Path
 
@@ -26,6 +30,11 @@ from agent_workflows import (
     plans_archive,
     plans_index,
     plans_refs,
+    prompts_index,
+    research_archive,
+    research_cmd,
+    research_contract,
+    research_index,
 )
 from tests.record_builder import RecordBuilder
 
@@ -621,3 +630,753 @@ def test_plans_index_bare_tempdir_stays_scoped(tmp_path: Path) -> None:
     assert [e.plan_id for e in entries] == ["bar001"]
     assert entries[0].set_id == "bare"
     assert entries[0].order == 1
+
+
+# --------------------------------------------------------------------------------------
+# Research and prompts record-module pinning tests (IPD cb5eda E-01, E-02, E-03)
+# --------------------------------------------------------------------------------------
+
+
+def _init_git_repo(repo: Path) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "tester@example.com"], cwd=repo, check=True
+    )
+    subprocess.run(["git", "config", "user.name", "Tester"], cwd=repo, check=True)
+
+
+def _build_records_repo(
+    tmp_path: Path, *, git: bool = False
+) -> tuple[Path, Path, Path]:
+    repo = tmp_path / "repo"
+    cfg_dir = repo / ".aw" / "config"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    (cfg_dir / "project.json").write_text(
+        json.dumps({"schema_version": 2, "records_backend": "repository"}) + "\n",
+        encoding="utf-8",
+    )
+    research_dir = repo / ".aw" / "records" / "research"
+    research_dir.mkdir(parents=True, exist_ok=True)
+    prompts_dir = repo / ".aw" / "records" / "prompts"
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+    if git:
+        _init_git_repo(repo)
+    return repo, research_dir, prompts_dir
+
+
+def _write_research_doc(
+    research_dir: Path,
+    *,
+    set_id: str,
+    order: int,
+    id6: str,
+    slug: str,
+    status: str | None,
+    created: str = "20260701",
+    kind: str = "notes",
+    model: str | None = None,
+    outcome: str = "none-yet",
+    topic: list[str] | None = None,
+    consumed_by: list[str] | None = None,
+    priority: str | None = None,
+    body: str | None = None,
+    subdir: str | None = None,
+) -> Path:
+    target_dir = research_dir / subdir if subdir else research_dir
+    target_dir.mkdir(parents=True, exist_ok=True)
+    name = research_contract.format_name(
+        research_contract.ResearchName(
+            date=created,
+            set_id=set_id,
+            order=f"{order:02d}",
+            id6=id6,
+            slug=slug,
+            model=model,
+            kind=kind,
+        )
+    )
+    content = research_cmd.build_frontmatter(
+        id6=id6,
+        created=created,
+        set_id=set_id,
+        order=f"{order:02d}",
+        topic=topic if topic is not None else ["pin"],
+        model=model,
+        kind=kind,
+        status=status,
+        outcome=outcome,
+        summary=f"summary {id6}",
+        consumed_by=consumed_by,
+        priority=priority,
+    )
+    if body:
+        content += f"\n{body}\n"
+    path = target_dir / name
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+def test_research_index_scan_query_cited_and_consumers(tmp_path: Path) -> None:
+    """Pin research_index._scan_docs, query, cited_by_executed_ids, resolvable_consumer_ids, and check_drift."""
+    repo, research_dir, _prompts_dir = _build_records_repo(tmp_path)
+
+    _write_research_doc(
+        research_dir,
+        set_id="pinset",
+        order=0,
+        id6="rpr001",
+        slug="prompt",
+        status=None,
+        created="20260801",
+        kind="research-prompt",
+        outcome="none-yet",
+    )
+    _write_research_doc(
+        research_dir,
+        set_id="pinset",
+        order=1,
+        id6="rrp001",
+        slug="report",
+        status="todo",
+        created="20260802",
+        kind="research-report",
+        model="gpt56",
+        topic=["cache", "readers"],
+        priority="high",
+        body="## Findings\n\nObserved report body.",
+    )
+    _write_research_doc(
+        research_dir,
+        set_id="refset",
+        order=0,
+        id6="rref01",
+        slug="refdoc",
+        status="reference",
+        created="20260715",
+        kind="findings",
+        outcome="adopted",
+        consumed_by=["pln101"],
+        subdir="reference/202607",
+        body="## Summary\n\nAdopted findings.",
+    )
+    # Non-conformant filename without frontmatter must be skipped quietly
+    (research_dir / "notes-scratch.md").write_text("# Scratch\n", encoding="utf-8")
+    # Non-conformant filename WITH frontmatter must emit name-invalid
+    (research_dir / "bad-name-with-fm.md").write_text(
+        research_cmd.build_frontmatter(
+            id6="rbad01",
+            created="20260803",
+            set_id="bad",
+            order="00",
+            topic=["x"],
+            model=None,
+            kind="notes",
+            status="todo",
+            outcome="none-yet",
+            summary="bad name",
+        ),
+        encoding="utf-8",
+    )
+
+    # Executed plan, implemented spec, and done backlog item (plus non-executed counterparts)
+    RecordBuilder(repo).plan(
+        id6="pln101",
+        title="Executed Plan",
+        when="2026-08-05",
+        set="cset",
+        order=1,
+        slug="exec",
+        status="executed",
+        disposition="executed",
+        body="## Goal\n\nCites RSCH-rrp001.\n",
+    )
+    RecordBuilder(repo).plan(
+        id6="pln102",
+        title="Pending Plan",
+        when="2026-08-06",
+        set="cset",
+        order=2,
+        slug="pend",
+        status="approved",
+        disposition="pending",
+        body="## Goal\n\nCites RSCH-rpr001.\n",
+    )
+    specs_dir = repo / ".aw" / "records" / "specs"
+    specs_dir.mkdir(parents=True, exist_ok=True)
+    (specs_dir / "20260805-cset-01-spc101-impl.spec.md").write_text(
+        RecordBuilder().spec(
+            id6="spc101",
+            title="Implemented Spec",
+            when="2026-08-05",
+            set="cset",
+            order=1,
+            slug="impl",
+            status="implemented",
+            body="## Scope\n\nCites RSCH-rref01.\n",
+            text_only=True,
+        ),
+        encoding="utf-8",
+    )
+    (specs_dir / "20260806-cset-02-spc102-draft.spec.md").write_text(
+        RecordBuilder().spec(
+            id6="spc102",
+            title="Draft Spec",
+            when="2026-08-06",
+            set="cset",
+            order=2,
+            slug="draft",
+            status="draft",
+            body="## Scope\n\nCites RSCH-unexec.\n",
+            text_only=True,
+        ),
+        encoding="utf-8",
+    )
+    bkl_open = repo / ".aw" / "records" / "backlog" / "open"
+    bkl_open.mkdir(parents=True, exist_ok=True)
+    (bkl_open / "20260806-bkl101-01-bkl101-open.backlog.md").write_text(
+        RecordBuilder().backlog(
+            id6="bkl101",
+            title="Open Backlog",
+            when="2026-08-06",
+            status="open",
+            body="Cites RSCH-unbkl1.\n",
+            text_only=True,
+        ),
+        encoding="utf-8",
+    )
+    (bkl_open / "20260806-bkl102-01-bkl102-inline-done.backlog.md").write_text(
+        RecordBuilder().backlog(
+            id6="bkl102",
+            title="Inline Done Backlog",
+            when="2026-08-06",
+            status="done",
+            body="Cites RSCH-rpr001.\n",
+            text_only=True,
+        ),
+        encoding="utf-8",
+    )
+
+    entries, scan_drift = research_index._scan_docs(research_dir, repo_root=repo)
+    assert [d.rule for d in scan_drift] == ["name-invalid"]
+    by_id = {e.id6: e for e in entries}
+    assert set(by_id) == {"rpr001", "rrp001", "rref01"}
+    assert by_id["rpr001"].status == ""
+    assert by_id["rpr001"].has_body is False
+    assert by_id["rrp001"].status == "todo"
+    assert by_id["rrp001"].model == "gpt56"
+    assert by_id["rrp001"].topic == ["cache", "readers"]
+    assert by_id["rrp001"].priority == "high"
+    assert by_id["rrp001"].has_body is True
+    assert by_id["rref01"].consumed_by == ["pln101"]
+
+    positions = research_index.derive_pipeline_positions(entries)
+    assert positions == {"pinset": "partial"}
+    assert [e.id6 for e in research_index.query(entries, topic="cache")] == ["rrp001"]
+    assert [e.id6 for e in research_index.query(entries, position="partial")] == [
+        "rpr001"
+    ]
+
+    cited = research_index.cited_by_executed_ids(repo, research_dir)
+    assert {"rrp001", "rref01", "rpr001"}.issubset(cited)
+    assert "unexec" not in cited
+    assert "unbkl1" not in cited
+
+    consumers = research_index.resolvable_consumer_ids(repo)
+    assert {"pln101", "pln102", "spc101", "spc102", "bkl101", "bkl102"}.issubset(
+        consumers
+    )
+
+    # Drift checks: adopted consumer resolves cleanly; rrp001 cited by executed plan flags stale-state
+    drift = research_index.check_drift(repo, research_dir)
+    rules = {d.rule for d in drift}
+    assert research_index.STALE_STATE_RULE in rules
+    assert research_index.DANGLING_CONSUMED_RULE not in rules
+
+
+def test_research_archive_plan_sweep_miscategorized_and_apply(tmp_path: Path) -> None:
+    """Pin research_archive._all_docs, plan_transition, sweep_candidates, find_miscategorized, and apply_moves."""
+    repo, research_dir, _prompts_dir = _build_records_repo(tmp_path, git=True)
+
+    p_old = _write_research_doc(
+        research_dir,
+        set_id="oldset",
+        order=0,
+        id6="rar001",
+        slug="aged",
+        status="intake",
+        created="20260110",
+    )
+    _write_research_doc(
+        research_dir,
+        set_id="newset",
+        order=0,
+        id6="rar002",
+        slug="fresh",
+        status="todo",
+        created="20260720",
+    )
+    _write_research_doc(
+        research_dir,
+        set_id="arcset",
+        order=0,
+        id6="rar003",
+        slug="archived-cited",
+        status="archive",
+        created="20260105",
+        consumed_by=["pln999"],
+        subdir="archive/202601",
+    )
+    p_prompt = _write_research_doc(
+        research_dir,
+        set_id="prmset",
+        order=0,
+        id6="rar004",
+        slug="statusless-prompt",
+        status=None,
+        created="20260705",
+        kind="research-prompt",
+    )
+
+    all_docs = research_archive._all_docs(research_dir)
+    assert {parsed.id6 for _p, parsed, _fm in all_docs} == {
+        "rar001",
+        "rar002",
+        "rar003",
+        "rar004",
+    }
+
+    assert research_archive.find_miscategorized(repo, research_dir) == ["rar003"]
+
+    cands = research_archive.sweep_candidates(
+        repo, research_dir, older_than_days=14.0, today=date(2026, 7, 25)
+    )
+    assert "rar001" in cands
+    assert "rar002" not in cands
+    assert "rar003" not in cands
+
+    mv_bad, err_bad = research_archive.plan_transition_for_path(
+        research_dir, p_prompt, "todo"
+    )
+    assert mv_bad is None
+    assert err_bad is not None and "research-prompt carries no hot status" in err_bad
+
+    mv_ref, err_ref = research_archive.plan_transition(
+        research_dir, "rar001", "reference"
+    )
+    assert err_ref is None
+    assert mv_ref is not None
+    assert mv_ref.old_path == p_old
+    assert mv_ref.new_path.parent.as_posix().endswith("reference/202601")
+
+    mv_prm, err_prm = research_archive.plan_transition_for_path(
+        research_dir, p_prompt, "reference"
+    )
+    assert err_prm is None
+    assert mv_prm is not None
+
+    research_archive.apply_moves(repo, research_dir, [mv_ref, mv_prm])
+    assert mv_ref.new_path.is_file()
+    assert mv_prm.new_path.is_file()
+    entries_after, drift_after = research_index._scan_docs(research_dir, repo_root=repo)
+    assert drift_after == []
+    after_by_id = {e.id6: e for e in entries_after}
+    assert after_by_id["rar001"].status == "reference"
+    assert after_by_id["rar004"].status == "reference"
+
+
+def test_prompts_index_scan_build_and_drift(tmp_path: Path) -> None:
+    """Pin prompts_index.scan_prompts, build_index_json, build_index_md, and check_drift."""
+    repo, _research_dir, prompts_dir = _build_records_repo(tmp_path)
+    for bucket in ("pending", "executed", "superseded", "untracked"):
+        (prompts_dir / bucket).mkdir(parents=True, exist_ok=True)
+
+    (
+        prompts_dir / "pending" / "20260920-seta-01-prm101-first-prompt.prompt.md"
+    ).write_text(
+        "<!-- aw-prompt: Kind: research | Id: prm101 | Set: seta | Order: 01 | Status: pending | Slug: first-prompt -->\n\nPrompt body.\n",
+        encoding="utf-8",
+    )
+    (prompts_dir / "executed" / "20260810-1544-01-old-run.prompt.md").write_text(
+        "<!-- aw-prompt: Kind: run-once | Status: executed | Created: 2026-08-10 -->\n\nLegacy prompt.\n",
+        encoding="utf-8",
+    )
+    (prompts_dir / "superseded" / "20260717-1950-01-plain-old.prompt.md").write_text(
+        "# Old prompt\n\nBody.\n", encoding="utf-8"
+    )
+    (prompts_dir / "untracked" / "20260920-local.prompt.md").write_text(
+        "# Ignored\n", encoding="utf-8"
+    )
+
+    entries, drift = prompts_index.scan_prompts(prompts_dir)
+    assert drift == []
+    assert len(entries) == 3
+    by_path = {e.path: e for e in entries}
+
+    e1 = by_path["pending/20260920-seta-01-prm101-first-prompt.prompt.md"]
+    assert e1.id6 == "prm101"
+    assert e1.set_id == "seta"
+    assert e1.order == 1
+    assert e1.kind == "research"
+    assert e1.status == "pending"
+    assert e1.date == "20260920"
+
+    e2 = by_path["executed/20260810-1544-01-old-run.prompt.md"]
+    assert e2.id6 is None
+    assert e2.kind == "run-once"
+    assert e2.status == "executed"
+    assert e2.date == "2026-08-10"
+
+    e3 = by_path["superseded/20260717-1950-01-plain-old.prompt.md"]
+    assert e3.id6 is None
+    assert e3.status == "superseded"
+    assert e3.date == "20260717"
+
+    rendered_json = json.loads(prompts_index.build_index_json(entries))
+    assert len(rendered_json) == 3
+    rendered_md = prompts_index.build_index_md(entries)
+    assert "## seta" in rendered_md
+    assert "prm101" in rendered_md
+
+    # Mismatched filename id6 / set vs metadata comment must emit name-metadata-mismatch
+    (prompts_dir / "pending" / "20260920-setb-01-xyz111-badmeta.prompt.md").write_text(
+        "<!-- aw-prompt: Kind: research | Id: dif999 | Set: setc | Order: 01 | Status: pending | Slug: badmeta -->\n\nBody.\n",
+        encoding="utf-8",
+    )
+    drift_after = prompts_index.check_drift(repo, prompts_dir)
+    mismatches = [d for d in drift_after if d.rule == "name-metadata-mismatch"]
+    assert any("xyz111" in d.detail and "dif999" in d.detail for d in mismatches)
+    assert any("setb" in d.detail and "setc" in d.detail for d in mismatches)
+
+
+def test_research_readers_answer_without_index_files_from_log_format_meta(
+    tmp_path: Path,
+) -> None:
+    """Verify AC-9: research readers answer from artifact_meta.query on log-format metadata without INDEX files."""
+    from agent_workflows import artifact_meta
+
+    repo, research_dir, _prompts_dir = _build_records_repo(tmp_path)
+    meta_dir = repo / ".aw" / "records" / "meta"
+    meta_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Research report backed by seq=1 create log + 4.1 two-key mirror and banner
+    rpt_rel = "research/20260110-logr01-01-lrp001-findings.research-report.md"
+    rpt_path = repo / ".aw" / "records" / rpt_rel
+    rpt_path.write_text(
+        artifact_meta.render_in_file_mirror("lrp001", "research", "todo")
+        + "\n# Log Report\n\nObserved content.\n",
+        encoding="utf-8",
+    )
+    (meta_dir / "lrp001.jsonl").write_text(
+        artifact_meta.encode_event(
+            {
+                "v": 1,
+                "seq": 1,
+                "append": 1,
+                "at": "2026-01-10T00:00:00Z",
+                "actor": {"tool": "aw"},
+                "op": "create",
+                "path": rpt_rel,
+                "fields": {
+                    "type": "research",
+                    "title": "Log Report",
+                    "set": "logr01",
+                    "order": 1,
+                    "research_kind": "research-report",
+                    "status": "todo",
+                    "outcome": "none-yet",
+                    "created": "20260110",
+                    "summary": "Log-format research report",
+                    "topic": ["metastore", "cache"],
+                    "consumed_by": [],
+                    "priority": "medium",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # 2. Archived-but-cited research doc backed by seq=0 checkpoint log (migrated shape)
+    arc_rel = "research/archive/202601/20260105-logr02-00-lar001-archived.notes.md"
+    arc_path = repo / ".aw" / "records" / arc_rel
+    arc_path.parent.mkdir(parents=True, exist_ok=True)
+    arc_path.write_text(
+        artifact_meta.render_in_file_mirror("lar001", "research", "archive")
+        + "\n# Archived Notes\n",
+        encoding="utf-8",
+    )
+    (meta_dir / "lar001.jsonl").write_text(
+        artifact_meta.encode_event(
+            {
+                "v": 1,
+                "seq": 0,
+                "append": 0,
+                "at": "2026-01-05T00:00:00Z",
+                "actor": {"tool": "aw"},
+                "op": "checkpoint",
+                "path": arc_rel,
+                "fields": {
+                    "type": "research",
+                    "title": "Archived Notes",
+                    "set": "logr02",
+                    "order": 0,
+                    "research_kind": "notes",
+                    "status": "archive",
+                    "outcome": "adopted",
+                    "created": "20260105",
+                    "summary": "Migrated archived note",
+                    "topic": ["archive"],
+                    "consumed_by": ["lsp001"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # 3. Implemented spec backed by log-format metadata citing RSCH-lrp001
+    spec_rel = "specs/20260112-logr01-01-lsp001-log-spec.spec.md"
+    spec_path = repo / ".aw" / "records" / spec_rel
+    spec_path.parent.mkdir(parents=True, exist_ok=True)
+    spec_path.write_text(
+        artifact_meta.render_in_file_mirror("lsp001", "spec", "implemented")
+        + "\n# Log Spec\n\nCites RSCH-lrp001.\n",
+        encoding="utf-8",
+    )
+    (meta_dir / "lsp001.jsonl").write_text(
+        artifact_meta.encode_event(
+            {
+                "v": 1,
+                "seq": 1,
+                "append": 1,
+                "at": "2026-01-12T00:00:00Z",
+                "actor": {"tool": "aw"},
+                "op": "create",
+                "path": spec_rel,
+                "fields": {
+                    "type": "spec",
+                    "title": "Log Spec",
+                    "set": "logr01",
+                    "order": 1,
+                    "status": "implemented",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert not (research_dir / "INDEX.json").exists()
+    assert not (research_dir / "INDEX.md").exists()
+
+    entries, drift = research_index._scan_docs(research_dir, repo_root=repo)
+    assert drift == []
+    by_id = {e.id6: e for e in entries}
+    assert set(by_id) == {"lrp001", "lar001"}
+    assert by_id["lrp001"].status == "todo"
+    assert by_id["lrp001"].topic == ["metastore", "cache"]
+    assert by_id["lrp001"].priority == "medium"
+    assert by_id["lrp001"].has_body is True
+    assert by_id["lar001"].status == "archive"
+    assert by_id["lar001"].consumed_by == ["lsp001"]
+
+    assert "lsp001" in research_index.resolvable_consumer_ids(repo)
+    assert "lrp001" in research_index.cited_by_executed_ids(repo, research_dir)
+
+    assert research_archive.find_miscategorized(repo, research_dir) == ["lar001"]
+    mv, err = research_archive.plan_transition(research_dir, "lrp001", "reference")
+    assert err is None
+    assert mv is not None
+    assert mv.new_path.parent.as_posix().endswith("reference/202601")
+
+
+def test_prompts_readers_answer_without_index_files_from_log_format_meta(
+    tmp_path: Path,
+) -> None:
+    """Verify AC-9: prompts readers answer from artifact_meta.query on log-format metadata without INDEX files."""
+    from agent_workflows import artifact_meta
+
+    repo, _research_dir, prompts_dir = _build_records_repo(tmp_path)
+    meta_dir = repo / ".aw" / "records" / "meta"
+    meta_dir.mkdir(parents=True, exist_ok=True)
+
+    p_rel = "prompts/pending/20261110-logp01-01-lpr001-log-prompt.prompt.md"
+    p_path = repo / ".aw" / "records" / p_rel
+    p_path.parent.mkdir(parents=True, exist_ok=True)
+    p_path.write_text(
+        artifact_meta.render_in_file_mirror("lpr001", "prompt", "pending")
+        + "\nPrompt body without legacy aw-prompt comment.\n",
+        encoding="utf-8",
+    )
+    (meta_dir / "lpr001.jsonl").write_text(
+        artifact_meta.encode_event(
+            {
+                "v": 1,
+                "seq": 1,
+                "append": 1,
+                "at": "2026-11-10T00:00:00Z",
+                "actor": {"tool": "aw"},
+                "op": "create",
+                "path": p_rel,
+                "fields": {
+                    "type": "prompt",
+                    "title": "Log Prompt",
+                    "set": "logp01",
+                    "order": 1,
+                    "prompt_kind": "research",
+                    "status": "pending",
+                    "created_day": "2026-11-10",
+                    "filename_date": "20261110",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert not (prompts_dir / "INDEX.json").exists()
+    assert not (prompts_dir / "INDEX.md").exists()
+
+    entries, drift = prompts_index.scan_prompts(prompts_dir)
+    assert drift == []
+    assert len(entries) == 1
+    e = entries[0]
+    assert e.id6 == "lpr001"
+    assert e.set_id == "logp01"
+    assert e.order == 1
+    assert e.kind == "research"
+    assert e.status == "pending"
+    assert e.date == "2026-11-10"
+    assert e.slug == "log-prompt"
+
+
+@pytest.mark.parametrize("shape", ["banner", "no_banner"])
+@pytest.mark.parametrize("expected_position", ["unrun", "partial", "synthesized"])
+def test_research_banner_pipeline_position(
+    tmp_path: Path, shape: str, expected_position: str
+) -> None:
+    """E-03 (F-09): research has_body ignores the 4.1 aw-managed banner in post-cutover and pre-cutover shapes."""
+    from agent_workflows import artifact_meta
+
+    repo, research_dir, _prompts_dir = _build_records_repo(tmp_path)
+    meta_dir = repo / ".aw" / "records" / "meta"
+
+    def _add_doc(
+        *,
+        order: int,
+        id6: str,
+        slug: str,
+        kind: str,
+        status: str | None,
+        body: str,
+    ) -> None:
+        name = research_contract.format_name(
+            research_contract.ResearchName(
+                date="20261109",
+                set_id="bset01",
+                order=f"{order:02d}",
+                id6=id6,
+                slug=slug,
+                model=None,
+                kind=kind,
+            )
+        )
+        doc_path = research_dir / name
+        if shape == "banner":
+            meta_dir.mkdir(parents=True, exist_ok=True)
+            mirror = artifact_meta.render_in_file_mirror(id6, "research", status)
+            doc_path.write_text(mirror + body, encoding="utf-8")
+            fields: dict[str, object] = {
+                "type": "research",
+                "title": f"Doc {id6}",
+                "set": "bset01",
+                "order": order,
+                "research_kind": kind,
+                "outcome": "none-yet",
+                "created": "20261109",
+                "summary": f"summary {id6}",
+                "topic": ["banner"],
+                "consumed_by": [],
+            }
+            if status is not None:
+                fields["status"] = status
+            (meta_dir / f"{id6}.jsonl").write_text(
+                artifact_meta.encode_event(
+                    {
+                        "v": 1,
+                        "seq": 1,
+                        "append": 1,
+                        "at": "2026-11-09T00:00:00Z",
+                        "actor": {"tool": "aw"},
+                        "op": "create",
+                        "path": f"research/{name}",
+                        "fields": fields,
+                    }
+                ),
+                encoding="utf-8",
+            )
+        else:
+            fm = research_cmd.build_frontmatter(
+                id6=id6,
+                created="20261109",
+                set_id="bset01",
+                order=f"{order:02d}",
+                topic=["pre"],
+                model=None,
+                kind=kind,
+                status=status,
+                outcome="none-yet",
+                summary=f"summary {id6}",
+            )
+            doc_path.write_text(fm + body, encoding="utf-8")
+
+    # Tree 1 (unrun): research-prompt (outcome: none-yet) + reconciliation-report with no real body
+    _add_doc(
+        order=0,
+        id6="bpr001",
+        slug="prompt",
+        kind="research-prompt",
+        status=None,
+        body="",
+    )
+    recon_body = (
+        "\n# Reconciliation Heading\n" if expected_position == "synthesized" else ""
+    )
+    _add_doc(
+        order=2,
+        id6="brc001",
+        slug="reconcile",
+        kind="reconciliation-report",
+        status="todo",
+        body=recon_body,
+    )
+    # Tree 2 (partial) & Tree 3 (synthesized): add a research-report with a heading
+    if expected_position in ("partial", "synthesized"):
+        _add_doc(
+            order=1,
+            id6="brp001",
+            slug="report",
+            kind="research-report",
+            status="todo",
+            body="\n# Report Heading\n",
+        )
+
+    entries, drift = research_index._scan_docs(research_dir, repo_root=repo)
+    assert drift == []
+    positions = research_index.derive_pipeline_positions(entries)
+    assert positions.get("bset01") == expected_position
+
+
+def test_research_body_preserves_arbitrary_html_comment() -> None:
+    """Only a single leading 4.1 aw-managed comment is ignored; arbitrary HTML comments count as body."""
+    from agent_workflows import artifact_meta
+
+    mirror = artifact_meta.render_in_file_mirror("cmt001", "research", "todo")
+    assert research_index.has_research_body(mirror) is False
+    assert research_index.has_research_body(mirror + "\n   \n") is False
+    assert research_index.has_research_body(mirror + "<!-- user note -->\n") is True
+    assert (
+        research_index.has_research_body(
+            "---\nid: cmt001\nstatus: todo\n---\n<!-- user note -->\n"
+        )
+        is True
+    )
+    # A second aw-managed comment is not stripped
+    second = "<!-- aw-managed: second comment -->\n"
+    assert research_index.has_research_body(mirror + second) is True

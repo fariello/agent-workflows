@@ -14,9 +14,10 @@ import argparse
 import json
 import re
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import artifact_meta as _am
 from agent_workflows import artifact_naming as _naming
 
 DEFAULT_INDEX_LIMIT = 40
@@ -67,13 +68,123 @@ def _parse_metadata_comment(text: str) -> Dict[str, str]:
     return meta
 
 
-def scan_prompts(prompts_dir: Path) -> Tuple[List[PromptEntry], List[_core.Drift]]:
-    """Scan every prompt under ``prompts_dir``; return (entries, drift)."""
+def _meta_context_for_prompts_dir(
+    prompts_dir: Path,
+) -> Tuple[Any, Path, Optional[Path]]:
+    """Build an ``artifact_meta`` context covering ``prompts_dir``."""
+    pdir = prompts_dir.resolve()
+    repo_root: Optional[Path] = None
+    for cand in (pdir, *pdir.parents):
+        cparts = cand.parts
+        if len(cparts) >= 4 and cparts[-3:] == (".aw", "records", "prompts"):
+            repo_root = cand.parents[2]
+            break
+        if len(cparts) >= 3 and cparts[-2:] == (".agents", "prompts"):
+            repo_root = cand.parents[1]
+            break
+    if repo_root is None:
+        from agent_workflows import project_context as _proj_ctx
+
+        repo_root = _proj_ctx.record_owner_root(pdir)
+    if repo_root is not None:
+        ctx = _am.legacy_context(repo_root)
+        records_root = Path(ctx.logical_roots["records"])
+        scan_repo = _am._scan_repo_root(ctx, records_root)
+        if pdir.is_relative_to(records_root.resolve()) or (
+            scan_repo is not None
+            and pdir.is_relative_to((scan_repo / ".agents").resolve())
+        ):
+            return ctx, records_root, scan_repo
+    prompts_ancestor: Optional[Path] = None
+    for cand in (pdir, *pdir.parents):
+        if cand.name == "prompts":
+            prompts_ancestor = cand
+            break
+    if prompts_ancestor is not None:
+        records_root = prompts_ancestor.parent
+        state_root = (
+            records_root.parent / "state"
+            if records_root.name == "records"
+            else records_root / ".aw-state"
+        )
+    else:
+        records_root = pdir
+        state_root = pdir / ".aw-state"
+    ctx = type(
+        "LegacyContext",
+        (),
+        {
+            "logical_roots": {"records": str(records_root), "state": str(state_root)},
+            "repo_root": repo_root or records_root,
+        },
+    )()
+    return ctx, records_root, repo_root
+
+
+def _cached_prompt_states(
+    prompts_dir: Path, *, include_fields: bool = True
+) -> Dict[Path, Any]:
+    """Query ``artifact_meta.query(type='prompt')`` indexed by resolved path under ``prompts_dir``."""
+    if not prompts_dir.is_dir():
+        return {}
+    pdir_res = prompts_dir.resolve()
+    ctx, records_root, scan_repo = _meta_context_for_prompts_dir(pdir_res)
+    with _am.scan_once(), _am.ephemeral_if_uninitialized():
+        res = _am.query(
+            type="prompt", project_context=ctx, include_fields=include_fields
+        )
+    by_path: Dict[Path, Any] = {}
+    for st in res.rows:
+        if not st.path:
+            continue
+        try:
+            abs_p = _am.source_path(st.path, records_root, scan_repo).resolve()
+        except Exception:
+            continue
+        if abs_p.is_relative_to(pdir_res):
+            by_path[abs_p] = st
+    return by_path
+
+
+def _state_order(st: Any) -> Optional[int]:
+    """Return non-negative integer Order from an ``artifact_meta.State``, or None."""
+    fields = getattr(st, "fields", None)
+    if isinstance(fields, dict):
+        raw = fields.get("order")
+        if isinstance(raw, int) and raw >= 0:
+            return raw
+        if isinstance(raw, str) and raw.strip().isdigit():
+            return int(raw.strip())
+    order_nn = getattr(st, "order_nn", None)
+    if isinstance(order_nn, int) and order_nn >= 0:
+        return order_nn
+    return None
+
+
+def _filename_slug(name: str) -> Optional[str]:
+    """Extract the slug segment from a prompt filename."""
+    m_leg = _STAGED_NAME_RE.match(name)
+    if m_leg:
+        return m_leg.group("slug")
+    m_attr = _naming.parse_attributed(name)
+    if m_attr:
+        return m_attr.slug
+    m_clust = _naming.parse_clustered(name)
+    if m_clust:
+        return m_clust.group("slug")
+    return None
+
+
+def _scan_prompts_with_states(
+    prompts_dir: Path,
+) -> Tuple[List[PromptEntry], List[_core.Drift], Dict[Path, Any]]:
+    """Scan every prompt under ``prompts_dir`` via ``artifact_meta.query``."""
     entries: List[PromptEntry] = []
     drift: List[_core.Drift] = []
     if not prompts_dir.is_dir():
-        return entries, drift
+        return entries, drift, {}
     ignored_dirs = _core.get_ignored_dirs(prompts_dir)
+    states = _cached_prompt_states(prompts_dir, include_fields=True)
     for p in sorted(prompts_dir.rglob("*.md")):
         if p.name in _EXCLUDE_NAMES or _core.is_ignored_path(
             p, prompts_dir, ignored_dirs
@@ -81,45 +192,43 @@ def scan_prompts(prompts_dir: Path) -> Tuple[List[PromptEntry], List[_core.Drift
             continue
         rel = p.relative_to(prompts_dir).as_posix()
         disposition = rel.split("/", 1)[0]
-        text = p.read_text(encoding="utf-8")
-        meta = _parse_metadata_comment(text)
-
-        m = _naming.parse_clustered(p.name)
-        if m:
-            fn_date = m.group("date")
-            fn_set = m.group("set")
-            try:
-                fn_order = int(m.group("nn")) if m.group("nn") else None
-            except (ValueError, TypeError):
-                fn_order = None
-            fn_id6 = m.group("id6")
-            fn_slug = m.group("slug")
+        st = states.get(p.resolve())
+        if st is None:
+            st = _am.read_text(p.read_text(encoding="utf-8"), record_type="prompt")
+            id6 = st.id6 if (st.id6 and _core.is_valid_id6(st.id6)) else None
+            set_id = st.set_id or None
+            order = _state_order(st)
+            date = str(
+                st.created_day
+                or st.fields.get("created_day")
+                or st.fields.get("created")
+                or st.fields.get("date")
+                or st.filename_date
+                or ""
+            )
+            raw_kind = st.fields.get("prompt_kind") or st.fields.get("plan_role")
+            kind = str(raw_kind) if raw_kind else None
+            status = str(st.status) if st.status else disposition
+            slug = (
+                str(st.fields.get("slug"))
+                if st.fields.get("slug")
+                else _filename_slug(p.name)
+            )
         else:
-            m_leg = _STAGED_NAME_RE.match(p.name)
-            if m_leg:
-                fn_date = m_leg.group("date")
-                fn_set = None
-                try:
-                    fn_order = int(m_leg.group("nn")) if m_leg.group("nn") else None
-                except (ValueError, TypeError):
-                    fn_order = None
-                fn_id6 = None
-                fn_slug = m_leg.group("slug")
-            else:
-                fn_date = ""
-                fn_set = None
-                fn_order = None
-                fn_id6 = None
-                fn_slug = None
-
-        id6 = meta.get("Id") or fn_id6
-        set_id = meta.get("Set") or fn_set
-        order_raw = meta.get("Order")
-        order = int(order_raw) if order_raw and order_raw.isdigit() else fn_order
-        date = meta.get("Created") or meta.get("Date") or fn_date or ""
-        kind = meta.get("Kind")
-        status = meta.get("Status") or disposition
-        slug = meta.get("Slug") or fn_slug
+            id6 = None if st.id_derived else (st.id6 or None)
+            set_id = st.set_id or None
+            order = _state_order(st)
+            date = str(
+                st.created_day
+                or st.fields.get("created_day")
+                or (st.created_at[:10] if st.created_at else None)
+                or st.filename_date
+                or ""
+            )
+            raw_kind = st.fields.get("prompt_kind")
+            kind = str(raw_kind) if raw_kind else None
+            status = str(st.status) if st.status else disposition
+            slug = _filename_slug(p.name)
 
         entries.append(
             PromptEntry(
@@ -134,6 +243,12 @@ def scan_prompts(prompts_dir: Path) -> Tuple[List[PromptEntry], List[_core.Drift
                 slug=slug,
             )
         )
+    return entries, drift, states
+
+
+def scan_prompts(prompts_dir: Path) -> Tuple[List[PromptEntry], List[_core.Drift]]:
+    """Scan every prompt under ``prompts_dir`` via ``artifact_meta.query``; return (entries, drift)."""
+    entries, drift, _states = _scan_prompts_with_states(prompts_dir)
     return entries, drift
 
 
@@ -200,37 +315,38 @@ def build_index_md(entries: List[PromptEntry], limit: int = DEFAULT_INDEX_LIMIT)
 def check_drift(
     repo_root: Path, prompts_dir: Path, limit: int = DEFAULT_INDEX_LIMIT
 ) -> List[_core.Drift]:
-    entries, drift = scan_prompts(prompts_dir)
+    entries, drift, states = _scan_prompts_with_states(prompts_dir)
     from agent_workflows import check_engine as _ce
 
-    # Drift: name-vs-metadata mismatch on a clustered name
+    # Drift: name-vs-metadata mismatch on a clustered name (read via artifact_meta)
     for e in entries:
         base = Path(e.path).name
         m = _naming.parse_clustered(base)
         if not m or re.fullmatch(r"\d{4}", m.group("set")):
             continue
-        try:
-            full_path = prompts_dir / e.path
-            text = full_path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+        st = states.get((prompts_dir / e.path).resolve())
+        if st is None:
             continue
-        meta = _parse_metadata_comment(text)
-        comment_id = meta.get("Id")
-        if comment_id and m.group("id6") != comment_id:
+        meta_id = None if st.id_derived else (st.id6 or None)
+        if meta_id and m.group("id6") != meta_id:
             drift.append(
                 _core.Drift(
                     e.path,
                     "name-metadata-mismatch",
-                    f"name id {m.group('id6')} != metadata Id {comment_id}",
+                    f"name id {m.group('id6')} != metadata Id {meta_id}",
                 )
             )
-        comment_set = meta.get("Set")
-        if comment_set and m.group("set") != comment_set:
+        meta_set = (
+            st.set_id
+            if getattr(st, "created_at", None) is not None
+            else getattr(st, "legacy_raw_set", None)
+        )
+        if meta_set and m.group("set") != meta_set:
             drift.append(
                 _core.Drift(
                     e.path,
                     "name-metadata-mismatch",
-                    f"name set {m.group('set')} != metadata Set {comment_set}",
+                    f"name set {m.group('set')} != metadata Set {meta_set}",
                 )
             )
 

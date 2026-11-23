@@ -43,22 +43,22 @@ Commit through `aw commit cb5eda -- <each changed path>`, one commit per item al
 
 ### Task group 1: research and prompts modules
 
-- [ ] E-01 (carried from `jd7874` E-03, research step) Pin, then move, `research_index` (`_scan_docs`, the `- Status:` line reader, `resolvable_consumer_ids` with `_META_ID_RE`) and `research_archive` (`research_contract.parse_frontmatter` reads) onto `artifact_meta.query`/`read`; `research_contract.parse_frontmatter` stays defined (writers and the legacy loader still need the grammar until Order 11) but has no reader caller outside `artifact_meta`. Pin in `tests/test_readers_record_modules.py` and run `tests/test_research_index.py`, `tests/test_research_archive.py` and `tests/test_research_companion.py` green before and after (outcome lists `E-10r-before.txt`/`E-10r-after.txt`).
+- [x] E-01 (carried from `jd7874` E-03, research step) Pin, then move, `research_index` (`_scan_docs`, the `- Status:` line reader, `resolvable_consumer_ids` with `_META_ID_RE`) and `research_archive` (`research_contract.parse_frontmatter` reads) onto `artifact_meta.query`/`read`; `research_contract.parse_frontmatter` stays defined (writers and the legacy loader still need the grammar until Order 11) but has no reader caller outside `artifact_meta`. Pin in `tests/test_readers_record_modules.py` and run `tests/test_research_index.py`, `tests/test_research_archive.py` and `tests/test_research_companion.py` green before and after (outcome lists `E-10r-before.txt`/`E-10r-after.txt`).
   - Depends on: none
   - Expected outcome: all listed modules pass before and after; `aw index research --check` reports the same result as `.aw/state/t4gl15/index-before.txt`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (carried from `jd7874` E-03, prompts step) Pin, then move, `prompts_index` (`_parse_metadata_comment` uses) onto `artifact_meta.query`/`read`; `prompts_index._parse_metadata_comment` stays defined (writers and the legacy loader still need the grammar until Order 11) but has no reader caller outside `artifact_meta`. Pin in `tests/test_readers_record_modules.py` and run `tests/test_prompts_index.py` and `tests/test_index_check_agent_records.py` green before and after (outcome lists `E-10p-before.txt`/`E-10p-after.txt`).
+- [x] E-02 (carried from `jd7874` E-03, prompts step) Pin, then move, `prompts_index` (`_parse_metadata_comment` uses) onto `artifact_meta.query`/`read`; `prompts_index._parse_metadata_comment` stays defined (writers and the legacy loader still need the grammar until Order 11) but has no reader caller outside `artifact_meta`. Pin in `tests/test_readers_record_modules.py` and run `tests/test_prompts_index.py` and `tests/test_index_check_agent_records.py` green before and after (outcome lists `E-10p-before.txt`/`E-10p-after.txt`).
   - Depends on: E-01
   - Expected outcome: both modules pass before and after; `aw index prompts --check` reports the same result as `.aw/state/t4gl15/index-before.txt`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: banner-blind research body test
 
-- [ ] E-03 (carried from `jd7874` E-04) Make the research body test ignore the 4.1 `aw-managed` banner (F-09): the value that `research_index.derive_pipeline_positions` reads as `has_body` (today computed in `research_index._doc_entry` as "any non-blank text after the closing `---`") must be false when the only text after the front matter is the single leading `<!-- aw-managed: ... -->` banner comment of `4sd62s` 4.1 plus whitespace, and true when any other text follows it. Compute it in ONE place used by every reader of `has_body`, whether that is the moved `research_index` reader or a field `artifact_meta` exposes; do not strip arbitrary HTML comments, only the leading banner. Test in `tests/test_readers_record_modules.py` with `tmp_path` research trees written in the post-cutover shape (two-key front matter plus banner): a Set holding a `research-prompt` with `outcome: none-yet` and a `reconciliation-report` whose body is only the banner yields `unrun`; adding a `research-report` whose body is the banner plus one heading yields `partial`; giving the reconciliation report the banner plus a heading yields `synthesized`. The same three trees in the pre-cutover shape (no banner) yield the same three positions.
+- [x] E-03 (carried from `jd7874` E-04) Make the research body test ignore the 4.1 `aw-managed` banner (F-09): the value that `research_index.derive_pipeline_positions` reads as `has_body` (today computed in `research_index._doc_entry` as "any non-blank text after the closing `---`") must be false when the only text after the front matter is the single leading `<!-- aw-managed: ... -->` banner comment of `4sd62s` 4.1 plus whitespace, and true when any other text follows it. Compute it in ONE place used by every reader of `has_body`, whether that is the moved `research_index` reader or a field `artifact_meta` exposes; do not strip arbitrary HTML comments, only the leading banner. Test in `tests/test_readers_record_modules.py` with `tmp_path` research trees written in the post-cutover shape (two-key front matter plus banner): a Set holding a `research-prompt` with `outcome: none-yet` and a `reconciliation-report` whose body is only the banner yields `unrun`; adding a `research-report` whose body is the banner plus one heading yields `partial`; giving the reconciliation report the banner plus a heading yields `synthesized`. The same three trees in the pre-cutover shape (no banner) yield the same three positions.
   - Depends on: E-01
   - Expected outcome: the six fixture cases yield `unrun`, `partial`, `synthesized` in both shapes; `aw index research --check` reports the same result as before on this checkout.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -136,20 +136,65 @@ No spec change. Implements the research and prompts part of `4sd62s` C5a, and pr
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_readers_record_modules.py -k research` all PASSED, `diff .aw/state/t4gl15/E-10r-before.txt .aw/state/t4gl15/E-10r-after.txt` (outcome lists of `tests/test_research_index.py tests/test_research_archive.py tests/test_research_companion.py`) printing nothing, `rg -n "parse_frontmatter\(" agent_workflows` with every remaining caller named (none a reader outside `artifact_meta`), and `aw index research --check; echo $?` compared with `.aw/state/t4gl15/index-before.txt`.
   - Observed evidence:
-  - Result: pending
+    - Pin-first check before production edits (`python3 -m pytest -o addopts="" -v tests/test_readers_record_modules.py -k "research or prompt"`): `3 passed, 8 deselected in 1.11s`.
+    - Post-move check (`python3 -m pytest -o addopts="" -v tests/test_readers_record_modules.py -k research`):
+      `tests/test_readers_record_modules.py::test_research_banner_pipeline_position[unrun-banner] PASSED [ 10%]`
+      `tests/test_readers_record_modules.py::test_research_banner_pipeline_position[synthesized-banner] PASSED [ 20%]`
+      `tests/test_readers_record_modules.py::test_research_banner_pipeline_position[unrun-no_banner] PASSED [ 30%]`
+      `tests/test_readers_record_modules.py::test_research_body_preserves_arbitrary_html_comment PASSED [ 40%]`
+      `tests/test_readers_record_modules.py::test_research_readers_answer_without_index_files_from_log_format_meta PASSED [ 50%]`
+      `tests/test_readers_record_modules.py::test_research_index_scan_query_cited_and_consumers PASSED [ 60%]`
+      `tests/test_readers_record_modules.py::test_research_banner_pipeline_position[partial-banner] PASSED [ 70%]`
+      `tests/test_readers_record_modules.py::test_research_banner_pipeline_position[partial-no_banner] PASSED [ 80%]`
+      `tests/test_readers_record_modules.py::test_research_banner_pipeline_position[synthesized-no_banner] PASSED [ 90%]`
+      `tests/test_readers_record_modules.py::test_research_archive_plan_sweep_miscategorized_and_apply PASSED [100%]`
+      `10 passed, 10 deselected in 1.16s`.
+    - Baseline outcome lists (`tests/test_research_index.py tests/test_research_archive.py tests/test_research_companion.py`): before `88 passed in 13.54s` (`.aw/state/t4gl15/E-10r-before.txt`, 88 lines, 8994 bytes); after `88 passed in 15.94s` (`.aw/state/t4gl15/E-10r-after.txt`, 88 lines, 8994 bytes); `diff -u .aw/state/t4gl15/E-10r-before.txt .aw/state/t4gl15/E-10r-after.txt` -> empty output (exit 0).
+    - `rg -n "parse_frontmatter\(" agent_workflows` (zero callers in `research_index.py` or `research_archive.py`; remaining matches classified):
+      - `agent_workflows/research_contract.py::parse_frontmatter` (line 645): function definition (retained until Order 11).
+      - `agent_workflows/artifact_adopt.py::apply_adopt` (line 895): writer converting newly constructed `plan.frontmatter` into `artifact_meta.create` fields.
+      - `agent_workflows/research_cmd.py::_write_planned_research_file` (line 579): writer converting newly constructed `planned.content` into `artifact_meta.create` fields.
+      - `agent_workflows/migrations/m0001_discover.py` (line 330), `agent_workflows/migrations/m0001_convert.py` (lines 1077, 1562), `agent_workflows/migrations/m0001_verify.py` (lines 319, 648): m0001 legacy-format migration scripts.
+      - `agent_workflows/releases.py::_declared_blocks_release` (line 522): out-of-scope reader owned by approved pending plan `sq6v7i` (Order 288, E-02).
+    - `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/research_index.py agent_workflows/research_archive.py agent_workflows/prompts_index.py`: empty output (0 hits).
+    - `aw index research --check; echo $?` compared with `.aw/state/t4gl15/index-before.txt` (captured before first edit, 435 lines / 84962 bytes): exit `1` before and exit `1` after; `diff -u .aw/state/t4gl15/index-before.txt .aw/state/t4gl15/index-after.txt` -> empty output (exit 0).
+    - Related suites and static checks: `tests/test_research_index_name_fm_mismatch.py tests/test_research_unsafe_field.py tests/test_research_priority.py tests/test_index_write_agent_records.py tests/test_mutation_result_facts.py` (`56 passed in 34.06s`); `python3 -m mypy agent_workflows/research_index.py agent_workflows/research_archive.py agent_workflows/prompts_index.py` (`Success: no issues found in 3 source files`); `aw suite` (`2753 passed, 1 skipped, 11 warnings in 104.44s (0:01:44)`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_readers_record_modules.py -k prompt` all PASSED, `diff .aw/state/t4gl15/E-10p-before.txt .aw/state/t4gl15/E-10p-after.txt` (outcome lists of `tests/test_prompts_index.py tests/test_index_check_agent_records.py`) printing nothing, `rg -n "_parse_metadata_comment\(" agent_workflows` with every remaining caller named, and `aw index prompts --check; echo $?` compared with `.aw/state/t4gl15/index-before.txt`.
   - Observed evidence:
-  - Result: pending
+    - Post-move check (`python3 -m pytest -o addopts="" -v tests/test_readers_record_modules.py -k prompt`):
+      `tests/test_readers_record_modules.py::test_prompts_readers_answer_without_index_files_from_log_format_meta PASSED [ 50%]`
+      `tests/test_readers_record_modules.py::test_prompts_index_scan_build_and_drift PASSED [100%]`
+      `2 passed, 18 deselected in 0.34s`.
+    - Baseline outcome lists (`tests/test_prompts_index.py tests/test_index_check_agent_records.py`): before `31 passed in 3.58s` (`.aw/state/t4gl15/E-10p-before.txt`, 31 lines, 3436 bytes); after `31 passed in 4.91s` (`.aw/state/t4gl15/E-10p-after.txt`, 31 lines, 3436 bytes); `diff -u .aw/state/t4gl15/E-10p-before.txt .aw/state/t4gl15/E-10p-after.txt` -> empty output (exit 0).
+    - `rg -n "_parse_metadata_comment\(" agent_workflows`:
+      `agent_workflows/prompts_index.py:49:def _parse_metadata_comment(text: str) -> Dict[str, str]:`
+      Only the definition remains (retained until Order 11); zero callers remain in `agent_workflows/`.
+    - `aw index prompts --check; echo $?`:
+      `INDEX.json: check.stale-index-missing: INDEX.json has not been generated; run 'aw index prompts'`
+      `INDEX.md: check.stale-index-missing: INDEX.md has not been generated; run 'aw index prompts'`
+      `0` (matches `.aw/state/t4gl15/index-before.txt` byte-for-byte; `diff -u .aw/state/t4gl15/index-before.txt .aw/state/t4gl15/index-after.txt` empty).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_readers_record_modules.py -k banner` with six tests PASSED (`unrun`, `partial`, `synthesized` for the banner shape and for the no-banner shape), each asserting the position `derive_pipeline_positions` returns for its `tmp_path` tree; `aw index research --check; echo $?` with the same exit code as `.aw/state/t4gl15/index-before.txt`.
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest -o addopts="" -v tests/test_readers_record_modules.py -k banner`:
+      `tests/test_readers_record_modules.py::test_research_banner_pipeline_position[unrun-no_banner] PASSED [ 16%]`
+      `tests/test_readers_record_modules.py::test_research_banner_pipeline_position[unrun-banner] PASSED [ 33%]`
+      `tests/test_readers_record_modules.py::test_research_banner_pipeline_position[partial-no_banner] PASSED [ 50%]`
+      `tests/test_readers_record_modules.py::test_research_banner_pipeline_position[synthesized-banner] PASSED [ 66%]`
+      `tests/test_readers_record_modules.py::test_research_banner_pipeline_position[partial-banner] PASSED [ 83%]`
+      `tests/test_readers_record_modules.py::test_research_banner_pipeline_position[synthesized-no_banner] PASSED [100%]`
+      `6 passed, 14 deselected in 0.33s`.
+    - Non-banner HTML comment preservation verified in `tests/test_readers_record_modules.py::test_research_body_preserves_arbitrary_html_comment` (`PASSED` in `-k research` run above), asserting `research_index.has_research_body` ignores only a single leading `<!-- aw-managed: ... -->` banner plus whitespace and treats arbitrary HTML comments and second banner comments as body content.
+    - `aw index research --check; echo $?`: exit `1`, identical exit code and byte-for-byte output to `.aw/state/t4gl15/index-before.txt` (`diff -u .aw/state/t4gl15/index-before.txt .aw/state/t4gl15/index-after.txt` empty).
+  - Result: pass
 
 ## Approval and execution gate
 

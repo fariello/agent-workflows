@@ -60,11 +60,12 @@ def _target_path(research_root: Path, filename: str, status: str, created: str) 
 def _all_docs(
     research_root: Path,
 ) -> List[Tuple[Path, R.ResearchName, Dict[str, object]]]:
-    """Return (path, parsed-name, frontmatter) for every conformant research doc."""
+    """Return (path, parsed-name, metadata) for every conformant research doc via ``artifact_meta``."""
 
     out = []
     if not research_root.is_dir():
         return out
+    states = RI._cached_research_states(research_root, include_fields=True)
     for p in sorted(research_root.rglob("*.md")):
         if p.name in (RI.INDEX_MD,) or p.name == "README.md":
             continue
@@ -73,7 +74,9 @@ def _all_docs(
         parsed, _err = R.parse_name(p.name)
         if parsed is None:
             continue
-        fm = R.parse_frontmatter(p.read_text(encoding="utf-8"))
+        fm = RI._state_to_frontmatter(
+            states.get(p.resolve()), p.read_text(encoding="utf-8"), parsed=parsed
+        )
         if fm is None:
             continue
         out.append((p, parsed, fm))
@@ -157,7 +160,8 @@ def plan_transition_for_path(
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
         return None, f"cannot read {path.name}: {exc}"
-    fm = R.parse_frontmatter(text)
+    states = RI._cached_research_states(research_root, include_fields=True)
+    fm = RI._state_to_frontmatter(states.get(path.resolve()), text, parsed=parsed)
     if fm is None:
         return None, f"file '{path.name}' carries no valid YAML front matter"
     if parsed.kind == "research-prompt" and new_status in R.HOT_STATUSES:
@@ -165,7 +169,7 @@ def plan_transition_for_path(
             None,
             "a research-prompt carries no hot status; its pipeline position is derived",
         )
-    created = str(fm.get("created", parsed.date))
+    created = str(fm.get("created") or parsed.date)
     new_path = _target_path(research_root, path.name, new_status, created)
     return Move(parsed.id6, path, new_path, new_status), None
 
@@ -329,11 +333,25 @@ def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> List
 
     renames: Dict[str, str] = {}
     touched: List[str] = []
+    states = RI._cached_research_states(
+        research_root, repo_root=repo_root, include_fields=True
+    )
     for m in moves:
-        # Rewrite status in the file's frontmatter first (in place at the old path).
-        text = m.old_path.read_text(encoding="utf-8")
-        fm = R.parse_frontmatter(text) or {}
-        raw_status = fm.get("status")
+        # Read current status from artifact_meta before rewriting status at the old path.
+        st = states.get(m.old_path.resolve())
+        if st is not None:
+            raw_status = (
+                st.legacy_raw_status
+                if (st.created_at is None and st.legacy_raw_status is not None)
+                else st.status
+            )
+        else:
+            rt = artifact_meta.read_text(
+                m.old_path.read_text(encoding="utf-8"), record_type="research"
+            )
+            raw_status = (
+                rt.legacy_raw_status if rt.legacy_raw_status is not None else rt.status
+            )
         current_status = str(raw_status).strip() if raw_status is not None else ""
         event: Dict[str, object] = {"op": "transition", "to": m.new_status}
         if current_status:
@@ -372,7 +390,7 @@ def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> List
         touched.append(src_rel)
         touched.append(dst_rel)
     # Refresh the index after the moves.
-    entries, _drift = RI._scan_docs(research_root)
+    entries, _drift = RI._scan_docs(research_root, repo_root=repo_root)
     research_root.mkdir(parents=True, exist_ok=True)
     (research_root / RI.INDEX_JSON).write_text(
         RI.build_index_json(entries), encoding="utf-8"
