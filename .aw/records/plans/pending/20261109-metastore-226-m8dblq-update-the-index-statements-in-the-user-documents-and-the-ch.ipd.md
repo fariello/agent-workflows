@@ -41,30 +41,30 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one document per item
 
-- [ ] E-01 `docs/cli-output-contract.md`: rewrite the `--limit` hot-window sentence and the `index` step-cue example.
+- [x] E-01 `docs/cli-output-contract.md`: rewrite the `--limit` hot-window sentence and the `index` step-cue example.
   - Depends on: none
   - Expected outcome: `rg -n "INDEX\.(json|md)" docs/cli-output-contract.md` prints only lines that describe the removal.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 `docs/cli-agent-protocol.md`: rewrite the `INDEX.md` hot-window sentence (the `--limit` bullet).
+- [x] E-02 `docs/cli-agent-protocol.md`: rewrite the `INDEX.md` hot-window sentence (the `--limit` bullet).
   - Depends on: none
   - Expected outcome: `rg -n "INDEX\.(json|md)" docs/cli-agent-protocol.md` prints only removal-describing lines.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 `CONTRIBUTING.md`: rewrite the two manifest bullets (Plans Manifest, Research Manifest).
+- [x] E-03 `CONTRIBUTING.md`: rewrite the two manifest bullets (Plans Manifest, Research Manifest).
   - Depends on: none
   - Expected outcome: `rg -n "INDEX\.(json|md)" CONTRIBUTING.md` prints only removal-describing lines.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 `README.md`: rewrite the research "`INDEX.json`/`INDEX.md`" mention in the records layout list.
+- [x] E-04 `README.md`: rewrite the research "`INDEX.json`/`INDEX.md`" mention in the records layout list.
   - Depends on: none
   - Expected outcome: `rg -n "INDEX\.(json|md)" README.md` prints only removal-describing lines.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 `CHANGELOG.md`: add one `2.0.0 (pending)` line saying INDEX files are no longer generated and `aw index <type>` is an alias of `aw index rebuild`. Then commit through `aw commit m8dblq -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-05 `CHANGELOG.md`: add one `2.0.0 (pending)` line saying INDEX files are no longer generated and `aw index <type>` is an alias of `aw index rebuild`. Then commit through `aw commit m8dblq -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: one new line under `2.0.0 (pending)`; the commit lists only Scope-Paths files.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -121,30 +121,30 @@ No spec change; this plan IS the documentation sync for `4sd62s` 4.5 in these fo
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git diff` hunks of `docs/cli-output-contract.md` and `grep -nP "[\x{2013}\x{2014}]"` over the changed lines printing nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff` of docs/cli-output-contract.md (commit 6d9caaf56) changed three lines: line 318 `--limit` now reads "on the index verbs (`index`, `research index`), it is ignored: INDEX files are no longer generated, `aw index rebuild` rebuilds the local cache, and `aw index <type>` is an alias." (was "for index generation ... it configures the recent-item hot window."); line 454 step-cue example `(e.g. `doctor`, `index`, `check`)` -> `(e.g. `doctor`, `index rebuild`, `check`)`; lines 514-517 the `aw index plans|research|prompts|all` bullet changed from "Unchanged. They still write and check their INDEX files..." to "Aliases of `aw index rebuild`. They rebuild the local cache and print one notice; INDEX files are no longer generated. With `--check`, a type spelling runs that type's content drift rules instead, exiting as `aw check <type> --all` would." (matches `aw index --help`). `rg -n "INDEX\.(json|md)" docs/cli-output-contract.md` prints nothing. Dash check `git diff -U0 | grep '^+' | grep -nP "[\x{2013}\x{2014}]"` printed nothing (exit 1).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `git diff` hunk of `docs/cli-agent-protocol.md`, `rg -n "INDEX\.(json|md)" docs/cli-agent-protocol.md` showing only removal-describing lines, and the dash check over the changed lines printing nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff` hunk of docs/cli-agent-protocol.md: `-  and mutating verbs (`group`, `rename`) ignore it. On index-building verbs (`index`, `research index`),` / `-  it configures the recent-item hot-window size for `INDEX.md` rather than bounding output records.` replaced by `+  and mutating verbs (`group`, `rename`) ignore it. On the index verbs (`index`, `research index`),` / `+  it is ignored: INDEX files are no longer generated, `aw index rebuild` rebuilds the local cache,` / `+  and `aw index <type>` is an alias.`. `rg -n "INDEX\.(json|md)" docs/cli-agent-protocol.md` prints nothing. Dash check printed nothing (exit 1).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `git diff` hunks of `CONTRIBUTING.md`, `rg -n "INDEX\.(json|md)" CONTRIBUTING.md` output, and the dash check printing nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff` hunks of CONTRIBUTING.md: the two manifest bullets (Plans Manifest `aw index plans` GENERATED, GITIGNORED, LOCAL...; Research Manifest `aw research index`) replaced by one bullet `+- **Plans and Research Manifests**: no longer generated. `aw index` writes no `INDEX.json` or` / `+  `INDEX.md` file. `aw index rebuild` rebuilds the local cache (`.aw/state/index.db`, gitignored,` / `+  never committed); `aw index <type>` (for example `aw index plans`) and `aw research index` are` / `+  aliases of it.`. Also the Generated row of the file-category table dropped `.aw/records/plans/INDEX.*`, `.aw/records/research/INDEX.*` and the `aw index plans`, `aw index research` tools (same stale claim, found by `rg -i "INDEX file|aw index plans"`; see decision D1). `rg -n "INDEX\.(json|md)" CONTRIBUTING.md` prints `55:- **Plans and Research Manifests**: no longer generated. `aw index` writes no `INDEX.json` or` and `56:  `INDEX.md` file. ...`, both removal-describing. Dash check printed nothing.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `git diff` hunk of `README.md`, `rg -n "INDEX\.(json|md)" README.md` output, and the dash check printing nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff` hunk of README.md line 405: `research/` - durable research reports `(with `INDEX.json`/`INDEX.md`)` -> `(no INDEX files are generated: `aw index rebuild` rebuilds the local cache; `aw index <type>` is an alias)`. `rg -n "INDEX\.(json|md)" README.md` prints nothing. Dash check printed nothing.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the `git diff` hunk of `CHANGELOG.md` showing the one new line under `2.0.0 (pending)`, the dash check printing nothing, and `git show --stat` of the `aw commit m8dblq` commit listing only Scope-Paths files.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff` hunk of CHANGELOG.md adds one line under `## 2.0.0 (pending)`: `+- Changed: `aw index` no longer generates `INDEX.json` or `INDEX.md` files. `aw index rebuild` rebuilds the local cache, and `aw index <type>` (such as `aw index plans`) and `aw research index` are aliases of it; `--limit` is ignored on them.`. Dash check printed nothing. `git show --stat 6d9caaf56` (aw commit m8dblq): `CHANGELOG.md | 1 +`, `CONTRIBUTING.md | 12 +++++-------`, `README.md | 2 +-`, `docs/cli-agent-protocol.md | 5 +++--`, `docs/cli-output-contract.md | 11 ++++++-----`, `5 files changed, 16 insertions(+), 15 deletions(-)`: only Scope-Paths files. Core gate `python3 -m pytest`: `2896 passed, 1 skipped, 11 warnings in 164.49s (0:02:44)`.
+  - Result: pass
 
 ## Approval and execution gate
 
