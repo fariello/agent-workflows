@@ -42,25 +42,25 @@ PIN RULE (carried from `9o83cr`): before the edit, save the named test modules' 
 
 ### Task group 1: pin, delete, retarget
 
-- [ ] E-01 Create `.aw/state/mv0j4k/` (`mkdir -p .aw/state/mv0j4k/`) and pin `tests/test_rename_group_machine_output.py`, `tests/test_research_rename_frontmatter.py` and `tests/test_group_verb_policy.py` (PIN RULE, `E-01-before.txt`).
+- [x] E-01 Create `.aw/state/mv0j4k/` (`mkdir -p .aw/state/mv0j4k/`) and pin `tests/test_rename_group_machine_output.py`, `tests/test_research_rename_frontmatter.py` and `tests/test_group_verb_policy.py` (PIN RULE, `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `.aw/state/mv0j4k/E-01-before.txt` exists.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/status_set.py`, delete `status_set._auto_index_types` and its two calls in `status_set.run_set_command`, and rewrite the docstring sentence that says touched types are "refreshed on disk by `_auto_index_types`".
+- [x] E-02 In `agent_workflows/status_set.py`, delete `status_set._auto_index_types` and its two calls in `status_set.run_set_command`, and rewrite the docstring sentence that says touched types are "refreshed on disk by `_auto_index_types`".
   - Depends on: E-01
   - Expected outcome: `rg -n "_auto_index_types|run_index" agent_workflows/status_set.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `agent_workflows/artifact_rename.py`, delete the two `run_index` calls in `artifact_rename.run_rename_generic` and the two in `artifact_rename.run_group_generic`, with the result lines they add.
+- [x] E-03 In `agent_workflows/artifact_rename.py`, delete the two `run_index` calls in `artifact_rename.run_rename_generic` and the two in `artifact_rename.run_group_generic`, with the result lines they add.
   - Depends on: E-01
   - Expected outcome: `rg -n "run_index" agent_workflows/artifact_rename.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Retarget the three pinned modules so they assert only on surviving output: `tests/test_rename_group_machine_output.py` (`_NESTED_PLANS_INDEX_LINE`, `_NESTED_RESEARCH_INDEX_LINE` and their uses), `tests/test_research_rename_frontmatter.py` (the "generated INDEX.json points to a path that exists" case becomes "`aw find research` shows the regrouped path"), and `tests/test_group_verb_policy.py` (the `f.name != "INDEX.md"` filters stay valid and need no change unless a case fails). Save `E-04-after.txt`, run the three modules, and commit through `aw commit mv0j4k -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-04 Retarget the three pinned modules so they assert only on surviving output: `tests/test_rename_group_machine_output.py` (`_NESTED_PLANS_INDEX_LINE`, `_NESTED_RESEARCH_INDEX_LINE` and their uses), `tests/test_research_rename_frontmatter.py` (the "generated INDEX.json points to a path that exists" case becomes "`aw find research` shows the regrouped path"), and `tests/test_group_verb_policy.py` (the `f.name != "INDEX.md"` filters stay valid and need no change unless a case fails). Save `E-04-after.txt`, run the three modules, and commit through `aw commit mv0j4k -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-02, E-03
   - Expected outcome: the three modules pass; the before/after mapping accounts for every case.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -121,25 +121,85 @@ No spec change; implements part of `4sd62s` 4.5.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `wc -l .aw/state/mv0j4k/E-01-before.txt` and one line from each of the three named modules.
   - Observed evidence:
-  - Result: pending
+    ```
+$ wc -l .aw/state/mv0j4k/E-01-before.txt
+72 .aw/state/mv0j4k/E-01-before.txt
+FAILED tests/test_rename_group_machine_output.py::test_index_verbs_unaffected
+FAILED tests/test_research_rename_frontmatter.py::test_regroup_preserves_generated_index_path_resolution
+PASSED tests/test_group_verb_policy.py::test_group_and_rename_command_surface_declarations
+```
+    Baseline note: the two FAILED cases already failed before any edit, because `tqknnc` made `aw index plans` and `aw index research` aliases of `aw index rebuild` that no longer write INDEX files; E-04 retargets both.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "_auto_index_types|run_index" agent_workflows/status_set.py` printing nothing, and a fixture `aw ipd set to-review <id6>` followed by `ls .aw/records/plans/INDEX.*` showing no such file. Code path: `status_set.run_set_command` (E-02).
   - Observed evidence:
-  - Result: pending
+    ```
+$ rg -n "_auto_index_types|run_index" agent_workflows/status_set.py; echo "rc=$?"
+rc=1
+$ aw ipd set to-review abc123 --dir <fixture>   # tests/record_builder.py plan, git-initialised tmp repo
+-    plan        20261001-eeiytw-01-abc123  [medium]  draft → ◔  to-review
+rc=0
+$ ls <fixture>/.aw/records/plans/INDEX.*
+ls: cannot access '<fixture>/.aw/records/plans/INDEX.*': No such file or directory
+```
+    The same fixture run on the unedited code wrote `INDEX.json` and `INDEX.md`. The now-unused `touched_types` set and the module-level `Change` import (F401 and F811 under `ruff --select F`) were also removed.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "run_index" agent_workflows/artifact_rename.py` printing nothing, and a fixture `aw group plans` run followed by `ls .aw/records/plans/INDEX.*` showing no such file. Code path: `artifact_rename.run_group_generic` (E-03).
   - Observed evidence:
-  - Result: pending
+    ```
+$ rg -n "run_index" agent_workflows/artifact_rename.py; echo "rc=$?"
+rc=1
+$ python3 -c '... artifact_rename.run_group_generic(Namespace(ids=["abc123"], set="newset", order=2, apply=True, no_commit=True, ...), "plans")'
+set metadata Set: newset in .aw/records/plans/pending/20261001-eeiytw-01-abc123-demo.ipd.md
+rc= 0 generated= ()
+$ ls <fixture>/.aw/records/plans/INDEX.*
+ls: cannot access '<fixture>/.aw/records/plans/INDEX.*': No such file or directory
+```
+    Decision 145-mv0j4k-D1: the CLI spelling `aw group plans` dispatches through `artifact_types.TYPE_BACKENDS` to `plans_refs.run_set_assign`, whose `plans_refs.apply_renames` still calls `run_index`; that site belongs to Order 223 (`9eqgcl` E-03). So the CLI fixture still writes INDEX files until `9eqgcl` runs, and the evidence drives `artifact_rename.run_group_generic` directly, which is the code path E-03 changed.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `diff .aw/state/mv0j4k/E-01-before.txt .aw/state/mv0j4k/E-04-after.txt` with each removed name mapped to its successor, the summary line of `python3 -m pytest -o addopts="" tests/test_rename_group_machine_output.py tests/test_research_rename_frontmatter.py tests/test_group_verb_policy.py` passing, and `git show --stat` of the `aw commit mv0j4k` commit listing only Scope-Paths files.
   - Observed evidence:
-  - Result: pending
+    ```
+$ diff .aw/state/mv0j4k/E-01-before.txt .aw/state/mv0j4k/E-04-after.txt
+1,2d0
+< FAILED tests/test_rename_group_machine_output.py::test_index_verbs_unaffected
+< FAILED tests/test_research_rename_frontmatter.py::test_regroup_preserves_generated_index_path_resolution
+48a47
+> PASSED tests/test_rename_group_machine_output.py::test_index_verbs_rebuild_cache_without_index_files
+65a65
+> PASSED tests/test_research_rename_frontmatter.py::test_regroup_find_resolves_regrouped_path
+```
+    Mapping: `test_index_verbs_unaffected` became `test_index_verbs_rebuild_cache_without_index_files` (same plans and research inputs; it asserts the rebuild line, the alias notice, and that no INDEX file exists). `test_regroup_preserves_generated_index_path_resolution` became `test_regroup_find_resolves_regrouped_path` (same fixture and regroup; `aw find research` shows the regrouped path). 72 cases before and 72 after; `_NESTED_PLANS_INDEX_LINE` and `_NESTED_RESEARCH_INDEX_LINE` were unused and were deleted. `tests/test_group_verb_policy.py` needed no change.
+```
+$ python3 -m pytest -o addopts="" tests/test_rename_group_machine_output.py tests/test_research_rename_frontmatter.py tests/test_group_verb_policy.py
+============================= 72 passed in 19.33s ==============================
+$ python3 -m pytest
+2896 passed, 1 skipped, 11 warnings in 132.72s (0:02:12)
+$ git show --stat aa7c94106
+ agent_workflows/artifact_rename.py        | 76 -------------------------
+ agent_workflows/status_set.py             | 93 +------------------------------
+ tests/test_rename_group_machine_output.py | 20 +++----
+ tests/test_research_rename_frontmatter.py | 30 +++++-----
+ 4 files changed, 24 insertions(+), 195 deletions(-)
+```
+    Attempt 2 (lane `aw/lane/mv0j4k_attempt2`) brought the same code forward as commit `9ff563a12` and re-ran every check itself: the before list (rebuilt from a detached worktree at base `f7c58cee2`) and the after list are each 72 lines, and the `diff` output is identical to the one above; both `rg` checks print nothing (rc=1); the fixture `aw ipd set to-review abc123` and the direct `artifact_rename.run_group_generic` fixture both left no `.aw/records/plans/INDEX.*`; the three modules print `72 passed in 19.33s`; `aw suite` in the lane prints `2896 passed, 1 skipped, 11 warnings in 119.44s (0:01:59)`.
+```
+$ git show --stat 9ff563a12
+ agent_workflows/artifact_rename.py        | 76 -------------------------
+ agent_workflows/status_set.py             | 93 +------------------------------
+ tests/test_rename_group_machine_output.py | 20 +++----
+ tests/test_research_rename_frontmatter.py | 30 +++++-----
+ 4 files changed, 24 insertions(+), 195 deletions(-)
+```
+  - Result: pass
 
 ## Approval and execution gate
 
