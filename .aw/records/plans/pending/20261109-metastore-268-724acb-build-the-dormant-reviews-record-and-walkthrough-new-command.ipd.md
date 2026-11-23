@@ -41,30 +41,30 @@ DORMANCY RULE, applied to every item of this plan (added at the split so the mov
 
 ### Task group 1: work
 
-- [ ] E-01 Before the first edit, save the dormancy baseline: run `mkdir -p .aw/state/724acb/before/ && aw check all --agent` and `aw check all --all --agent` on this repository and store each rule multiset under `.aw/state/724acb/before/` (this is this plan's share of `clors0` E-20's baseline).
+- [x] E-01 Before the first edit, save the dormancy baseline: run `mkdir -p .aw/state/724acb/before/ && aw check all --agent` and `aw check all --all --agent` on this repository and store each rule multiset under `.aw/state/724acb/before/` (this is this plan's share of `clors0` E-20's baseline).
   - Depends on: none
   - Expected outcome: two baseline files exist under `.aw/state/724acb/before/`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (part of `clors0` E-06.) Build `aw reviews record`: a parser and handler in `agent_workflows/cli.py` calling a new function in `agent_workflows/reviews.py` that appends one `review` event per spec 4.1a, with `review_kind`, `verdict`, optional `readiness` and `review_depth`; it refuses `readiness` on a refinement event and any verdict outside the vocabulary of its kind. (Dormancy: while `metadata_schema` is below 2 it exits nonzero with a message naming `aw migrate metadata` and writes nothing.) Add its cases to `tests/test_reviews_record_walkthrough_new.py`.
+- [x] E-02 (part of `clors0` E-06.) Build `aw reviews record`: a parser and handler in `agent_workflows/cli.py` calling a new function in `agent_workflows/reviews.py` that appends one `review` event per spec 4.1a, with `review_kind`, `verdict`, optional `readiness` and `review_depth`; it refuses `readiness` on a refinement event and any verdict outside the vocabulary of its kind. (Dormancy: while `metadata_schema` is below 2 it exits nonzero with a message naming `aw migrate metadata` and writes nothing.) Add its cases to `tests/test_reviews_record_walkthrough_new.py`.
   - Depends on: E-01
   - Expected outcome: on a migrated fixture one `review` event is appended; the two refusals fire; on an unmigrated fixture the command refuses and writes nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 (part of `clors0` E-06.) Build `aw walkthrough new`: a parser and handler in `agent_workflows/cli.py` that creates a walkthrough with its log over `set_records.write_walkthrough`, with the same dormancy refusal. Add its cases to `tests/test_reviews_record_walkthrough_new.py`.
+- [x] E-03 (part of `clors0` E-06.) Build `aw walkthrough new`: a parser and handler in `agent_workflows/cli.py` that creates a walkthrough with its log over `set_records.write_walkthrough`, with the same dormancy refusal. Add its cases to `tests/test_reviews_record_walkthrough_new.py`.
   - Depends on: E-01
   - Expected outcome: on a migrated fixture a walkthrough and its log are created; on an unmigrated fixture the command refuses and writes nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 (part of `clors0` E-06.) Declare both leaves in `agent_workflows/command_surface.py` as mutations and change the `aw reviews` namespace description, which today says the namespace "is read-only and writes nothing", to say the two commands are available after the migration.
+- [x] E-04 (part of `clors0` E-06.) Declare both leaves in `agent_workflows/command_surface.py` as mutations and change the `aw reviews` namespace description, which today says the namespace "is read-only and writes nothing", to say the two commands are available after the migration.
   - Depends on: E-02, E-03
   - Expected outcome: `tests/test_command_surface_declarations.py` reports no undeclared leaf; `aw reviews --help` shows the new text.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Finish this part (its share of `clors0` E-20): run `tests/test_reviews_record_walkthrough_new.py` and `tests/test_command_surface_declarations.py`, the bare core gate `python3 -m pytest`, `aw check all --agent` and `aw check all --all --agent` (rule multisets must equal the E-01 baseline: dormancy on `main`), and `aw sanitize --agent`; commit through `aw commit 724acb -- <paths>` with only Scope-Paths files; never push.
+- [x] E-05 Finish this part (its share of `clors0` E-20): run `tests/test_reviews_record_walkthrough_new.py` and `tests/test_command_surface_declarations.py`, the bare core gate `python3 -m pytest`, `aw check all --agent` and `aw check all --all --agent` (rule multisets must equal the E-01 baseline: dormancy on `main`), and `aw sanitize --agent`; commit through `aw commit 724acb -- <paths>` with only Scope-Paths files; never push.
   - Depends on: E-04
   - Expected outcome: the named modules pass; both `aw check all` multisets are unchanged; every commit's `git show --stat` lists only Scope-Paths files.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -134,30 +134,126 @@ No spec change.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `ls -l .aw/state/724acb/before/` and the rule-count line of each saved multiset.
   - Observed evidence:
-  - Result: pending
+    - `ls -l .aw/state/724acb/before/`, owner columns removed (taken before the first source edit, starting HEAD `7ece344e9`):
+      ```
+      85874 bytes  Nov 23 01:57  check-all-all.jsonl
+      550 bytes  Nov 23 01:57  check-all-all.multiset.txt
+      14641 bytes  Nov 23 01:56  check-all.jsonl
+      346 bytes  Nov 23 01:57  check-all.multiset.txt
+      ```
+    - Rule-count lines (last line of each multiset): `check-all.multiset.txt`: `TOTAL 101 rules 10`; `check-all-all.multiset.txt`: `TOTAL 549 rules 18`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `aw reviews record --help` and the `tests/test_reviews_record_walkthrough_new.py -k reviews_record` run with one PASSED node id each for the append, the refinement `readiness` refusal, the off-vocabulary verdict refusal and the unmigrated refusal.
   - Observed evidence:
-  - Result: pending
+    - `aw reviews record --help` (excerpt; full usage shows `--round ROUND --kind {gate,refinement} --verdict VERDICT [--readiness READINESS] [--review-depth REVIEW_DEPTH] [--reviewer REVIEWER] [--review-ref REVIEW_REF] [--findings-summary FINDINGS_SUMMARY] [--dir DIR] subject`):
+      ```
+      Append one review event (round, kind, verdict, optional readiness and review depth) to the reviewed plan's or spec's metadata log. Available after `aw migrate metadata`; before it, refuses and writes nothing.
+      ...
+      SAFETY & DEFAULTS
+        Writes immediately (one appended event); there is no preview. Before the metadata
+        cutover it refuses and names `aw migrate metadata`. --readiness is refused on a
+        refinement round and on a spec subject; a verdict outside its kind's vocabulary is
+        refused; a round already recorded for the same review file is refused.
 
-- [ ] V-03 validates E-03
+      OUTPUT & EXITS
+        Exit codes: 0 recorded, 2 refused/cannot-run (nothing written).
+      ```
+    - `python3 -m pytest -o addopts="" -v tests/test_reviews_record_walkthrough_new.py -k reviews_record` (the module name contains `reviews_record`, so the selection matches every node in the module; the named nodes are):
+      ```
+      tests/test_reviews_record_walkthrough_new.py::test_reviews_record_appends_one_gate_event_with_readiness PASSED
+      tests/test_reviews_record_walkthrough_new.py::test_reviews_record_refuses_off_vocabulary_payload_and_writes_nothing[refinement-readiness] PASSED
+      tests/test_reviews_record_walkthrough_new.py::test_reviews_record_refuses_off_vocabulary_payload_and_writes_nothing[off-vocabulary-verdict] PASSED
+      tests/test_reviews_record_walkthrough_new.py::test_reviews_record_refuses_off_vocabulary_payload_and_writes_nothing[gate-with-refinement-verdict] PASSED
+      tests/test_reviews_record_walkthrough_new.py::test_reviews_record_refuses_off_vocabulary_payload_and_writes_nothing[refinement-with-gate-verdict] PASSED
+      tests/test_reviews_record_walkthrough_new.py::test_reviews_record_refuses_unmigrated_repo_naming_the_migration PASSED
+      tests/test_reviews_record_walkthrough_new.py::test_reviews_record_refuses_schema_one_under_agent PASSED
+      tests/test_reviews_record_walkthrough_new.py::test_reviews_record_refinement_rounds_append_in_seq_order PASSED
+      tests/test_reviews_record_walkthrough_new.py::test_reviews_record_refuses_a_duplicate_round PASSED
+      ============================== 24 passed in 4.48s ==============================
+      ```
+    - Live dormancy on this (unmigrated) repository: `aw reviews record 724acb --round 1 --kind gate --verdict APPROVE` printed `aw reviews record: this repository's metadata_schema is absent, and this command writes the metadata log introduced by schema 2; run `aw migrate metadata` first (nothing was written)` and `rc=2`; `git status --short` was unchanged (`STATUS UNCHANGED`).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `aw walkthrough new --help` and the `tests/test_reviews_record_walkthrough_new.py -k walkthrough` run with one PASSED node id each for creation and the unmigrated refusal.
   - Observed evidence:
-  - Result: pending
+    - `aw walkthrough new --help` (excerpt; usage shows `--set SET_ID --order ORDER --target TARGET --slug SLUG [--summary SUMMARY] [--dir DIR]`):
+      ```
+      Create a walkthrough for an existing record, named by the clustered grammar, together with its metadata log. Available after `aw migrate metadata`; before it, refuses and writes nothing.
+      ...
+      SAFETY & DEFAULTS
+        Writes immediately (a new file and its log); there is no preview. Before the metadata
+        cutover it refuses and names `aw migrate metadata`. --target must be a record with a
+        metadata log. --summary is one line of at most 300 characters.
+      ```
+    - `python3 -m pytest -o addopts="" -v tests/test_reviews_record_walkthrough_new.py -k "walkthrough_new or walkthrough_family"` (named nodes; 24 passed):
+      ```
+      tests/test_reviews_record_walkthrough_new.py::test_walkthrough_new_creates_file_and_log PASSED
+      tests/test_reviews_record_walkthrough_new.py::test_walkthrough_new_refuses_unmigrated_repo_and_writes_nothing PASSED
+      tests/test_reviews_record_walkthrough_new.py::test_walkthrough_new_refuses_schema_one_under_agent PASSED
+      tests/test_reviews_record_walkthrough_new.py::test_walkthrough_new_without_summary_logs_no_short_description PASSED
+      tests/test_reviews_record_walkthrough_new.py::test_walkthrough_new_refuses_bad_input_and_writes_nothing[target-without-log] PASSED
+      tests/test_reviews_record_walkthrough_new.py::test_walkthrough_family_root_without_subcommand_is_usage_refusal PASSED
+      ============================== 24 passed in 4.50s ==============================
+      ```
+    - `test_walkthrough_new_creates_file_and_log` asserts the `.walkthrough.md` file, a one-event `meta/<id6>.jsonl` whose create event carries `type: walkthrough`, `target_id`, `set`, `order`, `short_description`, and a clean `aw check meta --agent` (exit 0, no orphan).
+    - Live dormancy on this (unmigrated) repository: `aw walkthrough new --set metastore --order 1 --target 724acb --slug x --agent` emitted `{"kind":"error","cmd":"walkthrough new","outcome":"cannot-run","exit":2,...,"diagnostics":[{"location":"724acb","rule":"metadata-schema-unmigrated"}],"next":"aw migrate metadata"}` and `rc=2`; `git status --short` unchanged.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the new `aw reviews --help` namespace text and the `tests/test_command_surface_declarations.py` result line.
   - Observed evidence:
-  - Result: pending
+    - `aw reviews --help` new namespace text:
+      ```
+      Tooling for the typed plan-review records under .aw/records/reviews. 'reviews decisions' reports what a review recorded and writes nothing. 'reviews record' appends one review round to the subject's metadata log; it is available after the metadata migration (`aw migrate metadata`) and refuses, writing nothing, before it.
+      ...
+      SAFETY & DEFAULTS
+        'reviews decisions' is read-only and writes nothing, so there is no --apply.
+        'reviews record' appends one review event to the subject's metadata log; it is
+        available only after `aw migrate metadata` and refuses, writing nothing, before.
+      ```
+    - `python3 -m pytest -o addopts="" -q tests/test_command_surface_declarations.py`: `2 passed in 0.39s`.
+    - Conformance families over the new leaves (`-n 6`): `tests/test_command_surface_declarations.py tests/test_agent_surface_conformance.py tests/test_conformance_matrix_structure.py tests/test_family_root_agent_conformance.py tests/test_shared_flag_honored.py tests/test_cli_dest_shadowing.py tests/test_fields_flag_reach.py tests/test_verbose_flag_reach.py tests/test_usage_refusal_agent_record.py tests/test_exit_contract_conformance.py tests/test_exit_vocabulary_boundary.py`: first run `1 failed, 664 passed, 1 skipped` (`test_exclusion_set_size_and_members`: `assert 72 == 70`, the required-argument leaf census); after updating that census `tests/test_usage_refusal_agent_record.py`: `187 passed in 11.72s`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste one result line per named test module (`tests/test_reviews_record_walkthrough_new.py` and `tests/test_command_surface_declarations.py`), the two `aw check all` multiset diffs against `.aw/state/724acb/before/` (empty), the bare core gate summary line beside them, `aw sanitize --agent` with zero `fail`, and `git show --stat` of every `aw commit 724acb` commit.
   - Observed evidence:
-  - Result: pending
+    - Per-module results (one line per module): `tests/test_reviews_record_walkthrough_new.py`: `24 passed in 4.41s`; `tests/test_command_surface_declarations.py`: `2 passed in 0.39s`.
+    - Bare core gate `python3 -m pytest`: `2878 passed, 1 skipped, 11 warnings in 130.53s (0:02:10)`.
+    - `aw check all --agent` multiset diff against `.aw/state/724acb/before/check-all.multiset.txt`:
+      ```
+      6a7
+      > 1 check.scope-drift
+      11c12
+      < TOTAL 101 rules 10 status None
+      ---
+      > TOTAL 102 rules 11 status None
+      ```
+      `aw check all --all --agent` diff against `check-all-all.multiset.txt`: the same single line, `> 1 check.scope-drift` (TOTAL 549 -> 550). Excluding that rule both diffs are EMPTY (`diff <(grep -v "scope-drift\|TOTAL" before) <(grep -v "scope-drift\|TOTAL" after)` printed `EMPTY DIFF` twice). The one added finding is located on THIS plan file and its detail reads `1 changed path is outside the plan's declared Scope-Paths: 'tests/test_usage_refusal_agent_record.py'`: it is this execution's own scope advisory (the required-leaf census edit, justified with `--scope-reason` at `aw commit` and reconciled at finalize), not a change in any existing command, rule or hook output. Dormancy holds: no rule other than this plan's own live-receipt advisory changed.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7113,"findings":0,"evidence":["leak-scan"],"next":null}` (zero `fail`).
+    - `git show --stat 6be40f11b` (the code commit; the plan-evidence commit follows and touches only this plan file):
+      ```
+      commit 6be40f11b4ed5cf65eb3f3289dfb4444a74fc575
+          feat(724acb): add dormant aw reviews record and aw walkthrough new
+          AW-Run: run-20261123T035302Z-2681364
+          AW-Item: 724acb
+          AW-Runner: aw oc run
+       agent_workflows/cli.py                       | 211 ++++++++++++-
+       agent_workflows/command_surface.py           |  45 +++
+       agent_workflows/reviews.py                   | 396 ++++++++++++++++++++++-
+       agent_workflows/set_records.py               | 213 ++++++++++++-
+       tests/test_reviews_record_walkthrough_new.py | 450 +++++++++++++++++++++++++++
+       tests/test_usage_refusal_agent_record.py     |   4 +-
+       6 files changed, 1303 insertions(+), 16 deletions(-)
+      ```
+      Every path is a Scope-Path except `tests/test_usage_refusal_agent_record.py`, recorded with `--scope-reason` (see the decision register).
+  - Result: pass
 
 ## Approval and execution gate
 
