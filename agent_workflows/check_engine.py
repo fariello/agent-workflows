@@ -3573,14 +3573,19 @@ def _has_matching_history_row(
     return False
 
 
-def _read_plan_state_at(
+def _read_plan_state_at_checked(
     repo_root: Path,
     rev: str,
     rel_path: str,
     *,
     ctx: Any = None,
-) -> Tuple[Optional[Any], List[Dict[str, Any]], Optional[str]]:
-    """Read ``(State, history_rows, declared_id6)`` of plan ``rel_path`` at ``rev`` via ``read_at``."""
+) -> Tuple[Optional[Any], List[Dict[str, Any]], Optional[str], Optional[str]]:
+    """Read ``(State, history_rows, declared_id6, corrupt_error)`` of plan ``rel_path`` at ``rev``.
+
+    Does not fall back to ``read_path_at`` when ``read_at`` reports ``corrupt`` (for example,
+    a corrupt staged ``meta/<id6>.jsonl``), so callers can fail closed rather than reading a
+    stale mirror.
+    """
     from agent_workflows import artifact_meta as _meta
 
     use_ctx = ctx or _git_read_at_context(repo_root, rel_path=rel_path)
@@ -3590,11 +3595,29 @@ def _read_plan_state_at(
             declared_id, rev, project_context=use_ctx, path_hint=rel_path
         )
         if res.kind == "ok" and res.state is not None:
-            return res.state, list(res.history or ()), declared_id
+            return res.state, list(res.history or ()), declared_id, None
+        if res.kind == "corrupt":
+            return None, [], declared_id, res.error or "corrupt metadata record"
     fallback = _meta.read_path_at(rel_path, rev, project_context=use_ctx)
     if fallback.kind == "ok" and fallback.state is not None:
-        return fallback.state, list(fallback.history or ()), declared_id
-    return None, [], declared_id
+        return fallback.state, list(fallback.history or ()), declared_id, None
+    if fallback.kind == "corrupt":
+        return None, [], declared_id, fallback.error or "corrupt metadata record"
+    return None, [], declared_id, None
+
+
+def _read_plan_state_at(
+    repo_root: Path,
+    rev: str,
+    rel_path: str,
+    *,
+    ctx: Any = None,
+) -> Tuple[Optional[Any], List[Dict[str, Any]], Optional[str]]:
+    """Read ``(State, history_rows, declared_id6)`` of plan ``rel_path`` at ``rev`` via ``read_at``."""
+    st, hist, declared_id, _corrupt = _read_plan_state_at_checked(
+        repo_root, rev, rel_path, ctx=ctx
+    )
+    return st, hist, declared_id
 
 
 def _check_untooled_plan_transition(
@@ -3740,9 +3763,21 @@ def check_status_untooled(repo_root: Path) -> List[_core.Drift]:
                 continue
             if not _is_plan_ipd_path(new_path):
                 continue
-            staged_state, staged_history, _sid = _read_plan_state_at(
-                repo_root, ":0:", new_path, ctx=ctx
+            staged_state, staged_history, _sid, staged_corrupt = (
+                _read_plan_state_at_checked(repo_root, ":0:", new_path, ctx=ctx)
             )
+            if staged_corrupt is not None:
+                drift.append(
+                    _core.Drift(
+                        new_path,
+                        "check.status-untooled",
+                        (
+                            f"staged plan record is unparseable/corrupt ({staged_corrupt}); "
+                            "cannot verify status transition"
+                        ),
+                    )
+                )
+                continue
             head_state = None
             if old_path:
                 head_state, _hh, _hid = _read_plan_state_at(
@@ -7567,6 +7602,19 @@ def check_release_gate_consistency(
                 )
             else:
                 sres = _meta.read_path_at(staged_path, ":0:", project_context=ctx)
+            if sres.kind == "corrupt":
+                seen_blocking_locations.add(staged_path)
+                drift.append(
+                    _core.Drift(
+                        staged_path,
+                        "check.blocking-item-closed-without-gate",
+                        (
+                            "staged backlog record is unparseable/corrupt "
+                            f"({sres.error or 'invalid record'}); cannot verify release gate"
+                        ),
+                    )
+                )
+                continue
             if sres.kind != "ok" or sres.state is None:
                 continue
             st = sres.state

@@ -178,16 +178,27 @@ def _staged_plan_executed_transitions(
             if not _is_plan_path(new_path):
                 continue
 
-            plan_id, staged_mirror_status, _staged_exists = _meta.resolve_mirror_at(
+            plan_id, staged_mirror_status, staged_exists = _meta.resolve_mirror_at(
                 new_path, ":0:", project_context=ctx
             )
             staged_state = None
+            staged_corrupt: Optional[str] = None
             if plan_id is not None:
                 sres = _meta.read_at(
                     plan_id, ":0:", project_context=ctx, path_hint=new_path
                 )
                 if sres.kind == "ok":
                     staged_state = sres.state
+                elif sres.kind == "corrupt":
+                    staged_corrupt = sres.error or "corrupt metadata record"
+            elif not staged_exists:
+                pres = _meta.read_path_at(new_path, ":0:", project_context=ctx)
+                if pres.kind == "corrupt":
+                    staged_corrupt = pres.error or "corrupt metadata record"
+
+            if staged_corrupt is not None:
+                transitions.append((new_path, plan_id, f"corrupt:{staged_corrupt}"))
+                continue
 
             # THE PATH THE FILE ACTUALLY OCCUPIED AT HEAD (i4c0c3): the rename SOURCE for an `R`,
             # and the unchanged path itself for an `A`/`M`/`C`.
@@ -494,6 +505,14 @@ def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
 
     refusals: List[str] = []
     for staged_path, plan_id, reason in transitions:
+        if reason.startswith("corrupt:"):
+            detail = reason[len("corrupt:") :]
+            id_tag = f" ({plan_id})" if plan_id else ""
+            refusals.append(
+                f"{staged_path}{id_tag}: staged plan record is unparseable/corrupt ({detail}); "
+                "cannot verify executed transition."
+            )
+            continue
         if plan_id is None:
             refusals.append(
                 f"{staged_path}: this plan is being moved to executed ({reason}) but has no readable "

@@ -5387,16 +5387,18 @@ def _read_git_blob_bytes(repo_dir: Path, blob_sha: str) -> Optional[bytes]:
 
 
 def _read_git_blob(repo_dir: Path, blob_sha: str) -> Optional[str]:
-    """Read raw UTF-8 text of git object ``blob_sha`` via ``git cat-file -p``."""
-    cat = subprocess.run(
-        ["git", "cat-file", "-p", blob_sha],
-        cwd=repo_dir,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    return cat.stdout if cat.returncode == 0 else None
+    """Read strict UTF-8 text of git object ``blob_sha`` via ``git cat-file -p``.
+
+    Returns ``None`` when the object cannot be read or contains invalid UTF-8 bytes so
+    ``read_at`` / ``read_path_at`` fail closed as ``corrupt`` without caching a valid row.
+    """
+    raw = _read_git_blob_bytes(repo_dir, blob_sha)
+    if raw is None:
+        return None
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
 
 
 def _cache_rev_write(
