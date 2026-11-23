@@ -1,5 +1,6 @@
 - Id: i8dc07
-- Status: open
+- Status: graduated
+- Graduated-To: cliverbs
 - Set: cliverbs
 - Work-Kind: feature
 - Priority: medium
@@ -117,4 +118,5 @@ Every top-level verb is a thin, well-documented front door over the existing cor
 - Resolution or deferral rationale: RESOLVED 2026-11-22 by the user via /askme: Option B (remove `aw reviews` outright in 2.0.0 once `aw show decisions` ships, and update all 13 references across code, tests, and docs). No reason was given.
 
 ## Workflow history
+- 2026-11-23 graduated (aw set): Graduated to spec ogd2nv (to-review) and review-ready Set cliverbs (lmlji2, m7jcis, p06t7i, xocj8i)
 - 2026-11-22 created (aw backlog): Add verb-first top-level CLI commands and unify read-only views under aw show

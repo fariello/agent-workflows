@@ -1,5 +1,6 @@
 - Id: 1iojci
-- Status: open
+- Status: graduated
+- Graduated-To: selectors
 - Set: selectors
 - Work-Kind: feature
 - Priority: medium
@@ -120,15 +121,16 @@ Every filter flag should be repeatable (and accept comma-separated values consis
 ### OQ-05: Should negated selector flags accept both `--not-<field>` and `--<field>-not` spellings?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Context: Today the CLI mixes both word orders: `--status-not` (`-S`) puts `-not` at the end, while `--not-active` puts `not-` at the start, and the new Set ID exclusion was requested as `--not-set-id`.
 - Options:
-  1. **Pick one canonical spelling for `--help` (proposed: `--not-<field>`, e.g., `--not-type`, `--not-status`, `--not-priority`, `--not-readiness`, `--not-set-id`, `--not-date`) and register `--<field>-not` as hidden/accepted aliases for backward compatibility and muscle memory (recommended).**
+  1. **Pick one canonical spelling for `--help` (proposed: `--not-<field>`, e.g., `--not-type`, `--not-status`, `--not-priority`, `--not-readiness`, `--not-set-id`, `--not-date`, `--not-mtime`, `--not-ctime`) and register `--<field>-not` as hidden/accepted aliases for backward compatibility and muscle memory (recommended).**
   2. **Standardize strictly on `--<field>-not` (`--type-not`, `--status-not`, `--set-id-not`) with no aliases.** Matches existing `--status-not`, but conflicts with `--not-active` and `--not-set-id`.
   3. **Standardize strictly on `--not-<field>` and deprecate `--status-not`.** Cleanest single spelling, but breaks scripts using `--status-not`.
 - Recommendation: Option 1 (canonical `--not-<field>` in `--help`, with `--<field>-not` accepted everywhere so existing `--status-not` scripts continue working).
-- Resolution or deferral rationale:
+- Resolution or deferral rationale: RESOLVED 2026-11-22 by the user via /askme: Option A (use `--not-<field>` as the canonical form in `--help`, and also accept `--<field>-not` as aliases for backward compatibility). No reason was given.
 
 ## Workflow history
+- 2026-11-23 graduated (aw set): Graduated to spec ogd2nv (to-review) and review-ready Set selectors (3xwbvs, bzsoai, mnlaoa, e36q6r)
 - 2026-11-22 created (aw backlog): Aggregate and normalize all artifact selector flags across all aw commands
