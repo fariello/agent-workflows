@@ -94,6 +94,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-228-sdzcur-record-the-baseline-for-the-index-alias-and-stale-index-fami.ipd.md
 - Moved to tqknnc (round-3 split 2026-11-09 per research nj8zdp guidance): E-02 (aliases), split there into E-01 to E-05; the `producers` case of V-04 moved to 9eqgcl.
   - Carrier: tqknnc
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-220-tqknnc-make-the-typed-aw-index-spellings-aliases-of-aw-index-rebuil.ipd.md
 - Moved to lywgzs (round-3 split 2026-11-09 per research nj8zdp guidance): E-04 subset 1, `ipd_lifecycle._refresh_plans_index_fail_loud`, its call in `_finalize_transaction`, its five `ipd_lifecycle` comment sites and the `lane_containment.inventory_lane` comment, with `tests/test_orchestrator_retirement.py`.
   - Carrier: lywgzs
 - Moved to mv0j4k (round-3 split 2026-11-09 per research nj8zdp guidance): E-04 subset 2, `status_set._auto_index_types` and its two calls, the four `artifact_rename` sites, with `tests/test_rename_group_machine_output.py`, `tests/test_research_rename_frontmatter.py`, `tests/test_group_verb_policy.py`.
