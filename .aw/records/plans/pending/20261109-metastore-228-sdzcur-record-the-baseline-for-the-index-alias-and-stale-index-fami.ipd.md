@@ -170,10 +170,61 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     Ran `git status --porcelain` immediately after E-01 (exit 0): empty output (no tracked or untracked changes outside gitignored `.aw/state/` and gitignored `.aw/records/plans/INDEX.{json,md}`).
   - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste table F-28 as committed, paste the committed `### F-28 rule-id multisets` fenced blocks in full, paste `aw sanitize --agent` showing `"outcome":"clean"` and `"findings":0`, and paste `git show --stat` of the `aw commit sdzcur` commit listing only this plan file.
   - Observed evidence:
-  - Result: pending
+    Table F-28 as committed in `50dfed8fabaed0c61611b299f9655c9e982fbbcd`:
+    ```markdown
+    | Id | Evidence | Finding |
+    |---|---|---|
+    | F-28 | Measured 2026-11-22 on unedited HEAD `28f1c587fb4bd0b9cd3d22f46cd9d704d05507a7` before any edit of the `q6epwc` family. Exit codes: `aw index plans --agent`: `0`; `aw index research --check --agent`: `1`; `aw check plans --all --agent`: `1`; `aw check research --all --agent`: `1`; `aw check prompts --all --agent`: `1`; `aw doctor --agent`: `1`; `aw check all --agent`: `1`; `aw check all --all --agent`: `1`; `python3 -m pytest`: `0`. `check.stale-index-*` counts: `aw check all --agent`: `0` (`check.stale-index-missing`: `0`, `check.stale-index-drift`: `0`); `aw check all --all --agent`: `2` (`check.stale-index-missing`: `2`, `check.stale-index-drift`: `0`). Bare core gate summary line (`python3 -m pytest`): `2803 passed, 1 skipped, 11 warnings in 170.07s (0:02:50)`. Full rule-id multisets appear directly beneath this table under `### F-28 rule-id multisets`. | `q6epwc` E-17 (now split into E-17 to E-19) compares against this table and its subsections. |
+    ```
+    Committed `### F-28 rule-id multisets` fenced blocks in full (`aw check all --agent` and `aw check all --all --agent`):
+    ```text
+          1 check.graduated-to-dangling
+          1 check.identity-absent-from-name
+          1 check.ipd-uncarried-obligation
+         33 check.lifecycle-transition-unvalidated
+          4 check.name-nonconformant
+          1 check.plan-spec-link-missing
+          6 check.prompt-metadata-missing
+         42 check.source-test-citation-dangling
+          2 check.spec-criteria-uncovered
+          1 check.system-layout-missing
+          2 spec.prose-dash
+    ```
+    ```text
+         35 adopted-without-consumer
+          1 check.graduated-to-dangling
+         12 check.identity-absent-from-name
+          1 check.ipd-dependency-findings-blocked
+          1 check.ipd-uncarried-obligation
+         33 check.lifecycle-transition-unvalidated
+          7 check.name-nonconformant
+          1 check.plan-spec-link-missing
+          6 check.prompt-metadata-missing
+         42 check.source-test-citation-dangling
+          2 check.spec-criteria-uncovered
+          2 check.stale-index-missing
+          1 check.system-layout-missing
+        355 dangling-citation
+          1 name-invalid
+          4 spec.prose-dash
+         30 stale-state-to-promote
+          2 status-tier-mismatch
+          4 unrecognized-model
+    ```
+    `aw sanitize --agent` (exit 0):
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7093,"findings":0,"evidence":["leak-scan"],"next":null}`
+    `git show --stat --stat-width=150 --format="commit %H%n%s" 50dfed8fabaed0c61611b299f9655c9e982fbbcd` (exit 0):
+    ```text
+    commit 50dfed8fabaed0c61611b299f9655c9e982fbbcd
+    metastore(sdzcur): record pre-edit baseline in table F-28
+
+     ...09-metastore-228-sdzcur-record-the-baseline-for-the-index-alias-and-stale-index-fami.ipd.md | 72 ++++++++++++++++++++++++++++++++++++++++++------
+     1 file changed, 64 insertions(+), 8 deletions(-)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
