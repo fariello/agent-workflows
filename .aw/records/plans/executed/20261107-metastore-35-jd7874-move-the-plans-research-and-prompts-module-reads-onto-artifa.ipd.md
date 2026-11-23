@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5a requires every record module to read metadata through the cache, and AC-9 requires that no reader depend on an INDEX file. Measured 2026-11-07 at `ac76110f4`: the plans modules read metadata with their own regexes (`plans_index._META_RE` 7 patterns, `plans_archive` 5 `^-` regexes, `plans_refs` 5), the research modules through `research_contract.parse_frontmatter` and `research_index._META_ID_RE`, and `prompts_index` through `_parse_metadata_comment`; `research_index._doc_entry` also computes `has_body` in a way the 4.1 `aw-managed` banner will break (F-09). Part 3 of the split of `t4gl15` (Order 09).
 - Scope: FINISHING PART after the round-3 split (2026-11-09, research `nj8zdp` guidance). E-01 and E-02 (INDEX baseline, 4.4 search rows, plans modules) moved to `kyl3m4` (Order 148); E-03 and E-04 (research and prompts modules, banner-blind research body test) moved to `cb5eda` (Order 153). This plan keeps E-05: the residual-audit rows of `t4gl15` E-15 for the eight plans, research and prompts modules, and the final runs. EXCLUDES: the review, orchestration, production-check and work modules (Order 36, `2zpw22`); deleting the INDEX writers and parsers (Order 11).
 - Scope-Paths: .aw/records/plans/pending/20261107-metastore-35-jd7874-move-the-plans-research-and-prompts-module-reads-onto-artifa.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261122-napot2-01-napot2-prevent-ipd-lint-continuation-loop-from-stopping-o.backlog.md (Mandatory defect-report backlog carrier for adjacent ipd_lint continuation-loop bug encountered during jd7874 validation)
 - Item-Dependencies: executed:ffceq0, executed:g5hpbb, executed:h58z9n, executed:tve77h, executed:xexn45, executed:kyl3m4, executed:cb5eda
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: jd7874
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-23 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: jd7874 verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261122-napot2-01-napot2-prevent-ipd-lint-continuation-loop-from-stopping-o.backlog.md: Mandatory defect-report backlog carrier for adjacent ipd_lint continuation-loop bug encountered during jd7874 validation]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, audit targets, execution gate, and state directory initialization; findings PR-001..PR-005 fixed; marked reviewed and go-pending-approval.
