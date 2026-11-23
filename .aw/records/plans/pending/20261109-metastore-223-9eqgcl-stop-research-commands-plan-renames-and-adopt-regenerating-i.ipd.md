@@ -42,32 +42,32 @@ PIN RULE (carried from `9o83cr`): before the edit, save the named test modules' 
 
 ### Task group 1: pin and delete
 
-- [ ] E-01 Pin `tests/test_artifact_refs_rewrite.py` and `tests/test_artifact_adopt.py` (PIN RULE, `E-01-before.txt`).
+- [x] E-01 Pin `tests/test_artifact_refs_rewrite.py` and `tests/test_artifact_adopt.py` (PIN RULE, `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `.aw/state/9eqgcl/E-01-before.txt` exists.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/research_cmd.py`, delete the `run_index` call in `research_cmd.run_set_outcome` and the one in `research_cmd.run_set_priority`, with the result lines they add.
+- [x] E-02 In `agent_workflows/research_cmd.py`, delete the `run_index` call in `research_cmd.run_set_outcome` and the one in `research_cmd.run_set_priority`, with the result lines they add.
   - Depends on: E-01
   - Expected outcome: `rg -n "run_index" agent_workflows/research_cmd.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Delete the `run_index` call in `research_refs._apply_renames` with its "research manifest was not regenerated" note, and the `run_index` call in `plans_refs.apply_renames` with its result line.
+- [x] E-03 Delete the `run_index` call in `research_refs._apply_renames` with its "research manifest was not regenerated" note, and the `run_index` call in `plans_refs.apply_renames` with its result line.
   - Depends on: E-01
   - Expected outcome: `rg -n "run_index|manifest was not regenerated" agent_workflows/research_refs.py agent_workflows/plans_refs.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `agent_workflows/artifact_adopt.py`, delete `artifact_adopt._default_refresh_index`; when no `refresh_index` is injected, step 2 is skipped, the result reports `index_refreshed=False`, and the human line "index refreshed via the existing verb" is no longer printed. Keep the injectable `refresh_index` seam so `tests/test_artifact_adopt.py`'s rollback case (`refresh_index=_boom`) still proves the rollback.
+- [x] E-04 In `agent_workflows/artifact_adopt.py`, delete `artifact_adopt._default_refresh_index`; when no `refresh_index` is injected, step 2 is skipped, the result reports `index_refreshed=False`, and the human line "index refreshed via the existing verb" is no longer printed. Keep the injectable `refresh_index` seam so `tests/test_artifact_adopt.py`'s rollback case (`refresh_index=_boom`) still proves the rollback.
   - Depends on: E-01
   - Expected outcome: `rg -n "_default_refresh_index|run_index" agent_workflows/artifact_adopt.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: producers test and commit
 
-- [ ] E-05 Retarget the INDEX assertions of `tests/test_artifact_refs_rewrite.py` and `tests/test_artifact_adopt.py` to surviving output, save `E-05-after.txt`, then add a `producers` case to `tests/test_index_aliases.py` that runs `aw ipd finalize`, `aw rename plans`, `aw group plans`, `aw research set-outcome` and the adopt path on a `tests/record_builder.py` fixture and asserts no `INDEX.*` exists and the next `aw find` shows each change. Run the three modules and commit through `aw commit 9eqgcl -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-05 Retarget the INDEX assertions of `tests/test_artifact_refs_rewrite.py` and `tests/test_artifact_adopt.py` to surviving output, save `E-05-after.txt`, then add a `producers` case to `tests/test_index_aliases.py` that runs `aw ipd finalize`, `aw rename plans`, `aw group plans`, `aw research set-outcome` and the adopt path on a `tests/record_builder.py` fixture and asserts no `INDEX.*` exists and the next `aw find` shows each change. Run the three modules and commit through `aw commit 9eqgcl -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: the three modules pass; `rg -n "run_index\(|_auto_index_types|_refresh_plans_index_fail_loud|_default_refresh_index" agent_workflows` prints only the three `run_index` definitions in `plans_index`, `research_index` and `prompts_index` and the archive callers `snin8q` deletes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -132,30 +132,161 @@ No spec change; implements part of `4sd62s` 4.5 and contributes to AC-9 (owned b
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `wc -l .aw/state/9eqgcl/E-01-before.txt` and one line from each of `tests/test_artifact_refs_rewrite.py` and `tests/test_artifact_adopt.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `wc -l .aw/state/9eqgcl/E-01-before.txt` -> `67 .aw/state/9eqgcl/E-01-before.txt` (all 67 PASSED, none other). One line from each module:
+    ```
+    PASSED tests/test_artifact_refs_rewrite.py::TestArtifactRefsPrefilterAndParity::test_lazy_index_and_empty_map_skip_walks_and_masking
+    PASSED tests/test_artifact_adopt.py::AlreadyAdoptedWarningTests::test_a_distinct_drop_is_not_flagged
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "run_index" agent_workflows/research_cmd.py` printing nothing, and the `git diff` hunks of `research_cmd.run_set_outcome` and `research_cmd.run_set_priority`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "run_index" agent_workflows/research_cmd.py` printed nothing (`rc=1`). Hunks (commit `6e9278e58`, carried forward byte-identical from prior lane commit `cb7ef93a9`):
+    ```
+    @@ -974,21 +974,6 @@ def run_set_outcome(args: argparse.Namespace) -> int:
+         print(f"updated {rel}")
+    -    # Refresh the index so INDEX.json carries the new consumed-by (E-02).
+    -    try:
+    -        from agent_workflows import research_index as _ridx
+    -
+    -        _ridx.run_index(
+    -            argparse.Namespace(
+    -                dir=getattr(args, "dir", None),
+    -                check=False,
+    -                agent=False,
+    -                limit=None,
+    -                quiet=True,
+    -            )
+    -        )
+    -    except Exception:
+    -        pass
+         return 0
+    @@ -1115,20 +1100,6 @@ def run_set_priority(args: argparse.Namespace) -> int:
+         print(f"updated {rel}")
+    -    try:
+    -        from agent_workflows import research_index as _ridx
+    -
+    -        _ridx.run_index(
+    -            argparse.Namespace(
+    -                dir=getattr(args, "dir", None),
+    -                check=False,
+    -                agent=False,
+    -                limit=None,
+    -                quiet=True,
+    -            )
+    -        )
+    -    except Exception:
+    -        pass
+         return 0
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "run_index|manifest was not regenerated" agent_workflows/research_refs.py agent_workflows/plans_refs.py` printing nothing, and the `git diff` hunks of `research_refs._apply_renames` and `plans_refs.apply_renames`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "run_index|manifest was not regenerated" agent_workflows/research_refs.py agent_workflows/plans_refs.py` printed nothing (`rc=1`). Hunks (commit `6e9278e58`, carried forward byte-identical from prior lane commit `cb7ef93a9`):
+    ```
+    research_refs.py @@ -682,49 +682,6 @@ def _apply_renames(
+    -    diagnostics: List[MutationDiagnostic] = []
+    -    generated: List[str] = []
+    -    try:
+    -        from agent_workflows import research_index as _ridx
+    -        rc_idx = _ridx.run_index(argparse.Namespace(dir=str(repo_root), check=False, agent=False, limit=None, quiet=True))
+    -        if rc_idx == 0: ... generated.append(_rel(mf))
+    -        else: ... diagnostics.append(MutationDiagnostic(...severity="warning"))
+    -            notes_list.append("note: research manifest was not regenerated; run 'aw index research' to resolve")
+    -            if emit_human: print("warning: research manifest not regenerated: ...", file=sys.stderr)
+    -    except Exception:
+    -        pass
+    @@ -744,9 +701,9 @@
+    -        diagnostics=tuple(diagnostics),
+    +        diagnostics=(),
+             notes=tuple(notes_list),
+    -        generated=tuple(generated),
+    +        generated=(),
+    plans_refs.py @@ -786,25 +786,6 @@ def apply_renames(
+    -    generated: List[str] = []
+    -    try:
+    -        rc_idx = _idx.run_index(argparse.Namespace(dir=str(repo_root), check=False, as_agent=False, json=False, no_color=True, limit=None, quiet=True))
+    -        if rc_idx == 0:
+    -            for mf in (plans_dir / "INDEX.json", plans_dir / "INDEX.md"):
+    -                if mf.exists():
+    -                    generated.append(_rel(mf))
+    -    except Exception:
+    -        pass
+    @@ -827,7 +808,7 @@
+    -        generated=tuple(generated),
+    +        generated=(),
+    ```
+    (multi-line calls condensed onto one line here; `git show 6e9278e58` has the verbatim hunks.)
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n "_default_refresh_index|run_index" agent_workflows/artifact_adopt.py` printing nothing, and `python3 -m pytest -o addopts="" -v tests/test_artifact_adopt.py` showing the rollback case PASSED.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "_default_refresh_index|run_index" agent_workflows/artifact_adopt.py` printed nothing (`rc=1`). `artifact_adopt.apply_adoption` now runs step 2 only when `refresh_index` is injected and reports `index_refreshed=False`, `index_detail=""` otherwise; `artifact_adopt.run_adopt` no longer prints "index refreshed via the existing verb". `python3 -m pytest -o addopts="" -v tests/test_artifact_adopt.py`:
+    ```
+    tests/test_artifact_adopt.py::FailureOrderingTests::test_successful_adoption_reports_no_index_refresh_in_json PASSED [ 25%]
+    tests/test_artifact_adopt.py::FailureOrderingTests::test_index_refresh_failure_rolls_back_and_leaves_the_original PASSED [ 27%]
+    ============================== 40 passed in 4.06s ==============================
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `diff .aw/state/9eqgcl/E-01-before.txt .aw/state/9eqgcl/E-05-after.txt` with each removed name mapped; `python3 -m pytest -o addopts="" -v tests/test_index_aliases.py -k producers` PASSED; the output of `rg -n "run_index\(|_auto_index_types|_refresh_plans_index_fail_loud|_default_refresh_index" agent_workflows` showing only the three `run_index` definitions and the archive callers; and `git show --stat` of the `aw commit 9eqgcl` commit listing only Scope-Paths files. Code path: each command's dispatch through `cli.main` (Orders 221 to 223).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `diff .aw/state/9eqgcl/E-01-before.txt .aw/state/9eqgcl/E-05-after.txt` (67 -> 68 lines):
+    ```
+    19a20
+    > PASSED tests/test_artifact_adopt.py::FailureOrderingTests::test_successful_adoption_reports_no_index_refresh_in_json
+    ```
+    No name removed, so nothing to map; one case added. Retargets inside the pinned modules kept their names: `test_readme_5_generated_manifests_index_and_status_skipped_by_plan_and_untouched_on_disk` now also asserts the leftover `INDEX.md` keeps its bytes and no `INDEX.json` appears after the rename; `test_successful_adoption_removes_the_original_and_writes_the_artifact` asserts no `INDEX.*` and no refresh line; `_AdoptRepo._adopted_files` no longer excludes `INDEX.md`.
+
+    Two tests OUTSIDE Scope-Paths asserted the deleted refreshes and failed after E-02..E-04; they were retargeted and justified with `--scope-reason` at commit time (pinned separately, `.aw/state/9eqgcl/E-05-extra-{before,after}.txt`, 22 -> 22 lines, all PASSED):
+    ```
+    7c7
+    < PASSED tests/test_mutation_result_facts.py::test_research_index_refusal_captured_on_drift
+    ---
+    > PASSED tests/test_mutation_result_facts.py::test_research_mv_beside_drift_regenerates_no_manifest
+    15d14
+    < PASSED tests/test_rename_group_machine_output.py::test_manifest_refresh_in_payload
+    20a20
+    > PASSED tests/test_rename_group_machine_output.py::test_rename_payload_lists_no_manifest_change
+    ```
+    - `test_research_index_refusal_captured_on_drift` -> `test_research_mv_beside_drift_regenerates_no_manifest` (same drifted-sibling input kept; asserts empty diagnostics/generated, no note, no `INDEX.*`, and that `aw index research --check --agent` still reports `frontmatter-missing` at exit 1).
+    - `test_manifest_refresh_in_payload` -> `test_rename_payload_lists_no_manifest_change` (same rename input kept; asserts the `--json` payload names no `INDEX.` path and no "manifest index auto-refreshed" row, and no `INDEX.*` on disk).
+
+    `python3 -m pytest -o addopts="" -v tests/test_index_aliases.py -k producers`:
+    ```
+    tests/test_index_aliases.py::test_producers_write_no_index_files_and_find_sees_each_change PASSED [100%]
+    ======================= 1 passed, 7 deselected in 1.71s ========================
+    ```
+    The case drives `aw ipd begin`/`aw ipd finalize`, `aw rename plans`, `aw group plans`, `aw research set-outcome`, `aw research set-priority`, `aw research mv` and `aw adopt --json` through `cli.main` on a `tests/record_builder.py` repository and after each asserts no `INDEX.*` exists and `aw find` returns the changed path, Set, or document. Run against the pre-change production modules (restored from HEAD, then put back) it FAILS at the finalize step: `AssertionError: assert ['.aw/records...ans/INDEX.md'] == []` / `Left contains 2 more items, first extra item: '.aw/records/plans/INDEX.json'`.
+
+    `rg -n "run_index\(|_auto_index_types|_refresh_plans_index_fail_loud|_default_refresh_index" agent_workflows`:
+    ```
+    agent_workflows/prompts_index.py:364:def run_index(args: argparse.Namespace) -> int:
+    agent_workflows/research_index.py:1242:def run_index(args: argparse.Namespace) -> int:
+    agent_workflows/plans_index.py:560:def run_index(args: argparse.Namespace) -> int:
+    ```
+    Only the three definitions; no archive caller appears because `plans_archive._refresh_index` writes INDEX files directly through `build_index_json`/`build_index_md` rather than calling `run_index` (still `snin8q`'s to delete).
+
+    Three modules: `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -q tests/test_artifact_adopt.py tests/test_artifact_refs_rewrite.py` -> `68 passed in 6.82s`; `tests/test_index_aliases.py` 8 passed (7 alias cases + producers). Core gate `python3 -m pytest` -> `2897 passed, 1 skipped, 11 warnings in 156.02s (0:02:36)`; `aw suite` -> `2897 passed, 1 skipped, 11 warnings in 99.73s (0:01:39)`; re-run in the attempt-2 lane after carrying the work forward: `aw suite` -> `2897 passed, 1 skipped, 11 warnings in 131.34s (0:02:11)`, and the five touched test modules -> `98 passed in 27.96s`.
+
+    `git show --stat 6e9278e58` (attempt 2 lane; same tree as prior-lane `cb7ef93a9`):
+    ```
+     agent_workflows/artifact_adopt.py         |  43 +++-----
+     agent_workflows/plans_refs.py             |  21 +---
+     agent_workflows/research_cmd.py           |  29 ------
+     agent_workflows/research_refs.py          |  47 +--------
+     tests/test_artifact_adopt.py              |  20 +++-
+     tests/test_artifact_refs_rewrite.py       |   4 +
+     tests/test_index_aliases.py               | 166 ++++++++++++++++++++++++++++++
+     tests/test_mutation_result_facts.py       |  45 +++++---
+     tests/test_rename_group_machine_output.py |  21 ++--
+     9 files changed, 243 insertions(+), 153 deletions(-)
+    ```
+    Seven are Scope-Paths files; `tests/test_mutation_result_facts.py` and `tests/test_rename_group_machine_output.py` are outside and carry `--scope-reason` entries (recorded by `aw commit`, which reported the advisory `check.scope-drift` for exactly those two). The backlog item `nls1nk` (`aw group plans --apply` prints nothing on success, reproduced on the pre-change base `d6f2b2f03`, so pre-existing) is the third out-of-scope path, committed in `0b581768b` with its own `--scope-reason`. Code path: each command's dispatch through `cli.main`.
+  - Result: pass
 
 ## Approval and execution gate
 
