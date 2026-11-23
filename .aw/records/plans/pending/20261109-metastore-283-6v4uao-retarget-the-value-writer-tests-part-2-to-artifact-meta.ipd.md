@@ -42,30 +42,30 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 
 ### Task group 1: one test module per item
 
-- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-08-tests2-before.txt`. Retarget `tests/test_from_backlog_cardinality.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case.
+- [x] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-08-tests2-before.txt`. Retarget `tests/test_from_backlog_cardinality.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case.
   - Depends on: none
   - Expected outcome: `tests/test_from_backlog_cardinality.py` calls no original value writer and passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Retarget `tests/test_check_engine_from_spec_missing.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case.
+- [x] E-02 Retarget `tests/test_check_engine_from_spec_missing.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case.
   - Depends on: E-01
   - Expected outcome: `tests/test_check_engine_from_spec_missing.py` calls no original value writer and passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Retarget `tests/test_check_engine_spec_criteria.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case.
+- [x] E-03 Retarget `tests/test_check_engine_spec_criteria.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case.
   - Depends on: E-02
   - Expected outcome: `tests/test_check_engine_spec_criteria.py` calls no original value writer and passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Retarget `tests/test_backlog_handoff_close.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case.
+- [x] E-04 Retarget `tests/test_backlog_handoff_close.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case.
   - Depends on: E-03
   - Expected outcome: `tests/test_backlog_handoff_close.py` calls no original value writer and passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Retarget `tests/test_research_descriptive_safety.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case. Then commit through `aw commit 6v4uao -- <paths>`.
+- [x] E-05 Retarget `tests/test_research_descriptive_safety.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case. Then commit through `aw commit 6v4uao -- <paths>`.
   - Depends on: E-04
   - Expected outcome: `tests/test_research_descriptive_safety.py` calls no original value writer and passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -124,30 +124,312 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "set_[a-z_]+_line|_set_priority_line" tests/test_from_backlog_cardinality.py` printing no call, and the before/after per-test lines of `tests/test_from_backlog_cardinality.py` from the PIN lists with each renamed test mapped and no FAILED or ERROR line.
   - Observed evidence:
-  - Result: pending
+      `rg -n "set_[a-z_]+_line|_set_priority_line" tests/test_from_backlog_cardinality.py` printed nothing (exit 1, no match).
+      PIN lists (`.aw/state/9o83cr/E-08-tests2-before.txt` / `-after.txt`) for this module: 7 before, 7 after, all PASSED, no FAILED or ERROR line. Renamed: none (no test renamed; before and after are identical).
+      Before:
+        PASSED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_cross_reader_parity_matrix
+        PASSED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_malformed_rule_corpus_independence
+        PASSED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_malformed_rule_reachability_and_separation
+        PASSED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_multi_bullet_preservation
+        PASSED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_operator_surface_graduation_cluster
+        PASSED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_regression_reproduction_f1
+        PASSED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_writer_idempotency_and_metadata_parse
+      After:
+        PASSED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_cross_reader_parity_matrix
+        PASSED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_malformed_rule_corpus_independence
+        PASSED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_malformed_rule_reachability_and_separation
+        PASSED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_multi_bullet_preservation
+        PASSED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_operator_surface_graduation_cluster
+        PASSED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_regression_reproduction_f1
+        PASSED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_writer_idempotency_and_metadata_parse
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "set_[a-z_]+_line|_set_priority_line" tests/test_check_engine_from_spec_missing.py` printing no call, and the before/after per-test lines of `tests/test_check_engine_from_spec_missing.py` from the PIN lists with each renamed test mapped and no FAILED or ERROR line.
   - Observed evidence:
-  - Result: pending
+      `rg -n "set_[a-z_]+_line|_set_priority_line" tests/test_check_engine_from_spec_missing.py` printed nothing (exit 1, no match).
+      PIN lists (`.aw/state/9o83cr/E-08-tests2-before.txt` / `-after.txt`) for this module: 37 before, 37 after, all PASSED, no FAILED or ERROR line. Renamed: none (no test renamed; before and after are identical).
+      Before:
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_empty_known_specs_fail_safe
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_exit_code_control
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_finding_recovery_and_required_names_all_three_answers
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_observability_nothing_staged
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_pending_plan_missing_edge
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_absent_sentinel
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_edge
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_empty_from_spec
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_from_spec_none
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_from_spec_unresolved
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_quoted_none_or_uppercase_none
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_citing_no_known_spec
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_editing_cited_spec_exempt
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_in_executed_dir_exempt
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_partial_spec_edit
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_with_directory_scope_paths_fires
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_with_unrelated_scope_paths
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCliIpdSetFromSpec::test_cli_clear_with_dash
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCliIpdSetFromSpec::test_cli_refuse_unresolvable_id
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCliIpdSetFromSpec::test_cli_set_from_spec_writes_bullet
+        PASSED tests/test_check_engine_from_spec_missing.py::TestDispatchAndFailIsolation::test_dispatch_reached_by_check_content
+        PASSED tests/test_check_engine_from_spec_missing.py::TestDispatchAndFailIsolation::test_fail_isolation_when_detector_raises
+        PASSED tests/test_check_engine_from_spec_missing.py::TestDispatchAndFailIsolation::test_single_dispatch_plans_and_all
+        PASSED tests/test_check_engine_from_spec_missing.py::TestParseCitedSpecIds::test_cited_in_concern
+        PASSED tests/test_check_engine_from_spec_missing.py::TestParseCitedSpecIds::test_cited_in_scope
+        PASSED tests/test_check_engine_from_spec_missing.py::TestParseCitedSpecIds::test_cited_in_scope_paths
+        PASSED tests/test_check_engine_from_spec_missing.py::TestParseCitedSpecIds::test_cited_only_in_findings_body_row
+        PASSED tests/test_check_engine_from_spec_missing.py::TestParseCitedSpecIds::test_cited_only_on_continuation_line
+        PASSED tests/test_check_engine_from_spec_missing.py::TestParseCitedSpecIds::test_deduplication_across_bullets
+        PASSED tests/test_check_engine_from_spec_missing.py::TestParseCitedSpecIds::test_empty_known_specs
+        PASSED tests/test_check_engine_from_spec_missing.py::TestParseCitedSpecIds::test_unknown_six_letter_word
+        PASSED tests/test_check_engine_from_spec_missing.py::TestSetFromSpecLine::test_fallback_after_id
+        PASSED tests/test_check_engine_from_spec_missing.py::TestSetFromSpecLine::test_idempotence
+        PASSED tests/test_check_engine_from_spec_missing.py::TestSetFromSpecLine::test_insert_after_status
+        PASSED tests/test_check_engine_from_spec_missing.py::TestSetFromSpecLine::test_remove_with_dash
+        PASSED tests/test_check_engine_from_spec_missing.py::TestSetFromSpecLine::test_remove_with_none
+        PASSED tests/test_check_engine_from_spec_missing.py::TestSetFromSpecLine::test_replace_preexisting_empty_value
+      After:
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_empty_known_specs_fail_safe
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_exit_code_control
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_finding_recovery_and_required_names_all_three_answers
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_observability_nothing_staged
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_pending_plan_missing_edge
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_absent_sentinel
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_edge
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_empty_from_spec
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_from_spec_none
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_from_spec_unresolved
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_quoted_none_or_uppercase_none
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_citing_no_known_spec
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_editing_cited_spec_exempt
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_in_executed_dir_exempt
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_partial_spec_edit
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_with_directory_scope_paths_fires
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_with_unrelated_scope_paths
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCliIpdSetFromSpec::test_cli_clear_with_dash
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCliIpdSetFromSpec::test_cli_refuse_unresolvable_id
+        PASSED tests/test_check_engine_from_spec_missing.py::TestCliIpdSetFromSpec::test_cli_set_from_spec_writes_bullet
+        PASSED tests/test_check_engine_from_spec_missing.py::TestDispatchAndFailIsolation::test_dispatch_reached_by_check_content
+        PASSED tests/test_check_engine_from_spec_missing.py::TestDispatchAndFailIsolation::test_fail_isolation_when_detector_raises
+        PASSED tests/test_check_engine_from_spec_missing.py::TestDispatchAndFailIsolation::test_single_dispatch_plans_and_all
+        PASSED tests/test_check_engine_from_spec_missing.py::TestParseCitedSpecIds::test_cited_in_concern
+        PASSED tests/test_check_engine_from_spec_missing.py::TestParseCitedSpecIds::test_cited_in_scope
+        PASSED tests/test_check_engine_from_spec_missing.py::TestParseCitedSpecIds::test_cited_in_scope_paths
+        PASSED tests/test_check_engine_from_spec_missing.py::TestParseCitedSpecIds::test_cited_only_in_findings_body_row
+        PASSED tests/test_check_engine_from_spec_missing.py::TestParseCitedSpecIds::test_cited_only_on_continuation_line
+        PASSED tests/test_check_engine_from_spec_missing.py::TestParseCitedSpecIds::test_deduplication_across_bullets
+        PASSED tests/test_check_engine_from_spec_missing.py::TestParseCitedSpecIds::test_empty_known_specs
+        PASSED tests/test_check_engine_from_spec_missing.py::TestParseCitedSpecIds::test_unknown_six_letter_word
+        PASSED tests/test_check_engine_from_spec_missing.py::TestSetFromSpecLine::test_fallback_after_id
+        PASSED tests/test_check_engine_from_spec_missing.py::TestSetFromSpecLine::test_idempotence
+        PASSED tests/test_check_engine_from_spec_missing.py::TestSetFromSpecLine::test_insert_after_status
+        PASSED tests/test_check_engine_from_spec_missing.py::TestSetFromSpecLine::test_remove_with_dash
+        PASSED tests/test_check_engine_from_spec_missing.py::TestSetFromSpecLine::test_remove_with_none
+        PASSED tests/test_check_engine_from_spec_missing.py::TestSetFromSpecLine::test_replace_preexisting_empty_value
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "set_[a-z_]+_line|_set_priority_line" tests/test_check_engine_spec_criteria.py` printing no call, and the before/after per-test lines of `tests/test_check_engine_spec_criteria.py` from the PIN lists with each renamed test mapped and no FAILED or ERROR line.
   - Observed evidence:
-  - Result: pending
+      `rg -n "set_[a-z_]+_line|_set_priority_line" tests/test_check_engine_spec_criteria.py` printed nothing (exit 1, no match).
+      PIN lists (`.aw/state/9o83cr/E-08-tests2-before.txt` / `-after.txt`) for this module: 15 before, 15 after, all PASSED, no FAILED or ERROR line. Renamed: none (no test renamed; before and after are identical).
+      Before:
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_bare_digit_criteria_yield_no_findings
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_clean_fixture_yields_zero_findings_and_exit_code_zero
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_code_fence_criterion_not_counted_as_coverage
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_counterfactual_pin_matches_motivating_defect_set
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_drift_exit_code_info_versus_warning
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_isolated_try_except_in_check_content
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_namespace_gate_silences_foreign_namespace
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_negative_control_reader_not_silently_broken
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_parser_four_row_shapes
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_plan_gaining_from_spec_edge_uncovers_criteria
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_positive_control_fires_when_criterion_missing
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_rule_id_contains_neither_graduation_nor_duplicate
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_rule_spec_registration
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_sentinel_links_treated_as_absent
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_seven_uncovered_criteria_detail_and_recovery
+      After:
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_bare_digit_criteria_yield_no_findings
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_clean_fixture_yields_zero_findings_and_exit_code_zero
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_code_fence_criterion_not_counted_as_coverage
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_counterfactual_pin_matches_motivating_defect_set
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_drift_exit_code_info_versus_warning
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_isolated_try_except_in_check_content
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_namespace_gate_silences_foreign_namespace
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_negative_control_reader_not_silently_broken
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_parser_four_row_shapes
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_plan_gaining_from_spec_edge_uncovers_criteria
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_positive_control_fires_when_criterion_missing
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_rule_id_contains_neither_graduation_nor_duplicate
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_rule_spec_registration
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_sentinel_links_treated_as_absent
+        PASSED tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_seven_uncovered_criteria_detail_and_recovery
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n "set_[a-z_]+_line|_set_priority_line" tests/test_backlog_handoff_close.py` printing no call, and the before/after per-test lines of `tests/test_backlog_handoff_close.py` from the PIN lists with each renamed test mapped and no FAILED or ERROR line.
   - Observed evidence:
-  - Result: pending
+      Input case kept: `test_case_6f_...` still feeds the absolute home-shaped citation. artifact_meta refuses it (`leak sanitizer refusal (home-path)`, now asserted), and the repo-relative value the backlog setter normalizes it to is stored with zero leak-scanner findings (decision D1).
+      `rg -n "set_[a-z_]+_line|_set_priority_line" tests/test_backlog_handoff_close.py` printed nothing (exit 1, no match).
+      PIN lists (`.aw/state/9o83cr/E-08-tests2-before.txt` / `-after.txt`) for this module: 40 before, 40 after, all PASSED, no FAILED or ERROR line. Renamed: none (no test renamed; before and after are identical).
+      Before:
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_backlog_set_declared_flag_surface_matches_parser
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_1_two_carrier_sibling_unexecuted_gate_dir_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_2_default_is_unchanged_without_gate_dir
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_3_move_still_lands_in_move_tree
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_4_evidence_resolved_in_gate_tree_not_move_tree
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_5_gate_dir_non_project_root_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_6b_single_carrier_without_override_refused_proves_tightening
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_6_single_carrier_with_lane_carrier_override_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_7_two_carrier_sibling_unexecuted_with_override_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_8_forged_assertion_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_1_pending_same_gate_plan_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_2_executed_plan_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_3_pending_plan_target_graduated_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_4_spec_carrier_approved_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_4_spec_carrier_implemented_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_5_mixed_kind_carriers_plan_and_spec
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_5_three_carriers_two_executed_one_pending_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_5_two_carriers_both_executed_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_5_two_carriers_pending_and_executed_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6a_satisfied_evidence_at_rest_reconstructable
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6b_satisfied_evidence_bullet_removed_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6c_satisfied_evidence_nonexistent_path_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6d_handoff_and_degated_closes_leave_no_close_evidence
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6e_satisfied_evidence_absolute_citation_stored_relative_and_relocation_safe
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6f_satisfied_evidence_leak_safety_home_shaped_root
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6g_satisfied_evidence_citation_with_space_reader_agreement
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6h_close_evidence_bounded_to_metadata_region
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6_satisfied_evidence_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_7_degated_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_8_superseded_or_not_executed_plan_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_9_spec_field_approved_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_9_spec_field_implemented_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_1_executed_same_gate_pending_ungated_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_2_executed_same_gate_executed_ungated_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_3_executed_same_gate_pending_different_gate_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_4_allowed_executed_same_gate_implemented_ungated_spec
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_4_refused_executed_same_gate_approved_ungated_spec
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_5_only_executed_ungated_plan_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_6_degated_executed_same_gate_superseded_ungated_plan_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_6_refused_executed_same_gate_superseded_ungated_plan
+      After:
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_backlog_set_declared_flag_surface_matches_parser
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_1_two_carrier_sibling_unexecuted_gate_dir_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_2_default_is_unchanged_without_gate_dir
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_3_move_still_lands_in_move_tree
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_4_evidence_resolved_in_gate_tree_not_move_tree
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_5_gate_dir_non_project_root_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_6b_single_carrier_without_override_refused_proves_tightening
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_6_single_carrier_with_lane_carrier_override_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_7_two_carrier_sibling_unexecuted_with_override_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_8_forged_assertion_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_1_pending_same_gate_plan_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_2_executed_plan_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_3_pending_plan_target_graduated_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_4_spec_carrier_approved_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_4_spec_carrier_implemented_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_5_mixed_kind_carriers_plan_and_spec
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_5_three_carriers_two_executed_one_pending_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_5_two_carriers_both_executed_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_5_two_carriers_pending_and_executed_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6a_satisfied_evidence_at_rest_reconstructable
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6b_satisfied_evidence_bullet_removed_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6c_satisfied_evidence_nonexistent_path_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6d_handoff_and_degated_closes_leave_no_close_evidence
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6e_satisfied_evidence_absolute_citation_stored_relative_and_relocation_safe
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6f_satisfied_evidence_leak_safety_home_shaped_root
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6g_satisfied_evidence_citation_with_space_reader_agreement
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6h_close_evidence_bounded_to_metadata_region
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_6_satisfied_evidence_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_7_degated_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_8_superseded_or_not_executed_plan_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_9_spec_field_approved_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_case_9_spec_field_implemented_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_1_executed_same_gate_pending_ungated_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_2_executed_same_gate_executed_ungated_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_3_executed_same_gate_pending_different_gate_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_4_allowed_executed_same_gate_implemented_ungated_spec
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_4_refused_executed_same_gate_approved_ungated_spec
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_5_only_executed_ungated_plan_refused
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_6_degated_executed_same_gate_superseded_ungated_plan_allowed
+        PASSED tests/test_backlog_handoff_close.py::BacklogHandoffCloseBehaviorTests::test_kntbbc_case_6_refused_executed_same_gate_superseded_ungated_plan
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `rg -n "set_[a-z_]+_line|_set_priority_line" tests/test_research_descriptive_safety.py` printing no call, and the before/after per-test lines of `tests/test_research_descriptive_safety.py` from the PIN lists with each renamed test mapped and no FAILED or ERROR line. Also paste `git show --stat` of the `aw commit 6v4uao` commit listing only Scope-Paths files.
   - Observed evidence:
-  - Result: pending
+      Input case kept: the unsafe `"high\nstatus: active"` priority is still fed. artifact_meta refuses it (`priority must not contain embedded newlines`, now asserted) instead of splicing it like the old `_set_priority_line`, and a safe `high` renders `priority: high` (decision D2).
+      `rg -n "set_[a-z_]+_line|_set_priority_line" tests/test_research_descriptive_safety.py` printed nothing (exit 1, no match).
+      PIN lists (`.aw/state/9o83cr/E-08-tests2-before.txt` / `-after.txt`) for this module: 24 before, 24 after, all PASSED, no FAILED or ERROR line. Renamed: none (no test renamed; before and after are identical).
+      Before:
+        PASSED tests/test_research_descriptive_safety.py::TestAdoptInjection::test_adopt_heading_ansi_escape_refused_with_actionable_message
+        PASSED tests/test_research_descriptive_safety.py::TestAdoptInjection::test_adopt_summary_flag_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestBoundaryAndNonRegressions::test_conforming_creation_and_modifications_succeed
+        PASSED tests/test_research_descriptive_safety.py::TestBoundaryAndNonRegressions::test_deliberate_under_scope_text_writers_unchanged
+        PASSED tests/test_research_descriptive_safety.py::TestBoundaryAndNonRegressions::test_existing_planner_refusals_preserved
+        PASSED tests/test_research_descriptive_safety.py::TestBoundaryAndNonRegressions::test_quiet_versus_loud_distinction_both_refused
+        PASSED tests/test_research_descriptive_safety.py::TestBoundaryAndNonRegressions::test_refusal_writes_nothing_listing_unchanged
+        PASSED tests/test_research_descriptive_safety.py::TestBoundaryAndNonRegressions::test_slug_and_set_remain_unguarded_and_kebabed
+        PASSED tests/test_research_descriptive_safety.py::TestBoundaryAndNonRegressions::test_summary_length_boundary_300_accepted_301_refused
+        PASSED tests/test_research_descriptive_safety.py::TestHelperContract::test_helper_refuse_unsafe_descriptive_contract
+        PASSED tests/test_research_descriptive_safety.py::TestPreFixDemonstration::test_pre_fix_crafted_consumed_by_smuggles_status_and_checker_blind
+        PASSED tests/test_research_descriptive_safety.py::TestPreFixDemonstration::test_pre_fix_crafted_topic_token_smuggles_keys_and_checker_blind
+        PASSED tests/test_research_descriptive_safety.py::TestPreFixDemonstration::test_pre_fix_summary_injection_smuggles_keys_and_checker_blind
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewComparisonInjection::test_cli_research_new_comparison_summary_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewComparisonInjection::test_cli_research_new_comparison_topic_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewComparisonInjection::test_plan_new_comparison_summary_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewComparisonInjection::test_plan_new_comparison_topic_token_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewInjection::test_cli_research_new_preview_refused_on_summary_injection
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewInjection::test_cli_research_new_summary_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewInjection::test_cli_research_new_topic_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewInjection::test_plan_new_summary_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewInjection::test_plan_new_topic_token_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchSetOutcomeInjection::test_cli_research_set_outcome_consumed_by_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchSetOutcomeInjection::test_plan_set_outcome_consumed_by_injection_refused
+      After:
+        PASSED tests/test_research_descriptive_safety.py::TestAdoptInjection::test_adopt_heading_ansi_escape_refused_with_actionable_message
+        PASSED tests/test_research_descriptive_safety.py::TestAdoptInjection::test_adopt_summary_flag_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestBoundaryAndNonRegressions::test_conforming_creation_and_modifications_succeed
+        PASSED tests/test_research_descriptive_safety.py::TestBoundaryAndNonRegressions::test_deliberate_under_scope_text_writers_unchanged
+        PASSED tests/test_research_descriptive_safety.py::TestBoundaryAndNonRegressions::test_existing_planner_refusals_preserved
+        PASSED tests/test_research_descriptive_safety.py::TestBoundaryAndNonRegressions::test_quiet_versus_loud_distinction_both_refused
+        PASSED tests/test_research_descriptive_safety.py::TestBoundaryAndNonRegressions::test_refusal_writes_nothing_listing_unchanged
+        PASSED tests/test_research_descriptive_safety.py::TestBoundaryAndNonRegressions::test_slug_and_set_remain_unguarded_and_kebabed
+        PASSED tests/test_research_descriptive_safety.py::TestBoundaryAndNonRegressions::test_summary_length_boundary_300_accepted_301_refused
+        PASSED tests/test_research_descriptive_safety.py::TestHelperContract::test_helper_refuse_unsafe_descriptive_contract
+        PASSED tests/test_research_descriptive_safety.py::TestPreFixDemonstration::test_pre_fix_crafted_consumed_by_smuggles_status_and_checker_blind
+        PASSED tests/test_research_descriptive_safety.py::TestPreFixDemonstration::test_pre_fix_crafted_topic_token_smuggles_keys_and_checker_blind
+        PASSED tests/test_research_descriptive_safety.py::TestPreFixDemonstration::test_pre_fix_summary_injection_smuggles_keys_and_checker_blind
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewComparisonInjection::test_cli_research_new_comparison_summary_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewComparisonInjection::test_cli_research_new_comparison_topic_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewComparisonInjection::test_plan_new_comparison_summary_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewComparisonInjection::test_plan_new_comparison_topic_token_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewInjection::test_cli_research_new_preview_refused_on_summary_injection
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewInjection::test_cli_research_new_summary_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewInjection::test_cli_research_new_topic_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewInjection::test_plan_new_summary_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchNewInjection::test_plan_new_topic_token_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchSetOutcomeInjection::test_cli_research_set_outcome_consumed_by_injection_refused
+        PASSED tests/test_research_descriptive_safety.py::TestResearchSetOutcomeInjection::test_plan_set_outcome_consumed_by_injection_refused
+      `git show --stat b0bb123bc` (the `aw commit 6v4uao` commit), Scope-Paths files only:
+        commit b0bb123bc29c9b772523db652bcb3d780913f3e0
+        Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+        Date:   Mon Nov 23 10:20:18 2026 -0500
+            6v4uao: retarget five value-writer test modules (part 2) to artifact_meta
+            AW-Run: run-20261123T035302Z-2681364
+            AW-Item: 6v4uao
+            AW-Runner: aw oc run
+         tests/test_backlog_handoff_close.py          | 28 +++++++++++++++++---
+         tests/test_check_engine_from_spec_missing.py | 38 ++++++++++++++++++++--------
+         tests/test_check_engine_spec_criteria.py     | 16 ++++++++----
+         tests/test_from_backlog_cardinality.py       | 27 ++++++++++++++++----
+         tests/test_research_descriptive_safety.py    | 26 ++++++++++++++++---
+         5 files changed, 108 insertions(+), 27 deletions(-)
+  - Result: pass
 
 ## Approval and execution gate
 
