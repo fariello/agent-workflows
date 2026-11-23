@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5 allows exactly one metadata writer (`artifact_meta`). Part 2 of the round-3 split of `k6jd6l` (Order 43, research `nj8zdp` guidance). Order 280 copied the seven `releases` value writers into `artifact_meta`; this part copies the four remaining ones (`backlog.set_release_exempt_kind_line`, `set_release_exempt_ref_line`, `set_close_evidence_line`, `research_cmd._set_priority_line`) and moves every production caller of the eleven writers onto `artifact_meta`. Measured at `f83159217`: callers `status_set.run_set_command` (4 calls), `backlog.run_new` (5 calls), `research_cmd.plan_set_priority` (1 call), and `artifact_meta._render_field` (the `backlog` entries and the `set_close_evidence_line` call).
 - Scope: Part of `k6jd6l` E-08: the copy of the `backlog` and `research_cmd` writers and the change of every production caller to `artifact_meta.append` (or the private copy, inside `artifact_meta`). EXCLUDES: test retargets (Orders 282, 283) and deleting the originals (Order 284).
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/status_set.py, agent_workflows/backlog.py, agent_workflows/research_cmd.py, .aw/records/plans/pending/20261109-metastore-281-h1kfyp-copy-the-backlog-and-research-value-writers-and-retarget-the.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261123-7rkctr-01-7rkctr-tests-test-doctor-py-doctortests-test-untracked-di.backlog.md (the driver defect-report contract requires filing each found defect with aw backlog new this records a pre-existing tests/test_doctor.py failure reproduced at base 975b83620, unrelated to h1kfyp code)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:6bxlzb, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: h1kfyp
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: h1kfyp verified (set metastore, attempt 3). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261123-7rkctr-01-7rkctr-tests-test-doctor-py-doctortests-test-untracked-di.backlog.md: the driver defect-report contract requires filing each found defect with aw backlog new; this records a pre-existing tests/test_doctor.py failure reproduced at base 975b83620, unrelated to h1kfyp code; in-scope-unmodified .aw/records/plans/pending/20261109-metastore-281-h1kfyp-copy-the-backlog-and-research-value-writers-and-retarget-the.ipd.md: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/artifact_meta.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/backlog.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/research_cmd.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/status_set.py: declared-but-unmodified (auto-acknowledged by aw oc run)] [Scope delta - no declared Scope-Paths were modified since the frozen base (5 declared path(s) unmodified; work may have landed before the begin baseline or not at all): .aw/records/plans/pending/20261109-metastore-281-h1kfyp-copy-the-backlog-and-research-value-writers-and-retarget-the.ipd.md, agent_workflows/artifact_meta.py, agent_workflows/backlog.py, agent_workflows/research_cmd.py, agent_workflows/status_set.py]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
