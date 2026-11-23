@@ -82,6 +82,7 @@ flowchart TD
 
 - `9o83cr` E-01-style baseline (this plan's E-01) and the copy of the seven `releases` value writers (first half of E-08): Moved to 6bxlzb (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 6bxlzb
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-280-6bxlzb-baseline-the-k6jd6l-family-and-copy-the-releases-value-write.ipd.md
 - E-08: copy of the `backlog` and `research_cmd` writers and the production caller retargets: Moved to h1kfyp (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: h1kfyp
 - E-08: test retargets, first five modules: Moved to tfvby1 (round-3 split 2026-11-09 per research nj8zdp guidance).
