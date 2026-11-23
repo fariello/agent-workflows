@@ -100,6 +100,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-221-lywgzs-stop-the-finalize-transaction-regenerating-the-plans-index.ipd.md
 - Moved to mv0j4k (round-3 split 2026-11-09 per research nj8zdp guidance): E-04 subset 2, `status_set._auto_index_types` and its two calls, the four `artifact_rename` sites, with `tests/test_rename_group_machine_output.py`, `tests/test_research_rename_frontmatter.py`, `tests/test_group_verb_policy.py`.
   - Carrier: mv0j4k
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-222-mv0j4k-stop-status-set-and-the-generic-rename-and-group-regeneratin.ipd.md
 - Moved to 9eqgcl (round-3 split 2026-11-09 per research nj8zdp guidance): E-04 subset 3, `research_cmd` (two sites), `research_refs` (with the "manifest was not regenerated" note), `plans_refs.apply_renames`, `artifact_adopt._default_refresh_index`, with `tests/test_artifact_refs_rewrite.py`, and E-04's whole-family expected outcome and V-04's `producers` test. Subsets 1 to 3 equal E-04's list.
   - Carrier: 9eqgcl
 - Moved to w819as (round-3 split 2026-11-09 per research nj8zdp guidance): E-05 subset 1, the emitters in `plans_index.check_drift` and `prompts_index.check_drift`, the three `ipd_lifecycle` comments, with `tests/test_nv_backend_args_climb.py` and the stale-index cases of `tests/test_plans_index.py` and `tests/test_prompts_index.py`.
