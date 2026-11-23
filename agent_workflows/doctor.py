@@ -1530,32 +1530,6 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
             file_path=loc,
         )
 
-    # idxuntrack 02 (yvvf98) E-03: the SUBSTRING test is deliberate and load-bearing. E-02 split the
-    # old conflated `stale-index` rule into `check.stale-index-missing` / `check.stale-index-stale`,
-    # and both new ids CONTAIN `stale-index`, so this match (and the four other `"stale-index" in
-    # rule` sites in this module) keeps working without five parallel edits. A future rename must
-    # preserve the substring or update all five together.
-    #
-    # The TITLE now distinguishes the two cases, because the old wording ("missing or out of date")
-    # re-conflated exactly what E-02 separated. A manifest that has merely never been generated is
-    # the normal state of a fresh clone or a fresh worktree, not a defect; the remedy is identical
-    # (`aw index <type>`), which is why the command is shared.
-    if "stale-index" in rule or rule.startswith("doctor.index-"):
-        if rule == "check.stale-index-missing":
-            title = "Manifest index has not been generated yet"
-        elif rule == "check.stale-index-stale":
-            title = "Manifest index is out of date"
-        else:
-            title = "Manifest index is missing or out of date"
-        cmd = f"aw index {art_type}" if art_type else "aw index"
-        return Remediation(
-            title=title,
-            summary_fix="aw index",
-            detailed_fix=f"run '{cmd}' to regenerate the manifest index.",
-            command=cmd,
-            file_path=loc,
-        )
-
     if "release-sentinel-absent" in rule:
         title = "Release sentinel 'next' does not resolve (no planned release)"
         cmd = "aw releases new --version <X.Y.Z> --summary ... --apply"
@@ -1673,7 +1647,7 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
         # remediation is a workflow to execute rather than an `aw` subcommand; `command` stays
         # non-None so this keeps its top slot in the resolve_next_actions priority chain (a None
         # command is dropped from raw_actions entirely, which would silently demote setup below
-        # leak/stale-index).
+        # leak).
         title = "Initial repository setup pending"
         cmd = "/setup-repo"
         return Remediation(
@@ -1861,8 +1835,7 @@ def resolve_next_actions(
     # 1. setup-needed ("/setup-repo", a workflow rather than an `aw` subcommand)
     # 2. layout-split-brain ("aw migrate-layout")
     # 3. leak ("aw sanitize --fix")
-    # 4. stale-index ("aw index" or "aw index <type>")
-    # 5. first actionable command
+    # 4. first actionable command
     primary_cmd: Optional[str] = None
     for action in raw_actions:
         if action.command == "/setup-repo":
@@ -1877,11 +1850,6 @@ def resolve_next_actions(
         for action in raw_actions:
             if action.command == "aw sanitize --fix":
                 primary_cmd = "aw sanitize --fix"
-                break
-    if not primary_cmd:
-        for action in raw_actions:
-            if action.command.startswith("aw index") or action.command == "aw index":
-                primary_cmd = action.command
                 break
     if not primary_cmd:
         primary_cmd = raw_actions[0].command
@@ -1970,11 +1938,7 @@ def classify_summary_buckets(
         rule = d.rule
         if rule.startswith("doctor.git-"):
             g += 1
-        elif (
-            rule.startswith("check.")
-            or rule.startswith("attention.")
-            or "stale-index" in rule
-        ):
+        elif rule.startswith("check.") or rule.startswith("attention."):
             m += 1
         elif rule.startswith("doctor.version-"):
             v += 1

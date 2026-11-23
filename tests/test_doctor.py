@@ -580,17 +580,6 @@ class DoctorRemediationTests(unittest.TestCase):
             "check.summary-unsafe",
             "multiline summary",
         ),
-        core.Drift(
-            ".aw/records/plans/manifest.json",
-            "check.stale-index-missing",
-            "index missing",
-        ),
-        core.Drift(
-            ".aw/records/plans/manifest.json", "check.stale-index-stale", "index stale"
-        ),
-        core.Drift(
-            ".aw/records/plans/manifest.json", "doctor.index-stale", "index stale"
-        ),
         core.Drift(".aw/setup-repo-needed.md", "doctor.setup-needed", "setup needed"),
         core.Drift(
             ".agents/workflows/assess", "doctor.layout-split-brain", "split brain"
