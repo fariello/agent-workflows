@@ -90,6 +90,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Top-level verb-first operational commands (`aw rev`, `aw exec`, `aw grad`, `aw validate`, `aw approve`) and completion script updates: owned by Order 03 (`xocj8i`).
+  - Carrier: xocj8i
 
 ## Scope check
 

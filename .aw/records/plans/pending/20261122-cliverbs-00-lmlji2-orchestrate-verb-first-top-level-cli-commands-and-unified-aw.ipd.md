@@ -82,7 +82,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Normalized artifact selector flags across all commands: implemented by prerequisite Set `selectors` (`3xwbvs`, children `bzsoai`, `mnlaoa`, `e36q6r`).
+  - Carrier: 3xwbvs
 - Review-staleness clearing on human approval and `aw show stale-reviews --diff` core renderer: implemented by prerequisite IPD `9ifwdx`.
+  - Carrier: 9ifwdx
 
 ## Scope check
 

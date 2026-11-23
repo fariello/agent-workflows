@@ -86,6 +86,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Verb-first top-level commands (`aw rev`, `aw exec`, `aw grad`, `aw validate`, `aw approve`) and unified `aw show` views: implemented in Set `cliverbs` (`lmlji2`) after `e36q6r` executes.
+  - Carrier: lmlji2
 
 ## Scope check
 

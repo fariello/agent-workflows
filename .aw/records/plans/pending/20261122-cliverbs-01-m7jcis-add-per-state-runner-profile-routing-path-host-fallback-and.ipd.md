@@ -94,7 +94,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Top-level verbs (`aw rev`, `aw exec`, `aw grad`, `aw validate`, `aw approve`) calling `dispatch_for_state`: owned by Order 03 (`xocj8i`).
+  - Carrier: xocj8i
 - Unified `aw show` views and removing `aw reviews`: owned by Order 02 (`p06t7i`).
+  - Carrier: p06t7i
 
 ## Scope check
 

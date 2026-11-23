@@ -90,7 +90,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Wiring `add_selector_args` into `cli.py` query/mutation commands: owned by Order 02 (`mnlaoa`).
+  - Carrier: mnlaoa
 - Wiring `add_selector_args` into `agy`/`oc` runners and shell completions: owned by Order 03 (`e36q6r`).
+  - Carrier: e36q6r
 
 ## Scope check
 

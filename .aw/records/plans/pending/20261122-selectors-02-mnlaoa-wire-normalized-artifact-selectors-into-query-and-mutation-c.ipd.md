@@ -87,6 +87,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - Runner CLIs (`agy`, `oc`), shell completions (`agent_workflows/completion.py`, `tests/test_completion.py`), `tests/test_record_builder_slow.py` update, and user docs: owned by Order 03 (`e36q6r`).
+  - Carrier: e36q6r
 
 ## Scope check
 
