@@ -2775,6 +2775,28 @@ def get_active_statusline() -> Statusline | None:
 
 
 @contextlib.contextmanager
+def temporary_active_activity(activity: str) -> Any:
+    """Temporarily override the live Statusline's activity (e.g. 'integrating') and redraw."""
+    sl = _ACTIVE_STATUSLINE
+    if sl is None:
+        yield
+        return
+    with sl._lock:
+        prev_activity = sl.activity
+        prev_override = sl._turn_activity_override
+        sl.activity = activity
+        sl._turn_activity_override = True
+        sl.redraw()
+    try:
+        yield
+    finally:
+        with sl._lock:
+            sl.activity = prev_activity
+            sl._turn_activity_override = prev_override
+            sl.redraw()
+
+
+@contextlib.contextmanager
 def item_statusline(
     run_dir: Path | str | None,
     state: Mapping[str, Any],

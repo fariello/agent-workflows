@@ -597,3 +597,66 @@ def test_statusline_dynamic_height_tty_redraw_clear_and_write_event() -> None:
     assert "\033[4A" in tty.getvalue()[pos:]
     assert sl._drawn_lines == 0
     assert not sl._has_drawn
+
+
+def test_integrating_activity_shows_double_arrow_across_widths_and_under_integration_lock() -> (
+    None
+):
+    """Both wide and narrow statusbars render '⇄Integrtg' during integrating, and integrate_under_repository_lock switches the live Statusline."""
+    from agent_workflows import runner_shared
+
+    now = time.time()
+    for runner in ("agy", "opencode"):
+        for w in (140, 110, 90, 70):
+            lines = rs.format_statusline_lines(
+                now_ts=now,
+                run_start_ts=now - 60,
+                item_start_ts=now - 15,
+                last_act_ts=now - 1,
+                current_idx=1,
+                total_items=3,
+                setid="statv2",
+                id6="cntxsm",
+                pal=rs.Palette(False, use_unicode=True),
+                action="execute",
+                artifact_kind="ipd",
+                activity="integrating",
+                runner=runner,
+                model="claude-sonnet-4-6",
+                width=w,
+            )
+            joined = "\n".join(lines)
+            assert (
+                "⇄Integrtg" in joined
+            ), f"missing ⇄Integrtg for runner={runner} at width={w}:\n{joined}"
+
+    tty = _FakeTTY()
+    sl = rs.Statusline(
+        rs.Palette(False, use_unicode=True),
+        tty,
+        interval=0.0,
+        setid="statv2",
+        id6="cntxsm",
+        action="execute",
+        activity="executing",
+        width=120,
+    )
+    observed_activities: list[str | None] = []
+    with sl:
+        item_dict: dict[str, Any] = {"id6": "cntxsm"}
+        ok, _msg, _kind = runner_shared.integrate_under_repository_lock(
+            Path("/tmp/demo"),
+            item_dict,
+            None,
+            state={"options": {"allow_concurrent_driver": "test"}},
+            holder_label="test",
+            integrate=lambda _it, _h: (
+                observed_activities.append(sl.activity) is None,
+                "ok",
+                "",
+            ),
+        )
+        assert ok is True
+        observed_activities.append(sl.activity)
+    assert observed_activities == ["integrating", "executing"]
+    assert "⇄Integrtg" in tty.getvalue()

@@ -1554,8 +1554,8 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=config.TITLE_STYLE_VALUES,
         default=None,
         help=(
-            "Runner window title style outside Zellij: short ('▶aw'), medium ('▶aw <repo>', "
-            "default), long ('▶aw <host> run <repo>'), or none (disable tab and window title updates)."
+            "Runner window title style outside Zellij: short ('▶ aw'), medium ('▶ aw <repo>', "
+            "default), long ('▶ aw <host> run <repo>'), or none (disable tab and window title updates)."
         ),
     )
 

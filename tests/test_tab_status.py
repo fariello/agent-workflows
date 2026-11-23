@@ -104,12 +104,12 @@ def test_glyph_mapping_and_stripping_idempotence() -> None:
     assert tab_status.strip_runner_glyphs("▶ ⏹ agy1") == "agy1"
     assert tab_status.strip_runner_glyphs("  keep spaces") == "  keep spaces"
 
-    assert tab_status.format_tab_name("⏹🚨agy1", tab_status.STATE_EXECUTING) == "▶agy1"
+    assert tab_status.format_tab_name("⏹🚨agy1", tab_status.STATE_EXECUTING) == "▶ agy1"
     assert (
         tab_status.format_tab_name(
             "⏹ agy1", tab_status.STATE_VALIDATING, has_failure=True
         )
-        == "☑🚨agy1"
+        == "☑🚨 agy1"
     )
 
 
@@ -118,19 +118,19 @@ def test_window_title_styles() -> None:
         tab_status.format_window_title(
             tab_status.STATE_EXECUTING, style="short", host="oc", repo_name="pubrun"
         )
-        == "▶aw"
+        == "▶ aw"
     )
     assert (
         tab_status.format_window_title(
             tab_status.STATE_EXECUTING, style="medium", host="oc", repo_name="pubrun"
         )
-        == "▶aw pubrun"
+        == "▶ aw pubrun"
     )
     assert (
         tab_status.format_window_title(
             tab_status.STATE_EXECUTING, style="long", host="oc", repo_name="pubrun"
         )
-        == "▶aw oc run pubrun"
+        == "▶ aw oc run pubrun"
     )
     assert (
         tab_status.format_window_title(
@@ -140,7 +140,7 @@ def test_window_title_styles() -> None:
             repo_name="pubrun",
             has_failure=True,
         )
-        == "⏹🚨aw pubrun"
+        == "⏹🚨 aw pubrun"
     )
     assert (
         tab_status.format_window_title(
@@ -182,7 +182,7 @@ def test_zellij_targets_only_own_tab_strips_prior_glyphs_and_combines_failure() 
     )
 
     assert ctrl.set_state(tab_status.STATE_EXECUTING) is True
-    assert tab_list[0]["name"] == "▶pubrun-work"
+    assert tab_list[0]["name"] == "▶ pubrun-work"
     assert tab_list[1]["name"] == "other-focused-tab"
     # Duplicate set_state is a no-op (no extra rename-tab call)
     before_calls = len(calls)
@@ -190,19 +190,19 @@ def test_zellij_targets_only_own_tab_strips_prior_glyphs_and_combines_failure() 
     assert len(calls) == before_calls
 
     with ctrl.temporary(tab_status.STATE_VALIDATING):
-        assert tab_list[0]["name"] == "☑pubrun-work"
-    assert tab_list[0]["name"] == "▶pubrun-work"
+        assert tab_list[0]["name"] == "☑ pubrun-work"
+    assert tab_list[0]["name"] == "▶ pubrun-work"
 
     # Failure badge combines with active state and persists through finish
     ctrl.refresh_failure({"queue": [{"id6": "a1b2c3", "status": "fail-verify"}]})
-    assert tab_list[0]["name"] == "▶🚨pubrun-work"
+    assert tab_list[0]["name"] == "▶🚨 pubrun-work"
 
     with ctrl.temporary(tab_status.STATE_ASKING):
-        assert tab_list[0]["name"] == "❓🚨pubrun-work"
-    assert tab_list[0]["name"] == "▶🚨pubrun-work"
+        assert tab_list[0]["name"] == "❓🚨 pubrun-work"
+    assert tab_list[0]["name"] == "▶🚨 pubrun-work"
 
     ctrl.mark_finished({"queue": [{"id6": "a1b2c3", "status": "fail-verify"}]})
-    assert tab_list[0]["name"] == "⏹🚨pubrun-work"
+    assert tab_list[0]["name"] == "⏹🚨 pubrun-work"
     # Never emitted OSC 2 while in Zellij
     assert tty.getvalue() == ""
 
@@ -219,7 +219,8 @@ def test_non_zellij_emits_osc2_and_respects_tty_and_none_style() -> None:
     assert ctrl.set_state(tab_status.STATE_GRADUATING) is True
     assert ctrl.mark_killed(only_if_activated=True) is True
     assert (
-        tty.getvalue() == "\x1b]2;⇑aw oc run pubrun\x1b\\\x1b]2;⛒aw oc run pubrun\x1b\\"
+        tty.getvalue()
+        == "\x1b]2;⇑ aw oc run pubrun\x1b\\\x1b]2;⛒ aw oc run pubrun\x1b\\"
     )
 
     # Non-TTY stream emits nothing
@@ -373,7 +374,7 @@ def test_item_active_state_and_shared_hooks() -> None:
         )
         observed.append(ctrl.current_state)
     assert observed == [tab_status.STATE_RERUNNING, tab_status.STATE_EXECUTING]
-    assert "\x1b]2;▶aw\x1b\\\x1b]2;↻aw\x1b\\\x1b]2;▶aw\x1b\\" == tty.getvalue()
+    assert "\x1b]2;▶ aw\x1b\\\x1b]2;↻ aw\x1b\\\x1b]2;▶ aw\x1b\\" == tty.getvalue()
 
     # handle_interactive_interrupt temporarily switches active controller to ⏸ (paused)
     tty_pause = _FakeTTY()
@@ -424,7 +425,7 @@ def test_item_active_state_and_shared_hooks() -> None:
         assert ok is True
         int_observed.append(ctrl.current_state)
     assert int_observed == [tab_status.STATE_INTEGRATING, tab_status.STATE_EXECUTING]
-    assert "\x1b]2;▶aw\x1b\\\x1b]2;⇄aw\x1b\\\x1b]2;▶aw\x1b\\" == tty_int.getvalue()
+    assert "\x1b]2;▶ aw\x1b\\\x1b]2;⇄ aw\x1b\\\x1b]2;▶ aw\x1b\\" == tty_int.getvalue()
 
 
 def test_runners_expose_title_style_flag() -> None:
@@ -483,7 +484,7 @@ def test_transient_list_panes_timeout_retries_and_reset_title_falls_back_to_acti
     )
     assert ctrl.set_state(tab_status.STATE_EXECUTING) is False
     assert ctrl.set_state(tab_status.STATE_REVIEWING) is True
-    assert tab_list[0]["name"] == "🆁ag4"
+    assert tab_list[0]["name"] == "🆁 ag4"
 
     # 2. Interactive reset_title falls back to active tab when list-panes times out
     def _timeout_panes(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:

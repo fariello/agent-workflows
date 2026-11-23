@@ -1094,10 +1094,18 @@ def render_option2_statusline_lines(
             cp_r1_p = " -"
             cp_r1_c = f" {c_muted}-{reset}" if color_enabled else cp_r1_p
     else:
-        hl_p = f" {act_display} {clean_setid}".rstrip()
+        if activity_cell:
+            act_plain = _strip_ansi(activity_cell)
+            act_colored = activity_cell if color_enabled else act_plain
+        else:
+            act_plain = act_display
+            act_colored = (
+                f"{b_target}{act_display}{reset}" if color_enabled else act_plain
+            )
+        hl_p = f" {act_plain} {clean_setid}".rstrip()
         hr_p = f"{clean_id6} " if clean_id6 else ""
         hl_c = (
-            f" {b_target}{act_display}{reset}"
+            f" {act_colored}"
             + (f" {b_target}{clean_setid}{reset}" if clean_setid else "")
             if color_enabled
             else hl_p

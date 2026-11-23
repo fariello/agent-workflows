@@ -1280,8 +1280,8 @@ def add_output_mode_flags(
         choices=("short", "medium", "long", "none"),
         default=None,
         help=(
-            "Terminal window title style outside Zellij: short ('▶aw'), medium ('▶aw <repo>', "
-            "default), long ('▶aw <host> run <repo>'), or none (disable Zellij tab and window title updates)"
+            "Terminal window title style outside Zellij: short ('▶ aw'), medium ('▶ aw <repo>', "
+            "default), long ('▶ aw <host> run <repo>'), or none (disable Zellij tab and window title updates)"
         ),
     )
 
@@ -8747,12 +8747,17 @@ def integrate_under_repository_lock(
     deterministically; production passes the real ones (or nothing).
     """
 
+    from agent_workflows import lifecycle_style as _lifecycle_style
+    from agent_workflows import render_stream as _render_stream
     from agent_workflows import tab_status as _tab_status
 
     consent = concurrent_driver_consent(state)
     _say = progress if progress is not None else (lambda _message: None)
 
-    with _tab_status.temporary_active_state(_tab_status.STATE_INTEGRATING):
+    with (
+        _tab_status.temporary_active_state(_tab_status.STATE_INTEGRATING),
+        _render_stream.temporary_active_activity(_lifecycle_style.INTEGRATING),
+    ):
         if consent:
             item["integration_serialization"] = {
                 "serialized": False,
