@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -121,7 +122,9 @@ class NvBackendArgsClimbTests(unittest.TestCase):
         self.env["AW_NO_REEXEC"] = "1"
         self.env["HOME"] = str(self.fakehome)
 
-        # Seed research records with a nonzero observable (stale index)
+        # Seed research records with a nonzero observable. Plan w819as deleted the stale-INDEX
+        # rules, so the observable is a non-INDEX drift class: the second doc's frontmatter `set`
+        # disagrees with its filename (`name-frontmatter-mismatch`).
         subprocess.run(
             [
                 sys.executable,
@@ -165,8 +168,18 @@ class NvBackendArgsClimbTests(unittest.TestCase):
             check=True,
             capture_output=True,
         )
+        research_dir = self.proj_root / ".aw" / "records" / "research"
+        (doctwo,) = sorted(research_dir.glob("*-doctwo.findings.md"))
+        doctwo.write_text(
+            re.sub(
+                r"(?m)^set: .*$", "set: othertopic", doctwo.read_text("utf-8"), count=1
+            ),
+            encoding="utf-8",
+        )
 
-        # Seed plan records with a nonzero observable (stale index)
+        # Seed plan records with a nonzero observable. Plan w819as deleted the stale-INDEX rules,
+        # so the observable is a non-INDEX drift class: the second plan's filename id6 disagrees
+        # with its metadata Id (`name-metadata-mismatch`).
         plans_pending = self.proj_root / ".aw" / "records" / "plans" / "pending"
         plans_pending.mkdir(parents=True)
         (plans_pending / "20261001-testset-01-p00001-plan.ipd.md").write_text(
@@ -179,7 +192,7 @@ class NvBackendArgsClimbTests(unittest.TestCase):
             check=True,
             capture_output=True,
         )
-        (plans_pending / "20261001-testset-02-p00002-plan.ipd.md").write_text(
+        (plans_pending / "20261001-testset-02-p00009-plan.ipd.md").write_text(
             _PLAN_SECOND_CONTENT, encoding="utf-8"
         )
 
@@ -437,14 +450,13 @@ class NvBackendArgsClimbTests(unittest.TestCase):
         rec_outside = self._parse_and_validate_agent_record(proc_outside.stdout)
         self.assertEqual(proc_outside.returncode, 0)
         self.assertEqual(rec_outside["outcome"], "conforms")
-        self.assertEqual(rec_outside["findings"], 2)
+        # Plan w819as: no stale-INDEX finding survives; only the alias notice is reported.
+        self.assertEqual(rec_outside["findings"], 1)
         diag_rules = [d.get("rule") for d in rec_outside.get("diagnostics", [])]
-        self.assertEqual(
-            diag_rules, ["check.stale-index-missing", "check.stale-index-missing"]
-        )
+        self.assertEqual(diag_rules, ["index-alias"])
 
         proc_outside_h = self._run_cli(
             "index", "plans", "--check", cwd=self.outside_cwd
         )
         self.assertEqual(proc_outside_h.returncode, 0)
-        self.assertIn("check.stale-index-missing", proc_outside_h.stdout)
+        self.assertEqual(proc_outside_h.stdout, "plans index --check: clean\n")

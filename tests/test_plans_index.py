@@ -2,9 +2,9 @@
 
 Stdlib unittest, throwaway dirs. Verifies JSON completeness, the recursive scan (sharded plans
 visible), the browse-by-Set view (grouping + Order + bound + singleton band), find filters,
-determinism, and --check across the four drift classes (missing/invalid Id, name-vs-metadata
-mismatch on a clustered name, stale view, dangling plan citation), with no false positive on an
-un-migrated timestamp-stem name.
+determinism, and --check across the three drift classes (missing/invalid Id, name-vs-metadata
+mismatch on a clustered name, dangling plan citation), with no false positive on an un-migrated
+timestamp-stem name, and no finding for a stale or missing INDEX file (plan w819as).
 """
 
 from __future__ import annotations
@@ -256,31 +256,25 @@ class CheckDriftTests(unittest.TestCase):
         drift = I.check_drift(self.root, self.pdir)
         self.assertFalse(any(d.rule == "name-metadata-mismatch" for d in drift))
 
-    def test_stale_index_flagged(self):
-        # idxuntrack 02 (yvvf98) E-08: retargeted to the split rule ids. A manifest that is PRESENT
-        # but not byte-equal to a rebuild is real drift and must FAIL the gate.
+    def test_stale_index_file_is_not_drift(self):
+        # Plan w819as (spec 4sd62s 4.5): the INDEX-file drift rules are deleted with the INDEX files.
+        # A manifest that is present but not byte-equal to a rebuild is no longer a finding at all.
         self._regen()
         (self.pdir / I.INDEX_MD).write_text("stale", encoding="utf-8")
         drift = I.check_drift(self.root, self.pdir)
-        self.assertTrue(any(d.rule == "check.stale-index-stale" for d in drift))
-        stale = [d for d in drift if d.rule == "check.stale-index-stale"]
-        self.assertEqual([d.severity for d in stale], ["warning"] * len(stale))
-        self.assertEqual(_core.drift_exit_code(drift), 1)
+        self.assertEqual(drift, [])
+        self.assertEqual(_core.drift_exit_code(drift), 0)
 
-    def test_missing_index_is_informational_not_failing(self):
+    def test_missing_index_file_is_not_drift(self):
         """A never-generated manifest is the normal state of a fresh clone or worktree.
 
-        idxuntrack 02 (yvvf98) E-02/E-08: it is reported as a DISTINCT `info` rule and must NOT fail
-        the gate, which is the whole reason the manifests can be gitignored. This is the assertion
-        that fails if the missing/stale split or its severity registration regresses.
+        Plan w819as (spec 4sd62s 4.5): the SQLite metadata cache replaced the INDEX files, so an
+        absent manifest produces no finding and does not fail the gate.
         """
         self._regen()
         (self.pdir / I.INDEX_JSON).unlink()
         drift = I.check_drift(self.root, self.pdir)
-        missing = [d for d in drift if d.rule == "check.stale-index-missing"]
-        self.assertTrue(missing, f"expected a missing-manifest finding, got {drift!r}")
-        self.assertEqual([d.severity for d in missing], ["info"])
-        self.assertFalse(any(d.rule == "check.stale-index-stale" for d in drift))
+        self.assertEqual(drift, [])
         self.assertEqual(_core.drift_exit_code(drift), 0)
 
     def test_dangling_plan_citation_flagged(self):

@@ -316,7 +316,6 @@ def check_drift(
     repo_root: Path, prompts_dir: Path, limit: int = DEFAULT_INDEX_LIMIT
 ) -> List[_core.Drift]:
     entries, drift, states = _scan_prompts_with_states(prompts_dir)
-    from agent_workflows import check_engine as _ce
 
     # Drift: name-vs-metadata mismatch on a clustered name (read via artifact_meta)
     for e in entries:
@@ -347,48 +346,6 @@ def check_drift(
                     e.path,
                     "name-metadata-mismatch",
                     f"name set {m.group('set')} != metadata Set {meta_set}",
-                )
-            )
-
-    want_json = build_index_json(entries)
-    want_md = build_index_md(entries, limit=limit)
-    jp = prompts_dir / INDEX_JSON
-    mp = prompts_dir / INDEX_MD
-
-    for path_const, exists, matches, label in (
-        (
-            INDEX_JSON,
-            jp.is_file(),
-            jp.is_file() and jp.read_text(encoding="utf-8") == want_json,
-            "INDEX.json",
-        ),
-        (
-            INDEX_MD,
-            mp.is_file(),
-            mp.is_file() and mp.read_text(encoding="utf-8") == want_md,
-            "INDEX.md",
-        ),
-    ):
-        if not exists:
-            drift.append(
-                _ce.enrich_drift(
-                    _core.Drift(
-                        path_const,
-                        "check.stale-index-missing",
-                        f"{label} has not been generated; run 'aw index prompts'",
-                    ),
-                    recovery="aw index prompts",
-                )
-            )
-        elif not matches:
-            drift.append(
-                _ce.enrich_drift(
-                    _core.Drift(
-                        path_const,
-                        "check.stale-index-stale",
-                        f"{label} is out of date; run 'aw index prompts'",
-                    ),
-                    recovery="aw index prompts",
                 )
             )
 

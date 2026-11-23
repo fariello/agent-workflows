@@ -3,8 +3,7 @@
 Stdlib unittest, zero external deps. Verifies:
 - build_index_json lists every bucketed prompt with id6, set, order, disposition, kind
 - build_index_md formats browse-by-set human view
-- check_drift reports check.stale-index-missing when index files absent
-- check_drift reports check.stale-index-stale when index files out of date
+- check_drift reports no finding for an absent or out-of-date INDEX file (plan w819as)
 - check_drift reports name-metadata-mismatch when filename id6 != comment Id
 - run_index CLI behavior
 """
@@ -99,14 +98,13 @@ class PromptsIndexTests(_PromptsFixtureBase):
         self.assertIn("## seta", md_str)
         self.assertIn("abc123", md_str)
 
-    def test_check_drift_missing_index(self):
+    def test_check_drift_missing_index_is_not_drift(self):
+        # Plan w819as (spec 4sd62s 4.5): absent INDEX files are not drift.
         drift = prompts_index.check_drift(self.root, self.prompts_dir)
-        rules = [d.rule for d in drift]
-        self.assertIn("check.stale-index-missing", rules)
-        # Stale-index-missing is info severity, so exit code should be 0
+        self.assertEqual(drift, [])
         self.assertEqual(_core.drift_exit_code(drift), 0)
 
-    def test_check_drift_stale_index(self):
+    def test_check_drift_stale_index_is_not_drift(self):
         # Generate clean indexes
         entries, _ = prompts_index.scan_prompts(self.prompts_dir)
         (self.prompts_dir / "INDEX.json").write_text(
@@ -119,11 +117,10 @@ class PromptsIndexTests(_PromptsFixtureBase):
         drift = prompts_index.check_drift(self.root, self.prompts_dir)
         self.assertEqual(drift, [])
 
-        # Tamper with INDEX.json
+        # Tamper with INDEX.json: plan w819as deleted the stale-INDEX rule, so still no finding.
         (self.prompts_dir / "INDEX.json").write_text("[]\n", encoding="utf-8")
         drift_stale = prompts_index.check_drift(self.root, self.prompts_dir)
-        rules = [d.rule for d in drift_stale]
-        self.assertIn("check.stale-index-stale", rules)
+        self.assertEqual(drift_stale, [])
 
     def test_check_drift_name_metadata_mismatch(self):
         # Create a prompt where filename id6 != comment Id

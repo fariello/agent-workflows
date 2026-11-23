@@ -496,64 +496,6 @@ def check_drift(
                     f"name set {m.group('set')} != metadata Set {e.set_id}",
                 )
             )
-    # Drift class (c): stale generated view (byte-compare in memory vs disk).
-    want_json = build_index_json(entries)
-    want_md = build_index_md(entries, limit=limit)
-    jp = plans_dir / INDEX_JSON
-    mp = plans_dir / INDEX_MD
-    # idxuntrack 02 (yvvf98) E-02: MISSING and STALE are reported as DISTINCT rules, because once
-    # the manifest is a gitignored generated view they are materially different conditions. An absent
-    # manifest is the NORMAL state of a fresh clone or a fresh worktree (nothing has generated it
-    # yet), so it is informational and must not fail the gate; a manifest that is present but not
-    # byte-equal to a rebuild is real drift. Severities live in `check_engine.RULE_REGISTRY`, never
-    # here: `artifact_core.drift_exit_code` fails on anything that is not `info`.
-    #
-    # The severity is STAMPED HERE (via `check_engine.enrich_drift`) rather than left for a caller to
-    # apply, and that is load-bearing rather than tidy. MEASURED: `run_index` computes its exit status
-    # with `artifact_core.drift_exit_code` on whatever this function returns, and `check_engine.
-    # check_content` forwards these findings WITHOUT enriching them. An un-enriched `Drift` carries
-    # `severity=""`, and `drift_exit_code` fails the gate for anything that is not `info`, so merely
-    # REGISTERING the rules left a missing manifest still exiting 1 on both surfaces. Enriching at the
-    # emitter is what makes the registry the single source of severity for every consumer (extended in
-    # sevreg qgpanb E-04 to cover `dangling-citation` as well).
-    from agent_workflows import check_engine as _ce
-
-    for path_const, exists, matches, label in (
-        (
-            INDEX_JSON,
-            jp.is_file(),
-            jp.is_file() and jp.read_text(encoding="utf-8") == want_json,
-            "INDEX.json",
-        ),
-        (
-            INDEX_MD,
-            mp.is_file(),
-            mp.is_file() and mp.read_text(encoding="utf-8") == want_md,
-            "INDEX.md",
-        ),
-    ):
-        if not exists:
-            drift.append(
-                _ce.enrich_drift(
-                    _core.Drift(
-                        path_const,
-                        "check.stale-index-missing",
-                        f"{label} has not been generated; run 'aw index plans'",
-                    ),
-                    recovery="aw index plans",
-                )
-            )
-        elif not matches:
-            drift.append(
-                _ce.enrich_drift(
-                    _core.Drift(
-                        path_const,
-                        "check.stale-index-stale",
-                        f"{label} is out of date; run 'aw index plans'",
-                    ),
-                    recovery="aw index plans",
-                )
-            )
     # Drift class (d): dangling plan citation via the shared-core detector, using the ONE unified
     # id6-handle matcher (IPD 3cmnfc E-04): the PLAN-<id6> handle recognized uniformly with the
     # research RSCH-<id6> handle. The dead-bare-filename flag (OQ-01 option B) is delivered as a
@@ -562,7 +504,13 @@ def check_drift(
     # (false positives), which would violate the Set's "no new aw check findings" criterion and
     # OQ-01's own low-false-positive mandate; enabling it awaits a durable "known real names"
     # source (run decision 05-3cmnfc-D3). setid citations are NOT checked (option C deferred).
+    # The severity is stamped here (`check_engine.enrich_drift`) because `run_index` and
+    # `check_engine.check_content` forward these findings without enriching them, and an
+    # un-enriched `severity=""` fails `artifact_core.drift_exit_code`. The INDEX-file drift class
+    # was deleted by spec `4sd62s` 4.5 (plan `w819as`): the SQLite metadata cache replaced the
+    # INDEX files, so an absent or out-of-date INDEX file is not drift.
     from agent_workflows import artifact_refs as _refs
+    from agent_workflows import check_engine as _ce
 
     current_ids = {e.plan_id for e in entries if e.plan_id}
     for d in _core.find_dangling_citations(

@@ -4624,10 +4624,10 @@ def _rollback_precommit(
     `(False, "rollback index regeneration failed: ...")`; that arm is gone with its subject. Since
     plan `lywgzs` the SUCCESS path regenerates no INDEX file either (spec `4sd62s` 4.5: the SQLite
     metadata cache replaces the INDEX files, and AC-26's cache freshness rule replaces the refresh),
-    so no finalize path writes the manifests. An absent manifest is only
-    `check.stale-index-missing` at severity `info`, and escalating a rollback
-    to `PHASE_UNKNOWN_OUTCOME` over a file `aw index plans` regenerates would block an operator for
-    no safety gain. This function's own failure arms (destination changed, origin holds a peer's
+    so no finalize path writes the manifests. An absent manifest is not drift at all (plan `w819as`
+    deleted the INDEX-file drift rules with the files), and escalating a rollback to
+    `PHASE_UNKNOWN_OUTCOME` over a file nothing reads any more would block an operator for no safety
+    gain. This function's own failure arms (destination changed, origin holds a peer's
     content, cannot remove/restore) are unaffected and still report `unknown-outcome`.
 
     IT DOES NOT UNDO THE FF-ONLY MERGE, AND MUST NOT LEARN TO (plan `u23gbn` E-08). Two cases, both
