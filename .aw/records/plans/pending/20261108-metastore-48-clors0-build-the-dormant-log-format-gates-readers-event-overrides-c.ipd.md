@@ -49,10 +49,10 @@ DORMANCY RULE, applied to every item of this plan (added at the split so the mov
 
 ### Task group 2: finish
 
-- [ ] E-20 Finish: run the six new test modules of the family (`tests/test_cutover_log_gates.py`, `tests/test_cutover_log_readers.py`, `tests/test_event_overrides.py`, `tests/test_reviews_record_walkthrough_new.py`, `tests/test_log_rename_events.py`, `tests/test_m0001_extra_paths.py`), `tests/test_command_surface_declarations.py`, the existing `tests/test_m0001_*.py` modules, the bare core gate `python3 -m pytest` and `make test-all` (this plan adds code paths every later phase-B merge runs through), `aw check all --agent` and `aw check all --all --agent` on this repository (rule multisets equal those before the plan's first edit, saved to `.aw/state/clors0/before/` before E-19's first edit, and also equal to the baseline of the first round-3 part executed, `6jd6mh` E-01: dormancy on `main` for the whole family), `aw ipd lint` on this plan and `aw sanitize --agent`; commit through `aw commit clors0 -- <paths>` with only Scope-Paths files, never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-20 Finish: run the six new test modules of the family (`tests/test_cutover_log_gates.py`, `tests/test_cutover_log_readers.py`, `tests/test_event_overrides.py`, `tests/test_reviews_record_walkthrough_new.py`, `tests/test_log_rename_events.py`, `tests/test_m0001_extra_paths.py`), `tests/test_command_surface_declarations.py`, the existing `tests/test_m0001_*.py` modules, the bare core gate `python3 -m pytest` and `make test-all` (this plan adds code paths every later phase-B merge runs through), `aw check all --agent` and `aw check all --all --agent` on this repository (rule multisets equal those before the plan's first edit, saved to `.aw/state/clors0/before/` before E-19's first edit, and also equal to the baseline of the first round-3 part executed, `6jd6mh` E-01: dormancy on `main` for the whole family), `aw ipd lint` on this plan and `aw sanitize --agent`; commit through `aw commit clors0 -- <paths>` with only Scope-Paths files, never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-19
   - Expected outcome: all runs pass; the two `aw check all` multisets are unchanged; every commit's `git show --stat` lists only Scope-Paths files (or paths justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -188,10 +188,58 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     ```
   - Result: pass
 
-- [ ] V-20 validates E-20
+- [x] V-20 validates E-20
   - Required evidence: paste one result line per named test module (the six family modules, `tests/test_command_surface_declarations.py`, each `tests/test_m0001_*.py` module), the bare `python3 -m pytest` and `make test-all` summary lines beside them, the `aw check all --agent` and `aw check all --all --agent` rule multiset diffs against `.aw/state/clors0/before/` (empty), `aw sanitize --agent` with zero `fail`, and `git show --stat` of every `aw commit clors0` commit listing only Scope-Paths files.
   - Observed evidence:
-  - Result: pending
+    Per-module results from `python3 -m pytest -o addopts="" -v -n 6 <six family modules> tests/test_command_surface_declarations.py tests/test_m0001_*.py` (rc=0; `test_m0001_extra_paths.py` counts 6 because both the explicit path and the glob collect it):
+    ```
+    tests/test_command_surface_declarations.py -> 2 passed
+    tests/test_cutover_log_gates.py -> 33 passed
+    tests/test_cutover_log_readers.py -> 10 passed
+    tests/test_event_overrides.py -> 7 passed
+    tests/test_log_rename_events.py -> 8 passed
+    tests/test_m0001_any_repo.py -> 6 passed
+    tests/test_m0001_conversion.py -> 11 passed
+    tests/test_m0001_describe.py -> 42 passed
+    tests/test_m0001_discover.py -> 4 passed
+    tests/test_m0001_extra_paths.py -> 6 passed
+    tests/test_m0001_gate_marker.py -> 14 passed
+    tests/test_m0001_layout_stage.py -> 12 passed
+    tests/test_m0001_preflight.py -> 11 passed
+    tests/test_m0001_renames.py -> 8 passed
+    tests/test_m0001_review_conversion.py -> 16 passed
+    tests/test_m0001_roundtrip.py -> 7 passed
+    tests/test_m0001_sidecar.py -> 4 passed
+    tests/test_reviews_record_walkthrough_new.py -> 24 passed
+    ======================= 225 passed in 331.38s (0:05:31) ========================
+    ```
+    Bare core gate on the committed tree: `python3 -m pytest` -> `2889 passed, 1 skipped, 11 warnings in 76.18s (0:01:16)`.
+    Thorough tier: `make test-all` -> `11862 passed, 6 skipped, 1 xpassed, 17 warnings in 738.19s (0:12:18)`, rc=0. The first attempt reported `4 failed, 11858 passed`, from two causes unrelated to this change. (a) `test_m0001_any_repo.py::test_ac42_this_repository_clone_migration` asserts that HEAD is unchanged across the test, and this lane's own `aw commit` landed mid-run; it passes on a re-run. (b) The 3 `tests/test_runner_resume_clears_stop.py` failures reproduce at the untouched starting head `5ae78fdd6` and are caused only by the runner-inherited `AW_INVOCATION_START_WALL` environment variable: with only that variable kept, 3 fail and 10 pass; with every runner variable but that one kept, 13 pass. The passing run was made with `env -u AW_INVOCATION_START_WALL make test-all`.
+    Dormancy: `aw check all --agent` (rc=1, pre-existing findings) and `aw check all --all --agent` (rc=1), rule/location/severity multisets diffed against `.aw/state/clors0/before/` (captured on the pristine lane tree at `5ae78fdd6` before E-19's first edit; 101 and 549 diagnostics):
+    ```
+    $ diff before/check-all.multiset.txt after/check-all.multiset.txt
+    54a55
+    > check.scope-drift	.aw/records/plans/pending/20261108-metastore-48-clors0-build-the-dormant-log-format-gates-readers-event-overrides-c.ipd.md	None
+    $ diff before/check-all-all.multiset.txt after/check-all-all.multiset.txt
+    104a105
+    > check.scope-drift	.aw/records/plans/pending/20261108-metastore-48-clors0-build-the-dormant-log-format-gates-readers-event-overrides-c.ipd.md	None
+    (both diffs EMPTY once that one line is excluded)
+    ```
+    The single added line is this in-flight plan's own scope-drift finding, which names the two out-of-scope paths `agent_workflows/cli.py` and `agent_workflows/migrations/chain.py`. They carry `--scope-reason` justifications in the begin receipt, and the runner's finalize reconciles them. No behavioral rule's output changed, so the family is dormant on `main`. The `6jd6mh` recorded counts (94 and 542) are not re-derivable in this lane, because its baseline directory is absent; the difference comes from repository drift since then.
+    `aw sanitize --agent` -> `outcome: clean, exit: 0, findings: 0`.
+    Commit (only `aw commit clors0`):
+    ```
+    23fdb5d62b0e5cb3a059e0ac9a78739b22e6080e feat(migrate): add m0001 --include-paths so the one migration commit carries cutover code (clors0 E-19)
+     ...g-format-gates-readers-event-overrides-c.ipd.md |  60 ++++-
+     ...store-01-4sd62s-artifact-metadata-store.spec.md |  12 +-
+     agent_workflows/cli.py                             |  12 +
+     agent_workflows/migrations/chain.py                |   9 +-
+     agent_workflows/migrations/m0001_metadata_v2.py    | 123 +++++++++-
+     tests/test_m0001_extra_paths.py                    | 273 +++++++++++++++++++++
+     6 files changed, 481 insertions(+), 8 deletions(-)
+    ```
+    Every listed path is in Scope-Paths except `agent_workflows/cli.py` and `agent_workflows/migrations/chain.py`, which are justified by `--scope-reason`. A second commit carries only this plan file's evidence update.
+  - Result: pass
 
 ## Approval and execution gate
 
