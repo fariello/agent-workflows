@@ -6,7 +6,7 @@
 - Scope: delete or rewrite the 8 `stale-index` lines in `agent_workflows/doctor.py` in one edit and update `tests/test_doctor.py`. EXCLUDES every other module (Orders 224 and 229).
 - Scope-Paths: agent_workflows/doctor.py, tests/test_doctor.py, .aw/records/plans/pending/20261109-metastore-225-f1yjlx-delete-the-stale-index-remediation-from-doctor.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:6qh68x, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sdzcur, executed:t4gl15, executed:tqknnc
-- Status: approved
+- Status: executed
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: f1yjlx
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-23 executed (antigravity): finalize f1yjlx after run-20261123T035302Z-2681364 (commits 972cff4cf/89c2bd06e landed directly on main due to vl3pvt; verified with full pytest suite: 2898 passed, 1 skipped) [Scope attribution - 9 changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not attributable to this execution (evidence: commit-cohesion), so no --scope-reason was demanded for them: .aw/records/backlog/done/20261123-tg3v86-01-tg3v86-statusline-spend-resets-on-restart.backlog.md, .aw/records/backlog/open/20261123-metastore-01-bdimw6-unowned-reader-and-grammar-hits.backlog.md, .aw/records/backlog/open/20261123-metastore-01-gapf1m-plans-cite-deleted-in-metadata-region.backlog.md, agent_workflows/agy_runipd.py, agent_workflows/oc_runipd.py (... and 4 more; see disregarded_no_evidence_paths in the finalize evidence)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
