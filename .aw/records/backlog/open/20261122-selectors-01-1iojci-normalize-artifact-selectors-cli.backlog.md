@@ -107,15 +107,15 @@ Every filter flag should be repeatable (and accept comma-separated values consis
 ### OQ-04: How should existing short-flag collisions (`-p`, `-S`, `-s`, `-t`) be resolved across commands?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Context: Existing commands reuse selector short letters for non-selector meanings: `aw find` uses `-p` for `--paths` (collides with `-p` / `--priority`) and `-S` for `--short` on one path (collides with `-S` / `--status-not`); `aw runs` uses `-s` for `--short` and `-S` for `--summary-only`; `aw runners` uses `-t` for `--tree`.
+- Context: Existing commands reuse selector short letters for non-selector meanings: `aw find` uses `-p` for `--paths` (2 test files, 0 docs), `aw search` uses `-S` for `--short` (1 test file, 0 docs), `agent_workflows/agy_run.py` uses `-p` for `--prompt`, `aw runs` uses `-s` for `--short` and `-S` for `--summary-only`, `aw runners` uses `-t` for `--tree`, and `pwatch` uses `-r`/`-R`/`-d`.
 - Options:
-  1. **Enforce the normalized selector short flags strictly on all artifact-selecting commands (`att`, `find`, `partition`, `show`, `set`, `group`, `rename`, `archive`, `index`, `ipd`, `oc`, `agy`), deprecate conflicting short flags on `aw find` (use `--paths` and `--short` long forms), and exempt non-artifact operational commands (`aw runs`, `aw runners`, `pwatch`) (recommended).**
+  1. **Enforce the normalized selector short flags strictly on all artifact-selecting commands (`att`, `find`, `search`, `partition`, `show`, `set`, `group`, `rename`, `archive`, `index`, `ipd`, `oc`, `agy`, and `i8dc07` verbs), move conflicting non-selector short flags on those commands to their long forms (`--paths`, `--short`, `--prompt`), and exempt non-artifact operational commands (`aw runs`, `aw runners`, `pwatch`) (recommended).**
   2. **Normalize across ALL `aw` subcommands including `aw runs` and `aw runners`.** Maximally uniform across the entire CLI, but breaks existing `aw runs -s`, `aw runs -S`, and `aw runners -t` muscle memory.
   3. **Preserve conflicting legacy short flags on `aw find` and require long flags (`--priority`, `--status-not`) there.** Avoids breaking any existing script, but defeats the goal of identical short flags everywhere artifacts are selected.
 - Recommendation: Option 1 (strict consistency across every artifact-selecting command; keep non-artifact monitor commands independent).
-- Resolution or deferral rationale:
+- Resolution or deferral rationale: RESOLVED 2026-11-22 by the user via /askme: Option A (enforce normalized selector short flags strictly across all artifact-selecting commands, move conflicting display/inline flags on those commands to long forms `--paths`/`--short`/`--prompt`, and exempt non-artifact monitoring commands `aw runs`, `aw runners`, and `pwatch`). No reason was given.
 
 ### OQ-05: Should negated selector flags accept both `--not-<field>` and `--<field>-not` spellings?
 
