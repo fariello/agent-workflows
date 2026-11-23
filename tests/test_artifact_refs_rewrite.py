@@ -759,6 +759,10 @@ class TestArtifactRefsRewrite(_RepoTestCase):
         self.assertNotIn("INDEX.md", out_app)
         self.assertNotIn("STATUS.md", out_app)
         self.assertEqual(status_file.read_text(encoding="utf-8"), orig_status)
+        # 4. Rename regenerates no manifest (spec 4sd62s 4.5): a leftover INDEX.md keeps its bytes
+        # and no INDEX.json appears.
+        self.assertEqual(index_file.read_text(encoding="utf-8"), orig_index)
+        self.assertFalse((plans_dir / "INDEX.json").exists())
 
 
 class TestScopePathCitationRewriteHelper(_RepoTestCase):

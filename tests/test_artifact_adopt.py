@@ -89,9 +89,9 @@ class _AdoptRepo(unittest.TestCase):
         return rc, out.getvalue() + err.getvalue()
 
     def _adopted_files(self):
-        return sorted(
-            p for p in self.research.rglob("*.md") if p.name not in ("INDEX.md",)
-        )
+        # No INDEX.md is excluded: adoption regenerates no manifest (spec 4sd62s 4.5), so one
+        # appearing in the research tree would be counted here and fail the caller's assertion.
+        return sorted(self.research.rglob("*.md"))
 
 
 class BodyDeclaredId6IsNeverAdoptedTests(_AdoptRepo):
@@ -497,6 +497,20 @@ class FailureOrderingTests(_AdoptRepo):
         )
         files = self._adopted_files()
         self.assertEqual(len(files), 1, files)
+        # No manifest is regenerated: no INDEX file anywhere, no refresh line, and the machine
+        # payload reports that no refresh ran.
+        self.assertEqual(sorted(self.tmp.rglob("INDEX.*")), [])
+        self.assertNotIn("index refreshed", out)
+
+    def test_successful_adoption_reports_no_index_refresh_in_json(self):
+        src = self._drop("quiet-research-report.md", "# Quiet\n\nBody.\n")
+        rc, out = self._run(["adopt", str(src), "--apply", "--json"])
+        self.assertEqual(rc, 0, out)
+        doc = json.loads(out)
+        self.assertIs(doc["data"]["index_refreshed"], False)
+        self.assertEqual(doc["data"]["index_detail"], "")
+        self.assertEqual(sorted(self.tmp.rglob("INDEX.*")), [])
+        self.assertFalse(src.exists())
 
     def test_existing_destination_is_not_clobbered(self):
         src = self._drop("clash-research-report.md", "# Clash\n\nBody.\n")

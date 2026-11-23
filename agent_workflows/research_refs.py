@@ -682,49 +682,6 @@ def _apply_renames(
                 print(f"rewrote {e.hits}x '{e.old_name}' -> '{e.new_name}' in {e.file}")
             touched.append(_rel(e.file))
 
-    diagnostics: List[MutationDiagnostic] = []
-    generated: List[str] = []
-    try:
-        from agent_workflows import research_index as _ridx
-
-        rc_idx = _ridx.run_index(
-            argparse.Namespace(
-                dir=str(repo_root),
-                check=False,
-                agent=False,
-                limit=None,
-                quiet=True,
-            )
-        )
-        if rc_idx == 0:
-            research_root = R.resolve_research_root(repo_root)
-            for mf in (research_root / "INDEX.json", research_root / "INDEX.md"):
-                if mf.exists():
-                    generated.append(_rel(mf))
-        else:
-            research_root = R.resolve_research_root(repo_root)
-            _, drift_findings = _ridx._scan_docs(research_root, repo_root=repo_root)
-            for d in drift_findings:
-                diagnostics.append(
-                    MutationDiagnostic(
-                        location=d.location,
-                        rule=d.rule,
-                        detail=d.detail,
-                        severity="warning",
-                    )
-                )
-            notes_list.append(
-                "note: research manifest was not regenerated; run 'aw index research' to resolve"
-            )
-            if emit_human:
-                import sys
-
-                print(
-                    f"warning: research manifest not regenerated: {len(drift_findings)} document(s) have drift; run 'aw research index' for details",
-                    file=sys.stderr,
-                )
-    except Exception:
-        pass
     seen: dict = {}
     for t in touched:
         seen.setdefault(t, None)
@@ -744,9 +701,9 @@ def _apply_renames(
         targets=tuple(targets_applied),
         applied=True,
         ref_edits=applied_mutation_ref_edits,
-        diagnostics=tuple(diagnostics),
+        diagnostics=(),
         notes=tuple(notes_list),
-        generated=tuple(generated),
+        generated=(),
     )
 
 

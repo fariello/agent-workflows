@@ -974,21 +974,6 @@ def run_set_outcome(args: argparse.Namespace) -> int:
         print(f"error: {exc}")
         return 2
     print(f"updated {rel}")
-    # Refresh the index so INDEX.json carries the new consumed-by (E-02).
-    try:
-        from agent_workflows import research_index as _ridx
-
-        _ridx.run_index(
-            argparse.Namespace(
-                dir=getattr(args, "dir", None),
-                check=False,
-                agent=False,
-                limit=None,
-                quiet=True,
-            )
-        )
-    except Exception:
-        pass
     return 0
 
 
@@ -1115,20 +1100,6 @@ def run_set_priority(args: argparse.Namespace) -> int:
         print(f"error: {exc}")
         return 2
     print(f"updated {rel}")
-    try:
-        from agent_workflows import research_index as _ridx
-
-        _ridx.run_index(
-            argparse.Namespace(
-                dir=getattr(args, "dir", None),
-                check=False,
-                agent=False,
-                limit=None,
-                quiet=True,
-            )
-        )
-    except Exception:
-        pass
     return 0
 
 

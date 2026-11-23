@@ -192,11 +192,11 @@ def test_research_backend_facts_preview_and_apply(temp_repo: Path):
 
 
 # --------------------------------------------------------------------------------------
-# (a2) Research index refusal is captured on drift
+# (a2) A research rename regenerates no manifest, even beside a drifted doc (spec 4sd62s 4.5)
 # --------------------------------------------------------------------------------------
 
 
-def test_research_index_refusal_captured_on_drift(temp_repo: Path):
+def test_research_mv_beside_drift_regenerates_no_manifest(temp_repo: Path):
     rdir = temp_repo / ".aw/records/research"
     rdir.mkdir(parents=True, exist_ok=True)
     # Valid doc to move
@@ -236,22 +236,33 @@ def test_research_index_refusal_captured_on_drift(temp_repo: Path):
         apply=True,
     )
     res = research_refs.run_mv(args)
-    # rc must remain 0
     assert res.rc == 0
-    # Diagnostics must capture the drift finding with severity == "warning"
-    assert len(res.diagnostics) >= 1
-    drift_diag = next(
-        (d for d in res.diagnostics if "r2id66" in d.location or "drift" in d.location),
-        None,
+    assert res.applied is True
+    # The rename no longer regenerates the research manifest, so the drifted sibling neither
+    # blocks a regeneration nor surfaces as a rename diagnostic or note.
+    assert res.diagnostics == ()
+    assert res.generated == ()
+    assert not any("manifest was not regenerated" in n for n in res.notes)
+    assert sorted(temp_repo.rglob("INDEX.*")) == []
+    assert (rdir / "20261001-seta-01-r1id66-renamed-demo.findings.md").is_file()
+    # The drift is still reported, by the checker that owns it.
+    check = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows.cli",
+            "index",
+            "research",
+            "--check",
+            "--agent",
+            "--dir",
+            str(temp_repo),
+        ],
+        capture_output=True,
+        text=True,
     )
-    assert drift_diag is not None
-    assert drift_diag.severity == "warning"
-    assert drift_diag.rule == "frontmatter-missing"
-    # Notes must contain the not-regenerated note
-    assert any(
-        "manifest was not regenerated" in n and "aw index research" in n
-        for n in res.notes
-    )
+    assert check.returncode == 1, check.stdout + check.stderr
+    assert '"rule":"frontmatter-missing"' in check.stdout
 
 
 def test_research_index_clean_no_drift_diagnostic(temp_repo: Path):

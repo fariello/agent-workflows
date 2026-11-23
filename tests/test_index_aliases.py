@@ -236,3 +236,169 @@ def test_check_runs_content_drift_and_fails_on_dangling_citation(
     assert rc_h == 1
     assert "dangling-citation: PLAN-zzzzzz" in out_h
     assert _index_files(repo) == []
+
+
+def _completed_plan(plan_id: str) -> str:
+    """A ready plan from the shared builder with its one E/V pair performed, so finalize accepts it."""
+    from tests import support
+
+    text = support.ready_plan_text(
+        plan_id=plan_id,
+        set_name="alset",
+        order=5,
+        scope_paths="agent_workflows/demo.py",
+    )
+    text = text.replace("- [ ] E-01 ", "- [x] E-01 ", 1).replace(
+        "  - Execution state: pending", "  - Execution state: performed", 1
+    )
+    return (
+        text.replace("- [ ] V-01 validates E-01", "- [x] V-01 validates E-01", 1)
+        .replace("  - Observed evidence:\n", "  - Observed evidence: done.\n", 1)
+        .replace("  - Result: pending", "  - Result: pass", 1)
+    )
+
+
+def _commit(repo: Path, message: str) -> None:
+    _git(repo, "add", "-A")
+    _git(
+        repo,
+        "-c",
+        "user.email=t@example.invalid",
+        "-c",
+        "user.name=t",
+        "commit",
+        "-q",
+        "-m",
+        message,
+    )
+
+
+def _find_paths(repo: Path, argv: List[str]) -> List[str]:
+    rc, out, err = _run(repo, ["find", *argv, "-p"])
+    assert rc == 0, err
+    return out.splitlines()
+
+
+def _find_item(repo: Path, argv: List[str]) -> dict:
+    rc, out, err = _run(repo, ["find", *argv, "--agent"])
+    assert rc == 0, err
+    items = [json.loads(line) for line in out.splitlines() if line.strip()]
+    found = [i for i in items if i["kind"] == "item"]
+    assert len(found) == 1, out
+    return found[0]
+
+
+def test_producers_write_no_index_files_and_find_sees_each_change(
+    tmp_path: Path,
+) -> None:
+    """Spec `4sd62s` 4.5 / AC-26: every record producer leaves no `INDEX.*`, and `aw find` sees its change.
+
+    Drives finalize, rename, group, research set-outcome / set-priority / mv and adopt through
+    `cli.main` on one `record_builder` repository (plans `lywgzs`, `mv0j4k`, `9eqgcl`).
+    """
+    from tests import support
+
+    repo = _repo(tmp_path)
+    pending = repo / ".aw" / "records" / "plans" / "pending"
+    (pending / "20260824-alset-05-al0005-demo.ipd.md").write_text(
+        _completed_plan("al0005"), encoding="utf-8"
+    )
+    _commit(repo, "add a completed plan")
+
+    # 1. aw ipd finalize.
+    with support.coordinator_role():
+        rc, out, err = _run(repo, ["ipd", "begin", "al0005", "--actor", "t"])
+        assert rc == 0, out + err
+        (repo / "agent_workflows").mkdir()
+        (repo / "agent_workflows" / "demo.py").write_text("x = 1\n", encoding="utf-8")
+        _commit(repo, "in-scope work")
+        rc, out, err = _run(
+            repo, ["ipd", "finalize", "al0005", "--actor", "t", "-m", "done", "--apply"]
+        )
+        assert rc == 0, out + err
+    assert _index_files(repo) == []
+    assert _find_paths(repo, ["plans", "al0005"]) == [
+        ".aw/records/plans/executed/20260824-alset-05-al0005-demo.ipd.md"
+    ]
+
+    # 2. aw rename plans.
+    rc, out, err = _run(
+        repo,
+        [
+            "rename",
+            "plans",
+            "al0001",
+            "--slug",
+            "renamed-one",
+            "--apply",
+            "--no-commit",
+        ],
+    )
+    assert rc == 0, out + err
+    assert _index_files(repo) == []
+    assert _find_paths(repo, ["plans", "al0001"]) == [
+        ".aw/records/plans/pending/20261106-alset-01-al0001-renamed-one.ipd.md"
+    ]
+
+    # 3. aw group plans.
+    rc, out, err = _run(
+        repo, ["group", "plans", "al0001", "--set", "newset", "--apply", "--no-commit"]
+    )
+    assert rc == 0, out + err
+    assert _index_files(repo) == []
+    assert _find_item(repo, ["plans", "al0001"])["set"] == "newset"
+
+    # 4. aw research set-outcome and set-priority. `aw find` resolves the doc it changed; the
+    # change itself is in the file that path names.
+    rc, out, err = _run(
+        repo,
+        [
+            "research",
+            "set-outcome",
+            "al0003",
+            "--to",
+            "adopted",
+            "--consumed-by",
+            "al0001",
+            "--apply",
+        ],
+    )
+    assert rc == 0, out + err
+    rc, out, err = _run(
+        repo, ["research", "set-priority", "al0003", "--to", "high", "--apply"]
+    )
+    assert rc == 0, out + err
+    assert _index_files(repo) == []
+    (doc,) = _find_paths(repo, ["research", "al0003"])
+    text = (repo / doc).read_text(encoding="utf-8")
+    assert "outcome: adopted" in text
+    assert "consumed-by: [al0001]" in text
+    assert "priority: high" in text
+
+    # 5. aw research mv (the research citation rewriter).
+    rc, out, err = _run(
+        repo, ["research", "mv", "al0003", "--slug", "renamed-notes", "--apply"]
+    )
+    assert rc == 0, out + err
+    assert _index_files(repo) == []
+    assert _find_paths(repo, ["research", "al0003"]) == [
+        ".aw/records/research/20260701-alset-01-al0003-renamed-notes.research-report.md"
+    ]
+
+    # 6. aw adopt.
+    inbox = repo / ".aw" / "inbox"
+    inbox.mkdir(parents=True)
+    src = inbox / "widget-audit-research-report.md"
+    src.write_text("# Widget audit\n\nBody.\n", encoding="utf-8")
+    before = set(_find_paths(repo, ["research"]))
+    rc, out, err = _run(repo, ["adopt", str(src), "--apply", "--json"])
+    assert rc == 0, out + err
+    payload = json.loads(out)
+    assert payload["data"]["index_refreshed"] is False
+    assert not src.exists()
+    assert _index_files(repo) == []
+    added = set(_find_paths(repo, ["research"])) - before
+    assert len(added) == 1
+    (new_path,) = added
+    assert payload["data"]["id6"] in new_path
+    assert _find_paths(repo, ["research", payload["data"]["id6"]]) == [new_path]

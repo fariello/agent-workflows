@@ -962,7 +962,8 @@ def test_nested_line_gone_from_human_surface(temp_repo: Path):
     assert "INDEX.json, INDEX.md" not in res_rsch.stdout
 
 
-def test_manifest_refresh_in_payload(temp_repo: Path):
+def test_rename_payload_lists_no_manifest_change(temp_repo: Path):
+    """A plan rename regenerates no INDEX file (spec 4sd62s 4.5), so its payload names none."""
     pdir = temp_repo / ".aw/records/plans"
     pdir.mkdir(parents=True, exist_ok=True)
     pf = pdir / "20261001-eeiytw-01-abc123-demo.ipd.md"
@@ -994,15 +995,17 @@ def test_manifest_refresh_in_payload(temp_repo: Path):
         check=True,
     )
     data = json.loads(res.stdout)
-    manifest_changes = [
-        c for c in data.get("changes", []) if "INDEX.json" in c.get("path", "")
+    assert data["exit_code"] == 0
+    paths = [c.get("path", "") for c in data.get("changes", [])]
+    assert ".aw/records/plans/20261001-eeiytw-01-abc123-demo.ipd.md" in paths
+    assert (pdir / "20261001-eeiytw-01-abc123-renamed-demo.ipd.md").is_file()
+    assert not [p for p in paths if "INDEX." in p]
+    assert not [
+        c
+        for c in data.get("changes", [])
+        if c.get("detail") == "manifest index auto-refreshed"
     ]
-    assert len(manifest_changes) == 1
-    mc = manifest_changes[0]
-    assert mc["applied"] is True
-    assert mc["kind"] == "update"
-    assert mc["detail"] == "manifest index auto-refreshed"
-    assert mc["path"] == ".aw/records/plans/INDEX.json"
+    assert sorted(temp_repo.rglob("INDEX.*")) == []
 
 
 def test_commit_path_set_unchanged_plans(temp_repo: Path):
