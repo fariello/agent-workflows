@@ -81,15 +81,15 @@ Every filter flag should be repeatable (and accept comma-separated values consis
 ### OQ-02: What should the filename-date selector flag be called, and should `-d` move from `--details` to the filename-date selector?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Context: Tracked artifact filenames begin with an 8-digit date (`YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md`). Today, `-d` is `--details` on `aw att` (showing summary/scope/description details under each item), `--diff` on `engine.py`, and `--repo` on `pwatch.py`/`runners_monitor.py`. Meanwhile, `--date` is already used on authoring commands (`new`, `set`, `scaffold`, `group`) to override the date written into a filename or workflow history line.
+- Context: Tracked artifact filenames begin with an 8-digit date (`YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md`). Today, `-d` is `--details` on `aw att` (4 files across the repo, 0 docs), `--diff` on `engine.py`, and `--repo` on `pwatch.py`/`runners_monitor.py`. Meanwhile, `--date` is already used on authoring/mutating commands (`new`, `set`, `scaffold`, `group`) to override the date written into a filename or workflow history line.
 - Options:
-  1. **Use `--date` / `-d` for filename-date selection on read/query commands, and move `aw att`'s `-d` (`--details`) to `--details` / `--desc` (recommended).** Keeps `--date` on authoring commands as a write override (distinct subcommand role), and gives the filename-date filter the shortest natural name on every query/selection command.
-  2. **Use `--file-date` / `--fdate` (or `--artifact-date`) for filename-date selection, and keep `-d` / `--details` on `aw att`.** Zero breaking change for existing `aw att -d` muscle memory and zero verb-role overloading of `--date`, at the cost of a slightly longer flag name.
-  3. **Use `--dated` / `-d` for filename-date selection, move `--details` to `--desc`, and leave `--date` solely for authoring overrides.** Avoids overloading `--date` across read vs write commands while keeping `-d` short for date filtering.
-- Recommendation: Option 1 (`--date` / `-d` for filename-date selection on selector commands, moving `--details` to `--details` / `--desc`), provided no single command both selects by filename date and overrides a written date.
-- Resolution or deferral rationale:
+  1. **Use `--date` / `-d` (and `-D` / `--not-date`) for filename-date selection across selector commands, move `aw att`'s `-d` (`--details`) to `--details` / `--desc` / `-desc`, and rename the write-override flag on `aw set` to `--history-date` (keeping `--date` on `new`/`scaffold` where no selection occurs) (recommended).**
+  2. **Use `--file-date` / `--fdate` / `-fdate` (no `-d` collision) for filename-date selection, keeping `-d` / `--details` on `aw att` and `--date` on `aw set` untouched.**
+  3. **Use `--dated` / `-d` (and `-D` / `--not-dated`) for filename-date selection, move `--details` to `--desc` / `-desc`, and leave `--date` solely for write-override dates (including on `aw set`).**
+- Recommendation: Option 1 (`--date` / `-d` / `-D` for filename-date selection, moving `--details` to `--details` / `--desc` / `-desc` and `aw set --date` to `--history-date`).
+- Resolution or deferral rationale: RESOLVED 2026-11-22 by the user via /askme: Option A (`--date` / `-d` and `-D` / `--not-date` for filename-date selection across selector commands; move `aw att`'s `-d` / `--details` to `--details` / `--desc` / `-desc`; rename `aw set`'s write-override `--date` to `--history-date`, keeping `--date` on authoring commands where no selection occurs). No reason was given.
 
 ### OQ-03: What expression syntax and timestamp sources should `--date`, `--modified-time` (`--mtime`), and `--created-time` (`--ctime`) use?
 
