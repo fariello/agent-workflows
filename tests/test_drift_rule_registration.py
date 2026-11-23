@@ -2,7 +2,8 @@
 
 Pin the registration of the five live drift rules, their recorded severities,
 emitter agreement for lane drift, the emitter stamp reaching the gate on a
-fixture repository, and preservation of the fail-closed fallback.
+fixture repository, the absence of the deleted `check.stale-index-*` rules
+(plan 6qh68x), and preservation of the fail-closed fallback.
 """
 
 from __future__ import annotations
@@ -112,17 +113,13 @@ class DriftRuleRegistrationTests(unittest.TestCase):
                 "cite 20260601-old-00-dangle-gone.notes.md\n", encoding="utf-8"
             )
 
-            # Regenerate manifest so index-missing/stale do not interfere
-            entries, _ = research_index._scan_docs(rroot)
-            (rroot / research_index.INDEX_JSON).write_text(
-                research_index.build_index_json(entries), encoding="utf-8"
-            )
-            (rroot / research_index.INDEX_MD).write_text(
-                research_index.build_index_md(entries), encoding="utf-8"
-            )
-
+            # No INDEX file is generated: plan 6qh68x (spec 4sd62s 4.5) deleted the INDEX-file drift
+            # rules, so an absent manifest produces no finding and cannot fail the gate.
             drift = research_index.check_drift(root, rroot)
             rules = {d.rule: d.severity for d in drift}
+            self.assertEqual(
+                [r for r in rules if r.startswith("check.stale-index-")], []
+            )
 
             self.assertIn("adopted-without-consumer", rules)
             self.assertIn("dangling-citation", rules)
@@ -131,6 +128,20 @@ class DriftRuleRegistrationTests(unittest.TestCase):
 
             exit_code = artifact_core.drift_exit_code(drift)
             self.assertEqual(exit_code, 0)
+
+    def test_deleted_stale_index_rules_are_not_registered(self):
+        """Plan 6qh68x (spec 4sd62s 4.5): the INDEX-file drift rules left the registry.
+
+        Each now resolves to the fail-closed fallback, which is safe only because no emitter
+        produces either id any more (`research_index.check_drift` was the last one).
+        """
+        self.assertEqual(
+            [k for k in check_engine.RULE_REGISTRY if "stale-index" in k], []
+        )
+        for rule_id in ("check.stale-index-missing", "check.stale-index-stale"):
+            self.assertIs(
+                check_engine.rule_spec(rule_id), check_engine._DEFAULT_RULESPEC
+            )
 
     def test_property_5_fail_closed_preserved_for_unregistered_rules(self):
         """(5) rule_spec on an unregistered rule id still returns severity error."""

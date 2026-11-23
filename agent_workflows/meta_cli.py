@@ -605,8 +605,6 @@ def index_rebuild(repo_root: Path) -> CommandResult:
 # aw index plans|research|prompts|all and aw research index (spec 4sd62s 4.5, IPD tqknnc)
 # --------------------------------------------------------------------------------------------------
 
-_STALE_INDEX_RULE_PREFIX = "check.stale-index-"
-
 # The clean lines the per-type `run_index --check` printed, kept byte-identical for scripts.
 _INDEX_ALIAS_CLEAN: Dict[str, str] = {
     "plans": "plans index --check: clean",
@@ -620,10 +618,10 @@ def _index_alias_drift(args: Any, artifact_type: str) -> List[Any]:
     """The surviving (non-INDEX) drift classes the typed `--check` gated before (`q6epwc` OQ-01).
 
     Each type's directory is resolved by the same resolver its `run_index` used, so `--check` reads
-    the tree it always read and reports what `aw check <type> --all` reports from `check_drift`,
-    minus the INDEX drift classes (`check.stale-index-*`): no command writes an INDEX file any more,
-    so a missing or stale one is not drift `aw index <type>` can repair (OQ-01: "the non-INDEX
-    drift classes"). The rules themselves are deleted by Orders 224 and 229.
+    the tree it always read and reports what `aw check <type> --all` reports from `check_drift`.
+    The INDEX drift classes are gone from every `check_drift` (Orders 224 and 229): no command
+    writes an INDEX file any more, so a missing or stale one is not drift `aw index <type>` can
+    repair (OQ-01: "the non-INDEX drift classes").
     """
     from agent_workflows import check_engine as _ce
     from agent_workflows import plans_index as _pidx
@@ -641,11 +639,7 @@ def _index_alias_drift(args: Any, artifact_type: str) -> List[Any]:
         found = _pridx.check_drift(repo_root, root)
     else:
         return []
-    return [
-        _ce.enrich_drift(d)
-        for d in found
-        if not str(d.rule).startswith(_STALE_INDEX_RULE_PREFIX)
-    ]
+    return [_ce.enrich_drift(d) for d in found]
 
 
 def _index_alias_check(

@@ -232,30 +232,26 @@ class CheckDriftTests(unittest.TestCase):
         drift = I.check_drift(self.root, self.rroot)
         self.assertEqual(drift, [])
 
-    def test_stale_index_detected(self):
-        # idxuntrack 02 (yvvf98) E-08: retargeted to the split rule ids. PRESENT-but-stale is real
-        # drift and must FAIL the gate.
+    def test_stale_index_file_is_not_drift(self):
+        # Plan 6qh68x (spec 4sd62s 4.5): the INDEX-file drift rules are deleted with the INDEX files.
+        # A manifest that is present but not byte-equal to a rebuild is no longer a finding at all.
         self._regen()
         (self.rroot / I.INDEX_MD).write_text("stale", encoding="utf-8")
         drift = I.check_drift(self.root, self.rroot)
-        self.assertTrue(any(d.rule == "check.stale-index-stale" for d in drift))
-        stale = [d for d in drift if d.rule == "check.stale-index-stale"]
-        self.assertEqual([d.severity for d in stale], ["warning"] * len(stale))
-        self.assertEqual(_core.drift_exit_code(drift), 1)
+        self.assertEqual(drift, [])
+        self.assertEqual(_core.drift_exit_code(drift), 0)
 
-    def test_missing_index_is_informational_not_failing(self):
-        """A never-generated manifest must not fail the gate (idxuntrack 02 E-02/E-08).
+    def test_missing_index_file_is_not_drift(self):
+        """A never-generated manifest is the normal state of a fresh clone or worktree.
 
-        The research twin of the plans assertion: absence is the normal state of a fresh clone or
-        worktree once the manifests are gitignored generated views.
+        Plan 6qh68x (spec 4sd62s 4.5), the research twin of the plans assertion: the SQLite
+        metadata cache replaced the INDEX files, so an absent manifest produces no finding and does
+        not fail the gate.
         """
         self._regen()
         (self.rroot / I.INDEX_JSON).unlink()
         drift = I.check_drift(self.root, self.rroot)
-        missing = [d for d in drift if d.rule == "check.stale-index-missing"]
-        self.assertTrue(missing, f"expected a missing-manifest finding, got {drift!r}")
-        self.assertEqual([d.severity for d in missing], ["info"])
-        self.assertFalse(any(d.rule == "check.stale-index-stale" for d in drift))
+        self.assertEqual(drift, [])
         self.assertEqual(_core.drift_exit_code(drift), 0)
 
     def test_invalid_frontmatter_detected(self):

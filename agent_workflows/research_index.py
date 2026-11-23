@@ -905,57 +905,16 @@ def check_drift(
     """Return every drift finding across the spec-5.2 four classes."""
 
     entries, drift = _scan_docs(research_root, repo_root=repo_root)
-    # Stale generated view: regenerate in memory and byte-compare to disk.
-    want_json = build_index_json(entries)
-    want_md = build_index_md(entries, limit=limit)
-    json_path = research_root / INDEX_JSON
-    md_path = research_root / INDEX_MD
-    # idxuntrack 02 (yvvf98) E-02: MISSING and STALE are DISTINCT rules; see the twin comment in
-    # `plans_index.check_drift` for the reasoning. Severities live in `check_engine.RULE_REGISTRY`.
-    # Severity is stamped at the emitter for the reason measured in the plans twin: neither
-    # `run_index` nor `check_engine.check_content` enriches these findings, so an un-enriched
-    # `severity=""` would still fail the gate on a merely-absent manifest. Enriching at the emitter
-    # is what makes the registry the single source of severity for every consumer (extended in
-    # sevreg qgpanb E-04 to cover `dangling-citation`, `stale-state-to-promote`, and
-    # `adopted-without-consumer`).
+    # The INDEX-file drift class was deleted by spec `4sd62s` 4.5 (plan `6qh68x`, the research twin
+    # of `w819as`): the SQLite metadata cache replaced the INDEX files, so an absent or out-of-date
+    # INDEX file is not drift. `limit` is kept for callers until the INDEX writers are deleted.
+    # Severity is stamped at the emitter (`check_engine.enrich_drift`) because neither `run_index`
+    # nor `check_engine.check_content` enriches these findings, so an un-enriched `severity=""`
+    # would fail `artifact_core.drift_exit_code`. Enriching at the emitter is what makes the
+    # registry the single source of severity for every consumer (sevreg qgpanb E-04 extended it to
+    # `dangling-citation`, `stale-state-to-promote`, and `adopted-without-consumer`).
     from agent_workflows import check_engine as _ce
 
-    for path_const, exists, matches, label in (
-        (
-            INDEX_JSON,
-            json_path.is_file(),
-            json_path.is_file() and json_path.read_text(encoding="utf-8") == want_json,
-            "INDEX.json",
-        ),
-        (
-            INDEX_MD,
-            md_path.is_file(),
-            md_path.is_file() and md_path.read_text(encoding="utf-8") == want_md,
-            "INDEX.md",
-        ),
-    ):
-        if not exists:
-            drift.append(
-                _ce.enrich_drift(
-                    Drift(
-                        path_const,
-                        "check.stale-index-missing",
-                        f"{label} has not been generated; run 'aw index research'",
-                    ),
-                    recovery="aw index research",
-                )
-            )
-        elif not matches:
-            drift.append(
-                _ce.enrich_drift(
-                    Drift(
-                        path_const,
-                        "check.stale-index-stale",
-                        f"{label} is out of date; run 'aw index research'",
-                    ),
-                    recovery="aw index research",
-                )
-            )
     # Dangling citations via Order 04's imported detector primitive.
     for d in RF.find_dangling_citations(repo_root, research_root):
         drift.append(

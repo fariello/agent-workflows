@@ -347,10 +347,9 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     #
     # WHY `info` AND NOT `warning`: `artifact_core.drift_exit_code` exempts ONLY `info` (measured:
     # ['error'] -> 1, ['warning'] -> 1, ['info'] -> 0, [''] -> 1, [] -> 0), so `warning` fails the gate
-    # identically to `error` and would still exit 1 on runnable plans. The exact in-tree precedent is
-    # `check.stale-index-missing` directly above in this registry ("MISSING -> `info`, the ONLY non-failing
-    # severity. `artifact_core.drift_exit_code` fails the gate for anything that is not `info`, so `warning`
-    # here would still exit 1 on every fresh clone and every fresh worktree").
+    # identically to `error` and would still exit 1 on runnable plans. The same reasoning made every
+    # advisory nudge in this registry `info` (for example `check.ipd-draft-ready-to-review`): `info`
+    # is the ONLY non-failing severity, so any other tier would exit 1 on a tree that is not broken.
     #
     # Invariant is `""`: no catalog invariant in spec pqsx96 covers scope-target freshness, and
     # inventing one is out of scope.
@@ -751,35 +750,6 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.system-layout-drift": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
-    # idxuntrack 02 (yvvf98) E-02: the generated plans/research manifests (`INDEX.json`/`INDEX.md`).
-    # These replace the single conflated `stale-index` rule, and the SPLIT is the whole point: once
-    # the manifests are gitignored generated views, ABSENT and STALE stop being the same condition.
-    #
-    # Both ids deliberately CONTAIN the substring `stale-index`, because five sites in `doctor.py`
-    # classify findings with `"stale-index" in rule` rather than an equality test. Preserving the
-    # substring keeps those matches working by construction instead of by five parallel edits, so a
-    # future rename must preserve it too or update all five together (E-03).
-    #
-    # SEVERITY, following the `check.system-layout-*` precedent directly above for the identical
-    # case (a generated, gitignored artifact whose remedy is mechanical, `aw index <type>`):
-    #
-    #   * MISSING -> `info`, the ONLY non-failing severity. `artifact_core.drift_exit_code` fails the
-    #     gate for anything that is not `info`, so `warning` here would still exit 1 on every fresh
-    #     clone and every fresh worktree, which is exactly the outcome untracking must not cause.
-    #     A manifest that was never generated is not drift: there is nothing to be stale against.
-    #   * STALE -> `warning`, which DOES fail the gate. A manifest present but not byte-equal to a
-    #     rebuild is real drift a human can act on, and `warning` rather than `error` states the
-    #     class honestly: the artifact is GENERATED, not hand-authored, so the remedy is mechanical.
-    #
-    # Registering both matters beyond taste: an UNREGISTERED rule falls through to
-    # `_DEFAULT_RULESPEC` (severity `error`), which is what `stale-index` silently did, and is why
-    # absence could not have been made non-failing by editing a message string.
-    "check.stale-index-missing": RuleSpec(
-        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
-    ),
-    "check.stale-index-stale": RuleSpec(
-        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
-    ),
     # modelvocab Order 01 (t38a4o) E-07: an unrecognized research model facet/key.
     # Registered at `info` severity so `aw research index --check` and `aw check research`
     # report the token as advisory drift without failing the gate (F-6, F-21).
@@ -804,8 +774,8 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     #
     # WHY THE STAGED TIER IS `info` AND NOT `warning` (measured, not assumed): `drift_exit_code` exempts
     # ONLY `info`, so a `warning` grandfather tier would exit 1 with 106 findings on a clean tree and
-    # fail the CI that enforces `aw check plans` fail-closed. The exact precedent is
-    # `check.stale-index-missing` above, for the identical dilemma, with the reason written down.
+    # fail the CI that enforces `aw check plans` fail-closed. `info` is the ONLY non-failing severity,
+    # so it is the only tier that can report a grandfathered corpus without turning the tree red.
     #
     # Invariant I-07, claimed deliberately rather than left empty. I-07 is the release/obligation
     # PRESERVATION invariant its `check.blocking-item-closed-without-gate` and `check.from-backlog-*`
@@ -836,8 +806,8 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     # Section 3.2 (Severity Tier Contract and Gate Semantics): "to author a rule that reports
     # diagnostics without ever failing any gate or check, register the rule with severity `info`").
     # A `warning` tier would exit 1 on 19 pending plans and fail CI (which enforces `aw check plans`
-    # fail-closed). Precedent: `_CARRIER_LEGACY_SEVERITY` in this same module ("MISSING -> `info`,
-    # the ONLY non-failing severity", citing `check.stale-index-missing`).
+    # fail-closed). Precedent: `_CARRIER_LEGACY_SEVERITY` in this same module (`info`, because it is
+    # the ONLY non-failing severity).
     #
     # Invariant `""` DELIBERATELY. Do not claim I-07 (release gating / uncarried obligations) or I-08
     # (cross-IPD dependency statements). This rule reports neither a broken gate nor a malformed statement:
@@ -891,8 +861,9 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     # docstring states only `info` is advisory). So registering `warning` would make `aw check` exit
     # nonzero on documents whose content is CORRECT, which is the failure mode backlog `gjadwm`
     # records as training agents to bypass a gate. The two shipped precedents for this exact
-    # detect-and-nudge purpose are `check.ipd-draft-ready-to-review` and `check.stale-index-missing`,
-    # both `info`. Registration is NOT optional bookkeeping either: an unregistered id falls through
+    # detect-and-nudge purpose are `check.ipd-draft-ready-to-review` and
+    # `check.ipd-carrier-finished-unverified`, both `info`. Registration is NOT optional bookkeeping
+    # either: an unregistered id falls through
     # to `_DEFAULT_RULESPEC` at severity `error`, so omitting this entry would fail the tree.
     #
     # I-09, joining the identity family (`check.id6-collision`, `check.id6-identity-slot`,
@@ -962,13 +933,12 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     # is already `RuleSpec("error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "")`, so the observable
     # severity and exit code are identical today. What registration buys is that the severity becomes
     # DECLARED rather than inherited, so a future change to the default cannot silently reclassify this
-    # rule. The in-repo precedent for making exactly this reasoning explicit is the
-    # `check.stale-index-missing` / `check.stale-index-stale` pair, whose comment records that an
-    # unregistered rule "silently did" fall through to the default.
+    # rule. An unregistered rule falls through to the default SILENTLY: nothing reports that its
+    # severity was inherited rather than chosen, which is why the choice is written down here.
     #
     # Invariant is `""`: the Phase-0 catalog in spec pqsx96 has no invariant covering output-safety or
     # descriptive field integrity, and inventing one would be a false trace. Precedent: the
-    # `stale-index` entries with their own empty invariants.
+    # `check.system-layout-*` entries with their own empty invariants.
     #
     # Deterministic: pure string length and regex control-character predicates against declared fields;
     # no inference, hence DET_DETERMINISTIC. Assurance is ASSURANCE_REPOSITORY.
@@ -989,7 +959,7 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     #
     # Why `warning` was rejected: artifact_core.drift_exit_code exempts ONLY `info`, so `warning`
     # would leave the gate red while stating a weaker contract, which the registry already records
-    # as a failure mode at check.stale-index-missing.
+    # as a failure mode for `warning` on an advisory rule.
     #
     # Invariant is `""`: no catalog invariant in spec pqsx96 covers citation integrity (I-09 is
     # filename grammar).
@@ -1006,7 +976,7 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     #
     # Why `warning` was rejected: artifact_core.drift_exit_code exempts ONLY `info`, so `warning`
     # would leave the gate red while stating a weaker contract, which the registry already records
-    # as a failure mode at check.stale-index-missing.
+    # as a failure mode for `warning` on an advisory rule.
     #
     # Invariant is `""`: no catalog invariant in spec pqsx96 covers adopted document consumer
     # declarations.
@@ -1024,7 +994,7 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     #
     # Why `warning` was rejected: artifact_core.drift_exit_code exempts ONLY `info`, so `warning`
     # would leave the gate red while stating a weaker contract, which the registry already records
-    # as a failure mode at check.stale-index-missing.
+    # as a failure mode for `warning` on an advisory rule.
     #
     # Invariant is `""`: no catalog invariant in spec pqsx96 covers research promotion hot-state
     # (I-07 is release-gate preservation).
@@ -1035,7 +1005,7 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     # Registered at `warning` severity because artifact_core.drift_exit_code exempts ONLY `info`,
     # so `warning` fails the gate as required for a drift rule, while `error` would overstate a
     # defect that is a chore (readers key on frontmatter status and no answer is wrong).
-    # The nearest precedent is check.stale-index-stale, also `warning`, also a real-but-non-answer-corrupting
+    # The nearest precedent is check.system-layout-drift, also `warning`, also a real-but-non-answer-corrupting
     # inconsistency. An unregistered id falls through to `_DEFAULT_RULESPEC` at `error`, so
     # registration here is a deliberate downgrade and not bookkeeping.
     # Invariant is `""`: no catalog invariant in spec pqsx96 covers research layout tiering.
@@ -1087,7 +1057,7 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     # DET_DETERMINISTIC). Invariant is `""`: the catalog in spec pqsx96 has no invariant for
     # record-metadata well-formedness (I-09 is filename grammar, I-03 is lifecycle-status authority,
     # I-07 is release-gate preservation), and inventing one is out of scope.
-    # Rule id uses `-repeated` and avoids `duplicate`, `graduation`, `stale-index`, and `summary-unsafe`.
+    # Rule id uses `-repeated` and avoids `duplicate`, `graduation`, and `summary-unsafe`.
     "research.frontmatter-key-repeated": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
@@ -11135,9 +11105,9 @@ CARRIER_CUTOVER_DATE = "20260919"  # compact YYYYMMDD
 #: rather than stylistic (DECISION 07-rnkqrc-D2). `artifact_core.drift_exit_code` exempts ONLY `info`,
 #: so a `warning` here would exit 1 on a clean tree with 106 findings and fail CI (which enforces
 #: `aw check plans` fail-closed), which is precisely the "turns the working tree red and trains every
-#: agent to bypass `aw check`" outcome the plan's approval gate forbids. The exact in-tree precedent is
-#: `check.stale-index-missing` above: "MISSING -> `info`, the ONLY non-failing severity ... `warning`
-#: here would still exit 1 on every fresh clone".
+#: agent to bypass `aw check`" outcome the plan's approval gate forbids. `info` is the ONLY
+#: non-failing severity, which is the same reason every advisory nudge in `RULE_REGISTRY` (for example
+#: `check.ipd-draft-ready-to-review`) carries it.
 #:
 #: THIS IS A ROLLOUT TIER, NOT A SOFTENING (plan OQ-05: the ruling says MUST). The end state is
 #: `error`, which is what the RULE_REGISTRY entry declares; this constant only spares a corpus that

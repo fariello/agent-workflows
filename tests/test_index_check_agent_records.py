@@ -33,9 +33,12 @@ def _create_fixture_repo(root: Path, *, mode: str = "missing") -> None:
     """Create a fixture repo with plans, prompts, and research records.
 
     Modes:
-    - "missing": valid record files, missing INDEX.json / INDEX.md (info severity, exit 0)
+    - "missing": valid record files, missing INDEX.json / INDEX.md (no finding, exit 0)
     - "clean": indexes generated and matching content (clean, exit 0)
-    - "stale": indexes present but content outdated (warning severity, exit 1)
+    - "stale": indexes present but content outdated (no finding, exit 0)
+
+    Plan 6qh68x (spec 4sd62s 4.5) deleted the INDEX-file drift rules (`check.stale-index-*`), so a
+    missing or stale INDEX file is not drift; the three modes differ only in the files on disk.
     """
     # 1. Plans
     plans_dir = root / ".aw" / "records" / "plans"
@@ -168,22 +171,24 @@ class IndexCheckSubprocessTests(unittest.TestCase):
                 self.assertEqual(res.stdout, CLEAN_MESSAGES[verb])
 
     def test_human_drifting_output_per_verb(self):
+        # Plan 6qh68x: a missing INDEX file is no longer a finding, so the verb reports clean.
         _create_fixture_repo(self.root, mode="missing")
         for verb in VERBS:
             with self.subTest(verb=verb):
                 res = run_cli(["index", verb, "--check"], cwd=self.root)
                 self.assertEqual(res.returncode, 0)
-                self.assertIn("INDEX.json: check.stale-index-missing:", res.stdout)
-                self.assertIn("INDEX.md: check.stale-index-missing:", res.stdout)
+                self.assertNotIn("check.stale-index-", res.stdout)
+                self.assertEqual(res.stdout, CLEAN_MESSAGES[verb])
 
     def test_human_stale_output_per_verb(self):
+        # Plan 6qh68x: a stale INDEX file is no longer a finding, so the verb reports clean.
         _create_fixture_repo(self.root, mode="stale")
         for verb in VERBS:
             with self.subTest(verb=verb):
                 res = run_cli(["index", verb, "--check"], cwd=self.root)
-                self.assertEqual(res.returncode, 1)
-                self.assertIn("INDEX.json: check.stale-index-stale:", res.stdout)
-                self.assertIn("INDEX.md: check.stale-index-stale:", res.stdout)
+                self.assertEqual(res.returncode, 0)
+                self.assertNotIn("check.stale-index-", res.stdout)
+                self.assertEqual(res.stdout, CLEAN_MESSAGES[verb])
 
     # ----------------------------------------------------------------------------------
     # --agent audience assertions: FAIL at base commit (prints TSV lines with tabs)
@@ -247,7 +252,8 @@ class IndexCheckSubprocessTests(unittest.TestCase):
                     val_errors, [], f"Schema validation errors for {verb}: {val_errors}"
                 )
                 self.assertEqual(terminal.get("exit"), res.returncode)
-                self.assertEqual(res.returncode, 1)
+                # Plan 6qh68x: a stale INDEX file is no longer drift.
+                self.assertEqual(res.returncode, 0)
 
     # ----------------------------------------------------------------------------------
     # --json audience assertions: FAIL at base commit (prints human prose)
@@ -286,7 +292,8 @@ class IndexCheckSubprocessTests(unittest.TestCase):
         for verb in VERBS:
             with self.subTest(verb=verb):
                 res = run_cli(["index", verb, "--check", "--json"], cwd=self.root)
-                self.assertEqual(res.returncode, 1)
+                # Plan 6qh68x: a stale INDEX file is no longer drift.
+                self.assertEqual(res.returncode, 0)
                 try:
                     parsed = json.loads(res.stdout)
                 except json.JSONDecodeError as exc:
@@ -339,9 +346,11 @@ class IndexCheckSubprocessTests(unittest.TestCase):
             plans_md.read_text(encoding="utf-8") + "\n# Extra\n", encoding="utf-8"
         )
 
-        # (b) --agent: rc == 1, exactly one line with exit == 1, outcome == "findings", findings >= 1, check.stale-index-stale diagnostic
+        # (b) --agent: plan 6qh68x deleted the INDEX-file drift rules, so one stale plans INDEX.md
+        # is no finding: rc == 0, exactly one line with exit == 0, outcome == "conforms", and no
+        # `check.stale-index-*` diagnostic.
         res_agent = run_cli(["index", "all", "--check", "--agent"], cwd=self.root)
-        self.assertEqual(res_agent.returncode, 1)
+        self.assertEqual(res_agent.returncode, 0)
         lines = [line for line in res_agent.stdout.splitlines() if line.strip()]
         self.assertEqual(
             len(lines), 1, f"Expected exactly one line, got: {res_agent.stdout!r}"
@@ -349,18 +358,17 @@ class IndexCheckSubprocessTests(unittest.TestCase):
         rec = json.loads(lines[0])
         val_errors = agent_schema.validate_agent_record(rec)
         self.assertEqual(val_errors, [])
-        self.assertEqual(rec.get("exit"), 1)
-        self.assertEqual(rec.get("outcome"), "findings")
-        self.assertGreaterEqual(rec.get("findings", 0), 1)
+        self.assertEqual(rec.get("exit"), 0)
+        self.assertEqual(rec.get("outcome"), "conforms")
         diags = rec.get("diagnostics", [])
         rules = [d.get("rule") for d in diags]
-        self.assertIn("check.stale-index-stale", rules)
+        self.assertEqual([r for r in rules if r.startswith("check.stale-index-")], [])
 
-        # --json: exit_code == 1, research exit_code == 0
+        # --json: exit_code == 0, research exit_code == 0
         res_json = run_cli(["index", "all", "--check", "--json"], cwd=self.root)
-        self.assertEqual(res_json.returncode, 1)
+        self.assertEqual(res_json.returncode, 0)
         parsed = json.loads(res_json.stdout)
-        self.assertEqual(parsed.get("exit_code"), 1)
+        self.assertEqual(parsed.get("exit_code"), 0)
         by_type = parsed.get("data", {}).get("by_type", {})
         self.assertEqual(by_type.get("research", {}).get("exit_code"), 0)
 
@@ -444,7 +452,8 @@ class IndexCheckSubprocessTests(unittest.TestCase):
     def test_json_check_data_shape_and_no_leak_across_modes(self):
         for mode in ("clean", "missing", "stale"):
             _create_fixture_repo(self.root, mode=mode)
-            expected_exit = 1 if mode == "stale" else 0
+            # Plan 6qh68x: no mode is drift now that the INDEX-file rules are deleted.
+            expected_exit = 0
             for verb in VERBS:
                 with self.subTest(mode=mode, verb=verb):
                     res = run_cli(["index", verb, "--check", "--json"], cwd=self.root)
