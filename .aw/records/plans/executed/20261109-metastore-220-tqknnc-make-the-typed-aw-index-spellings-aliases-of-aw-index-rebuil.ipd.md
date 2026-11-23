@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 4.5 keeps `aw index plans|research|prompts` only as informational aliases of `aw index rebuild`. Today every typed `aw index` spelling still writes `INDEX.json` and `INDEX.md` through `plans_index.run_index`, `research_index.run_index` and `prompts_index.run_index` (see `q6epwc` F-03). This is part 1 of the round-3 split of `q6epwc` (Order 41), carrying `q6epwc` E-02 (originally `9o83cr` E-02).
 - Scope: the alias function, its three `TYPE_BACKENDS` entries, its `command_surface` leaf, the `cli.py` research branch and help strings, the prompts content-drift wiring in `check_engine.check_content`, and the new test module `tests/test_index_aliases.py` (minus its `producers` case, which Order 223 of the split adds). EXCLUDES: deleting any automatic regeneration call (Orders 221 to 223), the stale-index rules (Orders 224 and 225), the documents (Orders 226 and 227), and the INDEX writers (`snin8q`).
 - Scope-Paths: agent_workflows/meta_cli.py, agent_workflows/artifact_types.py, agent_workflows/command_surface.py, agent_workflows/cli.py, agent_workflows/check_engine.py, tests/test_index_aliases.py, .aw/records/plans/pending/20261109-metastore-220-tqknnc-make-the-typed-aw-index-spellings-aliases-of-aw-index-rebuil.ipd.md
+- Scope-Exceeded: tests/test_index_rebuild.py (core test asserted typed index ignores an invalid log the alias now reports as rebuild decision D6); tests/test_records_root_accessor.py (asserted INDEX.json under AW_HOME from aw index prompts, now an alias no owning plan decision D7); tests/test_research_companion.py (asserted INDEX.json bytes from aw research index, which is now an alias no owning plan decision D7)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sdzcur, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: tqknnc
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: tqknnc verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope tests/test_index_rebuild.py: core test asserted typed index ignores an invalid log; the alias now reports as rebuild (decision D6); out-of-scope tests/test_records_root_accessor.py: asserted INDEX.json under AW_HOME from aw index prompts, now an alias; no owning plan (decision D7); out-of-scope tests/test_research_companion.py: asserted INDEX.json bytes from aw research index, which is now an alias; no owning plan (decision D7)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, alias wiring, and execution gate; marked reviewed and go-pending-approval.
