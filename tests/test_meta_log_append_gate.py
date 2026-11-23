@@ -458,6 +458,48 @@ def test_append_edge_deleted_log_file_refused(tmp_path: Path) -> None:
     assert f".aw/records/meta/{id6}.jsonl" in res.stderr
 
 
+def test_append_edge_renamed_log_file_refused(tmp_path: Path) -> None:
+    """Renaming a committed meta log to a new valid id6 log is still refused as a deletion."""
+    repo = _init_git_repo(tmp_path)
+    old_id = "rn12aa"
+    new_id = "rn12bb"
+    _seed_committed_log(repo, old_id, [_create_event(old_id)])
+
+    _git(repo, "rm", "-q", f".aw/records/meta/{old_id}.jsonl")
+    meta_dir = repo / ".aw" / "records" / "meta"
+    meta_dir.mkdir(parents=True, exist_ok=True)
+    new_log = meta_dir / f"{new_id}.jsonl"
+    new_log.write_text(meta.encode_event(_create_event(new_id)), encoding="utf-8")
+    _git(repo, "add", f".aw/records/meta/{new_id}.jsonl")
+
+    res = _run_aw_cli(repo, "meta-log-append-gate")
+    assert res.returncode == 1
+    assert f".aw/records/meta/{old_id}.jsonl" in res.stderr
+
+
+def test_append_edge_copied_identical_blob_id_mismatch_refused(tmp_path: Path) -> None:
+    """Staging a second log with identical blob bytes (same blob SHA, wrong id6) is refused."""
+    repo = _init_git_repo(tmp_path)
+    orig_id = "cp12aa"
+    copy_id = "cp12bb"
+    payload = meta.encode_event(_create_event(orig_id))
+
+    meta_dir = repo / ".aw" / "records" / "meta"
+    (meta_dir / f"{orig_id}.jsonl").write_text(payload, encoding="utf-8")
+    (meta_dir / f"{copy_id}.jsonl").write_text(payload, encoding="utf-8")
+    _git(
+        repo,
+        "add",
+        f".aw/records/meta/{orig_id}.jsonl",
+        f".aw/records/meta/{copy_id}.jsonl",
+    )
+
+    res = _run_aw_cli(repo, "meta-log-append-gate")
+    assert res.returncode == 1
+    assert f".aw/records/meta/{copy_id}.jsonl" in res.stderr
+    assert "identity-changed" in res.stderr.lower()
+
+
 def test_append_edge_cross_commit_append_splice_and_seq_gap_refused(
     tmp_path: Path,
 ) -> None:

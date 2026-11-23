@@ -5960,7 +5960,7 @@ def check_staged_log_append(
             expected_seq = head_res.state.last_seq + 1
             for offset, ev in enumerate(appended_events, start=1):
                 ev_seq = ev.get("seq")
-                if ev_seq != expected_seq:
+                if isinstance(ev_seq, bool) or ev_seq != expected_seq:
                     return [
                         f"{rel_log}: appended event at new line {offset} has seq {ev_seq!r}, "
                         f"expected consecutive seq {expected_seq} after HEAD seq "
@@ -5999,8 +5999,16 @@ def check_staged_log_append(
         first_op = first_ev.get("op")
         first_seq = first_ev.get("seq")
         if not (
-            (first_op == "create" and first_seq == 1)
-            or (first_op == "checkpoint" and first_seq == 0)
+            (
+                first_op == "create"
+                and not isinstance(first_seq, bool)
+                and first_seq == 1
+            )
+            or (
+                first_op == "checkpoint"
+                and not isinstance(first_seq, bool)
+                and first_seq == 0
+            )
         ):
             return [
                 f"{rel_log}: bad first event in new log (got op={first_op!r}, "
@@ -6016,9 +6024,10 @@ def check_staged_log_append(
                     f"{rel_log}: invalid event at line {line_no} ({exc}); "
                     "write valid canonical JSONL events through aw tools."
                 ]
-            if ev.get("seq") != expected_seq:
+            ev_seq = ev.get("seq")
+            if isinstance(ev_seq, bool) or ev_seq != expected_seq:
                 return [
-                    f"{rel_log}: event at line {line_no} has seq {ev.get('seq')!r}, "
+                    f"{rel_log}: event at line {line_no} has seq {ev_seq!r}, "
                     f"expected consecutive seq {expected_seq}; events in a staged log "
                     "must have consecutive seq numbers."
                 ]
@@ -6030,6 +6039,12 @@ def check_staged_log_append(
         return [
             f"{rel_log}: loader refused staged log ({detail}); "
             "append only valid events with consecutive seq and valid append values through aw tools."
+        ]
+    if staged_res.state is None or staged_res.state.id6 != id6:
+        declared = staged_res.state.id6 if staged_res.state is not None else None
+        return [
+            f"{rel_log}: loader refused staged log (identity-changed: declared id "
+            f"{declared!r} != {id6!r}); append only valid events for `{id6}` through aw tools."
         ]
     return []
 

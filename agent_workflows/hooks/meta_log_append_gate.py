@@ -74,7 +74,17 @@ def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
     meta_prefix = f"{meta_dir}/"
 
     rc, out, _err = _git(
-        repo_dir, ["diff", "--cached", "--name-status", "--", meta_dir]
+        repo_dir,
+        [
+            "-c",
+            "core.quotepath=false",
+            "diff",
+            "--cached",
+            "--no-renames",
+            "--name-status",
+            "--",
+            meta_dir,
+        ],
     )
     if rc != 0 or not out.strip():
         return 0, []
