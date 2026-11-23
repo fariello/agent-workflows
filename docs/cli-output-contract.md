@@ -315,7 +315,7 @@ To minimize token usage during agent orchestration while preserving complete dec
 
 - **Compact Defaults**: By default, agent records emit concise identifiers (check names in evidence receipts, count of changes when large, minimal diagnostic fields) rather than verbose text paragraphs.
 - **`--fields <list>`**: Projects records down to explicitly requested fields while preserving mandatory envelope metadata (`schema`, `kind`, `cmd`, `exit`, `outcome`, `complete`, `verified`). Projections additionally retain whatever the record kind requires to remain valid, including a summary's `total`, `emitted`, and `omitted` counts and a preview result's `applied` flag. Projections also preserve `next` whenever present: a continuation or recovery command cannot be reconstructed by the caller, so retaining it ensures the MUST requirements in Section 11.1 (broadening or fallback commands on empty results) and Section 11.4 (recovery commands on cannot-run error records) hold under `--fields` too. A projection never yields a record that fails validation, so `--fields` is safe to pass on any command.
-- **`--limit <N>`**: Bounds payload emission to at most `N` items. For streaming commands (such as `runs query`), it bounds item emission and includes total counts, omitted counts, and a continuation command in the terminating `summary` record; for single-record commands (`check`, `search`), it bounds the in-record payload (`diagnostics`, `matches`) with total, emitted, and omitted counts, setting `complete: false` when truncated; for index generation (`index`, `research index`), it configures the recent-item hot window.
+- **`--limit <N>`**: Bounds payload emission to at most `N` items. For streaming commands (such as `runs query`), it bounds item emission and includes total counts, omitted counts, and a continuation command in the terminating `summary` record; for single-record commands (`check`, `search`), it bounds the in-record payload (`diagnostics`, `matches`) with total, emitted, and omitted counts, setting `complete: false` when truncated; on the index verbs (`index`, `research index`), it is ignored: INDEX files are no longer generated, `aw index rebuild` rebuilds the local cache, and `aw index <type>` is an alias.
 - **`--verbose` / `--json`**:
   - `--verbose` in agent mode includes full nested diagnostics, change details, and evidence dicts.
   - `--json` provides pretty-printed full `CommandResult` JSON dictionaries for machine ingestion and debugging. Its envelope fields (`summary`, `diagnostics`, `changes`, `evidence`, `next_actions`) are home-path redacted, while `data` is an unredacted passthrough (exempt per spec `kw5y2s` Section 2.4).
@@ -451,7 +451,7 @@ When a query, find, search, or list verb matches zero records or produces an emp
   - `next`: the suggested broadening or fallback command.
 
 ### 11.2 Loading and Step-Cue Convention (Progress State)
-- **Transient `stderr` Step-Cues**: Handlers performing synchronous multi-step operations (e.g. `doctor`, `index`, `check`)
+- **Transient `stderr` Step-Cues**: Handlers performing synchronous multi-step operations (e.g. `doctor`, `index rebuild`, `check`)
   MUST emit progress step-cues to `stderr` formatted with bracketed info severity labels:
   `[INFO ] <Action>ing...` (via `Term.step_cue()` or `Term.severity_label("info")`).
 - **Stream Segregation**: Progress cues MUST NEVER be written to `stdout`.
@@ -511,9 +511,10 @@ the next command rebuilds it.
   reports the counts of artifacts, walkthroughs, review files, events, and valid and invalid
   records. It writes no tracked file. Exit `0` when every record is valid, `1` when at least one
   record is invalid (each is named in a diagnostic), `2` when the cache cannot be built.
-- **`aw index plans`, `aw index research`, `aw index prompts`, `aw index all`**: Unchanged. They
-  still write and check their INDEX files with the same output and exit codes, and after a write
-  they also refresh the metadata cache. A cache problem never changes their output or exit code.
+- **`aw index plans`, `aw index research`, `aw index prompts`, `aw index all`**: Aliases of
+  `aw index rebuild`. They rebuild the local cache and print one notice; INDEX files are no longer
+  generated. With `--check`, a type spelling runs that type's content drift rules instead, exiting
+  as `aw check <type> --all` would.
 
 ## 14. Short-Description Setter: `aw describe`
 

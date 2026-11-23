@@ -402,7 +402,7 @@ To support gradual adoption, `agent-workflows` maintains a bounded compatibility
   - `templates/` - initial templates for plans, prompts, and runbooks.
 - `.aw/records/` - project records and durable knowledge:
   - `plans/` - IPDs organized by lifecycle state (`pending/`, `executed/`, `reusable/`, `superseded/`, `not-executed/`).
-  - `specs/` - specifications; `research/` - durable research reports (with `INDEX.json`/`INDEX.md`); `walkthroughs/` - narrative walkthroughs; `roadmaps/` - roadmaps.
+  - `specs/` - specifications; `research/` - durable research reports (no INDEX files are generated: `aw index rebuild` rebuilds the local cache; `aw index <type>` is an alias); `walkthroughs/` - narrative walkthroughs; `roadmaps/` - roadmaps.
   - `backlog/` - lightweight committed backlog items (`open/`, `done/`, `parked/`).
   - `comms/` - inter-agent messaging inbox and archives (`shared/`, `untracked/`).
   - `prompts/` - prompt templates and execution records.

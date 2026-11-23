@@ -84,8 +84,9 @@ Three escape hatches tune the token cost:
   above); for single-record commands (`check`, `search`), it bounds the in-record payload
   (`diagnostics`, `matches`) with the same counts and continuation. Reach is not yet uniform across
   every command accepting the flag (see backlog `4uw9gy`): `find` stream bounding is not yet honored,
-  and mutating verbs (`group`, `rename`) ignore it. On index-building verbs (`index`, `research index`),
-  it configures the recent-item hot-window size for `INDEX.md` rather than bounding output records.
+  and mutating verbs (`group`, `rename`) ignore it. On the index verbs (`index`, `research index`),
+  it is ignored: INDEX files are no longer generated, `aw index rebuild` rebuilds the local cache,
+  and `aw index <type>` is an alias.
 - `--verbose`: include full nested diagnostics, change details, and evidence dictionaries.
 
 ## Example records
