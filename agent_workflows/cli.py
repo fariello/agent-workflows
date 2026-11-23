@@ -398,8 +398,25 @@ _DESCRIPTIONS = {
         "Dry-run by default; pass --apply to write."
     ),
     "reviews": (
-        "Tooling for the typed plan-review records under .aw/records/reviews. Subcommands "
-        "report what a review recorded; the whole namespace is read-only and writes nothing."
+        "Tooling for the typed plan-review records under .aw/records/reviews. 'reviews decisions' "
+        "reports what a review recorded and writes nothing. 'reviews record' appends one review "
+        "round to the subject's metadata log; it is available after the metadata migration "
+        "(`aw migrate metadata`) and refuses, writing nothing, before it."
+    ),
+    "reviews record": (
+        "Append one review event (round, kind, verdict, optional readiness and review depth) to "
+        "the reviewed plan's or spec's metadata log. Available after `aw migrate metadata`; "
+        "before it, refuses and writes nothing."
+    ),
+    "walkthrough": (
+        "Create tracked walkthroughs together with their metadata log. Available after the "
+        "metadata migration (`aw migrate metadata`); before it, every subcommand refuses and "
+        "writes nothing."
+    ),
+    "walkthrough new": (
+        "Create a walkthrough for an existing record, named by the clustered grammar, together "
+        "with its metadata log. Available after `aw migrate metadata`; before it, refuses and "
+        "writes nothing."
     ),
     # hostcap-01 (mjx7ne) E-06: read-only inspection over the probed host capability contract.
     "host": (
@@ -4418,13 +4435,18 @@ def _build_parser() -> argparse.ArgumentParser:
             "  aw reviews decisions                 # every recorded self-resolved decision\n"
             "  aw reviews decisions --irreversible  # only the ones that cannot be undone\n"
             "  aw reviews decisions c621h9          # one reviewed plan (matched by filename)\n"
+            "  aw reviews record ab12cd --round 1 --kind gate --verdict APPROVE\n"
+            "                                       # record a round (after aw migrate metadata)\n"
             "\n"
             "SAFETY & DEFAULTS\n"
-            "  Read-only: this namespace writes nothing, so there is no --apply.\n"
+            "  'reviews decisions' is read-only and writes nothing, so there is no --apply.\n"
+            "  'reviews record' appends one review event to the subject's metadata log; it is\n"
+            "  available only after `aw migrate metadata` and refuses, writing nothing, before.\n"
             "\n"
             "OUTPUT & EXITS\n"
-            "  Exit codes: 0 always when it can run (an empty audit trail is a valid answer),\n"
-            "  2 cannot-run/usage error. There is no exit 1: reporting is not judging.\n"
+            "  'reviews decisions': exit 0 always when it can run (an empty audit trail is a valid\n"
+            "  answer), 2 cannot-run/usage error. There is no exit 1: reporting is not judging.\n"
+            "  'reviews record': exit 0 recorded, 2 refused/cannot-run.\n"
             "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
@@ -4446,6 +4468,141 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Show only decisions marked 'Reversible: no' (the ones that cannot be undone).",
     )
     p_reviews_decisions.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    # metastore 724acb E-02 (spec 4sd62s 4.1a): the one writer in the namespace. Dormant until the
+    # metadata cutover: it refuses while metadata_schema is below 2 and writes nothing.
+    p_reviews_record = reviews_sub.add_parser(
+        "record",
+        parents=[common],
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Record one review round as a review event in the subject's metadata log (after `aw migrate metadata`).",
+        epilog=(
+            "EXAMPLES\n"
+            "  aw reviews record ab12cd --round 1 --kind gate --verdict 'APPROVE WITH REVISIONS APPLIED' \\\n"
+            "      --readiness go-pending-approval --review-depth standard\n"
+            "  aw reviews record ab12cd --round 2 --kind refinement \\\n"
+            "      --verdict 'REVIEWED - MATERIAL CHANGES APPLIED'\n"
+            "\n"
+            "SAFETY & DEFAULTS\n"
+            "  Writes immediately (one appended event); there is no preview. Before the metadata\n"
+            "  cutover it refuses and names `aw migrate metadata`. --readiness is refused on a\n"
+            "  refinement round and on a spec subject; a verdict outside its kind's vocabulary is\n"
+            "  refused; a round already recorded for the same review file is refused.\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 recorded, 2 refused/cannot-run (nothing written).\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
+        ),
+    )
+    p_reviews_record.add_argument(
+        "subject",
+        help="The id6 of the reviewed plan or spec (its log receives the event).",
+    )
+    p_reviews_record.add_argument(
+        "--round",
+        type=int,
+        required=True,
+        help="The review round number, matching the review file's '## Round <n>' heading.",
+    )
+    p_reviews_record.add_argument(
+        "--kind",
+        required=True,
+        choices=("gate", "refinement"),
+        help="gate (decides readiness) or refinement (improves the artifact, no readiness).",
+    )
+    p_reviews_record.add_argument(
+        "--verdict",
+        required=True,
+        help="The round's verdict, from the vocabulary of its --kind.",
+    )
+    p_reviews_record.add_argument(
+        "--readiness",
+        default=None,
+        help="Gate reviews of plans only: go, go-pending-approval, or no-go.",
+    )
+    p_reviews_record.add_argument(
+        "--review-depth",
+        dest="review_depth",
+        default=None,
+        help="The review depth tier: simple, standard, complex, or orchestrator.",
+    )
+    p_reviews_record.add_argument(
+        "--reviewer",
+        default=None,
+        help="Who reviewed (for example a host/model label).",
+    )
+    p_reviews_record.add_argument(
+        "--review-ref",
+        dest="review_ref",
+        default=None,
+        help="The review file's stable ref when the subject has more than one review file (spec 4.1a K4).",
+    )
+    p_reviews_record.add_argument(
+        "--findings-summary",
+        dest="findings_summary",
+        default=None,
+        help="Optional one-line summary of the round's findings.",
+    )
+    p_reviews_record.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+
+    # metastore 724acb E-03 (spec 4sd62s 4.2 SHORT DESCRIPTION, 4.6): the tooled way to create a
+    # walkthrough together with its metadata log. Dormant until the metadata cutover.
+    p_walkthrough = sub.add_parser(
+        "walkthrough",
+        parents=[common],
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Create tracked walkthroughs with their metadata log (after `aw migrate metadata`).",
+    )
+    walkthrough_sub = p_walkthrough.add_subparsers(dest="walkthrough_command")
+    p_walkthrough_new = walkthrough_sub.add_parser(
+        "new",
+        parents=[common],
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Create a walkthrough and its metadata log for an existing record.",
+        epilog=(
+            "EXAMPLES\n"
+            "  aw walkthrough new --set metastore --order 3 --target ab12cd --slug cutover-notes \\\n"
+            "      --summary 'How the metadata cutover was performed and verified.'\n"
+            "\n"
+            "SAFETY & DEFAULTS\n"
+            "  Writes immediately (a new file and its log); there is no preview. Before the metadata\n"
+            "  cutover it refuses and names `aw migrate metadata`. --target must be a record with a\n"
+            "  metadata log. --summary is one line of at most 300 characters.\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 created, 2 refused/cannot-run (nothing written).\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
+        ),
+    )
+    p_walkthrough_new.add_argument(
+        "--set",
+        dest="set_id",
+        required=True,
+        help="The Set id the walkthrough clusters under.",
+    )
+    p_walkthrough_new.add_argument(
+        "--order",
+        type=int,
+        required=True,
+        help="The walkthrough's Order within the Set.",
+    )
+    p_walkthrough_new.add_argument(
+        "--target",
+        required=True,
+        help="The id6 of the record the walkthrough documents (recorded as target_id).",
+    )
+    p_walkthrough_new.add_argument(
+        "--slug", required=True, help="Kebab-case filename slug."
+    )
+    p_walkthrough_new.add_argument(
+        "--summary",
+        default=None,
+        help="Optional one-line short description (at most 300 characters).",
+    )
+    p_walkthrough_new.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
     )
 
@@ -17746,6 +17903,40 @@ def _run_search(
     return 0
 
 
+def _run_walkthrough_new(
+    args: argparse.Namespace,
+    term: Term,
+    context: Optional[Any] = None,
+) -> int:
+    """metastore `724acb` E-03: `aw walkthrough new --set --order --target --slug [--summary]`."""
+    from agent_workflows import set_records
+    from agent_workflows.project_context import resolve_verb_repo_root
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import select_output
+
+    ctx = context or select_output(args)
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    res = set_records.new_walkthrough(
+        repo_root,
+        set_id=getattr(args, "set_id", "") or "",
+        order=getattr(args, "order", 0),
+        target_id6=getattr(args, "target", "") or "",
+        slug=getattr(args, "slug", "") or "",
+        summary=getattr(args, "summary", None),
+    )
+    if ctx.is_agent or ctx.is_json:
+        return get_renderer(ctx).emit(res, ctx)
+    if res.exit_code != 0:
+        ctx.stderr.write(f"{res.summary}\n")
+        for na in res.next_actions:
+            ctx.stderr.write(f"  next: {na.command}\n")
+        ctx.stderr.flush()
+        return res.exit_code
+    ctx.stdout.write(f"aw walkthrough new: {res.summary}\n")
+    ctx.stdout.flush()
+    return 0
+
+
 def _run_meta_repair(
     args: argparse.Namespace,
     term: Term,
@@ -22141,8 +22332,18 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import reviews as _reviews
 
             return _reviews.run_decisions(args)
+        if reviews_cmd == "record":
+            from agent_workflows import reviews as _reviews
+
+            return _reviews.run_record(args)
         return _show_family_help(
             parser, "reviews", "aw reviews decisions", term, context
+        )
+    if args.command == "walkthrough":
+        if getattr(args, "walkthrough_command", None) == "new":
+            return _run_walkthrough_new(args, term, context=context)
+        return _show_family_help(
+            parser, "walkthrough", "aw walkthrough new --help", term, context
         )
     if args.command == "host":
         host_cmd = getattr(args, "host_command", None)

@@ -11,11 +11,16 @@ WHY A SEPARATE MODULE. `cli.py` owns registration and dispatch only, matching th
 `specs`/`backlog`/`research` already use: a module with `run_*` entry points that `cli.py` calls. This
 verb is the FIRST inhabitant of the `reviews` CLI namespace, which did not exist before it.
 
-STRICTLY READ-ONLY. Nothing here writes, moves, or mutates any file. There is no `--apply`, because
-there is nothing to apply. Parsing is delegated to `review_findings` (pure, never raises) and
-discovery to the record-path authority via `review_findings.review_dirs`, so this module holds no
-`.aw/records/reviews` path literal of its own and cannot disagree with the writer about where reviews
-live.
+READ-ONLY EXCEPT FOR ONE DORMANT WRITER. `run_decisions` writes, moves, or mutates nothing. Parsing
+is delegated to `review_findings` (pure, never raises) and discovery to the record-path authority via
+`review_findings.review_dirs`, so this module holds no `.aw/records/reviews` path literal of its own
+and cannot disagree with the writer about where reviews live.
+
+`run_record` (metastore `724acb`, spec `4sd62s` 4.1a) is the one writer: it appends ONE `op: review`
+event to the SUBJECT's `meta/<id6>.jsonl` log, which is where a review round lives after the
+metadata cutover (a review file has no log of its own). It is DORMANT before the cutover: while the
+repository's `metadata_schema` stamp is below 2 it refuses and writes nothing, so `main` keeps one
+spelling of review metadata (the hand-written `- Readiness:` bullet) until the migration runs.
 """
 
 from __future__ import annotations
@@ -409,4 +414,385 @@ def run_decisions(args) -> int:
     out.write("\n{0}\n".format(summary))
     for d in diagnostics:
         out.write("  warning  {0}  {1}\n".format(d.location, d.detail))
+    return 0
+
+
+# --------------------------------------------------------------------------------------------------
+# `aw reviews record` (metastore `724acb` E-02; spec `4sd62s` 4.1a, 4.2 review payload)
+# --------------------------------------------------------------------------------------------------
+
+#: The schema stamp from which a review round is an event in the subject's log (spec 5.3).
+LOG_FORMAT_SCHEMA = 2
+
+#: The subject types a review can be about (review front matter `subject_type`, 4.1a R2).
+_REVIEW_SUBJECT_TYPES = ("ipd", "spec")
+
+
+#: The diagnostic rule a dormancy refusal carries, shared by every log-only writer.
+UNMIGRATED_RULE = "metadata-schema-unmigrated"
+
+
+class ReviewEventRefused(ValueError):
+    """A refused review payload; ``rule`` is the agent-visible diagnostic rule naming why."""
+
+    def __init__(self, rule: str, message: str) -> None:
+        super().__init__(message)
+        self.rule = rule
+
+
+def log_format_refusal(repo_root: Path, verb: str) -> Optional[str]:
+    """The dormancy refusal for a log-only writer, or None when the repository is migrated.
+
+    Before the metadata cutover every record is in the legacy bullet format and has no log, so a
+    log-only writer must refuse rather than invent a second spelling of the same metadata. Reads the
+    stamp through `migrations.chain.read_metadata_schema`, the one reader of `metadata_schema`. A
+    stamp that cannot be read is treated as unmigrated: failing closed writes nothing.
+    """
+    from agent_workflows.migrations import chain as _chain
+
+    try:
+        stamp = _chain.read_metadata_schema(repo_root)
+    except Exception as exc:  # malformed project.json or stamp: refuse, write nothing
+        return "{0}: cannot read metadata_schema ({1}); run `aw migrate metadata` first".format(
+            verb, exc
+        )
+    if stamp is None or stamp < LOG_FORMAT_SCHEMA:
+        return (
+            "{0}: this repository's metadata_schema is {1}, and this command writes the "
+            "metadata log introduced by schema {2}; run `aw migrate metadata` first "
+            "(nothing was written)"
+        ).format(verb, "absent" if stamp is None else stamp, LOG_FORMAT_SCHEMA)
+    return None
+
+
+def build_review_event(
+    *,
+    round_number: int,
+    review_kind: str,
+    verdict: str,
+    subject_type: str,
+    readiness: Optional[str] = None,
+    review_depth: Optional[str] = None,
+    reviewer: Optional[str] = None,
+    review_ref: Optional[str] = None,
+    findings_summary: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Build one spec-4.1a `op: review` payload, or raise ValueError naming the refused value.
+
+    Refuses: a non-positive round; a kind other than gate or refinement; a verdict outside its
+    kind's vocabulary (`artifact_meta.GATE_VERDICTS` / `REFINEMENT_VERDICTS`); `readiness` on a
+    refinement round or on a review whose subject is not a plan (4.2: "gate reviews of plans
+    only"); a `readiness` or `review_depth` outside the closed enums its readers normalize against
+    (`ipd_schema.READINESS_VALUES`, `ipd_schema.REVIEW_DEPTH_VALUES`). The writer
+    (`artifact_meta.validate_event`) repeats the kind and verdict refusals; checking here first gives
+    the caller a usage message before any lock or file is touched.
+    """
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import ipd_schema as _schema
+
+    if not isinstance(round_number, int) or round_number < 1:
+        raise ReviewEventRefused(
+            "reviews-record.bad-round",
+            "--round must be a positive integer, got {0!r}".format(round_number),
+        )
+    if review_kind == "gate":
+        vocab: Sequence[str] = _meta.GATE_VERDICTS
+    elif review_kind == "refinement":
+        vocab = _meta.REFINEMENT_VERDICTS
+    else:
+        raise ReviewEventRefused(
+            "reviews-record.bad-kind",
+            "--kind must be 'gate' or 'refinement'', got {0!r}".format(review_kind),
+        )
+    verdict_tok = (verdict or "").strip()
+    if verdict_tok not in vocab:
+        raise ReviewEventRefused(
+            "reviews-record.verdict-vocabulary",
+            "--verdict {0!r} is not a {1} verdict; expected one of: {2}".format(
+                verdict_tok, review_kind, "; ".join(vocab)
+            ),
+        )
+    event: Dict[str, Any] = {
+        "op": "review",
+        "round": round_number,
+        "review_kind": review_kind,
+        "verdict": verdict_tok,
+    }
+    if readiness is not None:
+        tok = readiness.strip()
+        if review_kind == "refinement":
+            raise ReviewEventRefused(
+                "reviews-record.readiness-on-refinement",
+                "--readiness is refused on a refinement round: only a gate review sets readiness",
+            )
+        if subject_type != "ipd":
+            raise ReviewEventRefused(
+                "reviews-record.readiness-not-plan",
+                "--readiness is refused for a {0} subject: readiness is recorded only by a gate "
+                "review of a plan".format(subject_type),
+            )
+        if tok not in _schema.READINESS_VALUES:
+            raise ReviewEventRefused(
+                "reviews-record.readiness-vocabulary",
+                "--readiness {0!r} is not recognized; expected one of: {1}".format(
+                    tok, ", ".join(sorted(_schema.READINESS_VALUES))
+                ),
+            )
+        event["readiness"] = tok
+    if review_depth is not None:
+        tok = review_depth.strip()
+        if tok not in _schema.REVIEW_DEPTH_VALUES:
+            raise ReviewEventRefused(
+                "reviews-record.review-depth-vocabulary",
+                "--review-depth {0!r} is not recognized; expected one of: {1}".format(
+                    tok, ", ".join(sorted(_schema.REVIEW_DEPTH_VALUES))
+                ),
+            )
+        event["review_depth"] = tok
+    for key, val in (
+        ("reviewer", reviewer),
+        ("review_ref", review_ref),
+        ("findings_summary", findings_summary),
+    ):
+        if val is None:
+            continue
+        sval = str(val).strip()
+        if not sval:
+            raise ReviewEventRefused(
+                "reviews-record.empty-value",
+                "--{0} must not be empty".format(key.replace("_", "-")),
+            )
+        event[key] = sval
+    return event
+
+
+def _scan_subject_log(log_path: Path) -> tuple:
+    """``(type, [(review_ref, round), ...])`` read straight from ``log_path``.
+
+    Reads the log rather than `artifact_meta.read` so a refused call touches nothing, not even the
+    gitignored cache that `read` refreshes. The type is the one the create (or migration
+    checkpoint) event declared; the writer's own replay still validates the whole log on append.
+    """
+    from agent_workflows import artifact_meta as _meta
+
+    rtype: Optional[str] = None
+    rounds: List[tuple] = []
+    for line in log_path.read_text(encoding="utf-8").splitlines(keepends=True):
+        if not line.strip():
+            continue
+        ev = _meta.decode_line(line)
+        op = ev.get("op")
+        if op in ("create", "checkpoint") and isinstance(ev.get("fields"), dict):
+            rtype = ev["fields"].get("type", rtype)
+        elif op == "review":
+            rounds.append((ev.get("review_ref"), ev.get("round")))
+    return rtype, rounds
+
+
+def record_review(
+    repo_root: Path,
+    subject_id6: str,
+    *,
+    round_number: int,
+    review_kind: str,
+    verdict: str,
+    readiness: Optional[str] = None,
+    review_depth: Optional[str] = None,
+    reviewer: Optional[str] = None,
+    review_ref: Optional[str] = None,
+    findings_summary: Optional[str] = None,
+) -> Any:
+    """Append one `op: review` event to ``subject_id6``'s log and return a `CommandResult`.
+
+    Refuses with exit 2 and writes nothing when: the repository is not migrated (dormancy); the id6
+    is malformed; the subject has no `meta/<id6>.jsonl` log; the subject is not a plan or spec; the
+    payload is refused by :func:`build_review_event`; the same round is already recorded for the same
+    review file binding (`review_ref`, spec 4.1a K4: exactly one event per round); or the writer
+    refuses the append.
+    """
+    from agent_workflows import artifact_core as _core
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import meta_cli as _meta_cli
+    from agent_workflows.result_types import (
+        Change,
+        CommandResult,
+        Diagnostic,
+        NextAction,
+    )
+
+    verb = "aw reviews record"
+
+    def _refuse(
+        rule: str, message: str, next_cmd: str = "aw reviews record --help"
+    ) -> Any:
+        return CommandResult(
+            command="reviews record",
+            status="cannot-run",
+            exit_code=2,
+            summary=message,
+            diagnostics=[
+                Diagnostic(
+                    location=subject_id6 or "-",
+                    rule=rule,
+                    detail=message + " (nothing was written)"
+                    if "nothing was written" not in message
+                    else message,
+                    severity="error",
+                    fix=next_cmd,
+                )
+            ],
+            next_actions=[NextAction(command=next_cmd)],
+            verified=False,
+            complete=False,
+            applied=False,
+            repo_root=repo_root,
+        )
+
+    dormant = log_format_refusal(repo_root, verb)
+    if dormant:
+        return _refuse(UNMIGRATED_RULE, dormant, "aw migrate metadata")
+    tok = (subject_id6 or "").strip()
+    if not _core.ID6_RE.fullmatch(tok):
+        return _refuse(
+            "reviews-record.invalid-id6",
+            "{0}: invalid subject id6 {1!r}: expected 6 lowercase base36 characters".format(
+                verb, tok
+            ),
+        )
+    ctx = _meta_cli.meta_context(repo_root)
+    log_rel = "meta/{0}.jsonl".format(tok)
+    log_path = ctx.records_root / log_rel
+    if not log_path.is_file():
+        return _refuse(
+            "reviews-record.no-log",
+            "{0}: {1} has no metadata log ({2}); a review is recorded in its subject's log".format(
+                verb, tok, log_rel
+            ),
+            "aw show {0}".format(tok),
+        )
+    try:
+        subject_type, recorded_rounds = _scan_subject_log(log_path)
+    except (OSError, ValueError) as exc:
+        return _refuse(
+            "reviews-record.unreadable-log",
+            "{0}: cannot read {1}: {2}".format(verb, log_rel, exc),
+            "aw meta repair {0}".format(tok),
+        )
+    if subject_type not in _REVIEW_SUBJECT_TYPES:
+        return _refuse(
+            "reviews-record.subject-type",
+            "{0}: {1} is a {2}; a review subject must be a plan or a spec".format(
+                verb, tok, subject_type
+            ),
+        )
+    try:
+        event = build_review_event(
+            round_number=round_number,
+            review_kind=review_kind,
+            verdict=verdict,
+            subject_type=subject_type,
+            readiness=readiness,
+            review_depth=review_depth,
+            reviewer=reviewer,
+            review_ref=review_ref,
+            findings_summary=findings_summary,
+        )
+    except ReviewEventRefused as exc:
+        return _refuse(exc.rule, "{0}: {1}".format(verb, exc))
+    binding = (event.get("review_ref"), event["round"])
+    if binding in recorded_rounds:
+        return _refuse(
+            "reviews-record.duplicate-round",
+            "{0}: round {1} is already recorded for {2}{3}; each round has exactly one review "
+            "event".format(
+                verb,
+                event["round"],
+                tok,
+                " (review_ref {0})".format(binding[0]) if binding[0] else "",
+            ),
+            "aw show {0}".format(tok),
+        )
+    try:
+        res = _meta.append(
+            tok,
+            [event],
+            project_context=ctx,
+            actor={"tool": "aw reviews record"},
+        )
+    except (ValueError, RuntimeError) as exc:
+        return _refuse(
+            "reviews-record.writer-refused",
+            "{0}: refused by the metadata writer: {1}".format(verb, exc),
+        )
+    if not isinstance(res, dict) or not res.get("committed"):
+        err = res.get("error") if isinstance(res, dict) else res
+        return _refuse(
+            "reviews-record.writer-refused",
+            "{0}: nothing was written: {1}".format(verb, err),
+        )
+    detail = "review round {0} ({1}): {2}".format(
+        event["round"], review_kind, event["verdict"]
+    )
+    if "readiness" in event:
+        detail += "; readiness {0}".format(event["readiness"])
+    summary = "recorded {0} for {1}".format(detail, tok)
+    warning = res.get("warning")
+    if warning:
+        summary += "; {0}".format(warning)
+    return CommandResult(
+        command="reviews record",
+        status="ok",
+        exit_code=0,
+        summary=summary,
+        changes=[
+            Change(
+                path=str(log_path),
+                kind="modify",
+                detail=detail,
+                applied=True,
+            )
+        ],
+        next_actions=[NextAction(command="aw show {0}".format(tok))],
+        data={
+            "subject": tok,
+            "subject_type": subject_type,
+            "event": event,
+            "seq": res.get("seq"),
+        },
+        target=tok,
+        applied=True,
+        verified=True,
+        complete=True,
+        repo_root=repo_root,
+    )
+
+
+def run_record(args) -> int:
+    """`aw reviews record <subject-id6> --round N --kind gate|refinement --verdict V ...`."""
+    from agent_workflows.project_context import resolve_verb_repo_root
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import select_output
+
+    ctx = select_output(args)
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    res = record_review(
+        repo_root,
+        getattr(args, "subject", "") or "",
+        round_number=getattr(args, "round", 0),
+        review_kind=getattr(args, "kind", "") or "",
+        verdict=getattr(args, "verdict", "") or "",
+        readiness=getattr(args, "readiness", None),
+        review_depth=getattr(args, "review_depth", None),
+        reviewer=getattr(args, "reviewer", None),
+        review_ref=getattr(args, "review_ref", None),
+        findings_summary=getattr(args, "findings_summary", None),
+    )
+    if ctx.is_agent or ctx.is_json:
+        return get_renderer(ctx).emit(res, ctx)
+    if res.exit_code != 0:
+        sys.stderr.write("{0}\n".format(res.summary))
+        for na in res.next_actions:
+            sys.stderr.write("  next: {0}\n".format(na.command))
+        return res.exit_code
+    sys.stdout.write("aw reviews record: {0}\n".format(res.summary))
     return 0

@@ -89,7 +89,9 @@ def test_exclusion_set_size_and_members() -> None:
     # 70: `describe` added in metastore h06gs7 (requires <selector> and --summary|--clear).
     # 69: `partition` made `-t/--type` optional in 3734d54a7 (infers artifact type from selectors).
     # 70: `meta repair` added in metastore a5ijjx (requires <id6>).
-    assert len(REQUIRED_LEAVES) == 70
+    # 72: `reviews record` (requires <subject>, --round, --kind, --verdict) and `walkthrough new`
+    # (requires --set, --order, --target, --slug) added in metastore 724acb.
+    assert len(REQUIRED_LEAVES) == 72
 
 
 @pytest.mark.parametrize("leaf", REQUIRED_LEAVES)

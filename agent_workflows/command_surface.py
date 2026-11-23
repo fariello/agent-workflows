@@ -673,6 +673,51 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--apply", "--confirm", "--dir", "--json", "--agent"),
         exit_contract=(0, 2),
     ),
+    # metastore `724acb` (spec `4sd62s` 4.1a, 4.2, 4.6): the two DORMANT log-only writers. Each
+    # writes immediately (one appended review event; one walkthrough plus its log), like
+    # `backlog note`, so `mutation_gate="none"`. Each refuses with exit 2, writing nothing, while
+    # `metadata_schema` is below 2 and on any refused payload; there is no finding, hence no exit 1.
+    CommandDeclaration(
+        command="reviews record",
+        command_class="mutation",
+        human_recipe="text",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(
+            "--round",
+            "--kind",
+            "--verdict",
+            "--readiness",
+            "--review-depth",
+            "--reviewer",
+            "--review-ref",
+            "--findings-summary",
+            "--dir",
+            "--json",
+            "--agent",
+        ),
+        exit_contract=(0, 2),
+    ),
+    CommandDeclaration(
+        command="walkthrough new",
+        command_class="mutation",
+        human_recipe="text",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(
+            "--set",
+            "--order",
+            "--target",
+            "--slug",
+            "--summary",
+            "--dir",
+            "--json",
+            "--agent",
+        ),
+        exit_contract=(0, 2),
+    ),
     CommandDeclaration(
         command="archive",
         command_class="mutation",

@@ -248,22 +248,39 @@ def write_walkthrough(
     target_id6: str,
     slug: str,
     body: str,
+    log_format: bool = False,
+    short_description: Optional[str] = None,
 ) -> Path:
     """Write a TRACKED walkthrough to ``.aw/records/walkthroughs/`` using the clustered grammar.
 
     Mints the walkthrough's own id6 (collision-checked repository-wide), records the documented
     plan as ``- Target-Id: <target_id6>`` in the metadata block per DECISIONS.md D140, builds the
     clustered name (``YYYYMMDD-<set>-NN-<id6>-<slug>.walkthrough.md``), and atomic-writes.
+
+    ``log_format=True`` (metastore `724acb`, used only by `aw walkthrough new` after the metadata
+    cutover) creates the walkthrough on the log branch instead: `artifact_meta.create` writes
+    ``meta/<id6>.jsonl`` with the create event (carrying ``short_description`` when given) and the
+    body behind the in-file mirror. The default keeps the phase-B legacy rendering every existing
+    caller relies on, so they are unchanged.
     """
     from agent_workflows import artifact_naming as _naming
     from agent_workflows.record_producers import resolve_record_path
 
-    try:
-        wdir = resolve_record_path("walkthroughs", target_repo=str(repo_root))
-    except Exception:
-        from agent_workflows.project_context import project_records_dir
+    log_ctx = None
+    if log_format:
+        # The log branch writes under the SAME records root the log readers (`aw show`, `aw check
+        # meta`) use, so the walkthrough and its `meta/<id6>.jsonl` can never land in different trees.
+        from agent_workflows import meta_cli as _meta_cli
 
-        wdir = project_records_dir(repo_root) / "walkthroughs"
+        log_ctx = _meta_cli.meta_context(repo_root)
+        wdir = log_ctx.records_root / "walkthroughs"
+    else:
+        try:
+            wdir = resolve_record_path("walkthroughs", target_repo=str(repo_root))
+        except Exception:
+            from agent_workflows.project_context import project_records_dir
+
+            wdir = project_records_dir(repo_root) / "walkthroughs"
 
     minted_id6 = _core.mint_id6(repo_root, _existing_walkthrough_ids(wdir))
 
@@ -281,6 +298,24 @@ def write_walkthrough(
 
     from agent_workflows import artifact_meta as _meta
 
+    if log_ctx is not None:
+        fields = {"set": set_id, "order": int(order), "target_id": target_id6}
+        if short_description:
+            fields["short_description"] = short_description
+        res = _meta.create(
+            minted_id6,
+            "walkthrough",
+            fields,
+            body,
+            destination=dest,
+            dry_run=False,
+            project_context=log_ctx,
+            actor={"tool": "aw walkthrough new"},
+        )
+        if not isinstance(res, dict) or not res.get("committed"):
+            err = res.get("error") if isinstance(res, dict) else res
+            raise RuntimeError(f"walkthrough was not created: {err}")
+        return dest
     ctx = _records_legacy_context(repo_root, wdir.resolve().parent)
     _meta.create(
         minted_id6,
@@ -548,4 +583,172 @@ def promote_local_checkpoints(
     )
     return RecoveryPromotion(
         True, path, "promoted local checkpoint to tracked walkthrough"
+    )
+
+
+# --------------------------------------------------------------------------------------------------
+# `aw walkthrough new` (metastore `724acb` E-03; spec `4sd62s` 4.2 SHORT DESCRIPTION, 4.6)
+# --------------------------------------------------------------------------------------------------
+
+
+def new_walkthrough(
+    repo_root: Path,
+    *,
+    set_id: str,
+    order: int,
+    target_id6: str,
+    slug: str,
+    summary: Optional[str] = None,
+):
+    """Create a tracked walkthrough AND its metadata log; return a `CommandResult`.
+
+    After the metadata cutover a walkthrough written by hand has no log and `aw check meta` reports
+    it as an orphan (spec 4.6), so this is the tooled way to create one. It is DORMANT before the
+    cutover: while `metadata_schema` is below 2 it refuses with exit 2 and writes nothing, because the
+    legacy branch would write a bullet-format walkthrough instead (C10a: one format on `main`).
+
+    Refuses with exit 2, writing nothing, on: an unmigrated repository; an empty or over-long set
+    id; a non-positive order; a malformed target id6 or a target with no metadata log; an empty slug;
+    or a ``summary`` that `attention_contract.refuse_unsafe_descriptive` refuses (one line, at most
+    300 characters). The summary is the walkthrough's logged ``short_description``.
+    """
+    from agent_workflows import config as _config
+    from agent_workflows import reviews as _reviews
+    from agent_workflows.result_types import (
+        Change,
+        CommandResult,
+        Diagnostic,
+        NextAction,
+    )
+
+    verb = "aw walkthrough new"
+
+    def _refuse(rule: str, message: str, next_cmd: str = "aw walkthrough new --help"):
+        return CommandResult(
+            command="walkthrough new",
+            status="cannot-run",
+            exit_code=2,
+            summary=message,
+            diagnostics=[
+                Diagnostic(
+                    location=target_id6 or "-",
+                    rule=rule,
+                    detail=message + " (nothing was written)"
+                    if "nothing was written" not in message
+                    else message,
+                    severity="error",
+                    fix=next_cmd,
+                )
+            ],
+            next_actions=[NextAction(command=next_cmd)],
+            verified=False,
+            complete=False,
+            applied=False,
+            repo_root=repo_root,
+        )
+
+    dormant = _reviews.log_format_refusal(repo_root, verb)
+    if dormant:
+        return _refuse(_reviews.UNMIGRATED_RULE, dormant, "aw migrate metadata")
+    set_tok = _core.kebab(set_id or "")
+    if not set_tok:
+        return _refuse("walkthrough-new.bad-set", f"{verb}: --set must name a Set id")
+    set_err, _set_warn = _config.validate_setid_length_for_authoring(
+        repo_root, set_tok, verb=verb
+    )
+    if set_err:
+        return _refuse("walkthrough-new.bad-set", set_err)
+    if not isinstance(order, int) or order < 1:
+        return _refuse(
+            "walkthrough-new.bad-order",
+            f"{verb}: --order must be a positive integer, got {order!r}",
+        )
+    target = (target_id6 or "").strip()
+    if not _core.ID6_RE.fullmatch(target):
+        return _refuse(
+            "walkthrough-new.invalid-target",
+            f"{verb}: invalid --target {target!r}: expected 6 lowercase base36 characters",
+        )
+    from agent_workflows import meta_cli as _meta_cli
+
+    records_root = _meta_cli.meta_context(repo_root).records_root
+    if not (records_root / "meta" / f"{target}.jsonl").is_file():
+        return _refuse(
+            "walkthrough-new.target-no-log",
+            f"{verb}: --target {target} has no metadata log (meta/{target}.jsonl); "
+            "a walkthrough documents an existing record",
+            f"aw show {target}",
+        )
+    slug_tok = _core.kebab_slug(slug or "", 60, "")
+    if not slug_tok:
+        return _refuse(
+            "walkthrough-new.bad-slug",
+            f"{verb}: --slug must contain at least one letter or digit",
+        )
+    short: Optional[str] = None
+    if summary is not None:
+        err = _ac.refuse_unsafe_descriptive(
+            verb, "--summary", summary, bound_length=True
+        )
+        if err:
+            return _refuse("walkthrough-new.unsafe-summary", err)
+        short = summary.strip() or None
+        if short is None:
+            return _refuse(
+                "walkthrough-new.unsafe-summary",
+                f"{verb}: --summary must not be empty or whitespace-only",
+            )
+
+    title = slug_tok.replace("-", " ")
+    body = f"# Walkthrough: {title}\n\n"
+    if short:
+        body += f"{short}\n"
+    try:
+        dest = write_walkthrough(
+            repo_root,
+            set_id=set_tok,
+            order=order,
+            target_id6=target,
+            slug=slug_tok,
+            body=body,
+            log_format=True,
+            short_description=short,
+        )
+    except (ValueError, RuntimeError) as exc:
+        return _refuse(
+            "walkthrough-new.writer-refused",
+            f"{verb}: refused by the metadata writer: {exc}",
+        )
+    from agent_workflows import artifact_naming as _naming
+
+    m = _naming.parse_clustered(dest.name)
+    new_id6 = m.group("id6") if m else ""
+    log_path = records_root / "meta" / f"{new_id6}.jsonl"
+    return CommandResult(
+        command="walkthrough new",
+        status="ok",
+        exit_code=0,
+        summary=f"created walkthrough {new_id6} for {target}: {dest.name}",
+        changes=[
+            Change(
+                path=str(dest), kind="create", detail="walkthrough body", applied=True
+            ),
+            Change(
+                path=str(log_path), kind="create", detail="metadata log", applied=True
+            ),
+        ],
+        next_actions=[NextAction(command=f"aw show {new_id6}")],
+        data={
+            "id6": new_id6,
+            "set": set_tok,
+            "order": order,
+            "target_id": target,
+            "path": dest.name,
+            "short_description": short,
+        },
+        target=new_id6,
+        applied=True,
+        verified=True,
+        complete=True,
+        repo_root=repo_root,
     )
