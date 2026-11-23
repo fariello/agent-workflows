@@ -112,10 +112,13 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-229-6qh68x-delete-the-research-stale-index-emitter-and-the-two-stale-in.ipd.md
 - Moved to f1yjlx (round-3 split 2026-11-09 per research nj8zdp guidance): E-05 subset 3, the eight `doctor` sites, with `tests/test_doctor.py`. Subsets 1 to 3 equal E-05's list.
   - Carrier: f1yjlx
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-225-f1yjlx-delete-the-stale-index-remediation-from-doctor.ipd.md
 - Moved to m8dblq (round-3 split 2026-11-09 per research nj8zdp guidance): E-15 subset 1, `docs/cli-output-contract.md`, `docs/cli-agent-protocol.md`, `CONTRIBUTING.md`, `README.md` and the `CHANGELOG.md` line.
   - Carrier: m8dblq
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-226-m8dblq-update-the-index-statements-in-the-user-documents-and-the-ch.ipd.md
 - Moved to kkftwj (round-3 split 2026-11-09 per research nj8zdp guidance): E-15 subset 2, `.aw/records/plans/README.md`, `.aw/records/research/README.md` and `.aw/system/workflows/templates/agents-docs-research-README.md`, keeping `tests/test_installed_text_current.py` green. Subsets 1 and 2 equal E-15's list.
   - Carrier: kkftwj
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-227-kkftwj-update-the-index-paragraphs-in-the-plans-and-research-readme.ipd.md
 - Deleting the INDEX writers (`build_index_json`, `build_index_md`, `_set_last_touched`, the write path of `run_index`, `DEFAULT_INDEX_LIMIT`, `artifact_core.emit_index_*`, the `record_producers` entries) and the INDEX-byte tests: `9o83cr` E-03, a separate deletion over a different file set.
   - Carrier: snin8q
 - The STATUS code, `_INDEX_CACHE`, value writers, adapters, parsers, and the AC-1 test and audit: other parts of the `9o83cr` split, and `9o83cr` itself.

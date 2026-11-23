@@ -91,6 +91,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-282-tfvby1-retarget-the-value-writer-tests-part-1-to-artifact-meta.ipd.md
 - E-08: test retargets, last five modules: Moved to 6v4uao (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 6v4uao
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-283-6v4uao-retarget-the-value-writer-tests-part-2-to-artifact-meta.ipd.md
 - E-08: deleting the original writers and the comment sites: Moved to zs7a45 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: zs7a45
 - E-09: `plans_refs` and `artifact_rename` adapters: Moved to v0ucnz (round-3 split 2026-11-09 per research nj8zdp guidance).

@@ -83,8 +83,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- Deleting legacy `INDEX.json`/`INDEX.md` manifest generation and `check.stale-index-*` rules altogether is owned by the `metastore` Set: `f1yjlx` (the `doctor` stale-index sites) and `snin8q` (the INDEX writers). `w819as` (executed) already deleted the plans and prompts emitters, and `6qh68x` (executed) deleted the `research_index` emitter and the two registry entries.
-  - Carrier: f1yjlx, snin8q
+- Deleting legacy `INDEX.json`/`INDEX.md` manifest generation and `check.stale-index-*` rules altogether is owned by the `metastore` Set: `snin8q` (the INDEX writers). `w819as` (executed) deleted the plans and prompts emitters, `6qh68x` (executed) deleted the `research_index` emitter and the two registry entries, and `f1yjlx` (executed) deleted the `doctor` stale-index sites.
+  - Carrier: snin8q
 
 ## Scope check
 
