@@ -145,10 +145,37 @@ No spec change. Implements the record-module part of `4sd62s` C5a.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the two `rg` commands of E-05 and the F-04 table with a per-module hit count for each of the eight modules named in F-04 (every remaining hit with its owner, none unowned); the summary line of each re-run baseline module of `kyl3m4` E-02 and `cb5eda` E-01 to E-03, named one per line with 0 failed; the bare `python3 -m pytest` summary line and wall time; and every `aw commit jd7874` output listing only Scope-Paths (or paths justified at finalize).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified 2026-11-22 at `eb6dbb4cd`: `.aw/state/t4gl15/` ensured (`mkdir -p .aw/state/t4gl15/`, exit 0); 3 owned residual hits (0 unowned); all 11 baseline/pin modules passed (251 passed, 0 failed); core tier gate passed (`2753 passed, 1 skipped`).
+    - E-05 residual `rg` commands (at commit `eb6dbb4cd`):
+      - `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/plans_index.py agent_workflows/plans_archive.py agent_workflows/plans_refs.py agent_workflows/ipd_set_plan.py agent_workflows/completion.py agent_workflows/research_index.py agent_workflows/research_archive.py agent_workflows/prompts_index.py` -> 3 hits (all 3 in `agent_workflows/plans_refs.py`: `52:_ORDER_LINE_RE = re.compile(r"(?m)^- Order:\s*(-?\d+)\s*$")`, `53:_ORDER_LINE_RAW_RE = re.compile(r"(?m)^- Order:[^\r\n]*")`, `55:_SIGNED_INT_RE = re.compile(r"^-?\d+$")`; 0 in the other seven modules).
+      - `rg -n "Workflow history" agent_workflows/plans_index.py agent_workflows/plans_archive.py agent_workflows/plans_refs.py agent_workflows/ipd_set_plan.py agent_workflows/completion.py agent_workflows/research_index.py agent_workflows/research_archive.py agent_workflows/prompts_index.py` -> 0 hits across all eight modules.
+      - Per-module totals (3 hits total, every hit classified with its owner in Table F-04 above, 0 unowned reader hits):
+        - `agent_workflows/plans_index.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/plans_archive.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/plans_refs.py`: 3 hits (3 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/ipd_set_plan.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/completion.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/research_index.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/research_archive.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/prompts_index.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+    - Pin and baseline modules of `kyl3m4` E-02 and `cb5eda` E-01 to E-03 (`python3 -m pytest -m "" <mod>`, 251 passed, 0 failed):
+      - `tests/test_readers_record_modules.py`: `20 passed in 2.50s`
+      - `tests/test_plans_index.py`: `19 passed in 3.29s`
+      - `tests/test_plans_archive.py`: `15 passed in 3.75s`
+      - `tests/test_plans_archive_selectors.py`: `13 passed in 2.12s`
+      - `tests/test_ipd_set_plan.py`: `34 passed in 2.22s`
+      - `tests/test_completion.py`: `31 passed in 5.27s`
+      - `tests/test_research_index.py`: `52 passed in 3.69s`
+      - `tests/test_research_archive.py`: `26 passed in 2.08s`
+      - `tests/test_research_companion.py`: `10 passed in 6.65s`
+      - `tests/test_prompts_index.py`: `15 passed in 1.64s`
+      - `tests/test_index_check_agent_records.py`: `16 passed in 3.76s`
+    - Core tier gate (`aw suite` / bare `python3 -m pytest`): `2753 passed, 1 skipped, 11 warnings in 144.79s (0:02:24)` (exit 0; host 1-minute load average 13.69 on 12 CPUs).
+    - Leak scan (`aw sanitize --agent`): `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7087,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - Path-scoped `aw commit jd7874` output: `aw commit: committed 1 path(s): 7df69294584b1682966675afdb7458b65f966de3` (`git show --stat`: 1 file changed, `.aw/records/plans/pending/20261107-metastore-35-jd7874-move-the-plans-research-and-prompts-module-reads-onto-artifa.ipd.md`, sole declared Scope-Path), followed by the final `aw commit jd7874` recording this V-05 evidence on the same Scope-Path.
+  - Result: pass
 
 ## Approval and execution gate
 
