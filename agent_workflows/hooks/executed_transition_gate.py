@@ -46,13 +46,25 @@ TWO ACCEPTING PATHS (integpath Order 29wvmj added the second):
    is NOT a blanket exemption: a plan staged into `executed/` inside a merge whose incoming side
    carries no matching finalize commit is still REFUSED, and a finalize commit for a DIFFERENT id6
    does not authorize this plan. Absent `MERGE_HEAD` means not-a-merge, hence refuse (fail closed).
+
+THE LOG-FORMAT BRANCH (IPD `6jd6mh` E-03, spec `4sd62s` AC-16 case 2, 5.2 step 4a). A plan whose
+`meta/<id6>.jsonl` log is in the index is judged by the events its log APPENDS in this commit, not by
+the journal or the in-tree commit: the transition into `executed` is accepted only when it arrives as
+a FINALIZE append (a `transition` to `executed` plus a `set` of `scope_result`, `out_of_scope_paths`
+or `widened_paths` in the same append) or an ORCHESTRATOR ROLLUP-RETIREMENT append (a `transition` to
+`executed` that carries `path` and sets none of the three scope fields, spec `77tr3o`). Everything
+else is a raw transition and is refused: a mirror flip or a `git mv` into `executed/` with no such
+append, a bare appended `transition`, and replacing an executed file with a different `id`. A valid
+event does not prove which tool wrote it (spec 3c), so this branch is exactly as strong as the event
+shapes it reads. The branch is reached only for a plan that HAS a log in the index, so a legacy-format
+plan, and every plan before the cutover, keeps the two accepting paths above unchanged.
 """
 
 from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, Dict, FrozenSet, List, Optional, Tuple
 
 # The finalize-transaction journal phases that prove finalize is performing / performed THIS
 # transition (present at commit time). Imported lazily to keep this module import-light.
@@ -135,6 +147,7 @@ def _state_is_executed(
 
 def _staged_plan_executed_transitions(
     repo_root: Path,
+    log_ids: FrozenSet[str] = frozenset(),
 ) -> List[Tuple[str, Optional[str], str]]:
     """Return (staged_path, plan_id, reason) for each plan gaining executed status / moved to executed/.
 
@@ -148,6 +161,11 @@ def _staged_plan_executed_transitions(
 
     An ORDINARY EDIT to a plan already in `executed/` under the same `- Id:` is NOT a transition and
     is NOT reported (i4c0c3): nothing is transitioning, so there is no finalize to demand evidence of.
+
+    ``log_ids`` names the plans whose `meta/<id6>.jsonl` log is in the index. For those only, a staged
+    in-file mirror that reads `executed` while HEAD's state did not is ALSO a transition, because the
+    replayed log (not the mirror) supplies ``staged_state``. Empty (every legacy repository) leaves the
+    detection exactly as before.
     """
     from agent_workflows import artifact_meta as _meta
     from agent_workflows import check_engine as _ce
@@ -224,6 +242,13 @@ def _staged_plan_executed_transitions(
             gained_executed = _state_is_executed(
                 staged_state, staged_mirror_status
             ) and not _state_is_executed(head_state, head_mirror_status)
+            if (
+                not gained_executed
+                and plan_id in log_ids
+                and _state_is_executed(None, staged_mirror_status)
+                and not _state_is_executed(head_state, head_mirror_status)
+            ):
+                gained_executed = True
 
             if moved_into_executed or gained_executed:
                 reason = (
@@ -233,6 +258,133 @@ def _staged_plan_executed_transitions(
                 )
                 transitions.append((new_path, plan_id, reason))
     return transitions
+
+
+_SCOPE_FIELDS = frozenset(("scope_result", "out_of_scope_paths", "widened_paths"))
+
+
+def _indexed_log_ids(repo_root: Path) -> FrozenSet[str]:
+    """The id6s whose `meta/<id6>.jsonl` log is in the index (empty in a legacy-format repository)."""
+    from agent_workflows import check_engine as _ce
+
+    ctx = _ce._git_read_at_context(repo_root)
+    repo_dir, rel_records = _ce._staged_meta_layout(repo_root, ctx)
+    return frozenset(_ce._indexed_meta_logs(repo_dir, rel_records))
+
+
+def _staged_log_only_executed_transitions(
+    repo_root: Path,
+    log_ids: FrozenSet[str],
+    already: FrozenSet[str],
+) -> List[Tuple[str, Optional[str], str]]:
+    """Plans whose staged `meta/<id6>.jsonl` alone enters `executed` (no `.md` change staged).
+
+    Without this, an appended `transition` to `executed` committed without touching the plan file
+    would never reach the gate. Reports ``(rel_log, id6, reason)`` for each plan-type log whose
+    replayed status is `executed` staged but not at HEAD and which ``already`` does not cover.
+    """
+    if not log_ids:
+        return []
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import check_engine as _ce
+
+    ctx = _ce._git_read_at_context(repo_root)
+    repo_dir, rel_records = _ce._staged_meta_layout(repo_root, ctx)
+    meta_dir = f"{rel_records}/meta" if rel_records else "meta"
+    rc, out, _err = _git(
+        repo_dir,
+        [
+            "-c",
+            "core.quotepath=false",
+            "diff",
+            "--cached",
+            "--no-renames",
+            "--name-only",
+            "--diff-filter=AM",
+            "--",
+            meta_dir,
+        ],
+    )
+    if rc != 0 or not out.strip():
+        return []
+    found: List[Tuple[str, Optional[str], str]] = []
+    with _meta.ephemeral_if_uninitialized():
+        for line in out.splitlines():
+            rel = line.strip()
+            stem = (
+                rel[len(meta_dir) + 1 : -len(".jsonl")]
+                if rel.endswith(".jsonl")
+                else ""
+            )
+            if stem not in log_ids or stem in already:
+                continue
+            staged = _meta.read_at(stem, ":0:", project_context=ctx)
+            if (
+                staged.kind != "ok"
+                or staged.state is None
+                or staged.state.type != "ipd"
+            ):
+                continue
+            head = _meta.read_at(stem, "HEAD", project_context=ctx)
+            head_state = head.state if head.kind == "ok" else None
+            if _state_is_executed(staged.state) and not _state_is_executed(head_state):
+                found.append((rel, stem, "log transitions to executed"))
+    return found
+
+
+def _log_executed_append_verdict(repo_root: Path, plan_id: str) -> Tuple[bool, str]:
+    """Judge a log-format plan's transition into `executed` by the events its log appends now.
+
+    Returns ``(accepted, detail)``. Accepted only for a finalize append or an orchestrator
+    rollup-retirement append (see the module docstring); ``detail`` names what was found otherwise.
+    """
+    from agent_workflows import artifact_meta as _meta
+    from agent_workflows import check_engine as _ce
+
+    ctx = _ce._git_read_at_context(repo_root)
+    with _meta.ephemeral_if_uninitialized():
+        staged = _meta.read_at(plan_id, ":0:", project_context=ctx)
+        head = _meta.read_at(plan_id, "HEAD", project_context=ctx)
+    if staged.kind != "ok" or staged.state is None:
+        return False, f"the staged log does not replay ({staged.error or staged.kind})"
+    head_seq = (
+        int(head.state.last_seq or 0)
+        if head.kind == "ok" and head.state is not None
+        else 0
+    )
+    groups: Dict[Any, List[Dict[str, Any]]] = {}
+    for ev in staged.history:
+        if int(ev.get("seq", 0)) > head_seq:
+            groups.setdefault(ev.get("append"), []).append(ev)
+    for evs in groups.values():
+        trans = next(
+            (
+                e
+                for e in evs
+                if e.get("op") == "transition" and e.get("to") == "executed"
+            ),
+            None,
+        )
+        if trans is None:
+            continue
+        scope_set = any(
+            e.get("op") == "set"
+            and isinstance(e.get("fields"), dict)
+            and _SCOPE_FIELDS & set(e["fields"])
+            for e in evs
+        )
+        if scope_set:
+            return True, "finalize append"
+        if trans.get("path"):
+            return True, "orchestrator rollup-retirement append"
+        return False, (
+            f"append {trans.get('append')} transitions to executed with neither the finalize "
+            "scope fields nor a rollup-retirement `path`"
+        )
+    return False, (
+        f"`meta/{plan_id}.jsonl` appends no transition to executed in this commit "
+        "(a mirror flip, `git mv`, or file replacement)"
+    )
 
 
 def _finalize_evidence_ok(repo_root: Path, plan_id: str, staged_path: str) -> bool:
@@ -492,7 +644,12 @@ def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
     from agent_workflows import artifact_core as _core
 
     root = _repo_root(repo_root or Path("."))
-    transitions = _staged_plan_executed_transitions(root)
+    # Empty in a legacy-format repository, which keeps every verdict below byte-identical (6jd6mh).
+    log_ids = _indexed_log_ids(root)
+    transitions = _staged_plan_executed_transitions(root, log_ids)
+    transitions += _staged_log_only_executed_transitions(
+        root, log_ids, frozenset(t[1] for t in transitions if t[1])
+    )
     if not transitions:
         return 0, []  # fast no-op: no plan executed-transition staged
 
@@ -518,6 +675,16 @@ def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
                 f"{staged_path}: this plan is being moved to executed ({reason}) but has no readable "
                 "'- Id:' handle to verify a finalize receipt against; run `aw ipd finalize` instead."
             )
+            continue
+        if plan_id in log_ids:
+            accepted, detail = _log_executed_append_verdict(root, plan_id)
+            if not accepted:
+                refusals.append(
+                    f"{staged_path} ({plan_id}): raw plan->executed transition ({reason}) on a "
+                    f"log-format plan: {detail}. A log-format plan enters executed only through a "
+                    f"finalize append or an orchestrator rollup-retirement append; run `aw ipd "
+                    f"finalize {plan_id} --actor <agent/model> --message <summary> --apply`."
+                )
             continue
         if _finalize_evidence_ok(root, plan_id, staged_path):
             continue
