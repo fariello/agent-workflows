@@ -6848,6 +6848,16 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+
+      # Local prevention (spec 4sd62s 4.8): refuse a staged non-append or invalid change to
+      # `.aw/records/meta/*.jsonl`. Delegates to `artifact_meta.check_staged_log_append`.
+      # Best-effort/local only (--no-verify bypasses it); the portable authority is `aw check meta`.
+      - id: meta-log-append-gate
+        name: metadata event logs are append-only (use aw tools)
+        entry: python3 -m agent_workflows meta-log-append-gate
+        language: system
+        pass_filenames: false
+        always_run: true
 """
 
 # The hook block to hand a user who ALREADY has a .pre-commit-config.yaml (we never edit theirs).
@@ -6871,6 +6881,13 @@ _LOCAL_LEAKS_PRECOMMIT_BLOCK = """\
       - id: ipd-status-untooled-gate
         name: no untooled plan status change (use aw set)
         entry: python3 -m agent_workflows ipd-status-untooled-gate
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: meta-log-append-gate
+        name: metadata event logs are append-only (use aw tools)
+        entry: python3 -m agent_workflows meta-log-append-gate
         language: system
         pass_filenames: false
         always_run: true
@@ -7251,6 +7268,50 @@ def create_prepush_authorization_gate_hook(
         hook_id=_PREPUSH_GATE_HOOK_ID,
         template=_PREPUSH_GATE_TEMPLATE,
         block=_PREPUSH_GATE_BLOCK,
+    )
+
+
+# metastore jq82as (spec 4sd62s 4.8): the OPT-IN staged meta/*.jsonl append-only pre-commit hook.
+# NOT installed by the default setup path; wired only on explicit opt-in via
+# create_meta_log_append_gate_hook (or included in create_local_leaks_backstop(install_hook=True)).
+_META_LOG_APPEND_GATE_HOOK_ID = "meta-log-append-gate"
+_META_LOG_APPEND_GATE_BLOCK = """\
+  - repo: local
+    hooks:
+      - id: meta-log-append-gate
+        name: metadata event logs are append-only (use aw tools)
+        entry: python3 -m agent_workflows meta-log-append-gate
+        language: system
+        pass_filenames: false
+        always_run: true
+"""
+_META_LOG_APPEND_GATE_TEMPLATE = (
+    "# Pre-commit hooks (created by agent-workflows). If you already use pre-commit, MERGE the\n"
+    "# hook below into your existing .pre-commit-config.yaml instead of this file.\n"
+    "repos:\n"
+    "  # OPT-IN local guard (metastore jq82as; spec 4sd62s 4.8): refuse a staged non-append or\n"
+    "  # invalid change to `.aw/records/meta/*.jsonl`. Delegates to\n"
+    "  # `artifact_meta.check_staged_log_append`. LOCAL best-effort only (--no-verify bypasses it);\n"
+    "  # the portable authority is `aw check meta` + CI.\n"
+    + _META_LOG_APPEND_GATE_BLOCK
+)
+
+
+def create_meta_log_append_gate_hook(
+    repo_root: Path, use_git: bool, *, install: bool, dry_run: bool = False
+) -> dict[str, list[str]]:
+    """OPT-IN wire the staged meta/*.jsonl append-only pre-commit hook (metastore jq82as E-02).
+
+    Idempotent, no-clobber, opt-in-only (never installed by the default setup path).
+    """
+    return _wire_optin_precommit_hook(
+        repo_root,
+        use_git,
+        install=install,
+        dry_run=dry_run,
+        hook_id=_META_LOG_APPEND_GATE_HOOK_ID,
+        template=_META_LOG_APPEND_GATE_TEMPLATE,
+        block=_META_LOG_APPEND_GATE_BLOCK,
     )
 
 

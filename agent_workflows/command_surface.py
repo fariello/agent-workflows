@@ -2604,6 +2604,16 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--agent", "--json"),
         exit_contract=(0, 1, 2),
     ),
+    CommandDeclaration(
+        command="meta-log-append-gate",
+        command_class="check",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--agent", "--json"),
+        exit_contract=(0, 1, 2),
+    ),
     # --- shell-completion internal ---
     # `argparse.SUPPRESS`ed and machine-only (the shell calls it), but still a leaf.
     CommandDeclaration(

@@ -143,6 +143,7 @@ LIVE_SAFE_LEAVES: Dict[str, List[str]] = {
     "ipd lint": ["--all"],
     "sanitize": [],
     "check-local-leaks": [],
+    "meta-log-append-gate": [],
     "workflow validate": [],
     "workflow check-generated": [],
     "runs decisions": [LEDGER_FIXTURE_RUN_ID],

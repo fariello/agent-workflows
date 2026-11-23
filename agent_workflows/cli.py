@@ -791,6 +791,14 @@ _DESCRIPTIONS = {
         "portable authority is the 'aw check' rule + CI); commit-scoped. Exit 0 = ok/no-op, 1 = "
         "refused. Invoked by the repo:local pre-commit hook."
     ),
+    "meta-log-append-gate": (
+        "Local pre-commit gate (metastore jq82as; spec 4sd62s 4.8): refuse a staged change to "
+        "'.aw/records/meta/*.jsonl' unless the staged bytes are the HEAD bytes plus whole new "
+        "lines accepted by the artifact_meta loader. Delegates every byte and event judgement to "
+        "'artifact_meta.check_staged_log_append', so no code outside artifact_meta opens a log. "
+        "LOCAL best-effort, OPT-IN only (--no-verify bypasses it; 'aw check meta' + CI is the "
+        "portable authority). Exit 0 = ok/no-op, 1 = refused. Invoked by the repo:local pre-commit hook."
+    ),
     "notify": (
         "Configure, test, inspect, and run notification channels (spec 6kwd2e R10): "
         "'status' reports channel health and receiver lock status, 'setup' configures "
@@ -8280,6 +8288,15 @@ EXAMPLES
         parents=[common],
         help="Local pre-commit gate: refuse a staged IPD with a malformed/dangling/ambiguous/cyclic "
         "Item-Dependencies statement (OPT-IN, LOCAL prevention, no CI; the aw check rule is the backstop).",
+    )
+
+    # metastore jq82as (spec 4sd62s 4.8): OPT-IN local pre-commit gate refusing a staged non-append
+    # or invalid change to `.aw/records/meta/*.jsonl`. Delegates to artifact_meta.check_staged_log_append.
+    sub.add_parser(
+        "meta-log-append-gate",
+        parents=[common],
+        help="Local pre-commit gate: refuse a staged non-append or invalid change to meta/*.jsonl "
+        "(OPT-IN, LOCAL prevention, no CI; aw check meta is the portable authority).",
     )
 
     # agentadhere diundn: OPT-IN local pre-commit gate running the shared commit-invariant checker
@@ -22290,6 +22307,11 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows.hooks import ipd_dependency_statement_gate as _dgate
 
         return _dgate.main(args=args)
+
+    if args.command == "meta-log-append-gate":
+        from agent_workflows.hooks import meta_log_append_gate as _mgate
+
+        return _mgate.main(args=args)
 
     if args.command == "precommit-scope-gate":
         from agent_workflows.hooks import precommit_scope_gate as _pcgate
