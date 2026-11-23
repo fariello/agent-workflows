@@ -42,25 +42,25 @@ PIN RULE (carried from `9o83cr`): before the edit, save the named test modules' 
 
 ### Task group 1: pin, delete, retarget
 
-- [ ] E-01 Pin `tests/test_ipd_lifecycle_cli.py` and `tests/test_orchestrator_retirement.py` (PIN RULE, `mkdir -p .aw/state/lywgzs && ` capture to `E-01-before.txt`).
+- [x] E-01 Pin `tests/test_ipd_lifecycle_cli.py` and `tests/test_orchestrator_retirement.py` (PIN RULE, `mkdir -p .aw/state/lywgzs && ` capture to `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `.aw/state/lywgzs/E-01-before.txt` exists.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/ipd_lifecycle.py`, delete `ipd_lifecycle._refresh_plans_index_fail_loud` and its call in `ipd_lifecycle._finalize_transaction` (the `index_warnings = _refresh_plans_index_fail_loud(` assignment and every use of `index_warnings`), and rewrite the five comment or docstring sites that name it so they describe a finalize that writes no INDEX file.
+- [x] E-02 In `agent_workflows/ipd_lifecycle.py`, delete `ipd_lifecycle._refresh_plans_index_fail_loud` and its call in `ipd_lifecycle._finalize_transaction` (the `index_warnings = _refresh_plans_index_fail_loud(` assignment and every use of `index_warnings`), and rewrite the five comment or docstring sites that name it so they describe a finalize that writes no INDEX file.
   - Depends on: E-01
   - Expected outcome: `rg -n "_refresh_plans_index_fail_loud|index_warnings" agent_workflows/ipd_lifecycle.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `agent_workflows/lane_containment.py`, rewrite the one comment in `lane_containment.inventory_lane` that says a finalize calls `ipd_lifecycle._refresh_plans_index_fail_loud`.
+- [x] E-03 In `agent_workflows/lane_containment.py`, rewrite the one comment in `lane_containment.inventory_lane` that says a finalize calls `ipd_lifecycle._refresh_plans_index_fail_loud`.
   - Depends on: E-02
   - Expected outcome: `rg -n "_refresh_plans_index_fail_loud" agent_workflows` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Retarget the tests: in `tests/test_ipd_lifecycle_cli.py`, `test_fail_loud_index_refresh_aborts_transaction`; in `tests/test_orchestrator_retirement.py`, `test_a_FAILING_plans_index_refresh_fails_the_whole_transaction`, the `"plans-index-refresh-fail-loud"` row of `GateParityBetweenTheTwoPaths`, `test_index_gate_refreshes_after_reconciliation_and_fails_loud_on_non_convergence`, `test_failed_retirement_preserves_manifest_absence_presence_and_peer_writes`, `test_success_path_regenerates_index_and_failure_reporting_invariants`, and the `INDEX.json`/`INDEX.md` assertions of `test_no_receipt_required_or_left_behind_and_lifecycle_paths_safe` and of the pre-commit baseline comparison near `HEAD 73e284a6`. Each test keeps its other assertions; a test whose only subject is the refresh is deleted per the PIN RULE. Save `E-04-after.txt`, run both modules, and commit through `aw commit lywgzs -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-04 Retarget the tests: in `tests/test_ipd_lifecycle_cli.py`, `test_fail_loud_index_refresh_aborts_transaction`; in `tests/test_orchestrator_retirement.py`, `test_a_FAILING_plans_index_refresh_fails_the_whole_transaction`, the `"plans-index-refresh-fail-loud"` row of `GateParityBetweenTheTwoPaths`, `test_index_gate_refreshes_after_reconciliation_and_fails_loud_on_non_convergence`, `test_failed_retirement_preserves_manifest_absence_presence_and_peer_writes`, `test_success_path_regenerates_index_and_failure_reporting_invariants`, and the `INDEX.json`/`INDEX.md` assertions of `test_no_receipt_required_or_left_behind_and_lifecycle_paths_safe` and of the pre-commit baseline comparison near `HEAD 73e284a6`. Each test keeps its other assertions; a test whose only subject is the refresh is deleted per the PIN RULE. Save `E-04-after.txt`, run both modules, and commit through `aw commit lywgzs -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-03
   - Expected outcome: both modules pass; the before/after mapping accounts for every case.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -118,25 +118,121 @@ No spec change; implements part of `4sd62s` 4.5 and contributes to AC-26 (owned 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `wc -l .aw/state/lywgzs/E-01-before.txt` and its first five lines, showing cases from both `tests/test_ipd_lifecycle_cli.py` and `tests/test_orchestrator_retirement.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `wc -l .aw/state/lywgzs/E-01-before.txt` -> `117 .aw/state/lywgzs/E-01-before.txt` (73 lines from `tests/test_ipd_lifecycle_cli.py`, 44 from `tests/test_orchestrator_retirement.py`; runner summary `117 passed in 76.36s`). First five lines:
+    ```
+    PASSED tests/test_ipd_lifecycle_cli.py::AdditiveScopeWideningTests::test_a_widening_WITH_a_changed_requirement_finalizes_after_a_refreeze
+    PASSED tests/test_ipd_lifecycle_cli.py::AdditiveScopeWideningTests::test_refreeze_refuses_without_a_receipt
+    PASSED tests/test_ipd_lifecycle_cli.py::AdditiveScopeWideningTests::test_widening_audit_and_deduplication
+    PASSED tests/test_ipd_lifecycle_cli.py::AdditiveScopeWideningTests::test_widening_finalizes_when_each_added_path_carries_a_reason
+    PASSED tests/test_ipd_lifecycle_cli.py::AdditiveScopeWideningTests::test_widening_refusals_and_failure_modes
+    ```
+    `grep -c test_orchestrator_retirement` -> 44 (cases from both modules present).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "_refresh_plans_index_fail_loud|index_warnings" agent_workflows/ipd_lifecycle.py` printing nothing, and the `git diff` hunk of `ipd_lifecycle._finalize_transaction`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "_refresh_plans_index_fail_loud|index_warnings" agent_workflows/ipd_lifecycle.py` printed nothing (`rc=1`). `git diff` hunk of `ipd_lifecycle._finalize_transaction` (commit `f18b701f5`):
+    ```
+    @@ -6288,44 +6210,6 @@ def _finalize_transaction(
+    -    # --- THE FAIL-LOUD PLANS-INDEX REFRESH, DELIBERATELY AFTER THE RECONCILIATION (`u23gbn` E-07). ---
+    -    ... (22 comment lines removed)
+    -    try:
+    -        index_warnings = _refresh_plans_index_fail_loud(
+    -            repo_root, plan_name=Path(dest_path).name
+    -        )
+    -        if index_warnings:
+    -            evidence["plans_index_warnings"] = index_warnings
+    -        _fault("after_index")
+    -    except Exception as exc:
+    -        evidence["plans_index_refresh"] = {"error": str(exc)}
+    -        return FinalizeResult(
+    -            EXIT_FINDINGS, lifecycle_commit, f"finalize is COMMITTED-INCOMPLETE ... ({exc}) ...", evidence,
+    -            (f"plans-index refresh failed after the lifecycle commit: {exc}",),
+    -        )
+    +    # NO PLANS-INDEX REFRESH HERE (plan `lywgzs`). Finalize used to regenerate `INDEX.json`/`INDEX.md`
+    +    # at this point and fail the transaction when they did not converge. Spec `4sd62s` 4.5 replaces the
+    +    # INDEX files with the SQLite metadata cache, and AC-26 makes finalize rely on that cache's
+    +    # freshness rule instead, so a landed lifecycle commit goes straight to post-transition lint.
+    ```
+    Also removed: the function definition, the `plans_index_warnings` findings tuple in `_complete_after_commit`, and the `"plans-index-refresh-fail-loud"` entry of `ROLLUP_SHARED_GATES`; the docstrings of `_pre_commit_phase_leaves_manifests_untouched` and `_rollback_precommit`, the drift-surface banner, and the `owned_paths` comment were rewritten. `ruff check --select F agent_workflows/ipd_lifecycle.py` -> `All checks passed!`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "_refresh_plans_index_fail_loud" agent_workflows` printing nothing, and the `git diff` hunk of `agent_workflows/lane_containment.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "_refresh_plans_index_fail_loud" agent_workflows` printed nothing (`rc=1`). `git diff agent_workflows/lane_containment.py`:
+    ```
+    @@ -3936,10 +3936,12 @@ def inventory_lane(
+    -            # is MEASURED rather than anticipated: `aw ipd finalize` - which the DRIVER runs, inside
+    -            # the lane - calls `ipd_lifecycle._refresh_plans_index_fail_loud`, so EVERY successfully
+    -            # finalized lane holds them. Without this clause the gate preserved every successful lane
+    -            # forever, which is the "refusing always" failure that would make the whole rule useless.
+    +            # was MEASURED rather than anticipated: `aw ipd finalize` - which the DRIVER runs, inside
+    +            # the lane - used to regenerate them on every success, so EVERY successfully finalized lane
+    +            # held them. Finalize no longer writes them (plan `lywgzs`, spec `4sd62s` 4.5), but other
+    +            # `aw` verbs a lane may run can still regenerate them, and a lane can inherit stale copies.
+    +            # Without this clause the gate preserved every such lane forever, which is the "refusing
+    +            # always" failure that would make the whole rule useless.
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `diff .aw/state/lywgzs/E-01-before.txt .aw/state/lywgzs/E-04-after.txt` with every removed name mapped to its successor or marked "subject removed", the summary lines of `python3 -m pytest -o addopts="" tests/test_ipd_lifecycle_cli.py tests/test_orchestrator_retirement.py` passing, and a fixture `aw ipd finalize` run followed by `ls .aw/records/plans/INDEX.*` showing no such file. Code path: `ipd_lifecycle._finalize_transaction` (E-02). Also paste `git show --stat` of the `aw commit lywgzs` commit listing only Scope-Paths files.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `diff .aw/state/lywgzs/E-01-before.txt .aw/state/lywgzs/E-04-after.txt` (117 -> 115 lines):
+    ```
+    24d23
+    < PASSED tests/test_ipd_lifecycle_cli.py::FinalizeTests::test_fail_loud_index_refresh_aborts_transaction
+    25a25
+    > PASSED tests/test_ipd_lifecycle_cli.py::FinalizeTests::test_finalize_writes_no_plans_index_files
+    29,30d28
+    < PASSED tests/test_ipd_lifecycle_cli.py::MachineOutputPurityAndFailLoudDetailTests::test_fail_loud_arm_refuses_on_genuine_non_convergence
+    < PASSED tests/test_ipd_lifecycle_cli.py::MachineOutputPurityAndFailLoudDetailTests::test_fail_loud_detail_reaches_payload
+    31a30
+    > PASSED tests/test_ipd_lifecycle_cli.py::MachineOutputPurityAndFailLoudDetailTests::test_name_metadata_mismatch_finalizes_and_is_left_to_aw_check
+    78c77
+    < PASSED tests/test_orchestrator_retirement.py::AFailedRetirementLeavesTheManifestsAsItFoundThem::test_success_path_regenerates_index_and_failure_reporting_invariants
+    ---
+    > PASSED tests/test_orchestrator_retirement.py::AFailedRetirementLeavesTheManifestsAsItFoundThem::test_success_path_writes_no_index_and_failure_reporting_invariants
+    82a82
+    > PASSED tests/test_orchestrator_retirement.py::FinalizeWritesNoPlansIndexAfterTheReconciliation::test_retirement_reconciles_and_writes_no_plans_index
+    98d97
+    < PASSED tests/test_orchestrator_retirement.py::TheIndexGateIsStillLiveUnderTheNewOrdering::test_index_gate_refreshes_after_reconciliation_and_fails_loud_on_non_convergence
+    103d101
+    < PASSED tests/test_orchestrator_retirement.py::TheSharedGatesActuallyFireOnTheRollupPath::test_a_FAILING_plans_index_refresh_fails_the_whole_transaction
+    ```
+    Mapping of every removed name:
+    - `test_fail_loud_index_refresh_aborts_transaction` -> `test_finalize_writes_no_plans_index_files` (subject removed, AC-26 freshness replaces it; the finalize fixture is kept and now asserts rc 0, the plan in `executed/`, no INDEX file, no journal).
+    - `test_fail_loud_arm_refuses_on_genuine_non_convergence` and `test_fail_loud_detail_reaches_payload` -> `test_name_metadata_mismatch_finalizes_and_is_left_to_aw_check` (subject removed, AC-26 freshness replaces it; both used the same filename-id6/`- Id:` mismatch input, which is kept: finalize now completes, and `aw check all --json` still reports `check.id6-identity-slot`). Not named in E-04, but they lived in a Scope-Paths module and asserted the deleted refresh's COMMITTED-INCOMPLETE arm and its message.
+    - `test_success_path_regenerates_index_and_failure_reporting_invariants` -> `test_success_path_writes_no_index_and_failure_reporting_invariants` (renamed; the success arm now asserts no manifest is written; the unknown-outcome, invariant and six fault x presence subcases are unchanged, seeded with `plans_index.run_index` instead of the deleted function).
+    - `test_index_gate_refreshes_after_reconciliation_and_fails_loud_on_non_convergence` -> `test_retirement_reconciles_and_writes_no_plans_index` (new class `FinalizeWritesNoPlansIndexAfterTheReconciliation`; the success case is kept and asserts reconciliation ran, the plan landed, no INDEX file; the non-convergence case is subject removed, AC-26 freshness replaces it).
+    - `test_a_FAILING_plans_index_refresh_fails_the_whole_transaction` -> deleted (subject removed, AC-26 freshness replaces it).
+    Unchanged names, edited bodies: `test_gate_parity_declarations_and_reasons` (row `"plans-index-refresh-fail-loud"` dropped from `_REQUIRED_SHARED` and the explicit list), `test_failed_retirement_preserves_manifest_absence_presence_and_peer_writes` (spy moved to `plans_index.run_index`; seeds via `run_index`), `test_no_receipt_required_or_left_behind_and_lifecycle_paths_safe` (adds assertions that no INDEX file exists on disk), and the `HEAD 73e284a6` baseline docstring of `TheSharedCheckoutIsNotWhereTheMutationHappens`.
+
+    `python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA tests/test_ipd_lifecycle_cli.py tests/test_orchestrator_retirement.py` -> `======================== 115 passed in 68.13s (0:01:08) ========================`
+
+    Fixture finalize (the `MachineOutputPurityAndFailLoudDetailTests` fixture, driving the real CLI through `ipd_lifecycle._finalize_transaction`):
+    ```
+    $ aw ipd begin abc123 -> 0
+    $ aw ipd finalize abc123 --apply -> rc 0
+    finalized abc123 -> executed at 0abbf9778028 (actor opencode/test).
+    $ ls .aw/records/plans/INDEX.* ; ls .aw/records/plans/executed
+    20260824-demo-01-abc123-demo.ipd.md
+    ls: cannot access '.aw/records/plans/INDEX.*': No such file or directory
+    ```
+    Core gate `python3 -m pytest`: `2896 passed, 1 skipped, 11 warnings in 124.06s (0:02:04)`.
+
+    `git show --stat f18b701f5`:
+    ```
+     agent_workflows/ipd_lifecycle.py      | 164 +++++------------------------
+     agent_workflows/lane_containment.py   |  10 +-
+     tests/test_ipd_lifecycle_cli.py       | 122 +++++++---------------
+     tests/test_legacy_finalize.py         |   9 +-
+     tests/test_orchestrator_retirement.py | 187 +++++++++++++---------------------
+     5 files changed, 144 insertions(+), 348 deletions(-)
+    ```
+    Four are Scope-Paths files. `tests/test_legacy_finalize.py` is OUTSIDE Scope-Paths and was justified with `--scope-reason` at commit time: `IndexFindingOnAnotherPlanTests` asserted the deleted refresh's other-plan `id-missing` finalize warning and failed after E-02; it now asserts finalize does not scan the index (`40 passed`).
+  - Result: pass
 
 ## Approval and execution gate
 
