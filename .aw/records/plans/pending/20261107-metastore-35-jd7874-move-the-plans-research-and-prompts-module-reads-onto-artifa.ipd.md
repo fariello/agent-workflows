@@ -94,6 +94,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-148-kyl3m4-move-the-plans-module-reads-onto-artifact-meta.ipd.md
 - E-03, E-04 (the research and prompts modules, the banner-blind research body test). Moved to cb5eda (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: cb5eda
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-153-cb5eda-move-the-research-and-prompts-module-reads-onto-artifact-met.ipd.md
 - The review, orchestration, production-check, work and adoption modules.
   - Carrier: 2zpw22
 - Deleting the INDEX writers and `plans_index._META_RE`.
