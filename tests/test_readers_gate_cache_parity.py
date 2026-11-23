@@ -607,8 +607,9 @@ def test_invalid_staged_record_fails_closed_parity(
             (repo / target_rel).write_bytes(b"\xff\xfe\x00\x00unparseable-record")
             _git(repo, "add", target_rel)
         else:
+            # Stage a non-blocking close (which would otherwise pass) alongside a corrupt log.
             (repo / target_rel).write_text(
-                _backlog_text(id6=target_id, status="done", blocks_release="next"),
+                _backlog_text(id6=target_id, status="done", blocks_release=None),
                 encoding="utf-8",
             )
             log_rel = f".aw/records/meta/{target_id}.jsonl"
@@ -625,6 +626,10 @@ def test_invalid_staged_record_fails_closed_parity(
     assert (
         target_rel in combined or target_id in combined
     ), f"{gate_cmd} ({corrupt_mode}) refusal did not name {target_rel!r} or {target_id!r}: {combined!r}"
+    assert "corrupt" in combined.lower() or "unparseable" in combined.lower(), (
+        f"{gate_cmd} ({corrupt_mode}) refusal did not report an unparseable/corrupt record: "
+        f"{combined!r}"
+    )
 
     # Verify corrupt staged blob left no valid rev_log_states entry for target_id.
     db_path = repo / ".aw" / "state" / "index.db"

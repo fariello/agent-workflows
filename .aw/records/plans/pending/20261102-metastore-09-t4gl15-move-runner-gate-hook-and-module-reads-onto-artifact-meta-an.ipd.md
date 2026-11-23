@@ -156,7 +156,7 @@ Note: `agent_workflows/set_records.py` dropped from 2 hits at `ac76110f4` to 0 h
 | `agent_workflows/lane_containment.py::inventory_lane` | 0 | 1 | Comment prose | Comment prose. |
 | `agent_workflows/readiness_recheck.py::_run_stale_findings` | 1 | 0 | `re.search(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$", text)` | Parser Order 11 deletes (`akhrp5` Order 247). |
 | `agent_workflows/status_set.py::apply_status_change` | 0 | 1 | Docstring prose | Writer (Order 06 `2xwb9b`) / docstring prose. |
-| **Part B Total** | **85** | **55** | **140 hits across 21 modules (0 in `set_records.py`)** | **0 unowned reader hits** |
+| **Part B Total** | **85** | **55** | **140 hits across 24 modules (0 in `set_records.py`)** | **0 unowned reader hits** |
 
 READER LEDGER: prior behavior, the pinning test, and the result. (Since the 2026-11-07 split each row is carried, with its moved item, by the part named in `## Deferred / out of scope`; kept here as the decision record.)
 
@@ -339,7 +339,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     1. Residual `rg` audit and Table F-04 (recorded above in `## Findings` -> `### Table F-04`):
        - `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows`: 134 hits.
        - `rg -n "Workflow history" agent_workflows`: 109 hits.
-       - Grand total: 243 hits (103 in the 5 cited tables re-verified at `d5c3c3109`: `h58z9n` F-04 = 21, `y97k46` F-04 = 32, `jd7874` F-04 = 3, `2zpw22` F-04 = 1, `ffceq0` F-12 = 46 with all 26 `^-` regex hits matching F-12's 25 rows; 140 across the 21 remaining modules in Table F-04 Part B; 0 unowned reader hits).
+       - Grand total: 243 hits (103 in the 5 cited tables re-verified at `d5c3c3109`: `h58z9n` F-04 = 21, `y97k46` F-04 = 32, `jd7874` F-04 = 3, `2zpw22` F-04 = 1, `ffceq0` F-12 = 46 with all 26 `^-` regex hits matching F-12's 25 rows; 140 across the 24 remaining modules in Table F-04 Part B; 0 unowned reader hits).
     2. Named modules + bare core gate + thorough suite + typecheck:
        - `python3 -m pytest tests/test_meta_log_append_gate.py`: `18 passed in 2.79s`
        - `make typecheck` (`python3 -m mypy agent_workflows`): `Success: no issues found in 232 source files`
