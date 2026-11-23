@@ -99,11 +99,11 @@ repos:
         pass_filenames: false
         always_run: true
 
-      # testtier hguae9: Run the thorough test suite before git push.
-      # Local feedback only (skippable with --no-verify); not an authority boundary.
-      - id: thorough-suite
-        name: thorough test suite before push
-        entry: python3 -m agent_workflows suite --thorough --slots 1
+      # Fast-first pre-push ordering: check remote fast-forward (~0.5s), attention (~8s), and mypy
+      # (~18s) BEFORE spending ~15 minutes on the thorough test suite.
+      - id: prepush-fast-forward-gate
+        name: verify remote fast-forward before slow push gates
+        entry: python3 -m agent_workflows.hooks.prepush_fast_forward_gate
         language: system
         pass_filenames: false
         always_run: true
@@ -124,6 +124,16 @@ repos:
         pass_filenames: false
         always_run: true
 
+      # cihealth: cross-tree attention and artifact contract check before push.
+      - id: attention-gate
+        name: attention and artifact check before push
+        entry: python3 -m agent_workflows attention --check --agent
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+        verbose: true
+
       # cihealth: static type gate before push.
       - id: static-type-gate
         name: static type gate before push (mypy agent_workflows)
@@ -134,10 +144,11 @@ repos:
         stages: [pre-push]
         verbose: true
 
-      # cihealth: cross-tree attention and artifact contract check before push.
-      - id: attention-gate
-        name: attention and artifact check before push
-        entry: python3 -m agent_workflows attention --check --agent
+      # testtier hguae9: Run the thorough test suite before git push.
+      # Local feedback only (skippable with --no-verify); not an authority boundary.
+      - id: thorough-suite
+        name: thorough test suite before push
+        entry: python3 -m agent_workflows suite --thorough --slots 1
         language: system
         pass_filenames: false
         always_run: true

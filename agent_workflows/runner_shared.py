@@ -19842,12 +19842,12 @@ def register_run_policy_flags(
             )
         elif row.kind == "str":
             # `default=None` on BOTH parsers for the same reason a choice row uses it: `None` means
-            # the operator said nothing. `metavar` is the operator-facing word for what the value IS,
-            # which for the one row of this kind is the reason they are accepting a risk.
+            # the operator said nothing. `metavar` comes from the row when declared (e.g. `DURATION`
+            # for `--poll-for-deps`), defaulting to `JUSTIFICATION` for risk-acceptance reason flags.
             str_kwargs: dict[str, Any] = {
                 "dest": row.dest,
                 "default": None,
-                "metavar": "JUSTIFICATION",
+                "metavar": row.metavar or "JUSTIFICATION",
                 "help": row.help,
             }
             if row.dest == "allow_red_ci":

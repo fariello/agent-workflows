@@ -230,6 +230,17 @@ def test_poll_for_deps_registered_on_both_hosts_and_refused_on_resume() -> None:
         with pytest.raises(runner_shared.RunFlagRefusal):
             runner_shared.refuse_frozen_flags_on_resume(res_ns)
 
+        # Verify help renders DURATION rather than JUSTIFICATION.
+        subparsers_actions = [
+            a
+            for a in parser._actions
+            if getattr(a, "choices", None) and "start" in a.choices
+        ]
+        assert subparsers_actions
+        start_help = subparsers_actions[0].choices["start"].format_help()
+        assert "--poll-for-deps DURATION" in start_help
+        assert "--poll-for-deps JUSTIFICATION" not in start_help
+
 
 def test_poll_for_deps_waits_until_external_plan_executes_then_starts(
     tmp_path: Path,
