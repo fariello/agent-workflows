@@ -128,6 +128,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261102-metastore-07-xexn45-move-the-remaining-metadata-writers-onto-artifact-meta.ipd.md
 - The `->reviewed` gate-only attestation rule (4.4 SR-601).
   - Carrier: 2xwb9b
+  - Carrier-Evidence: .aw/records/plans/executed/20261102-metastore-06-2xwb9b-move-the-status-set-setter-engine-onto-artifact-meta.ipd.md
 
 ## Scope check
 
@@ -155,10 +156,44 @@ No spec change. Implements the review and orchestration module part of `4sd62s` 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the two `rg` commands of E-03 and the F-04 table with a per-module hit count for each of the ten modules named in F-04 (every remaining hit with its owner, none unowned); the summary line of each re-run baseline module of `y4spqy`, `0i0zsg` and `awmsyq`, named one per line with 0 failed; the bare `python3 -m pytest` summary line and wall time; and every `aw commit 2zpw22` output listing only Scope-Paths (or paths justified at finalize).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified 2026-11-22 at `bb0b36963` and `fef036629`: `.aw/state/t4gl15/` ensured (`mkdir -p .aw/state/t4gl15/`, exit 0); 1 owned residual hit (0 unowned); all 16 baseline and pinning modules passed (259 passed, 0 failed); core tier gate passed (`2760 passed, 1 skipped`).
+    - E-03 residual `rg` commands (at commit `bb0b36963`):
+      - `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/review_findings.py agent_workflows/artifact_audit.py agent_workflows/reviews.py agent_workflows/review_sequence.py agent_workflows/review_tier.py agent_workflows/review_rereview.py agent_workflows/orchestrator_readiness.py agent_workflows/production_checks.py agent_workflows/work_cmd.py agent_workflows/artifact_adopt.py` -> 0 hits across all ten modules (exit 1).
+      - `rg -n "Workflow history" agent_workflows/review_findings.py agent_workflows/artifact_audit.py agent_workflows/reviews.py agent_workflows/review_sequence.py agent_workflows/review_tier.py agent_workflows/review_rereview.py agent_workflows/orchestrator_readiness.py agent_workflows/production_checks.py agent_workflows/work_cmd.py agent_workflows/artifact_adopt.py` -> 1 hit (`agent_workflows/review_findings.py` module docstring, line 6: `` `## Workflow history`, plus the session transcript. Nothing deterministic could read them, which is ``; 0 in the other nine modules).
+      - Per-module totals in Table F-04 above (1 hit total, every hit classified with its owner, 0 unowned reader hits):
+        - `agent_workflows/review_findings.py`: 1 hit (0 `^-` regex, 1 `Workflow history` docstring prose; owner: non-reader/non-writer, Order 11 `9o83cr` E-14 exclusion / Order 12 `90iqr1`)
+        - `agent_workflows/artifact_audit.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/reviews.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/review_sequence.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/review_tier.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/review_rereview.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/orchestrator_readiness.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/production_checks.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/work_cmd.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+        - `agent_workflows/artifact_adopt.py`: 0 hits (0 `^-` regex, 0 `Workflow history`)
+    - Pin and baseline modules of `y4spqy` E-01, `0i0zsg` E-01/E-02, and `awmsyq` E-01 to E-03 (`python3 -m pytest -m "" <mod>`, 259 passed, 0 failed):
+      - `tests/test_readers_review_modules.py`: `29 passed in 5.54s`
+      - `tests/test_review_findings_gate.py`: `10 passed in 3.51s`
+      - `tests/test_spec_review_attestation.py`: `29 passed in 7.89s`
+      - `tests/test_artifact_audit.py`: `26 passed in 5.44s`
+      - `tests/test_artifact_audit_verdicts.py`: `4 passed in 1.49s`
+      - `tests/test_artifact_audit_identity_staleness.py`: `6 passed in 2.82s`
+      - `tests/test_review_sequence.py`: `9 passed in 1.79s`
+      - `tests/test_review_sequence_runner.py`: `10 passed in 7.34s`
+      - `tests/test_review_tier.py`: `8 passed in 1.98s`
+      - `tests/test_review_rereview.py`: `12 passed in 7.19s`
+      - `tests/test_orchestrator_readiness.py`: `24 passed in 4.28s`
+      - `tests/test_production_checks_trace.py`: `29 passed in 2.09s`
+      - `tests/test_backlog_production.py`: `16 passed in 13.07s`
+      - `tests/test_scope_match.py`: `6 passed in 1.58s`
+      - `tests/test_artifact_adopt.py`: `39 passed in 2.91s`
+      - `tests/test_id6_global_mint.py`: `2 passed in 2.85s`
+    - Core tier gate (`aw suite` / bare `python3 -m pytest`): `2760 passed, 1 skipped, 11 warnings in 133.32s (0:02:13)` (exit 0; host 1-minute load average 7.32 on 12 CPUs).
+    - Leak scan (`aw sanitize --agent`): `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7089,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - Path-scoped `aw commit 2zpw22` output: `aw commit: committed 1 path(s): fef036629a42deaaff0206ad1a046e32b3d48b4b` (`git show --stat`: 1 file changed, `.aw/records/plans/pending/20261107-metastore-36-2zpw22-move-the-review-orchestration-production-check-and-work-modu.ipd.md`, sole declared Scope-Path), followed by the final `aw commit 2zpw22` recording this V-03 evidence on the same Scope-Path.
+  - Result: pass
 
 ## Approval and execution gate
 
