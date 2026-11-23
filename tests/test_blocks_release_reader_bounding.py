@@ -5,7 +5,7 @@ Covers IPD b92m14 (E-01 through E-08):
 - Bidirectional display divergence resolved between aw set and aw attention
 - Setter spellings (positional and flag) write byte-identical front matter
 - Plans with body-only gate bullet excluded from releases.get_release_blockers
-- releases.set_blocks_release_line bounds strip to metadata region, preserving body
+- The Blocks-Release write through artifact_meta bounds strip to metadata region, preserving body
 - Fixture regression guard for get_release_blockers, sentinel count, check_blocks_release
 - Removal with '-' strips only front-matter gate bullet, preserving body quotes
 - ipd_lint board and check_engine release gate consistency bounded to metadata region
@@ -24,6 +24,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import (
+    artifact_meta,
     attention,
     backlog,
     check_engine,
@@ -33,6 +34,22 @@ from agent_workflows import (
     status_set,
 )
 from tests.record_builder import RecordBuilder
+
+_RENDER = artifact_meta.LegacyRender(
+    "same-status", "2026-10-01", "aw set", history=False
+)
+
+
+def _set_blocks_release(text: str, value: str) -> str:
+    """Render a Blocks-Release set (or, for '-', an unset) on a backlog item via artifact_meta."""
+    event = (
+        {"op": "unset", "fields": ["blocks_release"]}
+        if value == "-"
+        else {"op": "set", "fields": {"blocks_release": value}}
+    )
+    return artifact_meta.render_legacy_text(
+        text, [event], record_type="backlog", render=_RENDER
+    )
 
 
 class TestBlocksReleaseReaderBounding(unittest.TestCase):
@@ -298,8 +315,8 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
             self.assertNotIn("ppp444", blocker_ids)
             self.assertIn("qqq555", blocker_ids)
 
-    def test_set_blocks_release_line_preserves_body(self) -> None:
-        """E-08(d) / V-07: set_blocks_release_line preserves body line while setting front-matter."""
+    def test_set_blocks_release_write_preserves_body(self) -> None:
+        """E-08(d) / V-07: the artifact_meta Blocks-Release write preserves body line while setting front-matter."""
         text = RecordBuilder().backlog(
             id6="bbb222",
             status="open",
@@ -312,13 +329,13 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
             ),
             text_only=True,
         )
-        updated = releases.set_blocks_release_line(text, "next")
+        updated = _set_blocks_release(text, "next")
         # Line count: exactly 1 line added in front matter
         self.assertEqual(len(updated.splitlines()), len(text.splitlines()) + 1)
         self.assertEqual(updated.count("- Blocks-Release: next"), 2)
 
         # Idempotence: calling again yields identical text
-        re_updated = releases.set_blocks_release_line(updated, "next")
+        re_updated = _set_blocks_release(updated, "next")
         self.assertEqual(re_updated, updated)
 
         # Split at ## Description and verify body is byte-identical
@@ -375,8 +392,8 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
             findings = releases.check_blocks_release(root)
             self.assertEqual(findings, [])
 
-    def test_set_blocks_release_line_remove_front_matter_only(self) -> None:
-        """E-08(f) / V-07: set_blocks_release_line(text, '-') removes front-matter line only."""
+    def test_set_blocks_release_write_remove_front_matter_only(self) -> None:
+        """E-08(f) / V-07: unsetting Blocks-Release through artifact_meta removes front-matter line only."""
         text = RecordBuilder().backlog(
             id6="bbb333",
             status="open",
@@ -385,7 +402,7 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
             body=("## Description\nBody quote:\n- Blocks-Release: other_val\n"),
             text_only=True,
         )
-        removed = releases.set_blocks_release_line(text, "-")
+        removed = _set_blocks_release(text, "-")
         self.assertNotIn("- Blocks-Release: next", removed)
         self.assertIn("- Blocks-Release: other_val", removed)
 

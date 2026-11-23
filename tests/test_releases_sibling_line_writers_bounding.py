@@ -1,12 +1,13 @@
-"""Outcome tests for bounding the six sibling releases line writers to the metadata region.
+"""Outcome tests for bounding the six sibling metadata value writes to the metadata region.
 
-Covers IPD nrdrv6 (E-01 through E-08):
-- set_priority_line
-- set_work_kind_line
-- set_from_backlog_line
-- set_from_spec_line
-- set_item_dependencies_line
-- set_graduated_to_line
+Covers IPD nrdrv6 (E-01 through E-08), now driven through ``artifact_meta.render_legacy_text``
+(the in-memory form of the single metadata writer) for these fields:
+- Priority
+- Work-Kind
+- From-Backlog
+- From-Spec
+- Item-Dependencies
+- Graduated-To
 
 Tests behavioral outcomes and contracts only; no source inspection or AST (P16).
 """
@@ -17,27 +18,43 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
-from agent_workflows import releases, selectors
+from agent_workflows import artifact_meta, releases, selectors
 from tests.record_builder import RecordBuilder
 from tests.support import run_cli
 
-WriterTuple = Tuple[Callable[[str, Optional[str]], str], str, str, str]
+WriterTuple = Tuple[str, str, str, str]
 
 WRITERS: List[WriterTuple] = [
-    (releases.set_priority_line, "Priority", "low", "high"),
-    (releases.set_work_kind_line, "Work-Kind", "chore", "feature"),
-    (releases.set_from_backlog_line, "From-Backlog", "src001", "src002"),
-    (releases.set_from_spec_line, "From-Spec", "spc001", "spc002"),
+    ("priority", "Priority", "low", "high"),
+    ("work_kind", "Work-Kind", "chore", "feature"),
+    ("from_backlog", "From-Backlog", "src001", "src002"),
+    ("from_spec", "From-Spec", "spc001", "spc002"),
     (
-        releases.set_item_dependencies_line,
+        "item_dependencies",
         "Item-Dependencies",
         "none",
         "executed:abc123",
     ),
-    (releases.set_graduated_to_line, "Graduated-To", "seta", "setb"),
+    ("graduated_to", "Graduated-To", "seta", "setb"),
 ]
+
+_RENDER = artifact_meta.LegacyRender(
+    "same-status", "2026-10-12", "aw set", history=False
+)
+
+
+def _write(text: str, key: str, value: Optional[str], record_type: str = "ipd") -> str:
+    """Render one field set (or, for '-'/None, one unset) through ``artifact_meta``."""
+    event = (
+        {"op": "unset", "fields": [key]}
+        if value in (None, "-")
+        else {"op": "set", "fields": {key: value}}
+    )
+    return artifact_meta.render_legacy_text(
+        text, [event], record_type=record_type, render=_RENDER
+    )
 
 
 def _make_fixture(field: str, val: str) -> str:
@@ -84,33 +101,33 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
 
         ## Description byte-identical.
         """
-        for writer, field, old_val, new_val in WRITERS:
-            with self.subTest(writer=writer.__name__, field=field):
+        for key, field, old_val, new_val in WRITERS:
+            with self.subTest(writer=key, field=field):
                 fixture = _make_fixture(field, old_val)
                 body_before = fixture.partition("## Description")[2]
-                res = writer(fixture, new_val)
+                res = _write(fixture, key, new_val)
                 body_after = res.partition("## Description")[2]
                 self.assertEqual(body_after, body_before)
                 self.assertIn(f"- {field}: {old_val}\n", body_after)
 
     def test_writer_idempotence(self) -> None:
         """(b) Applying the writer twice yields identical text (idempotence)."""
-        for writer, field, old_val, new_val in WRITERS:
-            with self.subTest(writer=writer.__name__, field=field):
+        for key, field, old_val, new_val in WRITERS:
+            with self.subTest(writer=key, field=field):
                 fixture = _make_fixture(field, old_val)
-                once = writer(fixture, new_val)
-                twice = writer(once, new_val)
+                once = _write(fixture, key, new_val)
+                twice = _write(once, key, new_val)
                 self.assertEqual(once, twice)
 
     def test_clear_dash_and_none_preserves_body(self) -> None:
         """(c) '-' and None remove the FRONT-MATTER line only and the body quote survives."""
-        for writer, field, old_val, _ in WRITERS:
-            with self.subTest(writer=writer.__name__, field=field):
+        for key, field, old_val, _ in WRITERS:
+            with self.subTest(writer=key, field=field):
                 fixture = _make_fixture(field, old_val)
                 body_before = fixture.partition("## Description")[2]
 
                 for clear_val in ("-", None):
-                    res = writer(fixture, clear_val)
+                    res = _write(fixture, key, clear_val)
                     body_after = res.partition("## Description")[2]
                     self.assertEqual(body_after, body_before)
                     self.assertIn(f"- {field}: {old_val}\n", body_after)
@@ -122,11 +139,11 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
 
         added and the body is byte-identical.
         """
-        for writer, field, _, new_val in WRITERS:
-            with self.subTest(writer=writer.__name__, field=field):
+        for key, field, _, new_val in WRITERS:
+            with self.subTest(writer=key, field=field):
                 fixture = _make_fixture_no_field(field)
                 body_before = fixture.partition("## Description")[2]
-                res = writer(fixture, new_val)
+                res = _write(fixture, key, new_val)
                 body_after = res.partition("## Description")[2]
                 self.assertEqual(body_after, body_before)
                 self.assertIn(f"- {field}: quote_val\n", body_after)
@@ -139,10 +156,10 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
 
         of the new value in the region), so no assertion can pass by a writer that strips nothing.
         """
-        for writer, field, old_val, new_val in WRITERS:
-            with self.subTest(writer=writer.__name__, field=field):
+        for key, field, old_val, new_val in WRITERS:
+            with self.subTest(writer=key, field=field):
                 fixture = _make_fixture(field, old_val)
-                res = writer(fixture, new_val)
+                res = _write(fixture, key, new_val)
                 region = selectors.metadata_region(res)
                 self.assertEqual(region.count(f"- {field}:"), 1)
                 self.assertIn(f"- {field}: {new_val}\n", region)
@@ -151,12 +168,12 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
     def test_anchor_in_body_does_not_divert_insertion(self) -> None:
         """(e2) ANCHOR-IN-BODY: a fixture whose region carries - Id: but NOT the writer's
 
-        preferred anchor (- Status:, or - Scope-Paths: for set_item_dependencies_line) while
+        preferred anchor (- Status:, or - Scope-Paths: for Item-Dependencies) while
         the body quotes that anchor bullet: the new line lands inside selectors.metadata_region
         of the output (or, with no in-region anchor at all, the text is returned unchanged)
         and the body is byte-identical.
         """
-        # Part 1: set_item_dependencies_line preferred anchor is - Scope-Paths:, fallback is - Status:
+        # Part 1: the Item-Dependencies write's preferred anchor is - Scope-Paths:, fallback is - Status:
         # Region has - Status: and - Id:, but NO - Scope-Paths:. Body quotes - Scope-Paths:.
         text_deps = RecordBuilder().plan(
             title="Plan Title",
@@ -173,7 +190,7 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
             text_only=True,
         )
         body_before_deps = text_deps.partition("## Description")[2]
-        res_deps = releases.set_item_dependencies_line(text_deps, "executed:abc123")
+        res_deps = _write(text_deps, "item_dependencies", "executed:abc123")
         body_after_deps = res_deps.partition("## Description")[2]
         self.assertEqual(body_after_deps, body_before_deps)
         region_deps = selectors.metadata_region(res_deps)
@@ -182,12 +199,10 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
 
         # Part 2: The other 5 writers preferred anchor is - Status:, fallback is - Id:.
         # Region has - Id:, but NO - Status:. Body quotes - Status:.
-        for writer, field, _, new_val in WRITERS:
-            if writer is releases.set_item_dependencies_line:
+        for key, field, _, new_val in WRITERS:
+            if key == "item_dependencies":
                 continue
-            with self.subTest(
-                writer=writer.__name__, field=field, case="anchor_fallback"
-            ):
+            with self.subTest(writer=key, field=field, case="anchor_fallback"):
                 text_stat = RecordBuilder().plan(
                     title="Plan Title",
                     id6="pln111",
@@ -203,7 +218,7 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
                     text_only=True,
                 )
                 body_before = text_stat.partition("## Description")[2]
-                res = writer(text_stat, new_val)
+                res = _write(text_stat, key, new_val)
                 body_after = res.partition("## Description")[2]
                 self.assertEqual(body_after, body_before)
                 region = selectors.metadata_region(res)
@@ -212,8 +227,8 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
 
         # Part 3: No in-region anchor at all (- Status: and - Id: both absent in region).
         # Body quotes - Status:. Bounded writer must return text unchanged without searching body.
-        for writer, field, _, new_val in WRITERS:
-            with self.subTest(writer=writer.__name__, field=field, case="no_anchor"):
+        for key, field, _, new_val in WRITERS:
+            with self.subTest(writer=key, field=field, case="no_anchor"):
                 text_no_anchor = RecordBuilder().plan(
                     title="Plan Title",
                     when="2026-10-12",
@@ -237,11 +252,11 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
                     },
                     text_only=True,
                 )
-                res = writer(text_no_anchor, new_val)
+                res = _write(text_no_anchor, key, new_val)
                 self.assertEqual(res, text_no_anchor)
 
     def test_graduated_to_multi_value_replacement_and_body_preservation(self) -> None:
-        """(f) For set_graduated_to_line: a front-matter - Graduated-To: aaa, bbb replaced
+        """(f) For the Graduated-To write: a front-matter - Graduated-To: aaa, bbb replaced
 
         by ccc leaves exactly one front-matter Graduated-To line, while a body
         - Graduated-To: aaa, bbb survives.
@@ -254,7 +269,7 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
             body="## Description\nBody quoting graduation:\n- Graduated-To: aaa, bbb\nEnd of description.",
             text_only=True,
         )
-        res = releases.set_graduated_to_line(text, "ccc")
+        res = _write(text, "graduated_to", "ccc", "backlog")
         body_orig = text.partition("## Description")[2]
         body_res = res.partition("## Description")[2]
         self.assertEqual(body_res, body_orig)
@@ -270,15 +285,15 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
 
         bullet survives each writer.
         """
-        for writer, field, _, new_val in WRITERS:
-            with self.subTest(writer=writer.__name__, field=field):
+        for key, field, _, new_val in WRITERS:
+            with self.subTest(writer=key, field=field):
                 yaml_text = RecordBuilder().research(
                     id6="rsc001",
                     status="active",
                     body=f"\n# Research Document\n\nBody bullet quote:\n- {field}: quote_val\nMore text.\n",
                     text_only=True,
                 )
-                res = writer(yaml_text, new_val)
+                res = _write(yaml_text, key, new_val, "research")
                 body_orig = yaml_text.partition("# Research Document")[2]
                 body_res = res.partition("# Research Document")[2]
                 self.assertEqual(body_res, body_orig)

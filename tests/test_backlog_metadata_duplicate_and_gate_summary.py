@@ -453,7 +453,7 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
 
             # 2. Regression check matching F-04:
             # Setting --blocks-release on an item carrying a bare/empty '- Blocks-Release:' line
-            # must replace it in place (via artifact_meta / releases.set_blocks_release_line)
+            # must replace it in place (via the artifact_meta Blocks-Release write)
             # rather than leaving two '- Blocks-Release:' bullets behind.
             seed_bare = RecordBuilder().backlog(
                 id6="prod01",

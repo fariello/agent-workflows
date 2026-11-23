@@ -17,6 +17,7 @@ import pytest
 from pathlib import Path
 
 from agent_workflows import (
+    artifact_meta,
     attention,
     backlog,
     research_cmd as rc,
@@ -153,20 +154,35 @@ class ResearchPriorityNewAndSetTests(unittest.TestCase):
             self.assertIn("one of", err or "")
 
     def test_set_priority_writes_inserts_and_clears(self) -> None:
-        # _set_priority_line: insert when absent, replace when present, remove on clear.
+        # The research priority write through artifact_meta: insert when absent, replace when
+        # present, remove on clear.
+        render = artifact_meta.LegacyRender(
+            "set-priority", "2026-08-28", "aw research", history=False
+        )
+
+        def write(text: str, to: str) -> str:
+            event = (
+                {"op": "unset", "fields": ["priority"]}
+                if to == "-"
+                else {"op": "set", "fields": {"priority": to}}
+            )
+            return artifact_meta.render_legacy_text(
+                text, [event], record_type="research", render=render
+            )
+
         block = (
             "---\nid: k7m2xq\ncreated: 20260828\nset: demo\norder: 00\n"
             "topic: []\nmodel: \nkind: findings\nstatus: todo\noutcome: none-yet\n"
             "summary: s\nconsumed-by: []\n---\n\nbody\n"
         )
-        inserted = rc._set_priority_line(block, "high")
+        inserted = write(block, "high")
         self.assertIn("priority: high", inserted)
         # body untouched
         self.assertTrue(inserted.rstrip().endswith("body"))
-        replaced = rc._set_priority_line(inserted, "medium")
+        replaced = write(inserted, "medium")
         self.assertIn("priority: medium", replaced)
         self.assertNotIn("priority: high", replaced)
-        cleared = rc._set_priority_line(replaced, "-")
+        cleared = write(replaced, "-")
         self.assertNotIn("priority:", cleared)
 
     def test_plan_set_priority_rejects_out_of_vocab(self) -> None:

@@ -1,6 +1,7 @@
 """Outcome tests for repaired releases line writers (IPD izh17y).
 
-Verifies that set_blocks_release_line and set_from_backlog_line:
+Verifies that the ``- Blocks-Release:`` and ``- From-Backlog:`` value writes, rendered through
+``artifact_meta.render_legacy_text`` (the in-memory form of the single metadata writer):
 1. Replace rather than duplicate an existing empty-valued line.
 2. Replace rather than duplicate a whitespace-only valued line.
 3. Replace a normally-valued existing line.
@@ -30,7 +31,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_workflows import releases
+from typing import Optional
+
+from agent_workflows import artifact_meta
 from tests.record_builder import RecordBuilder
 from tests.support import run_cli
 
@@ -48,9 +51,27 @@ _MINIMAL_PLAN_CLEAR: dict[str, None] = {
     "Author": None,
 }
 
+_RENDER = artifact_meta.LegacyRender(
+    "same-status", "2026-09-30", "aw set", history=False
+)
+
+
+def _set_meta(
+    text: str, field: str, value: Optional[str], record_type: str = "ipd"
+) -> str:
+    """Render one field set (or, for '-'/None, one unset) through ``artifact_meta``."""
+    event = (
+        {"op": "unset", "fields": [field]}
+        if value in (None, "-")
+        else {"op": "set", "fields": {field: value}}
+    )
+    return artifact_meta.render_legacy_text(
+        text, [event], record_type=record_type, render=_RENDER
+    )
+
 
 class TestSetBlocksReleaseLine(unittest.TestCase):
-    """E-02 / V-01 / V-02: tests for releases.set_blocks_release_line."""
+    """E-02 / V-01 / V-02: tests for the Blocks-Release value write through artifact_meta."""
 
     def test_blocks_release_empty_value_replaced(self) -> None:
         """An empty-valued - Blocks-Release: line is replaced, resulting in exactly one line."""
@@ -69,7 +90,7 @@ class TestSetBlocksReleaseLine(unittest.TestCase):
             text_only=True,
         )
         text = "\n".join(ln.rstrip(" ") for ln in raw_text.splitlines()) + "\n"
-        result = releases.set_blocks_release_line(text, "next")
+        result = _set_meta(text, "blocks_release", "next")
         self.assertEqual(result.count("- Blocks-Release:"), 1)
         expected = RecordBuilder().plan(
             title="Plan",
@@ -103,7 +124,7 @@ class TestSetBlocksReleaseLine(unittest.TestCase):
             },
             text_only=True,
         )
-        result = releases.set_blocks_release_line(text, "next")
+        result = _set_meta(text, "blocks_release", "next")
         self.assertEqual(result.count("- Blocks-Release:"), 1)
         expected = RecordBuilder().plan(
             title="Plan",
@@ -137,7 +158,7 @@ class TestSetBlocksReleaseLine(unittest.TestCase):
             },
             text_only=True,
         )
-        result = releases.set_blocks_release_line(text, "next")
+        result = _set_meta(text, "blocks_release", "next")
         self.assertEqual(result.count("- Blocks-Release:"), 1)
         expected = RecordBuilder().plan(
             title="Plan",
@@ -167,7 +188,7 @@ class TestSetBlocksReleaseLine(unittest.TestCase):
             raw_fields={**_MINIMAL_PLAN_CLEAR, "Status": "open"},
             text_only=True,
         )
-        result = releases.set_blocks_release_line(text, "next")
+        result = _set_meta(text, "blocks_release", "next")
         self.assertEqual(result.count("- Blocks-Release:"), 1)
         self.assertIn("- Status: open\n- Blocks-Release: next\n- Id: aaaaaa\n", result)
 
@@ -182,12 +203,12 @@ class TestSetBlocksReleaseLine(unittest.TestCase):
             raw_fields={"Status": None, "Author": None, "Scope": "test"},
             text_only=True,
         )
-        result = releases.set_blocks_release_line(text, "next")
+        result = _set_meta(text, "blocks_release", "next")
         self.assertEqual(result.count("- Blocks-Release:"), 1)
         self.assertIn("- Id: aaaaaa\n- Blocks-Release: next\n- Scope: test\n", result)
 
     def test_blocks_release_idempotent(self) -> None:
-        """Calling set_blocks_release_line twice with the same value is byte-identical."""
+        """Writing Blocks-Release twice with the same value is byte-identical."""
         text = RecordBuilder().plan(
             title="Plan",
             when="2026-09-30",
@@ -198,8 +219,8 @@ class TestSetBlocksReleaseLine(unittest.TestCase):
             raw_fields={**_MINIMAL_PLAN_CLEAR, "Status": "open"},
             text_only=True,
         )
-        first = releases.set_blocks_release_line(text, "next")
-        second = releases.set_blocks_release_line(first, "next")
+        first = _set_meta(text, "blocks_release", "next")
+        second = _set_meta(first, "blocks_release", "next")
         self.assertEqual(first, second)
 
     def test_blocks_release_clear_dash_and_none(self) -> None:
@@ -249,11 +270,11 @@ class TestSetBlocksReleaseLine(unittest.TestCase):
                 text_only=True,
             ),
         ):
-            cleared_dash = releases.set_blocks_release_line(initial, "-")
+            cleared_dash = _set_meta(initial, "blocks_release", "-")
             self.assertEqual(cleared_dash.count("- Blocks-Release:"), 0)
             self.assertIn("- Status: open\n- Id: aaaaaa\n", cleared_dash)
 
-            cleared_none = releases.set_blocks_release_line(initial, None)
+            cleared_none = _set_meta(initial, "blocks_release", None)
             self.assertEqual(cleared_none.count("- Blocks-Release:"), 0)
             self.assertIn("- Status: open\n- Id: aaaaaa\n", cleared_none)
 
@@ -274,7 +295,7 @@ class TestSetBlocksReleaseLine(unittest.TestCase):
             text_only=True,
         )
         text = "\n".join(ln.rstrip(" ") for ln in raw_dup.splitlines()) + "\n"
-        result = releases.set_blocks_release_line(text, "next")
+        result = _set_meta(text, "blocks_release", "next")
         self.assertEqual(result.count("- Blocks-Release:"), 1)
         expected = RecordBuilder().plan(
             title="Plan",
@@ -294,7 +315,7 @@ class TestSetBlocksReleaseLine(unittest.TestCase):
 
 
 class TestSetFromBacklogLine(unittest.TestCase):
-    """E-02 / V-01 / V-02: tests for releases.set_from_backlog_line."""
+    """E-02 / V-01 / V-02: tests for the From-Backlog value write through artifact_meta."""
 
     def test_from_backlog_empty_value_replaced(self) -> None:
         """An empty-valued - From-Backlog: line is replaced, resulting in exactly one line."""
@@ -309,7 +330,7 @@ class TestSetFromBacklogLine(unittest.TestCase):
             text_only=True,
         )
         text = "\n".join(ln.rstrip(" ") for ln in raw_text.splitlines()) + "\n"
-        result = releases.set_from_backlog_line(text, "zzz999")
+        result = _set_meta(text, "from_backlog", "zzz999")
         self.assertEqual(result.count("- From-Backlog:"), 1)
         expected = RecordBuilder().plan(
             title="Plan",
@@ -335,7 +356,7 @@ class TestSetFromBacklogLine(unittest.TestCase):
             raw_fields={**_MINIMAL_PLAN_CLEAR, "From-Backlog": "   "},
             text_only=True,
         )
-        result = releases.set_from_backlog_line(text, "zzz999")
+        result = _set_meta(text, "from_backlog", "zzz999")
         self.assertEqual(result.count("- From-Backlog:"), 1)
         expected = RecordBuilder().plan(
             title="Plan",
@@ -361,7 +382,7 @@ class TestSetFromBacklogLine(unittest.TestCase):
             raw_fields={**_MINIMAL_PLAN_CLEAR, "From-Backlog": "old123"},
             text_only=True,
         )
-        result = releases.set_from_backlog_line(text, "zzz999")
+        result = _set_meta(text, "from_backlog", "zzz999")
         self.assertEqual(result.count("- From-Backlog:"), 1)
         expected = RecordBuilder().plan(
             title="Plan",
@@ -387,7 +408,7 @@ class TestSetFromBacklogLine(unittest.TestCase):
             raw_fields=_MINIMAL_PLAN_CLEAR,
             text_only=True,
         )
-        result = releases.set_from_backlog_line(text, "zzz999")
+        result = _set_meta(text, "from_backlog", "zzz999")
         self.assertEqual(result.count("- From-Backlog:"), 1)
         self.assertIn(
             "- Status: to-review\n- From-Backlog: zzz999\n- Id: abc123\n", result
@@ -404,12 +425,12 @@ class TestSetFromBacklogLine(unittest.TestCase):
             raw_fields={"Status": None, "Author": None, "Scope": "test"},
             text_only=True,
         )
-        result = releases.set_from_backlog_line(text, "zzz999")
+        result = _set_meta(text, "from_backlog", "zzz999")
         self.assertEqual(result.count("- From-Backlog:"), 1)
         self.assertIn("- Id: abc123\n- From-Backlog: zzz999\n- Scope: test\n", result)
 
     def test_from_backlog_idempotent(self) -> None:
-        """Calling set_from_backlog_line twice with the same value is byte-identical."""
+        """Writing From-Backlog twice with the same value is byte-identical."""
         text = RecordBuilder().plan(
             title="Plan",
             when="2026-09-30",
@@ -420,8 +441,8 @@ class TestSetFromBacklogLine(unittest.TestCase):
             raw_fields=_MINIMAL_PLAN_CLEAR,
             text_only=True,
         )
-        first = releases.set_from_backlog_line(text, "zzz999")
-        second = releases.set_from_backlog_line(first, "zzz999")
+        first = _set_meta(text, "from_backlog", "zzz999")
+        second = _set_meta(first, "from_backlog", "zzz999")
         self.assertEqual(first, second)
 
     def test_from_backlog_clear_dash_and_none(self) -> None:
@@ -459,11 +480,11 @@ class TestSetFromBacklogLine(unittest.TestCase):
                 text_only=True,
             ),
         ):
-            cleared_dash = releases.set_from_backlog_line(initial, "-")
+            cleared_dash = _set_meta(initial, "from_backlog", "-")
             self.assertEqual(cleared_dash.count("- From-Backlog:"), 0)
             self.assertIn("- Status: to-review\n- Id: abc123\n", cleared_dash)
 
-            cleared_none = releases.set_from_backlog_line(initial, None)
+            cleared_none = _set_meta(initial, "from_backlog", None)
             self.assertEqual(cleared_none.count("- From-Backlog:"), 0)
             self.assertIn("- Status: to-review\n- Id: abc123\n", cleared_none)
 
@@ -483,7 +504,7 @@ class TestSetFromBacklogLine(unittest.TestCase):
             text_only=True,
         )
         text = "\n".join(ln.rstrip(" ") for ln in raw_dup.splitlines()) + "\n"
-        result = releases.set_from_backlog_line(text, "zzz999")
+        result = _set_meta(text, "from_backlog", "zzz999")
         self.assertEqual(result.count("- From-Backlog:"), 1)
         expected = RecordBuilder().plan(
             title="Plan",
