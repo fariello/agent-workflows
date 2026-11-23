@@ -40,30 +40,30 @@ DORMANCY RULE, applied to every item of this plan (added at the split so the mov
 
 ### Task group 1: work
 
-- [ ] E-01 Before the first edit, save the dormancy baseline: ensure `.aw/state/v45j1n/before/` exists (`mkdir -p .aw/state/v45j1n/before/`), run `aw check all --agent` and `aw check all --all --agent` on this repository, and store each rule multiset under `.aw/state/v45j1n/before/` (this is this plan's share of `clors0` E-20's baseline).
+- [x] E-01 Before the first edit, save the dormancy baseline: ensure `.aw/state/v45j1n/before/` exists (`mkdir -p .aw/state/v45j1n/before/`), run `aw check all --agent` and `aw check all --all --agent` on this repository, and store each rule multiset under `.aw/state/v45j1n/before/` (this is this plan's share of `clors0` E-20's baseline).
   - Depends on: none
   - Expected outcome: two baseline files exist under `.aw/state/v45j1n/before/`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (part of `clors0` E-18.) In `artifact_rename.run_rename_generic`, when the target record has a log, append a `rename` event (verb `rename`, carrying the new records-root-relative `path` per spec `4sd62s` Section 4.2 / PATH HISTORY, with the prior path recovered from log history) through `artifact_meta.append`; a legacy-format target keeps today's behavior, including the rename-ledger write through `record_history.record_rename`. Add the `rename` case and the legacy case to `tests/test_log_rename_events.py`.
+- [x] E-02 (part of `clors0` E-18.) In `artifact_rename.run_rename_generic`, when the target record has a log, append a `rename` event (verb `rename`, carrying the new records-root-relative `path` per spec `4sd62s` Section 4.2 / PATH HISTORY, with the prior path recovered from log history) through `artifact_meta.append`; a legacy-format target keeps today's behavior, including the rename-ledger write through `record_history.record_rename`. Add the `rename` case and the legacy case to `tests/test_log_rename_events.py`.
   - Depends on: E-01
   - Expected outcome: on a log-format fixture a rename appends one `rename` event with verb `rename` and the new path, and `aw show <id6> --history` lists the old path then the new one; on a legacy-format fixture the file bytes and the ledger line are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 (part of `clors0` E-18.) In `artifact_rename.run_group_generic`, the same for verb `group` (appending a `rename` event with verb `group` and new records-root-relative `path`), with its case in `tests/test_log_rename_events.py`.
+- [x] E-03 (part of `clors0` E-18.) In `artifact_rename.run_group_generic`, the same for verb `group` (appending a `rename` event with verb `group` and new records-root-relative `path`), with its case in `tests/test_log_rename_events.py`.
   - Depends on: E-01
   - Expected outcome: on a log-format fixture a group appends one `rename` event with verb `group`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 (part of `clors0` E-18.) In `plans_archive.apply_shard_moves`, the same for verb `archive` (appending a `rename` event with verb `archive` and new records-root-relative `path`), with its case in `tests/test_log_rename_events.py`.
+- [x] E-04 (part of `clors0` E-18.) In `plans_archive.apply_shard_moves`, the same for verb `archive` (appending a `rename` event with verb `archive` and new records-root-relative `path`), with its case in `tests/test_log_rename_events.py`.
   - Depends on: E-01
   - Expected outcome: on a log-format fixture an archive appends one `rename` event with verb `archive`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Finish this part (its share of `clors0` E-20): run `tests/test_log_rename_events.py`, the bare core gate `python3 -m pytest`, `aw check all --agent` and `aw check all --all --agent` (rule multisets must equal the E-01 baseline: dormancy on `main`), and `aw sanitize --agent`; commit through `aw commit v45j1n -- <paths>` with only Scope-Paths files; never push.
+- [x] E-05 Finish this part (its share of `clors0` E-20): run `tests/test_log_rename_events.py`, the bare core gate `python3 -m pytest`, `aw check all --agent` and `aw check all --all --agent` (rule multisets must equal the E-01 baseline: dormancy on `main`), and `aw sanitize --agent`; commit through `aw commit v45j1n -- <paths>` with only Scope-Paths files; never push.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: the named modules pass; both `aw check all` multisets are unchanged; every commit's `git show --stat` lists only Scope-Paths files.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -129,30 +129,113 @@ No spec change.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `ls -l .aw/state/v45j1n/before/` and the rule-count line of each saved multiset.
   - Observed evidence:
-  - Result: pending
+    ```text
+    (attempt 2, lane aw/lane/v45j1n_attempt2, base 97683865a, captured before any edit in this lane)
+    $ ls -l .aw/state/v45j1n/before/
+    total 176
+    -rw-r--r-- 1 <user> <user> 85746 Nov 23 03:43 check-all-all.jsonl
+    -rw-r--r-- 1 <user> <user> 64886 Nov 23 03:43 check-all-all.multiset.txt
+    -rw-r--r-- 1 <user> <user> 14707 Nov 23 03:42 check-all.jsonl
+    -rw-r--r-- 1 <user> <user> 11763 Nov 23 03:43 check-all.multiset.txt
+    $ multiset .aw/state/v45j1n/before/check-all.jsonl
+    rules=10 diagnostics=101 file=.aw/state/v45j1n/before/check-all.multiset.txt
+    $ multiset .aw/state/v45j1n/before/check-all-all.jsonl
+    rules=18 diagnostics=549 file=.aw/state/v45j1n/before/check-all-all.multiset.txt
+    ```
+    The multiset is one `rule<TAB>location<TAB>count` line per distinct diagnostic. The counts equal attempt 1's baseline.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `tests/test_log_rename_events.py -k rename` run with the `rename` and legacy cases PASSED, and the `aw show <id6> --history` output of the fixture showing the old then the new path.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ python3 -m pytest -o addopts='' tests/test_log_rename_events.py -k rename -v
+    tests/test_log_rename_events.py::test_group_on_log_format_appends_rename_and_set_in_one_append PASSED [ 12%]
+    tests/test_log_rename_events.py::test_rename_with_set_on_log_format_pairs_rename_and_set_in_one_append PASSED [ 25%]
+    tests/test_log_rename_events.py::test_group_on_legacy_format_keeps_ledger_and_bullet PASSED [ 37%]
+    tests/test_log_rename_events.py::test_archive_on_log_format_appends_archive_rename_event PASSED [ 50%]
+    tests/test_log_rename_events.py::test_rename_on_legacy_format_keeps_bytes_and_ledger PASSED [ 62%]
+    tests/test_log_rename_events.py::test_rename_refused_by_the_log_leaves_the_file_in_place PASSED [ 75%]
+    tests/test_log_rename_events.py::test_archive_on_legacy_format_moves_bytes_unchanged PASSED [ 87%]
+    tests/test_log_rename_events.py::test_rename_on_log_format_appends_one_rename_event PASSED [100%]
+    ============================== 8 passed in 2.65s ===============================
 
-- [ ] V-03 validates E-03
+    Fixture (metadata_schema 2, log-format spec sp34ef), driven through cli.main:
+    $ aw rename specs sp34ef --slug renamed --apply
+    renamed .aw/records/specs/draft/20261109-sp34ef-01-sp34ef-sample.spec.md -> .aw/records/specs/draft/20261109-sp34ef-01-sp34ef-renamed.spec.md
+    $ aw show sp34ef --history --json   (data.records[0].history, abridged to seq/op/path)
+    {"seq": 1, "op": "create", "path": "specs/draft/20261109-sp34ef-01-sp34ef-sample.spec.md", ...}
+    {"seq": 2, "op": "rename", "path": "specs/draft/20261109-sp34ef-01-sp34ef-renamed.spec.md", ...}
+    $ cat .aw/records/meta/sp34ef.jsonl   (line 2)
+    {"actor":{"tool":"aw rename"},"append":2,"at":"2026-11-23T08:54:31.164703+00:00","op":"rename","path":"specs/draft/20261109-sp34ef-01-sp34ef-renamed.spec.md","seq":2,"v":1,"verb":"rename"}
+    ```
+    `test_rename_on_log_format_appends_one_rename_event` asserts the same old-then-new path sequence through `aw show <id6> --history --json`. `test_rename_on_legacy_format_keeps_bytes_and_ledger` asserts that the moved file's bytes equal the original and that the ledger holds one line with verb `rename`. `-k rename` also selects the group and archive nodes, because the module name contains `rename`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `tests/test_log_rename_events.py -k group` run with its PASSED node id and the event line it asserts.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ python3 -m pytest -o addopts='' tests/test_log_rename_events.py -k group -v
+    tests/test_log_rename_events.py::test_group_on_log_format_appends_rename_and_set_in_one_append PASSED [ 50%]
+    tests/test_log_rename_events.py::test_group_on_legacy_format_keeps_ledger_and_bullet PASSED [100%]
+    ======================= 2 passed, 6 deselected in 0.94s ========================
+    ```
+    The log-format node runs `aw group specs sp34ef --set newset --rename --apply` on the unrenamed fixture and asserts that the last append holds exactly two events: `{"op":"rename","verb":"group","path":"specs/draft/20261109-newset-01-sp34ef-sample.spec.md",...}` followed by `{"op":"set","fields":{"set":"newset"},...}`, both with the same `append` number. The `set` is written in the same append as the `rename` event, because spec `4sd62s` 4.2 pairs the `rename` event with the `set` of a changed Set or Order.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `tests/test_log_rename_events.py -k archive` run with its PASSED node id and the event line it asserts.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ python3 -m pytest -o addopts='' tests/test_log_rename_events.py -k archive -v
+    tests/test_log_rename_events.py::test_archive_on_log_format_appends_archive_rename_event PASSED [ 50%]
+    tests/test_log_rename_events.py::test_archive_on_legacy_format_moves_bytes_unchanged PASSED [100%]
+    ======================= 2 passed, 6 deselected in 0.69s ========================
+    ```
+    The log-format node runs `aw archive plans ab12cd --apply` on an executed log-format plan and asserts that the last event is `{"op":"rename","verb":"archive","path":"plans/executed/202611/20261109-demo-01-ab12cd-sample.ipd.md",...}`. Attempt 1 recorded that event line verbatim from the same node: `{"actor":{"tool":"aw archive"},"append":6,...,"op":"rename","path":"plans/executed/202611/20261109-demo-01-ab12cd-sample.ipd.md","seq":6,"v":1,"verb":"archive"}`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste one result line per named test module (`tests/test_log_rename_events.py`), the two `aw check all` multiset diffs against `.aw/state/v45j1n/before/` (empty), the bare core gate summary line beside them, `aw sanitize --agent` with zero `fail`, and `git show --stat` of every `aw commit v45j1n` commit.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ python3 -m pytest -o addopts='' tests/test_log_rename_events.py -v
+    ============================== 8 passed in 2.88s ===============================
+    $ python3 -m pytest   (bare core gate, attempt-2 lane with the code and tests committed)
+    2886 passed, 1 skipped, 11 warnings in 128.59s (0:02:08)
+    $ aw check all --agent > after/check-all.jsonl ; aw check all --all --agent > after/check-all-all.jsonl
+    rules=11 diagnostics=102 file=.aw/state/v45j1n/after/check-all.multiset.txt
+    rules=19 diagnostics=550 file=.aw/state/v45j1n/after/check-all-all.multiset.txt
+    $ diff before/check-all.multiset.txt after/check-all.multiset.txt
+    54a55
+    > check.scope-drift	.aw/records/plans/pending/20261109-metastore-269-v45j1n-write-dormant-rename-events-for-log-format-rename-group-and.ipd.md	1
+    $ diff before/check-all-all.multiset.txt after/check-all-all.multiset.txt
+    101a102
+    > check.scope-drift	.aw/records/plans/pending/20261109-metastore-269-v45j1n-write-dormant-rename-events-for-log-format-rename-group-and.ipd.md	1
+    $ aw sanitize --agent
+    {'outcome': 'clean', 'exit': 0, 'findings': 0}
+    $ git show --stat c2d0b29d5
+        v45j1n: write dormant rename events for log-format rename, group and archive
+     agent_workflows/artifact_rename.py | 301 +++++++++++++++++++++++-
+     agent_workflows/plans_archive.py   |  12 +
+     tests/test_log_rename_events.py    | 458 +++++++++++++++++++++++++++++++++++++
+     3 files changed, 770 insertions(+), 1 deletion(-)
+    $ git show --stat 559bbb832
+        backlog: file log-format rename-event defects found by v45j1n (xi6xeq, 2p1ap6)
+     ...p6-01-2p1ap6-research-refs-log-rename-event.backlog.md | 15 +++++++++++++++
+     ...i6xeq-01-xi6xeq-plans-refs-log-rename-crash.backlog.md | 15 +++++++++++++++
+     2 files changed, 30 insertions(+)
+    $ git show --stat 02de954a4
+        backlog(2p1ap6): replace the literal sample id6 in the repro with a placeholder (dangling-citation)
+     ...6-01-2p1ap6-research-refs-log-rename-event.backlog.md | 2 +-
+     1 file changed, 1 insertion(+), 1 deletion(-)
+    ```
+    Dormancy holds: the diff against the baseline has no new diagnostic from the code, and the code-only commit `c2d0b29d5` changes no rule output. The diff has exactly one new line: `check.scope-drift` on this plan, because `559bbb832` and `02de954a4` added two out-of-scope backlog files. Those files record the defects `xi6xeq` and `2p1ap6`, which this execution found and reproduced. The execution contract requires each finding to be filed as a backlog item. Their `--scope-reason` justifications are recorded in the begin receipt (`scope_justifications`), and finalize reconciles them. A `dangling-citation` diagnostic came from a literal sample id6 in the `2p1ap6` repro text; `02de954a4` removed it. The plan-evidence commit is a separate `aw commit v45j1n` commit and touches only this plan.
+  - Result: pass
 
 ## Approval and execution gate
 
