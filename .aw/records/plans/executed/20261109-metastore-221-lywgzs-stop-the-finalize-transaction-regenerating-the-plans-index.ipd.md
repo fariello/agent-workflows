@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 4.5 says the SQLite cache replaces the INDEX files, and AC-26 says finalize relies on the cache freshness rule instead of regenerating them. Today `ipd_lifecycle._finalize_transaction` calls `ipd_lifecycle._refresh_plans_index_fail_loud`, which calls `plans_index.run_index` and fails the whole transaction when the INDEX does not converge. This is part 2 of the round-3 split of `q6epwc` (Order 41), carrying the `ipd_lifecycle` and `lane_containment` subset of `q6epwc` E-04.
 - Scope: delete `ipd_lifecycle._refresh_plans_index_fail_loud` and its one call, update the five `ipd_lifecycle` comments and the one `lane_containment.inventory_lane` comment that describe it, and pin or retarget the tests that patch or call it. EXCLUDES: every other regeneration caller (Orders 222 and 223), the three `stale-index` comments in `ipd_lifecycle` (Order 224), and the INDEX writers (`snin8q`).
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/lane_containment.py, tests/test_ipd_lifecycle_cli.py, tests/test_orchestrator_retirement.py, .aw/records/plans/pending/20261109-metastore-221-lywgzs-stop-the-finalize-transaction-regenerating-the-plans-index.ipd.md
+- Scope-Exceeded: tests/test_legacy_finalize.py (IndexFindingOnAnotherPlanTests asserted the deleted refresh's other-plan id-missing warning in finalize output retargeted to the new no-index-scan contract not named in the plan's Findings, which coun...)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sdzcur, executed:t4gl15, executed:tqknnc
-- Status: approved
+- Status: executed
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: lywgzs
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: lywgzs verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope tests/test_legacy_finalize.py: IndexFindingOnAnotherPlanTests asserted the deleted refresh's other-plan id-missing warning in finalize output; retargeted to the new no-index-scan contract (not named in the plan's Findings, which counted only literal symbol sites)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
