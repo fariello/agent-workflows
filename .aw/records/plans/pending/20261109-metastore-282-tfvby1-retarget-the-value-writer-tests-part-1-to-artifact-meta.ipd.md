@@ -42,30 +42,30 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 
 ### Task group 1: one test module per item
 
-- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-08-tests1-before.txt`. Retarget `tests/test_releases_line_writers.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case.
+- [x] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-08-tests1-before.txt`. Retarget `tests/test_releases_line_writers.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case.
   - Depends on: none
   - Expected outcome: `tests/test_releases_line_writers.py` calls no original value writer and passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Retarget `tests/test_releases_sibling_line_writers_bounding.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case.
+- [x] E-02 Retarget `tests/test_releases_sibling_line_writers_bounding.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case.
   - Depends on: E-01
   - Expected outcome: `tests/test_releases_sibling_line_writers_bounding.py` calls no original value writer and passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Retarget `tests/test_blocks_release_reader_bounding.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case.
+- [x] E-03 Retarget `tests/test_blocks_release_reader_bounding.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case.
   - Depends on: E-02
   - Expected outcome: `tests/test_blocks_release_reader_bounding.py` calls no original value writer and passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Retarget `tests/test_backlog_metadata_duplicate_and_gate_summary.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case.
+- [x] E-04 Retarget `tests/test_backlog_metadata_duplicate_and_gate_summary.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case.
   - Depends on: E-03
   - Expected outcome: `tests/test_backlog_metadata_duplicate_and_gate_summary.py` calls no original value writer and passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Retarget `tests/test_research_priority.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case. Then commit through `aw commit tfvby1 -- <paths>`.
+- [x] E-05 Retarget `tests/test_research_priority.py` to `artifact_meta.append(..., dry_run=True)` (or the setter CLI), asserting on the rendered text; keep every input case. Then commit through `aw commit tfvby1 -- <paths>`.
   - Depends on: E-04
   - Expected outcome: `tests/test_research_priority.py` calls no original value writer and passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -124,30 +124,179 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "set_[a-z_]+_line|_set_priority_line|_in_metadata_region" tests/test_releases_line_writers.py` printing no call, and the before/after per-test lines of `tests/test_releases_line_writers.py` from the PIN lists with each renamed test mapped and no FAILED or ERROR line.
   - Observed evidence:
-  - Result: pending
+      `rg -n "set_[a-z_]+_line|_set_priority_line|_in_metadata_region" tests/test_releases_line_writers.py` printed nothing (exit 1, no match).
+      PIN lists (`.aw/state/9o83cr/E-08-tests1-before.txt` / `-after.txt`) for this module: 23 before, 23 after, all PASSED, no FAILED or ERROR line. Renamed: none (no test renamed).
+      Before:
+        PASSED tests/test_releases_line_writers.py::TestCliEmptyBacklogFailSafe::test_cli_empty_backlog_corpus_failsafe_allows_write
+        PASSED tests/test_releases_line_writers.py::TestCliIpdSetFromBacklog::test_cli_ipd_set_clear_from_backlog_with_dash
+        PASSED tests/test_releases_line_writers.py::TestCliIpdSetFromBacklog::test_cli_ipd_set_refuse_unresolvable_backlog_id
+        PASSED tests/test_releases_line_writers.py::TestCliIpdSetFromBacklog::test_cli_ipd_set_resolvable_backlog_id_writes_and_inherits_gate
+        PASSED tests/test_releases_line_writers.py::TestCliSpecsSetFromBacklog::test_cli_specs_set_clear_from_backlog_with_dash
+        PASSED tests/test_releases_line_writers.py::TestCliSpecsSetFromBacklog::test_cli_specs_set_refuse_unresolvable_backlog_id
+        PASSED tests/test_releases_line_writers.py::TestCliSpecsSetFromBacklog::test_cli_specs_set_resolvable_backlog_id_writes_and_inherits_gate
+        PASSED tests/test_releases_line_writers.py::TestSetBlocksReleaseLine::test_blocks_release_absent_inserted_after_status
+        PASSED tests/test_releases_line_writers.py::TestSetBlocksReleaseLine::test_blocks_release_clear_dash_and_none
+        PASSED tests/test_releases_line_writers.py::TestSetBlocksReleaseLine::test_blocks_release_empty_value_replaced
+        PASSED tests/test_releases_line_writers.py::TestSetBlocksReleaseLine::test_blocks_release_fallback_after_id
+        PASSED tests/test_releases_line_writers.py::TestSetBlocksReleaseLine::test_blocks_release_idempotent
+        PASSED tests/test_releases_line_writers.py::TestSetBlocksReleaseLine::test_blocks_release_normally_valued_replaced
+        PASSED tests/test_releases_line_writers.py::TestSetBlocksReleaseLine::test_blocks_release_repair_duplicate
+        PASSED tests/test_releases_line_writers.py::TestSetBlocksReleaseLine::test_blocks_release_whitespace_value_replaced
+        PASSED tests/test_releases_line_writers.py::TestSetFromBacklogLine::test_from_backlog_absent_inserted_after_status
+        PASSED tests/test_releases_line_writers.py::TestSetFromBacklogLine::test_from_backlog_clear_dash_and_none
+        PASSED tests/test_releases_line_writers.py::TestSetFromBacklogLine::test_from_backlog_empty_value_replaced
+        PASSED tests/test_releases_line_writers.py::TestSetFromBacklogLine::test_from_backlog_fallback_after_id
+        PASSED tests/test_releases_line_writers.py::TestSetFromBacklogLine::test_from_backlog_idempotent
+        PASSED tests/test_releases_line_writers.py::TestSetFromBacklogLine::test_from_backlog_normally_valued_replaced
+        PASSED tests/test_releases_line_writers.py::TestSetFromBacklogLine::test_from_backlog_repair_duplicate
+        PASSED tests/test_releases_line_writers.py::TestSetFromBacklogLine::test_from_backlog_whitespace_value_replaced
+      After:
+        PASSED tests/test_releases_line_writers.py::TestCliEmptyBacklogFailSafe::test_cli_empty_backlog_corpus_failsafe_allows_write
+        PASSED tests/test_releases_line_writers.py::TestCliIpdSetFromBacklog::test_cli_ipd_set_clear_from_backlog_with_dash
+        PASSED tests/test_releases_line_writers.py::TestCliIpdSetFromBacklog::test_cli_ipd_set_refuse_unresolvable_backlog_id
+        PASSED tests/test_releases_line_writers.py::TestCliIpdSetFromBacklog::test_cli_ipd_set_resolvable_backlog_id_writes_and_inherits_gate
+        PASSED tests/test_releases_line_writers.py::TestCliSpecsSetFromBacklog::test_cli_specs_set_clear_from_backlog_with_dash
+        PASSED tests/test_releases_line_writers.py::TestCliSpecsSetFromBacklog::test_cli_specs_set_refuse_unresolvable_backlog_id
+        PASSED tests/test_releases_line_writers.py::TestCliSpecsSetFromBacklog::test_cli_specs_set_resolvable_backlog_id_writes_and_inherits_gate
+        PASSED tests/test_releases_line_writers.py::TestSetBlocksReleaseLine::test_blocks_release_absent_inserted_after_status
+        PASSED tests/test_releases_line_writers.py::TestSetBlocksReleaseLine::test_blocks_release_clear_dash_and_none
+        PASSED tests/test_releases_line_writers.py::TestSetBlocksReleaseLine::test_blocks_release_empty_value_replaced
+        PASSED tests/test_releases_line_writers.py::TestSetBlocksReleaseLine::test_blocks_release_fallback_after_id
+        PASSED tests/test_releases_line_writers.py::TestSetBlocksReleaseLine::test_blocks_release_idempotent
+        PASSED tests/test_releases_line_writers.py::TestSetBlocksReleaseLine::test_blocks_release_normally_valued_replaced
+        PASSED tests/test_releases_line_writers.py::TestSetBlocksReleaseLine::test_blocks_release_repair_duplicate
+        PASSED tests/test_releases_line_writers.py::TestSetBlocksReleaseLine::test_blocks_release_whitespace_value_replaced
+        PASSED tests/test_releases_line_writers.py::TestSetFromBacklogLine::test_from_backlog_absent_inserted_after_status
+        PASSED tests/test_releases_line_writers.py::TestSetFromBacklogLine::test_from_backlog_clear_dash_and_none
+        PASSED tests/test_releases_line_writers.py::TestSetFromBacklogLine::test_from_backlog_empty_value_replaced
+        PASSED tests/test_releases_line_writers.py::TestSetFromBacklogLine::test_from_backlog_fallback_after_id
+        PASSED tests/test_releases_line_writers.py::TestSetFromBacklogLine::test_from_backlog_idempotent
+        PASSED tests/test_releases_line_writers.py::TestSetFromBacklogLine::test_from_backlog_normally_valued_replaced
+        PASSED tests/test_releases_line_writers.py::TestSetFromBacklogLine::test_from_backlog_repair_duplicate
+        PASSED tests/test_releases_line_writers.py::TestSetFromBacklogLine::test_from_backlog_whitespace_value_replaced
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "set_[a-z_]+_line|_set_priority_line|_in_metadata_region" tests/test_releases_sibling_line_writers_bounding.py` printing no call, and the before/after per-test lines of `tests/test_releases_sibling_line_writers_bounding.py` from the PIN lists with each renamed test mapped and no FAILED or ERROR line.
   - Observed evidence:
-  - Result: pending
+      `rg -n "set_[a-z_]+_line|_set_priority_line|_in_metadata_region" tests/test_releases_sibling_line_writers_bounding.py` printed nothing (exit 1, no match).
+      PIN lists (`.aw/state/9o83cr/E-08-tests1-before.txt` / `-after.txt`) for this module: 9 before, 9 after, all PASSED, no FAILED or ERROR line. Renamed: none (no test renamed).
+      Before:
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_anchor_in_body_does_not_divert_insertion
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_clear_dash_and_none_preserves_body
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_cli_backlog_set_work_kind_preserves_body
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_control_front_matter_line_is_replaced
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_graduated_to_multi_value_replacement_and_body_preservation
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_no_front_matter_line_adds_one_and_preserves_body
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_setting_value_preserves_body
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_writer_idempotence
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_yaml_fenced_fixture_body_bullet_survives
+      After:
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_anchor_in_body_does_not_divert_insertion
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_clear_dash_and_none_preserves_body
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_cli_backlog_set_work_kind_preserves_body
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_control_front_matter_line_is_replaced
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_graduated_to_multi_value_replacement_and_body_preservation
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_no_front_matter_line_adds_one_and_preserves_body
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_setting_value_preserves_body
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_writer_idempotence
+        PASSED tests/test_releases_sibling_line_writers_bounding.py::TestReleasesSiblingLineWritersBounding::test_yaml_fenced_fixture_body_bullet_survives
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "set_[a-z_]+_line|_set_priority_line|_in_metadata_region" tests/test_blocks_release_reader_bounding.py` printing no call, and the before/after per-test lines of `tests/test_blocks_release_reader_bounding.py` from the PIN lists with each renamed test mapped and no FAILED or ERROR line.
   - Observed evidence:
-  - Result: pending
+      `rg -n "set_[a-z_]+_line|_set_priority_line|_in_metadata_region" tests/test_blocks_release_reader_bounding.py` printed nothing (exit 1, no match).
+      PIN lists (`.aw/state/9o83cr/E-08-tests1-before.txt` / `-after.txt`) for this module: 9 before, 9 after, all PASSED, no FAILED or ERROR line. Renamed: `test_set_blocks_release_line_preserves_body` -> `test_set_blocks_release_write_preserves_body`; `test_set_blocks_release_line_remove_front_matter_only` -> `test_set_blocks_release_write_remove_front_matter_only`.
+      Before:
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_bidirectional_display_divergence
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_check_release_gates_at_rest_bounding
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_ipd_lint_board_bounding
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_plan_with_body_only_bullet_absent_from_release_blockers
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_read_front_matter_blocks_release_cases
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_regression_guard_fixture_tree
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_set_blocks_release_line_preserves_body
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_set_blocks_release_line_remove_front_matter_only
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_setter_spellings_byte_identical_with_body_quote
+      After:
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_bidirectional_display_divergence
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_check_release_gates_at_rest_bounding
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_ipd_lint_board_bounding
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_plan_with_body_only_bullet_absent_from_release_blockers
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_read_front_matter_blocks_release_cases
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_regression_guard_fixture_tree
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_set_blocks_release_write_preserves_body
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_set_blocks_release_write_remove_front_matter_only
+        PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_setter_spellings_byte_identical_with_body_quote
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n "set_[a-z_]+_line|_set_priority_line|_in_metadata_region" tests/test_backlog_metadata_duplicate_and_gate_summary.py` printing no call, and the before/after per-test lines of `tests/test_backlog_metadata_duplicate_and_gate_summary.py` from the PIN lists with each renamed test mapped and no FAILED or ERROR line.
   - Observed evidence:
-  - Result: pending
+      `rg -n "set_[a-z_]+_line|_set_priority_line|_in_metadata_region" tests/test_backlog_metadata_duplicate_and_gate_summary.py` printed nothing (exit 1, no match).
+      PIN lists (`.aw/state/9o83cr/E-08-tests1-before.txt` / `-after.txt`) for this module: 8 before, 8 after, all PASSED, no FAILED or ERROR line. Renamed: none (no test renamed).
+      Before:
+        PASSED tests/test_backlog_metadata_duplicate_and_gate_summary.py::BacklogMetadataDuplicateAndGateSummaryTests::test_duplicate_bullets_six_shapes
+        PASSED tests/test_backlog_metadata_duplicate_and_gate_summary.py::BacklogMetadataDuplicateAndGateSummaryTests::test_e2e_producer_blocks_release_duplicate
+        PASSED tests/test_backlog_metadata_duplicate_and_gate_summary.py::BacklogMetadataDuplicateAndGateSummaryTests::test_gate_summary_rules
+        PASSED tests/test_backlog_metadata_duplicate_and_gate_summary.py::BacklogMetadataDuplicateAndGateSummaryTests::test_legacy_kind_canonicalization_both_orders
+        PASSED tests/test_backlog_metadata_duplicate_and_gate_summary.py::BacklogMetadataDuplicateAndGateSummaryTests::test_live_tree_regression_floor
+        PASSED tests/test_backlog_metadata_duplicate_and_gate_summary.py::BacklogMetadataDuplicateAndGateSummaryTests::test_remediation_routing
+        PASSED tests/test_backlog_metadata_duplicate_and_gate_summary.py::BacklogMetadataDuplicateAndGateSummaryTests::test_rule_registry_membership
+        PASSED tests/test_backlog_metadata_duplicate_and_gate_summary.py::BacklogMetadataDuplicateAndGateSummaryTests::test_sub_bullet_boundary_deliberate_non_finding
+      After:
+        PASSED tests/test_backlog_metadata_duplicate_and_gate_summary.py::BacklogMetadataDuplicateAndGateSummaryTests::test_duplicate_bullets_six_shapes
+        PASSED tests/test_backlog_metadata_duplicate_and_gate_summary.py::BacklogMetadataDuplicateAndGateSummaryTests::test_e2e_producer_blocks_release_duplicate
+        PASSED tests/test_backlog_metadata_duplicate_and_gate_summary.py::BacklogMetadataDuplicateAndGateSummaryTests::test_gate_summary_rules
+        PASSED tests/test_backlog_metadata_duplicate_and_gate_summary.py::BacklogMetadataDuplicateAndGateSummaryTests::test_legacy_kind_canonicalization_both_orders
+        PASSED tests/test_backlog_metadata_duplicate_and_gate_summary.py::BacklogMetadataDuplicateAndGateSummaryTests::test_live_tree_regression_floor
+        PASSED tests/test_backlog_metadata_duplicate_and_gate_summary.py::BacklogMetadataDuplicateAndGateSummaryTests::test_remediation_routing
+        PASSED tests/test_backlog_metadata_duplicate_and_gate_summary.py::BacklogMetadataDuplicateAndGateSummaryTests::test_rule_registry_membership
+        PASSED tests/test_backlog_metadata_duplicate_and_gate_summary.py::BacklogMetadataDuplicateAndGateSummaryTests::test_sub_bullet_boundary_deliberate_non_finding
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `rg -n "set_[a-z_]+_line|_set_priority_line|_in_metadata_region" tests/test_research_priority.py` printing no call, and the before/after per-test lines of `tests/test_research_priority.py` from the PIN lists with each renamed test mapped and no FAILED or ERROR line. Also paste `git show --stat` of the `aw commit tfvby1` commit listing only Scope-Paths files.
   - Observed evidence:
-  - Result: pending
+      `rg -n "set_[a-z_]+_line|_set_priority_line|_in_metadata_region" tests/test_research_priority.py` printed nothing (exit 1, no match).
+      PIN lists (`.aw/state/9o83cr/E-08-tests1-before.txt` / `-after.txt`) for this module: 11 before, 11 after, all PASSED, no FAILED or ERROR line. Renamed: none (no test renamed).
+      Before:
+        PASSED tests/test_research_priority.py::ResearchPriorityAttentionTests::test_research_record_populates_priority
+        PASSED tests/test_research_priority.py::ResearchPriorityContractTests::test_absent_priority_conforms
+        PASSED tests/test_research_priority.py::ResearchPriorityContractTests::test_out_of_vocab_priority_flagged
+        PASSED tests/test_research_priority.py::ResearchPriorityContractTests::test_priority_not_in_required_fields
+        PASSED tests/test_research_priority.py::ResearchPriorityContractTests::test_valid_priority_conforms
+        PASSED tests/test_research_priority.py::ResearchPriorityIndexTests::test_index_carries_priority
+        PASSED tests/test_research_priority.py::ResearchPriorityIndexTests::test_index_priority_empty_when_absent
+        PASSED tests/test_research_priority.py::ResearchPriorityNewAndSetTests::test_new_emits_priority_line_only_when_given
+        PASSED tests/test_research_priority.py::ResearchPriorityNewAndSetTests::test_new_rejects_out_of_vocab_priority
+        PASSED tests/test_research_priority.py::ResearchPriorityNewAndSetTests::test_plan_set_priority_rejects_out_of_vocab
+        PASSED tests/test_research_priority.py::ResearchPriorityNewAndSetTests::test_set_priority_writes_inserts_and_clears
+      After:
+        PASSED tests/test_research_priority.py::ResearchPriorityAttentionTests::test_research_record_populates_priority
+        PASSED tests/test_research_priority.py::ResearchPriorityContractTests::test_absent_priority_conforms
+        PASSED tests/test_research_priority.py::ResearchPriorityContractTests::test_out_of_vocab_priority_flagged
+        PASSED tests/test_research_priority.py::ResearchPriorityContractTests::test_priority_not_in_required_fields
+        PASSED tests/test_research_priority.py::ResearchPriorityContractTests::test_valid_priority_conforms
+        PASSED tests/test_research_priority.py::ResearchPriorityIndexTests::test_index_carries_priority
+        PASSED tests/test_research_priority.py::ResearchPriorityIndexTests::test_index_priority_empty_when_absent
+        PASSED tests/test_research_priority.py::ResearchPriorityNewAndSetTests::test_new_emits_priority_line_only_when_given
+        PASSED tests/test_research_priority.py::ResearchPriorityNewAndSetTests::test_new_rejects_out_of_vocab_priority
+        PASSED tests/test_research_priority.py::ResearchPriorityNewAndSetTests::test_plan_set_priority_rejects_out_of_vocab
+        PASSED tests/test_research_priority.py::ResearchPriorityNewAndSetTests::test_set_priority_writes_inserts_and_clears
+      `git show --stat` of the `aw commit tfvby1` commit (only Scope-Paths files):
+      commit a73075037a2817205940150f4e9fa6cd78bdded8
+          tfvby1: retarget five value-writer test modules to artifact_meta
+       ..._backlog_metadata_duplicate_and_gate_summary.py |   2 +-
+       tests/test_blocks_release_reader_bounding.py       |  33 ++++--
+       tests/test_releases_line_writers.py                |  73 ++++++++-----
+       .../test_releases_sibling_line_writers_bounding.py | 115 ++++++++++++---------
+       tests/test_research_priority.py                    |  24 ++++-
+       5 files changed, 158 insertions(+), 89 deletions(-)
+  - Result: pass
 
 ## Approval and execution gate
 
