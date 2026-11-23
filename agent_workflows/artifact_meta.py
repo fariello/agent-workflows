@@ -4906,6 +4906,34 @@ def read(id6: str, *, project_context: Any = None) -> State:
             conn.close()
 
 
+def last_history(
+    id6: str,
+    *,
+    project_context: Any = None,
+    state: Optional[State] = None,
+) -> Tuple[Optional[str], Optional[str]]:
+    """Post-cutover `last_history_at` of a log-format record (spec 4.4): ``(value, precision)``.
+
+    The value is the `at` of the newest event written after the cutover, precision ``time``. The
+    migration's own append (`append` 0: the seq-0 checkpoint and its imported events) does not count,
+    because every migrated event carries the migration's `at`. With no later event, the value is the
+    checkpoint's `last_history_day`, precision ``day``; with neither, ``(None, None)``."""
+    validate_id6(id6)
+    for ev in reversed(history(id6, project_context=project_context)):
+        if not isinstance(ev, dict) or ev.get("append") == 0:
+            continue
+        if ev.get("op") in ("legacy", "checkpoint"):
+            continue
+        at_val = ev.get("at")
+        if isinstance(at_val, str) and _RFC3339_RE.match(at_val):
+            return at_val, "time"
+    st = state if state is not None else read(id6, project_context=project_context)
+    day = getattr(st, "last_history_day", None)
+    if isinstance(day, str) and day:
+        return day, "day"
+    return None, None
+
+
 def history(id6: str, *, project_context: Any = None) -> List[Dict[str, Any]]:
     """Return ordered event history of an artifact."""
     validate_id6(id6)

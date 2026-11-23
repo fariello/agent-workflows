@@ -88,6 +88,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-266-6jd6mh-build-the-dormant-post-cutover-gates-for-log-format-records.ipd.md
 - E-15 (post-cutover readers) and E-14 (event `overrides`, `--date` refusal). Moved to wilgfy (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: wilgfy
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-267-wilgfy-build-the-dormant-post-cutover-readers-and-event-overrides.ipd.md
 - E-06 (`aw reviews record`, `aw walkthrough new`). Moved to 724acb (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 724acb
 - E-18 (log-format `rename` events). Moved to v45j1n (round-3 split 2026-11-09 per research nj8zdp guidance).

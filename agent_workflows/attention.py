@@ -138,6 +138,10 @@ class Item(NamedTuple):
     exec_progress: Optional[Tuple[int, int]] = None
     valid_progress: Optional[Tuple[int, int]] = None
     review_stale: Tuple[str, ...] = ()
+    # metastore wilgfy E-02 (spec 4sd62s 4.4): `time` when `last_history_at` is a post-cutover event
+    # `at`, `day` when it is the checkpoint `last_history_day`. Set only on log-format records at
+    # metadata_schema 2, and emitted only when set, so legacy output keeps its bytes.
+    last_history_precision: Optional[str] = None
 
 
 _OQ_SECTION_RE = re.compile(
@@ -322,6 +326,42 @@ def _last_history_at_for_state(
     # Legacy .md record: last_history_day is the cached projection of A.last_history_at over
     # artifact_meta's parsed history lines.
     return state.last_history_day
+
+
+def _with_post_cutover_history(it: Item, state: Any, project_context: Any) -> Item:
+    """Spec 4.4: a log-format record's `last_history_at` is its newest post-cutover event `at`
+    (precision `time`), else the checkpoint `last_history_day` (precision `day`)."""
+    from agent_workflows import artifact_meta as _meta
+
+    id6 = getattr(state, "id6", None)
+    if not id6 or project_context is None:
+        return it
+    try:
+        records_root = Path(project_context.logical_roots["records"])
+        if _meta._storage_format(records_root, id6) != "log":
+            return it
+        value, precision = _meta.last_history(
+            id6, project_context=project_context, state=state
+        )
+    except Exception:
+        return it
+    return it._replace(last_history_at=value, last_history_precision=precision)
+
+
+def _post_cutover_history_applies(repo_root: Path) -> bool:
+    from agent_workflows.migrations import chain as _chain
+
+    try:
+        return (_chain.read_metadata_schema(repo_root) or 0) >= 2
+    except Exception:
+        return False
+
+
+def _item_dict(it: Item) -> Dict[str, Any]:
+    d = it._asdict()
+    if d.get("last_history_precision") is None:
+        d.pop("last_history_precision", None)
+    return d
 
 
 def count_unresolved_open_questions(text: str) -> int:
@@ -928,6 +968,13 @@ def scan(
     # worksequence i6015i E-04: the default order is unchanged. `sort_items` with the default key
     # reproduces exactly the `(class order, path, id)` tuple this line always used, which is what makes
     # `aw next` byte-identical to the pre-rename `aw attention`.
+    if _post_cutover_history_applies(repo_root):
+        with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+            items = [
+                _with_post_cutover_history(it, state_by_rel.get(it.path), ctx)
+                for it in items
+            ]
+
     items = sort_items(items)
     drift.sort(key=lambda d: (d.location, d.rule))
     return items, drift
@@ -1470,6 +1517,9 @@ def item_for_path(path: Path, repo_root: Optional[Path] = None) -> Optional[Item
         deps = _extract_item_dependencies(text, state=state)
         if deps is not None:
             rec = rec._replace(item_dependencies=deps)
+        if _post_cutover_history_applies(repo_root):
+            with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+                rec = _with_post_cutover_history(rec, state, ctx)
     return rec
 
 
@@ -2291,6 +2341,11 @@ def render_json(
                 "detail_kind": it.detail_kind,
                 "detail_text": it.detail_text,
                 "review_stale": list(it.review_stale),
+                **(
+                    {"last_history_precision": it.last_history_precision}
+                    if it.last_history_precision is not None
+                    else {}
+                ),
             }
             for it in items
         ],
@@ -2923,7 +2978,7 @@ def _age_marker(
         return "" if tree in _HISTORYLESS_TREES else "?"
     try:
         ref_date = today if today is not None else datetime.now(timezone.utc).date()
-        y, m, d = (int(x) for x in last_history_at.split("-")[:3])
+        y, m, d = (int(x) for x in last_history_at[:10].split("-")[:3])
         age_days = (ref_date - date(y, m, d)).days
         return "!" if age_days > 30 else ""
     except (ValueError, TypeError):
@@ -5053,7 +5108,7 @@ def _run_with_scan_once(args, repo_root, check, ctx, type_filters) -> int:
                 diagnostics=diagnostics,
                 evidence=evidence,
                 data={
-                    "items": [it._asdict() for it in items],
+                    "items": [_item_dict(it) for it in items],
                     "drift": [d._asdict() for d in drift],
                 },
             )
@@ -5175,7 +5230,7 @@ def _run_with_scan_once(args, repo_root, check, ctx, type_filters) -> int:
             diagnostics=diagnostics,
             evidence=evidence,
             data={
-                "items": [it._asdict() for it in items],
+                "items": [_item_dict(it) for it in items],
                 "drift": [d._asdict() for d in drift],
             },
         )
