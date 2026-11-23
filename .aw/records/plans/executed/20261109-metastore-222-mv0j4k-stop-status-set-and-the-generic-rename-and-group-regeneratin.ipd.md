@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 4.5 says the SQLite cache replaces the INDEX files. Today `aw ipd set`, `aw backlog set` and `aw specs set` regenerate INDEX files through `status_set._auto_index_types`, and `aw rename <type>` and `aw group <type>` regenerate them through four `run_index` calls in `artifact_rename`. This is part 3 of the round-3 split of `q6epwc` (Order 41), carrying the `status_set` and `artifact_rename` subset of `q6epwc` E-04.
 - Scope: delete `status_set._auto_index_types` and its two calls, delete the four `run_index` calls in `artifact_rename.run_rename_generic` and `artifact_rename.run_group_generic`, and pin the three test modules that assert those commands' INDEX lines or files. EXCLUDES: the finalize refresh (Order 221), the research, plan-rename and adopt callers (Order 223), and the INDEX writers (`snin8q`).
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/artifact_rename.py, tests/test_rename_group_machine_output.py, tests/test_research_rename_frontmatter.py, tests/test_group_verb_policy.py, .aw/records/plans/pending/20261109-metastore-222-mv0j4k-stop-status-set-and-the-generic-rename-and-group-regeneratin.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261123-rlucvv-01-rlucvv-aw-group-plans-and-aw-rename-plans-still-write-pla.backlog.md (driver contract requires filing each run finding as a backlog item via aw backlog new records that the CLI aw group/rename plans path still writes INDEX via plans_refs.apply_renames Order 223 scope); .aw/records/backlog/open/20261123-vl3pvt-01-vl3pvt-aw-oc-run-lane-turn-starts-the-agent-shell-in-the.backlog.md (driver contract requires filing each run finding as a backlog item via aw backlog new records a runner defect observed during this plan's attempt 1)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sdzcur, executed:t4gl15, executed:tqknnc
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: mv0j4k
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: mv0j4k verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261123-rlucvv-01-rlucvv-aw-group-plans-and-aw-rename-plans-still-write-pla.backlog.md: driver contract requires filing each run finding as a backlog item via aw backlog new; records that the CLI aw group/rename plans path still writes INDEX via plans_refs.apply_renames (Order 223 scope); out-of-scope .aw/records/backlog/open/20261123-vl3pvt-01-vl3pvt-aw-oc-run-lane-turn-starts-the-agent-shell-in-the.backlog.md: driver contract requires filing each run finding as a backlog item via aw backlog new; records a runner defect observed during this plan's attempt 1; in-scope-unmodified tests/test_group_verb_policy.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006; review record .aw/records/reviews/20261109-metastore-222-mv0j4k-stop-status-set-and-the-generic-rename-and-group-regeneratin.review.md
