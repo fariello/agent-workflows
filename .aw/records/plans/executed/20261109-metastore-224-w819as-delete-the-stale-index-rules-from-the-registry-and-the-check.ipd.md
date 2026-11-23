@@ -6,7 +6,7 @@
 - Scope: delete the stale-index emitter code in `plans_index.check_drift` and `prompts_index.check_drift`, rewrite the three `stale-index` comments in `ipd_lifecycle`, and update the cases of `tests/test_plans_index.py`, `tests/test_prompts_index.py` and `tests/test_nv_backend_args_climb.py` that name a `check.stale-index-*` id. EXCLUDES: the `research_index` emitter and the two registry entries (Order 229), `doctor` (Order 225), and the INDEX-byte assertions of the same test modules (`snin8q`).
 - Scope-Paths: agent_workflows/plans_index.py, agent_workflows/prompts_index.py, agent_workflows/ipd_lifecycle.py, tests/test_plans_index.py, tests/test_prompts_index.py, tests/test_nv_backend_args_climb.py, .aw/records/plans/pending/20261109-metastore-224-w819as-delete-the-stale-index-rules-from-the-registry-and-the-check.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sdzcur, executed:t4gl15, executed:tqknnc
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: w819as
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-23 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: w819as verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
