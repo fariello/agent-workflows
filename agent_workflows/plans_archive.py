@@ -339,8 +339,20 @@ def apply_shard_moves(
     The regenerated INDEX.json/INDEX.md are deliberately NOT in the returned list. They are still
     refreshed on disk (`_refresh_index` below), but generated manifests are not committed by any
     `aw` verb (idxuntrack `4r0qp1` E-07), and the caller commits this list verbatim."""
+    from agent_workflows import artifact_rename as _rename
+
     touched: List[str] = []
     for m in moves:
+        # IPD v45j1n E-04: a plan with a `meta/<id6>.jsonl` log records the shard move as a `rename`
+        # event (verb `archive`); a legacy plan (every plan before the cutover) is moved as before.
+        log_id6 = _rename.log_format_id6(m.old_path, repo_root, "plans")
+        if log_id6 is not None:
+            touched.extend(
+                _rename.move_with_log_event(
+                    repo_root, log_id6, m.old_path, m.new_path, verb="archive"
+                )[0]
+            )
+            continue
         src_rel = m.old_path.relative_to(repo_root).as_posix()
         dst_rel = m.new_path.relative_to(repo_root).as_posix()
         _core.git_mv(repo_root, src_rel, dst_rel)

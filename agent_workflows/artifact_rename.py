@@ -447,6 +447,103 @@ def _read_existing_id6(
     return m.group(1) if m else None
 
 
+_MIRROR_ID_RE = re.compile(r"\A\ufeff?---\r?\nid:\s*([0-9a-z]{6})\s*\r?\n")
+_MANAGED_PROMPT_ID_RE = re.compile(
+    r"\A\ufeff?<!-- aw-managed-prompt: id:\s*([0-9a-z]{6})\b"
+)
+
+
+def log_format_id6(
+    file_path: Path, repo_root: Path, artifact_type: Optional[str] = None
+) -> Optional[str]:
+    """The id6 of the record at ``file_path`` when it has a `meta/<id6>.jsonl` log, else None.
+
+    Dormancy gate of `v45j1n` (spec `4sd62s` C10a): before the cutover no record has a log, so this
+    returns None and every caller keeps its legacy behavior. The id6 is read from the post-cutover
+    in-file mirror (`id:` front matter or the staged-prompt comment), a legacy `- Id:` bullet, or a
+    uniform filename, and counts only if `artifact_meta._storage_format` reports `log` for it.
+    """
+    records_root = Path(_proj_ctx.project_records_dir(Path(repo_root).resolve()))
+    if not (records_root / "meta").is_dir():
+        return None
+    candidates: List[str] = []
+    try:
+        head = file_path.read_text(encoding="utf-8")[:4096]
+    except OSError:
+        head = ""
+    for rx in (_MIRROR_ID_RE, _MANAGED_PROMPT_ID_RE):
+        m = rx.match(head)
+        if m:
+            candidates.append(m.group(1))
+    existing = _read_existing_id6(file_path, artifact_type)
+    if existing:
+        candidates.append(existing)
+    m_name = _UNIFORM_RE.match(file_path.name)
+    if m_name:
+        candidates.append(m_name.group("id6"))
+    for cand in candidates:
+        if _meta._storage_format(records_root, cand) == "log":
+            return cand
+    return None
+
+
+def append_log_rename(
+    repo_root: Path,
+    id6: str,
+    *,
+    verb: str,
+    new_path: Optional[Path],
+    set_fields: Optional[dict] = None,
+    tool: Optional[str] = None,
+    dry_run: bool = False,
+) -> Tuple[str, Optional[str]]:
+    """Append ONE append to a log-format record: a `rename` event, then a `set` of changed Set/Order.
+
+    Spec `4sd62s` 4.2 PATH HISTORY: the `rename` event carries ``verb`` (`rename`, `group` or
+    `archive`) and the NEW records-root-relative ``path`` only; the previous path is the prior
+    path-bearing event in `seq` order. ``new_path=None`` writes no `rename` event (the file did not
+    move), only the `set`. Raises ``ValueError``/``RuntimeError`` when the log refuses the append, so a
+    caller can pre-validate with ``dry_run=True`` before it moves any file. Returns the log's
+    repo-relative path and an optional warning (the change was recorded but a later step failed).
+    """
+    ctx = _meta.legacy_context(repo_root)
+    records_root = Path(ctx.logical_roots["records"])
+    events: List[dict] = []
+    if new_path is not None:
+        try:
+            rel = new_path.resolve().relative_to(records_root.resolve()).as_posix()
+        except ValueError as exc:
+            raise ValueError(
+                f"cannot record a rename event for {id6}: {new_path.name} is outside the records root"
+            ) from exc
+        events.append({"op": "rename", "verb": verb, "path": rel})
+    log_rel = _rel_to_repo(records_root / "meta" / f"{id6}.jsonl", repo_root)
+    if set_fields:
+        # Only a CHANGED field the record's type registers is set (spec 4.2: "the `set` of any
+        # changed `set` or `order` field"); a backlog item, for example, has no `order`.
+        st = _meta.read(id6, project_context=ctx)
+        known = set(_meta.REGISTRY.get(st.type, {}))
+        current = {"set": st.set_id, "order": st.order_nn}
+        changed = {
+            k: v for k, v in set_fields.items() if k in known and current.get(k) != v
+        }
+        if changed:
+            events.append({"op": "set", "fields": changed})
+    if not events:
+        return log_rel, None
+    res = _meta.append(
+        id6,
+        events,
+        dry_run=dry_run,
+        project_context=ctx,
+        actor={"tool": tool or f"aw {verb}"},
+    )
+    if isinstance(res, dict) and res.get("committed") is False and not dry_run:
+        raise RuntimeError(str(res.get("error") or f"log append for {id6} failed"))
+    warning = res.get("warning") if isinstance(res, dict) else None
+    return log_rel, warning
+
+
 _PINNED_PERMALINK_RE = re.compile(r"/(?:blob|tree|raw)/[0-9a-f]{7,40}/")
 
 
@@ -556,6 +653,157 @@ def _update_or_inject_set_metadata(
     )
 
 
+def _mutation_ref_edits(repo_root: Path, edits: List[RefEdit]) -> Tuple:
+    return tuple(
+        MutationRefEdit(
+            file=e.file.relative_to(repo_root).as_posix()
+            if isinstance(e.file, Path)
+            else str(e.file),
+            kind=e.kind,
+            old=e.old,
+            new=e.new,
+            hits=e.hits,
+        )
+        for e in edits
+    )
+
+
+def _log_refusal(location: str, exc: Exception, emit_human: bool) -> "MutationResult":
+    msg = f"error: the record's event log refused the change: {exc}"
+    if emit_human:
+        print(msg)
+    return MutationResult(
+        2,
+        diagnostics=(
+            MutationDiagnostic(
+                location=location,
+                rule="meta-validation-error",
+                detail=msg,
+                severity="error",
+            ),
+        ),
+    )
+
+
+def move_with_log_event(
+    repo_root: Path,
+    id6: str,
+    src: Path,
+    dst: Path,
+    *,
+    verb: str,
+    set_fields: Optional[dict] = None,
+) -> Tuple[List[str], Optional[str]]:
+    """Move one log-format record and append its `rename` event (plus any changed Set/Order).
+
+    The append is validated with a dry run before the move, the file is moved, then the event is
+    appended; if that append still fails the move is undone, so the file and its log never disagree.
+    Returns the repo-relative touched paths (old, new, log) and an optional post-commit warning.
+    """
+    moved = src.resolve() != dst.resolve()
+    new_path = dst if moved else None
+    append_log_rename(
+        repo_root,
+        id6,
+        verb=verb,
+        new_path=new_path,
+        set_fields=set_fields,
+        dry_run=True,
+    )
+    touched: List[str] = []
+    if moved:
+        src_rel = src.relative_to(repo_root).as_posix()
+        dst_rel = dst.relative_to(repo_root).as_posix()
+        _core.git_mv(repo_root, src_rel, dst_rel)
+        touched.extend([src_rel, dst_rel])
+    try:
+        log_rel, warning = append_log_rename(
+            repo_root, id6, verb=verb, new_path=new_path, set_fields=set_fields
+        )
+    except Exception:
+        if moved:
+            _core.git_mv(repo_root, touched[1], touched[0])
+        raise
+    if not moved:
+        touched.append(_rel_to_repo(dst, repo_root))
+    touched.append(log_rel)
+    return touched, warning
+
+
+def _apply_log_rename(
+    repo_root: Path,
+    id6: str,
+    src: Path,
+    dst: Path,
+    *,
+    new_set: Optional[str],
+    new_order: Optional[int],
+    ref_edits: List[RefEdit],
+    warnings: List[str],
+    emit_human: bool,
+    yes: bool,
+) -> "MutationResult":
+    """`aw rename` on a log-format record (IPD `v45j1n` E-02, spec `4sd62s` 4.2, AC-31).
+
+    One append: a `rename` event (verb `rename`, the new records-root-relative path) and, when Set or
+    Order changed, a `set` of them. No rename-ledger line is written: the event replaces it.
+    """
+    set_fields: dict = {}
+    if new_set is not None:
+        set_fields["set"] = new_set
+    if new_order is not None:
+        set_fields["order"] = int(new_order)
+    try:
+        touched, warning = move_with_log_event(
+            repo_root, id6, src, dst, verb="rename", set_fields=set_fields
+        )
+    except (ValueError, RuntimeError) as exc:
+        return _log_refusal(src.name, exc, emit_human)
+    if emit_human and src.resolve() != dst.resolve():
+        print(f"renamed {touched[0]} -> {touched[1]}")
+    notes: List[str] = []
+    if warning:
+        msg = f"warning: {warning}"
+        if emit_human:
+            print(msg)
+        notes.append(msg)
+    for w in warnings:
+        if emit_human:
+            print(w)
+        notes.append(w)
+    if ref_edits:
+        ref_edits = _refs.filter_test_edits_interactive(
+            repo_root, ref_edits, yes=yes or not emit_human
+        )
+    if ref_edits:
+        apply_reference_rewrites(ref_edits)
+        for e in ref_edits:
+            try:
+                rel_f = e.file.relative_to(repo_root).as_posix()
+            except ValueError:
+                rel_f = str(e.file)
+            if emit_human:
+                print(f"rewrote {e.hits}x '{e.old}' -> '{e.new}' in {rel_f}")
+            touched.append(rel_f)
+    moved = src.resolve() != dst.resolve()
+    target = MutationTarget(
+        old_path=_rel_to_repo(src, repo_root),
+        new_path=_rel_to_repo(dst, repo_root),
+        id6=id6,
+        kind="rename" if moved else "update",
+        detail=f"-> {dst.name}" if moved else (f"Set: {new_set}" if new_set else ""),
+    )
+    return MutationResult(
+        0,
+        _dedup(touched),
+        targets=(target,),
+        applied=True,
+        ref_edits=_mutation_ref_edits(repo_root, ref_edits),
+        diagnostics=(),
+        notes=tuple(notes),
+    )
+
+
 def run_rename_generic(
     args: argparse.Namespace, artifact_type: str, *, emit_human: Optional[bool] = None
 ) -> "MutationResult":
@@ -648,13 +896,16 @@ def run_rename_generic(
     new_set = getattr(args, "set", None)
     new_order = getattr(args, "order", None)
     to_id6 = bool(getattr(args, "to_id6", False))
+    # IPD v45j1n E-02: a record with a `meta/<id6>.jsonl` log records the rename as a `rename` event
+    # (dormant: None for every record before the cutover, which keeps the legacy path below).
+    log_id6 = log_format_id6(src, repo_root, artifact_type)
 
     # IPD ha55fi E-04: id6-minting conversion mode. Reuse an existing `- Id:` (idempotent, never
     # re-mint) else mint a fresh id6 collision-checked against the existing spec id6 set.
     minted_id6: Optional[str] = None
     inject_id6: Optional[str] = None
     if to_id6:
-        existing = _read_existing_id6(src, artifact_type)
+        existing = log_id6 or _read_existing_id6(src, artifact_type)
         if existing:
             minted_id6 = existing  # reuse; no metadata write needed (already present)
         else:
@@ -847,6 +1098,20 @@ def run_rename_generic(
                 )
             )
         return MutationResult(2, diagnostics=tuple(diags))
+
+    if log_id6 is not None:
+        return _apply_log_rename(
+            repo_root,
+            log_id6,
+            src,
+            dst,
+            new_set=_core.kebab(new_set) if new_set else None,
+            new_order=new_order,
+            ref_edits=ref_edits if update_refs else [],
+            warnings=warnings,
+            emit_human=emit_human,
+            yes=bool(getattr(args, "yes", False)),
+        )
 
     # Apply changes
     touched: List[str] = []
@@ -1273,6 +1538,40 @@ def run_group_generic(
             m_id = _UNIFORM_RE.match(src.name)
             if m_id:
                 t_id6 = m_id.group("id6")
+        # IPD v45j1n E-03: a record with a `meta/<id6>.jsonl` log records the regroup in its log, one
+        # append of a `rename` event (verb `group`, the new path) and a `set` of the changed Set/Order
+        # (spec 4sd62s 4.2). Dormant before the cutover: no record has a log.
+        log_id6 = log_format_id6(src, repo_root, artifact_type)
+        if log_id6 is not None:
+            moved = src.resolve() != dst.resolve()
+            log_set: dict = {"set": set_k}
+            if order_val is not None:
+                log_set["order"] = int(order_val)
+            try:
+                log_touched, log_warning = move_with_log_event(
+                    repo_root, log_id6, src, dst, verb="group", set_fields=log_set
+                )
+            except (ValueError, RuntimeError) as exc:
+                return _log_refusal(src.name, exc, emit_human)
+            if emit_human:
+                if moved:
+                    print(f"renamed {log_touched[0]} -> {log_touched[1]}")
+                print(f"set Set: {set_k} in {log_touched[-1]}")
+            if log_warning:
+                group_notes.append(f"warning: {log_warning}")
+            touched.extend(log_touched)
+            src_rel = _rel_to_repo(src, repo_root)
+            dst_rel = _rel_to_repo(dst, repo_root)
+            applied_targets.append(
+                MutationTarget(
+                    old_path=src_rel,
+                    new_path=dst_rel,
+                    id6=log_id6,
+                    kind="rename" if moved else "update",
+                    detail=f"-> {dst.name}" if moved else f"Set: {set_k}",
+                )
+            )
+            continue
         if src.resolve() != dst.resolve():
             src_rel = src.relative_to(repo_root).as_posix()
             dst_rel = dst.relative_to(repo_root).as_posix()
