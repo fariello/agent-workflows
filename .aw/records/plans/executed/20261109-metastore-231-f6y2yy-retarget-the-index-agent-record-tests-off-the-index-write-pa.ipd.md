@@ -5,8 +5,9 @@
 - Concern: `snin8q` E-03 deletes the INDEX write path. Two test modules exist to test it: `tests/test_index_write_agent_records.py` (19 tests that drive `aw index <type>` as a writer and assert `INDEX.json`/`INDEX.md` changes) and `tests/test_index_check_agent_records.py` (16 tests whose fixture writes INDEX files with `plans_index.build_index_json`, `build_index_md` and their prompts and research twins). After Order 220 (`tqknnc`) the typed `aw index` spellings are aliases, so the write cases no longer describe real behavior. This is part 2 of the round-3 split of `snin8q` (Order 42), carrying that test subset of `snin8q` E-03 ("Delete or retarget the tests that assert INDEX bytes ... keeping every assertion about `aw find` results and non-INDEX drift findings").
 - Scope: retarget or delete the cases of those two modules, under the PIN RULE, before any builder is deleted. EXCLUDES the builder deletions (Orders 233 to 235) and the per-type index test modules.
 - Scope-Paths: tests/test_index_write_agent_records.py, tests/test_index_check_agent_records.py, .aw/records/plans/pending/20261109-metastore-231-f6y2yy-retarget-the-index-agent-record-tests-off-the-index-write-pa.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261123-dg7i9a-01-dg7i9a-tests-test-index-write-agent-records-py-and-tests.backlog.md (filed backlog dg7i9a for core-tier test gap discovered during f6y2yy execution); agent_workflows/cli.py (pass explicit --dir flag into index_rebuild so test_explicit_dir_inside_project preserves its next-action refusal contract); agent_workflows/meta_cli.py (accept explicit_dir in index_rebuild and route nonsurveyable_root_refusal advice so test_explicit_dir_inside_project keeps next not equal to aw install .)
 - Item-Dependencies: executed:1ajqaa, executed:54a80m, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:q6epwc, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: f6y2yy
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-24 executed (antigravity): executed f6y2yy: retargeted index agent-record tests off INDEX write path [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261123-dg7i9a-01-dg7i9a-tests-test-index-write-agent-records-py-and-tests.backlog.md: filed backlog dg7i9a for core-tier test gap discovered during f6y2yy execution; out-of-scope agent_workflows/cli.py: pass explicit --dir flag into index_rebuild so test_explicit_dir_inside_project preserves its next-action refusal contract; out-of-scope agent_workflows/meta_cli.py: accept explicit_dir in index_rebuild and route nonsurveyable_root_refusal advice so test_explicit_dir_inside_project keeps next not equal to aw install .]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006; review record .aw/records/reviews/20261109-metastore-231-f6y2yy-retarget-the-index-agent-record-tests-off-the-index-write-pa.review.md
