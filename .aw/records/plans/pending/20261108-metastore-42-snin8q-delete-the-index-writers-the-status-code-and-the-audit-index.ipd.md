@@ -102,6 +102,7 @@ flowchart TD
   - Carrier: s6k01k
 - Moved to drav0u (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 prompts subset, the same five symbols in `prompts_index`, `tests/test_prompts_index.py`. With the two test subsets, the three module subsets and E-18 here, this equals E-03's list.
   - Carrier: drav0u
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-235-drav0u-delete-the-prompts-index-writers.ipd.md
 - Moved to 3v2ew2 (round-3 split 2026-11-09 per research nj8zdp guidance): E-06 (STATUS code).
   - Carrier: 3v2ew2
 - Moved to h3jp4e (round-3 split 2026-11-09 per research nj8zdp guidance): E-07 (`_INDEX_CACHE`).
