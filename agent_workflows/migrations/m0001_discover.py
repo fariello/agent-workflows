@@ -31,7 +31,6 @@ from agent_workflows import (
     attention_contract,
     project_context,
     record_history,
-    research_contract,
 )
 
 TREE_DIR_TO_TYPE: Dict[str, str] = {
@@ -327,7 +326,7 @@ def is_excluded_template(
         if _parse_prompt_comment_fields(text):
             return False
     if text.startswith("---"):
-        parsed_fm = research_contract.parse_frontmatter(text)
+        parsed_fm = artifact_meta.front_matter_mapping(text)
         if parsed_fm and (parsed_fm.get("id") or parsed_fm.get("status")):
             return False
     bullets, _, _ = artifact_meta._parse_bullet_metadata(text)

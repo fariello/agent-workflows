@@ -28,7 +28,6 @@ from agent_workflows import (
     attention_contract,
     layout_migration,
     project_context,
-    research_contract,
     review_findings,
 )
 from agent_workflows.migrations import m0001_discover, m0001_renames
@@ -1074,7 +1073,7 @@ def build_record_log(
         raw_fields = _parse_prompt_comment(text)
         ordered_pairs = list(raw_fields.items())
     elif is_research:
-        parsed_fm = research_contract.parse_frontmatter(text)
+        parsed_fm = artifact_meta.front_matter_mapping(text)
         if parsed_fm is None:
             yaml_map, _ = artifact_meta._parse_yaml_front_matter(text)
             raw_fields = dict(yaml_map)
@@ -1559,7 +1558,7 @@ def rewrite_record_file(
         return mirror_prefix + clean_body
 
     if art_type == "research":
-        parsed_fm = research_contract.parse_frontmatter(text)
+        parsed_fm = artifact_meta.front_matter_mapping(text)
         body_raw = artifact_meta._strip_leading_yaml_mirror(text)
         body = _strip_history_section_from_text(body_raw)
         if parsed_meta is not None:

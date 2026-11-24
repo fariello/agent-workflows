@@ -495,17 +495,14 @@ def _declared_blocks_release(repo_root: Path, rel_path: str) -> Optional[str]:
                 continue
             text = base.read_text(encoding="utf-8")
             if ".research" in base.name or "/research/" in str(base):
-                from agent_workflows import research_contract
+                from agent_workflows import artifact_meta as _meta
 
-                data = research_contract.parse_frontmatter(text)
-                if data:
-                    v = (
-                        data.get("blocks-release")
-                        or data.get("blocks_release")
-                        or data.get("Blocks-Release")
-                    )
-                    return str(v).strip() if v else None
-                return None
+                if not text.startswith("---"):
+                    return None
+                v = _meta.read_text(text, record_type="research").fields.get(
+                    "blocks_release"
+                )
+                return str(v).strip() if v else None
             br = _sel.read_front_matter_blocks_release(text)
             if br is not None:
                 return br

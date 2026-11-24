@@ -2750,6 +2750,48 @@ def _parse_bullet_metadata(
     return bullets, title, history_lines
 
 
+def _parse_frontmatter(text: str) -> Optional[Dict[str, object]]:
+    """Parse a leading ``---`` frontmatter block into a mapping, or None if absent/malformed.
+
+    Copy of ``research_contract.parse_frontmatter`` with unchanged behavior (IPD `sq6v7i`), so the
+    original can be deleted (IPD `bxupy8`) while its exact framing stays available here: scalars
+    become ``str`` (empty string for an empty value), ``[a, b]`` becomes a ``list`` of trimmed
+    strings (``[]`` for empty), a repeated key keeps its LAST value, and a block with no closing
+    ``---`` is malformed (None). The loader's own `_parse_yaml_front_matter` differs (first value
+    wins, lists stay strings) and is not replaced by this.
+    """
+
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return None
+    data: Dict[str, object] = {}
+    for line in lines[1:]:
+        if line.strip() == "---":
+            return data
+        if ":" not in line:
+            continue
+        key, _, val = line.partition(":")
+        key = key.strip()
+        val = val.strip()
+        if val.startswith("[") and val.endswith("]"):
+            inner = val[1:-1].strip()
+            data[key] = [x.strip() for x in inner.split(",")] if inner else []
+        else:
+            data[key] = val
+    return None
+
+
+def front_matter_mapping(text: str) -> Optional[Dict[str, object]]:
+    """Return ``text``'s leading ``---`` block as a raw key/value mapping, or None.
+
+    For a caller that holds only TEXT and needs the verbatim research front-matter keys and their
+    last-wins values (record creation, adoption and the m0001 migration), rather than the normalized
+    `State` that `read_text` returns. See `_parse_frontmatter` for the exact framing.
+    """
+
+    return _parse_frontmatter(text)
+
+
 def _parse_yaml_front_matter(text: str) -> Tuple[Dict[str, str], Optional[str]]:
     """Parse YAML front matter (research reports)."""
     lines = text.splitlines()
