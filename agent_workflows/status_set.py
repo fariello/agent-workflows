@@ -417,7 +417,7 @@ def _read_artifact_record_with_state(
         from agent_workflows import artifact_meta as _meta
 
         st = _meta.read_text(
-            _sel.metadata_region(text),
+            _meta.metadata_region(text),
             record_type=_RECORD_TYPE_TO_META_TYPE.get(rtype or ""),
         )
 

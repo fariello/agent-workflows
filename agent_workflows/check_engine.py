@@ -850,7 +850,7 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     ),
     # idcapture Order 01 (`76w6mq`) E-05: a metadata-shaped `- Id: <id6>` line found OUTSIDE a
     # record's METADATA REGION. The companion to bounding the identity readers to that region
-    # (`selectors.metadata_region`): bounding STOPS the false claim, and this rule SURFACES the
+    # (`artifact_meta.metadata_region`): bounding STOPS the false claim, and this rule SURFACES the
     # ambiguity instead of swallowing it silently (maintainer ruling 2026-09-05, "fix AND warn").
     #
     # `info`, AND THIS IS A MEASUREMENT RATHER THAN A PREFERENCE. The obvious choice is `warning`,
@@ -2071,7 +2071,7 @@ _HHMM_RE = _re.compile(r"\A\d{4}\Z")
 _HAS_DIGIT_RE = _re.compile(r"\d")
 
 # idcapture Order 01 (`76w6mq`): the CHECKER's identity readers are bounded to the same METADATA
-# REGION the selector's are, via the ONE shared helper `selectors.metadata_region`, so a quoted
+# REGION the selector's are, via the ONE shared helper `artifact_meta.metadata_region`, so a quoted
 # example block cannot be read as a declaration on EITHER surface.
 #
 # THIS MODULE HAD ITS OWN COPY OF THE DEFECT, and that is why bounding only the selector would have
@@ -2088,11 +2088,11 @@ _HAS_DIGIT_RE = _re.compile(r"\d")
 
 
 def _metadata_region(text: str) -> str:
-    """This module's accessor for the shared metadata-region boundary (`selectors`-owned)."""
+    """This module's accessor for the shared metadata-region boundary (`artifact_meta`-owned)."""
 
-    from agent_workflows import selectors as _sel
+    from agent_workflows import artifact_meta as _meta
 
-    return _sel.metadata_region(text)
+    return _meta.metadata_region(text)
 
 
 def _read_declared_id(text: str) -> str | None:

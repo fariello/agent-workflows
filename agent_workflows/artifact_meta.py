@@ -2979,7 +2979,7 @@ def _parse_bullet_metadata(
     """Parse strict bullet block before first ## heading. Returns (bullets, title, history_lines).
 
     THE BULLET REGION STARTS AT THE TOP OF THE FILE, not after a `# ` title (backlog `suth7l`).
-    It is the same region `selectors.metadata_region` bounds every other reader to: everything
+    It is the same region `artifact_meta.metadata_region` bounds every other reader to: everything
     before the first `##` heading, with an optional leading `# ` title inside it. Backlog items
     carry no title line at all (they open with `- Id:`), so a loader that started reading only
     after a title dropped every backlog item's bullets; measured on this repository on 2026-11-07,
@@ -3553,9 +3553,7 @@ def load_legacy_artifact(
             mapped_fields[target_k] = bv
 
     if art_type == "ipd" and not is_yaml_record:
-        from agent_workflows import selectors as _sel
-
-        meta_region = _sel.metadata_region(text)
+        meta_region = metadata_region(text)
         se_match = re.search(r"(?m)^-\s*Scope-Exceeded:\s*(.*)$", meta_region)
         if se_match is not None:
             raw_se = se_match.group(1).strip()
@@ -6578,9 +6576,37 @@ _PROMPT_COMMENT_KEY: Dict[str, str] = {
     "short_description": "Short-Description",
 }
 
+# A YAML-fenced document's metadata region is its LEADING `---` block, not "everything before the
+# first `##`". The distinction is not cosmetic: measured on this corpus, exactly one record
+# (`effzzi`, a roadmap) opens with a YAML fence and then carries `- Key: value` BODY PROSE bullets
+# under its H1 (`- Plans: one orchestrator plus eight children`, `- Authoring state: ...`) before
+# its first `## ` heading. Those bullets are narrative, not metadata, and the fence is the record's
+# real declaration site, so the fence is where the region ends.
 _YAML_FENCE_OPEN_RE = re.compile(r"\A---[ \t]*\r?\n")
 
+_METADATA_END_RE = re.compile(r"(?m)^#{2,}\s")
+
 _META_BULLET_LINE_RE = re.compile(r"(?m)^-\s*[A-Za-z][A-Za-z0-9 /-]*:[^\n]*(?:\n|$)")
+
+
+def metadata_region(text: str) -> str:
+    """Return the leading METADATA REGION of a record: where it DECLARES its own identity."""
+
+    if not text:
+        return text or ""
+    m_open = _YAML_FENCE_OPEN_RE.match(text)
+    if m_open is not None:
+        pos = m_open.end()
+        for line in text[pos:].splitlines(keepends=True):
+            stripped = line.rstrip("\r\n")
+            pos += len(line)
+            if stripped.rstrip(" \t") == "---":
+                return text[: pos - (len(line) - len(stripped))]
+        return text  # fence unterminated within the input -> the region continues
+    m_end = _METADATA_END_RE.search(text)
+    if m_end is None:
+        return text  # no `##` in the input -> the region continues (the common 25-record case)
+    return text[: m_end.start()]
 
 
 def _normalize_legacy_types(
@@ -6767,7 +6793,7 @@ def set_legacy_bullet_line(
         ("Id", "after"),
     ),
 ) -> str:
-    """Update, heal duplicates of, or strip ``- <label>:`` inside ``selectors.metadata_region``.
+    """Update, heal duplicates of, or strip ``- <label>:`` inside ``artifact_meta.metadata_region``.
 
     Preserves the bounded ``releases.set_*_line`` contract (``3466h8`` D-2): ``'-'`` and
     ``None`` strip matching lines in the metadata region with zero residue; existing matches
@@ -6775,9 +6801,8 @@ def set_legacy_bullet_line(
     insert relative to the first matching anchor in ``anchors`` (supporting ``(label, 'before')``
     or ``(label, 'after')``); and anchor-less or YAML-fenced regions return ``text`` unchanged.
     """
-    from agent_workflows import selectors as _sel
 
-    region = _sel.metadata_region(text)
+    region = metadata_region(text)
     rest = text[len(region) :]
     pat = re.compile(r"(?m)^-\s*" + re.escape(label) + r":[^\n]*\n?")
     if value in (None, "-"):
@@ -6818,7 +6843,7 @@ def _legacy_in_metadata_region(
     *,
     anchors: Tuple[Tuple[str, str], ...] = (("Status", "after"), ("Id", "after")),
 ) -> str:
-    """Bounded bullet surgery inside ``selectors.metadata_region`` for the value writers below.
+    """Bounded bullet surgery inside ``artifact_meta.metadata_region`` for the value writers below.
 
     Copy of ``releases._set_bullet_via_meta``, which replaced ``releases._in_metadata_region`` in
     ``3466h8``: bounding edits to the metadata region stops a QUOTED field bullet in a record's body
@@ -7020,9 +7045,8 @@ def _set_bullet(
     D-2 / a88210: tries ``anchors`` in order, then falls back to the end of an existing metadata
     bullet block before the first ``## ``; writes nothing when the file has no metadata bullet block.
     """
-    from agent_workflows import selectors as _sel
 
-    region = _sel.metadata_region(text)
+    region = metadata_region(text)
     rest = text[len(region) :]
     pat = re.compile(r"(?m)^-\s*" + re.escape(label) + r":[^\n]*\n?")
     if value is None:
@@ -7472,10 +7496,8 @@ def _render_create_fields(
         return fm + text
 
     if plural == "walkthroughs":
-        from agent_workflows import selectors as _sel
-
         out = text
-        region = _sel.metadata_region(out)
+        region = metadata_region(out)
         id_val = fields.get("id")
         target_id = fields.get("target_id")
         has_id = bool(re.search(r"(?m)^-\s*Id:", region))
@@ -7492,7 +7514,7 @@ def _render_create_fields(
         if not missing_lines:
             return out
         meta = "\n".join(missing_lines)
-        region = _sel.metadata_region(out)
+        region = metadata_region(out)
         set_m = re.search(r"(?m)^(-[ \t]*Set:[ \t]*[^\n]*)$", region)
         if set_m:
             idx = set_m.end(1)
@@ -7511,9 +7533,7 @@ def _render_create_fields(
         sep = "\n" if stripped.startswith("- ") else "\n\n"
         return meta + sep + stripped
 
-    from agent_workflows import selectors as _sel
-
-    region = _sel.metadata_region(text)
+    region = metadata_region(text)
     if _META_BULLET_LINE_RE.search(region):
         out = text
         if "status" in fields and fields["status"] is not None:
@@ -7622,9 +7642,8 @@ def _render_field(
                     f"legacy writer has no prompt comment key for field {field!r}"
                 )
             return _render_prompt_field(text, key_label, value)
-        from agent_workflows import selectors as _sel
 
-        region = _sel.metadata_region(text)
+        region = metadata_region(text)
         if _META_BULLET_LINE_RE.search(region):
             label = _LEGACY_BULLET_LABEL.get(field)
             if label is None:
@@ -7682,9 +7701,7 @@ def _render_field(
         wlabel, wfn = writers[field]
         formatted = _format_legacy_value(field, value) if value is not None else "-"
         if value is not None and formatted != "-":
-            from agent_workflows import selectors as _sel
-
-            region = _sel.metadata_region(text)
+            region = metadata_region(text)
             matches = re.findall(r"(?m)^-\s*" + re.escape(wlabel) + r":", region)
             if len(matches) == 1:
                 return _set_bullet(text, wlabel, formatted, anchors=("Status", "Id"))
@@ -7732,9 +7749,8 @@ def _render_checkpoint(text: str, plural: str, fields: Dict[str, Any]) -> str:
         return text
     if id_val is None:
         return text
-    from agent_workflows import selectors as _sel
 
-    region = _sel.metadata_region(text)
+    region = metadata_region(text)
     if re.search(r"(?m)^-\s*Id:\s*\S+", region):
         return text
     region_lines = region.split("\n")
@@ -7879,7 +7895,6 @@ def render_legacy(
 
     Event order is the append's order; the history line is written last. Returns the rendered text
     (ending in exactly one newline) and the notes the setter prints."""
-    from agent_workflows import selectors as _sel
 
     notes: List[str] = []
     is_research_create = (
@@ -7911,7 +7926,7 @@ def render_legacy(
         _trailing_body_only
         or (
             not render.history_at_end
-            and not _META_BULLET_LINE_RE.search(_sel.metadata_region(out))
+            and not _META_BULLET_LINE_RE.search(metadata_region(out))
         )
     ):
         is_headerless_backlog = True
@@ -8275,9 +8290,8 @@ def restore_legacy_snapshot(
     pre_history = set(_history_block(pre_pass_text or "").records)
 
     out = "\n".join((current_text or "").splitlines())
-    from agent_workflows import selectors as _sel
 
-    if re.search(r"(?m)^-\s*Status\s*:", _sel.metadata_region(out)):
+    if re.search(r"(?m)^-\s*Status\s*:", metadata_region(out)):
         out, _ = _render_status(out, plural, st_pre, quiet=True, label="")
     if plural == "plans":
         if rd_pre is not None:
