@@ -2592,6 +2592,93 @@ def _first_set_token(value: Optional[str]) -> Optional[str]:
     return parts[0] if parts else None
 
 
+#: The IPD metadata-block LINE grammar, owned here (moved with `parse_metadata_block` by ad86ym).
+#: `ipd_schema._META_LINE_RE` is a separate copy kept for `ipd_lint.parse`'s other use until
+#: Order 246 (nx7fws) deletes it.
+_IPD_META_LINE_RE = re.compile(r"^- (?P<field>[A-Za-z][A-Za-z /-]*?):\s?(?P<value>.*)$")
+
+
+def _parse_metadata_block(
+    lines: Sequence[str],
+) -> Tuple[Dict[str, str], List[_ipd_schema.MetaError]]:
+    """Parse the contiguous ``- Field: value`` run given the lines BETWEEN the H1 and the first H2.
+
+    Returns (fields, errors). Duplicate fields and unknown fields are recorded as errors. Pure;
+    the caller is responsible for locating the block.
+    """
+    fields: Dict[str, str] = {}
+    errors: List[_ipd_schema.MetaError] = []
+    seen: Dict[str, int] = {}
+    for raw in lines:
+        line = raw.rstrip("\n")
+        if not line.strip():
+            continue
+        m = _IPD_META_LINE_RE.match(line)
+        if not m:
+            # A non-bullet, non-blank line inside the metadata run ends the block for our purposes.
+            continue
+        field = m.group("field").strip()
+        value = m.group("value").strip()
+        seen[field] = seen.get(field, 0) + 1
+        if seen[field] == 2:
+            errors.append(_ipd_schema.MetaError(field, "duplicate field"))
+        if field not in _ipd_schema.META_RECOGNIZED:
+            errors.append(_ipd_schema.MetaError(field, "unknown field"))
+        # First occurrence wins for the value map; duplicates already flagged.
+        fields.setdefault(field, value)
+    return fields, errors
+
+
+def parse_metadata_block(
+    lines: Sequence[str],
+) -> Tuple[Dict[str, str], List[_ipd_schema.MetaError]]:
+    """Public wrapper for callers that need the line-level error list (``ipd_lint.parse``).
+
+    The duplicate and unknown field diagnostics (IPD-M102/M103) are not part of `State`, so the
+    linter reads them here rather than through `read_text`.
+    """
+    return _parse_metadata_block(lines)
+
+
+def _parse_metadata_comment(first_line: str) -> Dict[str, str]:
+    """Key/value pairs of a prompt's leading ``<!-- aw-managed-prompt: ... -->`` or
+    ``<!-- aw-prompt: ... -->`` metadata comment, or ``{}`` when ``first_line`` carries neither.
+
+    The trailing ``. This HTML comment is ...`` pipeline trailer is not part of the field list.
+    """
+    comment_bullets: Dict[str, str] = {}
+    m_prompt = _MANAGED_PROMPT_COMMENT_RE.match(first_line)
+    if m_prompt:
+        for item in m_prompt.group(1).split("|"):
+            if ":" in item:
+                k, v = item.split(":", 1)
+                comment_bullets[k.strip()] = v.strip()
+        return comment_bullets
+    m_aw = re.match(r"\A<!--\s*aw-prompt:\s*(.*?)\s*-->", first_line, re.DOTALL)
+    if not m_aw:
+        return comment_bullets
+    inner = m_aw.group(1)
+    split_aw = _split_prompt_comment(first_line)
+    if split_aw is not None and split_aw[2]:
+        inner = split_aw[1]
+    else:
+        from agent_workflows import prompts as _prompts
+
+        for marker in (
+            f" . {_prompts._METADATA_TRAILER}",
+            " . This HTML comment is",
+            _prompts._METADATA_TRAILER,
+        ):
+            if marker in inner:
+                inner = inner.split(marker, 1)[0].strip()
+                break
+    for item in inner.split("|"):
+        if ":" in item:
+            k, v = item.split(":", 1)
+            comment_bullets[k.strip()] = v.strip()
+    return comment_bullets
+
+
 def _parse_bullet_metadata_with_loose(
     text: str,
 ) -> Tuple[Dict[str, str], Dict[str, str], Optional[str], List[str]]:
@@ -3026,35 +3113,7 @@ def load_legacy_artifact(
         lines = text.splitlines()
         first_line = lines[0].strip()
         m_prompt = _MANAGED_PROMPT_COMMENT_RE.match(first_line)
-        comment_bullets: Dict[str, str] = {}
-        if m_prompt:
-            for item in m_prompt.group(1).split("|"):
-                if ":" in item:
-                    k, v = item.split(":", 1)
-                    comment_bullets[k.strip()] = v.strip()
-        else:
-            # Check for legacy <!-- aw-prompt: ... -->
-            m_aw = re.match(r"\A<!--\s*aw-prompt:\s*(.*?)\s*-->", first_line, re.DOTALL)
-            if m_aw:
-                inner = m_aw.group(1)
-                split_aw = _split_prompt_comment(first_line)
-                if split_aw is not None and split_aw[2]:
-                    inner = split_aw[1]
-                else:
-                    from agent_workflows import prompts as _prompts
-
-                    for marker in (
-                        f" . {_prompts._METADATA_TRAILER}",
-                        " . This HTML comment is",
-                        _prompts._METADATA_TRAILER,
-                    ):
-                        if marker in inner:
-                            inner = inner.split(marker, 1)[0].strip()
-                            break
-                for item in inner.split("|"):
-                    if ":" in item:
-                        k, v = item.split(":", 1)
-                        comment_bullets[k.strip()] = v.strip()
+        comment_bullets: Dict[str, str] = _parse_metadata_comment(first_line)
         explicit_bullets, _, bullet_title, bullet_history = (
             _parse_bullet_metadata_with_loose(text)
         )
@@ -4727,34 +4786,7 @@ def read_text(text: str, *, record_type: Optional[str] = None) -> State:
     comment_bullets: Dict[str, str] = {}
     if art_type == "prompt" and text.startswith("<!--"):
         first_line = lines[0].strip() if lines else ""
-        m_prompt = _MANAGED_PROMPT_COMMENT_RE.match(first_line)
-        if m_prompt:
-            for item in m_prompt.group(1).split("|"):
-                if ":" in item:
-                    k, v = item.split(":", 1)
-                    comment_bullets[k.strip()] = v.strip()
-        else:
-            m_aw = re.match(r"\A<!--\s*aw-prompt:\s*(.*?)\s*-->", first_line, re.DOTALL)
-            if m_aw:
-                inner = m_aw.group(1)
-                split_aw = _split_prompt_comment(first_line)
-                if split_aw is not None and split_aw[2]:
-                    inner = split_aw[1]
-                else:
-                    from agent_workflows import prompts as _prompts
-
-                    for marker in (
-                        f" . {_prompts._METADATA_TRAILER}",
-                        " . This HTML comment is",
-                        _prompts._METADATA_TRAILER,
-                    ):
-                        if marker in inner:
-                            inner = inner.split(marker, 1)[0].strip()
-                            break
-                for item in inner.split("|"):
-                    if ":" in item:
-                        k, v = item.split(":", 1)
-                        comment_bullets[k.strip()] = v.strip()
+        comment_bullets = _parse_metadata_comment(first_line)
 
     bullets, loose_bullets, title, history_lines = _parse_bullet_metadata_with_loose(
         text

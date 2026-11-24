@@ -46,28 +46,6 @@ class PromptEntry(NamedTuple):
     slug: Optional[str] = None
 
 
-def _parse_metadata_comment(text: str) -> Dict[str, str]:
-    first = text.split("\n", 1)[0] if text else ""
-    if not (
-        first.startswith("<!--") and "aw-prompt:" in first and first.endswith("-->")
-    ):
-        return {}
-    inner = first[4:-3].strip()
-    if inner.startswith("aw-prompt:"):
-        inner = inner[len("aw-prompt:") :].strip()
-    if " . This HTML comment is" in inner:
-        inner = inner.split(" . This HTML comment is", 1)[0].strip()
-    elif " . " in inner:
-        inner = inner.split(" . ", 1)[0].strip()
-    meta = {}
-    for part in inner.split("|"):
-        part = part.strip()
-        if ":" in part:
-            k, v = part.split(":", 1)
-            meta[k.strip()] = v.strip()
-    return meta
-
-
 def _meta_context_for_prompts_dir(
     prompts_dir: Path,
 ) -> Tuple[Any, Path, Optional[Path]]:

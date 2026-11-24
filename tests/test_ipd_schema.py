@@ -43,6 +43,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+from agent_workflows import artifact_meta as AM
 from agent_workflows import ipd_schema as S
 from tests.support import CONFORMING_ORCHESTRATOR, REPO_ROOT
 
@@ -237,7 +238,7 @@ class MetadataFieldVocabularyTests(unittest.TestCase):
     crossed it at once.
 
     THE FIELD NAMES ARE LITERAL STRINGS, NOT `S.META_*` CONSTANTS, AND THAT IS DELIBERATE. These
-    spellings are parsed verbatim out of plan text by `parse_metadata_block`'s `_META_LINE_RE`, so
+    spellings are parsed verbatim out of plan text by `artifact_meta.parse_metadata_block`'s `_IPD_META_LINE_RE`, so
     the name IS the interface: `- Scope-Paths:` renamed to `- ScopePaths:` silently stops being
     recognized in every plan on disk. Referencing the constant would make that rename invisible
     because the constant and the parsed spelling move together. The row's `constant` column pins the
@@ -928,7 +929,7 @@ class MetadataValidationTests(unittest.TestCase):
 
 
 class MetadataBlockParseTests(unittest.TestCase):
-    """`parse_metadata_block`: the LINE-level parse, which is a different subject from validation.
+    """`artifact_meta.parse_metadata_block`: the LINE-level parse, which is a different subject from validation.
 
     ONE table replaces two tests (`test_duplicate_and_unknown_fields_from_parse` and
     `BlocksReleaseSchemaTests.test_blocks_release_line_parses_without_unknown_field_error`). Both fed
@@ -1010,7 +1011,7 @@ class MetadataBlockParseTests(unittest.TestCase):
     def test_each_metadata_block_parses_to_its_exact_fields_and_errors(self):
         wrong = []
         for case, lines, expected_fields, expected_errors, why in self.BLOCKS:
-            fields, errors = S.parse_metadata_block(lines)
+            fields, errors = AM.parse_metadata_block(lines)
             problems = []
             if fields != expected_fields:
                 problems.append(
@@ -1030,8 +1031,8 @@ class MetadataBlockParseTests(unittest.TestCase):
         self.assertEqual(
             wrong,
             [],
-            f"parse_metadata_block mishandled {len(wrong)} of {len(self.BLOCKS)} raw metadata "
-            "blocks. One regex (`_META_LINE_RE`) plus one loop implements all of it, so SEVERAL ROWS "
+            f"artifact_meta.parse_metadata_block mishandled {len(wrong)} of {len(self.BLOCKS)} raw metadata "
+            "blocks. One regex (`_IPD_META_LINE_RE`) plus one loop implements all of it, so SEVERAL ROWS "
             "FAILING TOGETHER means the regex changed rather than several behaviors breaking: check "
             "the field-name character class first, since three real field names contain a space or "
             "a hyphen. FIX: a field that stops PARSING reads as ABSENT to everything downstream, "
