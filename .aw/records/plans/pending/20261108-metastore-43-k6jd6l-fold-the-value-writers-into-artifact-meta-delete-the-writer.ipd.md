@@ -124,6 +124,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-293-71ewpn-move-metadata-region-into-artifact-meta-and-retarget-the-gat.ipd.md
 - E-11: the `selectors` readers and patterns and the runner re-exports: Moved to 8ysz6b (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 8ysz6b
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-294-8ysz6b-delete-the-selectors-record-text-readers-and-rebind-the-runn.ipd.md
 - E-11: the `prompts` readers and `attention._frontmatter_block`: Moved to iup4lp (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: iup4lp
 - E-11: the `plans` readers, deleting `selectors.metadata_region`, and the subset-1 check (V-11): Moved to hrbbhy (round-3 split 2026-11-09 per research nj8zdp guidance).
