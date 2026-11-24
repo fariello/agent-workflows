@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5 allows exactly one metadata reader (`artifact_meta`). Part 17 of the round-3 split of `k6jd6l` (Order 43, research `nj8zdp` guidance): delete `plans.read_status` and the `plans` patterns `_STATUS_RE`, `_SET_RE` and `_ORDER_RE`, then delete `selectors.metadata_region` (whose last callers are inside `selectors`), and verify the whole of `k6jd6l` E-11 subset 1. Measured at `f83159217`: `plans.read_status` callers `plans.scan` (1), `attention._plans_record` (1), `ipd_lint.lint_text` (1), `check_engine.check_ipd_lint_reach` (1), tests `tests/test_plan_status.py` (2) and `tests/test_drift_detail_escaping.py` (1); `plans.read_set` uses `_SET_RE`/`_ORDER_RE`.
 - Scope: The `plans` reader part of `k6jd6l` E-11 subset 1, the `selectors.metadata_region` deletion, and subset 1's expected-outcome check. The `attention`, `ipd_lint` and `check_engine` callers are in `ffceq0`'s Scope-Paths and expected moved; a live one in Order 280's F-25 is retargeted here with `--scope-reason`.
 - Scope-Paths: agent_workflows/plans.py, agent_workflows/selectors.py, tests/test_plan_status.py, tests/test_drift_detail_escaping.py, tests/test_releases_sibling_line_writers_bounding.py, .aw/records/plans/pending/20261109-metastore-296-hrbbhy-delete-the-plans-record-text-readers-and-verify-the-subset-1.ipd.md
+- Scope-Exceeded: agent_workflows/check_engine.py (F-25 caller of the deleted symbol retargeted per the plan's Scope note hrbbhy: check_ipd_lint_reach called plans.read_status); agent_workflows/ipd_lint.py (comment named the deleted plans.read_status); tests/record_builder.py (test helper called the deleted selectors.metadata_region); tests/test_artifact_meta_legacy_writer.py (test called the deleted selectors.metadata_region); tests/test_check_engine_status_meta.py (docstring named the deleted selectors.metadata_region); tests/test_readers_ipd_lint.py (comment named the deleted plans.read_status); tests/test_readers_selectors_find.py (test called the deleted plans.read_status case kept via artifact_meta.read_text)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:iup4lp, executed:t4gl15
-- Status: approved
+- Status: executed
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: hrbbhy
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: hrbbhy verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/check_engine.py: F-25 caller of the deleted symbol; retargeted per the plan's Scope note (hrbbhy): check_ipd_lint_reach called plans.read_status; out-of-scope agent_workflows/ipd_lint.py: comment named the deleted plans.read_status; out-of-scope tests/record_builder.py: test helper called the deleted selectors.metadata_region; out-of-scope tests/test_artifact_meta_legacy_writer.py: test called the deleted selectors.metadata_region; out-of-scope tests/test_check_engine_status_meta.py: docstring named the deleted selectors.metadata_region; out-of-scope tests/test_readers_ipd_lint.py: comment named the deleted plans.read_status; out-of-scope tests/test_readers_selectors_find.py: test called the deleted plans.read_status; case kept via artifact_meta.read_text]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
