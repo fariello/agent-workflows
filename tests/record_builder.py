@@ -62,9 +62,6 @@ from agent_workflows import (
 from agent_workflows import (
     review_findings as _review_findings,
 )
-from agent_workflows import (
-    selectors as _selectors,
-)
 
 RECORD_FORMAT = "legacy"
 DEFAULT_WHEN = "2026-08-24"
@@ -356,7 +353,7 @@ def _apply_open_questions(
 
 
 def _insert_unknown_bullet(text: str, label: str, value: str) -> str:
-    region = _selectors.metadata_region(text)
+    region = _meta.metadata_region(text)
     rest = text[len(region) :]
     new_line = f"- {label}: {value}\n"
     anchor = _re.search(r"(?m)^-\s*(?:Status|Id):[^\n]*(?:\n|$)", region)
@@ -462,7 +459,7 @@ def _apply_raw_fields(
         out = _meta.set_legacy_bullet_line(out, label, val_str)
         if out == before and val_str is not None:
             pat = _re.compile(r"(?m)^-\s*" + _re.escape(label) + r":")
-            if not pat.search(_selectors.metadata_region(out)):
+            if not pat.search(_meta.metadata_region(out)):
                 out = _insert_unknown_bullet(out, label, val_str)
     return out
 

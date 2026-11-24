@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from agent_workflows import artifact_meta as meta_mod
 from agent_workflows import plans as plans_mod
 from tests import support
 from tests.record_builder import RecordBuilder
@@ -21,7 +22,8 @@ def status_drift(plans_dir: Path) -> tuple[int, list[str], list[str]]:
     """Iterate disposition directories under plans_dir and report status drift.
 
     Scans disposition directories recursively (rglob), skips missing directories and
-    any file named README.md, reads status with plans_mod.read_status(path), and returns:
+    any file named README.md, reads status through artifact_meta.read_text (the reader plans.scan
+    uses), and returns:
     (examined, unrecognized, mismatched)
     - examined: count of plan files read.
     - unrecognized: '<rel>: Status=<value>' for files with None or LEGACY_GROUP status.
@@ -41,7 +43,9 @@ def status_drift(plans_dir: Path) -> tuple[int, list[str], list[str]]:
                 continue
             examined += 1
             rel = f.relative_to(plans_dir).as_posix()
-            status = plans_mod.read_status(f)
+            status = plans_mod._status_from_state(
+                meta_mod.read_text(f.read_text(encoding="utf-8"), record_type="ipd")
+            )
             if status is None or status == plans_mod.LEGACY_GROUP:
                 unrecognized.append(f"{rel}: Status={status}")
             elif (

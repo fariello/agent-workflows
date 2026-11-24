@@ -19,7 +19,6 @@ import pytest
 
 from agent_workflows import artifact_meta as meta
 from agent_workflows import cli
-from agent_workflows import selectors as sel
 
 pytestmark = pytest.mark.core
 
@@ -760,7 +759,7 @@ def _pick_writable_field(plural: str, text: str) -> Optional[Tuple[str, str]]:
                 if k in _CORPUS_PROMPT_FIELDS and v:
                     return (_CORPUS_PROMPT_FIELDS[k], v)
         return None
-    region = sel.metadata_region(text)
+    region = meta.metadata_region(text)
     for ln in region.splitlines():
         m = re.match(r"^-\s*([A-Za-z][A-Za-z0-9 /-]*?):\s*(.+?)\s*$", ln)
         if m and m.group(1) in _CORPUS_BULLET_FIELDS:

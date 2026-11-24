@@ -113,7 +113,7 @@ class TestReprWrappedSites(unittest.TestCase):
             self.assertNotIn("\t", detail)
             self.assertNotIn("\n", detail)
             self.assertNotIn("\r", detail)
-            # plans_mod.read_status normalizes unrecognized status to 'legacy/unknown'
+            # plans.normalize_status (via artifact_meta.read_text) normalizes unrecognized status to 'legacy/unknown'
             expected = f"plan status {'legacy/unknown'!r}"
             self.assertEqual(detail, expected)
 

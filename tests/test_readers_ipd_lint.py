@@ -350,7 +350,7 @@ def test_ipd_m105_conforming(tmp_path: Path) -> None:
     assert res_text.disposition == S.DISPOSITION_LEGACY
     assert L.C_META_PATH not in _codes(res_text)
 
-    # Also verify D-1 normalized multi-word EXECUTED via plans.read_status
+    # Also verify D-1 normalized multi-word EXECUTED via artifact_meta.read_text
     multi_text = _build_plan_text(
         id6="m105mw",
         date="2026-10-01",

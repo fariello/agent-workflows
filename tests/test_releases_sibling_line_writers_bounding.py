@@ -20,7 +20,7 @@ import unittest
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from agent_workflows import artifact_meta, releases, selectors
+from agent_workflows import artifact_meta, releases
 from tests.record_builder import RecordBuilder
 from tests.support import run_cli
 
@@ -131,7 +131,7 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
                     body_after = res.partition("## Description")[2]
                     self.assertEqual(body_after, body_before)
                     self.assertIn(f"- {field}: {old_val}\n", body_after)
-                    region = selectors.metadata_region(res)
+                    region = artifact_meta.metadata_region(res)
                     self.assertNotIn(f"- {field}:", region)
 
     def test_no_front_matter_line_adds_one_and_preserves_body(self) -> None:
@@ -147,7 +147,7 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
                 body_after = res.partition("## Description")[2]
                 self.assertEqual(body_after, body_before)
                 self.assertIn(f"- {field}: quote_val\n", body_after)
-                region = selectors.metadata_region(res)
+                region = artifact_meta.metadata_region(res)
                 self.assertEqual(region.count(f"- {field}:"), 1)
                 self.assertIn(f"- {field}: {new_val}\n", region)
 
@@ -160,7 +160,7 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
             with self.subTest(writer=key, field=field):
                 fixture = _make_fixture(field, old_val)
                 res = _write(fixture, key, new_val)
-                region = selectors.metadata_region(res)
+                region = artifact_meta.metadata_region(res)
                 self.assertEqual(region.count(f"- {field}:"), 1)
                 self.assertIn(f"- {field}: {new_val}\n", region)
                 self.assertNotIn(f"- {field}: {old_val}\n", region)
@@ -169,7 +169,7 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
         """(e2) ANCHOR-IN-BODY: a fixture whose region carries - Id: but NOT the writer's
 
         preferred anchor (- Status:, or - Scope-Paths: for Item-Dependencies) while
-        the body quotes that anchor bullet: the new line lands inside selectors.metadata_region
+        the body quotes that anchor bullet: the new line lands inside artifact_meta.metadata_region
         of the output (or, with no in-region anchor at all, the text is returned unchanged)
         and the body is byte-identical.
         """
@@ -193,7 +193,7 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
         res_deps = _write(text_deps, "item_dependencies", "executed:abc123")
         body_after_deps = res_deps.partition("## Description")[2]
         self.assertEqual(body_after_deps, body_before_deps)
-        region_deps = selectors.metadata_region(res_deps)
+        region_deps = artifact_meta.metadata_region(res_deps)
         self.assertIn("- Item-Dependencies: executed:abc123\n", region_deps)
         self.assertEqual(region_deps.count("- Item-Dependencies:"), 1)
 
@@ -221,7 +221,7 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
                 res = _write(text_stat, key, new_val)
                 body_after = res.partition("## Description")[2]
                 self.assertEqual(body_after, body_before)
-                region = selectors.metadata_region(res)
+                region = artifact_meta.metadata_region(res)
                 self.assertIn(f"- {field}: {new_val}\n", region)
                 self.assertEqual(region.count(f"- {field}:"), 1)
 
@@ -275,7 +275,7 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
         self.assertEqual(body_res, body_orig)
         self.assertIn("- Graduated-To: aaa, bbb\n", body_res)
 
-        region = selectors.metadata_region(res)
+        region = artifact_meta.metadata_region(res)
         self.assertEqual(region.count("- Graduated-To:"), 1)
         self.assertIn("- Graduated-To: ccc\n", region)
         self.assertNotIn("- Graduated-To: aaa", region)
@@ -368,7 +368,7 @@ class TestReleasesSiblingLineWritersBounding(unittest.TestCase):
                 proc.returncode, 0, f"stderr: {proc.stderr}\nstdout: {proc.stdout}"
             )
             written = item_path.read_text(encoding="utf-8")
-            region = selectors.metadata_region(written)
+            region = artifact_meta.metadata_region(written)
             body = written.partition("## Description")[2]
 
             self.assertIn("- Work-Kind: feature\n", region)

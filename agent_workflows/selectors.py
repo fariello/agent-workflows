@@ -45,7 +45,7 @@ the strict status reader `_read_status` and `plans_index` provably disagree on 2
 THE CONTENT RULES READ THE METADATA REGION, NOT THE WHOLE BODY (IPD `76w6mq`). The `id6`, `setid`
 and `status` rules match only within a record's leading metadata region - the bullet block before
 the first `##` heading, or the leading `---` fence for a YAML-front-matter document - as computed by
-`metadata_region`. This is the ARTIFACTS-NOT-MENTIONS contract (see the precedence note below)
+`artifact_meta.metadata_region`. This is the ARTIFACTS-NOT-MENTIONS contract (see the precedence note below)
 applied to quoted METADATA specifically: a document that QUOTES an example `- Id: <id6>` block is
 discussing that id6, not claiming it, so it must not resolve as it. Unbounded, such a quotation
 made the REAL artifact unaddressable by every status verb via an id6 collision that `--force`
@@ -359,7 +359,7 @@ def record_dirs(repo_root: Path, record_type: str) -> List[Path]:
 
 # --- THE THREE CONTENT READERS ARE BOUNDED TO THE METADATA REGION (IPD `76w6mq`) ---------------
 #
-# All three consult `metadata_region(text)`, NOT the whole text, and the bounding is what makes a
+# All three consult `artifact_meta.metadata_region(text)`, NOT the whole text, and the bounding is what makes a
 # quotation a quotation. Unbounded, ANY `- Id: <id6>` line anywhere in a document claimed that
 # document's identity, so a file QUOTING an example metadata block was read as ASSERTING the quoted
 # id6 - which collided with the real artifact and made it UNADDRESSABLE by every status verb, with
@@ -443,7 +443,7 @@ def _is_yaml_front_matter(text: str) -> bool:
 def _read_id(text: str) -> str | None:
     from agent_workflows import artifact_meta as _meta
 
-    region = metadata_region(text)
+    region = _meta.metadata_region(text)
     st = _meta.read_text(region)
     if not st.id6:
         return None
@@ -460,7 +460,7 @@ def _read_status(text: str) -> str | None:
     from agent_workflows import artifact_meta as _meta
     from agent_workflows import plans as _plans
 
-    st = _meta.read_text(metadata_region(text))
+    st = _meta.read_text(_meta.metadata_region(text))
     raw = st.legacy_raw_status
     if not raw:
         return None
@@ -480,7 +480,7 @@ def _read_status(text: str) -> str | None:
 def _read_setid(text: str) -> str | None:
     from agent_workflows import artifact_meta as _meta
 
-    return _meta.read_text(metadata_region(text)).legacy_raw_set
+    return _meta.read_text(_meta.metadata_region(text)).legacy_raw_set
 
 
 def _first_set_token(value: str) -> str | None:
@@ -532,13 +532,6 @@ def _metadata_region_complete(chunk: str) -> bool:
     """
 
     return _METADATA_END_RE.search(chunk) is not None
-
-
-def metadata_region(text: str) -> str:
-    """Return the leading METADATA REGION of a record (delegates to `artifact_meta.metadata_region`)."""
-    from agent_workflows import artifact_meta as _meta
-
-    return _meta.metadata_region(text)
 
 
 def _read_header(p: Path) -> str | None:
@@ -1010,7 +1003,7 @@ def resolve(
                 if st is None:
                     hdr = _read_header(p)
                     if hdr is not None:
-                        st = _meta.read_text(metadata_region(hdr))
+                        st = _meta.read_text(_meta.metadata_region(hdr))
                 if st is not None:
                     out.append((p, st))
             states = out
@@ -1104,7 +1097,7 @@ def resolve(
 def declares_id6(path: Path, id6: str) -> bool:
     """True iff the file at ``path`` DECLARES ``id6`` as its own identity.
 
-    Reads the WHOLE file and bounds the search to `metadata_region`, so a QUOTED example
+    Reads the WHOLE file and bounds the search to `artifact_meta.metadata_region`, so a QUOTED example
     ``- Id:`` block in a body is not read as a declaration (the same ARTIFACTS-NOT-MENTIONS rule
     the selector readers apply, just without the byte bound). Reuses the module's own `_read_id`
     rather than adding a third identity reader.
@@ -1227,7 +1220,7 @@ def _declares_typed_subject(path: Path, id6: str) -> bool:
         return False
     from agent_workflows import artifact_meta as _meta
 
-    st = _meta.read_text(metadata_region(text))
+    st = _meta.read_text(_meta.metadata_region(text))
     return any(
         st.fields.get(k) == id6
         for k in (

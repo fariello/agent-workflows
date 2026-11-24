@@ -142,33 +142,6 @@ def _cached_states_by_path(root: Path) -> Dict[Path, object]:
     return by_path
 
 
-def read_status(md: Path, text: Optional[str] = None) -> Optional[str]:
-    """Return the canonical readiness status via `artifact_meta`, or None."""
-    from agent_workflows import artifact_meta as _meta
-    from agent_workflows import project_context as _proj_ctx
-
-    if text is not None:
-        return _status_from_state(_meta.read_text(text, record_type="ipd"))
-
-    owner = _proj_ctx.record_owner_root(md)
-    if owner is not None:
-        try:
-            by_path = _cached_states_by_path(owner)
-            st = by_path.get(md.resolve())
-            if st is not None:
-                return _status_from_state(st)
-        except OSError:
-            return None
-        except Exception:
-            pass
-
-    try:
-        content = md.read_text(encoding="utf-8")
-    except OSError:
-        return None
-    return _status_from_state(_meta.read_text(content, record_type="ipd"))
-
-
 def read_set(md: Path) -> "tuple[Optional[str], Optional[int]]":
     """Return the advisory ``(set_id, order)`` parsed via `artifact_meta.read_text` (D82).
 
@@ -250,9 +223,14 @@ def scan(root: Path, include_prompts: bool = True) -> List[PlanRecord]:
                     if f.name == "README.md":
                         continue
                     st = by_path.get(f.resolve())
-                    status = (
-                        _status_from_state(st) if st is not None else read_status(f)
-                    )
+                    if st is None:
+                        try:
+                            st = _meta.read_text(
+                                f.read_text(encoding="utf-8"), record_type="ipd"
+                            )
+                        except OSError:
+                            st = None
+                    status = _status_from_state(st) if st is not None else None
                     set_id, order = read_set(f)
                     records.append(PlanRecord(f, area, disp, status, set_id, order))
     return records

@@ -392,8 +392,11 @@ def test_multiword_executed_plan_disagreement_fixture(tmp_path: Path) -> None:
     )
     multi_text = fx["p_multi"].read_text(encoding="utf-8")
 
-    # Canonical plan status reader already reports 'executed'
-    assert plans.read_status(fx["p_multi"]) == "executed"
+    # Canonical plan status reader (artifact_meta.read_text, as plans.scan uses) reports 'executed'
+    assert (
+        plans._status_from_state(artifact_meta.read_text(multi_text, record_type="ipd"))
+        == "executed"
+    )
 
     # D-1 convergence: selector path and filter path both normalize multi-word EXECUTED to 'executed'
     rc_flt, out_flt, _ = _run_find(repo, "plans", "--status", "executed", "--paths")

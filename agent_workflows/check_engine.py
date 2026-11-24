@@ -2084,7 +2084,7 @@ _HAS_DIGIT_RE = _re.compile(r"\d")
 # what identity IS, which is the precise defect shape `check_collisions`'s own docstring records.
 #
 # ONE helper, imported rather than re-derived: a second local region parser is how the reader drift
-# documented at `selectors.read_front_matter_id` happened before.
+# between the former `selectors` loose readers and their callers happened before.
 
 
 def _metadata_region(text: str) -> str:
@@ -12282,7 +12282,7 @@ def check_ipd_lint_reach(
         if not _lint._m105_terminal_date_applies(raw_date):
             continue
 
-        status = _plans.read_status(p, text=text)
+        status = _plans._status_from_state(st_date)
         if status is None:
             continue
 

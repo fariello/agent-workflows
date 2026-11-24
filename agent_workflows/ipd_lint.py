@@ -2776,7 +2776,7 @@ class LintResult(NamedTuple):
 #: legacy plans dated 2026-06-30..2026-07-11 carrying prose or upper-case status lines
 #: (e.g. `EXECUTED`). Those plans cannot be modified because AGENTS.md and the
 #: `ipd-executed-transition-gate` hook forbid adding commits to plans in executed/.
-#: Evaluating normalized status via `plans.read_status` yields 0 errors across all 727+
+#: Evaluating normalized status via `artifact_meta.read_text` (as `plans.scan` does) yields 0 errors across all 727+
 #: terminal plans.
 #:
 #: SET STRICTLY AFTER 2026-07-11, the newest affected plan date, mirroring the
