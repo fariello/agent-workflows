@@ -55,7 +55,7 @@ FIXTURE_FAMILY_4VN040 = (
     Path(
         ".aw/records/backlog/graduated/20260923-envhermet-01-4vn040-turn-bounds.backlog.md"
     ),
-    B.parse_item(_TEXT_FAMILY_4VN040),
+    B.item_from_text(_TEXT_FAMILY_4VN040),
     _TEXT_FAMILY_4VN040,
 )
 
@@ -76,7 +76,7 @@ FIXTURE_FAMILY_06NGNX = (
     Path(
         ".aw/records/backlog/graduated/20260923-envhermet-01-06ngnx-turn-bounds.backlog.md"
     ),
-    B.parse_item(_TEXT_FAMILY_06NGNX),
+    B.item_from_text(_TEXT_FAMILY_06NGNX),
     _TEXT_FAMILY_06NGNX,
 )
 
@@ -94,7 +94,7 @@ _TEXT_FAMILY_MEPBMP = RecordBuilder().backlog(
 )
 FIXTURE_FAMILY_MEPBMP = (
     Path(".aw/records/backlog/done/20260922-mepbmp-01-mepbmp-turn-bounds.backlog.md"),
-    B.parse_item(_TEXT_FAMILY_MEPBMP),
+    B.item_from_text(_TEXT_FAMILY_MEPBMP),
     _TEXT_FAMILY_MEPBMP,
 )
 
@@ -113,7 +113,7 @@ _TEXT_FAMILY_WNABNS = RecordBuilder().backlog(
 )
 FIXTURE_FAMILY_WNABNS = (
     Path(".aw/records/backlog/open/20260922-wnabns-01-wnabns-turn-bounds.backlog.md"),
-    B.parse_item(_TEXT_FAMILY_WNABNS),
+    B.item_from_text(_TEXT_FAMILY_WNABNS),
     _TEXT_FAMILY_WNABNS,
 )
 
@@ -136,7 +136,7 @@ _TEXT_UNRELATED_Q6BBDB = RecordBuilder().backlog(
 )
 FIXTURE_UNRELATED_Q6BBDB = (
     Path(".aw/records/backlog/open/20260923-q6bbdb-01-q6bbdb-slow-failures.backlog.md"),
-    B.parse_item(_TEXT_UNRELATED_Q6BBDB),
+    B.item_from_text(_TEXT_UNRELATED_Q6BBDB),
     _TEXT_UNRELATED_Q6BBDB,
 )
 
@@ -154,7 +154,7 @@ _TEXT_UNRELATED_4BHXNI = RecordBuilder().backlog(
 )
 FIXTURE_UNRELATED_4BHXNI = (
     Path(".aw/records/backlog/open/20260923-4bhxni-01-4bhxni-turn-budget.backlog.md"),
-    B.parse_item(_TEXT_UNRELATED_4BHXNI),
+    B.item_from_text(_TEXT_UNRELATED_4BHXNI),
     _TEXT_UNRELATED_4BHXNI,
 )
 
@@ -173,7 +173,7 @@ _TEXT_UNRELATED_1Z58ZM = RecordBuilder().backlog(
 )
 FIXTURE_UNRELATED_1Z58ZM = (
     Path(".aw/records/backlog/open/20260923-1z58zm-01-1z58zm-unmerged-lane.backlog.md"),
-    B.parse_item(_TEXT_UNRELATED_1Z58ZM),
+    B.item_from_text(_TEXT_UNRELATED_1Z58ZM),
     _TEXT_UNRELATED_1Z58ZM,
 )
 

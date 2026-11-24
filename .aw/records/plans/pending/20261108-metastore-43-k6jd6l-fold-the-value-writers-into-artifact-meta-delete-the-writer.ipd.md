@@ -139,6 +139,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-298-po3o1c-move-the-backlog-parse-item-metadata-callers-onto-artifact-m.ipd.md
 - E-18: removing the metadata part of `backlog.parse_item` and the subset-2 check (V-18): Moved to vw88h0 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: vw88h0
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-299-vw88h0-remove-the-metadata-part-of-backlog-parse-item-and-verify-th.ipd.md
 - The `check_engine`, runner, setter and release parsers and regex literals of `9o83cr` E-12.
   - Carrier: e8420v
 - The remaining module regex literals of `9o83cr` E-12.

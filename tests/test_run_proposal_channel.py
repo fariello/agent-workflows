@@ -653,11 +653,11 @@ def test_injection_attempt_neutralized(tmp_path: Path, runner_name: str) -> None
     content = bl_files[0].read_text(encoding="utf-8")
 
     # Front-matter status is open, not approved
-    from agent_workflows.backlog import parse_item
+    from agent_workflows import artifact_meta
 
-    parsed = parse_item(content)
-    assert parsed.status == "open"
-    assert parsed.id != "fake99"
+    fields = artifact_meta.read_text(content, record_type="backlog").fields
+    assert fields.get("status") == "open"
+    assert fields.get("id") != "fake99"
 
 
 def test_coordinator_performer_retries_on_raced_tip(tmp_path: Path) -> None:
@@ -2074,8 +2074,10 @@ def test_coordinator_material_proposal_truncates_summary_and_slug_on_word_bounda
         "Proposal from trc001: Create and execute a scoped "
         "follow-up plan for coordinator"
     )
-    parsed_item = backlog.parse_item(bl_text)
-    assert parsed_item.summary == expected_summary
+    from agent_workflows import artifact_meta
+
+    fields = artifact_meta.read_text(bl_text, record_type="backlog").fields
+    assert fields.get("summary") == expected_summary
     assert "Create and execute a sco\n" not in bl_text
 
     parsed_name = artifact_naming.parse_clustered(bl_file.name)

@@ -100,28 +100,6 @@ GATE_DEFAULT_KINDS = _config.RELEASE_GATE_WORK_KINDS_DEFAULT
 # attention view hides it), so gating a release on one asserts an obligation nobody has taken on.
 _GATE_DEFAULT_SKIP_STATUSES = frozenset(("done", "parked"))
 
-# Bullet-metadata field regexes (mirroring attention_contract's SPEC_STATUS_RE / GATE_*_RE style).
-_ID_RE = re.compile(r"^- Id:[ \t]*(?P<value>\S+)[ \t]*$")
-_STATUS_RE = re.compile(r"^- Status:[ \t]*(?P<value>\S+)[ \t]*$")
-_SET_RE = re.compile(r"^- Set:[ \t]*(?P<value>\S+)[ \t]*$")
-_PRIORITY_RE = re.compile(r"^- Priority:[ \t]*(?P<value>\S+)[ \t]*$")
-# wkindname Order 01 (9trlc3) E-01: DUAL-READ window for the work-nature field. `- Work-Kind:` is the
-# canonical on-disk spelling; `- Kind:` is the legacy one, still ACCEPTED so a partially migrated tree,
-# a long-lived branch, or a stash never stops parsing. Both patterns are anchored on the FULL LINE and
-# never on the bare token `Kind`, because this same module parses a DISTINCT `- Gate-Kind:` field
-# (see `A.GATE_KIND_RE` below) that a substring-based match would silently capture or corrupt.
-# The window is deliberately RETAINED after the corpus migration as cheap insurance; it is not dead code.
-_WORK_KIND_RE = re.compile(r"^- Work-Kind:[ \t]*(?P<value>\S+)[ \t]*$")
-_KIND_RE = re.compile(r"^- Kind:[ \t]*(?P<value>\S+)[ \t]*$")
-_SUMMARY_RE = re.compile(r"^- Summary:[ \t]*(?P<value>.+?)[ \t]*$")
-_BLOCKS_RELEASE_RE = re.compile(r"^- Blocks-Release:[ \t]*(?P<value>\S+)[ \t]*$")
-_RELEASE_EXEMPT_KIND_RE = re.compile(
-    r"^- Release-Exempt-Kind:[ \t]*(?P<value>\S+)[ \t]*$"
-)
-_RELEASE_EXEMPT_REF_RE = re.compile(
-    r"^- Release-Exempt-Ref:[ \t]*(?P<value>.+?)[ \t]*$"
-)
-_CLOSE_EVIDENCE_RE = re.compile(r"^- Close-Evidence:[ \t]*(?P<value>.+?)[ \t]*$")
 _WORKFLOW_HISTORY_HEADING_RE = re.compile(r"(?m)^## Workflow history[ \t]*$")
 _TOP_KEY_RE = re.compile(r"^- ([A-Za-z0-9_-]+):(?:\s*(.*))?$")
 _TEMPLATE_OWNED_KEYS = frozenset(
@@ -339,64 +317,6 @@ class BacklogItem:
         self.close_evidence: Optional[str] = None
 
 
-def parse_item(text: str) -> BacklogItem:
-    """Parse the leading bullet-metadata block. Missing fields stay None (validation reports them)."""
-
-    item = BacklogItem()
-    # E-01 dual-read: collect the two spellings separately so precedence is resolved ONCE, after the
-    # scan, rather than depending on which line happened to come first in the file.
-    work_kind = None
-    legacy_kind = None
-    for line in text.replace("\r\n", "\n").split("\n"):
-        if line.startswith("## ") or (line and not line.startswith("- ")):
-            # metadata block ends at the first non-bullet, non-blank line or the first H2
-            if line.startswith("## "):
-                break
-            # Allow leading H1 title (e.g. # Backlog Item bk0001) before bullet metadata
-            if (
-                line.startswith("# ")
-                and not line.startswith("## ")
-                and item.id is None
-                and item.status is None
-            ):
-                continue
-            # a non-bullet content line: metadata block is over
-            if line.strip() and not line.startswith("- "):
-                break
-        for attr, rx in (
-            ("id", _ID_RE),
-            ("status", _STATUS_RE),
-            ("set", _SET_RE),
-            ("priority", _PRIORITY_RE),
-            ("summary", _SUMMARY_RE),
-            ("blocks_release", _BLOCKS_RELEASE_RE),
-            ("release_exempt_kind", _RELEASE_EXEMPT_KIND_RE),
-            ("release_exempt_ref", _RELEASE_EXEMPT_REF_RE),
-            ("close_evidence", _CLOSE_EVIDENCE_RE),
-        ):
-            m = rx.match(line)
-            if m and getattr(item, attr) is None:
-                setattr(item, attr, m.group("value"))
-        # E-01 dual-read: match each spelling on its OWN full-line pattern. `- Gate-Kind:` cannot
-        # satisfy either, which is the whole point of anchoring on the full line.
-        mw = _WORK_KIND_RE.match(line)
-        if mw and work_kind is None:
-            work_kind = mw.group("value")
-        mk_legacy = _KIND_RE.match(line)
-        if mk_legacy and legacy_kind is None:
-            legacy_kind = mk_legacy.group("value")
-        mk = A.GATE_KIND_RE.match(line)
-        if mk and item.gate_kind is None:
-            item.gate_kind = mk.group("value")
-        mr = A.GATE_REF_RE.match(line)
-        if mr and item.gate_ref is None:
-            item.gate_ref = mr.group("value")
-    # E-01 precedence: the canonical spelling WINS when an item somehow carries both (e.g. a
-    # half-merged branch). Absent both, `kind` stays None and validation reports it, unchanged.
-    item.kind = work_kind if work_kind is not None else legacy_kind
-    return item
-
-
 def _single_token(value: object) -> Optional[str]:
     if value is None:
         return None
@@ -416,7 +336,7 @@ def item_from_text(text: str) -> BacklogItem:
 
     Single-token fields (``Id``, ``Status``, ``Set``, ``Priority``, ``Work-Kind``, ``Gate-Kind``,
     ``Blocks-Release``, ``Release-Exempt-Kind``) are ``None`` unless the value is one token, as the
-    ``\\S+`` patterns of :func:`parse_item` required; the descriptive fields keep their whole value.
+    retired ``\\S+`` patterns of ``parse_item`` required; the descriptive fields keep their whole value.
     """
     from agent_workflows import artifact_meta as _meta
 
@@ -483,8 +403,8 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
     drift: List[core.Drift] = []
     item = item_from_text(text)
 
-    # Duplicate-bullet rule (IPD 7ohskw E-02): walk the leading bullet block using parse_item's
-    # boundary and canonicalize the legacy Kind spelling.
+    # Duplicate-bullet rule (IPD 7ohskw E-02): walk the leading bullet block using the retired
+    # parse_item's boundary and canonicalize the legacy Kind spelling.
     gate_summary: Optional[str] = None
     key_counts: Dict[str, int] = {}
     for line in text.replace("\r\n", "\n").split("\n"):
@@ -657,7 +577,7 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
 
     # gateatrest f7igdu E-02: validate close_evidence shape fail-closed.
     # gh409m byzkr7 E-05/E-06: with check_engine._META_CLOSE_EVIDENCE_RE widened to (.+?) matching
-    # _CLOSE_EVIDENCE_RE, any value that passes attention_contract.is_safe_descriptive (single bounded
+    # the retired backlog._CLOSE_EVIDENCE_RE, any value that passes attention_contract.is_safe_descriptive (single bounded
     # control-char-free line) is readable by both parser and predicate reader. Resolvability is not checked
     # here (f7igdu design constraint: shape checker with no repo root). No new drift rule is required.
     if item.close_evidence is not None and not A.is_safe_descriptive(
