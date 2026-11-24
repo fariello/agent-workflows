@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5 allows exactly one metadata reader (`artifact_meta`), and `artifact_meta`'s legacy loader still borrows seven grammars from other modules. Part 8 of the round-3 split of `k6jd6l` (Order 43, research `nj8zdp` guidance): this part moves the two block parsers, `ipd_schema.parse_metadata_block` and `prompts_index._parse_metadata_comment`. Measured callers at `f83159217`: `ipd_lint.parse` (1); `prompts_index.scan_prompts` and `prompts_index.check_drift` (2); `check_engine.validate_prompt_content` (1); `cli._find_prompt_setid` (1); tests `tests/test_ipd_schema.py` (4) and `tests/test_from_backlog_cardinality.py` (1).
 - Scope: The `parse_metadata_block` and `_parse_metadata_comment` part of `k6jd6l` E-10. Keep `ipd_schema.parse_item_dependencies` (it parses a VALUE, not a block) and the E/V checklist and section grammar of `ipd_schema` (N3). EXCLUDES `ipd_schema._META_LINE_RE` and `_READINESS_LINE_RE`, which Order 246 (`nx7fws`) deletes after `k6jd6l`: `artifact_meta` gets its own private line grammar and `ipd_schema._META_LINE_RE` stays for `ipd_lint.parse`'s other use until Order 246.
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/ipd_schema.py, agent_workflows/ipd_lint.py, agent_workflows/prompts_index.py, agent_workflows/check_engine.py, agent_workflows/cli.py, tests/test_ipd_schema.py, tests/test_from_backlog_cardinality.py, .aw/records/plans/pending/20261109-metastore-287-ad86ym-move-parse-metadata-block-and-parse-metadata-comment-into-ar.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261124-imstpg-01-imstpg-stale-comment-in-ipd-authoring-py-near-line-940-na.backlog.md (Defect-report carrier required by the driver contract each finding filed via aw backlog new: records the stale comment in ipd_authoring.py that names the moved ipd_schema.parse_metadata_block ipd_auth...)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:8fxic1, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ad86ym
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: ad86ym verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261124-imstpg-01-imstpg-stale-comment-in-ipd-authoring-py-near-line-940-na.backlog.md: Defect-report carrier required by the driver contract (each finding filed via aw backlog new): records the stale comment in ipd_authoring.py that names the moved ipd_schema.parse_metadata_block; ipd_authoring.py is outside this plan's Scope-Paths so the fix is deferred to that item; in-scope-unmodified agent_workflows/check_engine.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/cli.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007; review record .aw/records/reviews/20261109-metastore-287-ad86ym-move-parse-metadata-block-and-parse-metadata-comment-into-ar.review.md
