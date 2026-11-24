@@ -42,30 +42,30 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 
 ### Task group 1: one module per item
 
-- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` and `.aw/state/k6jd6l/` exist (`mkdir -p .aw/state/9o83cr/ .aw/state/k6jd6l/`), save the baseline test PIN list to `.aw/state/9o83cr/E-10f-before.txt`, and save baseline attention json to `.aw/state/k6jd6l/attention-292-before.json`. In the six `attention` record builders (`attention._prompts_record`, `_release_record`, `_spec_record`, `_plans_record`, `_research_record`, `_backlog_record`), replace `A.last_history_at(A.history_block(text).records)` with the `artifact_meta` history functions.
+- [x] E-01 Before the first edit, ensure `.aw/state/9o83cr/` and `.aw/state/k6jd6l/` exist (`mkdir -p .aw/state/9o83cr/ .aw/state/k6jd6l/`), save the baseline test PIN list to `.aw/state/9o83cr/E-10f-before.txt`, and save baseline attention json to `.aw/state/k6jd6l/attention-292-before.json`. In the six `attention` record builders (`attention._prompts_record`, `_release_record`, `_spec_record`, `_plans_record`, `_research_record`, `_backlog_record`), replace `A.last_history_at(A.history_block(text).records)` with the `artifact_meta` history functions.
   - Depends on: none
   - Expected outcome: `attention` calls no `A.history_block` or `A.last_history_at`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `check_engine._item_close_date`, `_item_graduated_date` and `_spec_implementing_date`, replace `_ac.history_block`/`_ac.last_history_at` with the `artifact_meta` history functions.
+- [x] E-02 In `check_engine._item_close_date`, `_item_graduated_date` and `_spec_implementing_date`, replace `_ac.history_block`/`_ac.last_history_at` with the `artifact_meta` history functions.
   - Depends on: E-01
   - Expected outcome: `check_engine` calls no `_ac` history function.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Copy `SPEC_STATUS_RE` into `artifact_meta` (private) if the loader needs it, and change `specs._find_status_index`, `specs._read_status` and `research_index._spec_is_implemented` to read the spec status through `artifact_meta.read_text` (or the private grammar through a public `artifact_meta` helper if a line index is needed, as `specs._find_status_index` returns one).
+- [x] E-03 Copy `SPEC_STATUS_RE` into `artifact_meta` (private) if the loader needs it, and change `specs._find_status_index`, `specs._read_status` and `research_index._spec_is_implemented` to read the spec status through `artifact_meta.read_text` (or the private grammar through a public `artifact_meta` helper if a line index is needed, as `specs._find_status_index` returns one).
   - Depends on: E-02
   - Expected outcome: neither module references `SPEC_STATUS_RE`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Delete `attention_contract.history_block` (and `HistoryBlock` if nothing else uses it), `newest_history_record`, `last_history_at` and `SPEC_STATUS_RE`; retarget `tests/test_attention_contract.py` and `tests/test_history_block_bounding.py` to the `artifact_meta` functions, keeping every case.
+- [x] E-04 Delete `attention_contract.history_block` (and `HistoryBlock` if nothing else uses it), `newest_history_record`, `last_history_at` and `SPEC_STATUS_RE`; retarget `tests/test_attention_contract.py` and `tests/test_history_block_bounding.py` to the `artifact_meta` functions, keeping every case.
   - Depends on: E-03
   - Expected outcome: `attention_contract` defines none of the four.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Save the after-list and run `tests/test_artifact_meta_legacy.py` and `tests/test_ipd_lint.py`; commit through `aw commit csobg7 -- <paths>`.
+- [x] E-05 Save the after-list and run `tests/test_artifact_meta_legacy.py` and `tests/test_ipd_lint.py`; commit through `aw commit csobg7 -- <paths>`.
   - Depends on: E-04
   - Expected outcome: no pinned case is dropped; both extra modules pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -124,30 +124,93 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "A\.(history_block|last_history_at)" agent_workflows/attention.py` printing nothing and the `diff` of `aw attention --format json` against `.aw/state/k6jd6l/attention-292-before.json` (empty).
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "A\.(history_block|last_history_at)" agent_workflows/attention.py
+    (no output, rc=1)
+    $ aw attention --format json > /tmp/opencode/attention-292-after.json
+    $ diff .aw/state/k6jd6l/attention-292-before.json /tmp/opencode/attention-292-after.json
+    (no output) attn_diff_rc=0   # both files 3397684 bytes
+    ```
+    At the starting HEAD `f6be86564` the six record builders already read history through `_last_history_at_for_state` (moved by an earlier metastore plan); the residual `A.last_history_at` calls were in `attention._last_history_at_for_state`, now `_meta._last_history_at`, and the `attention._history_section_lines` docstring now names `artifact_meta.history_records` (decision 06-csobg7-D1).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "_ac\.(history_block|last_history_at)" agent_workflows/check_engine.py` printing nothing and the before/after per-test lines of `tests/test_check_engine.py`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "_ac\.(history_block|last_history_at)" agent_workflows/check_engine.py
+    (no output, rc=1)
+    $ diff <(grep test_check_engine .aw/state/9o83cr/E-10f-before.txt) <(grep test_check_engine .aw/state/9o83cr/E-10f-after.txt)
+    (no output: the same 57 PASSED lines before and after)
+    ```
+    `_item_close_date`, `_item_graduated_date` and `_spec_implementing_date` now call `artifact_meta.history_records(...)` and `artifact_meta._last_history_at`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "SPEC_STATUS_RE" agent_workflows/specs.py agent_workflows/research_index.py` printing nothing and the before/after per-test lines of `tests/test_specs_status_dirs.py`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "SPEC_STATUS_RE" agent_workflows/specs.py agent_workflows/research_index.py
+    (no output, rc=1)
+    $ grep test_specs_status_dirs .aw/state/9o83cr/E-10f-after.txt   # identical to the before-list
+    PASSED tests/test_specs_status_dirs.py::LiveSpecsTreeInvariantTests::test_every_spec_directory_agrees_with_its_status
+    PASSED tests/test_specs_status_dirs.py::LiveSpecsTreeInvariantTests::test_specs_readme_documents_layout_and_has_no_en_or_em_dashes
+    PASSED tests/test_specs_status_dirs.py::SpecStatusDirectoriesTests::test_specs_run_new_places_file_in_draft_dir
+    PASSED tests/test_specs_status_dirs.py::SpecStatusDirectoriesTests::test_specs_run_set_relocates_file_on_transition
+    PASSED tests/test_specs_status_dirs.py::SpecStatusDirectoriesTests::test_specs_set_positional_dry_run_leaves_tree_unchanged
+    PASSED tests/test_specs_status_dirs.py::SpecStatusDirectoriesTests::test_specs_set_status_approved_dry_run_refuses_without_human_attestation
+    PASSED tests/test_specs_status_dirs.py::SpecStatusDirectoriesTests::test_specs_set_status_dry_run_leaves_file_and_tree_clean
+    PASSED tests/test_specs_status_dirs.py::SpecStatusDirectoriesTests::test_status_set_run_set_command_relocates_spec
+    ```
+    `SPEC_STATUS_RE` is now `artifact_meta._SPEC_STATUS_RE`, reached through the public `artifact_meta.spec_status_bullet(line)`, which `specs._find_status_index`/`_read_status` use because they need a line index. `research_index._spec_is_implemented` already read `artifact_meta.read_text(...).status` at the starting HEAD (decision 06-csobg7-D2).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n "def (history_block|last_history_at|newest_history_record)\b|SPEC_STATUS_RE\s*=" agent_workflows` listing only `artifact_meta.py`, and `rg -n "attention_contract\.(history_block|last_history_at|newest_history_record|SPEC_STATUS_RE)|A\.(history_block|last_history_at|newest_history_record|SPEC_STATUS_RE)" agent_workflows tools tests` printing nothing.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "def (history_block|last_history_at|newest_history_record)\b|SPEC_STATUS_RE\s*=" agent_workflows
+    agent_workflows/artifact_meta.py:2894:_SPEC_STATUS_RE = re.compile(r"^- Status:[ \t]*(?P<value>\S+)[ \t]*$")
+    $ rg -n "attention_contract\.(history_block|last_history_at|newest_history_record|SPEC_STATUS_RE)|A\.(history_block|last_history_at|newest_history_record|SPEC_STATUS_RE)" agent_workflows tools tests
+    (no output, rc=1)
+    ```
+    `HistoryBlock` was deleted too (no remaining user; `artifact_meta.HistoryBlock` is the live copy). The two callers this plan's measurement missed, `migrations/m0001_discover._has_sidecar_setter_history` and `tests/test_m0001_conversion.py`, were retargeted to `artifact_meta.history_records`; `tests/test_artifact_meta_legacy.py` parity tests now assert the originals' captured answers for every former case (decision 06-csobg7-D3).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `diff .aw/state/9o83cr/E-10f-before.txt .aw/state/9o83cr/E-10f-after.txt` with each rename mapped and no FAILED or ERROR line, the per-module pass counts of `python3 -m pytest -o addopts="" -rA tests/test_artifact_meta_legacy.py tests/test_ipd_lint.py`, and `git show --stat` of the `aw commit csobg7` commit.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ diff .aw/state/9o83cr/E-10f-before.txt .aw/state/9o83cr/E-10f-after.txt
+    (no output) diff_rc=0   # 177 lines each, 0 FAILED/ERROR lines; no test renamed, so no mapping is needed
+    $ python3 -m pytest -o addopts="" -rA tests/test_artifact_meta_legacy.py tests/test_ipd_lint.py -n 6
+         26 PASSED tests/test_artifact_meta_legacy.py
+         77 PASSED tests/test_ipd_lint.py
+    ============================= 103 passed in 39.27s =============================
+    $ aw suite
+    2889 passed, 1 skipped, 11 warnings in 111.08s (0:01:51)
+    $ python3 -m pytest -n 6 <357 test modules mentioning the edited modules>
+    6100 passed in 442.13s (0:07:22)
+    $ git show --stat 613adeab6
+    commit 613adeab618f10b869d1fd6b2f999336716786f6
+        csobg7: move the attention/check_engine history readers and SPEC_STATUS_RE onto artifact_meta and delete the attention_contract originals (...)
+     agent_workflows/artifact_meta.py             |  26 +++-
+     agent_workflows/attention.py                 |  13 +-
+     agent_workflows/attention_contract.py        | 216 +--------------------------
+     agent_workflows/check_engine.py              |  20 +--
+     agent_workflows/migrations/m0001_discover.py |   3 +-
+     agent_workflows/specs.py                     |   9 +-
+     tests/test_artifact_meta_legacy.py           | 117 ++++++++++++---
+     tests/test_attention_contract.py             |  19 +--
+     tests/test_history_block_bounding.py         |  26 ++--
+     tests/test_m0001_conversion.py               |   6 +-
+     tests/test_readers_attention.py              |   4 +-
+     11 files changed, 175 insertions(+), 284 deletions(-)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
