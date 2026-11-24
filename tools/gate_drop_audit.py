@@ -150,7 +150,7 @@ def census(repo_root: Path, *, naive: bool = False) -> Dict[str, Any]:
             item_text = item_path.read_text(encoding="utf-8")
         except OSError:
             continue
-        if check_engine._status_meta(item_text) != "done":
+        if artifact_meta.read_text(item_text, record_type="backlog").status != "done":
             continue
         if not check_engine._read_blocks_release(item_text):
             continue

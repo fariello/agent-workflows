@@ -3480,26 +3480,6 @@ def _git_capture(repo_root: Path, args: List[str]):
     return proc.returncode, proc.stdout, proc.stderr
 
 
-def _blob_text(repo_root: Path, ref: str, path: str) -> str | None:
-    """Content of ``path`` at ``ref`` (HEAD or the staged index ``:0:``), or None if absent."""
-    spec = f":0:{path}" if ref == ":0:" else f"{ref}:{path}"
-    rc, out, _err = _git_capture(repo_root, ["show", spec])
-    return out if rc == 0 else None
-
-
-def _metadata_status(text: str | None) -> str | None:
-    """The first ``- Status:`` value in the metadata region (lowercased), or None."""
-    if not text:
-        return None
-    m = _STATUS_META_RE.search(_metadata_region(text))
-    return m.group(1).strip().lower() if m else None
-
-
-def _status_meta(text: str | None) -> str | None:
-    """The metadata ``- Status: <value>`` value (lowercased), or None."""
-    return _metadata_status(text)
-
-
 def _is_plan_ipd_path(path: str) -> bool:
     """True for a plan IPD record path under .aw/records/plans/** (a ``.ipd.md``)."""
     p = path.strip().replace("\\", "/")

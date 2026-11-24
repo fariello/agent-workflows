@@ -16,15 +16,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_workflows import check_engine
+from agent_workflows import artifact_meta, check_engine
 from tests import support
 from tests.record_builder import RecordBuilder
 
 
 class CheckEngineStatusMetaTests(unittest.TestCase):
-    """Outcome cases for _status_meta, is_retired, and check_status_untooled."""
+    """Outcome cases for artifact_meta.read_text status, is_retired, and check_status_untooled."""
 
-    def test_status_meta_no_front_matter_fenced_quote_is_none(self):
+    def test_read_text_status_no_front_matter_fenced_quote_is_none(self):
         """Case (a) [REGRESSION TEST]: No front-matter status + ## Goal + fenced quote.
 
         DISCRIMINATES: Fails pre-change (returns 'executed' and is_retired=True),
@@ -44,14 +44,14 @@ class CheckEngineStatusMetaTests(unittest.TestCase):
             raw_fields={"Status": None},
             text_only=True,
         )
-        self.assertIsNone(check_engine._status_meta(text_a))
+        self.assertIsNone(artifact_meta.read_text(text_a).status)
 
         with tempfile.TemporaryDirectory(prefix="aw_test_active_") as tmp_dir:
             file_path = Path(tmp_dir) / "active-plan.ipd.md"
             file_path.write_text(text_a, encoding="utf-8")
             self.assertFalse(check_engine.is_retired(file_path))
 
-    def test_status_meta_front_matter_approved_with_fenced_quote(self):
+    def test_read_text_status_front_matter_approved_with_fenced_quote(self):
         """Case (b) [CONTROL]: Front matter - Status: approved + same fenced quote.
 
         CONTROL: Expected to pass before AND after.
@@ -70,9 +70,9 @@ class CheckEngineStatusMetaTests(unittest.TestCase):
             ),
             text_only=True,
         )
-        self.assertEqual(check_engine._status_meta(text_b), "approved")
+        self.assertEqual(artifact_meta.read_text(text_b).status, "approved")
 
-    def test_status_meta_headingless_first_bullet_approved(self):
+    def test_read_text_status_headingless_first_bullet_approved(self):
         """Case (c) [CONTROL]: Headingless plan, first bullet approved, later quotes executed.
 
         CONTROL: Expected to pass before AND after.
@@ -95,7 +95,7 @@ class CheckEngineStatusMetaTests(unittest.TestCase):
             "- Status: executed\n"
             "```\n"
         )
-        self.assertEqual(check_engine._status_meta(text_c), "approved")
+        self.assertEqual(artifact_meta.read_text(text_c).status, "approved")
 
     def test_check_status_untooled_fenced_quote_in_body_no_drift(self):
         """Case (d) [CONTROL]: Git repo end-to-end staged edit adding fenced quote produces no drift.
