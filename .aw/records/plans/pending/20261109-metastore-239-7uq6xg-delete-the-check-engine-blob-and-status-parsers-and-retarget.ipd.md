@@ -42,30 +42,35 @@ PIN RULE (carried from `9o83cr`): before an item's edit, save its named test mod
 
 ### Task group 1: callers first, then the parsers
 
-- [ ] E-01 Before the first edit, ensure `.aw/state/7uq6xg/` exists (`mkdir -p .aw/state/7uq6xg/`) and save baseline test PIN lists. In `agent_workflows/hooks/ipd_dependency_statement_gate.py`, replace `_ce._blob_text(repo_root, ":0:", ...)` and `_ce._status_meta(staged_text)` with `artifact_meta.read_text` on the staged blob (read with `git show :0:<path>` as today) and its `status` value.
+- [x] E-01 Before the first edit, ensure `.aw/state/7uq6xg/` exists (`mkdir -p .aw/state/7uq6xg/`) and save baseline test PIN lists. In `agent_workflows/hooks/ipd_dependency_statement_gate.py`, replace `_ce._blob_text(repo_root, ":0:", ...)` and `_ce._status_meta(staged_text)` with `artifact_meta.read_text` on the staged blob (read with `git show :0:<path>` as today) and its `status` value.
   - Depends on: none
   - Expected outcome: `rg -n "_blob_text|_status_meta" agent_workflows/hooks/ipd_dependency_statement_gate.py` prints nothing.
-  - Execution state: pending
+  - Execution note: 2026-11-24: `.aw/state/7uq6xg/` created and before-PIN lists saved for the three named modules; the hook needed no edit, because `snh19k` (commit `d8b803558`) had already moved `hooks/ipd_dependency_statement_gate._staged_ipd_overlay` onto `artifact_meta.read_at`, and `786w7r` F-26 records 0 references; see decision 16-7uq6xg-D1
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/status_set.py`, replace the `_ce._blob_text(repo_root, "HEAD", rel)` / `_ce._status_meta(head_text)` pair with `artifact_meta.read_at(id6, "HEAD")`'s `status`.
+- [x] E-02 In `agent_workflows/status_set.py`, replace the `_ce._blob_text(repo_root, "HEAD", rel)` / `_ce._status_meta(head_text)` pair with `artifact_meta.read_at(id6, "HEAD")`'s `status`.
   - Depends on: none
   - Expected outcome: `rg -n "_blob_text|_status_meta" agent_workflows/status_set.py` prints nothing; `tests/test_status_set.py` passes.
-  - Execution state: pending
+  - Execution note: 2026-11-24: no edit needed; `iqhzse` (commit `8f18c3b29`) had already moved the `status_set` HEAD read onto `artifact_meta.read_at` / `check_engine._plan_status_from_state`; `786w7r` F-26 records 0 references
+  - Execution state: performed
 
-- [ ] E-03 In `agent_workflows/runner_shared.py`, replace the one `check_engine._metadata_status(blob_txt)` call with `artifact_meta.read_text(blob_txt)`'s `status`; in `tools/gate_drop_audit.py`, replace `check_engine._status_meta(item_text)` with `artifact_meta.read_text(item_text)`'s `status`.
+- [x] E-03 In `agent_workflows/runner_shared.py`, replace the one `check_engine._metadata_status(blob_txt)` call with `artifact_meta.read_text(blob_txt)`'s `status`; in `tools/gate_drop_audit.py`, replace `check_engine._status_meta(item_text)` with `artifact_meta.read_text(item_text)`'s `status`.
   - Depends on: none
   - Expected outcome: `rg -n "_metadata_status|_status_meta" agent_workflows/runner_shared.py tools/gate_drop_audit.py` prints nothing; `tests/test_gate_drop_audit.py` passes.
-  - Execution state: pending
+  - Execution note: 2026-11-24: `runner_shared` had no `_metadata_status` call (removed by `8f18c3b29`); `tools.gate_drop_audit.census` retargeted to `artifact_meta.read_text(item_text, record_type="backlog").status` in commit `6d7062c29`
+  - Execution state: performed
 
-- [ ] E-04 In `agent_workflows/check_engine.py`, delete `check_engine._blob_text`, `check_engine._status_meta` and `check_engine._metadata_status`, changing each internal caller to `artifact_meta.read_at` or `read_text` (F-26 rows classed `delete (239)`).
+- [x] E-04 In `agent_workflows/check_engine.py`, delete `check_engine._blob_text`, `check_engine._status_meta` and `check_engine._metadata_status`, changing each internal caller to `artifact_meta.read_at` or `read_text` (F-26 rows classed `delete (239)`).
   - Depends on: E-01, E-02, E-03
   - Expected outcome: `rg -n "_blob_text|_status_meta\b|_metadata_status\b" agent_workflows tools` prints nothing.
-  - Execution state: pending
+  - Execution note: 2026-11-24: deleted `check_engine._blob_text`, `_metadata_status` and `_status_meta` (F26-47 to F26-50); no internal caller remained (`_status_meta` was the only caller of `_metadata_status`); commit `6d7062c29`
+  - Execution state: performed
 
-- [ ] E-05 Retarget `tests/test_check_engine_status_meta.py` from `check_engine._status_meta(text)` to `artifact_meta.read_text(text).status` (or the `is_retired`/`check_status_untooled` behavior it also covers), keeping cases a to c. Run `tests/test_check_engine_status_meta.py`, `tests/test_gate_drop_audit.py` and `tests/test_status_set.py`, and commit through `aw commit 7uq6xg -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-05 Retarget `tests/test_check_engine_status_meta.py` from `check_engine._status_meta(text)` to `artifact_meta.read_text(text).status` (or the `is_retired`/`check_status_untooled` behavior it also covers), keeping cases a to c. Run `tests/test_check_engine_status_meta.py`, `tests/test_gate_drop_audit.py` and `tests/test_status_set.py`, and commit through `aw commit 7uq6xg -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-04
   - Expected outcome: the three modules pass; `rg -n "_status_meta" tests` prints nothing.
-  - Execution state: pending
+  - Execution note: 2026-11-24: three `check_engine._status_meta(text_X)` assertions became `artifact_meta.read_text(text_X).status` with identical inputs and expected values; the three test methods were renamed `test_status_meta_*` to `test_read_text_status_*`; commit `6d7062c29`
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -124,30 +129,45 @@ No spec change; implements part of `4sd62s` 4.3.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "_blob_text|_status_meta" agent_workflows/hooks/ipd_dependency_statement_gate.py` printing nothing and the `git diff` hunk of the hook.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 2026-11-24, lane worktree 7uq6xg.
+    `rg -n "_blob_text|_status_meta" agent_workflows/hooks/ipd_dependency_statement_gate.py` printed nothing (rc=1).
+    No `git diff` hunk exists for the hook in this plan: the retarget was already done by `snh19k`, commit `d8b803558`, whose hook hunk replaced `staged_text = _ce._blob_text(repo_root, ":0:", new_path)` and `st = _ce._status_meta(staged_text)` with `artifact_meta` State reads (`overlay_states: Dict[str, object]`, "via ``artifact_meta.read_at``"). `786w7r` F-26 note: "`hooks/ipd_dependency_statement_gate.py` and `status_set.py` have 0 `_blob_text`/`_status_meta` references". Decision 16-7uq6xg-D1.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "_blob_text|_status_meta" agent_workflows/status_set.py` printing nothing, the PIN before/after lists of `tests/test_status_set.py`, and its summary line passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 2026-11-24. `rg -n "_blob_text|_status_meta" agent_workflows/status_set.py` printed nothing (rc=1); status_set.py was already retargeted by `iqhzse` commit `8f18c3b29`, so it is unedited here.
+    PIN: `diff .aw/state/7uq6xg/test_status_set-before.txt .aw/state/7uq6xg/test_status_set-after.txt` printed nothing (110 PASSED lines before and after, identical names).
+    Summary line of `python3 -m pytest -o addopts="" -v tests/test_check_engine_status_meta.py tests/test_gate_drop_audit.py tests/test_status_set.py`: `============================= 125 passed in 36.43s =============================`
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "_metadata_status|_status_meta" agent_workflows/runner_shared.py tools/gate_drop_audit.py` printing nothing and `python3 -m pytest -o addopts="" -v tests/test_gate_drop_audit.py` with every case PASSED.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 2026-11-24. `rg -n "_metadata_status|_status_meta" agent_workflows/runner_shared.py tools/gate_drop_audit.py` printed nothing (rc=1).
+    Diff (commit 6d7062c29): `-        if check_engine._status_meta(item_text) != "done":` / `+        if artifact_meta.read_text(item_text, record_type="backlog").status != "done":`
+    `python3 -m pytest -o addopts="" -v tests/test_gate_drop_audit.py`: all 10 PASSED (test_gated_done_item_superseded_carrier_reported_carrier_not_executed, test_persisted_close_evidence_not_reported, test_gated_done_item_executed_carrier_handoff_not_reported, test_gated_done_item_no_carrier_reported, test_pre_boundary_close_partitioned_pre_predicate, test_custom_message_flag_spelling_close_dated, test_read_only_property_preserves_bytes_and_mtime, test_ungated_done_item_not_reported, test_graduated_then_done_dated_by_done_line, test_undated_item_partitioned_undated); `============================== 10 passed in 2.96s ==============================`. PIN before/after for test_gate_drop_audit identical.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n "_blob_text|_status_meta\b|_metadata_status\b" agent_workflows tools` printing nothing, and `aw check all --agent` rule-id multiset beside the `786w7r` F-30 baseline, equal.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 2026-11-24. `rg -n "_blob_text|_status_meta\b|_metadata_status\b" agent_workflows tools` prints only `agent_workflows/prompts.py:323:def update_metadata_status`, `prompts.py:389:inject_metadata_status = update_metadata_status` and `artifact_meta._render_status` (`artifact_meta.py:7239`, `_prompts.update_metadata_status(text, status)`). Those are SUBSTRING matches of `update_metadata_status` (the plan's pattern has no leading `\b`), classed `already gone` by `786w7r` F26-45/46/51 and not `check_engine` parsers. With word boundaries on both sides, `rg -n "\b_metadata_status\b|\b_status_meta\b|\b_blob_text\b" agent_workflows tools tests` printed nothing (rc=1).
+    `aw check all --agent`: exit 1, findings_by_severity `{"error":11,"warning":2,"info":80}`, rule-id multiset: 1 check.graduated-to-dangling, 1 check.identity-absent-from-name, 1 check.ipd-carrier-finished-unverified, 32 check.lifecycle-transition-unvalidated, 4 check.name-nonconformant, 1 check.plan-spec-link-missing, 6 check.prompt-metadata-missing, 42 check.source-test-citation-dangling, 2 check.spec-criteria-uncovered, 1 check.system-layout-missing, 2 spec.prose-dash. This is equal, line for line, to the `786w7r` F-30 `aw check all --agent` multiset (exit 1, 11/2/80).
+    Core gate `aw suite`: `2889 passed, 1 skipped, 11 warnings in 121.65s (0:02:01)`, exit 0 (F-30 baseline `2889 passed, 1 skipped`).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the PIN diff of `tests/test_check_engine_status_meta.py` with each name mapped, `python3 -m pytest -o addopts="" -v tests/test_check_engine_status_meta.py tests/test_gate_drop_audit.py tests/test_status_set.py` passing, and `git show --stat` of the `aw commit 7uq6xg` commit listing only Scope-Paths files.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 2026-11-24. PIN diff of tests/test_check_engine_status_meta.py (5 PASSED before, 5 PASSED after); name mapping:
+    test_status_meta_front_matter_approved_with_fenced_quote -> test_read_text_status_front_matter_approved_with_fenced_quote (case b)
+    test_status_meta_headingless_first_bullet_approved -> test_read_text_status_headingless_first_bullet_approved (case c)
+    test_status_meta_no_front_matter_fenced_quote_is_none -> test_read_text_status_no_front_matter_fenced_quote_is_none (case a)
+    test_check_status_untooled_fenced_quote_in_body_no_drift and test_is_retired_real_status_executed_signal unchanged (cases d, e).
+    `python3 -m pytest -o addopts="" -v tests/test_check_engine_status_meta.py tests/test_gate_drop_audit.py tests/test_status_set.py`: `============================= 125 passed in 36.43s =============================`
+    `rg -n "_status_meta" tests` printed nothing (rc=1).
+    `git show --stat 6d7062c29` (aw commit 7uq6xg): `agent_workflows/check_engine.py | 20 --------------------`, `tests/test_check_engine_status_meta.py | 16 ++++++++--------`, `tools/gate_drop_audit.py | 2 +-`, `3 files changed, 9 insertions(+), 29 deletions(-)`; all three are Scope-Paths.
+  - Result: pass
 
 ## Approval and execution gate
 
