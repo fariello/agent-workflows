@@ -19,7 +19,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from agent_workflows import check_engine, cli, prompts
+from agent_workflows import artifact_meta, check_engine, cli, prompts
 
 
 class TestPromptsSetSurface(unittest.TestCase):
@@ -45,26 +45,50 @@ class TestPromptsSetSurface(unittest.TestCase):
 
     def create_conforming_prompt(
         self,
-        id6: str,
         set_id: str = "testset",
         slug: str = "test-prompt",
-        disposition: str = "pending",
-        status: str = "pending",
         body: str = "",
-    ) -> Path:
-        """Create a conforming prompt artifact matching `aw prompts new` output."""
-        filename = f"20261002-{set_id}-01-{id6}-{slug}.prompt.md"
-        p = self.repo_root / ".aw" / "records" / "prompts" / disposition / filename
-        comment = prompts.render_metadata_comment(
-            kind="research",
-            status=status,
-            created="2026-10-02",
-            id6=id6,
-            set_id=set_id,
-        )
-        content = comment + ("\n\n" + body if body else "\n")
-        p.write_text(content, encoding="utf-8")
-        return p
+    ) -> tuple[Path, str]:
+        """Create a conforming prompt through `aw prompts new`; return ``(path, id6)``.
+
+        The metadata comment is written by the verb (and so by `artifact_meta`); only the body, which
+        the verb deliberately leaves to the agent, is appended here.
+        """
+        buf = io.StringIO()
+        with patch("sys.stdout", buf), patch("sys.stderr", io.StringIO()):
+            rc = cli.main(
+                [
+                    "prompts",
+                    "new",
+                    "--slug",
+                    slug,
+                    "--set",
+                    set_id,
+                    "--date",
+                    "2026-10-02",
+                    "--apply",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc, 0, buf.getvalue())
+        pending = self.repo_root / ".aw" / "records" / "prompts" / "pending"
+        matches = sorted(pending.glob(f"20261002-{set_id}-01-*-{slug}.prompt.md"))
+        self.assertEqual(len(matches), 1, matches)
+        p = matches[0]
+        text = p.read_text(encoding="utf-8")
+        self.assertEqual(len(text.splitlines()), 1)
+        id6 = prompts.read_metadata_id6(text)
+        self.assertIsNotNone(id6)
+        assert id6 is not None
+        self.assertEqual(p.name, f"20261002-{set_id}-01-{id6}-{slug}.prompt.md")
+        state = artifact_meta.read_text(text, record_type="prompt")
+        self.assertEqual(state.id6, id6)
+        self.assertEqual(state.status, "pending")
+        self.assertEqual(state.set_id, set_id)
+        if body:
+            p.write_text(text.rstrip("\n") + "\n\n" + body, encoding="utf-8")
+        return p, id6
 
     def create_commentless_prompt(
         self,
@@ -110,7 +134,7 @@ class TestPromptsSetSurface(unittest.TestCase):
 
     def test_vocabulary_refusal_with_enumerated_message(self):
         """Narrowed vocabulary refuses 'draft' and enumerates the 5 buckets plus done."""
-        self.create_conforming_prompt("vc0001", set_id="vocset")
+        _prompt, id6 = self.create_conforming_prompt(set_id="vocset")
         buf = io.StringIO()
         with patch("sys.stdout", buf):
             rc = cli.main(
@@ -118,7 +142,7 @@ class TestPromptsSetSurface(unittest.TestCase):
                     "prompts",
                     "set",
                     "draft",
-                    "vc0001",
+                    id6,
                     "--yes",
                     "--dir",
                     str(self.repo_root),
@@ -138,7 +162,7 @@ class TestPromptsSetSurface(unittest.TestCase):
             "1. Run stage A\n"
             "2. Compare with baseline\n"
         )
-        prompt = self.create_conforming_prompt("bw0001", set_id="bodyset", body=body)
+        prompt, id6 = self.create_conforming_prompt(set_id="bodyset", body=body)
         body_stripped = body.strip()
         body_sha_before = hashlib.sha256(body_stripped.encode("utf-8")).hexdigest()
 
@@ -149,7 +173,7 @@ class TestPromptsSetSurface(unittest.TestCase):
                     "prompts",
                     "set",
                     "executed",
-                    "bw0001",
+                    id6,
                     "--yes",
                     "--dir",
                     str(self.repo_root),
@@ -230,8 +254,8 @@ class TestPromptsSetSurface(unittest.TestCase):
 
     def test_dry_run_byte_identity(self):
         """Dry-run previews and leaves file byte-identical without relocating."""
-        prompt = self.create_conforming_prompt(
-            "dr0001", set_id="dryset", body="Some prompt body.\n"
+        prompt, id6 = self.create_conforming_prompt(
+            set_id="dryset", body="Some prompt body.\n"
         )
         text_before = prompt.read_text(encoding="utf-8")
         sha_before = hashlib.sha256(text_before.encode("utf-8")).hexdigest()
@@ -241,7 +265,7 @@ class TestPromptsSetSurface(unittest.TestCase):
                 "prompts",
                 "set",
                 "executed",
-                "dr0001",
+                id6,
                 "--dry-run",
                 "--dir",
                 str(self.repo_root),

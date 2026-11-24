@@ -264,55 +264,6 @@ def build_prompt_name(
     )
 
 
-def render_metadata_comment(
-    *,
-    kind: str,
-    status: str,
-    created: str,
-    id6: Optional[str] = None,
-    set_id: Optional[str] = None,
-    author: Optional[str] = None,
-    targets: Optional[str] = None,
-    concerns: Optional[str] = None,
-    short_description: Optional[str] = None,
-) -> str:
-    """The single leading `aw-prompt` line. ONE line, an HTML comment, no trailing body.
-
-    A field with no supplied value is OMITTED rather than emitted with a placeholder: there is no
-    shared author/actor resolver in this package to inherit from, and writing a guessed or `unknown`
-    author into a tracked artifact would be worse than writing nothing (IPD jxqdcw E-03).
-
-    ``id6``/``set_id`` (IPD `ubac5n` E-02) are written as two more `Key: value` pairs INSIDE this one
-    comment, positioned after `Kind:` to match the shape the hand-made
-    `20260920-plainlang-01-ng0ga4-...` file already uses. They are deliberately NOT a `- Id:` bullet
-    and NOT YAML front matter: either would put visible text above the prompt body and violate
-    approved spec `20260808-1958-01-prompt-purity-lint` R1/P4.
-    """
-
-    fields = [f"Kind: {kind}"]
-    id6_text = (id6 or "").strip()
-    if id6_text:
-        fields.append(f"Id: {id6_text}")
-    set_text = (set_id or "").strip()
-    if set_text:
-        fields.append(f"Set: {set_text}")
-    fields.extend([f"Status: {status}", f"Created: {created}"])
-    for label, value in (
-        ("Author", author),
-        ("Targets", targets),
-        ("Concerns", concerns),
-        ("Short-Description", short_description),
-    ):
-        text = (value or "").strip()
-        if text:
-            fields.append(f"{label}: {text}")
-    body = " | ".join(fields)
-    # Single line by construction: any newline a caller smuggled into a field would break the
-    # purity property (P4/P5), so collapse whitespace instead of trusting the input.
-    line = f"<!-- aw-prompt: {body} . {_METADATA_TRAILER} -->"
-    return " ".join(line.split())
-
-
 def has_metadata_comment(text: str) -> bool:
     """True iff ``text`` opens with the single `<!-- aw-prompt: ... -->` metadata comment.
 
@@ -370,7 +321,7 @@ def inject_metadata_id6(text: str, *, id6: str, set_id: Optional[str] = None) ->
     insert = " | ".join(additions)
 
     # Position the new pair(s) directly after `Kind: <kind>` when there is one, which is the shape
-    # the existing conforming corpus and `render_metadata_comment` both use; otherwise append them at
+    # the existing conforming corpus and `aw prompts new` both use; otherwise append them at
     # the end of the field run, just before the trailer sentence.
     m_kind = re.search(r"(Kind:\s*[^|]+?)(\s*\|)", first)
     if m_kind:

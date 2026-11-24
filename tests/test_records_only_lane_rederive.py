@@ -450,11 +450,13 @@ def test_rederivation_keeps_the_target_status_and_adds_both_keys(
 ) -> None:
     repo, base = race_repo
     verdicts = _classify_live(repo, base)
-    target_text = runner_shared.read_merge_stage(repo, 2, EXECUTED)
-    assert target_text is not None
-    out = runner_shared.rederive_front_matter(
-        target_text=target_text, verdict=verdicts[0]
-    )
+    applied, why = runner_shared.apply_records_only_rederivation(repo, verdicts)
+    assert applied, why
+    out = (repo / EXECUTED).read_text(encoding="utf-8")
+    state = artifact_meta.read_text(out, record_type="ipd")
+    assert state.status == "executed"
+    assert state.fields["work_kind"] == "bug"
+    assert state.fields["priority"] == "medium"
     assert "- Status: executed\n" in out
     assert "- Status: approved\n" not in out
     assert "- Work-Kind: bug\n" in out
@@ -611,18 +613,22 @@ def test_the_anti_revert_control_holds_on_the_shipped_allow_list(
     """
     repo, base = race_repo
     verdicts = _classify_live(repo, base)
+    applied, why = runner_shared.apply_records_only_rederivation(repo, verdicts)
+    assert applied, why
     for verdict in verdicts:
-        target_text = runner_shared.read_merge_stage(repo, 2, verdict.path)
-        assert target_text is not None
-        out = runner_shared.rederive_front_matter(
-            target_text=target_text, verdict=verdict
-        )
+        out = (repo / verdict.path).read_text(encoding="utf-8")
         if verdict.target_is_terminal:
+            assert (
+                artifact_meta.read_text(out, record_type="ipd").status
+                == verdict.target_status
+            )
             assert f"- Status: {verdict.target_status}\n" in out
             assert f"- Status: {verdict.incoming_status}\n" not in out
 
 
-def test_the_anti_revert_control_FAILS_when_rederivation_is_widened_to_status() -> None:
+def test_the_anti_revert_control_FAILS_when_rederivation_is_widened_to_status(
+    tmp_path: Path,
+) -> None:
     """Widen the allow-list to `- Status:` and the mechanism STILL refuses, in TWO independent places.
 
     THE DEMONSTRATION THE PLAN DEMANDS, and measuring it found the defence is DOUBLE rather than
@@ -665,11 +671,13 @@ def test_the_anti_revert_control_FAILS_when_rederivation_is_widened_to_status() 
     )
     assert widened.verdict == runner_shared.REDERIVE_SHAPE_MATCH
     assert ("Status", "approved") in widened.added_keys
-    with pytest.raises(runner_shared.DriverError) as excinfo:
-        runner_shared.rederive_front_matter(target_text=statusless, verdict=widened)
-    assert "refusing to write non-allow-listed front-matter key 'Status'" in str(
-        excinfo.value
-    )
+    repo = tmp_path / "repo"
+    _init(repo)
+    applied, why = runner_shared.apply_records_only_rederivation(repo, [widened])
+    assert applied is False
+    assert "refusing to write non-allow-listed front-matter key 'Status'" in why
+    # NOTHING WRITTEN: the refusal precedes every read and write of the target.
+    assert not (repo / EXECUTED).exists()
 
 
 @pytest.mark.parametrize(
@@ -677,7 +685,7 @@ def test_the_anti_revert_control_FAILS_when_rederivation_is_widened_to_status() 
     ["Status", "Readiness", "Approval", "Blocks-Release", "Item-Dependencies"],
 )
 def test_the_writer_refuses_every_gate_or_attestation_key_even_if_classified(
-    key: str,
+    key: str, tmp_path: Path
 ) -> None:
     """The writer's own allow-list check, per dangerous key, independent of the classifier."""
     verdict = runner_shared.RecordsOnlyConflictVerdict(
@@ -686,19 +694,29 @@ def test_the_writer_refuses_every_gate_or_attestation_key_even_if_classified(
         "forged verdict",
         added_keys=((key, "forged"),),
     )
-    with pytest.raises(runner_shared.DriverError) as excinfo:
-        runner_shared.rederive_front_matter(target_text=BASE_PLAN, verdict=verdict)
-    assert key in str(excinfo.value)
+    repo = tmp_path / "repo"
+    _init(repo)
+    applied, why = runner_shared.apply_records_only_rederivation(repo, [verdict])
+    assert applied is False
+    assert "refusing to write non-allow-listed front-matter key" in why
+    assert key in why
+    assert not (repo / EXECUTED).exists()
 
 
-def test_the_writer_refuses_a_path_it_did_not_positively_classify() -> None:
+def test_the_writer_refuses_a_path_it_did_not_positively_classify(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    _init(repo)
     for state in (
         runner_shared.REDERIVE_SHAPE_NOT,
         runner_shared.REDERIVE_SHAPE_UNKNOWN,
     ):
         verdict = runner_shared.RecordsOnlyConflictVerdict(EXECUTED, state, "why")
-        with pytest.raises(runner_shared.DriverError):
-            runner_shared.rederive_front_matter(target_text=BASE_PLAN, verdict=verdict)
+        applied, why = runner_shared.apply_records_only_rederivation(repo, [verdict])
+        assert applied is False
+        assert "refusing to re-derive" in why
+        assert not (repo / EXECUTED).exists()
 
 
 # --------------------------------------------------------------------------------------------------

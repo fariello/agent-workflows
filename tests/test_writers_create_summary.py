@@ -1468,27 +1468,48 @@ def test_prompts_new_check_all_agent_clean_for_short_description(
     )
 
 
-def test_prompts_render_metadata_comment_optional_short_description() -> None:
-    with_sd = _prompts.render_metadata_comment(
-        kind="research",
-        status="pending",
-        created="2026-11-17",
-        id6="ab12cd",
-        set_id="widget",
-        short_description="Adds a widget.",
-    )
+def test_prompts_new_short_description_is_the_last_field_before_the_trailer(
+    tmp_path: Path,
+) -> None:
+    texts = {}
+    for label, extra in (
+        ("with_sd", ("--summary", "Adds a widget.")),
+        ("without_sd", ()),
+    ):
+        repo = _init_repo(tmp_path / label)
+        rc, _out, err = _run_cli(
+            [
+                "prompts",
+                "new",
+                "--slug",
+                "widget",
+                "--set",
+                "widget",
+                "--date",
+                "2026-11-17",
+                *extra,
+                "--apply",
+                "--dir",
+                str(repo),
+            ]
+        )
+        assert rc == 0, err
+        files = list((repo / ".aw" / "records" / "prompts").rglob("*.prompt.md"))
+        assert len(files) == 1
+        texts[label] = files[0].read_text(encoding="utf-8")
+
+    with_sd = texts["with_sd"]
     assert (
         f"Short-Description: Adds a widget. . {_prompts._METADATA_TRAILER}" in with_sd
     )
-
-    without_sd = _prompts.render_metadata_comment(
-        kind="research",
-        status="pending",
-        created="2026-11-17",
-        id6="ab12cd",
-        set_id="widget",
+    assert (
+        _meta.read_text(with_sd, record_type="prompt").short_description
+        == "Adds a widget."
     )
+
+    without_sd = texts["without_sd"]
     assert "Short-Description:" not in without_sd
+    assert _meta.read_text(without_sd, record_type="prompt").short_description is None
 
 
 def test_prompts_load_legacy_artifact_strips_metadata_trailer(tmp_path: Path) -> None:

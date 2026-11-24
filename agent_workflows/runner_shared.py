@@ -6111,88 +6111,6 @@ def format_records_only_conflict_refusal_reason(
     return "; ".join(parts[:3]) + "\n" + "\n".join(parts[3:])
 
 
-def rederive_front_matter(
-    *, target_text: str, verdict: RecordsOnlyConflictVerdict
-) -> str:
-    """laneraceplan-01 (`kl18sz`) E-03: write the incoming side's allow-listed keys onto TARGET text.
-
-    RE-DERIVES FROM THE LANE'S INTENT, NEVER BY REPLAYING ITS DIFF. The lane's diff is expressed
-    against an old snapshot, so applying it as a patch would reintroduce the very staleness this
-    function exists to remove. What is extracted is the KEY/VALUE pairs (already carried on the
-    verdict) and the history bullet(s); what is written is those keys onto the CURRENT target content.
-
-    `- Status:` AND THE LIFECYCLE DIRECTORY ARE NOT TOUCHED, which is the anti-revert property. This
-    function never writes a `- Status:` line, never moves a file (it returns TEXT and performs no IO),
-    and refuses outright if asked about anything but a positively classified verdict.
-
-    THE NEW KEYS ARE INSERTED AFTER THE LAST EXISTING FRONT-MATTER BULLET, which keeps them inside the
-    metadata region no matter how the target's own bullets are ordered. Anchoring on `- Status:`
-    instead was rejected: a target whose `- Status:` line is its LAST bullet would take the new keys
-    ahead of nothing, and a target with no `- Status:` at all would silently get no keys.
-
-    THE HISTORY BULLET IS INSERTED IMMEDIATELY AFTER THE `## Workflow history` HEADING, i.e. at the top
-    of the history list, because these histories are NEWEST-FIRST. The target's own entries are not
-    disturbed, so both sides' history survives - which is exactly what the hand resolution did.
-    """
-    if verdict.verdict != REDERIVE_SHAPE_MATCH:
-        raise DriverError(
-            "rederive_front_matter: refusing to re-derive a path classified {0!r} ({1})".format(
-                verdict.verdict, verdict.reason
-            )
-        )
-    for key, _value in verdict.added_keys:
-        if key not in REDERIVABLE_FRONT_MATTER_KEYS:
-            # BELT AND BRACES over the classifier's own allow-list check, because this is the function
-            # that WRITES. The classifier accepts an injected allow-list so a test can prove that
-            # control is load-bearing; the writer accepts only the shipped constant, so no test double
-            # and no future caller can widen what actually reaches a permanent record.
-            raise DriverError(
-                "rederive_front_matter: refusing to write non-allow-listed front-matter key "
-                f"{key!r} (allow-list: {sorted(REDERIVABLE_FRONT_MATTER_KEYS)})"
-            )
-
-    region, _body = _split_metadata_region(target_text)
-    existing, _other = _front_matter_bullets(region)
-    pending = [
-        (k, v) for k, v in verdict.added_keys if k not in existing or existing[k] == [v]
-    ]
-    new_pairs = [(k, v) for k, v in pending if k not in existing]
-    if new_pairs and not any(
-        _FRONT_MATTER_BULLET_RE.match(ln.rstrip("\n")) for ln in region.splitlines()
-    ):
-        raise DriverError(
-            "rederive_front_matter: the target has no front-matter bullet to anchor on, so the "
-            "new key(s) cannot be placed inside its metadata region"
-        )
-
-    key_map = {
-        "Work-Kind": "work_kind",
-        "Priority": "priority",
-    }
-    events: list[dict[str, Any]] = []
-    if new_pairs:
-        events.append({"op": "set", "fields": {key_map[k]: v for k, v in new_pairs}})
-    for hline in verdict.history_lines:
-        events.append({"op": "legacy", "source": "history", "line": hline})
-    if not events:
-        return target_text
-
-    from agent_workflows import artifact_core as _core
-    from agent_workflows import artifact_meta as _am
-
-    return _am.render_legacy_text(
-        target_text,
-        events,
-        record_type="ipd",
-        render=_am.LegacyRender(
-            tag="legacy",
-            day=_core.utc_history_date(),
-            actor_label="aw run",
-            history=False,
-        ),
-    )
-
-
 #: The reported outcome of an integration whose content was RECOMPUTED rather than merged.
 #:
 #: ITS OWN KIND, NEITHER `integrated` NOR `merge-refused` (`kl18sz` F-11). A re-derived integration is
@@ -6352,10 +6270,21 @@ def apply_records_only_rederivation(
     this is the function that WRITES into permanent records: a caller that forgot the gate would
     otherwise half-apply a mixed set, which is the one outcome E-04 exists to make impossible.
 
-    IT WRITES THE TARGET'S OWN PATH AND NEVER MOVES A FILE. The re-derived text is
-    :func:`rederive_front_matter`'s output over the TARGET (stage 2) content, so `- Status:` and the
-    lifecycle directory are untouched by construction: no `git mv`, no rename, no `- Status:` write.
-    Each path is then staged so the in-progress merge can be COMPLETED rather than aborted.
+    RE-DERIVES FROM THE LANE'S INTENT, NEVER BY REPLAYING ITS DIFF. The lane's diff is expressed
+    against an old snapshot, so applying it as a patch would reintroduce the very staleness this
+    function exists to remove. What is extracted is the KEY/VALUE pairs (already carried on the
+    verdict) and the history bullet(s); what is written is those keys onto the CURRENT target (stage 2)
+    content, through the one metadata writer, ``artifact_meta.render_legacy_text`` (spec `4sd62s` C5).
+
+    THE WRITER'S OWN ALLOW-LIST IS CHECKED FOR EVERY VERDICT BEFORE ANY STAGE IS READ. The classifier
+    accepts an injected allow-list so a test can prove that control is load-bearing; this function
+    accepts only the shipped :data:`REDERIVABLE_FRONT_MATTER_KEYS`, so no test double and no future
+    caller can widen what actually reaches a permanent record.
+
+    IT WRITES THE TARGET'S OWN PATH AND NEVER MOVES A FILE, and it never writes a `- Status:` line, so
+    `- Status:` and the lifecycle directory are untouched by construction: no `git mv`, no rename, no
+    `- Status:` write. The target's own history entries are not disturbed, so both sides' history
+    survives. Each path is then staged so the in-progress merge can be COMPLETED rather than aborted.
 
     IT PREPARES THE TEXT BEFORE TOUCHING THE WORKING TREE, so a failure mid-set leaves nothing written.
     """
@@ -6363,6 +6292,23 @@ def apply_records_only_rederivation(
     if not ok:
         return False, f"refusing to re-derive: {why}"
 
+    for verdict in verdicts:
+        for key, _value in verdict.added_keys:
+            if key not in REDERIVABLE_FRONT_MATTER_KEYS:
+                return (
+                    False,
+                    "refusing to re-derive: refusing to write non-allow-listed front-matter key "
+                    f"{key!r} in {verdict.path!r} "
+                    f"(allow-list: {sorted(REDERIVABLE_FRONT_MATTER_KEYS)})",
+                )
+
+    from agent_workflows import artifact_core as _core
+    from agent_workflows import artifact_meta as _am
+
+    key_map = {
+        "Work-Kind": "work_kind",
+        "Priority": "priority",
+    }
     prepared: list[tuple[str, str]] = []
     for verdict in verdicts:
         target_text = read_merge_stage(repo, 2, verdict.path)
@@ -6372,15 +6318,39 @@ def apply_records_only_rederivation(
                 f"refusing to re-derive: the target stage of {verdict.path!r} could not be read, so "
                 "its current content is unknown",
             )
-        try:
-            prepared.append(
-                (
-                    verdict.path,
-                    rederive_front_matter(target_text=target_text, verdict=verdict),
-                )
+        region, _body = _split_metadata_region(target_text)
+        existing, _other = _front_matter_bullets(region)
+        new_pairs = [(k, v) for k, v in verdict.added_keys if k not in existing]
+        if new_pairs and not any(
+            _FRONT_MATTER_BULLET_RE.match(ln.rstrip("\n")) for ln in region.splitlines()
+        ):
+            return (
+                False,
+                f"refusing to re-derive: the target {verdict.path!r} has no front-matter bullet to "
+                "anchor on, so the new key(s) cannot be placed inside its metadata region",
             )
-        except DriverError as exc:
-            return False, f"refusing to re-derive: {exc}"
+        events: list[dict[str, Any]] = []
+        if new_pairs:
+            events.append(
+                {"op": "set", "fields": {key_map[k]: v for k, v in new_pairs}}
+            )
+        for hline in verdict.history_lines:
+            events.append({"op": "legacy", "source": "history", "line": hline})
+        if not events:
+            prepared.append((verdict.path, target_text))
+            continue
+        text = _am.render_legacy_text(
+            target_text,
+            events,
+            record_type="ipd",
+            render=_am.LegacyRender(
+                tag="legacy",
+                day=_core.utc_history_date(),
+                actor_label="aw run",
+                history=False,
+            ),
+        )
+        prepared.append((verdict.path, text))
 
     for path, text in prepared:
         dest = repo / path
