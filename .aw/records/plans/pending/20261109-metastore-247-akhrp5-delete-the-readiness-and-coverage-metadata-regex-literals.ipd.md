@@ -42,30 +42,30 @@ PIN RULE (carried from `9o83cr`): before E-01, create directory `mkdir -p .aw/st
 
 ### Task group 1: one module per item, then verify
 
-- [ ] E-01 Ensure `.aw/state/akhrp5/` exists (`mkdir -p .aw/state/akhrp5/`) and save the three PIN modules baseline to `.aw/state/akhrp5/before.txt`; then in `agent_workflows/plan_readiness.py`, delete `plan_readiness._READINESS_FIELD_PRESENT_RE`, `_READINESS_LINE_SUB_RE`, `_STATUS_RE` and the `id6_match` literals in `plan_readiness.approval_refusals` and `recheck_conditions`; keep `_OQ_FIELD_RE`.
+- [x] E-01 Ensure `.aw/state/akhrp5/` exists (`mkdir -p .aw/state/akhrp5/`) and save the three PIN modules baseline to `.aw/state/akhrp5/before.txt`; then in `agent_workflows/plan_readiness.py`, delete `plan_readiness._READINESS_FIELD_PRESENT_RE`, `_READINESS_LINE_SUB_RE`, `_STATUS_RE` and the `id6_match` literals in `plan_readiness.approval_refusals` and `recheck_conditions`; keep `_OQ_FIELD_RE`.
   - Depends on: none
   - Expected outcome: the `LIT` search over `agent_workflows/plan_readiness.py` prints only `_OQ_FIELD_RE`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/readiness_recheck.py`, delete the literal in `readiness_recheck._run_stale_findings`.
+- [x] E-02 In `agent_workflows/readiness_recheck.py`, delete the literal in `readiness_recheck._run_stale_findings`.
   - Depends on: E-01
   - Expected outcome: the `LIT` search over `agent_workflows/readiness_recheck.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `agent_workflows/coverage_record.py`, delete `coverage_record._COVERAGE_LINE_RE`, `_STATUS_LINE_RE`, `_READINESS_LINE_RE` and `_ID_LINE_RE`; the `- Coverage:` write goes through `artifact_meta.append`.
+- [x] E-03 In `agent_workflows/coverage_record.py`, delete `coverage_record._COVERAGE_LINE_RE`, `_STATUS_LINE_RE`, `_READINESS_LINE_RE` and `_ID_LINE_RE`; the `- Coverage:` write goes through `artifact_meta.append`.
   - Depends on: E-02
   - Expected outcome: the `LIT` search over `agent_workflows/coverage_record.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `agent_workflows/orchestrator_readiness.py`, delete `orchestrator_readiness._BATCH_META_RE`.
+- [x] E-04 In `agent_workflows/orchestrator_readiness.py`, delete `orchestrator_readiness._BATCH_META_RE`.
   - Depends on: E-03
   - Expected outcome: the `LIT` search over `agent_workflows/orchestrator_readiness.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Update `tests/test_coverage_record.py`, `tests/test_orchestrator_readiness.py` and `tests/test_plan_readiness_recheck.py` only where a case names a deleted pattern; save `after.txt`; run the three modules; commit through `aw commit akhrp5 -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-05 Update `tests/test_coverage_record.py`, `tests/test_orchestrator_readiness.py` and `tests/test_plan_readiness_recheck.py` only where a case names a deleted pattern; save `after.txt`; run the three modules; commit through `aw commit akhrp5 -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-04
   - Expected outcome: the three modules pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -131,30 +131,110 @@ No spec change; implements part of `4sd62s` 4.3.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `LIT` search over `agent_workflows/plan_readiness.py` showing only `_OQ_FIELD_RE`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ LIT='re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?["'"'"'](\(\?m\))?\^-'
+    $ rg -n "$LIT" agent_workflows/plan_readiness.py
+    283:_OQ_FIELD_RE = re.compile(r"^-[ \t]*([A-Za-z][A-Za-z /-]*?):[ \t]?(.*)$")
+    (exit 0)
+    $ git grep -n "\b_STATUS_RE\b" cfe69a5e145b698f25c01753fe8eca735bf47962 -- agent_workflows/plan_readiness.py
+    (no output: already gone at the starting HEAD, per 786w7r F-27 and OQ-01; no edit needed)
+    ```
+    Deleted `_READINESS_FIELD_PRESENT_RE` (now `plan_readiness.readiness_field_present`, reading the metadata region through `artifact_meta._parse_bullet_metadata_with_loose`, so the loose `-Readiness:` spelling still counts as present and refuses as corrupt), `_READINESS_LINE_SUB_RE` (had no production caller; its only user was a test), and both `id6_match` literals (now `plan_readiness._declared_id6`, which calls `artifact_meta.read_loose_id`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `LIT` search over `agent_workflows/readiness_recheck.py` printing nothing.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "$LIT" agent_workflows/readiness_recheck.py
+    (exit 1, no output)
+    ```
+    `readiness_recheck._run_stale_findings` now reads the id6 through `artifact_meta.read_loose_id`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `LIT` search over `agent_workflows/coverage_record.py` printing nothing, and `python3 -m pytest -o addopts="" -v tests/test_coverage_record.py` with every case PASSED.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "$LIT" agent_workflows/coverage_record.py
+    (exit 1, no output)
+    $ git grep -n "_STATUS_LINE_RE\|_READINESS_LINE_RE" cfe69a5e145b698f25c01753fe8eca735bf47962 -- agent_workflows/coverage_record.py
+    (no output: already gone at the starting HEAD, per 786w7r F-27 and OQ-01)
+    $ python3 -m pytest -o addopts="" -p no:randomly -n 0 -v tests/test_coverage_record.py
+    tests/test_coverage_record.py::TestCoverageRecordReadWrite::test_checklist_edit_makes_is_current_false PASSED [ 14%]
+    tests/test_coverage_record.py::TestCoverageRecordReadWrite::test_host_default_model_token PASSED [ 28%]
+    tests/test_coverage_record.py::TestCoverageRecordReadWrite::test_metadata_replacement_in_place PASSED [ 42%]
+    tests/test_coverage_record.py::TestCoverageRecordReadWrite::test_read_absent PASSED [ 57%]
+    tests/test_coverage_record.py::TestCoverageRecordReadWrite::test_write_and_read_fail PASSED [ 71%]
+    tests/test_coverage_record.py::TestCoverageRecordReadWrite::test_write_pass_removes_findings_and_lints_conforming PASSED [ 85%]
+    tests/test_coverage_record.py::TestCoverageFingerprintInvariance::test_fingerprints_unchanged_and_receipt_stays_current PASSED [100%]
+    ============================== 7 passed in 0.61s ===============================
+    ```
+    `coverage_record.read` reads `coverage` from `artifact_meta.read_text(metadata_region(...), record_type="ipd").fields`; both `_ID_LINE_RE` uses in `coverage_record.write` read `artifact_meta.read_loose_id`. The `- Coverage:` write already went through `artifact_meta.append` (unchanged). `_FINGERPRINT_LINE_RE` and `_CHECKED_LINE_RE` are not `LIT` hits and were left alone (backlog `hmtpj2`).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `LIT` search over `agent_workflows/orchestrator_readiness.py` printing nothing.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "$LIT" agent_workflows/orchestrator_readiness.py
+    (exit 1, no output)
+    $ git grep -n "_BATCH_META_RE" cfe69a5e145b698f25c01753fe8eca735bf47962 -- agent_workflows/orchestrator_readiness.py
+    (no output: already gone at the starting HEAD, per 786w7r F-27 and OQ-01; no edit needed)
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `diff .aw/state/akhrp5/before.txt .aw/state/akhrp5/after.txt` (empty, or each change mapped), the summary line of `python3 -m pytest -o addopts="" tests/test_coverage_record.py tests/test_orchestrator_readiness.py tests/test_plan_readiness_recheck.py` passing, and `git show --stat` of the `aw commit akhrp5` commit.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ diff .aw/state/akhrp5/before.txt .aw/state/akhrp5/after.txt && echo IDENTICAL
+    IDENTICAL
+    $ wc -l .aw/state/akhrp5/after.txt
+    71 .aw/state/akhrp5/after.txt
+    $ python3 -m pytest -o addopts="" tests/test_coverage_record.py tests/test_orchestrator_readiness.py tests/test_plan_readiness_recheck.py
+    ============================= 71 passed in 11.20s ==============================
+    $ python3 -m pytest
+    2892 passed, 1 skipped, 11 warnings in 117.27s (0:01:57)
+    ```
+    Test edits: `tests/test_plan_readiness_recheck.py` replaced its use of the deleted `pr._READINESS_LINE_SUB_RE.subn(...)` with a plain line rewrite (same input, same assertion). `tests/test_readiness_absence_invariant.py` (outside Scope-Paths) named the deleted `plan_readiness._READINESS_FIELD_PRESENT_RE` and now calls `plan_readiness.readiness_field_present`; justified at finalize with `--scope-reason`. `tests/test_coverage_record.py` and `tests/test_orchestrator_readiness.py` named no deleted pattern and are unmodified (`--scope-ack`).
+    ```
+    $ git show --stat 2db8013db
+    commit 2db8013dbb73ae7d5a6531bbfe17f08cee7707e5
+        metastore 247 (akhrp5): delete the readiness and coverage metadata regex literals; read Readiness/Coverage/Id through artifact_meta
+     ...ess-and-coverage-metadata-regex-literals.ipd.md | 96 ++++++++++++++++------
+     agent_workflows/coverage_record.py                 | 18 ++--
+     agent_workflows/plan_readiness.py                  | 48 +++++++----
+     agent_workflows/readiness_recheck.py               |  8 +-
+     tests/test_plan_readiness_recheck.py               |  7 +-
+     tests/test_readiness_absence_invariant.py          |  2 +-
+     6 files changed, 122 insertions(+), 57 deletions(-)
+    ```
+    Attempt 2 (recovery): attempt 1's work was correct but sat on lane `aw/lane/akhrp5`; it was brought forward unchanged into this lane and re-validated. `before.txt` was regenerated from a detached worktree at base `cfe69a5e1`, `after.txt` from this lane.
+    ```
+    $ diff .aw/state/akhrp5/before.txt .aw/state/akhrp5/after.txt && echo IDENTICAL
+    IDENTICAL
+    $ wc -l .aw/state/akhrp5/*.txt
+       71 .aw/state/akhrp5/after.txt
+       71 .aw/state/akhrp5/before.txt
+    $ python3 -m pytest -o addopts="" tests/test_coverage_record.py tests/test_orchestrator_readiness.py tests/test_plan_readiness_recheck.py tests/test_readiness_absence_invariant.py
+    ============================= 81 passed in 12.92s ==============================
+    $ aw suite
+    2892 passed, 1 skipped, 11 warnings in 133.66s (0:02:13)
+    $ git show --stat 24a6b835f
+    commit 24a6b835fe801b335e8b7708e39ce6cdc9a10455
+        metastore 247 (akhrp5): delete the readiness and coverage metadata regex literals; read Readiness/Coverage/Id through artifact_meta (brought forward from lane akhrp5 attempt 1, 2db8013db)
+     agent_workflows/coverage_record.py        | 18 +++++-------
+     agent_workflows/plan_readiness.py         | 48 +++++++++++++++++++++----------
+     agent_workflows/readiness_recheck.py      |  8 +++---
+     tests/test_plan_readiness_recheck.py      |  7 +++--
+     tests/test_readiness_absence_invariant.py |  2 +-
+     5 files changed, 50 insertions(+), 33 deletions(-)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
