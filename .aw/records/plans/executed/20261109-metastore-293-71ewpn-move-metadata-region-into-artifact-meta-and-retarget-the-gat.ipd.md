@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5 allows exactly one metadata reader (`artifact_meta`), and `k6jd6l` E-11 deletes `selectors.metadata_region`, the function that bounds a record's metadata region (everything before the first `##` heading). Part 14 of the round-3 split of `k6jd6l` (Order 43, research `nj8zdp` guidance): this part gives `artifact_meta` the region function and moves the production callers outside `selectors` onto it. Measured at `f83159217`: `hooks/executed_transition_gate._has_executed_status` and `_plan_id_of` (2), `orchestrator_readiness.resolve_all_set_memberships` (1), `artifact_meta._set_bullet` (1), `check_engine._metadata_region` (1), `runner_shared._split_metadata_region` (1), `status_set.read_artifact_record` (1), `releases.parse_graduated_to` (1).
 - Scope: The non-`selectors` callers of `selectors.metadata_region` from `k6jd6l` E-11. Each call changes from `selectors.metadata_region(text)` to `artifact_meta.metadata_region(text)` ONLY; the `^-` regex literals applied to the region stay, because Orders 247 (`akhrp5`, `orchestrator_readiness._BATCH_META_RE`), 249 (`n2cvf0`, the literal in `executed_transition_gate._plan_id_of`) and 45 (`e8420v`, `check_engine`, `runner_shared`, `status_set`, `releases`) delete them after `k6jd6l`. EXCLUDES the `selectors` internal uses and the deletion (Order 294).
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/hooks/executed_transition_gate.py, agent_workflows/orchestrator_readiness.py, agent_workflows/check_engine.py, agent_workflows/runner_shared.py, agent_workflows/status_set.py, agent_workflows/releases.py, .aw/records/plans/pending/20261109-metastore-293-71ewpn-move-metadata-region-into-artifact-meta-and-retarget-the-gat.ipd.md
+- Scope-Exceeded: agent_workflows/selectors.py (E-01 requires selectors.metadata_region become a one-line delegate to artifact_meta.metadata_region)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:csobg7, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 71ewpn
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 This plan conforms to the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`.
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: 71ewpn verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/selectors.py: E-01 requires selectors.metadata_region become a one-line delegate to artifact_meta.metadata_region; in-scope-unmodified agent_workflows/hooks/executed_transition_gate.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/orchestrator_readiness.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
