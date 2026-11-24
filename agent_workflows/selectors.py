@@ -610,33 +610,11 @@ def _metadata_region_complete(chunk: str) -> bool:
     return _METADATA_END_RE.search(chunk) is not None
 
 
-# A YAML-fenced document's metadata region is its LEADING `---` block, not "everything before the
-# first `##`". The distinction is not cosmetic: measured on this corpus, exactly one record
-# (`effzzi`, a roadmap) opens with a YAML fence and then carries `- Key: value` BODY PROSE bullets
-# under its H1 (`- Plans: one orchestrator plus eight children`, `- Authoring state: ...`) before
-# its first `## ` heading. Those bullets are narrative, not metadata, and the fence is the record's
-# real declaration site, so the fence is where the region ends.
-_YAML_FENCE_OPEN_RE = re.compile(r"\A---[ \t]*\r?\n")
-
-
 def metadata_region(text: str) -> str:
-    """Return the leading METADATA REGION of a record: where it DECLARES its own identity."""
+    """Return the leading METADATA REGION of a record (delegates to `artifact_meta.metadata_region`)."""
+    from agent_workflows import artifact_meta as _meta
 
-    if not text:
-        return text or ""
-    m_open = _YAML_FENCE_OPEN_RE.match(text)
-    if m_open is not None:
-        pos = m_open.end()
-        for line in text[pos:].splitlines(keepends=True):
-            stripped = line.rstrip("\r\n")
-            pos += len(line)
-            if stripped.rstrip(" \t") == "---":
-                return text[: pos - (len(line) - len(stripped))]
-        return text  # fence unterminated within the input -> the region continues
-    m_end = _METADATA_END_RE.search(text)
-    if m_end is None:
-        return text  # no `##` in the input -> the region continues (the common 25-record case)
-    return text[: m_end.start()]
+    return _meta.metadata_region(text)
 
 
 def _read_header(p: Path) -> str | None:

@@ -5745,14 +5745,14 @@ class RecordsOnlyConflictVerdict(NamedTuple):
 def _split_metadata_region(text: str) -> tuple[str, str]:
     """Split a record into (metadata region, remainder) using the ONE shared boundary.
 
-    `selectors.metadata_region` is the toolkit's single metadata-region authority (the
+    `artifact_meta.metadata_region` is the toolkit's single metadata-region authority (the
     ARTIFACTS-NOT-MENTIONS contract), so a document that merely QUOTES a metadata block cannot be read
     as declaring it. Reusing it here rather than re-deriving a boundary is what keeps this classifier
     agreeing with every status reader in the repository about where front matter ENDS.
     """
-    from agent_workflows import selectors as _sel
+    from agent_workflows import artifact_meta as _meta
 
-    region = _sel.metadata_region(text)
+    region = _meta.metadata_region(text)
     return region, text[len(region) :]
 
 
