@@ -85,6 +85,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Deleting legacy `INDEX.json`/`INDEX.md` manifest generation and `check.stale-index-*` rules altogether is owned by the `metastore` Set: `snin8q` (the INDEX writers). `w819as` (executed) deleted the plans and prompts emitters, `6qh68x` (executed) deleted the `research_index` emitter and the two registry entries, and `f1yjlx` (executed) deleted the `doctor` stale-index sites.
   - Carrier: snin8q
+  - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-42-snin8q-delete-the-index-writers-the-status-code-and-the-audit-index.ipd.md
 
 ## Scope check
 
