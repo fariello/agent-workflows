@@ -42,25 +42,25 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 
 ### Task group 1: one adapter per item, then its tests
 
-- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-09a-before.txt`. Delete `plans_refs._set_metadata`; `plans_refs.apply_renames` writes the `Set` and `Order` change through `artifact_meta.append`, keeping the batch-refusal-before-write behavior (a plan whose `- Order:` line cannot be matched refuses the whole batch before any file is written).
+- [x] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-09a-before.txt`. Delete `plans_refs._set_metadata`; `plans_refs.apply_renames` writes the `Set` and `Order` change through `artifact_meta.append`, keeping the batch-refusal-before-write behavior (a plan whose `- Order:` line cannot be matched refuses the whole batch before any file is written).
   - Depends on: none
   - Expected outcome: `rg -n "_set_metadata\b" agent_workflows/plans_refs.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Delete `artifact_rename._update_frontmatter_metadata` (and `artifact_rename._update_or_inject_set_metadata` if Order 280's F-24 classes it as an adapter); `artifact_rename.run_rename_generic` calls `artifact_meta.append` directly.
+- [x] E-02 Delete `artifact_rename._update_frontmatter_metadata` (and `artifact_rename._update_or_inject_set_metadata` if Order 280's F-24 classes it as an adapter); `artifact_rename.run_rename_generic` calls `artifact_meta.append` directly.
   - Depends on: E-01
   - Expected outcome: the adapter is gone; `run_rename_generic` calls `artifact_meta`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Retarget `tests/test_plans_order_grammar.py` to the behavior through `aw group plans`, asserting on the resulting `artifact_meta.read` state and file bytes, keeping every case including `set_metadata_raises_on_unmatchable_order_line` (or a renamed successor).
+- [x] E-03 Retarget `tests/test_plans_order_grammar.py` to the behavior through `aw group plans`, asserting on the resulting `artifact_meta.read` state and file bytes, keeping every case including `set_metadata_raises_on_unmatchable_order_line` (or a renamed successor).
   - Depends on: E-02
   - Expected outcome: the module calls no deleted adapter and passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Retarget `tests/test_spec_id6_filenames.py` to the behavior through `aw rename specs --to-id6`; save the after-list; commit through `aw commit v0ucnz -- <paths>`.
+- [x] E-04 Retarget `tests/test_spec_id6_filenames.py` to the behavior through `aw rename specs --to-id6`; save the after-list; commit through `aw commit v0ucnz -- <paths>`.
   - Depends on: E-03
   - Expected outcome: the module calls no deleted adapter and passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -121,25 +121,50 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "_set_metadata\b" agent_workflows/plans_refs.py` printing nothing and `git diff --stat agent_workflows/plans_refs.py`.
   - Observed evidence:
-  - Result: pending
+    `rg -n "_set_metadata\b" agent_workflows/plans_refs.py` printed nothing (rc=1). `git diff --stat agent_workflows/plans_refs.py`:
+    ```
+     agent_workflows/plans_refs.py | 35 -----------------------------------
+     1 file changed, 35 deletions(-)
+    ```
+    `_set_metadata` had no production caller: `plans_refs.apply_renames` already wrote Set/Order through `_meta.append(meta_target, events, dry_run=True, ...)` in its pre-pass and `_meta.append(...)` in its write pass, with `_check_order_lines` before and after the dry run, so the batch-refusal-before-write behavior is unchanged (exercised by `test_forced_raise_in_apply_renames_leaves_batch_unmoved_and_unchanged`, PASSED before and after).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "_update_frontmatter_metadata|_update_or_inject_set_metadata" agent_workflows/artifact_rename.py` (empty, or the one kept function with its F-24 classification quoted).
   - Observed evidence:
-  - Result: pending
+    `rg -n "_update_frontmatter_metadata|_update_or_inject_set_metadata" agent_workflows/artifact_rename.py` printed nothing (rc=1). Order 280 (`6bxlzb`) F-24 lists `artifact_rename._update_or_inject_set_metadata` (line 619) with owner `v0ucnz`, so it is classed as an adapter and was deleted too; its two callers in `artifact_rename.run_group_generic` (pre-flight `dry_run=True` and the write) now call `_meta.append` directly. `run_rename_generic` now calls `_meta.append(m_target, m_events, legacy_render=_meta.LegacyRender("rename", ...), ...)` directly; the event construction moved to the pure builder `artifact_rename._rename_metadata_events`, which writes nothing. `grep -n "_meta.append(" agent_workflows/artifact_rename.py` shows lines 510, 1116 (run_rename_generic), 1453 and 1549 (run_group_generic).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "_set_metadata\b" tests/test_plans_order_grammar.py` printing nothing and its before/after per-test lines with the batch-refusal case named.
   - Observed evidence:
-  - Result: pending
+    `rg -n "_set_metadata\b" tests/test_plans_order_grammar.py` printed nothing (rc=1). Per-test lines (from the PIN diff):
+    ```
+    < PASSED tests/test_plans_order_grammar.py::test_set_metadata_raises_on_unmatchable_order_line
+    < PASSED tests/test_plans_order_grammar.py::test_set_metadata_substitutes_negative_order_in_place
+    > PASSED tests/test_plans_order_grammar.py::test_group_plans_refuses_unmatchable_order_line
+    > PASSED tests/test_plans_order_grammar.py::test_group_plans_substitutes_negative_order_in_place
+    ```
+    The batch-refusal case `set_metadata_raises_on_unmatchable_order_line` is now `test_group_plans_refuses_unmatchable_order_line`: it runs `aw group plans sst002 --set newset --order 5 --apply` on a plan carrying `- Order: x1` and asserts exit 2, the message "expected exactly one '- Order:' line", and byte-identical file. The substitute case drives the same CLI and asserts the file bytes (`- Order: 5`, `- Set: newset`) plus `artifact_meta.read` state (`set == "newset"`, `order == 5`).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n "_update_frontmatter_metadata" tests/test_spec_id6_filenames.py` printing nothing, `diff .aw/state/9o83cr/E-09a-before.txt .aw/state/9o83cr/E-09a-after.txt` with each renamed test mapped, and `git show --stat` of the `aw commit v0ucnz` commit.
   - Observed evidence:
-  - Result: pending
+    `rg -n "_update_frontmatter_metadata" tests/test_spec_id6_filenames.py` printed nothing (rc=1). `test_a_spec_still_gets_its_bullet` keeps its name and now runs `aw rename specs <legacy> --to-id6 --apply --no-commit`, asserting the clustered name, the `- Status: draft\n- Id: <id6>` bytes, and `artifact_meta.read` (id6, status draft). `diff .aw/state/9o83cr/E-09a-before.txt .aw/state/9o83cr/E-09a-after.txt`:
+    ```
+    3a4,5
+    > PASSED tests/test_plans_order_grammar.py::test_group_plans_refuses_unmatchable_order_line
+    > PASSED tests/test_plans_order_grammar.py::test_group_plans_substitutes_negative_order_in_place
+    11,12d12
+    < PASSED tests/test_plans_order_grammar.py::test_set_metadata_raises_on_unmatchable_order_line
+    < PASSED tests/test_plans_order_grammar.py::test_set_metadata_substitutes_negative_order_in_place
+    ```
+    Mapping: `test_set_metadata_raises_on_unmatchable_order_line` -> `test_group_plans_refuses_unmatchable_order_line`; `test_set_metadata_substitutes_negative_order_in_place` -> `test_group_plans_substitutes_negative_order_in_place`. 33 before, 33 after, all PASSED. Full core suite `aw suite`: "2898 passed, 1 skipped, 11 warnings in 134.29s". Commit `git show --stat`: see the commit made by `aw commit v0ucnz` (recorded in the lane execution report; the commit cannot quote its own hash).
+  - Result: pass
 
 ## Approval and execution gate
 

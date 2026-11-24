@@ -18,10 +18,8 @@ from pathlib import Path
 
 import pytest
 
-from agent_workflows.plans_refs import (
-    _set_metadata,
-    run_set_assign,
-)
+from agent_workflows import artifact_meta
+from agent_workflows.plans_refs import run_set_assign
 from tests.record_builder import RecordBuilder
 
 
@@ -417,34 +415,43 @@ def test_bmhoxe_repair_sequence_leaves_well_formed_name(order_repo: Path) -> Non
 # ------------------------------------------------------------------------------
 
 
-def test_set_metadata_substitutes_negative_order_in_place() -> None:
-    """E-03: _set_metadata on text with '- Order: -1' substitutes in place rather than inserting a duplicate."""
-    raw = RecordBuilder().plan(
-        title="Test",
-        id6="sst001",
-        set="oldset",
-        body="## Goal",
-        raw_fields={"Order": "-1"},
-        text_only=True,
+def test_group_plans_substitutes_negative_order_in_place(order_repo: Path) -> None:
+    """E-03: aw group plans on a plan with '- Order: -1' substitutes in place rather than inserting a duplicate."""
+    p = _seed_conforming_plan(
+        order_repo, "sst001", setid="oldset", raw_fields={"Order": "-1"}
     )
-    updated = _set_metadata(raw, set_id="newset", order=5, plan_name="sst001")
+
+    proc = _run_cli(
+        order_repo,
+        ["group", "plans", "sst001", "--set", "newset", "--order", "5", "--apply"],
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    updated = p.read_text(encoding="utf-8")
     order_lines = [line for line in updated.splitlines() if line.startswith("- Order:")]
     assert order_lines == ["- Order: 5"]
     assert "- Set: newset" in updated
-
-
-def test_set_metadata_raises_on_unmatchable_order_line() -> None:
-    """E-03: _set_metadata raises ValueError when an unmatchable Order line would cause duplicate insertion."""
-    raw = RecordBuilder().plan(
-        title="Test",
-        id6="sst002",
-        set="oldset",
-        body="## Goal",
-        raw_fields={"Order": "x1"},
-        text_only=True,
+    state = artifact_meta.read(
+        "sst001", project_context=artifact_meta.legacy_context(order_repo)
     )
-    with pytest.raises(ValueError, match="expected exactly one '- Order:' line"):
-        _set_metadata(raw, set_id="newset", order=5, plan_name="sst002")
+    assert state.fields.get("set") == "newset"
+    assert state.fields.get("order") == 5
+
+
+def test_group_plans_refuses_unmatchable_order_line(order_repo: Path) -> None:
+    """E-03: aw group plans refuses, leaving the bytes unchanged, when an unmatchable Order line would cause duplicate insertion."""
+    p = _seed_conforming_plan(
+        order_repo, "sst002", setid="oldset", raw_fields={"Order": "x1"}
+    )
+    before_hash = _file_hash(p)
+
+    proc = _run_cli(
+        order_repo,
+        ["group", "plans", "sst002", "--set", "newset", "--order", "5", "--apply"],
+    )
+    assert proc.returncode == 2
+    assert "expected exactly one '- Order:' line" in proc.stdout + proc.stderr
+    assert p.exists()
+    assert _file_hash(p) == before_hash
 
 
 def test_forced_raise_in_apply_renames_leaves_batch_unmoved_and_unchanged(
@@ -452,7 +459,7 @@ def test_forced_raise_in_apply_renames_leaves_batch_unmoved_and_unchanged(
 ) -> None:
     """E-03: A ValueError in apply_renames pre-pass leaves every plan in the batch byte-identical and unmoved."""
     p1 = _seed_conforming_plan(order_repo, "atc001", order=1)
-    # Seed p2 with an unmatchable Order line that will trigger the assertion in _set_metadata
+    # Seed p2 with an unmatchable Order line that trips the apply_renames '- Order:' fail-safe
     p2 = _seed_conforming_plan(
         order_repo, "atc002", order=2, raw_fields={"Order": "x2"}
     )

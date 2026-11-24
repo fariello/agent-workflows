@@ -290,30 +290,22 @@ def _meta_target_for_file(
     )
 
 
-def _update_frontmatter_metadata(
-    file_path: Path,
+def _rename_metadata_events(
+    text: str,
+    rec_type: str,
+    rel_path: str,
+    *,
+    existing_id6: Optional[str],
     set_id: Optional[str] = None,
     order: Optional[int] = None,
     id6: Optional[str] = None,
-    artifact_type: Optional[str] = None,
-    *,
-    repo_root: Optional[Path] = None,
-) -> None:
-    """Update existing Set/Order (and, IPD ha55fi E-04, Id) metadata through `artifact_meta.append`.
+) -> List[dict]:
+    """The `artifact_meta.append` events for a rename's Set/Order update and id6 injection.
 
-    Emits `op: "set"` only for fields already present in the target file (`_SET_LINE_RE` /
-    `_ORDER_LINE_RE` or `Set:` in `aw-prompt`), and emits `op: "checkpoint"` for `id6` when
-    `_read_existing_id6` returns `None`.
+    Pure: builds events and writes nothing. Emits `op: "set"` only for fields already present in
+    ``text`` (`_SET_LINE_RE` / `_ORDER_LINE_RE`, or `Set:` in the `aw-prompt` comment), and
+    `op: "checkpoint"` for ``id6`` when the file declares no id6 yet (IPD ha55fi E-04).
     """
-    try:
-        text = file_path.read_text(encoding="utf-8")
-    except OSError:
-        return
-
-    rroot, ctx, rec_type, target, rel_path = _meta_target_for_file(
-        file_path, artifact_type, repo_root=repo_root, fallback_id6=id6
-    )
-
     events: List[dict] = []
     set_fields: dict = {}
     if rec_type == "prompts":
@@ -339,30 +331,14 @@ def _update_frontmatter_metadata(
     if set_fields:
         events.append({"op": "set", "fields": set_fields})
 
-    if id6 is not None and _read_existing_id6(file_path, rec_type) is None:
+    if id6 is not None and existing_id6 is None:
         cp_fields: dict = {"id": id6}
         if rec_type == "prompts" and set_id is not None:
             first_line = text.split("\n", 1)[0]
             if not re.search(r"(?:\A|\|)\s*Set:\s*[^|]+", first_line):
                 cp_fields["set"] = str(set_id)
         events.append({"op": "checkpoint", "path": rel_path, "fields": cp_fields})
-
-    if not events:
-        return
-
-    _meta.append(
-        target,
-        events,
-        legacy_render=_meta.LegacyRender(
-            "rename",
-            _core.utc_history_date(),
-            "aw",
-            history=False,
-            is_prompt=(rec_type == "prompts"),
-        ),
-        repo_root=rroot,
-        project_context=ctx,
-    )
+    return events
 
 
 def _id6_write_message(
@@ -414,7 +390,7 @@ def _id6_write_message(
         except OSError:
             _src_text = ""
         if not (_STATUS_LINE_RE.search(_src_text) or _DATE_LINE_RE.search(_src_text)):
-            # a88210: mirrors `_update_frontmatter_metadata`, which no longer writes a bullet into a
+            # a88210: mirrors `run_rename_generic`'s metadata write, which writes no bullet into a
             # file that has no bullet block. The message must not claim a write that will not happen.
             verb = "would record" if preview else "recorded"
             return (
@@ -616,40 +592,21 @@ def _existing_type_id6s(repo_root: Path, artifact_type: str) -> set:
     return ids
 
 
-def _update_or_inject_set_metadata(
-    file_path: Path,
-    set_id: Optional[str] = None,
-    order: Optional[int] = None,
-    *,
-    artifact_type: Optional[str] = None,
-    repo_root: Optional[Path] = None,
-    dry_run: bool = False,
-) -> None:
-    """Update or inject Set and Order metadata through `artifact_meta.append`."""
-    fields: dict = {}
-    if set_id is not None:
-        fields["set"] = str(set_id)
+def _group_set_fields(set_id: str, order: Optional[int]) -> dict:
+    """The `op: "set"` fields a regroup writes: the Set, plus the Order when one was resolved."""
+    fields: dict = {"set": str(set_id)}
     if order is not None:
         fields["order"] = int(order)
-    if not fields:
-        return
+    return fields
 
-    rroot, ctx, rec_type, target, _rel_path = _meta_target_for_file(
-        file_path, artifact_type, repo_root=repo_root
-    )
-    _meta.append(
-        target,
-        [{"op": "set", "fields": fields}],
-        legacy_render=_meta.LegacyRender(
-            "group",
-            _core.utc_history_date(),
-            "aw",
-            history=False,
-            is_prompt=(rec_type == "prompts"),
-        ),
-        repo_root=rroot,
-        project_context=ctx,
-        dry_run=dry_run,
+
+def _group_legacy_render(rec_type: str) -> "_meta.LegacyRender":
+    return _meta.LegacyRender(
+        "group",
+        _core.utc_history_date(),
+        "aw",
+        history=False,
+        is_prompt=(rec_type == "prompts"),
     )
 
 
@@ -1138,14 +1095,37 @@ def run_rename_generic(
     applied_notes: List[str] = []
     if new_set is not None or new_order is not None or inject_id6 is not None:
         # IPD ha55fi E-04: same atomic transaction writes Set/Order AND injects the minted `- Id:`.
-        _update_frontmatter_metadata(
-            dst,
-            set_id=_core.kebab(new_set) if new_set else None,
-            order=new_order,
-            id6=inject_id6,
-            artifact_type=artifact_type,
-            repo_root=repo_root,
-        )
+        try:
+            dst_text: Optional[str] = dst.read_text(encoding="utf-8")
+        except OSError:
+            dst_text = None
+        if dst_text is not None:
+            m_rroot, m_ctx, m_type, m_target, m_rel = _meta_target_for_file(
+                dst, artifact_type, repo_root=repo_root, fallback_id6=inject_id6
+            )
+            m_events = _rename_metadata_events(
+                dst_text,
+                m_type,
+                m_rel,
+                existing_id6=_read_existing_id6(dst, m_type),
+                set_id=_core.kebab(new_set) if new_set else None,
+                order=new_order,
+                id6=inject_id6,
+            )
+            if m_events:
+                _meta.append(
+                    m_target,
+                    m_events,
+                    legacy_render=_meta.LegacyRender(
+                        "rename",
+                        _core.utc_history_date(),
+                        "aw",
+                        history=False,
+                        is_prompt=(m_type == "prompts"),
+                    ),
+                    repo_root=m_rroot,
+                    project_context=m_ctx,
+                )
         if inject_id6 is not None:
             # Read `dst` (post-write) rather than `src` (already moved away): for a prompt WITH a
             # comment the id6 is now in it, and for one WITHOUT the file is untouched, so the message
@@ -1467,12 +1447,15 @@ def run_group_generic(
     # Pre-flight validate every target on disk before any git_mv, record_rename, or file write.
     for src, _dst, order_val in targets:
         try:
-            _update_or_inject_set_metadata(
-                src,
-                set_id=set_k,
-                order=order_val,
-                artifact_type=artifact_type,
-                repo_root=repo_root,
+            g_rroot, g_ctx, g_type, g_target, _g_rel = _meta_target_for_file(
+                src, artifact_type, repo_root=repo_root
+            )
+            _meta.append(
+                g_target,
+                [{"op": "set", "fields": _group_set_fields(set_k, order_val)}],
+                legacy_render=_group_legacy_render(g_type),
+                repo_root=g_rroot,
+                project_context=g_ctx,
                 dry_run=True,
             )
         except ValueError as exc:
@@ -1560,12 +1543,15 @@ def run_group_generic(
                     detail=f"-> {dst.name}",
                 )
             )
-        _update_or_inject_set_metadata(
-            dst,
-            set_id=set_k,
-            order=order_val,
-            artifact_type=artifact_type,
-            repo_root=repo_root,
+        g_rroot, g_ctx, g_type, g_target, _g_rel = _meta_target_for_file(
+            dst, artifact_type, repo_root=repo_root
+        )
+        _meta.append(
+            g_target,
+            [{"op": "set", "fields": _group_set_fields(set_k, order_val)}],
+            legacy_render=_group_legacy_render(g_type),
+            repo_root=g_rroot,
+            project_context=g_ctx,
         )
         dst_rel = dst.relative_to(repo_root).as_posix()
         if emit_human:

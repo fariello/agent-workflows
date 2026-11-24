@@ -116,41 +116,6 @@ def _set_order_events(set_val: str, order: int) -> List[dict]:
     return [{"op": "set", "fields": {"set": set_val, "order": int(order)}}]
 
 
-def _set_metadata(
-    text: str,
-    *,
-    set_id: str,
-    order: int,
-    descriptive: Optional[str] = None,
-    plan_name: Optional[str] = None,
-) -> str:
-    """Return ``text`` with Set/Order set via ``artifact_meta.render_legacy_text``.
-
-    The written `Set:` value is ``<terse-id> (<descriptive>)`` when ``descriptive`` is given, else the
-    bare terse id (plans-adopter Order 06 format). Preserves the `yqv6b7` E-03 fail-safe against
-    malformed, duplicate, or uninjected `- Order:` lines.
-    """
-
-    target = plan_name or _read_id(text) or "plan"
-    _check_order_lines(text, target=target, require_present=False)
-    events = _set_order_events(_set_value(set_id, descriptive), order)
-    render = _meta.LegacyRender(
-        "group",
-        _core.utc_history_date(),
-        "aw",
-        history=False,
-    )
-    updated = _meta.render_legacy_text(
-        text,
-        events,
-        record_type="plans",
-        render=render,
-        label=target,
-    )
-    _check_order_lines(updated, target=target, require_present=True)
-    return updated
-
-
 def _plan_date(text: str) -> str:
     st = _meta.read_text(text, record_type="ipd")
     raw = st.fields.get("date") or st.created_day

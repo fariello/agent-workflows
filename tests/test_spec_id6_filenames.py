@@ -455,9 +455,9 @@ class TestToId6DatedLegacyNames(_RepoTestCase):
         )
 
     def test_a_spec_still_gets_its_bullet(self):
-        from agent_workflows import artifact_rename as ar
+        from agent_workflows import artifact_meta
 
-        p = self.specs / "x.spec.md"
+        p = self.specs / "20260701-1200-01-bullet.spec.md"
         p.write_text(
             RecordBuilder().spec(
                 title="Spec",
@@ -468,8 +468,21 @@ class TestToId6DatedLegacyNames(_RepoTestCase):
             ),
             encoding="utf-8",
         )
-        ar._update_frontmatter_metadata(p, id6="abc123", artifact_type="specs")
-        self.assertIn("- Status: draft\n- Id: abc123\n", p.read_text(encoding="utf-8"))
+        self._commit()
+        rc, out = self._run(
+            ["rename", "specs", str(p), "--to-id6", "--apply", "--no-commit"]
+        )
+        self.assertEqual(rc, 0, out)
+        (new,) = list(self.specs.glob("*.spec.md"))
+        text = new.read_text(encoding="utf-8")
+        (id6,) = self._ids(text)
+        self.assertEqual(new.name, f"20260701-{id6}-01-{id6}-bullet.spec.md")
+        self.assertIn(f"- Status: draft\n- Id: {id6}\n", text)
+        state = artifact_meta.read(
+            id6, project_context=artifact_meta.legacy_context(self.tmp)
+        )
+        self.assertEqual(state.id6, id6)
+        self.assertEqual(state.status, "draft")
 
 
 class TestPinnedPermalinksAreNeverRewritten(unittest.TestCase):
