@@ -42,30 +42,30 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 
 ### Task group 1: one parser per pair of items, then verify
 
-- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` and `.aw/state/k6jd6l/` exist (`mkdir -p .aw/state/9o83cr/ .aw/state/k6jd6l/`) and capture baseline test PIN list to `.aw/state/9o83cr/E-10a-before.txt` and lint baseline to `.aw/state/k6jd6l/lint-all-before.txt`. Move `ipd_schema.parse_metadata_block` into `artifact_meta` (private, with a public wrapper only if `ipd_lint.parse` needs the error list) and change `ipd_lint.parse` to call it; delete the original.
+- [x] E-01 Before the first edit, ensure `.aw/state/9o83cr/` and `.aw/state/k6jd6l/` exist (`mkdir -p .aw/state/9o83cr/ .aw/state/k6jd6l/`) and capture baseline test PIN list to `.aw/state/9o83cr/E-10a-before.txt` and lint baseline to `.aw/state/k6jd6l/lint-all-before.txt`. Move `ipd_schema.parse_metadata_block` into `artifact_meta` (private, with a public wrapper only if `ipd_lint.parse` needs the error list) and change `ipd_lint.parse` to call it; delete the original.
   - Depends on: none
   - Expected outcome: `ipd_schema` no longer defines `parse_metadata_block`; `ipd_lint.parse` calls `artifact_meta`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Retarget `tests/test_ipd_schema.py` (4 references) and `tests/test_from_backlog_cardinality.py` (1 reference) to the `artifact_meta` parser or to `artifact_meta.read_text`, keeping every case.
+- [x] E-02 Retarget `tests/test_ipd_schema.py` (4 references) and `tests/test_from_backlog_cardinality.py` (1 reference) to the `artifact_meta` parser or to `artifact_meta.read_text`, keeping every case.
   - Depends on: E-01
   - Expected outcome: neither module references `ipd_schema.parse_metadata_block`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Move `prompts_index._parse_metadata_comment` into `artifact_meta` (private); `prompts_index.scan_prompts` and `prompts_index.check_drift` read through `artifact_meta.read_text(text, record_type="prompts")`; delete the original.
+- [x] E-03 Move `prompts_index._parse_metadata_comment` into `artifact_meta` (private); `prompts_index.scan_prompts` and `prompts_index.check_drift` read through `artifact_meta.read_text(text, record_type="prompts")`; delete the original.
   - Depends on: E-02
   - Expected outcome: `prompts_index` no longer defines or calls `_parse_metadata_comment`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Change `check_engine.validate_prompt_content` and `cli._find_prompt_setid` to read the prompt comment through `artifact_meta.read_text`.
+- [x] E-04 Change `check_engine.validate_prompt_content` and `cli._find_prompt_setid` to read the prompt comment through `artifact_meta.read_text`.
   - Depends on: E-03
   - Expected outcome: no module outside `artifact_meta` references `_parse_metadata_comment`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Run `tests/test_ipd_lint.py`, `tests/test_prompts_index.py`, `tests/test_ipd_schema.py` and `tests/test_from_backlog_cardinality.py` into the after-list, run `aw ipd lint --all` and compare with `.aw/state/k6jd6l/lint-all-before.txt`; commit through `aw commit ad86ym -- <paths>`.
+- [x] E-05 Run `tests/test_ipd_lint.py`, `tests/test_prompts_index.py`, `tests/test_ipd_schema.py` and `tests/test_from_backlog_cardinality.py` into the after-list, run `aw ipd lint --all` and compare with `.aw/state/k6jd6l/lint-all-before.txt`; commit through `aw commit ad86ym -- <paths>`.
   - Depends on: E-04
   - Expected outcome: the after-list drops no case; lint dispositions are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -126,30 +126,93 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "def parse_metadata_block" agent_workflows` listing only `artifact_meta.py`, `rg -n "parse_metadata_block" agent_workflows` listing `artifact_meta.py`, `ipd_lint.parse`, and the comment in `ipd_authoring.py`, and `rg -n "def parse_item_dependencies" agent_workflows/ipd_schema.py` still one hit.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ rg -n "def parse_metadata_block" agent_workflows
+    agent_workflows/artifact_meta.py:2632:def parse_metadata_block(
+    $ rg -n "parse_metadata_block" agent_workflows
+    agent_workflows/ipd_authoring.py:940:        # form every reader (`plans_index._meta`, `ipd_schema.parse_metadata_block`) parses.
+    agent_workflows/ipd_lint.py:505:    """Single Phase-B call site for ``artifact_meta.parse_metadata_block``.
+    agent_workflows/ipd_lint.py:513:    return _meta.parse_metadata_block(meta_slice)
+    agent_workflows/artifact_meta.py:2595:#: The IPD metadata-block LINE grammar, owned here (moved with `parse_metadata_block` by ad86ym).
+    agent_workflows/artifact_meta.py:2601:def _parse_metadata_block(
+    agent_workflows/artifact_meta.py:2632:def parse_metadata_block(
+    agent_workflows/artifact_meta.py:2640:    return _parse_metadata_block(lines)
+    $ rg -n "def parse_item_dependencies" agent_workflows/ipd_schema.py
+    975:def parse_item_dependencies(
+    ```
+    `artifact_meta._parse_metadata_block` is the private parser with its own `_IPD_META_LINE_RE`; `artifact_meta.parse_metadata_block` is the public wrapper `ipd_lint._parse_metadata_slice` (called by `ipd_lint.parse`) needs for the IPD-M102/M103 error list. `ipd_schema._META_LINE_RE` and `MetaError` stay (Order 246 `nx7fws`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "parse_metadata_block" tests/test_ipd_schema.py tests/test_from_backlog_cardinality.py` showing only `artifact_meta` uses, and both modules' before/after per-test lines.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ rg -n "parse_metadata_block" tests/test_ipd_schema.py tests/test_from_backlog_cardinality.py
+    tests/test_ipd_schema.py:241:    spellings are parsed verbatim out of plan text by `artifact_meta.parse_metadata_block`'s `_IPD_META_LINE_RE`, so
+    tests/test_ipd_schema.py:932:    """`artifact_meta.parse_metadata_block`: the LINE-level parse, which is a different subject from validation.
+    tests/test_ipd_schema.py:1014:            fields, errors = AM.parse_metadata_block(lines)
+    tests/test_ipd_schema.py:1034:            f"artifact_meta.parse_metadata_block mishandled {len(wrong)} of {len(self.BLOCKS)} raw metadata "
+    tests/test_from_backlog_cardinality.py:259:        # Verify artifact_meta.parse_metadata_block on metadata lines
+    tests/test_from_backlog_cardinality.py:265:        fields, errors = artifact_meta.parse_metadata_block(meta_lines)
+    ```
+    Per-module counts from `.aw/state/9o83cr/E-10a-{before,after}.txt`: `test_ipd_schema` before=26 after=26 (0 non-PASSED after); `test_from_backlog_cardinality` before=7 after=7 (0 non-PASSED). Key lines, identical before and after:
+    ```text
+    PASSED tests/test_ipd_schema.py::MetadataBlockParseTests::test_each_metadata_block_parses_to_its_exact_fields_and_errors
+    PASSED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_writer_idempotency_and_metadata_parse
+    ```
+    No test renamed and no case removed (the `BLOCKS` table is unchanged).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "_parse_metadata_comment" agent_workflows/prompts_index.py` printing nothing and the before/after per-test lines of `tests/test_prompts_index.py`.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ rg -n "_parse_metadata_comment" agent_workflows/prompts_index.py; echo "rc=$?"
+    rc=1
+    ```
+    Per-test lines of `tests/test_prompts_index.py`: before=15 after=15, identical (all PASSED), e.g. `PASSED tests/test_prompts_index.py::PromptsIndexTests::test_check_drift_name_metadata_mismatch` and `PASSED tests/test_prompts_index.py::PromptsIndexTests::test_scan_and_build_index_json`. At execution time `prompts_index.scan_prompts`/`check_drift` already read through `artifact_meta` (`_am.query`/`_am.read_text(..., record_type="prompt")`, migrated by `cb5eda`), so the deleted `prompts_index._parse_metadata_comment` had no callers; the comment grammar now lives once as `artifact_meta._parse_metadata_comment`, replacing two identical inline copies in `artifact_meta.load_legacy_artifact` and `artifact_meta.read_text`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n "_parse_metadata_comment" agent_workflows` listing only `artifact_meta.py`.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ rg -n "_parse_metadata_comment" agent_workflows
+    agent_workflows/artifact_meta.py:2643:def _parse_metadata_comment(first_line: str) -> Dict[str, str]:
+    agent_workflows/artifact_meta.py:3116:        comment_bullets: Dict[str, str] = _parse_metadata_comment(first_line)
+    agent_workflows/artifact_meta.py:4789:        comment_bullets = _parse_metadata_comment(first_line)
+    ```
+    `check_engine.validate_prompt_content` (`_meta_state_for_path` / `_meta.load_legacy_artifact` / `_meta.read_text(text, record_type="prompt")`) and `cli._find_prompt_setid` (`_meta.read_text(text, record_type="prompt")`) already read through `artifact_meta` before this plan ran, so neither file needed an edit (declared Scope-Paths left unmodified).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `diff .aw/state/9o83cr/E-10a-before.txt .aw/state/9o83cr/E-10a-after.txt` (no FAILED or ERROR line, each rename mapped), the `diff` of the two `aw ipd lint --all` disposition files (empty), and `git show --stat` of the `aw commit ad86ym` commit.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ diff .aw/state/9o83cr/E-10a-before.txt .aw/state/9o83cr/E-10a-after.txt; echo diff-exit=$?
+    diff-exit=0
+    $ grep -cE "^(FAILED|ERROR)" .aw/state/9o83cr/E-10a-after.txt
+    0
+    (run tail: ======================= 125 passed in 230.21s (0:03:50) ========================)
+    $ diff .aw/state/k6jd6l/lint-all-before.txt .aw/state/k6jd6l/lint-all-after.txt; echo diff-exit=$?
+    diff-exit=0
+    (both files end: counts: conforming=105, quarantined=0, legacy/not evaluated=1880, error=0)
+    $ git show --stat 8fe1a9c87
+    commit 8fe1a9c87fd8520e3f7286411d0196b91d17f9ae
+        ad86ym: move parse_metadata_block and the prompt-comment parser into artifact_meta
+     agent_workflows/artifact_meta.py       | 146 ++++++++++++++++++++-------------
+     agent_workflows/ipd_lint.py            |  10 ++-
+     agent_workflows/ipd_schema.py          |  31 -------
+     agent_workflows/prompts_index.py       |  22 -----
+     tests/test_from_backlog_cardinality.py |   5 +-
+     tests/test_ipd_schema.py               |  11 +--
+     6 files changed, 103 insertions(+), 122 deletions(-)
+    ```
+    No rename to map (lists identical). Core tier `aw suite`: `2898 passed, 1 skipped, 11 warnings in 196.31s`.
+  - Result: pass
 
 ## Approval and execution gate
 
