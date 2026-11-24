@@ -151,6 +151,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
         agent_workflows/artifact_meta.py:6446:def set_legacy_bullet_line(
       `diff .aw/state/9o83cr/E-08-before.txt .aw/state/9o83cr/E-08-after.txt` printed nothing (identical, 202 lines each, all PASSED, `grep -cE "^(FAILED|ERROR)"` = 0). Per module after: test_artifact_meta_legacy 19, test_backlog_handoff_close 40, test_backlog_metadata_duplicate_and_gate_summary 8, test_blocks_release_reader_bounding 9, test_check_engine_from_spec_missing 37, test_check_engine_spec_criteria 15, test_from_backlog_cardinality 7, test_releases_line_writers 23, test_releases_sibling_line_writers_bounding 9, test_research_descriptive_safety 24, test_research_priority 11. No test renamed or removed.
       `aw suite`: `2898 passed, 1 skipped, 11 warnings in 147.64s (0:02:27)`.
+      Attempt 2 (lane `aw/lane/zs7a45_attempt2`, prior commits brought forward as 467c28a53, 85baac75b, 8eca378b8): before-list regenerated from a clone checked out at base 18f82b15d, after-list from the lane; `wc -l` 202 and 202, `diff` printed nothing (exit 0), `grep -cE "^(FAILED|ERROR)"` on the after-list = 0, all 202 PASSED. `aw suite`: `2898 passed, 1 skipped, 11 warnings in 119.94s (0:01:59)`.
       `git show --stat d4c5c4981`:
         work(zs7a45): delete the original metadata value writers; artifact_meta is the one writer
          agent_workflows/attention.py                       |  7 +-
