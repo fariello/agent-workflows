@@ -6,7 +6,7 @@
 - Scope: delete the 12 literals; confirm the 24 `backlog`, `specs` and `selectors` literals are gone with `k6jd6l` (expected none); class the `non-metadata` rows in `786w7r` F-27 for the `9o83cr` E-14 exclusion file. EXCLUDES every other module.
 - Scope-Paths: agent_workflows/production_checks.py, agent_workflows/work_cmd.py, agent_workflows/set_records.py, agent_workflows/hooks/executed_transition_gate.py, agent_workflows/cli.py, tests/test_production_checks_trace.py, .aw/records/plans/pending/20261109-metastore-249-n2cvf0-delete-the-remaining-module-metadata-regex-literals.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: n2cvf0
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: n2cvf0 verified (set metastore, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/cli.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/hooks/executed_transition_gate.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/production_checks.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/set_records.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/work_cmd.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_production_checks_trace.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, regex literal deletions, and execution gate; marked reviewed and go-pending-approval.
