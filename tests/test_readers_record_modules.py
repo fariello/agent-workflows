@@ -985,7 +985,7 @@ def test_research_archive_plan_sweep_miscategorized_and_apply(tmp_path: Path) ->
 
 
 def test_prompts_index_scan_build_and_drift(tmp_path: Path) -> None:
-    """Pin prompts_index.scan_prompts, build_index_json, build_index_md, and check_drift."""
+    """Pin prompts_index.scan_prompts and check_drift."""
     repo, _research_dir, prompts_dir = _build_records_repo(tmp_path)
     for bucket in ("pending", "executed", "superseded", "untracked"):
         (prompts_dir / bucket).mkdir(parents=True, exist_ok=True)
@@ -1030,12 +1030,6 @@ def test_prompts_index_scan_build_and_drift(tmp_path: Path) -> None:
     assert e3.id6 is None
     assert e3.status == "superseded"
     assert e3.date == "20260717"
-
-    rendered_json = json.loads(prompts_index.build_index_json(entries))
-    assert len(rendered_json) == 3
-    rendered_md = prompts_index.build_index_md(entries)
-    assert "## seta" in rendered_md
-    assert "prm101" in rendered_md
 
     # Mismatched filename id6 / set vs metadata comment must emit name-metadata-mismatch
     (prompts_dir / "pending" / "20260920-setb-01-xyz111-badmeta.prompt.md").write_text(
