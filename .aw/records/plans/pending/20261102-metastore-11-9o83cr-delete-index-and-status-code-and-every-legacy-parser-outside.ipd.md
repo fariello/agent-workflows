@@ -129,6 +129,7 @@ flowchart TD
   - Carrier: snin8q
 - Moved to k6jd6l (split 2026-11-07 per maintainer step-complexity rule): E-08 (value writers), E-09 (thin adapters), E-10 (borrowed grammars), and E-11 split into subset 1 (selectors, plans, prompts and attention readers, kept as E-11) and subset 2 (spec readers and `backlog.parse_item`, as E-18).
   - Carrier: k6jd6l
+  - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-43-k6jd6l-fold-the-value-writers-into-artifact-meta-delete-the-writer.ipd.md
 - Moved to e8420v (split 2026-11-07 per maintainer step-complexity rule): E-12, the subset of sites in `check_engine` (kept as E-12), `runner_shared` with its `oc_runipd`/`agy_runipd` re-exports (E-19), and `status_set`, `releases` and the `tools/gate_drop_audit.py` retarget (E-20).
   - Carrier: e8420v
 - Moved to 0xsx2n (split 2026-11-07 per maintainer step-complexity rule): E-12, the subset of sites in every other module (E-21 plans and artifact family, E-22 ipd and readiness family, E-23 attention, review and research, E-24 remaining modules). With `e8420v`'s subset this equals the original E-12 list.

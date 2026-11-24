@@ -96,6 +96,7 @@ flowchart TD
   - Carrier: e8420v
 - `tools/gate_drop_audit.py`'s `backlog.parse_item` call.
   - Carrier: k6jd6l
+  - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-43-k6jd6l-fold-the-value-writers-into-artifact-meta-delete-the-writer.ipd.md
 
 ## Scope check
 

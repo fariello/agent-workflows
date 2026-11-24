@@ -99,6 +99,7 @@ flowchart TD
   - Carrier: iog3cw
 - The value-writer test modules retargeted by `k6jd6l` E-08.
   - Carrier: k6jd6l
+  - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-43-k6jd6l-fold-the-value-writers-into-artifact-meta-delete-the-writer.ipd.md
 
 ## Scope check
 
