@@ -11,6 +11,7 @@ from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
+from agent_workflows import artifact_meta
 from agent_workflows import attention_contract
 from agent_workflows import specs
 from agent_workflows import status_set
@@ -381,7 +382,7 @@ class LiveSpecsTreeInvariantTests(unittest.TestCase):
 
         for p in spec_files:
             text = p.read_text(encoding="utf-8")
-            status = specs._read_status(specs._lines(text))
+            status = artifact_meta.read_text(text, record_type="spec").status
             self.assertIsNotNone(status, f"Spec {p.name} must have a status bullet")
             self.assertIn(
                 status,

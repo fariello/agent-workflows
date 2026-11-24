@@ -19,7 +19,7 @@ import datetime as _dt
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention_contract as A
@@ -79,15 +79,6 @@ def _find_status_index(lines: List[str]) -> int:
         if _meta.spec_status_bullet(lines[i]) is not None:
             return i
     return -1
-
-
-def _read_status(lines: List[str]) -> Optional[str]:
-    from agent_workflows import artifact_meta as _meta
-
-    i = _find_status_index(lines)
-    if i < 0:
-        return None
-    return _meta.spec_status_bullet(lines[i])
 
 
 # --------------------------------------------------------------------------------------
@@ -164,37 +155,7 @@ def _spec_files(repo_root: Path) -> List[Path]:
     return sorted(files)
 
 
-def _read_gate(lines: List[str]) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    kind = ref = summary = None
-    end = _metadata_end(lines)
-    for line in lines[:end]:
-        mk = A.GATE_KIND_RE.match(line)
-        if mk:
-            kind = mk.group("value")
-        mr = A.GATE_REF_RE.match(line)
-        if mr:
-            ref = mr.group("value")
-        ms = A.GATE_SUMMARY_RE.match(line)
-        if ms:
-            summary = ms.group("value")
-    return kind, ref, summary
-
-
-_BLOCKS_RELEASE_RE = re.compile(r"^- Blocks-Release:\s*(\S+)\s*$")
 _SPEC_ID_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
-# xprio Order rp859c: an optional `- Priority:` bullet on a spec (shared low/medium/high vocab is
-# backlog.PRIORITIES; do NOT fork it). Optional (existing specs carry none). The ENUM value is
-# enum-validated in validate_spec (not here); this is just the reader RE, mirroring _BLOCKS_RELEASE_RE.
-_PRIORITY_RE = re.compile(r"^- Priority:\s*(\S+)\s*$")
-# wkindname Order ng2blv: an optional `- Work-Kind:` bullet on a spec (shared bug/feature/chore/
-# security/followup vocab is backlog.KINDS; do NOT fork it and do NOT define a spec-only subset).
-# Optional (existing specs carry none). The ENUM value is enum-validated in validate_spec (not here);
-# this is just the reader RE, mirroring _PRIORITY_RE exactly. A spec is rarely a "bug" and will mostly
-# use `feature` or `chore`; that is an accepted cost of ONE shared vocabulary (OQ-01), because forked
-# per-type vocabularies are the drift this Set exists to remove.
-_WORK_KIND_RE = re.compile(r"^- Work-Kind:\s*(\S+)\s*$")
-_SCOPE_RE = re.compile(r"^- Scope:[ \t]*(.*?)[ \t]*$")
-_SUMMARY_RE = re.compile(r"^- Summary:[ \t]*(.*?)[ \t]*$")
 _TOP_KEY_RE = re.compile(r"^- ([A-Za-z0-9_-]+):(?:\s*(.*))?$")
 
 # Multi-valued metadata keys allowlist (IPD 1znlxy E-01).
@@ -236,56 +197,12 @@ def _repo_root_of(spec_path: Path) -> Path:
     return p.parent if p.is_file() else p
 
 
-def _read_blocks_release(lines: List[str]) -> Optional[str]:
-    """Read a spec's `- Blocks-Release:` value (a release id6 or 'next'), or None. Awrelease Order 02."""
-    end = _metadata_end(lines)
-    for line in lines[:end]:
-        m = _BLOCKS_RELEASE_RE.match(line)
-        if m:
-            return m.group(1)
-    return None
-
-
-def _read_priority(lines: List[str]) -> Optional[str]:
-    """Read a spec's optional `- Priority:` value (shared low/medium/high vocab), or None (absent =
-    unprioritized). xprio Order rp859c; mirrors `_read_blocks_release`. Enum-validated in validate_spec."""
-    end = _metadata_end(lines)
-    for line in lines[:end]:
-        m = _PRIORITY_RE.match(line)
-        if m:
-            return m.group(1)
-    return None
-
-
-def _read_work_kind(lines: List[str]) -> Optional[str]:
-    """Read a spec's optional `- Work-Kind:` value (shared backlog.KINDS vocab), or None (absent =
-    unclassified). wkindname Order ng2blv; mirrors `_read_priority`. Enum-validated in validate_spec."""
-    end = _metadata_end(lines)
-    for line in lines[:end]:
-        m = _WORK_KIND_RE.match(line)
-        if m:
-            return m.group(1)
-    return None
-
-
-def _read_scope(lines: List[str]) -> Optional[str]:
-    """Read a spec's optional `- Scope:` value from the metadata block, or None."""
-    end = _metadata_end(lines)
-    for line in lines[:end]:
-        m = _SCOPE_RE.match(line)
-        if m:
-            return m.group(1)
-    return None
-
-
-def _read_summary(lines: List[str]) -> Optional[str]:
-    """Read a spec's optional `- Summary:` value from the metadata block, or None."""
-    end = _metadata_end(lines)
-    for line in lines[:end]:
-        m = _SUMMARY_RE.match(line)
-        if m:
-            return m.group(1)
-    return None
+def _single_token(value: Optional[str]) -> Optional[str]:
+    """Return ``value`` when it is exactly one whitespace-free token, else None (a bare-enum bullet)."""
+    if value is None:
+        return None
+    parts = str(value).split()
+    return parts[0] if len(parts) == 1 else None
 
 
 def _history_lines(lines: List[str]) -> List[str]:
@@ -394,7 +311,11 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
                 )
             )
 
-    status = _read_status(lines)
+    from agent_workflows import artifact_meta as _meta
+
+    state = _meta.read_text(text, record_type="spec")
+    fields = state.fields
+    status = _single_token(state.legacy_raw_status)
     if status is None:
         drift.append(
             core.Drift(
@@ -411,7 +332,9 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
             )
         )
 
-    kind, ref, summary = _read_gate(lines)
+    kind = _single_token(fields.get("gate_kind"))
+    ref = fields.get("gate_ref") or None
+    summary = fields.get("gate_summary") or None
     has_gate = kind is not None or ref is not None or summary is not None
     if status == "deferred":
         if kind is None or ref is None:
@@ -456,7 +379,7 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
             )
         )
 
-    scope = _read_scope(lines)
+    scope = fields.get("scope")
     if scope is not None and not A.is_safe_prose_descriptive(scope):
         drift.append(
             core.Drift(
@@ -466,7 +389,7 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
             )
         )
 
-    spec_summary = _read_summary(lines)
+    spec_summary = fields.get("summary")
     if spec_summary is not None and not A.is_safe_descriptive(spec_summary):
         drift.append(
             core.Drift(
@@ -490,7 +413,7 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
     # backlog.PRIORITIES vocab (imported, not forked). Absent = unprioritized (no finding). Because
     # `aw specs set` re-runs validate_spec and refuses a nonconforming result, this also makes the
     # setter refuse an out-of-vocab `--priority bogus` (byte-identical refuse path).
-    priority = _read_priority(lines)
+    priority = _single_token(fields.get("priority"))
     if priority is not None:
         from agent_workflows import backlog as _backlog
 
@@ -508,7 +431,7 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
     # property that keeps the existing spec corpus from being mass-failed. Because `aw specs set`
     # re-runs validate_spec and refuses a nonconforming result, this also makes the setter refuse an
     # out-of-vocab `--work-kind bogus` (byte-identical refuse path to `--priority bogus`).
-    work_kind = _read_work_kind(lines)
+    work_kind = _single_token(fields.get("work_kind"))
     if work_kind is not None:
         from agent_workflows import backlog as _backlog
 

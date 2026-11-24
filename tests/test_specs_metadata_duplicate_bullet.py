@@ -4,7 +4,7 @@ Exercises specs.validate_spec on constructed spec texts (behavior testing, no co
 (a) duplicated - Blocks-Release: is reported once with the expected detail;
 (b) duplicated - Gate-Kind: on a deferred spec is reported and does not suppress or duplicate existing gate findings:
     (b1) both lines carry the same valid kind with a valid - Gate-Ref:, so the new rule is the only finding;
-    (b2) the lines carry different kinds where the last one makes the ref invalid, so exactly one attention.gate-malformed
+    (b2) the lines carry different kinds where the first one makes the ref invalid, so exactly one attention.gate-malformed
          and exactly one spec.metadata-bullet-repeated are both present;
 (c) four - Constrained-by: lines are not reported;
 (d) a duplicate appearing only after the first ## heading (prose example) is not reported;
@@ -58,14 +58,15 @@ class TestSpecsMetadataDuplicateBullet(unittest.TestCase):
         )
 
     def test_duplicated_gate_kind_different_invalid_ref(self):
-        """(b2) lines carry different kinds where last one makes ref invalid: gate-malformed and bullet-repeated."""
+        """(b2) lines carry different kinds where the first one (which `artifact_meta.read_text`, the one
+        metadata reader, keeps) makes the ref invalid: gate-malformed and bullet-repeated."""
         text = RecordBuilder().spec(
             title="Deferred Different Gate-Kinds",
             status="deferred",
-            gate_kind="date",
+            gate_kind="decision",
             gate_ref="2027-01-01",
             history=["- 2026-10-01 deferred: waiting"],
-            raw_fields={"Gate-Kind": "date\n- Gate-Kind: decision"},
+            raw_fields={"Gate-Kind": "decision\n- Gate-Kind: date"},
             text_only=True,
         )
         drift = specs.validate_spec(Path(".aw/records/specs/test.spec.md"), text)

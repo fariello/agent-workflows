@@ -27,6 +27,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
+from agent_workflows import artifact_meta
 from agent_workflows import attention_contract as A
 from agent_workflows import cli
 from agent_workflows import releases as R
@@ -403,7 +404,9 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
             .replace("# Spec: Legit\n", "# Spec: Legit\n- Status: approved\n", 1)
         )
         lines = forged.splitlines()
-        self.assertEqual(S._read_status(lines), "approved")
+        self.assertEqual(
+            artifact_meta.read_text(forged, record_type="spec").status, "approved"
+        )
         self.assertEqual(S._find_status_index(lines), 1)
         # Prior to IPD 1znlxy the checker was blind to duplicate bullets; now it reports the duplicate Status bullet.
         dummy_path = self.tmp / "dummy.spec.md"

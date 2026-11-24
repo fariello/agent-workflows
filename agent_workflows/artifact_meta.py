@@ -2921,8 +2921,14 @@ def history_records(text: str) -> HistoryBlock:
 def _parse_bullet_metadata_with_loose(
     text: str,
 ) -> Tuple[Dict[str, str], Dict[str, str], Optional[str], List[str]]:
-    """Parse strict `^- <Key>:` and loose `^-[ \\t]*<Key>:` bullets before first ##+ heading."""
-    lines = text.splitlines()
+    """Parse strict `^- <Key>:` and loose `^-[ \\t]*<Key>:` bullets before first ##+ heading.
+
+    Lines break only at `\\n` (after `\\r\\n` is normalized), as the deleted `specs._read_*` readers
+    did. `str.splitlines()` also breaks at a bare `\\r`, C1 NEL, U+2028 and other separators, which
+    would cut a bullet value short (hiding an unsafe control character from the descriptive-safety
+    checks) and let text after it be read as a forged bullet.
+    """
+    lines = text.replace("\r\n", "\n").split("\n")
     bullets: Dict[str, str] = {}
     loose_bullets: Dict[str, str] = {}
     title: Optional[str] = None
