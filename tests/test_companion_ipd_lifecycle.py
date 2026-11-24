@@ -593,5 +593,370 @@ class TestCompanionIpdLifecycle(unittest.TestCase):
                 self.assertIn("RUN-NOT-FOUND", str(ctx.exception))
 
 
+class CompanionPlanProductionTests(unittest.TestCase):
+    """End-to-end companion-records tests for `--action plan` (backlog and spec production)."""
+
+    def test_backlog_production_in_isolated_companion_lane_discovers_graduates_and_routes(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            target, companion, env = _provision_companion_repos(td_path)
+            records_root = companion / "records"
+
+            bkl_name = "20261124-mux2cz-01-mux2cz-fix-pytest-import-order.backlog.md"
+            bkl_rel = f"records/backlog/open/{bkl_name}"
+            bkl_path = companion / bkl_rel
+            bkl_path.parent.mkdir(parents=True, exist_ok=True)
+            bkl_path.write_text(
+                str(
+                    RecordBuilder().backlog(
+                        title="Fix pytest import order",
+                        id6="mux2cz",
+                        set="mux2cz",
+                        status="open",
+                        priority="medium",
+                        work_kind="chore",
+                        text_only=True,
+                    )
+                ),
+                encoding="utf-8",
+            )
+            comp_head_before = _commit_in_repo(
+                companion, [bkl_rel], "seed companion backlog mux2cz", env
+            )
+            main_head_before = _git_head(target, env)
+
+            run_dir = td_path / "run-20261124T151000Z-5555"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            item: dict[str, object] = {
+                "position": 1,
+                "id6": "mux2cz",
+                "setid": "mux2cz",
+                "action": "plan",
+                "artifact_type": "backlog",
+                "initial_status": "open",
+                "configured_file": f".aw/records/backlog/open/{bkl_name}",
+                "status": "queued",
+                "attempts": [],
+            }
+            state: dict[str, object] = {
+                "run_id": run_dir.name,
+                "repo": str(target),
+                "queue": [item],
+                "options": {
+                    "isolate_worktree": True,
+                    "self_finalize": True,
+                },
+            }
+            observed: dict[str, object] = {}
+
+            def _fake_spawn_backlog_producer(
+                prompt_path: Path,
+                work_dir: Path | None,
+                _tracker: object,
+                _plan_path: Path,
+                _attempt_no: int,
+                _session_id: str | None,
+                _use_continue: bool,
+            ) -> tuple[int, str | None, Path, list[str]]:
+                assert work_dir is not None
+                wt = Path(work_dir)
+                prompt_text = Path(prompt_path).read_text(encoding="utf-8")
+                observed["outside"] = lane_containment.absolute_paths_outside_lane(
+                    prompt_text, wt
+                )
+                observed["staged_bkl_exists"] = (
+                    wt / ".aw" / "records" / "backlog" / "open" / bkl_name
+                ).is_file()
+
+                # Verify `aw ipd scaffold` writes into the lane's `.aw/records/plans/pending/`,
+                # NOT outside the lane into the live companion repo.
+                scaffold_proc = subprocess.run(
+                    [
+                        "python3",
+                        "-m",
+                        "agent_workflows",
+                        "ipd",
+                        "scaffold",
+                        "--title",
+                        "Make pytest import checkout source",
+                        "--author",
+                        "tester",
+                        "--set",
+                        "mux2cz",
+                        "--order",
+                        "1",
+                        "--from-backlog",
+                        "mux2cz",
+                        "--kind",
+                        "child",
+                        "--priority",
+                        "medium",
+                        "--work-kind",
+                        "chore",
+                        "--apply",
+                    ],
+                    cwd=str(wt),
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                )
+                observed["scaffold_rc"] = scaffold_proc.returncode
+                observed["scaffold_stderr"] = scaffold_proc.stderr
+                lane_pending = wt / ".aw" / "records" / "plans" / "pending"
+                scaffolded = sorted(lane_pending.glob("*.ipd.md"))
+                observed["scaffolded_count"] = len(scaffolded)
+                observed["companion_plans_during_turn"] = list(
+                    (records_root / "plans" / "pending").glob("*.ipd.md")
+                )
+                assert len(scaffolded) == 1, scaffold_proc.stdout + scaffold_proc.stderr
+                plan_file = scaffolded[0]
+                plan_id = plan_file.stem.split("-")[3]
+                observed["produced_id6"] = plan_id
+
+                # Fill the scaffolded plan with conforming to-review content linked to mux2cz.
+                plan_text = _conforming_plan_text(
+                    id6=plan_id, setid="mux2cz", status="to-review"
+                )
+                plan_text = plan_text.replace(
+                    "- Status: to-review\n",
+                    "- Status: to-review\n- From-Backlog: mux2cz\n",
+                    1,
+                )
+                plan_file.write_text(plan_text, encoding="utf-8")
+
+                log_p = run_dir / "mux2cz.log"
+                log_p.write_text("produced plan\n", encoding="utf-8")
+                return 0, "sess-mux2cz", log_p, ["fake-host"]
+
+            with _patched_env(env):
+                runner_shared.execute_item_core(
+                    run_dir,
+                    state,
+                    item,
+                    recovery=False,
+                    host_labels=runner_shared.OC_HOST_LABELS,
+                    spawn_executor=_fake_spawn_backlog_producer,
+                    spawn_verifier=_fake_spawn_backlog_producer,
+                    raw_launcher=lambda *_a, **_kw: (0, None, run_dir / "raw.log", []),
+                    run_suite_check=lambda _p, _l: None,
+                    process_backlog_close=lambda *_a, **_kw: None,
+                    driver_module=oc_runipd,
+                )
+
+            self.assertEqual(observed.get("outside"), [])
+            self.assertTrue(observed.get("staged_bkl_exists"))
+            self.assertEqual(
+                observed.get("scaffold_rc"), 0, observed.get("scaffold_stderr")
+            )
+            self.assertEqual(observed.get("scaffolded_count"), 1)
+            self.assertEqual(observed.get("companion_plans_during_turn"), [])
+            self.assertEqual(item.get("status"), "executed", item)
+            self.assertTrue(item.get("prod_integrated"), item)
+
+            # Public target repo stays completely untouched and free of `.aw/records/**`.
+            self.assertEqual(_git_head(target, env), main_head_before)
+            self.assertFalse(_target_has_aw_records(target, env))
+
+            # Companion repo received ONE clean commit with the new plan AND graduated backlog move.
+            self.assertNotEqual(_git_head(companion, env), comp_head_before)
+            self.assertFalse(bkl_path.exists())
+            grad_bkl = records_root / "backlog" / "graduated" / bkl_name
+            self.assertTrue(grad_bkl.is_file())
+            grad_text = grad_bkl.read_text(encoding="utf-8")
+            self.assertIn("- Status: graduated", grad_text)
+            self.assertIn("- Graduated-To: mux2cz", grad_text)
+            produced_id6 = str(observed["produced_id6"])
+            self.assertIn(produced_id6, grad_text)
+            comp_plans = list(
+                (records_root / "plans" / "pending").glob(f"*{produced_id6}*.ipd.md")
+            )
+            self.assertEqual(len(comp_plans), 1)
+            self.assertIn(
+                "- From-Backlog: mux2cz", comp_plans[0].read_text(encoding="utf-8")
+            )
+
+            # Companion working tree must have zero pending record or state/lock mutations
+            # (ignoring runtime `records/runs/` created by the lock/runner).
+            comp_status_lines = [
+                line
+                for line in subprocess.run(
+                    ["git", "-C", str(companion), "status", "--porcelain"],
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                ).stdout.splitlines()
+                if line.strip() and not line.strip().endswith("records/runs/")
+            ]
+            self.assertEqual(comp_status_lines, [], comp_status_lines)
+
+    def test_spec_production_in_isolated_companion_lane_discovers_transitions_and_routes(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            target, companion, env = _provision_companion_repos(td_path)
+            records_root = companion / "records"
+
+            spec_name = "20261124-spc777-01-spc777-companion-spec-prod.spec.md"
+            spec_rel = f"records/specs/approved/{spec_name}"
+            spec_path = companion / spec_rel
+            spec_path.parent.mkdir(parents=True, exist_ok=True)
+            spec_text = str(
+                RecordBuilder().spec(
+                    title="Companion spec production",
+                    id6="spc777",
+                    status="approved",
+                    text_only=True,
+                )
+            )
+            spec_path.write_text(spec_text, encoding="utf-8")
+            comp_head_before = _commit_in_repo(
+                companion, [spec_rel], "seed companion approved spec spc777", env
+            )
+            main_head_before = _git_head(target, env)
+
+            run_dir = td_path / "run-20261124T152000Z-6666"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            item: dict[str, object] = {
+                "position": 1,
+                "id6": "spc777",
+                "setid": "spc777",
+                "action": "plan",
+                "artifact_type": "spec",
+                "initial_status": "approved",
+                "configured_file": f".aw/records/specs/approved/{spec_name}",
+                "status": "queued",
+                "attempts": [],
+            }
+            state: dict[str, object] = {
+                "run_id": run_dir.name,
+                "repo": str(target),
+                "queue": [item],
+                "options": {
+                    "isolate_worktree": True,
+                    "self_finalize": True,
+                },
+            }
+
+            def _fake_spawn_spec_producer(
+                _prompt_path: Path,
+                work_dir: Path | None,
+                _tracker: object,
+                _plan_path: Path,
+                _attempt_no: int,
+                _session_id: str | None,
+                _use_continue: bool,
+            ) -> tuple[int, str | None, Path, list[str]]:
+                assert work_dir is not None
+                wt = Path(work_dir)
+                plan_path = (
+                    wt
+                    / ".aw"
+                    / "records"
+                    / "plans"
+                    / "pending"
+                    / "20261124-spc777-01-pln777-implement-companion-spec.ipd.md"
+                )
+                plan_path.parent.mkdir(parents=True, exist_ok=True)
+                plan_text = _conforming_plan_text(
+                    id6="pln777", setid="spc777", status="to-review"
+                )
+                plan_text = plan_text.replace(
+                    "- Status: to-review\n",
+                    "- Status: to-review\n- From-Spec: spc777\n",
+                    1,
+                )
+                plan_path.write_text(plan_text, encoding="utf-8")
+                log_p = run_dir / "spc777.log"
+                log_p.write_text("produced spec plan\n", encoding="utf-8")
+                return 0, "sess-spc777", log_p, ["fake-host"]
+
+            with _patched_env(env):
+                runner_shared.execute_item_core(
+                    run_dir,
+                    state,
+                    item,
+                    recovery=False,
+                    host_labels=runner_shared.OC_HOST_LABELS,
+                    spawn_executor=_fake_spawn_spec_producer,
+                    spawn_verifier=_fake_spawn_spec_producer,
+                    raw_launcher=lambda *_a, **_kw: (0, None, run_dir / "raw.log", []),
+                    run_suite_check=lambda _p, _l: None,
+                    process_backlog_close=lambda *_a, **_kw: None,
+                    driver_module=oc_runipd,
+                )
+
+            self.assertEqual(item.get("status"), "executed", item)
+            self.assertTrue(item.get("prod_integrated"), item)
+            self.assertEqual(_git_head(target, env), main_head_before)
+            self.assertFalse(_target_has_aw_records(target, env))
+            self.assertNotEqual(_git_head(companion, env), comp_head_before)
+
+            self.assertFalse(spec_path.exists())
+            impl_spec = records_root / "specs" / "implementing" / spec_name
+            self.assertTrue(impl_spec.is_file())
+            self.assertIn(
+                "- Status: implementing", impl_spec.read_text(encoding="utf-8")
+            )
+            self.assertTrue(
+                (
+                    records_root
+                    / "plans"
+                    / "pending"
+                    / "20261124-spc777-01-pln777-implement-companion-spec.ipd.md"
+                ).is_file()
+            )
+            comp_status_lines = [
+                line
+                for line in subprocess.run(
+                    ["git", "-C", str(companion), "status", "--porcelain"],
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                ).stdout.splitlines()
+                if line.strip() and not line.strip().endswith("records/runs/")
+            ]
+            self.assertEqual(comp_status_lines, [], comp_status_lines)
+
+    def test_resolve_companion_lane_path_does_not_resurrect_moved_baseline_artifact(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            target, companion, env = _provision_companion_repos(td_path)
+            wt, _handle = _add_lane_worktree(target, "mov001", env)
+            records_root = companion / "records"
+            plan_src = (
+                records_root
+                / "plans"
+                / "pending"
+                / "20261124-cmpset-01-mov001-move-test.ipd.md"
+            )
+            plan_src.write_text(_conforming_plan_text(id6="mov001"), encoding="utf-8")
+
+            with _patched_env(env):
+                staged = lane_containment.resolve_companion_lane_path(
+                    wt, plan_src, repo=target, overwrite=False
+                )
+                assert staged is not None and staged.is_file()
+                moved = wt / ".aw" / "records" / "plans" / "executed" / plan_src.name
+                moved.parent.mkdir(parents=True, exist_ok=True)
+                staged.rename(moved)
+                self.assertFalse(staged.exists())
+
+                # Post-turn non-overwriting lookup (such as collect_lane_submissions) must NOT
+                # copy the old pending/ file back from companion.
+                again = lane_containment.resolve_companion_lane_path(
+                    wt, plan_src, repo=target, overwrite=False
+                )
+                self.assertEqual(again, staged)
+                self.assertFalse(staged.exists())
+                self.assertTrue(moved.is_file())
+
+
 if __name__ == "__main__":
     unittest.main()

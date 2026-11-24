@@ -6836,17 +6836,17 @@ def legacy_context(repo_root: Union[str, Path]) -> Any:
     records = Path(_proj_ctx.project_records_dir(root))
     records_res = records.resolve()
     state: Optional[Path] = None
-    if not records_res.is_relative_to(root):
-        # External records root (e.g. AW_HOME or companion backend): keep meta locks/cache
-        # beside the external records root rather than creating untracked `.aw/state/` inside
-        # a clean target repo.
-        state = records_res.parent / "state"
-    else:
-        with contextlib.suppress(Exception):
-            resolved = _proj_ctx.resolve_project_context(target_repo=str(root))
-            if Path(resolved.logical_roots["records"]).resolve() == records_res:
-                state = Path(resolved.logical_roots["state"])
-        if state is None:
+    with contextlib.suppress(Exception):
+        resolved = _proj_ctx.resolve_project_context(target_repo=str(root))
+        if Path(resolved.logical_roots["records"]).resolve() == records_res:
+            state = Path(resolved.logical_roots["state"])
+    if state is None:
+        if not records_res.is_relative_to(root):
+            # External records root without matching project context: keep meta locks/cache
+            # beside the external records root rather than creating untracked `.aw/state/` inside
+            # a clean target repo.
+            state = records_res.parent / "state"
+        else:
             state = root / ".aw" / "state"
     return type(
         "LegacyContext",

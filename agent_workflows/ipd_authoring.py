@@ -602,8 +602,16 @@ def run_scaffold(args: argparse.Namespace) -> int:
         if explicit_dir is None and _ctx.find_project_root() is None:
             msg = _ctx.no_project_message("ipd scaffold", repo_root, explicit=False)
             return _refuse_scaffold(msg, ctx)
+        from agent_workflows import lane_containment as _lc
+
+        staged_records = _lc.companion_staged_records_root(repo_root)
+        records_base = (
+            staged_records
+            if staged_records is not None
+            else _ctx.project_records_dir(repo_root)
+        )
         pending = (
-            _ctx.project_records_dir(repo_root)
+            records_base
             / "plans"
             / (_rp.target_subdir("plans", "to-review") or "pending")
         )

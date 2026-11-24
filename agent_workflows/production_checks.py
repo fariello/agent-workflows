@@ -200,6 +200,7 @@ def _read_plan_state(repo: Path, path: Path, text: str | None = None) -> Any:
 
 def _iter_cached_plans(repo: Path) -> list[tuple[Path, Any]]:
     """Query cached plan IPDs under either layout's plans tree, skipping excluded/ignored dirs."""
+    from agent_workflows import lane_containment as _lc
     from agent_workflows.project_context import project_records_dir
 
     repo = Path(repo)
@@ -213,42 +214,84 @@ def _iter_cached_plans(repo: Path) -> list[tuple[Path, Any]]:
         )
         if b.is_dir() and not _core.is_ignored_path(b, repo, ignored_dirs)
     ]
-    if not plan_bases:
+    staged_root = _lc.companion_staged_records_root(repo)
+    if not plan_bases and staged_root is None:
         return []
-
-    with _am.scan_once(), _am.ephemeral_if_uninitialized():
-        res = _am.query(type="ipd", project_context=ctx, include_fields=True)
 
     out: list[tuple[Path, Any]] = []
     seen: set[Path] = set()
-    for st in res.rows:
-        if not st.path:
-            continue
-        try:
-            p = _am.source_path(st.path, records_root, scan_repo)
-        except ValueError:
-            continue
-        if not p.name.endswith(".ipd.md") or p.name in _ce._SKIP_NAMES:
-            continue
-        p_res = p.resolve()
-        if p_res in seen:
-            continue
-        matched_base: Path | None = None
-        for base in plan_bases:
+    if plan_bases:
+        with _am.scan_once(), _am.ephemeral_if_uninitialized():
+            res = _am.query(type="ipd", project_context=ctx, include_fields=True)
+
+        for st in res.rows:
+            if not st.path:
+                continue
             try:
-                p_res.relative_to(base)
-                matched_base = base
-                break
+                p = _am.source_path(st.path, records_root, scan_repo)
             except ValueError:
                 continue
-        if matched_base is None:
-            continue
-        if _ce._is_record_excluded_dir(p_res, matched_base) or _core.is_ignored_path(
-            p, repo, ignored_dirs
-        ):
-            continue
-        seen.add(p_res)
-        out.append((p, st))
+            if not p.name.endswith(".ipd.md") or p.name in _ce._SKIP_NAMES:
+                continue
+            p_res = p.resolve()
+            if p_res in seen:
+                continue
+            matched_base: Path | None = None
+            for base in plan_bases:
+                try:
+                    p_res.relative_to(base)
+                    matched_base = base
+                    break
+                except ValueError:
+                    continue
+            if matched_base is None:
+                continue
+            if _ce._is_record_excluded_dir(
+                p_res, matched_base
+            ) or _core.is_ignored_path(p, repo, ignored_dirs):
+                continue
+            seen.add(p_res)
+            out.append((p, st))
+
+    if staged_root is not None:
+        staged_root_res = staged_root.resolve()
+        records_root_res = records_root.resolve()
+        baseline = _lc.read_companion_staged_baseline(repo)
+        staged_plans = staged_root / "plans"
+        staged_entries: list[tuple[Path, Any]] = []
+        staged_rels: set[str] = set()
+        staged_ids: set[str] = set()
+        if staged_plans.is_dir():
+            for sp in sorted(staged_plans.rglob("*.ipd.md")):
+                if sp.name in _ce._SKIP_NAMES or _ce._is_record_excluded_dir(
+                    sp, staged_plans
+                ):
+                    continue
+                try:
+                    raw_text = sp.read_text(encoding="utf-8")
+                    rel_rec = sp.resolve().relative_to(staged_root_res).as_posix()
+                except (OSError, ValueError):
+                    continue
+                st = _am.read_text(raw_text, record_type="ipd")
+                staged_rels.add(rel_rec)
+                staged_ids.add(_plan_id_from_state(st, sp).lower())
+                staged_entries.append((sp, st))
+        if staged_entries or baseline:
+            filtered: list[tuple[Path, Any]] = []
+            for p, st in out:
+                try:
+                    rel_rec = p.resolve().relative_to(records_root_res).as_posix()
+                except (OSError, ValueError):
+                    rel_rec = None
+                if rel_rec and (
+                    rel_rec in staged_rels
+                    or (rel_rec in baseline and not (staged_root / rel_rec).exists())
+                ):
+                    continue
+                if _plan_id_from_state(st, p).lower() in staged_ids:
+                    continue
+                filtered.append((p, st))
+            out = filtered + staged_entries
     return sorted(out, key=lambda item: str(item[0]))
 
 
@@ -312,10 +355,33 @@ def _find_spec_state_and_path(
     repo: Path, spec_id6: str
 ) -> tuple[Any | None, Path | None]:
     """Find cached ``artifact_meta.State`` and path for a given spec id6."""
+    from agent_workflows import lane_containment as _lc
+
     repo = Path(repo)
     target_id6 = str(spec_id6).strip().lower()
     if not target_id6:
         return None, None
+    staged_root = _lc.companion_staged_records_root(repo)
+    if staged_root is not None:
+        staged_specs = staged_root / "specs"
+        if staged_specs.is_dir():
+            for sp in sorted(staged_specs.rglob("*.spec.md")):
+                if sp.name in _ce._SKIP_NAMES or _ce._is_record_excluded_dir(
+                    sp, staged_specs
+                ):
+                    continue
+                try:
+                    st = _am.read_text(
+                        sp.read_text(encoding="utf-8"), record_type="spec"
+                    )
+                except OSError:
+                    continue
+                if (
+                    not getattr(st, "id_derived", False)
+                    and st.id6
+                    and st.id6.lower() == target_id6
+                ) or target_id6 in sp.name.lower():
+                    return st, sp
     ctx, records_root, scan_repo = _meta_context(repo)
     with _am.scan_once(), _am.ephemeral_if_uninitialized():
         if _core.is_valid_id6(target_id6):
@@ -1098,10 +1164,33 @@ def _find_backlog_state_and_path(
     repo: Path, item_id6: str
 ) -> tuple[Any | None, Path | None]:
     """Find cached ``artifact_meta.State`` and path for a given backlog id6."""
+    from agent_workflows import lane_containment as _lc
+
     repo = Path(repo)
     target_id6 = str(item_id6).strip().lower()
     if not target_id6:
         return None, None
+    staged_root = _lc.companion_staged_records_root(repo)
+    if staged_root is not None:
+        staged_bkl = staged_root / "backlog"
+        if staged_bkl.is_dir():
+            for sp in sorted(staged_bkl.rglob("*.md")):
+                if sp.name in _ce._SKIP_NAMES or _ce._is_record_excluded_dir(
+                    sp, staged_bkl
+                ):
+                    continue
+                try:
+                    st = _am.read_text(
+                        sp.read_text(encoding="utf-8"), record_type="backlog"
+                    )
+                except OSError:
+                    continue
+                if (
+                    not getattr(st, "id_derived", False)
+                    and st.id6
+                    and st.id6.lower() == target_id6
+                ) or target_id6 in sp.name.lower():
+                    return st, sp
     ctx, records_root, scan_repo = _meta_context(repo)
     with _am.scan_once(), _am.ephemeral_if_uninitialized():
         if _core.is_valid_id6(target_id6):
@@ -1521,12 +1610,31 @@ def backlog_graduate_legitimacy(
         return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
 
     # Clause 2 & 4: through setter (cached artifact_meta history carries setter record citing artifacts)
-    ctx, _records_root, _scan_repo = _meta_context(repo)
-    with _am.scan_once(), _am.ephemeral_if_uninitialized():
+    from agent_workflows import lane_containment as _lc
+
+    staged_root = _lc.companion_staged_records_root(repo)
+    in_staged_lane = False
+    if staged_root is not None:
         try:
-            raw_history = _am.history(bkl_state.id6, project_context=ctx)
+            bkl_path.resolve().relative_to(staged_root.resolve())
+            in_staged_lane = True
+        except (OSError, ValueError):
+            in_staged_lane = False
+
+    if in_staged_lane and staged_root is not None:
+        try:
+            _, raw_history = _am.load_legacy_artifact(
+                bkl_path, staged_root, repo_root=repo
+            )
         except Exception:
             raw_history = []
+    else:
+        ctx, _records_root, _scan_repo = _meta_context(repo)
+        with _am.scan_once(), _am.ephemeral_if_uninitialized():
+            try:
+                raw_history = _am.history(bkl_state.id6, project_context=ctx)
+            except Exception:
+                raw_history = []
     history_rows = [row for row in raw_history if row.get("op") != "review"]
     if not history_rows:
         return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
@@ -1549,16 +1657,20 @@ def backlog_graduate_legitimacy(
             return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
 
     # Clause 3: only after the handoff commit (commit ancestry check)
-    if handoff_commit:
+    if handoff_commit and not in_staged_lane:
         import subprocess
+        from agent_workflows import project_context as _proj_ctx
 
+        git_cwd = _proj_ctx.record_git_root(bkl_path) or repo
         try:
-            rel_p = str(bkl_path.relative_to(repo)).replace("\\", "/")
-        except ValueError:
+            rel_p = str(bkl_path.resolve().relative_to(git_cwd.resolve())).replace(
+                "\\", "/"
+            )
+        except (OSError, ValueError):
             rel_p = str(bkl_path).replace("\\", "/")
         res = subprocess.run(
             ["git", "log", "-n", "1", "--format=%H", "--", rel_p],
-            cwd=repo,
+            cwd=git_cwd,
             capture_output=True,
             text=True,
         )
@@ -1568,7 +1680,7 @@ def backlog_graduate_legitimacy(
         if item_commit != handoff_commit:
             res_ancestor = subprocess.run(
                 ["git", "merge-base", "--is-ancestor", handoff_commit, item_commit],
-                cwd=repo,
+                cwd=git_cwd,
                 capture_output=True,
                 text=True,
             )

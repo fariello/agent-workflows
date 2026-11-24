@@ -4814,6 +4814,7 @@ def commit_spec_production_output(
     wt = Path(target_dir)
     if not wt.is_dir():
         return None, (), ()
+    is_companion = _is_companion_records_context(_resolve_companion_context(wt))
     rc, out, _err = _run_git(wt, ["status", "--porcelain", "--untracked-files=all"])
     if rc != 0 or not out.strip():
         return None, (), ()
@@ -4859,6 +4860,8 @@ def commit_spec_production_output(
             or "/lane-submissions/" in norm_p
         ):
             continue
+        if is_companion and _is_target_records_path(norm_p):
+            continue
         is_plan = norm_p.endswith(".ipd.md") and "/plans/pending/" in norm_p
         if is_plan:
             full_p = wt / p_str
@@ -4885,7 +4888,7 @@ def commit_spec_production_output(
                     continue
         out_of_scope.append(p_str)
 
-    if not allowed:
+    if is_companion or not allowed:
         return None, (), tuple(out_of_scope)
 
     rc, _out, _err = _run_git(wt, ["add", "--", *allowed])
@@ -4937,6 +4940,8 @@ def commit_spec_transition_output(
 ) -> tuple[str | None, tuple[str, ...]]:
     """Commit the spec transition to implementing (or stage note) (path-scoped) (E-05)."""
     wt = Path(target_dir)
+    if _is_companion_records_context(_resolve_companion_context(wt)):
+        return None, ()
     rc, out, _err = _run_git(wt, ["status", "--porcelain", "--untracked-files=all"])
     if rc != 0 or not out.strip():
         return None, ()
@@ -5038,6 +5043,7 @@ def commit_backlog_production_output(
     wt = Path(target_dir)
     if not wt.is_dir():
         return None, (), ()
+    is_companion = _is_companion_records_context(_resolve_companion_context(wt))
     rc, out, _err = _run_git(wt, ["status", "--porcelain", "--untracked-files=all"])
     if rc != 0 or not out.strip():
         return None, (), ()
@@ -5083,6 +5089,8 @@ def commit_backlog_production_output(
             or "/lane-submissions/" in norm_p
         ):
             continue
+        if is_companion and _is_target_records_path(norm_p):
+            continue
         is_plan = norm_p.endswith(".ipd.md") and "/plans/pending/" in norm_p
         if is_plan:
             full_p = wt / p_str
@@ -5109,7 +5117,7 @@ def commit_backlog_production_output(
                     continue
         out_of_scope.append(p_str)
 
-    if not allowed:
+    if is_companion or not allowed:
         return None, (), tuple(out_of_scope)
 
     rc, _out, _err = _run_git(wt, ["add", "--", *allowed])
@@ -5160,6 +5168,8 @@ def commit_backlog_transition_output(
 ) -> tuple[str | None, tuple[str, ...]]:
     """Commit the backlog transition (path-scoped) (E-05/E-06)."""
     wt = Path(target_dir)
+    if _is_companion_records_context(_resolve_companion_context(wt)):
+        return None, ()
     rc, out, _err = _run_git(wt, ["status", "--porcelain", "--untracked-files=all"])
     if rc != 0 or not out.strip():
         return None, ()
@@ -9742,7 +9752,16 @@ def route_companion_lane_records(
         )
 
     rc_diff, out_diff, _ = _run_git(
-        git_root_res, ["diff", "--cached", "--name-only", "-z", "--", *staged_targets]
+        git_root_res,
+        [
+            "diff",
+            "--cached",
+            "--no-renames",
+            "--name-only",
+            "-z",
+            "--",
+            *staged_targets,
+        ],
     )
     actually_staged = (
         sorted({p for p in out_diff.split("\0") if p.strip()}) if rc_diff == 0 else []
@@ -45689,6 +45708,12 @@ def _close_already_complete_backlog_item(
         lane_root = repo
 
     item_path = resolve_backlog_item(lane_root, item["id6"])
+    if item_path is not None and isolate and wt_handle is not None:
+        staged_bkl = lane_containment.resolve_companion_lane_path(
+            lane_root, item_path, repo=repo, overwrite=False
+        )
+        if staged_bkl is not None:
+            item_path = staged_bkl
     if item_path is None:
         ended = utc_now()
         attempt["ended_at"] = ended
@@ -51259,6 +51284,12 @@ def execute_item_core(
                         },
                     )
                 target_spec_path = queue_artifact_path(target_tree, item)
+                if wt_handle is not None:
+                    staged_spec = lane_containment.resolve_companion_lane_path(
+                        target_tree, target_spec_path, repo=repo, overwrite=False
+                    )
+                    if staged_spec is not None:
+                        target_spec_path = staged_spec
                 try:
                     rel_spec_str = str(
                         target_spec_path.relative_to(target_tree)
@@ -56481,9 +56512,25 @@ def resolve_backlog_item(repo: Path, item_id6: str) -> Path | None:
     ``backlog._iter_items`` through ``_read_state_for_path`` for any unindexed legacy `.md` file."""
     from agent_workflows import artifact_meta as _meta
     from agent_workflows import backlog as _backlog
+    from agent_workflows import lane_containment as _lc
     from agent_workflows import project_context as _proj_ctx
 
     root = Path(repo)
+    staged_root = _lc.companion_staged_records_root(root)
+    if staged_root is not None:
+        staged_bkl = staged_root / "backlog"
+        if staged_bkl.is_dir():
+            for sp in sorted(staged_bkl.rglob("*.md")):
+                if sp.parent.name not in _backlog.STATUS_DIRS:
+                    continue
+                try:
+                    st = _meta.read_text(
+                        sp.read_text(encoding="utf-8"), record_type="backlog"
+                    )
+                except OSError:
+                    continue
+                if not getattr(st, "id_derived", False) and st.id6 == item_id6:
+                    return sp.resolve()
     root_res = root.resolve()
     backlog_roots = [
         (_proj_ctx.project_records_dir(root).resolve() / "backlog"),

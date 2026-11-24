@@ -605,6 +605,38 @@ def write_companion_staged_baseline(
     return path
 
 
+def companion_staged_records_root(lane_root: Path) -> Path | None:
+    """Return ``lane_root / ".aw" / "records"`` when ``lane_root`` is an active companion-staged lane.
+
+    Requires all of:
+    1. ``.aw/state/companion-staged-baseline.json`` exists in ``lane_root`` (distinguishing an
+       active isolated companion lane from a primary checkout with stale leftover `.aw/records/`),
+    2. ``lane_root / ".aw" / "records"`` is a real directory (not a symlink), and
+    3. ``lane_root`` resolves to a ``companion`` records backend whose canonical records root is
+       distinct from ``lane_root / ".aw" / "records"``.
+    """
+    try:
+        root = Path(lane_root)
+        if not (root / COMPANION_STAGED_BASELINE_REL).is_file():
+            return None
+        wt_records = root / ".aw" / "records"
+        if not wt_records.is_dir() or wt_records.is_symlink():
+            return None
+        from agent_workflows import project_context
+
+        ctx = project_context.resolve_project_context(target_repo=str(root))
+        if getattr(ctx, "records_backend", None) != "companion":
+            return None
+        records_raw = (ctx.logical_roots or {}).get("records")
+        if not records_raw:
+            return None
+        if Path(records_raw).resolve() == wt_records.resolve():
+            return None
+        return wt_records
+    except Exception:
+        return None
+
+
 def _assert_no_symlink_components(base_dir: Path, rel: Path) -> None:
     """Reject any symlink along existing components from `base_dir` through `base_dir / rel`."""
     cur = base_dir
@@ -739,10 +771,18 @@ def resolve_companion_lane_path(
         if rel.is_absolute() or ".." in rel.parts or not rel.parts:
             continue
         lane_dest = lane_root_path / ".aw" / "records" / rel
-        if overwrite or (not lane_dest.exists() and source_res.is_file()):
+        if overwrite:
             return stage_companion_lane_artifact(
                 lane_root_path, source_raw, records_root
             )
+        if not lane_dest.exists() and source_res.is_file():
+            # Never resurrect a companion artifact that was already staged in this lane and then
+            # moved or deleted during the turn (e.g. pending/ -> executed/, open/ -> graduated/).
+            baseline = read_companion_staged_baseline(lane_root_res)
+            if rel.as_posix() not in baseline:
+                return stage_companion_lane_artifact(
+                    lane_root_path, source_raw, records_root
+                )
         _assert_no_symlink_components(lane_root_res, Path(".aw") / "records" / rel)
         return lane_dest
     return None

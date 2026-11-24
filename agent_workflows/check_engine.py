@@ -1250,6 +1250,11 @@ def _type_dirs(repo_root: Path, record_type: str) -> List[Path]:
             pass
     # Literal fallback (bare repo, or types the resolver rejects).
     _add(records_dir / record_type)
+    from agent_workflows import lane_containment as _lc
+
+    staged_root = _lc.companion_staged_records_root(repo_root)
+    if staged_root is not None:
+        _add(staged_root / record_type)
     if not has_stored_records_placement(repo_root):
         _add(repo_root / ".aw" / "records" / record_type)
     _add(repo_root / ".agents" / record_type)
@@ -5711,6 +5716,75 @@ def _meta_records_with_fields(
                 continue
             seen_paths.add(resolved_p)
             out.append((abs_p, full))
+
+    from agent_workflows import lane_containment as _lc
+
+    staged_root = _lc.companion_staged_records_root(repo_root)
+    if staged_root is not None:
+        _meta_type_to_subdir = {
+            "ipd": "plans",
+            "spec": "specs",
+            "backlog": "backlog",
+            "prompt": "prompts",
+            "release": "releases",
+            "research": "research",
+            "walkthrough": "walkthroughs",
+            "roadmap": "roadmaps",
+        }
+        subdir = _meta_type_to_subdir.get(meta_type)
+        if subdir:
+            staged_root_res = staged_root.resolve()
+            records_root_res = records_root.resolve()
+            baseline = _lc.read_companion_staged_baseline(repo_root)
+            staged_entries: List[Tuple[Path, Any]] = []
+            staged_rels: Set[str] = set()
+            staged_ids: Set[str] = set()
+            staged_sub = staged_root / subdir
+            if staged_sub.is_dir():
+                for sp in sorted(staged_sub.rglob("*.md")):
+                    if sp.name in _SKIP_NAMES or _is_record_excluded_dir(
+                        sp, staged_root
+                    ):
+                        continue
+                    if suffix and not sp.name.endswith(suffix):
+                        continue
+                    if parent_dirs is not None and sp.parent.name not in parent_dirs:
+                        continue
+                    try:
+                        raw_text = sp.read_text(encoding="utf-8")
+                        rel_rec = sp.resolve().relative_to(staged_root_res).as_posix()
+                    except (OSError, ValueError):
+                        continue
+                    st = _meta.read_text(raw_text, record_type=meta_type)
+                    staged_rels.add(rel_rec)
+                    if st.id6 and not getattr(st, "id_derived", False):
+                        staged_ids.add(str(st.id6).lower())
+                    staged_entries.append((sp, st))
+            if staged_entries or baseline:
+                filtered_out: List[Tuple[Path, Any]] = []
+                for abs_p, full in out:
+                    try:
+                        rel_rec = (
+                            abs_p.resolve().relative_to(records_root_res).as_posix()
+                        )
+                    except (OSError, ValueError):
+                        rel_rec = None
+                    st_id = (
+                        str(full.id6).lower()
+                        if (full.id6 and not getattr(full, "id_derived", False))
+                        else ""
+                    )
+                    if rel_rec and (
+                        rel_rec in staged_rels
+                        or (
+                            rel_rec in baseline and not (staged_root / rel_rec).exists()
+                        )
+                    ):
+                        continue
+                    if st_id and st_id in staged_ids:
+                        continue
+                    filtered_out.append((abs_p, full))
+                out = filtered_out + staged_entries
     out.sort(key=lambda item: str(item[0]))
     return out
 
@@ -6065,12 +6139,35 @@ def _evidence_spec_unshipped(repo_root: Path, evidence: str) -> bool:
 
 def _iter_plan_ipds(repo_root: Path):
     """Yield (path, text) for every plan IPD under either layout's plans tree, skipping ignored dirs."""
+    from agent_workflows import lane_containment as _lc
     from agent_workflows.project_context import project_records_dir
 
+    repo_root = Path(repo_root)
     ignored_dirs = _core.get_ignored_dirs(repo_root)
+    records_root = project_records_dir(repo_root)
+    staged_root = _lc.companion_staged_records_root(repo_root)
+    staged_rels: Set[str] = set()
+    baseline: Dict[str, str] = {}
+    if staged_root is not None:
+        staged_root_res = staged_root.resolve()
+        baseline = _lc.read_companion_staged_baseline(repo_root)
+        staged_plans = staged_root / "plans"
+        if staged_plans.is_dir():
+            for p in sorted(staged_plans.rglob("*.ipd.md")):
+                if p.name in _SKIP_NAMES or _is_record_excluded_dir(p, staged_plans):
+                    continue
+                try:
+                    text = p.read_text(encoding="utf-8")
+                    rel_rec = p.resolve().relative_to(staged_root_res).as_posix()
+                except (OSError, ValueError):
+                    continue
+                staged_rels.add(rel_rec)
+                yield p, text
+
+    records_root_res = records_root.resolve()
     for base in (
-        project_records_dir(repo_root) / "plans",
-        Path(repo_root) / ".agents" / "plans",
+        records_root / "plans",
+        repo_root / ".agents" / "plans",
     ):
         if not base.is_dir() or _core.is_ignored_path(base, repo_root, ignored_dirs):
             continue
@@ -6081,6 +6178,16 @@ def _iter_plan_ipds(repo_root: Path):
                 or _core.is_ignored_path(p, repo_root, ignored_dirs)
             ):
                 continue
+            if staged_root is not None:
+                try:
+                    rel_rec = p.resolve().relative_to(records_root_res).as_posix()
+                except (OSError, ValueError):
+                    rel_rec = None
+                if rel_rec and (
+                    rel_rec in staged_rels
+                    or (rel_rec in baseline and not (staged_root / rel_rec).exists())
+                ):
+                    continue
             try:
                 yield p, p.read_text(encoding="utf-8")
             except OSError:
@@ -6094,12 +6201,35 @@ def _iter_spec_records(repo_root: Path):
     ``From-Backlog`` handoff scan. Kept as its own iterator (rather than widening the plan one) so the
     plan-only callers keep their exact current behavior.
     """
+    from agent_workflows import lane_containment as _lc
     from agent_workflows.project_context import project_records_dir
 
+    repo_root = Path(repo_root)
     ignored_dirs = _core.get_ignored_dirs(repo_root)
+    records_root = project_records_dir(repo_root)
+    staged_root = _lc.companion_staged_records_root(repo_root)
+    staged_rels: Set[str] = set()
+    baseline: Dict[str, str] = {}
+    if staged_root is not None:
+        staged_root_res = staged_root.resolve()
+        baseline = _lc.read_companion_staged_baseline(repo_root)
+        staged_specs = staged_root / "specs"
+        if staged_specs.is_dir():
+            for p in sorted(staged_specs.rglob("*.spec.md")):
+                if p.name in _SKIP_NAMES or _is_record_excluded_dir(p, staged_specs):
+                    continue
+                try:
+                    text = p.read_text(encoding="utf-8")
+                    rel_rec = p.resolve().relative_to(staged_root_res).as_posix()
+                except (OSError, ValueError):
+                    continue
+                staged_rels.add(rel_rec)
+                yield p, text
+
+    records_root_res = records_root.resolve()
     for base in (
-        project_records_dir(repo_root) / "specs",
-        Path(repo_root) / ".agents" / "specs",
+        records_root / "specs",
+        repo_root / ".agents" / "specs",
     ):
         if not base.is_dir() or _core.is_ignored_path(base, repo_root, ignored_dirs):
             continue
@@ -6110,6 +6240,16 @@ def _iter_spec_records(repo_root: Path):
                 or _core.is_ignored_path(p, repo_root, ignored_dirs)
             ):
                 continue
+            if staged_root is not None:
+                try:
+                    rel_rec = p.resolve().relative_to(records_root_res).as_posix()
+                except (OSError, ValueError):
+                    rel_rec = None
+                if rel_rec and (
+                    rel_rec in staged_rels
+                    or (rel_rec in baseline and not (staged_root / rel_rec).exists())
+                ):
+                    continue
             try:
                 yield p, p.read_text(encoding="utf-8")
             except OSError:

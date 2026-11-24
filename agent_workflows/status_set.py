@@ -462,8 +462,49 @@ def inventory_all_artifacts(
     )
 
     with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+        from agent_workflows import lane_containment as _lc
+        from agent_workflows.project_context import project_records_dir
+
         by_path = _cached_states_by_path(repo_root)
+        staged_root = _lc.companion_staged_records_root(repo_root)
+        staged_root_res = staged_root.resolve() if staged_root is not None else None
+        records_root_res = project_records_dir(repo_root).resolve()
+        baseline = (
+            _lc.read_companion_staged_baseline(repo_root)
+            if staged_root is not None
+            else {}
+        )
+        staged_rels: set[str] = set()
+        staged_ids: set[str] = set()
+
         for rtype in types:
+            if staged_root is not None and staged_root_res is not None:
+                staged_dir = staged_root / rtype
+                if staged_dir.is_dir():
+                    for p in sorted(staged_dir.rglob("*.md")):
+                        if p.name in _sel._SKIP_NAMES:
+                            continue
+                        if rtype == "research":
+                            from agent_workflows import research_contract as _rc
+
+                            if _rc.companion_owner_stem(p, staged_dir) is not None:
+                                continue
+                        rp = p.as_posix()
+                        if rp in seen:
+                            continue
+                        seen.add(rp)
+                        rec = _read_artifact_record_with_state(p, repo_root, st=None)
+                        if rec:
+                            try:
+                                staged_rels.add(
+                                    p.resolve().relative_to(staged_root_res).as_posix()
+                                )
+                            except (OSError, ValueError):
+                                pass
+                            if rec.id6:
+                                staged_ids.add(rec.id6.lower())
+                            records.append(rec)
+
             for d in _sel.record_dirs(repo_root, rtype):
                 if not d.is_dir():
                     continue
@@ -475,6 +516,21 @@ def inventory_all_artifacts(
 
                         if _rc.companion_owner_stem(p, d) is not None:
                             continue
+                    if staged_root is not None:
+                        try:
+                            rel_rec = (
+                                p.resolve().relative_to(records_root_res).as_posix()
+                            )
+                        except (OSError, ValueError):
+                            rel_rec = None
+                        if rel_rec and (
+                            rel_rec in staged_rels
+                            or (
+                                rel_rec in baseline
+                                and not (staged_root / rel_rec).exists()
+                            )
+                        ):
+                            continue
                     rp = p.as_posix()
                     if rp in seen:
                         continue
@@ -485,6 +541,12 @@ def inventory_all_artifacts(
                         st = None
                     rec = _read_artifact_record_with_state(p, repo_root, st=st)
                     if rec:
+                        if (
+                            staged_root is not None
+                            and rec.id6
+                            and rec.id6.lower() in staged_ids
+                        ):
+                            continue
                         records.append(rec)
     return records
 
@@ -2123,9 +2185,23 @@ def apply_status_change(
     # plan 2xwb9b E-08: ONE `artifact_meta.append` performs the move, the content write, the source
     # cleanup and the specs/backlog sidecar record, in today's order (`append_legacy`).
     from agent_workflows import artifact_meta as _am
+    from agent_workflows import lane_containment as _lc
+
+    staged_root = _lc.companion_staged_records_root(repo_root)
+    in_staged_lane = False
+    if staged_root is not None:
+        try:
+            rec.path.resolve().relative_to(staged_root.resolve())
+            in_staged_lane = True
+        except (OSError, ValueError):
+            in_staged_lane = False
 
     sidecar = None
-    if rec.record_type in ("specs", "backlog") and prep.should_write_history:
+    if (
+        not in_staged_lane
+        and rec.record_type in ("specs", "backlog")
+        and prep.should_write_history
+    ):
         if rec.record_type == "specs":
             sidecar = _am.SidecarRecord(
                 tree="specs",
