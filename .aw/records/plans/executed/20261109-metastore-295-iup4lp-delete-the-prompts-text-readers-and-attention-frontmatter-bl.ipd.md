@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5 allows exactly one metadata reader (`artifact_meta`). Part 16 of the round-3 split of `k6jd6l` (Order 43, research `nj8zdp` guidance): delete `prompts.read_metadata_id6`, `prompts.read_metadata_status` and `prompts._METADATA_STATUS_RE` (the staged-prompt `aw-prompt` comment readers) and `attention._frontmatter_block` (a raw YAML block reader). Measured callers at `f83159217`: `artifact_rename._read_existing_id6` (1), `attention._prompts_record` (2), `cli._find_prompt_id6` (2), `prompts.update_metadata_status` (internal), `status_set.read_artifact_record` and `status_set._prepare_status_change` (2), `attention._extract_detail` (1, `_frontmatter_block`); test `tests/test_prompts_new.py` (1).
 - Scope: The `prompts` and `attention` reader part of `k6jd6l` E-11 subset 1. EXCLUDES `artifact_rename`'s own regex literals (Order 245, `qttoyc`) and `attention`'s inline literals (Order 248, `tdhav3`).
 - Scope-Paths: agent_workflows/prompts.py, agent_workflows/artifact_rename.py, agent_workflows/attention.py, agent_workflows/cli.py, agent_workflows/status_set.py, tests/test_prompts_new.py, .aw/records/plans/pending/20261109-metastore-295-iup4lp-delete-the-prompts-text-readers-and-attention-frontmatter-bl.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261124-o5tnly-01-o5tnly-artifact-meta-read-text-silently-ignores-a-prompt.backlog.md (defect found while executing iup4lp: artifact_meta.read_textrecord_type='prompts' silently returns empty id6/status, so the retargeted callers had to pass the singular 'prompt' the runner contract req...); tests/test_artifact_meta_legacy_writer.py (called the deleted prompts.read_metadata_id6 retargeted to artifact_meta.read_text so V-03 zero-hit demand over tests/ holds); tests/test_prompts_set_surface.py (called the deleted prompts.read_metadata_id6 retargeted to artifact_meta.read_text so V-03 zero-hit demand over tests/ holds); tests/test_writers_create_summary.py (called the deleted prompts.read_metadata_id6 retargeted to artifact_meta.read_text so V-03 zero-hit demand over tests/ holds)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:8ysz6b, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: iup4lp
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: iup4lp verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261124-o5tnly-01-o5tnly-artifact-meta-read-text-silently-ignores-a-prompt.backlog.md: defect found while executing iup4lp: artifact_meta.read_text(record_type='prompts') silently returns empty id6/status, so the retargeted callers had to pass the singular 'prompt'; the runner contract requires each finding be filed as a backlog item; out-of-scope tests/test_artifact_meta_legacy_writer.py: called the deleted prompts.read_metadata_id6; retargeted to artifact_meta.read_text so V-03 zero-hit demand over tests/ holds; out-of-scope tests/test_prompts_set_surface.py: called the deleted prompts.read_metadata_id6; retargeted to artifact_meta.read_text so V-03 zero-hit demand over tests/ holds; out-of-scope tests/test_writers_create_summary.py: called the deleted prompts.read_metadata_id6; retargeted to artifact_meta.read_text so V-03 zero-hit demand over tests/ holds]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, prompt reader deletion, and execution gate; marked reviewed and go-pending-approval.
