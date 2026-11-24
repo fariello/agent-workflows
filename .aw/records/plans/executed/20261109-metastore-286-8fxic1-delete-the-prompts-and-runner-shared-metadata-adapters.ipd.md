@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5 allows exactly one metadata writer (`artifact_meta`). Part 7 of the round-3 split of `k6jd6l` (Order 43, research `nj8zdp` guidance): delete the other two `xexn45` F-08 adapters, `prompts.render_metadata_comment` (caller `prompts.run_new`) and `runner_shared.rederive_front_matter` (caller `runner_shared.apply_records_only_rederivation`). Measured at `f83159217`: `prompts` 3 references, `runner_shared` 6, `tests/test_prompts_set_surface.py` 1, `tests/test_records_only_lane_rederive.py` 5.
 - Scope: The `prompts` and `runner_shared` half of `k6jd6l` E-09 and its test modules, including `tests/test_backlog.py` if it references an adapter. EXCLUDES the rename adapters (Order 285).
 - Scope-Paths: agent_workflows/prompts.py, agent_workflows/runner_shared.py, tests/test_prompts_set_surface.py, tests/test_records_only_lane_rederive.py, tests/test_backlog.py, .aw/records/plans/pending/20261109-metastore-286-8fxic1-delete-the-prompts-and-runner-shared-metadata-adapters.ipd.md
+- Scope-Exceeded: tests/test_writers_create_summary.py (it called the deleted prompts.render_metadata_comment adapter not listed in the plan's measured census retargeted to aw prompts new + artifact_meta.read_text so the plan's Goal grep over tests/ prints...)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15, executed:v0ucnz
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 8fxic1
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: 8fxic1 verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope tests/test_writers_create_summary.py: it called the deleted prompts.render_metadata_comment adapter (not listed in the plan's measured census); retargeted to aw prompts new + artifact_meta.read_text so the plan's Goal grep over tests/ prints nothing; in-scope-unmodified tests/test_backlog.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
