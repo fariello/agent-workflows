@@ -26,6 +26,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
+from agent_workflows import artifact_meta as _meta
 from agent_workflows import attention_contract as A
 from agent_workflows import cli
 from agent_workflows import research_cmd as C
@@ -468,7 +469,7 @@ class TestPreFixDemonstration(unittest.TestCase):
             outcome="none-yet",
             summary="legit\nstatus: reference\nblocks-release: next",
         )
-        parsed = R.parse_frontmatter(rendered)
+        parsed = _meta.front_matter_mapping(rendered)
         self.assertEqual(parsed.get("status"), "reference")
         self.assertEqual(parsed.get("blocks-release"), "next")
         self.assertEqual(R.validate_frontmatter(parsed), [])
@@ -488,7 +489,7 @@ class TestPreFixDemonstration(unittest.TestCase):
             outcome="none-yet",
             summary="ok",
         )
-        parsed = R.parse_frontmatter(rendered)
+        parsed = _meta.front_matter_mapping(rendered)
         self.assertEqual(parsed.get("topic"), ["a"])
         self.assertEqual(parsed.get("status"), "reference")
         self.assertEqual(parsed.get("blocks-release"), "next")
@@ -512,7 +513,7 @@ class TestPreFixDemonstration(unittest.TestCase):
         )
         crafted = "[aaaaaa]\nstatus: active\njunk: [x]"
         updated = C.update_frontmatter_fields(base, {"consumed-by": crafted})
-        parsed = R.parse_frontmatter(updated)
+        parsed = _meta.front_matter_mapping(updated)
         self.assertEqual(parsed.get("consumed-by"), ["aaaaaa"])
         self.assertEqual(parsed.get("status"), "active")
         self.assertEqual(parsed.get("junk"), ["x"])
@@ -713,7 +714,7 @@ class TestBoundaryAndNonRegressions(_BaseResearchRepo):
         self.assertIsNone(err)
         self.assertIsNotNone(files)
         self.assertIn("legit-status-active", files[0].path.name)
-        parsed = R.parse_frontmatter(files[0].content)
+        parsed = _meta.read_text(files[0].content, record_type="research").fields
         self.assertNotIn("status: active", files[0].content)
         self.assertEqual(parsed.get("status"), "todo")
 
@@ -727,7 +728,9 @@ class TestBoundaryAndNonRegressions(_BaseResearchRepo):
         self.assertIsNone(err_set)
         self.assertIsNotNone(files_set)
         self.assertIn("my-set", files_set[0].path.name)
-        parsed_set = R.parse_frontmatter(files_set[0].content)
+        parsed_set = _meta.read_text(
+            files_set[0].content, record_type="research"
+        ).fields
         self.assertEqual(parsed_set.get("set"), "my-set")
 
     def test_refusal_writes_nothing_listing_unchanged(self):

@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from agent_workflows import artifact_meta as _meta
 from agent_workflows import attention_contract as A
 from agent_workflows import research_cmd as C
 from agent_workflows import research_contract as R
@@ -45,7 +46,7 @@ class NewPlanTests(unittest.TestCase):
         self.assertEqual(parsed.model, "gpt56")
         self.assertEqual(parsed.kind, "research-report")
         # Frontmatter is full and passes the validator.
-        data = _parse_frontmatter(f.content)
+        data = _mapping(f.content)
         self.assertEqual(R.validate_frontmatter(data), [])
         self.assertEqual(
             data["status"], "todo"
@@ -206,13 +207,13 @@ class ComparisonTests(unittest.TestCase):
         self.assertEqual(len(files), 4)
         prompt_content = files[0].content
         self.assertNotIn("status:", prompt_content)
-        parsed_prompt = _parse_frontmatter(prompt_content)
+        parsed_prompt = _mapping(prompt_content)
         self.assertNotIn("status", parsed_prompt)
         self.assertEqual(R.validate_frontmatter(parsed_prompt), [])
 
         for f in files[1:]:
             self.assertIn("status: todo", f.content)
-            parsed_doc = _parse_frontmatter(f.content)
+            parsed_doc = _mapping(f.content)
             self.assertEqual(parsed_doc.get("status"), "todo")
             self.assertEqual(R.validate_frontmatter(parsed_doc), [])
 
@@ -235,7 +236,7 @@ class ComparisonTests(unittest.TestCase):
             "Synthesis of the model reports",
         ]
         for f, token in zip(files, role_tokens):
-            parsed = _parse_frontmatter(f.content)
+            parsed = _mapping(f.content)
             summary_val = parsed.get("summary", "")
             self.assertIn(user_summary, summary_val)
             self.assertIn(token, summary_val)
@@ -296,7 +297,7 @@ class ComparisonTests(unittest.TestCase):
         )
         self.assertIsNone(err)
         self.assertEqual(len(files), 4)
-        parsed = [_parse_frontmatter(f.content) for f in files]
+        parsed = [_fields(f.content) for f in files]
         self.assertEqual(
             parsed[0].get("summary"), "Originating prompt for the comparison set."
         )
@@ -330,13 +331,13 @@ class ComparisonTests(unittest.TestCase):
 
         prompt_content = files[0].content
         self.assertNotIn("status:", prompt_content)
-        parsed_prompt = _parse_frontmatter(prompt_content)
+        parsed_prompt = _mapping(prompt_content)
         self.assertNotIn("status", parsed_prompt)
         self.assertEqual(R.validate_frontmatter(parsed_prompt), [])
 
         for f in files[1:]:
             self.assertIn("status: todo", f.content)
-            parsed_doc = _parse_frontmatter(f.content)
+            parsed_doc = _mapping(f.content)
             self.assertEqual(parsed_doc.get("status"), "todo")
             self.assertEqual(R.validate_frontmatter(parsed_doc), [])
 
@@ -351,24 +352,18 @@ class IdCollisionTests(unittest.TestCase):
         self.assertTrue(R.is_valid_id6(got))
 
 
-def _parse_frontmatter(text: str) -> dict:
-    """Minimal frontmatter parser for the tool-authored block (list + scalar values)."""
+def _mapping(text: str) -> dict:
+    """The tool-authored front-matter block as a raw key/value mapping, read through artifact_meta."""
 
-    data: dict = {}
-    lines = text.splitlines()
-    assert lines[0] == "---"
-    for line in lines[1:]:
-        if line == "---":
-            break
-        key, _, val = line.partition(":")
-        key = key.strip()
-        val = val.strip()
-        if val.startswith("[") and val.endswith("]"):
-            inner = val[1:-1].strip()
-            data[key] = [x.strip() for x in inner.split(",")] if inner else []
-        else:
-            data[key] = val
+    data = _meta.front_matter_mapping(text)
+    assert data is not None, "no closed front-matter block"
     return data
+
+
+def _fields(text: str) -> dict:
+    """The research record's normalized metadata fields, read through artifact_meta.read_text."""
+
+    return _meta.read_text(text, record_type="research").fields
 
 
 class SetOutcomeTests(unittest.TestCase):
@@ -405,8 +400,8 @@ class SetOutcomeTests(unittest.TestCase):
             self.research, self.id6, "adopted", ["pln001", "spc002"]
         )
         self.assertIsNone(err)
-        fm_before = R.parse_frontmatter(before)
-        fm_after = R.parse_frontmatter(new_text)
+        fm_before = _mapping(before)
+        fm_after = _mapping(new_text)
         # Only outcome + consumed-by changed; every other field byte-identical.
         for k in (
             "id",
@@ -434,21 +429,21 @@ class SetOutcomeTests(unittest.TestCase):
             self.research, self.id6, "informational", ["pln001"]
         )
         self.assertIsNone(err)
-        self.assertEqual(R.parse_frontmatter(txt)["consumed-by"], ["pln001"])
+        self.assertEqual(_mapping(txt)["consumed-by"], ["pln001"])
         self.doc.write_text(txt, encoding="utf-8")
         # replace
         _t, txt, err = C.plan_set_outcome(
             self.research, self.id6, None, ["aaaaaa", "bbbbbb"]
         )
         self.assertIsNone(err)
-        self.assertEqual(R.parse_frontmatter(txt)["consumed-by"], ["aaaaaa", "bbbbbb"])
+        self.assertEqual(_mapping(txt)["consumed-by"], ["aaaaaa", "bbbbbb"])
         self.doc.write_text(txt, encoding="utf-8")
         # clear via '-'
         _t, txt, err = C.plan_set_outcome(
             self.research, self.id6, None, None, clear_consumed=True
         )
         self.assertIsNone(err)
-        self.assertEqual(R.parse_frontmatter(txt)["consumed-by"], [])
+        self.assertEqual(_mapping(txt)["consumed-by"], [])
 
     def test_invalid_outcome_rejected(self):
         _t, _txt, err = C.plan_set_outcome(self.research, self.id6, "bogus", None)
@@ -467,7 +462,7 @@ class SetOutcomeTests(unittest.TestCase):
         )
         rc = C.run_set_outcome(args)
         self.assertEqual(rc, 0)
-        fm = R.parse_frontmatter(self.doc.read_text(encoding="utf-8"))
+        fm = _mapping(self.doc.read_text(encoding="utf-8"))
         self.assertEqual(fm["outcome"], "adopted")
         self.assertEqual(fm["consumed-by"], ["pln001"])
 
@@ -490,7 +485,7 @@ class SetOutcomeTests(unittest.TestCase):
         )
         rc = C.run_set_outcome(args)
         self.assertEqual(rc, 0)
-        fm = R.parse_frontmatter(self.doc.read_text(encoding="utf-8"))
+        fm = _fields(self.doc.read_text(encoding="utf-8"))
         self.assertEqual(fm["outcome"], "adopted")
 
 

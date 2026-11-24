@@ -625,6 +625,7 @@ class ConformanceOfTheAdoptedArtifactTests(_AdoptRepo):
     """The adopted artifact satisfies the repository-wide invariants that are the real criteria."""
 
     def test_adopted_artifact_passes_name_and_frontmatter_validation(self):
+        from agent_workflows import artifact_meta as _meta
         from agent_workflows import research_contract as R
 
         src = self._drop("conformance-research-report.md", "# Conformance\n\nBody.\n")
@@ -635,7 +636,7 @@ class ConformanceOfTheAdoptedArtifactTests(_AdoptRepo):
         parsed, name_err = R.parse_name(files[0].name)
         self.assertIsNone(name_err, name_err)
         assert parsed is not None
-        data = R.parse_frontmatter(files[0].read_text(encoding="utf-8"))
+        data = _meta.front_matter_mapping(files[0].read_text(encoding="utf-8"))
         self.assertIsNotNone(data)
         assert data is not None
         self.assertEqual(R.validate_frontmatter(data), [])

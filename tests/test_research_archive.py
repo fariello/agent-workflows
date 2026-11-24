@@ -17,6 +17,7 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
+from agent_workflows import artifact_meta as _meta
 from agent_workflows import research_archive as A
 from agent_workflows import research_cmd as C
 from agent_workflows import research_contract as R
@@ -92,7 +93,9 @@ class TransitionTests(unittest.TestCase):
         # File now lives in the shard, id unchanged, status rewritten.
         moved = list((self.rroot / R.REFERENCE_DIR).rglob("*aaaaaa*.md"))
         self.assertEqual(len(moved), 1)
-        fm = R.parse_frontmatter(moved[0].read_text(encoding="utf-8"))
+        fm = _meta.read_text(
+            moved[0].read_text(encoding="utf-8"), record_type="research"
+        ).fields
         self.assertEqual(fm["id"], "aaaaaa")
         self.assertEqual(fm["status"], "reference")
 
@@ -127,7 +130,9 @@ class TargetedArchiveTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         moved = list((self.rroot / R.ARCHIVE_DIR).rglob("*bbbbbb*.md"))
         self.assertEqual(len(moved), 1)
-        fm = R.parse_frontmatter(moved[0].read_text(encoding="utf-8"))
+        fm = _meta.read_text(
+            moved[0].read_text(encoding="utf-8"), record_type="research"
+        ).fields
         self.assertEqual(fm["status"], "archive")
 
 
@@ -258,7 +263,9 @@ class SweepTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         moved = list((self.rroot / R.REFERENCE_DIR).rglob("*oldddd*.md"))
         self.assertEqual(len(moved), 1)
-        fm = R.parse_frontmatter(moved[0].read_text(encoding="utf-8"))
+        fm = _meta.read_text(
+            moved[0].read_text(encoding="utf-8"), record_type="research"
+        ).fields
         self.assertEqual(fm["status"], "reference")
 
 
@@ -456,7 +463,9 @@ class SuggestTriageTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         moved = list((self.rroot / R.REFERENCE_DIR).rglob("*rprt01*.md"))
         self.assertEqual(len(moved), 1)
-        fm = R.parse_frontmatter(moved[0].read_text(encoding="utf-8"))
+        fm = _meta.read_text(
+            moved[0].read_text(encoding="utf-8"), record_type="research"
+        ).fields
         self.assertEqual(fm["status"], "reference")
 
     def test_suggest_archives_uncited_run_set_deadend(self):
@@ -534,7 +543,7 @@ class IntakeToTodoMigrationTests(unittest.TestCase):
         diffs = [(b, a) for b, a in zip(b_lines, a_lines) if b != a]
         self.assertEqual(diffs, [("status: intake", "status: todo")])
         # the migrated doc still validates through the contract.
-        fm = R.parse_frontmatter(after)
+        fm = _meta.front_matter_mapping(after)
         self.assertEqual(fm["status"], "todo")
         self.assertFalse(any(e.field == "status" for e in R.validate_frontmatter(fm)))
 
@@ -542,7 +551,7 @@ class IntakeToTodoMigrationTests(unittest.TestCase):
         # backward-compat: a not-yet-migrated `intake` doc is still accepted (normalizes to todo).
         self.assertEqual(R.normalize_status("intake").value, "todo")
         errs = R.validate_frontmatter(
-            R.parse_frontmatter(self.doc.read_text(encoding="utf-8"))
+            _meta.front_matter_mapping(self.doc.read_text(encoding="utf-8"))
         )
         self.assertFalse(any(e.field == "status" for e in errs))
 
@@ -638,7 +647,7 @@ class PromptArchiveTests(unittest.TestCase):
         self.assertEqual(len(moved), 1)
         content = moved[0].read_text(encoding="utf-8")
         self.assertIn("status: reference", content)
-        fm = R.parse_frontmatter(content)
+        fm = _meta.front_matter_mapping(content)
         self.assertEqual(fm["id"], "prm002")
         self.assertEqual(fm["status"], "reference")
         errs = R.validate_frontmatter(fm)

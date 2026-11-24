@@ -193,9 +193,7 @@ class RecordBuilderRoundTripTests(unittest.TestCase):
             parsed_name, name_err = _research_contract.parse_name(dest_path.name)
             self.assertIsNone(name_err)
             self.assertIsNotNone(parsed_name)
-            fm = _research_contract.parse_frontmatter(
-                dest_path.read_text(encoding="utf-8")
-            )
+            fm = _meta.front_matter_mapping(dest_path.read_text(encoding="utf-8"))
             self.assertIsNotNone(fm)
             self.assertEqual(_research_contract.validate_frontmatter(fm), [])
 

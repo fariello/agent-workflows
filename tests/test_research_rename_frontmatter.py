@@ -20,7 +20,7 @@ import subprocess
 
 import pytest
 
-from agent_workflows import cli, research_contract as R
+from agent_workflows import artifact_meta as _meta, cli, research_contract as R
 from tests.record_builder import RecordBuilder
 
 
@@ -101,8 +101,8 @@ def test_regroup_updates_set_and_order_frontmatter(temp_git_repo: Path):
     )
     assert rc == 0, f"group failed: {out}\n{err}"
     dst = _find_doc_by_id6(temp_git_repo, "k7m2xq")
-    fm = R.parse_frontmatter(dst.read_text(encoding="utf-8"))
-    assert fm is not None
+    fm = _meta.read_text(dst.read_text(encoding="utf-8"), record_type="research").fields
+    assert fm
     assert fm["set"] == "newsetid"
     assert fm["order"] == "01"
 
@@ -143,8 +143,8 @@ def test_mv_model_updates_model_frontmatter(temp_git_repo: Path):
     )
     assert rc == 0, f"mv --model failed: {out}\n{err}"
     dst = _find_doc_by_id6(temp_git_repo, "k7m2xq")
-    fm = R.parse_frontmatter(dst.read_text(encoding="utf-8"))
-    assert fm is not None
+    fm = _meta.read_text(dst.read_text(encoding="utf-8"), record_type="research").fields
+    assert fm
     assert fm["model"] == "sonnet5high"
 
 
@@ -184,8 +184,8 @@ def test_mv_kind_updates_kind_frontmatter(temp_git_repo: Path):
     )
     assert rc == 0, f"mv --kind failed: {out}\n{err}"
     dst = _find_doc_by_id6(temp_git_repo, "k7m2xq")
-    fm = R.parse_frontmatter(dst.read_text(encoding="utf-8"))
-    assert fm is not None
+    fm = _meta.read_text(dst.read_text(encoding="utf-8"), record_type="research").fields
+    assert fm
     assert fm["kind"] == "findings"
 
 
@@ -278,8 +278,8 @@ def test_alternate_spelling_research_set_assign(temp_git_repo: Path):
     )
     assert rc == 0, f"set-assign failed: {out}\n{err}"
     dst = _find_doc_by_id6(temp_git_repo, "k7m2xq")
-    fm = R.parse_frontmatter(dst.read_text(encoding="utf-8"))
-    assert fm is not None
+    fm = _meta.read_text(dst.read_text(encoding="utf-8"), record_type="research").fields
+    assert fm
     assert fm["set"] == "newsetid"
     assert fm["order"] == "01"
 
@@ -320,8 +320,8 @@ def test_alternate_spelling_rename_research(temp_git_repo: Path):
     )
     assert rc == 0, f"rename research failed: {out}\n{err}"
     dst = _find_doc_by_id6(temp_git_repo, "k7m2xq")
-    fm = R.parse_frontmatter(dst.read_text(encoding="utf-8"))
-    assert fm is not None
+    fm = _meta.read_text(dst.read_text(encoding="utf-8"), record_type="research").fields
+    assert fm
     assert fm["order"] == "01"
 
 
@@ -362,8 +362,8 @@ def test_rename_research_with_set(temp_git_repo: Path):
     assert rc == 0, f"rename research failed: {out}\n{err}"
     dst = _find_doc_by_id6(temp_git_repo, "k7m2xq")
     assert dst.name == "20261014-testmonsel-01-k7m2xq-a-demo-doc.notes.md"
-    fm = R.parse_frontmatter(dst.read_text(encoding="utf-8"))
-    assert fm is not None
+    fm = _meta.read_text(dst.read_text(encoding="utf-8"), record_type="research").fields
+    assert fm
     assert fm["set"] == "testmonsel"
     assert fm["order"] == "01"
 
@@ -407,8 +407,8 @@ def test_rename_research_with_set_and_slug(temp_git_repo: Path):
     assert rc == 0, f"rename research failed: {out}\n{err}"
     dst = _find_doc_by_id6(temp_git_repo, "k7m2xq")
     assert dst.name == "20261014-testmonsel-01-k7m2xq-new-demo-slug.notes.md"
-    fm = R.parse_frontmatter(dst.read_text(encoding="utf-8"))
-    assert fm is not None
+    fm = _meta.read_text(dst.read_text(encoding="utf-8"), record_type="research").fields
+    assert fm
     assert fm["set"] == "testmonsel"
 
 
@@ -498,8 +498,8 @@ def test_body_preservation_with_literal_frontmatter_keys(temp_git_repo: Path):
     dst = _find_doc_by_id6(temp_git_repo, "k7m2xq")
     text = dst.read_text(encoding="utf-8")
     assert text.endswith(body_text), "Body region must be byte-for-byte preserved"
-    fm = R.parse_frontmatter(text)
-    assert fm is not None
+    fm = _meta.read_text(text, record_type="research").fields
+    assert fm
     assert fm["set"] == "newsetid"
     assert fm["order"] == "01"
 
@@ -606,7 +606,7 @@ def test_unrelated_frontmatter_keys_are_unmutated(temp_git_repo: Path):
     )
     assert rc == 0, f"group failed: {out}\n{err}"
     dst = _find_doc_by_id6(temp_git_repo, "k7m2xq")
-    fm = R.parse_frontmatter(dst.read_text(encoding="utf-8"))
+    fm = _meta.front_matter_mapping(dst.read_text(encoding="utf-8"))
     assert fm is not None
     assert fm["id"] == "k7m2xq"
     assert fm["created"] == "20260901"
@@ -717,8 +717,8 @@ def test_model_provenance_preserved_on_facetless_name(temp_git_repo: Path):
     )
     assert rc == 0, f"group failed: {out}\n{err}"
     dst = _find_doc_by_id6(temp_git_repo, "k7m2xq")
-    fm = R.parse_frontmatter(dst.read_text(encoding="utf-8"))
-    assert fm is not None
+    fm = _meta.read_text(dst.read_text(encoding="utf-8"), record_type="research").fields
+    assert fm
     assert fm["model"] == "sonnet5high"
 
 
@@ -758,8 +758,8 @@ def test_model_and_kind_preserved_through_mv_slug(temp_git_repo: Path):
     )
     assert rc == 0, f"mv --slug failed: {out}\n{err}"
     dst = _find_doc_by_id6(temp_git_repo, "k7m2xq")
-    fm = R.parse_frontmatter(dst.read_text(encoding="utf-8"))
-    assert fm is not None
+    fm = _meta.read_text(dst.read_text(encoding="utf-8"), record_type="research").fields
+    assert fm
     assert fm["model"] == "sonnet5high"
     assert fm["kind"] == "notes"
 
@@ -805,8 +805,8 @@ def test_tier_independence_sibling_interaction(temp_git_repo: Path):
     parsed, _ = R.parse_name(dst.name)
     assert parsed is not None
     assert parsed.order == "02"
-    fm = R.parse_frontmatter(dst.read_text(encoding="utf-8"))
-    assert fm is not None
+    fm = _meta.read_text(dst.read_text(encoding="utf-8"), record_type="research").fields
+    assert fm
     assert fm["order"] == "02"
 
 

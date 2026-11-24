@@ -177,7 +177,7 @@ finally:
 import os, re, subprocess, sys, tempfile, shutil
 from pathlib import Path
 from datetime import date, datetime, timezone
-from agent_workflows import research_contract as R
+from agent_workflows import artifact_meta
 from agent_workflows import research_archive
 
 local_today = date.today()
@@ -234,8 +234,8 @@ try:
     print(f"[{tz}] Research doc written under temp isolation: {{doc_path}}")
 
     text = doc_path.read_text(encoding="utf-8")
-    fm = R.parse_frontmatter(text)
-    assert fm is not None, "Failed to parse research front matter"
+    fm = artifact_meta.read_text(text, record_type="research").fields
+    assert fm, "Failed to parse research front matter"
     created = str(fm.get("created"))
     age = research_archive._age_days(created)
     assert age == 0.0, f"Expected research age 0.0, got {{age}}"
@@ -267,7 +267,7 @@ from pathlib import Path
 from datetime import date, datetime, timedelta, timezone
 from agent_workflows.attention import _age_marker
 from agent_workflows import plans_archive
-from agent_workflows import research_contract as R
+from agent_workflows import artifact_meta
 from agent_workflows import research_archive
 
 local_today = date.today()
@@ -357,7 +357,7 @@ try:
     doc_path = Path(m.group(1))
     if not doc_path.is_absolute():
         doc_path = repo_res / doc_path
-    fm = R.parse_frontmatter(doc_path.read_text(encoding="utf-8"))
+    fm = artifact_meta.read_text(doc_path.read_text(encoding="utf-8"), record_type="research").fields
     created = str(fm.get("created"))
     local_res_age = research_archive._age_days(created)
     mixed_res_age = research_archive._age_days(created, today=utc_today)

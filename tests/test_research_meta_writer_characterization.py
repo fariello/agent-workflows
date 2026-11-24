@@ -15,7 +15,7 @@ from typing import Optional
 
 import pytest
 
-from agent_workflows import cli, research_contract as R
+from agent_workflows import artifact_meta as _meta, cli
 
 pytestmark = pytest.mark.core
 
@@ -397,8 +397,10 @@ def test_e03_5_order_keeps_two_digit_nn_form(tmp_path: Path) -> None:
 
     dst1 = _find_by_id6(root, "ch0009")
     assert dst1.name == "20260701-charset-01-ch0009-order-mv.notes.md"
-    fm1 = R.parse_frontmatter(dst1.read_text(encoding="utf-8"))
-    assert fm1 is not None
+    fm1 = _meta.read_text(
+        dst1.read_text(encoding="utf-8"), record_type="research"
+    ).fields
+    assert fm1
     assert fm1["order"] == "01"
     assert "order: 01" in dst1.read_text(encoding="utf-8").splitlines()
 
@@ -418,8 +420,10 @@ def test_e03_5_order_keeps_two_digit_nn_form(tmp_path: Path) -> None:
 
     dst2 = _find_by_id6(root, "ch0009")
     assert dst2.name == "20260701-charset-129-ch0009-order-mv.notes.md"
-    fm2 = R.parse_frontmatter(dst2.read_text(encoding="utf-8"))
-    assert fm2 is not None
+    fm2 = _meta.read_text(
+        dst2.read_text(encoding="utf-8"), record_type="research"
+    ).fields
+    assert fm2
     assert fm2["order"] == "129"
     assert "order: 129" in dst2.read_text(encoding="utf-8").splitlines()
 
@@ -450,7 +454,9 @@ def test_e03_5_order_keeps_two_digit_nn_form(tmp_path: Path) -> None:
 
     dst3 = _find_by_id6(root, "ch0010")
     assert dst3.name == "20260825-saset-09-ch0010-order-sa.notes.md"
-    fm3 = R.parse_frontmatter(dst3.read_text(encoding="utf-8"))
-    assert fm3 is not None
+    fm3 = _meta.read_text(
+        dst3.read_text(encoding="utf-8"), record_type="research"
+    ).fields
+    assert fm3
     assert fm3["order"] == "09"
     assert "order: 09" in dst3.read_text(encoding="utf-8").splitlines()

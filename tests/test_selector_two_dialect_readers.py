@@ -32,7 +32,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_workflows import research_contract
+from agent_workflows import artifact_meta
 from agent_workflows import selectors
 
 
@@ -183,7 +183,7 @@ class YamlKeyLookupCaseSensitivityTests(SelectorTwoDialectReadersBase):
         self.assertEqual(len(res.paths), 0)
 
     def test_case_sensitivity_is_lookup_not_parser_failure(self):
-        """Confirm research_contract.parse_frontmatter exposes capitalized keys as-is."""
+        """Confirm artifact_meta.front_matter_mapping exposes capitalized keys as-is."""
         handoff_text = (
             "---\n"
             "Kind: session-handoff\n"
@@ -192,7 +192,7 @@ class YamlKeyLookupCaseSensitivityTests(SelectorTwoDialectReadersBase):
             "---\n"
             "# Session Handoff\n"
         )
-        data = research_contract.parse_frontmatter(handoff_text)
+        data = artifact_meta.front_matter_mapping(handoff_text)
         self.assertIsNotNone(data)
         self.assertEqual(data.get("Kind"), "session-handoff")
         self.assertEqual(data.get("Status"), "draft")

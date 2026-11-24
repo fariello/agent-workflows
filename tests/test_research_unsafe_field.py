@@ -13,6 +13,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from agent_workflows import artifact_meta as _meta
 from agent_workflows import attention_contract as A
 from agent_workflows import check_engine
 from agent_workflows import research_cmd as C
@@ -105,7 +106,7 @@ class TestResearchUnsafeField(unittest.TestCase):
             self.assertNotIn("frontmatter-invalid", [d.rule for d in scan_drift])
 
             # Contract function validate_frontmatter returns [] for unsafe summary (placement in check_drift)
-            fm = R.parse_frontmatter(doc_path.read_text(encoding="utf-8"))
+            fm = _meta.front_matter_mapping(doc_path.read_text(encoding="utf-8"))
             self.assertEqual(
                 R.validate_frontmatter(fm),
                 [],
@@ -213,9 +214,9 @@ class TestResearchUnsafeField(unittest.TestCase):
         doc_path = self._write_doc(id6="nl0001", custom_frontmatter=injected_block)
 
         raw_text = doc_path.read_text(encoding="utf-8")
-        fm = R.parse_frontmatter(raw_text)
+        fm = _meta.front_matter_mapping(raw_text)
 
-        # parse_frontmatter splits line-by-line; summary is clean
+        # The front-matter mapping splits line-by-line; summary is clean
         self.assertEqual(fm.get("summary"), "legit")
         self.assertTrue(A.is_safe_descriptive(fm.get("summary")))
         self.assertEqual(R.validate_frontmatter(fm), [])
