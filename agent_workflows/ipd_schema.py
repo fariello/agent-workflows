@@ -172,7 +172,7 @@ SCOPE_PATHS_GRANDFATHERED = "grandfathered"
 # resolution, and the DAG (dangling / cycle / ambiguity) live in child 02's shared predicate + the
 # phased `aw ipd lint` / `aw check` rules, NOT here. Positioned immediately after `Scope-Paths`
 # (spec 2.7). The canonical field position for the write primitive is enforced in
-# `releases.set_item_dependencies_line` (Order g69y23 E-02).
+# the `artifact_meta` writer, `artifact_meta.append_legacy` (Order g69y23 E-02).
 META_ITEM_DEPENDENCIES = "Item-Dependencies"
 # The reserved scaffold sentinel: a freshly scaffolded plan carries `Item-Dependencies: unresolved`
 # (never blank, never `none`) so a not-yet-triaged plan is an HONEST not-ready draft. `unresolved`

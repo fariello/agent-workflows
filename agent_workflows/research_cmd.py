@@ -977,46 +977,6 @@ def run_set_outcome(args: argparse.Namespace) -> int:
     return 0
 
 
-def _set_priority_line(text: str, value: Optional[str]) -> str:
-    """Return ``text`` with an optional `priority:` frontmatter line set to ``value`` or removed.
-
-    xprio 6vgd0k: `priority` is OPTIONAL, so unlike `update_frontmatter_fields` (which only rewrites
-    lines already present) this INSERTS the line when absent and REMOVES it on clear. Operates ONLY
-    inside the FIRST `--- ... ---` block; inserts after the `summary:`/`consumed-by:` line (or before
-    the closing fence). `value` None/'-' clears. Preserves every other line + the body byte-for-byte.
-    """
-    lines = text.splitlines(keepends=True)
-    if not lines or lines[0].strip() != "---":
-        return text
-    fm_end = None
-    prio_idx = None
-    last_content_idx = 0
-    for i in range(1, len(lines)):
-        stripped = lines[i].strip()
-        if stripped == "---":
-            fm_end = i
-            break
-        if stripped.startswith("priority:"):
-            prio_idx = i
-        if stripped:
-            last_content_idx = i
-    if fm_end is None:
-        return text  # malformed block; leave untouched
-    clearing = value in (None, "-")
-    if clearing:
-        if prio_idx is not None:
-            del lines[prio_idx]
-        return "".join(lines)
-    new_line = f"priority: {value}\n"
-    if prio_idx is not None:
-        newline = "\n" if lines[prio_idx].endswith("\n") else ""
-        lines[prio_idx] = f"priority: {value}{newline}"
-    else:
-        # insert right after the last content line inside the block (before the closing fence)
-        lines.insert(last_content_idx + 1, new_line)
-    return "".join(lines)
-
-
 def _priority_events(to: Optional[str]) -> List[dict]:
     if to in (None, "-"):
         return [{"op": "unset", "fields": ["priority"]}]
