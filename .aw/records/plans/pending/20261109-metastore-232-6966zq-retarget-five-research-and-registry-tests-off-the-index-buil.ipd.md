@@ -42,30 +42,30 @@ PIN RULE (carried from `9o83cr`), applied per item to that item's one module: be
 
 ### Task group 1: one module per item
 
-- [ ] E-01 `tests/test_model_vocab.py`: the four `_ri.run_index(` calls (a regenerate, a `--check`, a broken-vocab case) become `research_index.check_drift` calls or `aw check research --all --agent` runs asserting the same `unrecognized-model` findings and exit codes (PIN RULE, `mkdir -p .aw/state/6966zq && ` capture to `E-01-before.txt`).
+- [x] E-01 `tests/test_model_vocab.py`: the four `_ri.run_index(` calls (a regenerate, a `--check`, a broken-vocab case) become `research_index.check_drift` calls or `aw check research --all --agent` runs asserting the same `unrecognized-model` findings and exit codes (PIN RULE, `mkdir -p .aw/state/6966zq && ` capture to `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `rg -n "run_index" tests/test_model_vocab.py` prints nothing; the module passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 `tests/test_research_priority.py`: the one `ridx.build_index_json(entries)` assertion (`'"priority": "high"'`) becomes an assertion that `aw find research --agent` (or the scan entry) reports priority `high`.
+- [x] E-02 `tests/test_research_priority.py`: the one `ridx.build_index_json(entries)` assertion (`'"priority": "high"'`) becomes an assertion that `aw find research --agent` (or the scan entry) reports priority `high`.
   - Depends on: none
   - Expected outcome: `rg -n "build_index" tests/test_research_priority.py` prints nothing; the module passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 `tests/test_research_unsafe_field.py`: the fixture that writes `I.build_index_json(entries)` and `I.build_index_md(entries)` to disk is removed, and the case asserts the unsafe-field finding through `research_index.check_drift` with no INDEX file present.
+- [x] E-03 `tests/test_research_unsafe_field.py`: the fixture that writes `I.build_index_json(entries)` and `I.build_index_md(entries)` to disk is removed, and the case asserts the unsafe-field finding through `research_index.check_drift` with no INDEX file present.
   - Depends on: none
   - Expected outcome: `rg -n "build_index" tests/test_research_unsafe_field.py` prints nothing; the module passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 `tests/test_research_set_assign_date_containment.py`: the one `research_index.run_index(` call becomes an `aw find research` (or scan) check of the same paths.
+- [x] E-04 `tests/test_research_set_assign_date_containment.py`: the one `research_index.run_index(` call becomes an `aw find research` (or scan) check of the same paths.
   - Depends on: none
   - Expected outcome: `rg -n "run_index" tests/test_research_set_assign_date_containment.py` prints nothing; the module passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 `tests/test_drift_rule_registration.py`: the fixture that writes `research_index.build_index_json(entries)` and `build_index_md(entries)` (in `test_property_4_emitter_stamp_reaches_gate_on_fixture`) is replaced by a fixture with no INDEX file, keeping the emitter-stamp assertion. Then commit E-01 to E-05 through `aw commit 6966zq -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-05 `tests/test_drift_rule_registration.py`: the fixture that writes `research_index.build_index_json(entries)` and `build_index_md(entries)` (in `test_property_4_emitter_stamp_reaches_gate_on_fixture`) is replaced by a fixture with no INDEX file, keeping the emitter-stamp assertion. Then commit E-01 to E-05 through `aw commit 6966zq -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: `rg -n "build_index" tests/test_drift_rule_registration.py` prints nothing; the module passes; the commit lists only Scope-Paths files.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -121,30 +121,30 @@ No spec change.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "run_index" tests/test_model_vocab.py` printing nothing, `diff` of `E-01-before.txt` and `E-01-after.txt` with each removed name mapped, and `python3 -m pytest -o addopts="" tests/test_model_vocab.py` passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "run_index" tests/test_model_vocab.py` printed nothing (rg rc=1). PIN: `diff .aw/state/6966zq/E-01-before.txt .aw/state/6966zq/E-01-after.txt` printed nothing, rc=0, 11 PASSED before and after, so no name was removed and none needs mapping. The four `_ri.run_index(` calls became `_ri._scan_docs` plus `_ri.check_drift` and `artifact_core.drift_exit_code` (same `unrecognized-model` info findings, exit 0 clean, exit 1 with `frontmatter-invalid`). `python3 -m pytest -o addopts="" tests/test_model_vocab.py`: `11 passed in 0.84s`. Commit d78b19858.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "build_index" tests/test_research_priority.py` printing nothing, the PIN diff with names mapped, and `python3 -m pytest -o addopts="" tests/test_research_priority.py` passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "build_index" tests/test_research_priority.py` printed nothing. PIN diff of E-02 lists printed nothing, rc=0, 11 PASSED before and after; no name removed. The `build_index_json` assertion became `entries[0]._asdict()["priority"] == "high"` on the scan entry (`aw find research --agent --fields priority` was probed and does not emit `priority`, see D1). `python3 -m pytest -o addopts="" tests/test_research_priority.py`: `11 passed in 0.71s`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "build_index" tests/test_research_unsafe_field.py` printing nothing, the PIN diff with names mapped, and `python3 -m pytest -o addopts="" tests/test_research_unsafe_field.py` passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "build_index" tests/test_research_unsafe_field.py` printed nothing. PIN diff of E-03 lists printed nothing, rc=0, 11 PASSED before and after; no name removed. The `_regen` fixture and its 11 calls were removed; `test_summary_unsafe_shapes` now asserts `list(self.rroot.glob("INDEX*")) == []` before checking `attention.unsafe-field` through `I.check_drift`. `python3 -m pytest -o addopts="" tests/test_research_unsafe_field.py`: `11 passed in 41.19s`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n "run_index" tests/test_research_set_assign_date_containment.py` printing nothing, the PIN diff with names mapped, and `python3 -m pytest -o addopts="" tests/test_research_set_assign_date_containment.py` passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "run_index" tests/test_research_set_assign_date_containment.py` printed nothing. PIN diff of E-04 lists printed nothing, rc=0, 21 PASSED before and after; no name removed. The `research_index.run_index(` call became `research_index._scan_docs(self.research_root, repo_root=self.repo_dir)` asserting no entries and no drift; the now-unused `import argparse` was dropped. `python3 -m pytest -o addopts="" tests/test_research_set_assign_date_containment.py`: `21 passed in 3.78s`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `rg -n "build_index" tests/test_drift_rule_registration.py` printing nothing, the PIN diff with names mapped, `python3 -m pytest -o addopts="" -v tests/test_drift_rule_registration.py` with `test_property_4_emitter_stamp_reaches_gate_on_fixture` PASSED, and `git show --stat` of the `aw commit 6966zq` commit listing only Scope-Paths files.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "build_index" tests/test_drift_rule_registration.py` printed nothing. The module needed no edit: commit 419e01d67 (plan 6qh68x) already replaced the INDEX-writing fixture with a no-INDEX fixture (see D2). PIN diff of E-05 lists printed nothing, rc=0, 6 PASSED before and after. `python3 -m pytest -o addopts="" -v tests/test_drift_rule_registration.py`: `test_property_4_emitter_stamp_reaches_gate_on_fixture PASSED [ 50%]`, `6 passed in 2.81s`. Core gate `python3 -m pytest`: `2898 passed, 1 skipped, 11 warnings in 435.00s (0:07:14)`. `git show --stat HEAD` (d78b19858, `aw commit 6966zq`): `tests/test_model_vocab.py`, `tests/test_research_priority.py`, `tests/test_research_set_assign_date_containment.py`, `tests/test_research_unsafe_field.py`, `4 files changed, 27 insertions(+), 68 deletions(-)`; all four are Scope-Paths files.
+  - Result: pass
 
 ## Approval and execution gate
 
