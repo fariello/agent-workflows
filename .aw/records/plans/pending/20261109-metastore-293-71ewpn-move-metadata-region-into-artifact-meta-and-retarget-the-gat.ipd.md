@@ -43,30 +43,31 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 
 ### Task group 1: one or two callers per item
 
-- [ ] E-01 Ensure directory `.aw/state/9o83cr` exists (`mkdir -p .aw/state/9o83cr`) and record baseline outcomes to `.aw/state/9o83cr/E-11a-before.txt`. Move `selectors.metadata_region` (and `selectors._metadata_region_complete` if only it uses it) into `artifact_meta` as a public `artifact_meta.metadata_region` with unchanged behavior; for now `selectors.metadata_region` is a one-line call to it; change `artifact_meta._set_bullet` to call the local function.
+- [x] E-01 Ensure directory `.aw/state/9o83cr` exists (`mkdir -p .aw/state/9o83cr`) and record baseline outcomes to `.aw/state/9o83cr/E-11a-before.txt`. Move `selectors.metadata_region` (and `selectors._metadata_region_complete` if only it uses it) into `artifact_meta` as a public `artifact_meta.metadata_region` with unchanged behavior; for now `selectors.metadata_region` is a one-line call to it; change `artifact_meta._set_bullet` to call the local function.
   - Depends on: none
   - Expected outcome: `artifact_meta.metadata_region` exists; `artifact_meta` does not call `_sel.metadata_region`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/hooks/executed_transition_gate.py` (`_has_executed_status`, `_plan_id_of`) and `orchestrator_readiness.resolve_all_set_memberships`, call `artifact_meta.metadata_region`.
+- [x] E-02 In `agent_workflows/hooks/executed_transition_gate.py` (`_has_executed_status`, `_plan_id_of`) and `orchestrator_readiness.resolve_all_set_memberships`, call `artifact_meta.metadata_region`.
   - Depends on: E-01
   - Expected outcome: neither module calls `selectors.metadata_region`.
-  - Execution state: pending
+  - Execution state: performed
+  - Note: already satisfied before this run: `_has_executed_status`, `_plan_id_of` and `resolve_all_set_memberships` read through `artifact_meta.read_text`/`artifact_meta.query` (earlier metastore plans), so no edit was needed; `rg` confirms no `metadata_region` call in either module.
 
-- [ ] E-03 In `check_engine._metadata_region` and `runner_shared._split_metadata_region`, call `artifact_meta.metadata_region`.
+- [x] E-03 In `check_engine._metadata_region` and `runner_shared._split_metadata_region`, call `artifact_meta.metadata_region`.
   - Depends on: E-02
   - Expected outcome: neither module calls `selectors.metadata_region`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `status_set.read_artifact_record` and `releases.parse_graduated_to`, call `artifact_meta.metadata_region`.
+- [x] E-04 In `status_set.read_artifact_record` and `releases.parse_graduated_to`, call `artifact_meta.metadata_region`.
   - Depends on: E-03
   - Expected outcome: neither module calls `selectors.metadata_region`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Save the after-list; run `rg -n "selectors\.metadata_region|_sel\.metadata_region" agent_workflows tools`; commit through `aw commit 71ewpn -- <paths>`.
+- [x] E-05 Save the after-list; run `rg -n "selectors\.metadata_region|_sel\.metadata_region" agent_workflows tools`; commit through `aw commit 71ewpn -- <paths>`.
   - Depends on: E-04
   - Expected outcome: only `selectors` calls `selectors.metadata_region`; no pinned case is dropped.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -128,30 +129,190 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "def metadata_region|_sel\.metadata_region" agent_workflows/artifact_meta.py` showing only the definition.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "def metadata_region|_sel\.metadata_region" agent_workflows/artifact_meta.py
+    6593:def metadata_region(text: str) -> str:
+    ```
+    `artifact_meta._set_bullet` now calls `region = metadata_region(text)` (local); `selectors.metadata_region` is a one-line delegate `return _meta.metadata_region(text)`. `selectors._metadata_region_complete` stays in `selectors` because `selectors._read_header` also uses it (not only `metadata_region`). Commit d44e23542.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "metadata_region" agent_workflows/hooks/executed_transition_gate.py agent_workflows/orchestrator_readiness.py` showing only `artifact_meta` calls, and the before/after per-test lines of `tests/test_executed_transition_gate.py` and `tests/test_orchestrator_readiness.py`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "metadata_region" agent_workflows/hooks/executed_transition_gate.py agent_workflows/orchestrator_readiness.py
+    (no output, rc=1)
+    ```
+    Neither module calls any `metadata_region`; earlier metastore plans already moved `_has_executed_status`, `_plan_id_of` (`artifact_meta.read_text`) and `resolve_all_set_memberships` (`artifact_meta.query`) off it, so no `selectors.metadata_region` call remains.
+    Before (.aw/state/9o83cr/E-11a-before.txt):
+    ```
+    PASSED tests/test_executed_transition_gate.py::ExecutedGateEndToEndTests::test_commit_adding_fenced_executed_to_approved_plan_passes_gate
+    PASSED tests/test_executed_transition_gate.py::ExecutedGateEndToEndTests::test_false_accept_during_merge_with_preamble_fenced_id_is_refused
+    PASSED tests/test_executed_transition_gate.py::ExecutedGateEndToEndTests::test_genuine_raw_transition_into_executed_is_still_refused
+    PASSED tests/test_executed_transition_gate.py::ExecutedGateEndToEndTests::test_misattribution_refusal_with_preamble_fenced_id_names_real_id
+    PASSED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_case_a_approved_with_fenced_executed_returns_false
+    PASSED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_case_b_metadata_executed_returns_true
+    PASSED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_case_c_metadata_done_returns_true
+    PASSED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_case_d_metadata_executed_with_oq_open_below_returns_true
+    PASSED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_case_e_headingless_approved_with_fenced_executed_returns_false
+    PASSED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_case_f_vnzm27_pinned_shape_fenced_grep_transcript_returns_false
+    PASSED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_plan_id_of_headingless_record_with_fenced_id_above_metadata
+    PASSED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_plan_id_of_preamble_versus_body_fenced_quote
+    PASSED tests/test_orchestrator_readiness.py::TestConsumerParityAndModelFreeLinters::test_lint_and_check_never_call_model
+    PASSED tests/test_orchestrator_readiness.py::TestConsumerParityAndModelFreeLinters::test_parity_across_lint_check_and_coverage
+    PASSED tests/test_orchestrator_readiness.py::TestIpdCoverageCommand::test_ipd_coverage_agent_bare_repo_no_args
+    PASSED tests/test_orchestrator_readiness.py::TestIpdCoverageCommand::test_ipd_coverage_second_invocation_caching
+    PASSED tests/test_orchestrator_readiness.py::TestIpdM112LintCases::test_m112_fail_without_findings_section
+    PASSED tests/test_orchestrator_readiness.py::TestIpdM112LintCases::test_m112_missing_fingerprint
+    PASSED tests/test_orchestrator_readiness.py::TestIpdM112LintCases::test_m112_no_matching_history_line
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_1_child_open_ended
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_1_child_table_unusable
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_1_child_unauthored
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_2_child_fails_lint
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_2_child_status_draft
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_2_child_status_terminal
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_2_executed_child_under_executed_dir_is_ready
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_3_checklist_row_nonconforming
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_4_could_not_ask
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_4_coverage_fail_with_two_quotes
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_4_coverage_record_absent
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_4_coverage_record_stale
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_ready_orchestrator
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessRefusalStylingAndFormatting::test_child_lint_question_extraction_and_fallback
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessRefusalStylingAndFormatting::test_render_human_byte_identical_default_and_to_review
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessRefusalStylingAndFormatting::test_render_human_target_status_approved
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessRefusalStylingAndFormatting::test_term_styling_lifecycle_and_plain_escapes
+    ```
+    After (.aw/state/9o83cr/E-11a-after.txt): identical, 36 lines, no removed or renamed case:
+    ```
+    PASSED tests/test_executed_transition_gate.py::ExecutedGateEndToEndTests::test_commit_adding_fenced_executed_to_approved_plan_passes_gate
+    PASSED tests/test_executed_transition_gate.py::ExecutedGateEndToEndTests::test_false_accept_during_merge_with_preamble_fenced_id_is_refused
+    PASSED tests/test_executed_transition_gate.py::ExecutedGateEndToEndTests::test_genuine_raw_transition_into_executed_is_still_refused
+    PASSED tests/test_executed_transition_gate.py::ExecutedGateEndToEndTests::test_misattribution_refusal_with_preamble_fenced_id_names_real_id
+    PASSED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_case_a_approved_with_fenced_executed_returns_false
+    PASSED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_case_b_metadata_executed_returns_true
+    PASSED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_case_c_metadata_done_returns_true
+    PASSED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_case_d_metadata_executed_with_oq_open_below_returns_true
+    PASSED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_case_e_headingless_approved_with_fenced_executed_returns_false
+    PASSED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_case_f_vnzm27_pinned_shape_fenced_grep_transcript_returns_false
+    PASSED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_plan_id_of_headingless_record_with_fenced_id_above_metadata
+    PASSED tests/test_executed_transition_gate.py::ExecutedStatusUnitTests::test_plan_id_of_preamble_versus_body_fenced_quote
+    PASSED tests/test_orchestrator_readiness.py::TestConsumerParityAndModelFreeLinters::test_lint_and_check_never_call_model
+    PASSED tests/test_orchestrator_readiness.py::TestConsumerParityAndModelFreeLinters::test_parity_across_lint_check_and_coverage
+    PASSED tests/test_orchestrator_readiness.py::TestIpdCoverageCommand::test_ipd_coverage_agent_bare_repo_no_args
+    PASSED tests/test_orchestrator_readiness.py::TestIpdCoverageCommand::test_ipd_coverage_second_invocation_caching
+    PASSED tests/test_orchestrator_readiness.py::TestIpdM112LintCases::test_m112_fail_without_findings_section
+    PASSED tests/test_orchestrator_readiness.py::TestIpdM112LintCases::test_m112_missing_fingerprint
+    PASSED tests/test_orchestrator_readiness.py::TestIpdM112LintCases::test_m112_no_matching_history_line
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_1_child_open_ended
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_1_child_table_unusable
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_1_child_unauthored
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_2_child_fails_lint
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_2_child_status_draft
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_2_child_status_terminal
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_2_executed_child_under_executed_dir_is_ready
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_3_checklist_row_nonconforming
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_4_could_not_ask
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_4_coverage_fail_with_two_quotes
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_4_coverage_record_absent
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_condition_4_coverage_record_stale
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessConditions::test_ready_orchestrator
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessRefusalStylingAndFormatting::test_child_lint_question_extraction_and_fallback
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessRefusalStylingAndFormatting::test_render_human_byte_identical_default_and_to_review
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessRefusalStylingAndFormatting::test_render_human_target_status_approved
+    PASSED tests/test_orchestrator_readiness.py::TestOrchestratorReadinessRefusalStylingAndFormatting::test_term_styling_lifecycle_and_plain_escapes
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "_sel\.metadata_region" agent_workflows/check_engine.py agent_workflows/runner_shared.py` printing nothing and the before/after per-test lines of `tests/test_check_engine_status_meta.py`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "_sel\.metadata_region" agent_workflows/check_engine.py agent_workflows/runner_shared.py
+    (no output, rc=1)
+    ```
+    Before (.aw/state/9o83cr/E-11a-before.txt):
+    ```
+    PASSED tests/test_check_engine_status_meta.py::CheckEngineStatusMetaTests::test_check_status_untooled_fenced_quote_in_body_no_drift
+    PASSED tests/test_check_engine_status_meta.py::CheckEngineStatusMetaTests::test_is_retired_real_status_executed_signal
+    PASSED tests/test_check_engine_status_meta.py::CheckEngineStatusMetaTests::test_status_meta_front_matter_approved_with_fenced_quote
+    PASSED tests/test_check_engine_status_meta.py::CheckEngineStatusMetaTests::test_status_meta_headingless_first_bullet_approved
+    PASSED tests/test_check_engine_status_meta.py::CheckEngineStatusMetaTests::test_status_meta_no_front_matter_fenced_quote_is_none
+    ```
+    After (.aw/state/9o83cr/E-11a-after.txt): identical, 5 lines, no removed or renamed case:
+    ```
+    PASSED tests/test_check_engine_status_meta.py::CheckEngineStatusMetaTests::test_check_status_untooled_fenced_quote_in_body_no_drift
+    PASSED tests/test_check_engine_status_meta.py::CheckEngineStatusMetaTests::test_is_retired_real_status_executed_signal
+    PASSED tests/test_check_engine_status_meta.py::CheckEngineStatusMetaTests::test_status_meta_front_matter_approved_with_fenced_quote
+    PASSED tests/test_check_engine_status_meta.py::CheckEngineStatusMetaTests::test_status_meta_headingless_first_bullet_approved
+    PASSED tests/test_check_engine_status_meta.py::CheckEngineStatusMetaTests::test_status_meta_no_front_matter_fenced_quote_is_none
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n "_sel\.metadata_region" agent_workflows/status_set.py agent_workflows/releases.py` printing nothing and the before/after per-test lines of `tests/test_graduation_forward_links.py`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "_sel\.metadata_region" agent_workflows/status_set.py agent_workflows/releases.py
+    (no output, rc=1)
+    ```
+    Before (.aw/state/9o83cr/E-11a-before.txt):
+    ```
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_1_forward_only
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_2_reverse_only
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_3_agreement_both_directions
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_4_disagreement_visible
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_5_sweep_identity
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_6_no_source_at_all
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_7_agent_evidence_value
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_8_spec_source
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_parse_graduated_to_ignores_body_and_code_fence
+    ```
+    After (.aw/state/9o83cr/E-11a-after.txt): identical, 9 lines, no removed or renamed case:
+    ```
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_1_forward_only
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_2_reverse_only
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_3_agreement_both_directions
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_4_disagreement_visible
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_5_sweep_identity
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_6_no_source_at_all
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_7_agent_evidence_value
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_case_8_spec_source
+    PASSED tests/test_graduation_forward_links.py::GraduationForwardLinksTests::test_parse_graduated_to_ignores_body_and_code_fence
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the `rg` output listing no file but `agent_workflows/selectors.py`, `diff .aw/state/9o83cr/E-11a-before.txt .aw/state/9o83cr/E-11a-after.txt` with no FAILED or ERROR line, and `git show --stat` of the `aw commit 71ewpn` commit.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "selectors\.metadata_region|_sel\.metadata_region" agent_workflows tools
+    (no output, rc=1)
+    $ rg -n "metadata_region\(" agent_workflows/selectors.py   (selectors internal unqualified uses remain, Order 294)
+    445, 462, 528, 540, 553, 559, 613 (def, delegate), 617, 1089, 1307
+    $ diff .aw/state/9o83cr/E-11a-before.txt .aw/state/9o83cr/E-11a-after.txt && echo IDENTICAL
+    IDENTICAL
+    $ wc -l .aw/state/9o83cr/E-11a-*.txt
+       76 .aw/state/9o83cr/E-11a-after.txt
+       76 .aw/state/9o83cr/E-11a-before.txt
+    $ git show --stat d44e23542
+    commit d44e23542a092c8d288c1613f80a2c196af8a1c0
+        work(71ewpn): move metadata_region into artifact_meta and retarget check_engine, runner_shared, status_set, releases (E-01..E-04)
+     agent_workflows/artifact_meta.py | 70 ++++++++++++++++++++++++----------------
+     agent_workflows/check_engine.py  | 10 +++---
+     agent_workflows/releases.py      |  4 ++-
+     agent_workflows/runner_shared.py |  6 ++--
+     agent_workflows/selectors.py     | 30 +++--------------
+     agent_workflows/status_set.py    |  2 +-
+     6 files changed, 58 insertions(+), 64 deletions(-)
+    $ aw suite   (core tier)
+    2889 passed, 1 skipped, 11 warnings in 113.40s (0:01:53)
+    ```
+    `agent_workflows/selectors.py` is outside Scope-Paths; it was edited because E-01 requires `selectors.metadata_region` become a one-line delegate (scope reason recorded at commit).
+  - Result: pass
 
 ## Approval and execution gate
 
