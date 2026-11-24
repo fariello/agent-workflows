@@ -42,25 +42,29 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 
 ### Task group 1: callers first, then delete
 
-- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-18a-before.txt`. In `specs.validate_spec` and the other internal callers, read status, gate, Blocks-Release, Priority, Work-Kind, Scope and Summary from one `artifact_meta.read_text(text, record_type="specs")` call; keep `specs._find_status_index` only for the WRITE path that needs a line index.
+- [x] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-18a-before.txt`. In `specs.validate_spec` and the other internal callers, read status, gate, Blocks-Release, Priority, Work-Kind, Scope and Summary from one `artifact_meta.read_text(text, record_type="specs")` call; keep `specs._find_status_index` only for the WRITE path that needs a line index.
   - Depends on: none
   - Expected outcome: no internal call to a `specs._read_*` reader remains.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: baseline saved to `.aw/state/9o83cr/E-18a-before.txt` (160 lines, all PASSED) before any edit. `specs.validate_spec` now makes one `artifact_meta.read_text(text, record_type="spec")` call (the registry type is `spec`; `"specs"` in the step text is the tree name) and reads status from `State.legacy_raw_status` and gate/Scope/Summary/Priority/Work-Kind from `State.fields`; a new `specs._single_token` keeps the deleted readers' bare-token rule for status, Gate-Kind, Priority and Work-Kind. `validate_spec` was the only internal caller. `specs._find_status_index` is kept for the write path.
 
-- [ ] E-02 In `attention._spec_record`, replace the four `specs_mod._read_*` calls with `artifact_meta.read_text` fields.
+- [x] E-02 In `attention._spec_record`, replace the four `specs_mod._read_*` calls with `artifact_meta.read_text` fields.
   - Depends on: E-01
   - Expected outcome: `attention` calls no `specs_mod._read_*`.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: no edit needed. At this plan's starting HEAD `73e10e723`, `attention._spec_record` already reads `state.fields` from `artifact_meta.read_text(text, record_type="spec")`; the last `specs_mod._read_*` call was removed by `0d8cfb228` (dqutt8 E-02), after this plan's measurement at `f83159217`.
 
-- [ ] E-03 In `check_engine.check_decision_ref_dangling` and `check_engine._iter_live_gate_carriers`, replace the three `_specs._read_gate`/`_specs._read_status` calls with `artifact_meta.read_text` fields.
+- [x] E-03 In `check_engine.check_decision_ref_dangling` and `check_engine._iter_live_gate_carriers`, replace the three `_specs._read_gate`/`_specs._read_status` calls with `artifact_meta.read_text` fields.
   - Depends on: E-02
   - Expected outcome: `check_engine` calls no `_specs._read_*`.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: no edit needed. At `73e10e723`, `check_engine` calls no `_specs._read_*` (removed by `0b5faf624`, i3b5zu, which moved the release-gate readers onto `artifact_meta`).
 
-- [ ] E-04 Delete the seven `specs._read_*` readers; retarget `tests/test_specs_status_dirs.py` and `tests/test_specs_releases_descriptive_safety.py`; save the after-list; compare `aw check all --all --agent`'s rule multiset with `.aw/state/k6jd6l/before/`; commit through `aw commit um2kvx -- <paths>`.
+- [x] E-04 Delete the seven `specs._read_*` readers; retarget `tests/test_specs_status_dirs.py` and `tests/test_specs_releases_descriptive_safety.py`; save the after-list; compare `aw check all --all --agent`'s rule multiset with `.aw/state/k6jd6l/before/`; commit through `aw commit um2kvx -- <paths>`.
   - Depends on: E-03
   - Expected outcome: the readers are gone; the check multiset is unchanged.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: deleted the seven readers plus their now-unused regexes (`_BLOCKS_RELEASE_RE`, `_PRIORITY_RE`, `_WORK_KIND_RE`, `_SCOPE_RE`, `_SUMMARY_RE`) and the unused `Tuple` import. Retargeted `tests/test_specs_status_dirs.py` and `tests/test_specs_releases_descriptive_safety.py` to `artifact_meta.read_text(...).status`. `.aw/state/k6jd6l/before/` does not exist in this workspace, so the rule multiset baseline was captured at the starting HEAD before any edit (`.aw/state/um2kvx/rules-before.txt`). Two OUT-OF-SCOPE edits, each with a recorded `--scope-reason`: (1) `agent_workflows/artifact_meta.py` `_parse_bullet_metadata_with_loose` split lines with `str.splitlines()`, which also breaks at U+0085, U+2028 and bare CR, so after the retarget a `- Scope:`/`- Summary:` carrying U+0085 was cut short and `attention.unsafe-field` was lost (`tests/test_specs_releases_unsafe_field.py` failed 2 tests); it now splits on newline only, as the deleted readers did, and its `read_text` output over every `.md` in the repo for 7 record types was identical before and after. (2) `tests/test_specs_metadata_duplicate_bullet.py` case (b2) pinned the deleted `_read_gate`'s LAST-wins precedence on a duplicated `- Gate-Kind:`; `artifact_meta.read_text` is first-wins, so the fixture swaps the two lines to keep its intent. Committed as `1281c1a63` on lane `aw/lane/um2kvx` (attempt 1); attempt 2 carried the identical diff into its own lane and committed it as `4b3f4bfdb`, plus the found-defect backlog item `kusnij` as `8fe518cc8`, each out-of-scope path with a recorded `--scope-reason`.
 
 ## Project conventions discovered (Step 0)
 
@@ -119,25 +123,67 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "_read_(status|gate|blocks_release|priority|work_kind|scope|summary)\(" agent_workflows/specs.py` listing only the seven definitions.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: run on an E-01-only copy of `specs.py` (starting-HEAD file with only the `validate_spec` retarget applied, `/tmp/opencode/um2kvx/specs_e01.py`), the command lists only the seven definitions:
 
-- [ ] V-02 validates E-02
+    ```
+    84:def _read_status(lines: List[str]) -> Optional[str]:
+    167:def _read_gate(lines: List[str]) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    239:def _read_blocks_release(lines: List[str]) -> Optional[str]:
+    249:def _read_priority(lines: List[str]) -> Optional[str]:
+    260:def _read_work_kind(lines: List[str]) -> Optional[str]:
+    271:def _read_scope(lines: List[str]) -> Optional[str]:
+    281:def _read_summary(lines: List[str]) -> Optional[str]:
+    ```
+
+    Behavior parity of the retarget, old (starting-HEAD) `validate_spec` versus new, comparing full `Drift` reprs: `231 inputs 0 diffs` (212 `.md` files under `.aw/records/specs`, `.agents` and `tests`, plus 19 constructed fixtures covering bare-token status, multi-word status/priority, duplicate Status, fenced Status, empty values, CRLF, U+0085, U+2028, form feed and bare CR).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "specs_mod\._read_" agent_workflows/attention.py` printing nothing and the before/after per-test lines of `tests/test_attention.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "specs_mod\._read_" agent_workflows/attention.py` printed nothing (`rc=1`). `tests/test_attention.py` lines: 76 PASSED in `E-18a-before.txt`, 76 PASSED in `E-18a-after.txt`; `diff <(grep test_attention.py before) <(grep test_attention.py after)` printed nothing (`att_rc=0`).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "_specs\._read_" agent_workflows/check_engine.py` printing nothing and the before/after per-test lines of `tests/test_check_engine.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "_specs\._read_" agent_workflows/check_engine.py` printed nothing (`rc=1`). `tests/test_check_engine.py` lines: 57 PASSED before, 57 PASSED after; the per-module diff printed nothing (`ce_rc=0`).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the empty output of `rg -n "specs\._read_|_specs\._read_|def _read_(status|gate|blocks_release|priority|work_kind|scope|summary)\b" agent_workflows/specs.py agent_workflows/attention.py agent_workflows/check_engine.py`, `diff .aw/state/9o83cr/E-18a-before.txt .aw/state/9o83cr/E-18a-after.txt` with no FAILED or ERROR line, the rule-multiset `diff` (empty), and `git show --stat` of the `aw commit um2kvx` commit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the `rg` command prints exactly one line, which is NOT a `specs` reader:
+
+    ```
+    agent_workflows/check_engine.py:2112:def _read_blocks_release(text: str) -> str | None:
+    ```
+
+    That is `check_engine._read_blocks_release`, which the Scope line and the Deferred section assign to Order 45 (`e8420v`); the pattern's `def _read_blocks_release\b` alternative matches it by name. Restricted to `specs.py` and `attention.py`, the command prints nothing (`rc=1`). PIN lists: `diff .aw/state/9o83cr/E-18a-before.txt .aw/state/9o83cr/E-18a-after.txt` printed nothing (`diff_rc=0`), 160 lines each, all `PASSED`, no FAILED or ERROR, so no case was dropped or renamed (the two retargeted tests, `LiveSpecsTreeInvariantTests::test_every_spec_directory_agrees_with_its_status` and `test_pre_fix_title_injection_forges_approval_and_checker_blind`, keep their names). Rule multiset (`aw check all --all --agent`, counted by rule) against the starting-HEAD baseline: after the in-scope edits only, `diff` printed nothing (`diff_rc=0`); after the two out-of-scope edits it differs by one line, `> 1 check.scope-drift` located on THIS plan's file, which is the live-receipt advisory naming `agent_workflows/artifact_meta.py` and `tests/test_specs_metadata_duplicate_bullet.py` (both carry recorded `--scope-reason`s) and lapses once the receipt is no longer live; every other rule count is identical (18 rules). Suites: `python3 -m pytest` core tier `2889 passed, 1 skipped`; `aw suite --thorough` with the parent run's inherited `AW_INVOCATION_START_WALL` unset `11857 passed, 6 skipped, 1 xpassed` (with it set, the 3 `tests/test_runner_resume_clears_stop.py` failures are the known backlog `rryabb` / plan `z6wodh` leak, reproduced identically with the starting-HEAD `specs.py`).
+
+    Attempt 2 re-verification (lane `aw/lane/um2kvx_attempt2`, base `de8783b4f`): the before-list was regenerated in a detached worktree at the base and the after-list in the lane; `diff .aw/state/9o83cr/E-18a-before.txt .aw/state/9o83cr/E-18a-after.txt` printed nothing (`diff_rc=0`), 160 lines each, 0 FAILED/ERROR (76 `test_attention.py`, 57 `test_check_engine.py`). The four `rg` commands gave the same results as above (V-01 on the final `specs.py` prints nothing, since E-04 deleted the definitions). The rule multiset of `aw check all --all --agent` at the base compared with the lane (uncommitted edits applied): `diff .aw/state/um2kvx/rules-before.txt .aw/state/um2kvx/rules-after.txt` printed nothing (`diff_rc=0`, 19 rules). `python3 -m pytest tests/test_specs_metadata_duplicate_bullet.py tests/test_specs_releases_unsafe_field.py`: `21 passed in 2.14s`. `aw suite`: `2889 passed, 1 skipped, 11 warnings in 136.95s (0:02:16)`. Commit (attempt 2):
+
+    ```
+    commit 4b3f4bfdbbc937889686a3e5b3995129ff16bdfe
+     agent_workflows/artifact_meta.py                |  10 ++-
+     agent_workflows/specs.py                        | 115 ++++--------------------
+     tests/test_specs_metadata_duplicate_bullet.py   |   9 +-
+     tests/test_specs_releases_descriptive_safety.py |   5 +-
+     tests/test_specs_status_dirs.py                 |   3 +-
+     5 files changed, 38 insertions(+), 104 deletions(-)
+    ```
+
+    Commit (attempt 1, lane `aw/lane/um2kvx`):
+
+    ```
+    commit 1281c1a631ae873f74d7edcc6818d7c20b3c7aa4
+     agent_workflows/artifact_meta.py                |  10 ++-
+     agent_workflows/specs.py                        | 115 ++++--------------------
+     tests/test_specs_metadata_duplicate_bullet.py   |   9 +-
+     tests/test_specs_releases_descriptive_safety.py |   5 +-
+     tests/test_specs_status_dirs.py                 |   3 +-
+     5 files changed, 38 insertions(+), 104 deletions(-)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
