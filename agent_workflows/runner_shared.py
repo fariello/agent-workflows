@@ -8738,11 +8738,11 @@ def integrate_under_repository_lock(
     consent = concurrent_driver_consent(state)
     _say = progress if progress is not None else (lambda _message: None)
 
-    with (
-        _tab_status.temporary_active_state(_tab_status.STATE_INTEGRATING),
-        _render_stream.temporary_active_activity(_lifecycle_style.INTEGRATING),
-    ):
-        if consent:
+    if consent:
+        with (
+            _tab_status.temporary_active_state(_tab_status.STATE_INTEGRATING),
+            _render_stream.temporary_active_activity(_lifecycle_style.INTEGRATING),
+        ):
             item["integration_serialization"] = {
                 "serialized": False,
                 "consent": consent,
@@ -8757,6 +8757,10 @@ def integrate_under_repository_lock(
             )
             return integrate(item, handle)
 
+    with (
+        _tab_status.temporary_active_state(_tab_status.STATE_WAITING_LOCK),
+        _render_stream.temporary_active_activity(_lifecycle_style.INTEGRATING),
+    ):
         with integration_lock(
             repo,
             holder_label=holder_label,
@@ -8778,6 +8782,7 @@ def integrate_under_repository_lock(
                     "integration deferred: " + lock_outcome.detail,
                     INTEGRATION_REFUSAL_TRANSIENT,
                 )
+            _tab_status.set_active_state(_tab_status.STATE_INTEGRATING)
             tip = _resolved_main_tip(repo, run_checked=run_checked)
             item["integration_serialization"] = {
                 "serialized": True,
@@ -40050,7 +40055,7 @@ def initialize_run_core(
             )
             from agent_workflows import tab_status as _tab_status
 
-            with _tab_status.temporary_active_state(_tab_status.STATE_PAUSED):
+            with _tab_status.temporary_active_state(_tab_status.STATE_WAITING_DEPS):
                 _sleep_poll_interval(poll_interval, sleep_fn=poll_sleep_fn)
             from agent_workflows import selectors as _poll_selectors
 

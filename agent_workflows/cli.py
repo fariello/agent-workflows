@@ -260,7 +260,7 @@ _DESCRIPTIONS = {
         "advanced main in a way your branch can still fast-forward over."
     ),
     "reset-title": (
-        "Strip runner status glyphs (such as '⏹', '⛒', '⏸', or '🚨') from the current Zellij "
+        "Strip runner status glyphs (such as '✅', '❌', '⏸️', or '⚠️') from the current Zellij "
         "tab name, or clear the terminal window title via OSC 2 when running outside Zellij. "
         "Pass `--all` under Zellij to strip runner glyphs from every tab in the current session, "
         "or `--name TEXT` to set an explicit tab or window title."

@@ -2,27 +2,30 @@
 
 When a runner executes inside Zellij (``$ZELLIJ_SESSION_NAME`` and ``$ZELLIJ_PANE_ID`` set
 and attached to a TTY), this module prefixes only the runner's own Zellij tab with a status
-glyph (and combines the failure badge ``🚨`` whenever at least one queue item has failed):
+glyph (and appends the attention badge ``⚠️`` once whenever queue items need follow-up):
 
-    Executing an IPD        : ▶
-    Validating an item      : ☑
-    Graduating/planning     : ⇑
-    Reviewing any item      : 🆁
-    Integrating a lane      : ⇄
-    Re-running / correction : ↻
-    Asking a question       : ❓
-    Paused / waiting        : ⏸
-    Finished cleanly        : ⏹
-    Killed / died uncleanly : ⛒
-    Has >= 1 failure        : 🚨  (appended after the current state glyph, e.g. '▶🚨', '⏹🚨')
+    Executing (1st attempt)          : ▶️  ("\u25b6\ufe0f")
+    Rerunning / correction           : 🔄
+    Planning / graduating            : 📝
+    Reviewing a plan or spec         : 🔍
+    Validating / tests               : 🔬
+    Waiting on dependencies          : ⏳
+    Waiting for integration lock     : 🔒
+    Integrating (lock held)          : 🧩
+    Asking a human question          : ❓
+    Paused / parked at drain         : ⏸️  ("\u23f8\ufe0f")
+    Finished normally                : ✅
+    Stopped uncleanly / killed       : ❌
+    Needs attention (combining)      : ⚠️  ("\u26a0\ufe0f", appended once, e.g. '▶️⚠️', '✅⚠️')
 
 Outside Zellij (attached to a TTY), this module emits OSC 2 (``ESC ] 2 ; <title> ESC \\``)
 using the configured ``title_style`` (``short``, ``medium`` [default], ``long``, or ``none``).
 Setting ``title_style`` to ``none`` disables both Zellij tab updates and OSC 2 window titles.
 
-Terminal glyphs (``⏹``, ``⛒``, ``⏸`` at parked drain, plus ``🚨`` on failures) remain on
-the tab after exit; starting another runner in the same tab strips any prior runner glyphs
-before applying the new state, and ``aw reset-title`` clears them on demand.
+Terminal glyphs (``✅``, ``❌``, ``⏸️`` at parked drain, plus ``⚠️`` when attention is needed)
+remain on the tab after exit; starting another runner in the same tab strips any prior runner
+glyphs (including retired legacy glyphs) before applying the new state, and ``aw reset-title``
+clears them on demand.
 """
 
 from __future__ import annotations
@@ -39,7 +42,10 @@ from typing import Any, Callable, Iterator, Mapping, Optional, Sequence, TextIO
 STATE_EXECUTING = "executing"
 STATE_VALIDATING = "validating"
 STATE_GRADUATING = "graduating"
+STATE_PLANNING = STATE_GRADUATING
 STATE_REVIEWING = "reviewing"
+STATE_WAITING_DEPS = "waiting-deps"
+STATE_WAITING_LOCK = "waiting-lock"
 STATE_INTEGRATING = "integrating"
 STATE_RERUNNING = "rerunning"
 STATE_ASKING = "asking"
@@ -47,26 +53,47 @@ STATE_FINISHED = "finished"
 STATE_KILLED = "killed"
 STATE_PAUSED = "paused"
 
-FAILURE_BADGE = "🚨"
+ATTENTION_BADGE = "\u26a0\ufe0f"  # ⚠️
+FAILURE_BADGE = ATTENTION_BADGE
 
 STATE_GLYPHS: dict[str, str] = {
-    STATE_EXECUTING: "▶",
-    STATE_VALIDATING: "☑",
-    STATE_GRADUATING: "⇑",
-    STATE_REVIEWING: "🆁",
-    STATE_INTEGRATING: "⇄",
-    STATE_RERUNNING: "↻",
+    STATE_EXECUTING: "\u25b6\ufe0f",  # ▶️
+    STATE_RERUNNING: "🔄",
+    STATE_GRADUATING: "📝",
+    STATE_REVIEWING: "🔍",
+    STATE_VALIDATING: "🔬",
+    STATE_WAITING_DEPS: "⏳",
+    STATE_WAITING_LOCK: "🔒",
+    STATE_INTEGRATING: "🧩",
     STATE_ASKING: "❓",
-    STATE_FINISHED: "⏹",
-    STATE_KILLED: "⛒",
-    STATE_PAUSED: "⏸",
+    STATE_PAUSED: "\u23f8\ufe0f",  # ⏸️
+    STATE_FINISHED: "✅",
+    STATE_KILLED: "❌",
 }
 
 # Retired glyphs still recognized by strip_runner_glyphs / `aw reset-title`.
-_LEGACY_RUNNER_GLYPHS: frozenset[str] = frozenset({"⌕"})
+_LEGACY_RUNNER_GLYPHS: frozenset[str] = frozenset(
+    {
+        "⌕",
+        "▶",
+        "☑",
+        "⇑",
+        "🆁",
+        "⇄",
+        "↻",
+        "⏹",
+        "⛒",
+        "⏸",
+        "🚨",
+        "⚠",
+    }
+)
 
 ALL_RUNNER_GLYPHS: frozenset[str] = (
-    frozenset(STATE_GLYPHS.values()) | {FAILURE_BADGE} | _LEGACY_RUNNER_GLYPHS
+    frozenset(STATE_GLYPHS.values()) | {ATTENTION_BADGE} | _LEGACY_RUNNER_GLYPHS
+)
+_STRIPPABLE_GLYPHS: tuple[str, ...] = tuple(
+    sorted(ALL_RUNNER_GLYPHS, key=len, reverse=True)
 )
 
 TITLE_STYLE_SHORT = "short"
@@ -81,7 +108,7 @@ TITLE_STYLE_VALUES: tuple[str, ...] = (
 )
 DEFAULT_TITLE_STYLE = TITLE_STYLE_MEDIUM
 
-#: Queue item statuses that count as a failure for the combining ``🚨`` badge.
+#: Queue item statuses that trigger the combining ``⚠️`` attention badge.
 FAILURE_QUEUE_STATUSES: frozenset[str] = frozenset(
     {
         "fail-gate",
@@ -101,8 +128,10 @@ FAILURE_QUEUE_STATUSES: frozenset[str] = frozenset(
         "merge-needs-human",
         "merge-refused",
         "merge-unchecked",
+        "awaiting-human",
     }
 )
+ATTENTION_QUEUE_STATUSES: frozenset[str] = FAILURE_QUEUE_STATUSES
 
 _TITLE_STYLE_OVERRIDE: Optional[str] = None
 _ACTIVE_LOCK = threading.RLock()
@@ -198,7 +227,7 @@ def strip_runner_glyphs(tab_name: str) -> str:
     saw_glyph = False
     while i < n:
         matched = False
-        for glyph in ALL_RUNNER_GLYPHS:
+        for glyph in _STRIPPABLE_GLYPHS:
             if tab_name.startswith(glyph, i):
                 i += len(glyph)
                 saw_glyph = True
@@ -260,8 +289,32 @@ def format_window_title(
     return f"{prefix} {body}" if prefix else body
 
 
+def _item_has_actionable_unresolved_question(item: Mapping[str, Any]) -> bool:
+    """Return True if ``item`` carries an unresolved question that requires follow-up action."""
+    questions = item.get("questions")
+    if not isinstance(questions, list):
+        return False
+    for q in questions:
+        if not isinstance(q, Mapping):
+            continue
+        if q.get("answered") or q.get("resolved"):
+            continue
+        if (
+            q.get("blocking")
+            or q.get("gates_verdict")
+            or q.get("requires_action")
+            or q.get("unanswered")
+        ):
+            return True
+    return False
+
+
 def queue_has_failure(run_state: Optional[Mapping[str, Any]]) -> bool:
-    """Return True if at least one queue item in ``run_state`` holds a failure status."""
+    """Return True if any queue item in ``run_state`` needs follow-up attention.
+
+    Triggers on failure, blocked, partial, or ``awaiting-human`` statuses, items flagged
+    with ``needs_input``, or unresolved questions that require action.
+    """
     if not isinstance(run_state, Mapping):
         return False
     queue = run_state.get("queue")
@@ -273,7 +326,14 @@ def queue_has_failure(run_state: Optional[Mapping[str, Any]]) -> bool:
         status = str(item.get("status") or "").strip()
         if status in FAILURE_QUEUE_STATUSES:
             return True
+        if bool(item.get("needs_input")):
+            return True
+        if _item_has_actionable_unresolved_question(item):
+            return True
     return False
+
+
+queue_needs_attention = queue_has_failure
 
 
 def item_active_state(
