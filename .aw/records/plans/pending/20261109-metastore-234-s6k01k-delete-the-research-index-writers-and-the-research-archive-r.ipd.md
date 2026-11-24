@@ -42,30 +42,30 @@ PIN RULE (carried from `9o83cr`): before the edit, create directory `mkdir -p .a
 
 ### Task group 1: pin, delete, retarget
 
-- [ ] E-01 Ensure `.aw/state/s6k01k/` exists (`mkdir -p .aw/state/s6k01k/`) and pin `tests/test_research_index.py` (PIN RULE, `E-01-before.txt`).
+- [x] E-01 Ensure `.aw/state/s6k01k/` exists (`mkdir -p .aw/state/s6k01k/`) and pin `tests/test_research_index.py` (PIN RULE, `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `.aw/state/s6k01k/E-01-before.txt` exists.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/research_index.py`, delete `research_index.build_index_json`, `research_index.build_index_md`, `research_index._set_last_touched` and `research_index.DEFAULT_INDEX_LIMIT`; drop the `limit` parameter and INDEX-comparison block of `research_index.check_drift`; delete `research_index.run_index` (replaced by `meta_cli.index_alias`). Keep `INDEX_MD` only while `research_archive` still names it in its scan skip.
+- [x] E-02 In `agent_workflows/research_index.py`, delete `research_index.build_index_json`, `research_index.build_index_md`, `research_index._set_last_touched` and `research_index.DEFAULT_INDEX_LIMIT`; drop the `limit` parameter and INDEX-comparison block of `research_index.check_drift`; delete `research_index.run_index` (replaced by `meta_cli.index_alias`). Keep `INDEX_MD` only while `research_archive` still names it in its scan skip.
   - Depends on: E-01
   - Expected outcome: `rg -n "build_index_(json|md)|_set_last_touched|DEFAULT_INDEX_LIMIT|def run_index" agent_workflows/research_index.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `research_archive.apply_moves`, delete the "Refresh the index after the moves" block that writes `RI.INDEX_JSON` and `RI.INDEX_MD`, and rewrite the module docstring bullet "an INDEX refresh after any archival move" and the two comments that describe the regenerated INDEX.
+- [x] E-03 In `research_archive.apply_moves`, delete the "Refresh the index after the moves" block that writes `RI.INDEX_JSON` and `RI.INDEX_MD`, and rewrite the module docstring bullet "an INDEX refresh after any archival move" and the two comments that describe the regenerated INDEX.
   - Depends on: E-02
   - Expected outcome: `rg -n "build_index|INDEX_JSON|INDEX refresh" agent_workflows/research_archive.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `agent_workflows/record_producers.py`, delete the `RecordProducerEntry` named `research_index` (anchor `run_index`).
+- [x] E-04 In `agent_workflows/record_producers.py`, delete the `RecordProducerEntry` named `research_index` (anchor `run_index`).
   - Depends on: E-02
   - Expected outcome: `rg -n "name=\"research_index\"" agent_workflows/record_producers.py` prints nothing; `tests/test_record_producers.py` passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In `tests/test_research_index.py`, delete the INDEX-byte-only cases (`test_index_md_archive_excluded_reference_included_intake_shown`, `test_n_honored`, `test_determinism`, `test_clean_after_regen`, `test_run_index_change_detection_and_output`, `test_default_is_40`, and the `run_index` render cases), retarget `test_json_contains_every_doc` and `test_docentry_and_json_carry_consumed_by` to the scan entries, and remove the INDEX-writing fixture from the drift cases (`test_invalid_frontmatter_detected`, `test_dangling_citation_detected`, `test_manifest_regeneration_not_blocked_by_tier_mismatch`). Save `E-05-after.txt`, run `tests/test_research_index.py` and `tests/test_record_producers.py`, and commit through `aw commit s6k01k -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-05 In `tests/test_research_index.py`, delete the INDEX-byte-only cases (`test_index_md_archive_excluded_reference_included_intake_shown`, `test_n_honored`, `test_determinism`, `test_clean_after_regen`, `test_run_index_change_detection_and_output`, `test_default_is_40`, and the `run_index` render cases), retarget `test_json_contains_every_doc` and `test_docentry_and_json_carry_consumed_by` to the scan entries, and remove the INDEX-writing fixture from the drift cases (`test_invalid_frontmatter_detected`, `test_dangling_citation_detected`, `test_manifest_regeneration_not_blocked_by_tier_mismatch`). Save `E-05-after.txt`, run `tests/test_research_index.py` and `tests/test_record_producers.py`, and commit through `aw commit s6k01k -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-03, E-04
   - Expected outcome: both modules pass; the mapping names every removed case.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -130,30 +130,112 @@ No spec change; implements part of `4sd62s` 4.5.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `wc -l .aw/state/s6k01k/E-01-before.txt` and its first three lines.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ wc -l .aw/state/s6k01k/E-01-before.txt
+    52 .aw/state/s6k01k/E-01-before.txt
+    $ head -3 .aw/state/s6k01k/E-01-before.txt
+    PASSED tests/test_research_index.py::CheckDriftTests::test_clean_after_regen
+    PASSED tests/test_research_index.py::CheckDriftTests::test_dangling_citation_detected
+    PASSED tests/test_research_index.py::CheckDriftTests::test_invalid_frontmatter_detected
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "build_index_(json|md)|_set_last_touched|DEFAULT_INDEX_LIMIT|def run_index" agent_workflows/research_index.py` printing nothing, and `aw check research --all --agent` rule-id multiset beside the `54a80m` F-29 research multiset, equal.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ rg -n "build_index_(json|md)|_set_last_touched|DEFAULT_INDEX_LIMIT|def run_index" agent_workflows/research_index.py; echo "rc=$?"
+    rc=1
+    ```
+    `aw check research --all --agent` after the edit (exit 1, `"findings":431`, `{"error":1,"warning":2,"info":428}`), rule-id multiset beside `54a80m` F-29 research multiset:
+    ```text
+    after s6k01k                          54a80m F-29 research
+         35 adopted-without-consumer          35 adopted-without-consumer
+          1 check.collisions-not-checked       1 check.collisions-not-checked
+        358 dangling-citation                358 dangling-citation
+          1 name-invalid                       1 name-invalid
+         30 stale-state-to-promote            30 stale-state-to-promote
+          2 status-tier-mismatch               2 status-tier-mismatch
+          4 unrecognized-model                 4 unrecognized-model
+    equal True
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "build_index|INDEX_JSON|INDEX refresh" agent_workflows/research_archive.py` printing nothing, and a fixture `aw archive research --apply` followed by `ls .aw/records/research/INDEX.*` showing no such file. Code path: `research_archive.apply_moves` (E-03).
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ rg -n "build_index|INDEX_JSON|INDEX refresh" agent_workflows/research_archive.py; echo "rc=$?"
+    rc=1
+    ```
+    Fixture, re-measured in attempt 2: a throwaway git repo under `.aw/state/s6k01k/fixture` holding one `todo` doc `aaaaaa`, written by `tests.test_research_index._write`. That helper writes under the contract root `research_contract.RESEARCH_ROOT` (`.agents/docs/research`), so the `ls` below targets that root rather than `.aw/records/research`. The code path is `research_archive.apply_moves`, reached through `aw archive research`. The doc's filename is shown as `<aaaaaa-doc>` so this evidence does not cite a nonexistent research file, which would add a `dangling-citation` to `aw check research --all`.
+    ```text
+    $ aw archive research aaaaaa --apply --no-commit --no-interactive --dir $FX
+    archived aaaaaa -> archive/202607/<aaaaaa-doc>
+    rc=0
+    $ ls $FX/.agents/docs/research/INDEX.*
+    ls: cannot access '.aw/state/s6k01k/fixture/.agents/docs/research/INDEX.*': No such file or directory
+    ls_rc=2
+    $ find $FX/.agents/docs/research -type f
+    .aw/state/s6k01k/fixture/.agents/docs/research/archive/202607/<aaaaaa-doc>
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n "name=\"research_index\"" agent_workflows/record_producers.py` printing nothing and `python3 -m pytest -o addopts="" tests/test_record_producers.py` passing.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ rg -n 'name="research_index"' agent_workflows/record_producers.py; echo "rc=$?"
+    rc=1
+    $ python3 -m pytest -o addopts="" tests/test_record_producers.py
+    ============================== 28 passed in 0.97s ==============================
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `diff .aw/state/s6k01k/E-01-before.txt .aw/state/s6k01k/E-05-after.txt` with each removed name mapped or named "INDEX-byte-only", `python3 -m pytest -o addopts="" -v tests/test_research_index.py` showing the three named drift cases PASSED, and `git show --stat` of the `aw commit s6k01k` commit listing only Scope-Paths files.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ diff .aw/state/s6k01k/E-01-before.txt .aw/state/s6k01k/E-05-after.txt
+    1d0
+    < PASSED tests/test_research_index.py::CheckDriftTests::test_clean_after_regen
+    10d8
+    < PASSED tests/test_research_index.py::DefaultLimitTests::test_default_is_40
+    15,16d12
+    < PASSED tests/test_research_index.py::IndexBuildTests::test_determinism
+    < PASSED tests/test_research_index.py::IndexBuildTests::test_index_md_archive_excluded_reference_included_intake_shown
+    18,20d13
+    < PASSED tests/test_research_index.py::IndexBuildTests::test_n_honored
+    < PASSED tests/test_research_index.py::IndexOutcomeWordsAreNotLifecycleStatusesTests::test_machine_and_suppressed_modes_emit_no_ansi
+    < PASSED tests/test_research_index.py::IndexOutcomeWordsAreNotLifecycleStatusesTests::test_the_generic_outcome_words_are_never_rendered_as_an_unknown_lifecycle_glyph
+    40d32
+    < PASSED tests/test_research_index.py::RunIndexOutputTests::test_run_index_change_detection_and_output
+    ```
+    Mapping: all 8 removed names are INDEX-byte-only (`test_clean_after_regen`, `test_default_is_40`, `test_determinism`, `test_index_md_archive_excluded_reference_included_intake_shown`, `test_n_honored`, the two `IndexOutcomeWordsAreNotLifecycleStatusesTests` `run_index` render cases, `test_run_index_change_detection_and_output`). Retargeted, same names kept: `test_json_contains_every_doc`, `test_docentry_and_json_carry_consumed_by`, `test_manifest_regeneration_not_blocked_by_tier_mismatch`, and every drift case whose `_regen` INDEX fixture was removed. 52 before, 44 after, 0 non-PASSED.
+    ```text
+    $ python3 -m pytest -o addopts="" -v -p no:randomly tests/test_research_index.py
+    tests/test_research_index.py::CheckDriftTests::test_dangling_citation_detected PASSED [ 13%]
+    tests/test_research_index.py::CheckDriftTests::test_invalid_frontmatter_detected PASSED [ 15%]
+    tests/test_research_index.py::StatusTierMismatchTests::test_manifest_regeneration_not_blocked_by_tier_mismatch PASSED [100%]
+    ============================== 44 passed in 2.06s ==============================
+    $ git show --stat 243cf00e5
+    commit 243cf00e57ac530173d8998f10d662bacd77a0dc
+        s6k01k: delete the research INDEX writers and the research archive refresh
+     agent_workflows/record_producers.py |   9 --
+     agent_workflows/research_archive.py |  30 ++--
+     agent_workflows/research_index.py   | 265 +++-----------------------------
+     tests/test_research_archive.py      |  16 +-
+     tests/test_research_index.py        | 294 +++---------------------------------
+     tests/test_research_unsafe_field.py |   2 +-
+     6 files changed, 68 insertions(+), 548 deletions(-)
+    $ aw suite
+    2882 passed, 1 skipped, 11 warnings in 132.44s (0:02:12)
+    ```
+    Attempt 2 (lane `aw/lane/s6k01k_attempt2`) carried attempt 1's correct work forward from `aw/lane/s6k01k` (`3ff36c878`) as commit `243cf00e5`, and re-ran every command above in this lane. The pin files were regenerated: `E-01-before.txt` from a detached worktree at base `76347e49d`, and `E-05-after.txt` in this lane. Scope note: three committed paths are outside Scope-Paths, and each has a `--scope-reason` recorded in the begin receipt (decisions 04-s6k01k-D1 and 04-s6k01k-D2). The third path is the backlog item `0ff8af`, filed as the defect report this run requires. `tests/test_research_archive.py::IndexRefreshTests::test_archived_leaves_index_md` read the `INDEX.md` that E-03 stops writing and failed with `FileNotFoundError`; it was retargeted to assert no INDEX file is written and the doc reads `archive` in the scan. `tests/test_research_unsafe_field.py` passed `limit=1000` to `research_index.check_drift`, whose `limit` parameter E-02 removes; the argument was dropped. The full suite shows 2882 passed, 8 fewer than `uopi8z`'s 2890, and those 8 are exactly the deleted INDEX-byte-only cases.
+  - Result: pass
 
 ## Approval and execution gate
 
