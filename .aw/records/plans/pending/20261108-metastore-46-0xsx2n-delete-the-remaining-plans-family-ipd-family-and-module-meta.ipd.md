@@ -88,6 +88,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-244-tbvx4r-delete-the-plans-index-plans-refs-and-plans-archive-metadata.ipd.md
 - Moved to qttoyc (round-3 split 2026-11-09 per research nj8zdp guidance): E-21 subset 2, `artifact_rename` (5), `artifact_refs` (1), `artifact_adopt` (1), `artifact_audit` (1, `_STATUS_LINE_RE`), and `tests/test_artifact_audit.py`. Subsets 1 and 2 equal E-21's list.
   - Carrier: qttoyc
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-245-qttoyc-delete-the-artifact-family-metadata-regex-literals.ipd.md
 - Moved to nx7fws (round-3 split 2026-11-09 per research nj8zdp guidance): E-22 subset 1, `ipd_lint` (4), `ipd_lifecycle` (4, writer), `ipd_schema` (3), `ipd_authoring` (2).
   - Carrier: nx7fws
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-246-nx7fws-delete-the-ipd-module-metadata-regex-literals.ipd.md

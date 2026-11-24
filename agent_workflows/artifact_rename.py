@@ -35,8 +35,34 @@ _WALKTHROUGH_DATED_RE = _naming._WALKTHROUGH_DATED_RE
 _WALKTHROUGH_BARE_RE = _naming._WALKTHROUGH_BARE_RE
 _DATED_SLUG_FACET_RE = _naming._DATED_SLUG_FACET_RE
 
-_SET_LINE_RE = re.compile(r"(?m)^- Set:\s*(.+?)\s*$")
-_ORDER_LINE_RE = re.compile(r"(?m)^- Order:\s*(-?\d+)\s*$")
+_ORDER_VALUE_RE = re.compile(r"-?\d+")
+
+
+def _metadata_bullets(text: str) -> dict:
+    """The strict `- Key: value` bullets of ``text``'s metadata region, read through `artifact_meta`.
+
+    Strict bullets only, so a `---` YAML front-matter record reads as having none, as the deleted
+    per-field `- Set:`/`- Order:`/`- Id:`/`- Status:`/`- Date:` patterns did (metastore `qttoyc`).
+    Bounded to `metadata_region`, so a quoted bullet in the body is not read.
+    """
+    fields, _errors = _meta.parse_metadata_block(
+        _meta.metadata_region(text).splitlines()
+    )
+    return fields
+
+
+def _has_set_bullet(text: str) -> bool:
+    return bool(_metadata_bullets(text).get("Set"))
+
+
+def _has_order_bullet(text: str) -> bool:
+    return bool(_ORDER_VALUE_RE.fullmatch(_metadata_bullets(text).get("Order") or ""))
+
+
+def _bullet_id6(text: str) -> Optional[str]:
+    """The `- Id:` id6 the metadata region declares, or None when absent or not an id6."""
+    declared = _metadata_bullets(text).get("Id") or ""
+    return declared if _core.ID6_RE.fullmatch(declared) else None
 
 
 # RefEdit is defined ONCE in the unified reference library (IPD 3cmnfc); re-export it so this
@@ -249,11 +275,6 @@ def apply_reference_rewrites(edits: List[RefEdit]) -> None:
     _refs.apply_reference_rewrites(edits, prefix=".aw-ref-")
 
 
-_ID_LINE_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
-_STATUS_LINE_RE = re.compile(r"(?m)^- Status:\s*.+?\s*$")
-_DATE_LINE_RE = re.compile(r"(?m)^- Date:\s*.+?\s*$")
-
-
 def _meta_target_for_file(
     file_path: Path,
     artifact_type: Optional[str],
@@ -303,7 +324,7 @@ def _rename_metadata_events(
     """The `artifact_meta.append` events for a rename's Set/Order update and id6 injection.
 
     Pure: builds events and writes nothing. Emits `op: "set"` only for fields already present in
-    ``text`` (`_SET_LINE_RE` / `_ORDER_LINE_RE`, or `Set:` in the `aw-prompt` comment), and
+    ``text`` (a `- Set:` / `- Order:` metadata bullet, or `Set:` in the `aw-prompt` comment), and
     `op: "checkpoint"` for ``id6`` when the file declares no id6 yet (IPD ha55fi E-04).
     """
     events: List[dict] = []
@@ -318,14 +339,14 @@ def _rename_metadata_events(
             ):
                 set_fields["set"] = str(set_id)
         else:
-            if set_id is not None and _SET_LINE_RE.search(text):
+            if set_id is not None and _has_set_bullet(text):
                 set_fields["set"] = str(set_id)
-            if order is not None and _ORDER_LINE_RE.search(text):
+            if order is not None and _has_order_bullet(text):
                 set_fields["order"] = int(order)
     else:
-        if set_id is not None and _SET_LINE_RE.search(text):
+        if set_id is not None and _has_set_bullet(text):
             set_fields["set"] = str(set_id)
-        if order is not None and _ORDER_LINE_RE.search(text):
+        if order is not None and _has_order_bullet(text):
             set_fields["order"] = int(order)
 
     if set_fields:
@@ -389,7 +410,8 @@ def _id6_write_message(
             _src_text = src.read_text(encoding="utf-8")
         except OSError:
             _src_text = ""
-        if not (_STATUS_LINE_RE.search(_src_text) or _DATE_LINE_RE.search(_src_text)):
+        _src_bullets = _metadata_bullets(_src_text)
+        if not (_src_bullets.get("Status") or _src_bullets.get("Date")):
             # a88210: mirrors `run_rename_generic`'s metadata write, which writes no bullet into a
             # file that has no bullet block. The message must not claim a write that will not happen.
             verb = "would record" if preview else "recorded"
@@ -423,8 +445,7 @@ def _read_existing_id6(
         # Only line 1 holds the comment; a body `- Id:` bullet is not a declaration.
         declared = _meta.read_text(text.split("\n", 1)[0], record_type="prompt").id6
         return declared if _core.ID6_RE.fullmatch(declared or "") else None
-    m = _ID_LINE_RE.search(text)
-    return m.group(1) if m else None
+    return _bullet_id6(text)
 
 
 _MIRROR_ID_RE = re.compile(r"\A\ufeff?---\r?\nid:\s*([0-9a-z]{6})\s*\r?\n")
@@ -588,9 +609,9 @@ def _existing_type_id6s(repo_root: Path, artifact_type: str) -> set:
             m_name = _UNIFORM_RE.match(p.name)
             if m_name:
                 ids.add(m_name.group("id6"))
-            m_id = _ID_LINE_RE.search(text)
-            if m_id:
-                ids.add(m_id.group(1))
+            declared = _bullet_id6(text)
+            if declared:
+                ids.add(declared)
     except Exception:
         pass
     return ids
