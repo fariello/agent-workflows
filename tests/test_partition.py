@@ -218,10 +218,12 @@ def test_packing_oversized_component_split() -> None:
         "ccc006",
     ]
     assert sn.shard_indexes == [0, 1, 2]
+    # Contiguous topological slices keep every cut edge strictly forward
+    # (shard 0: zzz001, aaa002; shard 1: mmm003, bbb004; shard 2: yyy005, ccc006)
+    # so the shard dependency graph is acyclic and deadlock-free.
     expected_cut_edges = [
-        ("aaa002", "zzz001"),
-        ("bbb004", "mmm003"),
-        ("ccc006", "yyy005"),
+        ("bbb004", "zzz001"),
+        ("ccc006", "mmm003"),
         ("mmm003", "aaa002"),
         ("yyy005", "bbb004"),
     ]
@@ -238,6 +240,14 @@ def test_packing_oversized_component_split() -> None:
         "zzz001",
     ]
 
+    # Every cut edge must point strictly forward (prereq shard < consumer shard): zero cycles.
+    shard_of = {it.id: idx for idx, shard in enumerate(p.shards) for it in shard}
+    for consumer, prereq in sn.cut_edges:
+        assert shard_of[prereq] < shard_of[consumer], (
+            f"Cut edge {consumer} -> {prereq} must point forward, "
+            f"got shard {shard_of[prereq]} -> shard {shard_of[consumer]}"
+        )
+
     # For every shard, for every pair where item B declares an in-selection edge
     # to item A in the same shard, assert A's index < B's index.
     in_sel = part.in_selection_edges(items)
@@ -250,12 +260,15 @@ def test_packing_oversized_component_split() -> None:
                     assert a_idx < b_idx, f"Prerequisite {a_id} must precede {b_id}"
 
     # Specifically prove that lexical ordering would fail:
-    # In Shard 0: zzz001 (depth 0) must precede bbb004 (depth 3)
+    # In Shard 0: zzz001 (depth 0) must precede aaa002 (depth 1)
     s0_ids = [it.id for it in p.shards[0]]
-    assert s0_ids.index("zzz001") < s0_ids.index("bbb004")
-    # In Shard 2: mmm003 (depth 2) must precede ccc006 (depth 5)
+    assert s0_ids.index("zzz001") < s0_ids.index("aaa002")
+    # In Shard 1: mmm003 (depth 2) must precede bbb004 (depth 3)
+    s1_ids = [it.id for it in p.shards[1]]
+    assert s1_ids.index("mmm003") < s1_ids.index("bbb004")
+    # In Shard 2: yyy005 (depth 4) must precede ccc006 (depth 5)
     s2_ids = [it.id for it in p.shards[2]]
-    assert s2_ids.index("mmm003") < s2_ids.index("ccc006")
+    assert s2_ids.index("yyy005") < s2_ids.index("ccc006")
 
 
 def test_packing_determinism() -> None:
@@ -1777,3 +1790,188 @@ def test_partition_id6_highlighting_with_color(
         in plain_text
     )
     assert "item r20rid must be in status 'approved' and not 'reviewed'" in plain_text
+
+
+def test_dag_safe_split_extracts_parallel_branches_and_appends_poll_for_deps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--split-sets on a multi-branch Set emits runnable parallel shards + --poll-for-deps tail,
+    suppresses raw cut-edge dumps unless --verbose, and colorizes stderr while keeping stdout plain."""
+    import argparse
+    import io
+    from agent_workflows import partition, runner_shared
+    from agent_workflows.term import Term
+    from tests.support import git, init_repo
+
+    repo = init_repo(tmp_path / "dagrepo")
+    pending = repo / ".aw" / "records" / "plans" / "pending"
+    pending.mkdir(parents=True, exist_ok=True)
+
+    def _write_plan(
+        id6: str,
+        order: int,
+        deps: str = "none",
+        kind: str | None = None,
+        children_table: str = "",
+    ) -> None:
+        text = str(
+            RecordBuilder().plan(
+                id6=id6,
+                title=f"Plan {id6}",
+                when="2026-11-23",
+                set="dagset",
+                order=order,
+                status="approved",
+                readiness="go-pending-approval",
+                approval="2026-11-23, tester",
+                priority="medium",
+                item_dependencies=deps,
+                kind=kind,
+                history=[
+                    "- 2026-11-23 approved (tester): approved",
+                    "- 2026-11-23 /plan-review (tester): APPROVE",
+                    "- 2026-11-23 draft (tester): created.",
+                ],
+                text_only=True,
+            )
+        )
+        if children_table:
+            text += "\n## Child IPDs\n\n" + children_table + "\n"
+        (pending / f"20261123-dagset-{order:02d}-{id6}-plan-{id6}.ipd.md").write_text(
+            text, encoding="utf-8"
+        )
+
+    child_ids = [
+        ("br1001", 1, "none"),
+        ("br1002", 2, "executed:br1001"),
+        ("br1003", 3, "executed:br1002"),
+        ("br2001", 4, "none"),
+        ("br2002", 5, "executed:br2001"),
+        ("br3001", 6, "none"),
+        ("jn0001", 7, "executed:br1003, executed:br2002, executed:br3001"),
+        ("jn0002", 8, "executed:jn0001"),
+    ]
+    rows = "\n".join(
+        f"| {order:02d} | `{cid}` | Plan {cid} | approved |"
+        for cid, order, _ in child_ids
+    )
+    table = "| Order | ID | Title | Status |\n|---:|---|---|---|\n" + rows
+    _write_plan("orch00", 0, deps="none", kind="orchestrator", children_table=table)
+    for cid, order, deps in child_ids:
+        _write_plan(cid, order, deps=deps)
+    git(repo, "add", ".aw/records/plans/pending")
+    git(repo, "commit", "-qm", "seed dagset")
+
+    def _run(verbose: bool, color: bool) -> tuple[int, str, str]:
+        out_buf = io.StringIO()
+        err_buf = io.StringIO()
+        monkeypatch.setattr("sys.stdout", out_buf)
+        monkeypatch.setattr("sys.stderr", err_buf)
+        term = Term(stream=err_buf, color=color, depth="256" if color else None)
+        args = argparse.Namespace(
+            dir=str(repo),
+            artifact_type="plans",
+            selectors=[],
+            shards=4,
+            max=None,
+            as_profile=None,
+            run="oc",
+            model=None,
+            variant=None,
+            action=None,
+            order_by=None,
+            json=False,
+            agent=False,
+            verbose=verbose,
+            stdin=False,
+            status=["approved"],
+            status_not=[],
+            priority=[],
+            allow_partial_sets=False,
+            split_sets=True,
+            skip_ineligible=False,
+            with_dependencies=False,
+            include_active=True,
+            review_unreviewed_deps=False,
+        )
+        rc = partition.run_partition(args, term=term)
+        return rc, out_buf.getvalue(), err_buf.getvalue()
+
+    # 1. Default (non-verbose, colored) run
+    rc, stdout_c, stderr_c = _run(verbose=False, color=True)
+    assert rc == 0
+    # stdout commands remain plain uncolored text; stderr uses ANSI colors
+    assert "\033[" not in stdout_c
+    assert "\033[" in stderr_c
+    # No raw Python tuple dump on default output; concise summary + --verbose hint
+    assert "[('" not in stderr_c
+    assert "3 cut edge(s)" in stderr_c
+    assert "--verbose" in stderr_c
+    assert "--poll-for-deps 5m" in stderr_c
+
+    cmds = [ln.strip() for ln in stdout_c.splitlines() if ln.strip()]
+    assert len(cmds) == 4
+    # First 3 shards are independent parallel branches with zero --poll-for-deps
+    for parallel_cmd in cmds[:3]:
+        assert "--poll-for-deps" not in parallel_cmd
+    # Shard 3 is the downstream join tail (jn0001, jn0002) with --poll-for-deps 5m
+    assert "--poll-for-deps 5m" in cmds[3]
+    assert "jn0001" in cmds[3] and "jn0002" in cmds[3]
+
+    # 2. Verbose (plain) run lists formatted cut edges
+    rc_v, stdout_v, stderr_v = _run(verbose=True, color=False)
+    assert rc_v == 0
+    assert "\033[" not in stderr_v
+    assert "jn0001 (shard 3) <-" in stderr_v
+    assert "br1003" in stderr_v and "br2002" in stderr_v and "br3001" in stderr_v
+
+    # 3. Verify with real freeze-time refusal gate that all 4 emitted shards are runnable:
+    #    shards 0..2 pass immediately; shard 3 enters waitable polling instead of refusing.
+    deps_by_id = {
+        cid: [d.strip() for d in deps.split(",") if d.strip() and d.strip() != "none"]
+        for cid, _order, deps in child_ids
+    }
+    for idx, cmd in enumerate(cmds):
+        toks = cmd.split()
+        # strip `aw oc run` and optional `--poll-for-deps 5m`
+        ids = [t for t in toks[3:] if t not in ("--poll-for-deps", "5m")]
+        queue = [
+            {
+                "id6": pid,
+                "action": "execute",
+                "status": "queued",
+                "initial_status": "approved",
+                "artifact_type": "ipd",
+                "dependencies": deps_by_id[pid],
+                "configured_file": str(
+                    next(pending.glob(f"*{pid}*.ipd.md")).relative_to(repo)
+                ),
+            }
+            for pid in ids
+        ]
+        if idx < 3:
+            runner_shared.enforce_freeze_time_refusal(
+                queue,
+                repo=repo,
+                host="oc",
+                allow_waitable_external_deps=False,
+            )
+        else:
+            with pytest.raises(
+                runner_shared.DriverError, match="RUN-DEPENDENCY-UNSATISFIABLE"
+            ):
+                runner_shared.enforce_freeze_time_refusal(
+                    queue,
+                    repo=repo,
+                    host="oc",
+                    allow_waitable_external_deps=False,
+                )
+            with pytest.raises(runner_shared.WaitableExternalDependencies) as exc_info:
+                runner_shared.enforce_freeze_time_refusal(
+                    queue,
+                    repo=repo,
+                    host="oc",
+                    allow_waitable_external_deps=True,
+                )
+            waiting_targets = {t[2] for t in exc_info.value.waiting_deps}
+            assert waiting_targets == {"br1003", "br2002", "br3001"}

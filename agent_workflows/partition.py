@@ -900,6 +900,213 @@ def components(
     return comps
 
 
+#: Default `--poll-for-deps` interval appended to downstream shards that wait on earlier shards.
+DEFAULT_POLL_FOR_DEPS = "5m"
+
+
+def _weakly_connected_subsets(
+    node_ids: Set[str],
+    comp_edges: Dict[str, Set[str]],
+) -> List[Set[str]]:
+    """Return weakly connected components of ``node_ids`` under ``comp_edges``."""
+    adj: Dict[str, Set[str]] = {u: set() for u in node_ids}
+    for u in node_ids:
+        for p in comp_edges.get(u, ()):
+            if p in node_ids:
+                adj[u].add(p)
+                adj[p].add(u)
+    visited: Set[str] = set()
+    groups: List[Set[str]] = []
+    for start in sorted(node_ids):
+        if start in visited:
+            continue
+        group: Set[str] = set()
+        queue = [start]
+        visited.add(start)
+        while queue:
+            curr = queue.pop(0)
+            group.add(curr)
+            for nbr in sorted(adj[curr]):
+                if nbr not in visited:
+                    visited.add(nbr)
+                    queue.append(nbr)
+        groups.append(group)
+    return groups
+
+
+def _ancestor_roots(
+    node_ids: Set[str],
+    comp_edges: Dict[str, Set[str]],
+    roots: Set[str],
+) -> Optional[Dict[str, frozenset[str]]]:
+    """Compute ancestor-root sets for every node in ``node_ids``.
+
+    Returns None if ``node_ids`` contains a cycle (not all nodes reachable via topological order).
+    """
+    in_deg: Dict[str, int] = {
+        u: len(comp_edges.get(u, set()) & node_ids) for u in node_ids
+    }
+    rev: Dict[str, List[str]] = {u: [] for u in node_ids}
+    for u in node_ids:
+        for p in comp_edges.get(u, ()):
+            if p in node_ids:
+                rev[p].append(u)
+
+    queue = sorted(u for u, d in in_deg.items() if d == 0)
+    anc: Dict[str, Set[str]] = {u: ({u} if u in roots else set()) for u in node_ids}
+    processed = 0
+    while queue:
+        u = queue.pop(0)
+        processed += 1
+        for dep in rev[u]:
+            anc[dep].update(anc[u])
+            in_deg[dep] -= 1
+            if in_deg[dep] == 0:
+                queue.append(dep)
+    if processed != len(node_ids):
+        return None
+    return {u: frozenset(s) for u, s in anc.items()}
+
+
+def _peel_parallel_branches_and_tail(
+    comp_ids: Set[str],
+    comp_edges: Dict[str, Set[str]],
+    target_branches: int,
+) -> Tuple[List[Set[str]], Set[str]]:
+    """Peel upward-closed join nodes into ``tail`` to expose independent parallel branches.
+
+    Invariant: every returned branch in ``branches`` is downward-closed under ``comp_edges``
+    (zero prerequisites outside itself), and every node in ``tail`` only depends on nodes in
+    ``branches`` or earlier nodes in ``tail``.
+    """
+    if target_branches < 2:
+        return [set(comp_ids)], set()
+
+    active = set(comp_ids)
+    tail: Set[str] = set()
+
+    # Step 1: peel global join nodes (or multi-root join nodes) from active until active splits
+    # into >= 2 weakly connected components, or cannot be split further.
+    while True:
+        roots = {u for u in active if not (comp_edges.get(u, set()) & active)}
+        if len(roots) < 2:
+            return [set(comp_ids)], set()
+        anc = _ancestor_roots(active, comp_edges, roots)
+        if anc is None:
+            return [set(comp_ids)], set()
+        sub_comps = _weakly_connected_subsets(active, comp_edges)
+        if len(sub_comps) >= 2:
+            break
+        all_roots = frozenset(roots)
+        peel = {u for u in active if anc[u] == all_roots}
+        if not peel:
+            peel = {u for u in active if len(anc[u]) >= 2}
+        if not peel or len(peel) == len(active):
+            return [set(comp_ids)], set()
+        tail.update(peel)
+        active.difference_update(peel)
+
+    branches = _weakly_connected_subsets(active, comp_edges)
+
+    # Step 2: if we still have room for more parallel shards, peel join nodes inside the largest
+    # multi-root branch to expose additional independent sub-branches.
+    while len(branches) < target_branches:
+        best_idx = -1
+        best_size = -1
+        best_peel: Set[str] = set()
+        best_sub: List[Set[str]] = []
+        for idx, br in enumerate(branches):
+            br_roots = {u for u in br if not (comp_edges.get(u, set()) & br)}
+            if len(br_roots) < 2:
+                continue
+            anc = _ancestor_roots(br, comp_edges, br_roots)
+            if anc is None:
+                continue
+            all_br_roots = frozenset(br_roots)
+            peel = {u for u in br if anc[u] == all_br_roots}
+            if not peel:
+                peel = {u for u in br if len(anc[u]) >= 2}
+            if not peel or len(peel) == len(br):
+                continue
+            rem = br - peel
+            sub = _weakly_connected_subsets(rem, comp_edges)
+            if len(sub) >= 2 and len(br) > best_size:
+                best_idx = idx
+                best_size = len(br)
+                best_peel = peel
+                best_sub = sub
+        if best_idx < 0:
+            break
+        tail.update(best_peel)
+        branches = branches[:best_idx] + best_sub + branches[best_idx + 1 :]
+
+    return branches, tail
+
+
+def _assign_oversized_component_dag_safe(
+    sorted_comp: List[_att.Item],
+    edges: Dict[str, Set[str]],
+    depths: Dict[str, int],
+    order_by: str,
+    clamped_k: int,
+) -> Dict[str, int]:
+    """Assign items of an oversized component to shards ``0..clamped_k-1`` without shard cycles.
+
+    Guarantees ``shard_of[prereq] <= shard_of[consumer]`` for every DAG edge inside the component.
+    Extracts independent parallel branches into lower shards (zero external dependencies) and
+    places any join tail into a strictly higher shard. Falls back to contiguous topological slices
+    for single-root chains so cut edges remain strictly forward.
+    """
+    comp_ids = {it.id for it in sorted_comp}
+    comp_edges = {u: (edges.get(u, set()) & comp_ids) for u in comp_ids}
+    by_id = {it.id: it for it in sorted_comp}
+
+    item_to_shard: Dict[str, int] = {}
+
+    if clamped_k >= 2:
+        # Reserve 1 shard for the downstream join tail when splitting parallel branches.
+        branch_budget = max(2, clamped_k - 1) if clamped_k >= 3 else 2
+        branches, tail = _peel_parallel_branches_and_tail(
+            comp_ids, comp_edges, target_branches=branch_budget
+        )
+        if len(branches) >= 2 and (not tail or clamped_k >= 3):
+            parallel_slots = clamped_k - 1 if tail else clamped_k
+            branches_sorted = sorted(
+                branches,
+                key=lambda b: (
+                    -len(b),
+                    min(item_sort_key(by_id[cid], depths, order_by) for cid in b),
+                ),
+            )
+            slot_sizes = [0] * parallel_slots
+            used_slots: Set[int] = set()
+            for br in branches_sorted:
+                target_slot = min(
+                    range(parallel_slots), key=lambda i: (slot_sizes[i], i)
+                )
+                for cid in br:
+                    item_to_shard[cid] = target_slot
+                slot_sizes[target_slot] += len(br)
+                used_slots.add(target_slot)
+            if tail:
+                tail_slot = max(used_slots) + 1
+                for cid in tail:
+                    item_to_shard[cid] = tail_slot
+            return item_to_shard
+
+    # Single-root chain, cycle, or k=2 with shared tail: contiguous topological slices across
+    # shards 0..clamped_k-1 so every cut edge points strictly forward (prereq shard < consumer shard).
+    total = len(sorted_comp)
+    base, rem = divmod(total, clamped_k)
+    cursor = 0
+    for shard_idx in range(clamped_k):
+        chunk_len = base + (1 if shard_idx < rem else 0)
+        for it in sorted_comp[cursor : cursor + chunk_len]:
+            item_to_shard[it.id] = shard_idx
+        cursor += chunk_len
+    return item_to_shard
+
+
 def partition(
     items: Sequence[_att.Item],
     k: int,
@@ -907,6 +1114,9 @@ def partition(
     extra_edges: Optional[Sequence[Tuple[str, str]]] = None,
     orchestrator_ids: Optional[Set[str]] = None,
     set_by_item: Optional[Dict[str, str]] = None,
+    *,
+    relax_dependencies: bool = False,
+    term: Optional[Term] = None,
 ) -> Partition:
     """Partition items into k balanced shards preserving dependency clusters.
 
@@ -915,11 +1125,13 @@ def partition(
       2. Capacity cap = ceil(N / k).
       3. Components with size <= cap are placed whole, largest first, each into currently
          smallest shard (ties broken by lowest shard index).
-      4. Components with size > cap are split: ordered by dependency depth ascending
-         (ties by id6 or date depending on order_by), placed one at a time into currently
-         smallest shard; records SplitNote. However, a component containing Set edges
-         is never split: it goes whole into the currently smallest shard, prints a note to
-         stderr, and is omitted from split_components.
+      4. Components with size > cap are split: when dependencies are enforced
+         (``relax_dependencies=False``), independent parallel branches are placed into lower
+         shards with any join tail placed into a strictly higher shard (or contiguous topological
+         slices for a pure chain), guaranteeing an acyclic shard dependency graph with no deadlocks.
+         When ``relax_dependencies=True``, items are dealt round-robin across shards.
+         However, a component containing Set edges is never split: it goes whole into the
+         currently smallest shard, prints a note to stderr, and is omitted from split_components.
       5. Within each shard, items are ordered by dependency depth then orchestrator last then id6/date.
       6. Cycles reported by dependency_depths are passed through.
     """
@@ -957,6 +1169,8 @@ def partition(
         key=lambda c: (-len(c), min(item_sort_key(it, depths, order_by) for it in c))
     )
 
+    err_term = _make_err_term(term)
+
     for comp in comps:
         has_set_edges = bool(set_nodes and any(it.id in set_nodes for it in comp))
         if len(comp) <= cap or has_set_edges:
@@ -974,8 +1188,10 @@ def partition(
                 if set_id and set_id not in kept_whole_sets:
                     kept_whole_sets.append(str(set_id))
                 noun = "plans" if comp[0].tree == "plans" else "items"
+                note_lbl = err_term.colorize("note:", "cyan", "bold")
+                styled_set = err_term.colorize(str(set_id), "bold")
                 print(
-                    f"note: Set '{set_id}' ({len(comp)} {noun}) kept whole in shard {target_idx}, exceeding the even share of {cap}",
+                    f"{note_lbl} Set '{styled_set}' ({len(comp)} {noun}) kept whole in shard {target_idx}, exceeding the even share of {cap}",
                     file=sys.stderr,
                 )
         else:
@@ -984,11 +1200,20 @@ def partition(
             )
             comp_shard_indexes: Set[int] = set()
             item_to_shard: Dict[str, int] = {}
-            for it in sorted_comp:
-                target_idx = _smallest_shard_idx()
-                shards[target_idx].append(it)
-                comp_shard_indexes.add(target_idx)
-                item_to_shard[it.id] = target_idx
+            if relax_dependencies:
+                for it in sorted_comp:
+                    target_idx = _smallest_shard_idx()
+                    shards[target_idx].append(it)
+                    comp_shard_indexes.add(target_idx)
+                    item_to_shard[it.id] = target_idx
+            else:
+                item_to_shard = _assign_oversized_component_dag_safe(
+                    sorted_comp, edges, depths, order_by, clamped_k
+                )
+                for it in sorted_comp:
+                    target_idx = item_to_shard[it.id]
+                    shards[target_idx].append(it)
+                    comp_shard_indexes.add(target_idx)
 
             cut_edges: List[Tuple[str, str]] = []
             for it in sorted_comp:
@@ -1598,12 +1823,14 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
     artifact_type = getattr(args, "artifact_type", None)
 
     # Shards validation
+    err_term = _make_err_term(term)
+    err_label_base = err_term.colorize("Error:", "red", "bold")
     shards_val = getattr(args, "shards", 3)
     if shards_val is None:
         shards_val = 3
     if shards_val < 1:
         print(
-            f"Error: --shards must be >= 1, got {shards_val}",
+            f"{err_label_base} --shards must be >= 1, got {shards_val}",
             file=sys.stderr,
         )
         return 2
@@ -1612,7 +1839,7 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
     max_count = getattr(args, "max", None)
     if max_count is not None and max_count < 1:
         print(
-            f"Error: --max must be >= 1, got {max_count}",
+            f"{err_label_base} --max must be >= 1, got {max_count}",
             file=sys.stderr,
         )
         return 2
@@ -1622,7 +1849,7 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
     run_flag = getattr(args, "run", None)
     if profile and run_flag is not None:
         print(
-            "Error: --as cannot be combined with --run",
+            f"{err_label_base} --as cannot be combined with --run",
             file=sys.stderr,
         )
         return 2
@@ -1634,7 +1861,7 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
     if getattr(args, "review_unreviewed_deps", False):
         if action_flag not in (None, "review"):
             print(
-                "Error: --review-unreviewed-deps applies to review runs only",
+                f"{err_label_base} --review-unreviewed-deps applies to review runs only",
                 file=sys.stderr,
             )
             return 2
@@ -1642,6 +1869,7 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
     order_by_flag = getattr(args, "order_by", None)
     is_json = bool(getattr(args, "json", False))
     is_agent = bool(getattr(args, "agent", False))
+    is_verbose = bool(getattr(args, "verbose", False))
     if context is not None:
         fields = getattr(context, "fields", None)
     else:
@@ -1783,13 +2011,13 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
             if len(distinct_actions) > 1:
                 actions_str = ", ".join(sorted(distinct_actions))
                 print(
-                    f"Error: selection contains mixed actions ({actions_str}); filter by -s or --action to produce a homogeneous queue",
+                    f"{err_label_base} selection contains mixed actions ({actions_str}); filter by -s or --action to produce a homogeneous queue",
                     file=sys.stderr,
                 )
                 return 2
 
         blocked_sets = [c for c in classifications.values() if not c.is_completeable]
-        err_term = Term(stream=sys.stderr)
+        err_term = _make_err_term(term)
 
         if blocked_sets and not allow_partial_sets:
             # Whole batch refusal: emit NO commands for any shard, exit 2
@@ -1883,9 +2111,14 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
                         model=model,
                         variant=variant,
                     )
+                    note_lbl = err_term.colorize("note:", "cyan", "bold")
+                    styled_set = err_term.colorize(cs.setid, "bold")
+                    styled_orch = err_term.colorize(cs.orchestrator_id, "bold")
+                    styled_flag = err_term.colorize("--split-sets", "cyan")
+                    styled_cmd = err_term.colorize(retire_cmd, "cyan")
                     print(
-                        f"note: Set '{cs.setid}' orchestrator '{cs.orchestrator_id}' held back under --split-sets; "
-                        f"retire after all shards finish: {retire_cmd}",
+                        f"{note_lbl} Set '{styled_set}' orchestrator '{styled_orch}' held back under {styled_flag}; "
+                        f"retire after all shards finish: {styled_cmd}",
                         file=sys.stderr,
                     )
                     held_back_orchestrators.append(
@@ -1972,6 +2205,8 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
         extra_edges=extra_edges,
         orchestrator_ids=orchestrator_ids,
         set_by_item=set_by_item,
+        relax_dependencies=relax_reviews,
+        term=term,
     )
 
     # Derive effective action for non-empty candidates
@@ -1989,11 +2224,33 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
             if len(distinct_actions) == 1:
                 effective_action = next(iter(distinct_actions))
 
-    # Format commands for non-empty shards
+    # Map each item to its assigned shard and identify cross-shard dependencies.
+    item_shard_map: Dict[str, int] = {}
+    for s_idx, shard in enumerate(part_res.shards):
+        for it in shard:
+            if it.id:
+                item_shard_map[it.id] = s_idx
+
+    shard_waits_on: Dict[int, Set[int]] = {}
+    for sc in part_res.split_components:
+        for consumer_id, prereq_id in sc.cut_edges:
+            c_idx = item_shard_map.get(consumer_id)
+            p_idx = item_shard_map.get(prereq_id)
+            if c_idx is not None and p_idx is not None and c_idx != p_idx:
+                shard_waits_on.setdefault(c_idx, set()).add(p_idx)
+
+    # Format commands for non-empty shards. Downstream shards with cross-shard dependencies get
+    # `--poll-for-deps` automatically (unless `--review-unreviewed-deps` already relaxes them) so
+    # every emitted command is directly runnable without failing dependency preflight.
     commands: List[str] = []
-    for shard in part_res.shards:
+    for s_idx, shard in enumerate(part_res.shards):
         shard_ids = [it.id for it in shard if it.id]
         if shard_ids:
+            per_shard_flags: List[str] = []
+            if effective_action == "review" and shard_flags:
+                per_shard_flags.extend(shard_flags)
+            if not relax_reviews and s_idx in shard_waits_on:
+                per_shard_flags.extend(["--poll-for-deps", DEFAULT_POLL_FOR_DEPS])
             cmd = format_shard(
                 run=runner,
                 ids=shard_ids,
@@ -2001,7 +2258,7 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
                 profile=profile,
                 model=model,
                 variant=variant,
-                extra_flags=shard_flags if effective_action == "review" else (),
+                extra_flags=per_shard_flags,
             )
             commands.append(cmd)
 
@@ -2010,6 +2267,8 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
         it.id for it in candidates if it.id and it.id in rereview_ids
     )
     if active_rereview_ids:
+        warn_lbl = err_term.colorize("warning:", "yellow", "bold")
+        yes_flag = err_term.colorize("--yes", "cyan")
         approved_rr_count = sum(
             1
             for it in candidates
@@ -2019,21 +2278,22 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
         )
         if approved_rr_count:
             print(
-                f"warning: partitioning {len(active_rereview_ids)} plan(s) for re-review "
+                f"{warn_lbl} partitioning {len(active_rereview_ids)} plan(s) for re-review "
                 f"({approved_rr_count} already approved); running these shards withdraws approval "
-                f"and requires typing 're-review' or passing --yes.",
+                f"and requires typing 're-review' or passing {yes_flag}.",
                 file=sys.stderr,
             )
         else:
             print(
-                f"warning: partitioning {len(active_rereview_ids)} already-reviewed plan(s) for re-review; "
-                f"running these shards requires typing 're-review' or passing --yes.",
+                f"{warn_lbl} partitioning {len(active_rereview_ids)} already-reviewed plan(s) for re-review; "
+                f"running these shards requires typing 're-review' or passing {yes_flag}.",
                 file=sys.stderr,
             )
 
     shard_sizes = [len(s) for s in part_res.shards]
+    part_lbl = err_term.colorize("Partitioned", "green", "bold")
     print(
-        f"Partitioned {len(candidates)} items across {len(part_res.shards)} shard(s): {shard_sizes}",
+        f"{part_lbl} {len(candidates)} items across {len(part_res.shards)} shard(s): {shard_sizes}",
         file=sys.stderr,
     )
     if part_res.kept_whole_sets and not split_sets and not relax_reviews:
@@ -2055,28 +2315,77 @@ def _run_partition_impl(args: Any, term: Any, context: Any = None) -> int:
             elif len(members) >= 2 or not members:
                 splittable_sets.append(sid)
         if splittable_sets:
-            sets_str = ", ".join(f"'{s}'" for s in splittable_sets)
+            sets_str = ", ".join(
+                f"'{err_term.colorize(s, 'bold')}'" for s in splittable_sets
+            )
+            hint_lbl = err_term.colorize("hint:", "cyan", "bold")
+            split_flag = err_term.colorize("--split-sets", "cyan")
             non_empty_shards = sum(1 for s in part_res.shards if s)
             if non_empty_shards == 1 and shards_val > 1:
                 print(
-                    f"hint: all {len(candidates)} items ended up in 1 shard because Set cohesion kept Set {sets_str} whole; "
-                    f"pass --split-sets to split Set members across {shards_val} shards.",
+                    f"{hint_lbl} all {len(candidates)} items ended up in 1 shard because Set cohesion kept Set {sets_str} whole; "
+                    f"pass {split_flag} to split Set members across {shards_val} shards.",
                     file=sys.stderr,
                 )
             else:
                 print(
-                    f"hint: pass --split-sets to allow oversized Set {sets_str} to split across shards.",
+                    f"{hint_lbl} pass {split_flag} to allow oversized Set {sets_str} to split across shards.",
                     file=sys.stderr,
                 )
     if part_res.split_components:
+        note_lbl = err_term.colorize("note:", "yellow", "bold")
+        verbose_flag = err_term.colorize("--verbose", "cyan")
+        poll_flag = err_term.colorize(
+            f"--poll-for-deps {DEFAULT_POLL_FOR_DEPS}", "cyan"
+        )
         for sc in part_res.split_components:
+            sc_waits: Dict[int, Set[int]] = {}
+            for consumer_id, prereq_id in sc.cut_edges:
+                c_idx = item_shard_map.get(consumer_id)
+                p_idx = item_shard_map.get(prereq_id)
+                if c_idx is not None and p_idx is not None and c_idx != p_idx:
+                    sc_waits.setdefault(c_idx, set()).add(p_idx)
+            wait_clause = ""
+            if sc_waits and not relax_reviews:
+                parts_wait = [
+                    f"shard {c_idx} waits on shard{'s' if len(ps) > 1 else ''} {sorted(ps)}"
+                    for c_idx, ps in sorted(sc_waits.items())
+                ]
+                wait_clause = f"; {'; '.join(parts_wait)} ({poll_flag})"
+            elif sc.cut_edges and relax_reviews:
+                relax_flag = err_term.colorize("--review-unreviewed-deps", "cyan")
+                wait_clause = f" (relaxed under {relax_flag})"
+            tail_hint = (
+                ""
+                if (is_verbose or not sc.cut_edges)
+                else f". Pass {verbose_flag} to list edges."
+            )
             print(
-                f"Split oversized component ({len(sc.component_ids)} items) across shards {sc.shard_indexes}: "
-                f"{len(sc.cut_edges)} cut edge(s) {sc.cut_edges}",
+                f"{note_lbl} Split oversized component ({len(sc.component_ids)} items) across shards {sc.shard_indexes}: "
+                f"{len(sc.cut_edges)} cut edge(s){wait_clause}{tail_hint}",
                 file=sys.stderr,
             )
+            if is_verbose and sc.cut_edges:
+                grouped: Dict[str, List[str]] = {}
+                for consumer_id, prereq_id in sc.cut_edges:
+                    grouped.setdefault(consumer_id, []).append(prereq_id)
+                for consumer_id in sorted(grouped):
+                    c_idx = item_shard_map.get(consumer_id, -1)
+                    prereqs_fmt = ", ".join(
+                        f"{err_term.colorize(p, 'bold')} (shard {item_shard_map.get(p, -1)})"
+                        for p in sorted(grouped[consumer_id])
+                    )
+                    c_fmt = err_term.colorize(consumer_id, "bold")
+                    print(
+                        f"  {c_fmt} (shard {c_idx}) <- {prereqs_fmt}",
+                        file=sys.stderr,
+                    )
     if part_res.cycles:
-        print(f"Detected dependency cycles: {part_res.cycles}", file=sys.stderr)
+        warn_lbl = err_term.colorize("warning:", "yellow", "bold")
+        print(
+            f"{warn_lbl} Detected dependency cycles: {part_res.cycles}",
+            file=sys.stderr,
+        )
 
     if is_agent or is_json:
         redacted_commands = [agent_schema.redact_home_paths(cmd) for cmd in commands]
