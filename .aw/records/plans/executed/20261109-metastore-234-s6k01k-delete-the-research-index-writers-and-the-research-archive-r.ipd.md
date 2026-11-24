@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 4.5 says the SQLite cache replaces the `INDEX.{json,md}` files. After the `q6epwc` family nothing calls the research INDEX write path, yet `research_index.build_index_json`, `research_index.build_index_md`, `research_index._set_last_touched`, `research_index.DEFAULT_INDEX_LIMIT`, the write path of `research_index.run_index`, and the post-move refresh in `research_archive.apply_moves` remain. This is part 5 of the round-3 split of `snin8q` (Order 42), carrying the research subset of `snin8q` E-03.
 - Scope: delete those research symbols, the post-move refresh, and the `research_index` entry of `record_producers`; keep `research_index._scan_docs`, `query`, `run_find` and the non-INDEX rules of `research_index.check_drift`; retarget the INDEX-byte cases of `tests/test_research_index.py`. EXCLUDES the plans and prompts writers (Orders 233 and 235), the shared `artifact_core.emit_index_*` helpers (`snin8q`), and the `research_archive` skip of `INDEX.md` during scans (cutover, `cxxmyv`).
 - Scope-Paths: agent_workflows/research_index.py, agent_workflows/research_archive.py, agent_workflows/record_producers.py, tests/test_research_index.py, .aw/records/plans/pending/20261109-metastore-234-s6k01k-delete-the-research-index-writers-and-the-research-archive-r.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261124-0ff8af-01-0ff8af-research-and-plans-archive-self-commit-message-sti.backlog.md (defect-report filing required by the driver: after s6k01k removes the research INDEX refresh, research_archive and plans_archive self-commit messages still say 'and regenerate index' plans_archive is ...); tests/test_research_archive.py (test_archived_leaves_index_md read the INDEX.md that E-03 stops writing FileNotFoundError retargeted to assert no INDEX file is written); tests/test_research_unsafe_field.py (passed limit=1000 to research_index.check_drift, whose limit parameter E-02 removes)
 - Item-Dependencies: executed:1ajqaa, executed:54a80m, executed:59aiyh, executed:6966zq, executed:dcerjg, executed:f6y2yy, executed:ffceq0, executed:g5hpbb, executed:q6epwc, executed:t4gl15, executed:uopi8z
-- Status: approved
+- Status: executed
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: s6k01k
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: s6k01k verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261124-0ff8af-01-0ff8af-research-and-plans-archive-self-commit-message-sti.backlog.md: defect-report filing required by the driver: after s6k01k removes the research INDEX refresh, research_archive and plans_archive self-commit messages still say 'and regenerate index'; plans_archive is outside this plan's scope, so the defect is carried by backlog 0ff8af rather than fixed here; out-of-scope tests/test_research_archive.py: test_archived_leaves_index_md read the INDEX.md that E-03 stops writing (FileNotFoundError); retargeted to assert no INDEX file is written; out-of-scope tests/test_research_unsafe_field.py: passed limit=1000 to research_index.check_drift, whose limit parameter E-02 removes]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
