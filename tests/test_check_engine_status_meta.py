@@ -76,7 +76,7 @@ class CheckEngineStatusMetaTests(unittest.TestCase):
         """Case (c) [CONTROL]: Headingless plan, first bullet approved, later quotes executed.
 
         CONTROL: Expected to pass before AND after.
-        Kept because selectors.metadata_region returns the whole text for a record
+        Kept because artifact_meta.metadata_region returns the whole text for a record
         with no '##' heading, so only search's first-match semantics keep the answer
         right; this guards against a future last-match or findall rewrite.
         """
