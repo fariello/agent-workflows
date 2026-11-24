@@ -2065,8 +2065,6 @@ def check_refs(repo_root: Path, record_type: str) -> List[_core.Drift]:
     return []
 
 
-_ID_LINE_RE = _re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
-_SET_LINE_RE = _re.compile(r"(?m)^- Set:\s*(.+?)\s*$")
 _HHMM_RE = _re.compile(r"\A\d{4}\Z")
 _HAS_DIGIT_RE = _re.compile(r"\d")
 
@@ -2075,7 +2073,7 @@ _HAS_DIGIT_RE = _re.compile(r"\d")
 # example block cannot be read as a declaration on EITHER surface.
 #
 # THIS MODULE HAD ITS OWN COPY OF THE DEFECT, and that is why bounding only the selector would have
-# been a half-fix. `_ID_LINE_RE` / `_SET_LINE_RE` above are byte-identical twins of
+# been a half-fix. This module's former `- Id:` / `- Set:` patterns were byte-identical twins of
 # `selectors._ID_RE` / `selectors._SET_RE`, and `check_collisions` applied them to a WHOLE FILE
 # BODY, so the two research documents quoting one `- Id: uyeko5` block were reported as a genuine
 # `check.id6-collision` with each other. Measured before this change: 17 id6-collision findings, of
@@ -2085,6 +2083,9 @@ _HAS_DIGIT_RE = _re.compile(r"\d")
 #
 # ONE helper, imported rather than re-derived: a second local region parser is how the reader drift
 # between the former `selectors` loose readers and their callers happened before.
+#
+# metastore Order 240 (`js35bz`, spec `4sd62s` 4.3): the readers below take each value from
+# `artifact_meta.read_text` over that region instead of a module-level `^- <Key>:` pattern.
 
 
 def _metadata_region(text: str) -> str:
@@ -2095,32 +2096,49 @@ def _metadata_region(text: str) -> str:
     return _meta.metadata_region(text)
 
 
+def _declared_bullet_fields(text: str) -> Dict[str, Any]:
+    """The `- <Key>:` bullet fields of the record's metadata region, read through `artifact_meta`.
+
+    Bullet dialect only: a region that is a YAML `---` envelope declares no bullets, so a YAML
+    record's `id:`/`set:` keys are not read as `- Id:`/`- Set:` declarations here."""
+
+    from agent_workflows import artifact_meta as _meta
+
+    region = _metadata_region(text or "")
+    if region.startswith("---"):
+        return {}
+    return _meta.read_text(region).fields or {}
+
+
+def _declared_id6(text: str) -> str | None:
+    """The record's DECLARED `- Id:` value when it is a single id6 token, else None."""
+
+    val = _meta_single_token(_declared_bullet_fields(text).get("id"))
+    return val if (val and _ID6_RE.fullmatch(val)) else None
+
+
 def _read_declared_id(text: str) -> str | None:
     """The record's DECLARED `- Id:` id6, read only from its metadata region, or None."""
 
-    m = _ID_LINE_RE.search(_metadata_region(text))
-    return m.group(1) if m else None
+    return _declared_id6(text)
 
 
 def _read_item_id(text: str) -> str | None:
-    """The record's DECLARED `- Id:` id6 via _ITEM_ID_RE, bounded to the metadata region."""
+    """The record's DECLARED `- Id:` id6, bounded to the metadata region."""
 
-    m = _ITEM_ID_RE.search(_metadata_region(text))
-    return m.group(1) if m else None
+    return _declared_id6(text)
 
 
 def _read_blocks_release(text: str) -> str | None:
-    """The record's DECLARED `- Blocks-Release:` value, bounded to the metadata region."""
+    """The record's DECLARED single-token `- Blocks-Release:` value, bounded to the metadata region."""
 
-    m = _META_BLOCKS_RELEASE_RE.search(_metadata_region(text))
-    return m.group(1) if m else None
+    return _meta_single_token(_declared_bullet_fields(text).get("blocks_release"))
 
 
 def _read_plan_status(text: str) -> str | None:
-    """The record's DECLARED `- Status:` value, bounded to the metadata region."""
+    """The record's DECLARED single-token `- Status:` value, bounded to the metadata region."""
 
-    m = _PLAN_STATUS_RE.search(_metadata_region(text))
-    return m.group(1) if m else None
+    return _meta_single_token(_declared_bullet_fields(text).get("status"))
 
 
 def _identity_slot_token(filename: str) -> str | None:
@@ -2152,10 +2170,7 @@ def _parse_setid(text: str):
 
     Bounded to the record's METADATA REGION (IPD `76w6mq`), like its `- Id:` sibling above, so a
     `- Set:` line inside quoted example prose is not read as this record's own Set declaration."""
-    m = _SET_LINE_RE.search(_metadata_region(text))
-    if not m:
-        return None, None
-    raw = m.group(1).strip()
+    raw = str(_declared_bullet_fields(text).get("set") or "").strip()
     if not raw:
         return None, None
     setid = raw.split("(")[0].strip().split()[0] if raw.split("(")[0].strip() else None
@@ -3052,9 +3067,7 @@ _IDENTITY_PURPOSE = "this is the exception set that forces `aw find`'s content f
 
 # BOTH front-matter dialects, because the corpus uses both: the bullet form on plans/specs/backlog
 # and the YAML form on research records. Reading only one silently under-counts.
-_IDENT_ID_BULLET_RE = _re.compile(r"(?m)^- Id:[ \t]*(\S+)[ \t]*$")
 _IDENT_ID_YAML_RE = _re.compile(r"(?m)^id:[ \t]*(\S+)[ \t]*$")
-_IDENT_SET_BULLET_RE = _re.compile(r"(?m)^- Set:[ \t]*(.+?)[ \t]*$")
 _IDENT_SET_YAML_RE = _re.compile(r"(?m)^set:[ \t]*(.+?)[ \t]*$")
 
 # The metadata region's terminators for a BULLET-dialect record: the first fenced block or the first
@@ -3461,7 +3474,6 @@ def _identity_finding(
     )
 
 
-_STATUS_META_RE = _re.compile(r"(?m)^- Status:\s*(\S+)\s*$")
 _PLANS_PREFIX = ".aw/records/plans/"
 _EXECUTED_SEGMENT = "/executed/"
 
@@ -5609,17 +5621,6 @@ def check_types(
 # ======================================================================================
 
 _ID6_RE = _re.compile(r"\A[0-9a-z]{6}\Z")
-_ITEM_ID_RE = _re.compile(r"(?m)^- Id:[ \t]*([0-9a-z]{6})[ \t]*$")
-_ITEM_PRIORITY_RE = _re.compile(r"(?m)^- Priority:[ \t]*(\S+)[ \t]*$")
-# wkindname ng2blv: FULL-LINE anchored on `- Work-Kind:` so it can never match the unrelated
-# `- Gate-Kind:` field nor an IPD's REQUIRED structural `- Kind:` (both are distinct vocabularies).
-_ITEM_WORK_KIND_RE = _re.compile(r"(?m)^- Work-Kind:[ \t]*(\S+)[ \t]*$")
-_META_BLOCKS_RELEASE_RE = _re.compile(r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$")
-# gh409m byzkr7 E-05: widened to (.+?) matching backlog._CLOSE_EVIDENCE_RE, while stripping trailing space.
-_META_CLOSE_EVIDENCE_RE = _re.compile(r"(?m)^- Close-Evidence:[ \t]*(.+?)[ \t]*$")
-_META_FROM_BACKLOG_RE = _re.compile(r"(?m)^- From-Backlog:[ \t]*([^\n]*?)[ \t]*$")
-_ITEM_FROM_SPEC_RE = _re.compile(r"(?m)^-[ \t]*From-Spec:[ \t]*(\S+)[ \t]*$")
-_PLAN_STATUS_RE = _re.compile(r"(?m)^- Status:[ \t]*(\S+)[ \t]*$")
 
 
 def _meta_single_token(val: Any) -> Optional[str]:
@@ -6229,7 +6230,7 @@ def find_from_spec_plans(repo_root: Path, spec_id6: str) -> List[Tuple[Path, str
 # cross-check; it cannot build the whole reverse map, because calling it per source re-walks the
 # entire tree per source (the cost `plan_gates_by_backlog` already works around further down with a
 # single-pass index). This builds the same single-pass shape and reuses the SAME field readers
-# (`_META_FROM_BACKLOG_RE`, `_ITEM_FROM_SPEC_RE`) and the SAME iterators (`_iter_plan_ipds`,
+# (the `artifact_meta` `from_backlog`/`from_spec` fields) and the SAME iterators (`_iter_plan_ipds`,
 # `_iter_spec_records`); it adds NO third parser for either field and NO new tree literal.
 # --------------------------------------------------------------------------------------
 
@@ -8382,8 +8383,6 @@ def graduated_closable_warnings(repo_root: Path) -> List[_core.Drift]:
 # corpus is never mass-failed).
 # ======================================================================================
 
-_ITEM_DEPENDENCIES_RE = _re.compile(r"(?m)^- Item-Dependencies:[ \t]*(.*?)[ \t]*$")
-_DATE_LINE_RE = _re.compile(r"(?m)^- Date:[ \t]*(\S+)[ \t]*$")
 
 # Phases where a missing/unresolved/malformed/dangling/cyclic statement is BLOCKING (error). At the
 # always-on `check`/`author` phase, a pre-cutover plan's missing statement is only an advisory
@@ -9089,7 +9088,6 @@ _REVIEW_DANGLING_RULE = "check.review-dangling"
 _REVIEW_SUBJECT_ID_RE = _re.compile(
     r"(?m)^-[ \t]*Subject-Id:[ \t]*([0-9a-z]{6})[ \t]*$"
 )
-_REVIEW_SUBJECT_TYPE_RE = _re.compile(r"(?m)^-[ \t]*Subject-Type:[ \t]*(\S+)[ \t]*$")
 
 
 def _review_subject_id_sets(repo_root: Path) -> Dict[str, set]:
@@ -9673,7 +9671,6 @@ def _check_spec_review_attestation_impl(repo_root: Path, _rf: Any) -> List[_core
 
 
 _FROM_SPEC_DANGLING_RULE = "check.from-spec-dangling"
-_ITEM_FROM_SPEC_RE = _re.compile(r"(?m)^-[ \t]*From-Spec:[ \t]*(\S+)[ \t]*$")
 
 
 def known_spec_ids(repo_root: Path) -> Set[str]:
@@ -9782,8 +9779,6 @@ def check_from_spec_dangling(repo_root: Path) -> List[_core.Drift]:
 _TARGET_BULLET_RE = _re.compile(r"^-\s*(?:Concern|Scope|Scope-Paths):[ \t]*(.*)$")
 _CITED_SPEC_TOKEN_RE = _re.compile(r"\b([0-9a-z]{6})\b")
 _PLAN_SPEC_LINK_MISSING_RULE = "check.plan-spec-link-missing"
-_FROM_SPEC_LINE_RE = _re.compile(r"(?m)^-[ \t]*From-Spec:[ \t]*(.*?)[ \t]*$")
-_SCOPE_PATHS_LINE_RE = _re.compile(r"(?m)^-\s*Scope-Paths:[ \t]*(.*)$")
 
 # IPD jm27py E-01: explicit "no spec source" sentinels that silence check.plan-spec-link-missing.
 # `unresolved` is deliberately excluded because it is the scaffold's placeholder for "not decided
@@ -9891,9 +9886,8 @@ def check_plan_spec_link_missing(
             continue
 
         # E-02: drop each cited id6 whose spec file path appears literally in Scope-Paths
-        m_sp = _SCOPE_PATHS_LINE_RE.search(text)
-        if m_sp is not None:
-            sp_raw = m_sp.group(1)
+        sp_raw = _declared_bullet_fields(text).get("scope_paths")
+        if sp_raw is not None:
             parsed_paths, _is_gf, _errs = _ipd_schema.parse_scope_paths(sp_raw)
             if parsed_paths:
                 scope_set = set(parsed_paths)
@@ -11156,8 +11150,6 @@ _CARRIER_LEGACY_SEVERITY = "info"
 #: `open` and `deferred` both leave something outstanding, which is exactly `_UNFIXED_DECISIONS`'
 #: reasoning applied to a question instead of a finding.
 _CARRIER_LIVE_OQ_STATUSES = frozenset(("open", "deferred"))
-
-_CARRIER_DATE_RE = _re.compile(r"(?m)^- Date:[ \t]*(\d{4})-(\d{2})-(\d{2})[ \t]*$")
 
 
 class CarrierObligation(NamedTuple):
