@@ -95,6 +95,7 @@ flowchart TD
   - Carrier: akhrp5
 - Moved to tdhav3 (round-3 split 2026-11-09 per research nj8zdp guidance): E-23 (attention, review and research).
   - Carrier: tdhav3
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-248-tdhav3-delete-the-attention-review-and-research-metadata-regex-lite.ipd.md
 - Moved to n2cvf0 (round-3 split 2026-11-09 per research nj8zdp guidance): E-24 (remaining modules and the `non-metadata` classification).
   - Carrier: n2cvf0
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-249-n2cvf0-delete-the-remaining-module-metadata-regex-literals.ipd.md
