@@ -89,6 +89,7 @@ flowchart TD
 
 - The rename adapters.
   - Carrier: v0ucnz
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-285-v0ucnz-delete-the-plans-refs-and-artifact-rename-metadata-adapters.ipd.md
 
 ## Scope check
 
