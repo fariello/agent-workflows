@@ -103,6 +103,7 @@ flowchart TD
   - Carrier: drav0u
 - Moved to 3v2ew2 (round-3 split 2026-11-09 per research nj8zdp guidance): E-06 (STATUS code).
   - Carrier: 3v2ew2
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-236-3v2ew2-delete-the-unreachable-status-renderer.ipd.md
 - Moved to h3jp4e (round-3 split 2026-11-09 per research nj8zdp guidance): E-07 (`_INDEX_CACHE`).
   - Carrier: h3jp4e
 - Aliases, regeneration calls and stale-index rules.
