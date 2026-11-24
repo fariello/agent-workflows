@@ -42,25 +42,25 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 
 ### Task group 1: one adapter per item, then its tests
 
-- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-09b-before.txt`. Delete `prompts.render_metadata_comment`; `prompts.run_new` writes the `aw-prompt` comment through `artifact_meta.create`/`append`.
+- [x] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-09b-before.txt`. Delete `prompts.render_metadata_comment`; `prompts.run_new` writes the `aw-prompt` comment through `artifact_meta.create`/`append`.
   - Depends on: none
   - Expected outcome: the adapter is gone.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Delete `runner_shared.rederive_front_matter`; `runner_shared.apply_records_only_rederivation` calls `artifact_meta` directly.
+- [x] E-02 Delete `runner_shared.rederive_front_matter`; `runner_shared.apply_records_only_rederivation` calls `artifact_meta` directly.
   - Depends on: E-01
   - Expected outcome: the adapter is gone.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Retarget `tests/test_prompts_set_surface.py` to the behavior through `aw prompts new`, asserting on `artifact_meta.read` state and file bytes.
+- [x] E-03 Retarget `tests/test_prompts_set_surface.py` to the behavior through `aw prompts new`, asserting on `artifact_meta.read` state and file bytes.
   - Depends on: E-02
   - Expected outcome: the module calls no adapter and passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Retarget `tests/test_records_only_lane_rederive.py` (and `tests/test_backlog.py` if Order 280's F-24 lists a reference in it) to `runner_shared.apply_records_only_rederivation`, asserting on `artifact_meta.read` state and file bytes; save the after-list; commit through `aw commit 8fxic1 -- <paths>`.
+- [x] E-04 Retarget `tests/test_records_only_lane_rederive.py` (and `tests/test_backlog.py` if Order 280's F-24 lists a reference in it) to `runner_shared.apply_records_only_rederivation`, asserting on `artifact_meta.read` state and file bytes; save the after-list; commit through `aw commit 8fxic1 -- <paths>`.
   - Depends on: E-03
   - Expected outcome: no test references an adapter; the modules pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -117,25 +117,67 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "render_metadata_comment" agent_workflows` printing nothing.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "render_metadata_comment" agent_workflows; echo "rc=$?"
+    rc=1
+    ```
+    `prompts.run_new` already wrote the comment through `artifact_meta.create`; the dead adapter was deleted (commit 0724b0ee4).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "rederive_front_matter" agent_workflows` printing nothing.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "rederive_front_matter" agent_workflows; echo "rc=$?"
+    rc=1
+    ```
+    `runner_shared.apply_records_only_rederivation` now builds the `set`/`legacy` events itself, enforces the shipped `REDERIVABLE_FRONT_MATTER_KEYS` allow-list before reading any stage, and calls `artifact_meta.render_legacy_text` directly; refusals are returned as `(False, "refusing to re-derive: ...")`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "render_metadata_comment" tests/test_prompts_set_surface.py` printing nothing and its before/after per-test lines.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "render_metadata_comment" tests/test_prompts_set_surface.py; echo "rc=$?"
+    rc=1
+    ```
+    `create_conforming_prompt` now drives `aw prompts new --apply` and asserts `artifact_meta.read_text` state (id6, status, set) and the one-line file bytes. Before/after per-test lines (identical):
+    ```
+    PASSED tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_commentless_prompt_fallback_relocates_without_comment
+    PASSED tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_comment_write_with_body_byte_identity
+    PASSED tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_dry_run_byte_identity
+    PASSED tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_registration_cli_help
+    PASSED tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_registration_unknown_flag_exits_2
+    PASSED tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_vocabulary_refusal_with_enumerated_message
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the empty output of `rg -n "_set_metadata\b|_update_frontmatter_metadata|render_metadata_comment|rederive_front_matter" agent_workflows tests`, `python3 -m pytest -o addopts="" -v tests/test_prompts_set_surface.py tests/test_records_only_lane_rederive.py tests/test_backlog.py` with every test PASSED, `diff .aw/state/9o83cr/E-09b-before.txt .aw/state/9o83cr/E-09b-after.txt`, and `git show --stat` of the `aw commit 8fxic1` commit.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "_set_metadata\b|_update_frontmatter_metadata|render_metadata_comment|rederive_front_matter" agent_workflows tests; echo "rc=$?"
+    rc=1
+    $ python3 -m pytest -o addopts="" -v tests/test_prompts_set_surface.py tests/test_records_only_lane_rederive.py tests/test_backlog.py | tail -2
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 87 passed in 9.02s ==============================
+    $ diff .aw/state/9o83cr/E-09b-before.txt .aw/state/9o83cr/E-09b-after.txt; echo diff_rc=$?
+    diff_rc=0
+    $ git show --stat 0724b0ee4
+    commit 0724b0ee4936b6a5485800b03f184b0e0f444b97
+        8fxic1: delete prompts.render_metadata_comment and runner_shared.rederive_front_matter metadata adapters; retarget tests
+     agent_workflows/prompts.py               |  51 +---------
+     agent_workflows/runner_shared.py         | 158 +++++++++++++------------------
+     tests/test_prompts_set_surface.py        |  74 ++++++++++-----
+     tests/test_records_only_lane_rederive.py |  64 ++++++++-----
+     tests/test_writers_create_summary.py     |  53 +++++++----
+     5 files changed, 192 insertions(+), 208 deletions(-)
+    ```
+    All 87 before-list cases (both lists 87 lines) are kept under the same names. `tests/test_backlog.py` held no adapter reference and is unmodified. Out of declared scope: `tests/test_writers_create_summary.py` also called `prompts.render_metadata_comment`; its test `test_prompts_render_metadata_comment_optional_short_description` was retargeted to the successor `test_prompts_new_short_description_is_the_last_field_before_the_trailer` (same two cases, with and without `--summary`, driven through `aw prompts new` and checked with `artifact_meta.read_text`); its other 81 outcomes are unchanged (82 before, 82 after). `aw suite` core tier: `2898 passed, 1 skipped, 11 warnings in 148.63s`.
+  - Result: pass
 
 ## Approval and execution gate
 
