@@ -42,10 +42,10 @@ Item ids E-01, E-08, E-09, E-10, E-11 and E-18 moved to Orders 280 to 299 in the
 
 ### Task group 5: finish
 
-- [ ] E-17 Finish: before running checks, ensure `.aw/state/k6jd6l/` exists (`mkdir -p .aw/state/k6jd6l/before/`). Run the four family searches (`rg -n "def set_[a-z_]+_line|def _in_metadata_region|def _set_priority_line" agent_workflows`, `rg -n "_set_metadata\b|_update_frontmatter_metadata|render_metadata_comment|rederive_front_matter" agent_workflows tests`, `rg -n "def (parse_metadata_block|parse_frontmatter|_parse_metadata_comment|history_block|last_history_at|newest_history_record)\b|SPEC_STATUS_RE\s*=" agent_workflows`, and the subset-1 and subset-2 reader searches of Orders 296 and 299), `python3 -m pytest -o addopts="" -v tests/test_runner_shared.py -k CrossHostReadIdReExport` unchanged, the bare core gate `python3 -m pytest` (compare with `.aw/state/k6jd6l/core-before.txt`), `aw check all --agent`, `aw ipd lint` on this plan, and `aw sanitize --agent`; commit this plan's own record update through `aw commit k6jd6l -- <paths>` with only Scope-Paths files, never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-17 Finish: before running checks, ensure `.aw/state/k6jd6l/` exists (`mkdir -p .aw/state/k6jd6l/before/`). Run the four family searches (`rg -n "def set_[a-z_]+_line|def _in_metadata_region|def _set_priority_line" agent_workflows`, `rg -n "_set_metadata\b|_update_frontmatter_metadata|render_metadata_comment|rederive_front_matter" agent_workflows tests`, `rg -n "def (parse_metadata_block|parse_frontmatter|_parse_metadata_comment|history_block|last_history_at|newest_history_record)\b|SPEC_STATUS_RE\s*=" agent_workflows`, and the subset-1 and subset-2 reader searches of Orders 296 and 299), `python3 -m pytest -o addopts="" -v tests/test_runner_shared.py -k CrossHostReadIdReExport` unchanged, the bare core gate `python3 -m pytest` (compare with `.aw/state/k6jd6l/core-before.txt`), `aw check all --agent`, `aw ipd lint` on this plan, and `aw sanitize --agent`; commit this plan's own record update through `aw commit k6jd6l -- <paths>` with only Scope-Paths files, never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: none
   - Expected outcome: the first two searches list only `agent_workflows/artifact_meta.py` or print nothing, the grammar search lists only `artifact_meta.py`, the reader searches print nothing; all runs pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -182,10 +182,72 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-17 validates E-17
+- [x] V-17 validates E-17
   - Required evidence: paste each of the four family `rg` searches with its output (only `agent_workflows/artifact_meta.py`, or nothing), `python3 -m pytest -o addopts="" -v tests/test_runner_shared.py -k CrossHostReadIdReExport` with every test PASSED, the `aw check all --agent` rule-id multiset diff against the Order 280 baseline in `.aw/state/k6jd6l/before/` (empty, or each difference traced), then beside that specific evidence the bare `python3 -m pytest` summary line next to `.aw/state/k6jd6l/core-before.txt`, `aw sanitize --agent` with zero `fail`, and `git show --stat` of the `aw commit k6jd6l` commit listing only Scope-Paths files.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: run 2026-11-24 in lane worktree at starting HEAD `f5bfcb2eb` (after `vw88h0`, the last split child, merged).
+
+    Family search 1 (value writers), one hit, in `artifact_meta.py` only (the shared legacy bullet writer that the folded writers delegate to):
+    ```text
+    $ rg -n "def set_[a-z_]+_line|def _in_metadata_region|def _set_priority_line" agent_workflows
+    agent_workflows/artifact_meta.py:6930:def set_legacy_bullet_line(
+    ```
+    Family search 2 (adapters), nothing:
+    ```text
+    $ rg -n "_set_metadata\b|_update_frontmatter_metadata|render_metadata_comment|rederive_front_matter" agent_workflows tests
+    (no output, rc=1)
+    ```
+    Family search 3 (borrowed grammars), `artifact_meta.py` only:
+    ```text
+    $ rg -n "def (parse_metadata_block|parse_frontmatter|_parse_metadata_comment|history_block|last_history_at|newest_history_record)\b|SPEC_STATUS_RE\s*=" agent_workflows
+    agent_workflows/artifact_meta.py:2731:def parse_metadata_block(
+    agent_workflows/artifact_meta.py:2742:def _parse_metadata_comment(first_line: str) -> Dict[str, str]:
+    agent_workflows/artifact_meta.py:2993:_SPEC_STATUS_RE = re.compile(r"^- Status:[ \t]*(?P<value>\S+)[ \t]*$")
+    ```
+    Family search 4, the reader searches of Orders 296 (`hrbbhy` V-04, subset 1) and 297/299 (`um2kvx` V-05 and `vw88h0` V-03, subset 2):
+    ```text
+    $ rg -n -w "read_front_matter_(id|status|blocks_release)|selectors\.metadata_region|plans\.read_status|read_metadata_(id6|status)|_METADATA_STATUS_RE|_frontmatter_block" agent_workflows | rg -v "^\S+:\d+:\s*#"
+    (no output, rc=1)
+    $ rg -n "^_(ID|STATUS|SET|ORDER)_RE =" agent_workflows/selectors.py agent_workflows/plans.py
+    (no output, rc=1)
+    $ rg -n "specs\._read_|_specs\._read_|specs_mod\._read_|def _read_(status|gate|blocks_release|priority|work_kind|scope|summary)\b" agent_workflows/specs.py agent_workflows/attention.py agent_workflows/check_engine.py
+    agent_workflows/check_engine.py:2112:def _read_blocks_release(text: str) -> str | None:
+    $ rg -n "parse_item\(" agent_workflows tools
+    (no output, rc=1)
+    ```
+    The single subset-2 hit is `check_engine._read_blocks_release`, which is not a `specs` reader. Order 45 (`e8420v`) owns it, as the Concern of `um2kvx` and `um2kvx` V-05 both record. No subset-1 or subset-2 reader remains.
+
+    Re-export pin:
+    ```text
+    $ python3 -m pytest -o addopts="" -v tests/test_runner_shared.py -k CrossHostReadIdReExport
+    tests/test_runner_shared.py::CrossHostReadIdReExportTests::test_cross_host_read_id_permissive_reader_reexport PASSED [100%]
+    ====================== 1 passed, 142 deselected in 2.05s =======================
+    ```
+
+    Baseline comparison. The Order 280 files under `.aw/state/k6jd6l/before/` are gitignored and were absent from this lane, so I rebuilt them by running `agent_workflows` and `.aw/system` as of `470e81220` (the `6bxlzb` baseline commit, extracted with `git archive` and run with `python3 -P`) against this lane's current records tree (decision `14-k6jd6l-D1`). Current code wrote the after-files in `.aw/state/k6jd6l/after/`:
+    ```text
+    find_diff=0      (diff before/find-plans.json after/find-plans.json; aw find plans --agent)
+    att_diff=0       (diff before/attention.json after/attention.json; aw attention --format json)
+    $ diff before/check-rules.txt after/check-rules.txt   (aw check all --all --agent rule multiset)
+    12d11
+    <       4 check.stale-index-missing
+    ```
+    I traced the one difference. The four `check.stale-index-missing` diagnostics (locations `INDEX.json` x2 and `INDEX.md` x2) are emitted only by the old code. The INDEX-writer retirement under spec `4sd62s` 4.5 deleted that rule on purpose (commits `a5707f414` w819as, `419e01d67` 6qh68x and `972cff4cf` f1yjlx). It is not a k6jd6l-family regression. Every other (location, rule) pair matches: 544 before, 540 after.
+
+    Core gate (`aw suite`, the bare core tier):
+    ```text
+    core-before.txt (6bxlzb V-03): 2886 passed, 1 skipped, 11 warnings in 134.34s (0:02:14)
+    now:                           2889 passed, 1 skipped, 11 warnings in 161.10s (0:02:41)
+    ```
+    `aw check all --agent`: rc=1, the same as at the baseline. The (location, rule) multiset from the `470e81220` code equals the current one exactly (`diff` printed nothing), so this family introduced no new finding. Every remaining diagnostic predates this plan and lies outside its scope (for example 42 `check.source-test-citation-dangling` and 32 `check.lifecycle-transition-unvalidated`).
+    `aw ipd lint` on this plan: `approved plan 20261108-metastore-43-k6jd6l [high] [blocking] conforming`.
+    `aw sanitize --agent`: `"outcome":"clean","exit":0,"checked":7157,"findings":0`.
+    The `git show --stat` of the `aw commit k6jd6l` commit lists only this plan, which is the plan's only Scope-Path:
+    ```text
+    commit ccf4a8c2c6951121e57c2dc175ddcd3e5176cccd
+     ...ers-into-artifact-meta-delete-the-writer.ipd.md | 67 ++++++++++++++++++++--
+     1 file changed, 62 insertions(+), 5 deletions(-)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
