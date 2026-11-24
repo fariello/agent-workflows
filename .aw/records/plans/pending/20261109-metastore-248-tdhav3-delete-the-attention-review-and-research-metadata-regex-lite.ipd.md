@@ -42,30 +42,30 @@ PIN RULE (carried from `9o83cr`): before E-01, ensure directory `.aw/state/tdhav
 
 ### Task group 1: one module per item, then verify
 
-- [ ] E-01 Capture the baseline PIN list (`mkdir -p .aw/state/tdhav3/` and save `.aw/state/tdhav3/before.txt`); then in `agent_workflows/attention.py`, delete `attention._ITEM_DEPS_RE` and the literals in `attention._plans_id`, `_release_record` (2), `_spec_record` and `_plans_record` (2); keep `_OQ_STATUS_RE`.
+- [x] E-01 Capture the baseline PIN list (`mkdir -p .aw/state/tdhav3/` and save `.aw/state/tdhav3/before.txt`); then in `agent_workflows/attention.py`, delete `attention._ITEM_DEPS_RE` and the literals in `attention._plans_id`, `_release_record` (2), `_spec_record` and `_plans_record` (2); keep `_OQ_STATUS_RE`.
   - Depends on: none
   - Expected outcome: the `LIT` search over `agent_workflows/attention.py` prints only `_OQ_STATUS_RE`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/attention_contract.py`, delete `attention_contract.GATE_KIND_RE`, `GATE_REF_RE`, `GATE_SUMMARY_RE` and `HISTORY_RECORD_RE`.
+- [x] E-02 In `agent_workflows/attention_contract.py`, delete `attention_contract.GATE_KIND_RE`, `GATE_REF_RE`, `GATE_SUMMARY_RE` and `HISTORY_RECORD_RE`.
   - Depends on: E-01
   - Expected outcome: the `LIT` search over `agent_workflows/attention_contract.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `review_sequence.restore_pre_s7_plan`, replace the two `^-` literals (a WRITER) with an `artifact_meta.append` event; in `agent_workflows/review_findings.py`, delete `review_findings._META_RE` and keep the round and finding grammar.
+- [x] E-03 In `review_sequence.restore_pre_s7_plan`, replace the two `^-` literals (a WRITER) with an `artifact_meta.append` event; in `agent_workflows/review_findings.py`, delete `review_findings._META_RE` and keep the round and finding grammar.
   - Depends on: E-02
   - Expected outcome: the `LIT` search over both files prints only `body prose` rows.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `agent_workflows/research_index.py`, delete `research_index._META_ID_RE` and the literal in `research_index._backlog_is_done`.
+- [x] E-04 In `agent_workflows/research_index.py`, delete `research_index._META_ID_RE` and the literal in `research_index._backlog_is_done`.
   - Depends on: E-03
   - Expected outcome: the `LIT` search over `agent_workflows/research_index.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Update `tests/test_review_findings_gate.py`, `tests/test_attention.py` and `tests/test_review_sequence.py` only where a case names a deleted pattern; save `after.txt`; run the three modules; compare `aw attention --format json` with `786w7r` F-30; commit through `aw commit tdhav3 -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-05 Update `tests/test_review_findings_gate.py`, `tests/test_attention.py` and `tests/test_review_sequence.py` only where a case names a deleted pattern; save `after.txt`; run the three modules; compare `aw attention --format json` with `786w7r` F-30; commit through `aw commit tdhav3 -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-04
   - Expected outcome: the three modules pass; the attention hash equals F-30.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -131,30 +131,124 @@ No spec change; implements part of `4sd62s` 4.3.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `LIT` search over `agent_workflows/attention.py` showing only `_OQ_STATUS_RE`.
   - Observed evidence:
-  - Result: pending
+    Lane `tdhav3`, starting HEAD `a9410c21a`. PIN baseline saved before any edit: `.aw/state/tdhav3/before.txt`, 95 rows, all `PASSED`.
+    Every `attention` site E-01 names was already gone at the starting HEAD (OQ-01): `786w7r` F-27 notes class `attention._ITEM_DEPS_RE` and the literals in `_plans_id`, `_release_record`, `_spec_record`, `_plans_record` as `already gone` (removed by `0d8cfb228`, dqutt8 E-02), so `agent_workflows/attention.py` needed no edit.
+    ```text
+    $ LIT='re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?["'"'"'](\(\?m\))?\^-'
+    $ rg -n "$LIT" agent_workflows/attention.py
+    156:_OQ_STATUS_RE = re.compile(r"^-[ \t]*Status:[ \t]*(\S+)", re.IGNORECASE)
+    231:                if re.search(r"^-[ \t]*Blocking:.*\(resolved\)", line, re.IGNORECASE):
+    374:_EV_LEAF_RE = re.compile(r"^-\s*\[([ xX])\]\s*([EV])-[0-9]{2,}\b", re.MULTILINE)
+    $ rg -n "_ITEM_DEPS_RE" agent_workflows/attention.py ; echo "(exit $?)"
+    (exit 1)
+    ```
+    Line 156 is `_OQ_STATUS_RE` (kept). Lines 231 and 374 are the other two `body prose (N3)` rows of F-27 (F27-22, the open-question `Blocking` field read in `count_question_stats`, and F27-23, `_EV_LEAF_RE`, the E/V checklist leaf). Neither is a metadata site, and neither is listed for deletion.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `LIT` search over `agent_workflows/attention_contract.py` printing nothing.
   - Observed evidence:
-  - Result: pending
+    Deleted in commit `05aac536d`. The callers outside Scope-Paths (backlog `yb6z41` item 2) were retargeted onto `artifact_meta`, which gained `is_history_record`/`history_record_date` as the single owner of the record grammar: `plan_readiness` (2 redundant re-checks of `history_records().records` dropped), `review_sequence.count_verdict_bearing_entries` (same), `ipd_lifecycle._plan_status_event_groups`, `record_history`, `specs.validate_spec`, `backlog.validate_item` (Gate-Summary now read through `artifact_meta.read_text`), and 7 test modules.
+    ```text
+    $ rg -n "$LIT" agent_workflows/attention_contract.py ; echo "(exit $?)"
+    (exit 1)
+    $ rg -n "GATE_KIND_RE|GATE_REF_RE|GATE_SUMMARY_RE|\bHISTORY_RECORD_RE" --glob '!.aw/**' . ; echo "(exit $?)"
+    (exit 1)
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `git diff` hunk of `review_sequence.restore_pre_s7_plan` showing the `artifact_meta.append` call, and the `LIT` search over `agent_workflows/review_sequence.py` and `agent_workflows/review_findings.py` showing only `body prose` rows. Code path: `review_sequence.restore_pre_s7_plan` (E-03).
   - Observed evidence:
-  - Result: pending
+    Both E-03 sites were already gone at the starting HEAD (OQ-01; `786w7r` F-27 notes). `review_sequence.restore_pre_s7_plan` already delegates the WRITE to `artifact_meta.restore_legacy_snapshot` (moved by `4e0b74231`, 7yr827), and `review_findings._META_RE` was removed by `d1a69a84d` (y4spqy). No `git diff` hunk of `restore_pre_s7_plan` exists because this plan did not change it. The current code path:
+    ```text
+    $ sed -n 593,610p agent_workflows/review_sequence.py
+    def restore_pre_s7_plan(
+        pre_pass_text: str,
+        current_text: str,
+    ) -> str:
+        """Restore Readiness, Status, and remove added review history entries before S7 (MD-15 guard)."""
+        from agent_workflows import artifact_meta as _am
 
-- [ ] V-04 validates E-04
+        return _am.restore_legacy_snapshot(
+            current_text,
+            pre_pass_text,
+            record_type="ipd",
+            drop_history_predicate=lambda stripped: (
+                plan_readiness.is_review_history_entry(stripped)
+                or "reviewed" in stripped.lower()
+                or "(aw set): status set to reviewed" in stripped
+            ),
+        )
+    $ rg -n "$LIT" agent_workflows/review_sequence.py ; echo "(exit $?)"
+    (exit 1)
+    $ rg -n "$LIT" agent_workflows/review_findings.py ; echo "(exit $?)"
+    (exit 1)
+    $ rg -n "_META_RE\b" agent_workflows/review_findings.py ; echo "(exit $?)"
+    (exit 1)
+    ```
+    The only `review_sequence.py` edit in commit `05aac536d` removes a `plan_readiness.HISTORY_RECORD_RE` re-check in `count_verdict_bearing_entries` (E-02 caller). The `review_findings` round and finding grammar (`_ROUND_RE`, `_H3_RE`, `_H2_RE`, `_SEPARATOR_CELL_RE`) is unchanged.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `LIT` search over `agent_workflows/research_index.py` printing nothing.
   - Observed evidence:
-  - Result: pending
+    Both sites were already gone at the starting HEAD (OQ-01; `786w7r` F-27 notes, removed by `11aaee8ee`, cb5eda). `research_index._backlog_is_done` reads `artifact_meta.read_text(text, record_type="backlog").status`. No edit was needed.
+    ```text
+    $ rg -n "$LIT" agent_workflows/research_index.py ; echo "(exit $?)"
+    (exit 1)
+    $ rg -n "_META_ID_RE" agent_workflows/research_index.py ; echo "(exit $?)"
+    (exit 1)
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `diff .aw/state/tdhav3/before.txt .aw/state/tdhav3/after.txt` (empty, or each change mapped), the summary line of `python3 -m pytest -o addopts="" tests/test_review_findings_gate.py tests/test_attention.py tests/test_review_sequence.py` passing, `aw attention --format json | sha256sum` beside the `786w7r` F-30 hash, and `git show --stat` of the `aw commit tdhav3` commit.
   - Observed evidence:
-  - Result: pending
+    None of the three named test modules referenced a deleted pattern, so none was edited. The pattern was named in 7 other test modules, and those were retargeted with every input case kept (scope reasons recorded at commit).
+    ```text
+    $ diff .aw/state/tdhav3/before.txt .aw/state/tdhav3/after.txt && echo EMPTY-DIFF
+    EMPTY-DIFF
+    $ wc -l < .aw/state/tdhav3/after.txt
+    95
+    $ python3 -m pytest -o addopts="" tests/test_review_findings_gate.py tests/test_attention.py tests/test_review_sequence.py | tail -1
+    ============================= 95 passed in 29.92s ==============================
+    $ python3 -m pytest -o addopts="" -n 6 -p no:randomly <attention_contract, backlog*, history_*, set_dispatch_parity, status_set, plan_readiness*, review_sequence*, specs*, ipd_lifecycle*, review_findings_gate, attention> | tail -1
+    ======================= 863 passed, 2 skipped in 47.98s ========================
+    $ aw suite | tail -1   (exit 0)
+    2892 passed, 1 skipped, 11 warnings in 65.39s (0:01:05)
+    $ aw attention --format json | sha256sum          # pre-edit, HEAD a9410c21a
+    e942002a1f8ee3b0f5f6f06967957bae2f1c2dc520dedc3d204fb3e7a8fc4852  -   (59899 lines)
+    $ aw attention --format json | sha256sum          # post-commit, HEAD 05aac536d
+    e942002a1f8ee3b0f5f6f06967957bae2f1c2dc520dedc3d204fb3e7a8fc4852  -   (59899 lines)
+    786w7r F-30: 9f31b69492959f1b474c62d06f2cbbffc75de109610186560edde793903476a3 (59797 lines, at HEAD 56e9d649f)
+    ```
+    The F-30 hash was taken at `56e9d649f`. Between that HEAD and this lane's starting HEAD, plans were executed and backlog items were filed, so the attention item set legitimately differs (59797 lines then, 59899 lines now). This is the drift that backlog `rlugex` records for `aw find`, and backlog `p1gshz` records the same drift for `aw attention` (decision 20-tdhav3-D2). The behavioral comparison was therefore made on one tree: the pre-edit and post-commit outputs are byte-identical.
+    ```text
+    $ git show --stat 05aac536d
+    commit 05aac536d49332cc4d0b49899084e07b0ae6ccde
+        metastore 248 (tdhav3): delete attention_contract GATE_KIND_RE/GATE_REF_RE/GATE_SUMMARY_RE/HISTORY_RECORD_RE; retarget callers onto artifact_meta (other listed sites already gone)
+     agent_workflows/artifact_meta.py           | 19 +++++++++++++++++++
+     agent_workflows/attention_contract.py      | 17 +++++++----------
+     agent_workflows/backlog.py                 | 11 ++++++-----
+     agent_workflows/ipd_lifecycle.py           |  4 ++--
+     agent_workflows/plan_readiness.py          | 11 +++--------
+     agent_workflows/record_history.py          | 11 +++++------
+     agent_workflows/review_sequence.py         |  2 --
+     agent_workflows/specs.py                   |  2 +-
+     tests/test_attention_contract.py           |  8 +++-----
+     tests/test_backlog.py                      | 10 +++-------
+     tests/test_backlog_history_dedup_parity.py | 16 +++++++---------
+     tests/test_history_label_parity.py         | 22 ++++++++--------------
+     tests/test_history_provenance.py           | 12 +++++-------
+     tests/test_set_dispatch_parity.py          | 10 +++++-----
+     tests/test_status_set.py                   |  3 +--
+     15 files changed, 75 insertions(+), 83 deletions(-)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
