@@ -42,20 +42,20 @@ PIN RULE (carried from `9o83cr`): before the edit, ensure the output directory e
 
 ### Task group 1: pin, delete, retarget
 
-- [ ] E-01 Ensure `.aw/state/drav0u` exists (`mkdir -p .aw/state/drav0u`) and pin `tests/test_prompts_index.py` (PIN RULE, `E-01-before.txt`).
+- [x] E-01 Ensure `.aw/state/drav0u` exists (`mkdir -p .aw/state/drav0u`) and pin `tests/test_prompts_index.py` (PIN RULE, `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `.aw/state/drav0u/E-01-before.txt` exists.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/prompts_index.py`, delete `prompts_index.build_index_json`, `prompts_index.build_index_md`, `prompts_index._set_last_touched` and `prompts_index.DEFAULT_INDEX_LIMIT`; drop the `limit` parameter and the INDEX-comparison block of `prompts_index.check_drift`; delete `prompts_index.run_index` and its human render helper, with `INDEX_JSON`/`INDEX_MD` once no caller remains.
+- [x] E-02 In `agent_workflows/prompts_index.py`, delete `prompts_index.build_index_json`, `prompts_index.build_index_md`, `prompts_index._set_last_touched` and `prompts_index.DEFAULT_INDEX_LIMIT`; drop the `limit` parameter and the INDEX-comparison block of `prompts_index.check_drift`; delete `prompts_index.run_index` and its human render helper, with `INDEX_JSON`/`INDEX_MD` once no caller remains.
   - Depends on: E-01
   - Expected outcome: `rg -n "build_index_(json|md)|_set_last_touched|DEFAULT_INDEX_LIMIT|def run_index|INDEX_(JSON|MD)" agent_workflows/prompts_index.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `tests/test_prompts_index.py`, delete the INDEX-byte-only cases (`test_build_index_md` and the `run_index` run-sequence cases `test_a_first_run_writes_both_indexes` to `test_g_machine_and_suppressed_modes_emit_no_ansi`), and retarget `test_scan_and_build_index_json` to assert on `prompts_index.scan_prompts` entries. Keep `test_check_drift_name_metadata_mismatch` and the `test_rule_prompt_*` cases. Save `E-03-after.txt`, run the module, and commit through `aw commit drav0u -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-03 In `tests/test_prompts_index.py`, delete the INDEX-byte-only cases (`test_build_index_md` and the `run_index` run-sequence cases `test_a_first_run_writes_both_indexes` to `test_g_machine_and_suppressed_modes_emit_no_ansi`), and retarget `test_scan_and_build_index_json` to assert on `prompts_index.scan_prompts` entries. Keep `test_check_drift_name_metadata_mismatch` and the `test_rule_prompt_*` cases. Save `E-03-after.txt`, run the module, and commit through `aw commit drav0u -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-02
   - Expected outcome: the module passes; the mapping names every removed case.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -113,20 +113,77 @@ No spec change; implements part of `4sd62s` 4.5.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `wc -l .aw/state/drav0u/E-01-before.txt` and its first three lines.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ wc -l .aw/state/drav0u/E-01-before.txt
+    15 .aw/state/drav0u/E-01-before.txt
+    $ head -3 .aw/state/drav0u/E-01-before.txt
+    PASSED tests/test_prompts_index.py::IndexOutcomeWordsAreNotLifecycleStatusesTests::test_f_force_color_renders_generic_outcome_words_and_never_unknown_glyph
+    PASSED tests/test_prompts_index.py::IndexOutcomeWordsAreNotLifecycleStatusesTests::test_g_machine_and_suppressed_modes_emit_no_ansi
+    PASSED tests/test_prompts_index.py::PromptsContentValidatorTests::test_rule_prompt_id_mismatch
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "build_index_(json|md)|_set_last_touched|DEFAULT_INDEX_LIMIT|def run_index|INDEX_(JSON|MD)" agent_workflows/prompts_index.py` printing nothing, `rg -n "prompts_index\.(build_index|run_index|DEFAULT_INDEX)" agent_workflows tests` printing nothing, and `aw check prompts --all --agent` rule-id multiset beside the `54a80m` F-29 prompts multiset, equal.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ rg -n "build_index_(json|md)|_set_last_touched|DEFAULT_INDEX_LIMIT|def run_index|INDEX_(JSON|MD)" agent_workflows/prompts_index.py; echo "rc=$?"
+    rc=1
+    $ rg -n "prompts_index\.(build_index|run_index|DEFAULT_INDEX)" agent_workflows tests; echo "rc=$?"
+    rc=1
+    $ aw check prompts --all --agent | jq -r '(.diagnostics // [])[].rule' | sort | uniq -c   (exit 1, as in the baseline)
+          1 check.collisions-not-checked
+          6 check.name-nonconformant
+          6 check.prompt-metadata-missing
+    54a80m F-29 prompts multiset (baseline):
+          1 check.collisions-not-checked
+          6 check.name-nonconformant
+          6 check.prompt-metadata-missing
+    ```
+    Equal. Both `rg` commands print nothing (rc=1, no match).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `diff .aw/state/drav0u/E-01-before.txt .aw/state/drav0u/E-03-after.txt` with each removed name mapped or named "INDEX-byte-only", `python3 -m pytest -o addopts="" -v tests/test_prompts_index.py` with `test_check_drift_name_metadata_mismatch` PASSED, and `git show --stat` of the `aw commit drav0u` commit listing only Scope-Paths files.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ diff .aw/state/drav0u/E-01-before.txt .aw/state/drav0u/E-03-after.txt
+    1,2d0
+    < PASSED tests/test_prompts_index.py::IndexOutcomeWordsAreNotLifecycleStatusesTests::test_f_force_color_renders_generic_outcome_words_and_never_unknown_glyph
+    < PASSED tests/test_prompts_index.py::IndexOutcomeWordsAreNotLifecycleStatusesTests::test_g_machine_and_suppressed_modes_emit_no_ansi
+    6d3
+    < PASSED tests/test_prompts_index.py::PromptsIndexTests::test_build_index_md
+    11,15d7
+    < PASSED tests/test_prompts_index.py::RunIndexOutputTests::test_a_first_run_writes_both_indexes
+    < PASSED tests/test_prompts_index.py::RunIndexOutputTests::test_b_second_run_reports_up_to_date
+    < PASSED tests/test_prompts_index.py::RunIndexOutputTests::test_c_third_run_after_md_only_change_reports_updated
+    < PASSED tests/test_prompts_index.py::RunIndexOutputTests::test_d_fourth_run_after_json_only_change_reports_updated
+    < PASSED tests/test_prompts_index.py::RunIndexOutputTests::test_e_quiet_suppresses_output_and_restores_files
+    ```
+    Mapping: all 8 removed names are INDEX-byte-only (`test_build_index_md` rendered `build_index_md`; `test_a` to `test_g` drove the deleted `run_index` write path and its outcome-word renderer). `test_scan_and_build_index_json` was retarget-in-place onto `scan_prompts` entries (same name, same fixture, same per-field assertions); `test_check_drift_stale_index_is_not_drift` keeps its input case (a stale INDEX file present) with the file written literally instead of via `build_index_*`.
+    ```text
+    $ python3 -m pytest -o addopts="" -v tests/test_prompts_index.py
+    tests/test_prompts_index.py::PromptsContentValidatorTests::test_rule_prompt_id_mismatch PASSED [ 14%]
+    tests/test_prompts_index.py::PromptsContentValidatorTests::test_rule_prompt_status_mismatch PASSED [ 28%]
+    tests/test_prompts_index.py::PromptsContentValidatorTests::test_rule_prompt_metadata_missing_post_cutover PASSED [ 42%]
+    tests/test_prompts_index.py::PromptsIndexTests::test_check_drift_stale_index_is_not_drift PASSED [ 57%]
+    tests/test_prompts_index.py::PromptsIndexTests::test_scan_and_build_index_json PASSED [ 71%]
+    tests/test_prompts_index.py::PromptsIndexTests::test_check_drift_missing_index_is_not_drift PASSED [ 85%]
+    tests/test_prompts_index.py::PromptsIndexTests::test_check_drift_name_metadata_mismatch PASSED [100%]
+    ============================== 7 passed in 0.42s ===============================
+    $ git show --stat efba0e22e
+     agent_workflows/prompts_index.py     | 182 +-------------------------------
+     tests/test_prompts_index.py          | 197 +++--------------------------------
+     tests/test_readers_record_modules.py |   8 +-
+     3 files changed, 19 insertions(+), 368 deletions(-)
+    $ aw suite   (bare core gate)
+    2898 passed, 1 skipped, 11 warnings in 192.78s (0:03:12)
+    ```
+    One path is outside Scope-Paths: `tests/test_readers_record_modules.py`. Its `test_prompts_index_scan_build_and_drift` called the deleted `build_index_json`/`build_index_md`; the five render-assertion lines were removed and its scan and `check_drift` assertions kept. Committed with `--scope-reason`; finalize needs the same reason.
+  - Result: pass
 
 ## Approval and execution gate
 
