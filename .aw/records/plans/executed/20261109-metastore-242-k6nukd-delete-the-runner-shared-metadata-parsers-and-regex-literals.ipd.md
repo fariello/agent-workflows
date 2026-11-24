@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5 and 4.3 require deleting every metadata parser and `^-` metadata regex outside `artifact_meta`. `agent_workflows/runner_shared.py` has `runner_shared._front_matter_bullets` (re-exported by `oc_runipd` and `agy_runipd`) and 16 `^-` literals, one of which rewrites a plan's `- Status:` line (a WRITE). This is part 4 of the round-3 split of `e8420v` (Order 45), carrying `e8420v` E-19 verbatim.
 - Scope: delete `_front_matter_bullets` and its two re-exports, the named and inline `^-` literals, and route the `run_review_sequence` status rewrite through `artifact_meta.append`; update `tests/test_runner_shared.py`. EXCLUDES the two `record_oq_answer` literals (open-question rows, body prose, N3).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, .aw/records/plans/pending/20261109-metastore-242-k6nukd-delete-the-runner-shared-metadata-parsers-and-regex-literals.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261124-vl7ybn-01-vl7ybn-artifact-meta-has-no-public-reader-that-lists-ever.backlog.md (defect carrier filed via aw backlog new as the driver turn contract requires for each finding: runner_shared._region_bullet_keys written by this plan must loop parse_metadata_block per line because ar...); tests/test_readers_runner.py (test_parse_plan_file_both_hosts_fields asserted hasattr on the deleted _SET_RE/_ORDER_RE/_KIND_RE host re-exports retargeted to call the _read_set/_read_order/_read_kind readers so the deletion E-02 r...)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:7uq6xg, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: k6nukd
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: k6nukd verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261124-vl7ybn-01-vl7ybn-artifact-meta-has-no-public-reader-that-lists-ever.backlog.md: defect carrier filed via aw backlog new as the driver turn contract requires for each finding: runner_shared._region_bullet_keys (written by this plan) must loop parse_metadata_block per line because artifact_meta has no public all-bullets reader; a new backlog record cannot live inside any plan's Scope-Paths; out-of-scope tests/test_readers_runner.py: test_parse_plan_file_both_hosts_fields asserted hasattr on the deleted _SET_RE/_ORDER_RE/_KIND_RE host re-exports; retargeted to call the _read_set/_read_order/_read_kind readers so the deletion E-02 requires does not break it]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-242-k6nukd-delete-the-runner-shared-metadata-parsers-and-regex-literals.review.md
