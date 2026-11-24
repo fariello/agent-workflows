@@ -127,7 +127,7 @@ def _yaml_frontmatter_block(text: str) -> Optional[str]:
 
     Deliberately narrow: only a block whose FIRST line is the fence counts, so a `---` horizontal
     rule in the middle of a report is never mistaken for front matter. Mirrors
-    ``research_contract.parse_frontmatter``'s framing without importing its value parsing (this
+    ``artifact_meta.front_matter_mapping``'s framing without importing its value parsing (this
     module needs the raw text, not a typed mapping).
     """
 
@@ -950,7 +950,7 @@ def apply_adoption(
         from agent_workflows import artifact_meta as _meta
         from agent_workflows import research_contract as _R
 
-        fm = _R.parse_frontmatter(plan.frontmatter)
+        fm = _meta.front_matter_mapping(plan.frontmatter)
         fields: Dict[str, object] = {}
         if fm is not None:
             if "created" in fm:

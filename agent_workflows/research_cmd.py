@@ -576,7 +576,7 @@ def _write_planned_research_file(
     ctx = _research_legacy_context(research_root)
     records_root = Path(ctx.logical_roots["records"])
     rel_dest = planned.path.resolve().relative_to(records_root).as_posix()
-    fm = R.parse_frontmatter(planned.content)
+    fm = _meta.front_matter_mapping(planned.content)
     body = ""
     if fm is not None:
         lines = planned.content.splitlines(keepends=True)

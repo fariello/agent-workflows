@@ -15,7 +15,7 @@ declaration shapes, and the id6/setid/status rules now read either:
   * BULLET front matter (`- Id:`, `- Status:`, `- Set:`), used by plans, specs, backlog, releases,
     reviews, prompts and walkthroughs; matched by `_ID_RE`/`_STATUS_RE`/`_SET_RE`;
   * YAML front matter (`id:`, `status:`, `set:` between `---` fences), used by research and roadmaps;
-    read via `research_contract.parse_frontmatter`, the repository's ONE parser for that block.
+    read via `artifact_meta.read_text`, the repository's ONE metadata reader (spec `4sd62s` C5).
 
 Each reader tries its BULLET pattern first and consults the YAML fence only ON A MISS, so no record
 that matches today changes its answer, and the fallback only supplies a value where there previously
@@ -373,15 +373,15 @@ def record_dirs(repo_root: Path, record_type: str) -> List[Path]:
 # error (measured: `aw find research reference` returned 5 while 64 documents carry
 # `status: reference`).
 #
-# THE PARSE IS DELEGATED, NEVER REIMPLEMENTED. `research_contract.parse_frontmatter` is the
-# repository's one YAML-front-matter reader (`research_index._scan_docs` is its other consumer), and
-# a second reader here would drift from it about what counts as valid front matter. The import is
-# LAZY: this module is imported by many surfaces and `research_contract` is a heavier module that
-# only this fallback needs, so the cost is paid by the records that actually take the branch.
+# THE PARSE IS DELEGATED, NEVER REIMPLEMENTED. `artifact_meta.read_text` is the repository's one
+# metadata reader (spec `4sd62s` C5), and a second reader here would drift from it about what counts
+# as valid front matter. The import is LAZY: this module is imported by many surfaces and
+# `artifact_meta` is a heavier module that only this fallback needs, so the cost is paid by the
+# records that actually take the branch.
 #
 # THE KEY LOOKUP IS CASE-SENSITIVE, AND THAT IS THE LOAD-BEARING SAFETY PROPERTY OF THIS CHANGE, NOT
-# A STYLISTIC RESTRICTION. `parse_frontmatter` preserves keys VERBATIM (`key.strip()`, no case
-# folding), and the `---`-fenced records that exist OUTSIDE research are written by the `handoff`
+# A STYLISTIC RESTRICTION. `artifact_meta.read_text` reads the `id`/`status`/`set` keys VERBATIM (no
+# case folding), and the `---`-fenced records that exist OUTSIDE research are written by the `handoff`
 # workflow with CAPITALIZED keys (`Kind:`, `Status:`, `Date:`). Looking up exactly `id`/`status`/`set`
 # therefore returns None for them, leaving every non-research type's resolution untouched. A
 # tolerant lookup (`.title()`, case folding, or trying variants) would silently make

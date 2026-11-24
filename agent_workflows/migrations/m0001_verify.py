@@ -23,7 +23,6 @@ from agent_workflows import (
     layout_migration,
     leak_sanitizer,
     project_context,
-    research_contract,
 )
 from agent_workflows.migrations import m0001_convert, m0001_discover, m0001_renames
 
@@ -316,7 +315,7 @@ def build_field_census(
             continue
 
         if art_type == "research":
-            parsed_fm = research_contract.parse_frontmatter(text)
+            parsed_fm = artifact_meta.front_matter_mapping(text)
             if parsed_fm is None:
                 yaml_map, _ = artifact_meta._parse_yaml_front_matter(text)
                 if text.lstrip().startswith("---") and not yaml_map:
@@ -645,7 +644,7 @@ def _legacy_field_pairs_for_record(
         raw_fields = m0001_convert._parse_prompt_comment(text)
         ordered_pairs: List[Tuple[str, Any]] = list(raw_fields.items())
     elif art_type == "research":
-        parsed_fm = research_contract.parse_frontmatter(text)
+        parsed_fm = artifact_meta.front_matter_mapping(text)
         if parsed_fm is None:
             yaml_map, _ = artifact_meta._parse_yaml_front_matter(text)
             raw_fields = dict(yaml_map)
