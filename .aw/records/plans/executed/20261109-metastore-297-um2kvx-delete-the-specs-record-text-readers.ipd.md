@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5 allows exactly one metadata reader (`artifact_meta`). Part 18 of the round-3 split of `k6jd6l` (Order 43, research `nj8zdp` guidance): delete the seven `specs` line readers `specs._read_status`, `_read_gate`, `_read_blocks_release`, `_read_priority`, `_read_work_kind`, `_read_scope` and `_read_summary`. Measured at `f83159217`: 13 internal calls in `specs` (mostly `specs.validate_spec`), `attention._spec_record` (4), `check_engine.check_decision_ref_dangling` and `check_engine._iter_live_gate_carriers` (3), `tests/test_specs_status_dirs.py` (1) and `tests/test_specs_releases_descriptive_safety.py` (1).
 - Scope: The `specs` part of `k6jd6l` E-18 (subset 2). `check_engine._read_blocks_release` (a different function, used by `runner_shared` and `tools/gate_drop_audit.py`) is owned by Order 45 (`e8420v`), as `k6jd6l` E-18 already said. EXCLUDES `backlog.parse_item` (Orders 298, 299) and `attention`'s inline literals (Order 248).
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/attention.py, agent_workflows/check_engine.py, tests/test_specs_status_dirs.py, tests/test_specs_releases_descriptive_safety.py, .aw/records/plans/pending/20261109-metastore-297-um2kvx-delete-the-specs-record-text-readers.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261124-kusnij-01-kusnij-artifact-meta-parsers-other-than-parse-bullet-meta.backlog.md (durable carrier for a defect found while executing um2kvx other artifact_meta parsers still use str.splitlines the runner contract requires filing each found defect with aw backlog new, which writes o...); agent_workflows/artifact_meta.py (_parse_bullet_metadata_with_loose used str.splitlines, which breaks at U+0085/U+2028/bare CR after retargeting validate_spec onto artifact_meta.read_text this truncated Scope/Summary values and lost a...); tests/test_specs_metadata_duplicate_bullet.py (case b2 pinned the deleted specs._read_gate last-wins precedence on duplicated Gate-Kind artifact_meta.read_text the single reader under spec 4sd62s C5 is first-wins, so the fixture swaps the two line...)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:hrbbhy, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: um2kvx
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: um2kvx verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261124-kusnij-01-kusnij-artifact-meta-parsers-other-than-parse-bullet-meta.backlog.md: durable carrier for a defect found while executing um2kvx (other artifact_meta parsers still use str.splitlines()); the runner contract requires filing each found defect with aw backlog new, which writes outside any plan's Scope-Paths; out-of-scope agent_workflows/artifact_meta.py: _parse_bullet_metadata_with_loose used str.splitlines(), which breaks at U+0085/U+2028/bare CR; after retargeting validate_spec onto artifact_meta.read_text this truncated Scope/Summary values and lost attention.unsafe-field (tests/test_specs_releases_unsafe_field.py failed); splitting on newline only restores the deleted readers' behavior; out-of-scope tests/test_specs_metadata_duplicate_bullet.py: case (b2) pinned the deleted specs._read_gate last-wins precedence on duplicated Gate-Kind; artifact_meta.read_text (the single reader under spec 4sd62s C5) is first-wins, so the fixture swaps the two lines to keep the same intent; in-scope-unmodified agent_workflows/attention.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/check_engine.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007; review record .aw/records/reviews/20261109-metastore-297-um2kvx-delete-the-specs-record-text-readers.review.md
