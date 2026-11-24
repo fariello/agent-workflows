@@ -42,25 +42,25 @@ PIN RULE (carried from `9o83cr`): before E-01, ensure `.aw/state/tbvx4r/` exists
 
 ### Task group 1: one module per item, then verify
 
-- [ ] E-01 Before the first edit, ensure `.aw/state/tbvx4r/` exists (`mkdir -p .aw/state/tbvx4r/`) and save the baseline test PIN list to `.aw/state/tbvx4r/before.txt`. In `agent_workflows/plans_index.py`, delete its 6 module-level `^-` literals, including `plans_index._META_RE` and the reader `plans_index._meta`; each caller reads through `artifact_meta.read_text`.
+- [x] E-01 Before the first edit, ensure `.aw/state/tbvx4r/` exists (`mkdir -p .aw/state/tbvx4r/`) and save the baseline test PIN list to `.aw/state/tbvx4r/before.txt`. In `agent_workflows/plans_index.py`, delete its 6 module-level `^-` literals, including `plans_index._META_RE` and the reader `plans_index._meta`; each caller reads through `artifact_meta.read_text`.
   - Depends on: none
   - Expected outcome: the `LIT` search over `agent_workflows/plans_index.py` prints nothing; `rg -n "_META_RE|def _meta\b" agent_workflows/plans_index.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/plans_refs.py`, delete `plans_refs._ID_RE`, `_DATE_RE`, `_SET_LINE_RE`, `_ORDER_LINE_RE` and, if `k6jd6l` left it, the `order_lines` literal.
+- [x] E-02 In `agent_workflows/plans_refs.py`, delete `plans_refs._ID_RE`, `_DATE_RE`, `_SET_LINE_RE`, `_ORDER_LINE_RE` and, if `k6jd6l` left it, the `order_lines` literal.
   - Depends on: E-01
   - Expected outcome: the `LIT` search over `agent_workflows/plans_refs.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `agent_workflows/plans_archive.py`, delete `plans_archive._ID_RE` and the inline literals in `plans_archive._plan_date`, `_resolve_plan_date`, `_plan_status` and `sweep_candidates`.
+- [x] E-03 In `agent_workflows/plans_archive.py`, delete `plans_archive._ID_RE` and the inline literals in `plans_archive._plan_date`, `_resolve_plan_date`, `_plan_status` and `sweep_candidates`.
   - Depends on: E-02
   - Expected outcome: the `LIT` search over `agent_workflows/plans_archive.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Update `tests/test_plans_archive.py` and `tests/test_plans_index.py` only where a case names a deleted pattern; save `after.txt`; run both modules; compare `aw find plans --agent` with `786w7r` F-30; commit through `aw commit tbvx4r -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-04 Update `tests/test_plans_archive.py` and `tests/test_plans_index.py` only where a case names a deleted pattern; save `after.txt`; run both modules; compare `aw find plans --agent` with `786w7r` F-30; commit through `aw commit tbvx4r -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-03
   - Expected outcome: both modules pass; the `aw find plans` hash equals F-30.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -118,25 +118,63 @@ No spec change; implements part of `4sd62s` 4.3.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `LIT` search over `agent_workflows/plans_index.py` and `rg -n "_META_RE|def _meta\b" agent_workflows/plans_index.py`, both printing nothing.
   - Observed evidence:
-  - Result: pending
+    `.aw/state/tbvx4r/before.txt` saved before the first edit (66 PASSED lines over `tests/test_plans_archive.py`, `tests/test_plans_index.py`, `tests/test_readers_record_modules.py`, `tests/test_plans_group_order_preservation.py`, `tests/test_plans_order_grammar.py`).
+    F-27 classed every `plans_index` literal `already gone` (OQ-01): `_META_RE` had 0 hits at baseline. The remaining reader `plans_index._meta` (already backed by `artifact_meta.read_text`) is deleted; its one caller in `plans_index.plan_entry` reads `artifact_meta.read_text(...).fields["date"]` / `created_day` inline.
+    ```
+    $ rg -n "$LIT" agent_workflows/plans_index.py
+    $ rg -n "_META_RE|def _meta\b" agent_workflows/plans_index.py
+    $
+    ```
+    Both print nothing.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `LIT` search over `agent_workflows/plans_refs.py` printing nothing.
   - Observed evidence:
-  - Result: pending
+    `plans_refs._ID_RE`, `_DATE_RE`, `_SET_LINE_RE` were `already gone` (F-27 notes). Deleted `_ORDER_LINE_RE` (F27-12) and `_ORDER_LINE_RAW_RE` (F27-13, the `order_lines` literal `k6jd6l` left). `plans_refs._check_order_lines` now reads each `- Order:` bullet of `artifact_meta.metadata_region(text)` through `artifact_meta.parse_metadata_block` and validates the value with `_SIGNED_INT_RE.fullmatch`. `_SIGNED_INT_RE` (F27-14, `non-metadata`) is kept but unanchored (`r"-?\d+"`), since every use is `fullmatch` (decision 19-tbvx4r-D1).
+    ```
+    $ rg -n "$LIT" agent_workflows/plans_refs.py
+    $ echo rc=$?
+    rc=1
+    ```
+    Direct behaviour probe of `_check_order_lines` (single `- Order: 5`, `-1`, CRLF: ok; absent with `require_present=True`: `found 0`; duplicated: `found 2`; `x1`: `found malformed '- Order: x1'`; a quoted `- Order: 9` in the body is no longer counted).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the `LIT` search over `agent_workflows/plans_archive.py` printing nothing, and a fixture `aw archive plans` dry run whose candidate list equals the pre-edit run's.
   - Observed evidence:
-  - Result: pending
+    F-27 classed `plans_archive._ID_RE` and the literals in `_plan_date`, `_resolve_plan_date`, `_plan_status`, `sweep_candidates` `already gone` (OQ-01); no edit was needed.
+    ```
+    $ rg -n "$LIT" agent_workflows/plans_archive.py
+    $
+    $ aw archive plans --agent > .aw/state/tbvx4r/archive-before.txt   # pre-edit, exit 0, 1882 lines
+    $ aw archive plans --agent > .aw/state/tbvx4r/archive-after.txt    # post-edit, exit 0
+    $ cmp .aw/state/tbvx4r/archive-before.txt .aw/state/tbvx4r/archive-after.txt && echo archive-identical
+    archive-identical
+    ```
+    The dry run is on this repository's own plans tree (the real fixture with 1882 candidate lines); the candidate list is byte-identical.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `diff .aw/state/tbvx4r/before.txt .aw/state/tbvx4r/after.txt` (empty, or each change mapped), the summary line of `python3 -m pytest -o addopts="" tests/test_plans_archive.py tests/test_plans_index.py` passing, the `aw find plans --agent | sha256sum` beside the `786w7r` F-30 hash, and `git show --stat` of the `aw commit tbvx4r` commit.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ diff .aw/state/tbvx4r/before.txt .aw/state/tbvx4r/after.txt; echo diff=$?
+    diff=0
+    $ python3 -m pytest -o addopts="" tests/test_plans_archive.py tests/test_plans_index.py
+    ============================== 26 passed in 2.15s ==============================
+    $ python3 -m pytest -o addopts="" tests/test_readers_record_modules.py tests/test_plans_group_order_preservation.py tests/test_plans_order_grammar.py
+    ============================== 40 passed in 8.26s ==============================
+    $ aw find plans --agent | sha256sum      # before and after the edits, same tree otherwise
+    2eb73b59aa4b1a6cf059b2aa900fb2ecea0d359051c144fa935676ac84f70856  (1986 lines, both)
+    $ aw suite
+    2892 passed, 1 skipped, 11 warnings in 88.91s (0:01:28)   (exit 0)
+    ```
+    `786w7r` F-30 recorded `0f626c69...` (1986 lines) at `56e9d649f`. The hash here differs from F-30 because 17 commits since then changed 7 plan files (`git diff --stat 56e9d649f..HEAD -- .aw/records/plans`), so the comparable key is the before/after pair on this tree, which is identical (decision 19-tbvx4r-D2). No case in `tests/test_plans_archive.py` or `tests/test_plans_index.py` named a deleted pattern, so neither changed. Two tests outside Scope-Paths named a deleted symbol and were retargeted keeping every input case: `tests/test_readers_record_modules.py` (the `plans_index._meta` Id/Kind/Order asserts now read the same file through `plans_index.plan_entry`) and `tests/test_plans_group_order_preservation.py` (`refs._ORDER_LINE_RE` replaced by `artifact_meta.read_text(...).fields["order"]`); plus one comment in `agent_workflows/ipd_authoring.py` that named `plans_index._meta`. The commit is listed in the lane execution report, since a commit cannot contain its own hash.
+  - Result: pass
 
 ## Approval and execution gate
 

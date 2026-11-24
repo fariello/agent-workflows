@@ -48,11 +48,9 @@ _BARE_STEM_RE = re.compile(r"\b(\d{8}-\d{4}-\d{2})\b")
 # metadata read/write on a plan file
 # --------------------------------------------------------------------------------------
 
-# Writer-side fail-safe regexes retained for `_check_order_lines` (owned by Order 07/11).
-_ORDER_LINE_RE = re.compile(r"(?m)^- Order:\s*(-?\d+)\s*$")
-_ORDER_LINE_RAW_RE = re.compile(r"(?m)^- Order:[^\r\n]*")
 _VALID_DATE_RE = re.compile(r"^(?:\d{8}|\d{4}-\d{2}-\d{2})$")
-_SIGNED_INT_RE = re.compile(r"^-?\d+$")
+# A signed integer VALUE (not a metadata bullet); every use is `fullmatch`, so it is unanchored.
+_SIGNED_INT_RE = re.compile(r"-?\d+")
 
 
 def _read_id(text: str) -> Optional[str]:
@@ -96,15 +94,26 @@ def _set_value(set_id: str, descriptive: Optional[str]) -> str:
 
 
 def _check_order_lines(text: str, *, target: str, require_present: bool) -> None:
-    """Enforce the `yqv6b7` E-03 '- Order:' fail-safe before or after metadata rendering."""
-    lines = _ORDER_LINE_RAW_RE.findall(text)
+    """Enforce the `yqv6b7` E-03 '- Order:' fail-safe before or after metadata rendering.
+
+    The `- Order:` bullets are read from `artifact_meta.metadata_region` one line at a time
+    through `artifact_meta.parse_metadata_block`, so every occurrence is counted (the block parser
+    itself keeps only the first value of a duplicated field).
+    """
+    lines: List[str] = []
+    values: List[str] = []
+    for line in _meta.metadata_region(text).splitlines():
+        fields, _errors = _meta.parse_metadata_block([line])
+        if "Order" in fields:
+            lines.append(line)
+            values.append(fields["Order"])
     bad_count = (len(lines) != 1) if require_present else (len(lines) > 1)
     if bad_count:
         raise ValueError(
             f"plan '{target}': expected exactly one '- Order:' line after metadata update, "
             f"found {len(lines)}"
         )
-    if len(lines) == 1 and not _ORDER_LINE_RE.match(lines[0]):
+    if len(lines) == 1 and not _SIGNED_INT_RE.fullmatch(values[0]):
         raise ValueError(
             f"plan '{target}': expected exactly one '- Order:' line after metadata update, "
             f"found malformed {lines[0]!r}"

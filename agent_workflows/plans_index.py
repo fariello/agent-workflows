@@ -159,31 +159,6 @@ def _cached_plan_states(
     return by_path
 
 
-def _meta(text: str, key: str) -> Optional[str]:
-    """Read one metadata field from plan ``text`` via `artifact_meta.read_text`."""
-    st = _am.read_text(text, record_type="ipd")
-    if key == "Id":
-        return st.id6 if (st.id6 and _core.is_valid_id6(st.id6)) else None
-    if key == "Status":
-        return _canonical_status(st)
-    if key == "Set":
-        raw = st.fields.get("set") or st.legacy_raw_set or st.set_id
-        return str(raw).strip() if raw else None
-    if key == "Order":
-        raw = st.fields.get("order")
-        if raw is not None:
-            s = str(raw).strip()
-            return s if s.isdigit() else None
-        return None
-    if key == "Date":
-        val = st.fields.get("date") or st.created_day
-        return str(val).strip() if val else None
-    if key == "Kind":
-        val = st.fields.get("plan_role")
-        return str(val).strip() if val else None
-    return None
-
-
 def set_terse_id(raw: Optional[str]) -> Optional[str]:
     """Extract the canonical terse set-id from a `Set:` value of the form ``<terse> (<descriptive>)``.
 
@@ -230,7 +205,11 @@ def plan_entry(
         date_val = str(st.created_day or st.filename_date or "")
         if not date_val and p.is_file():
             try:
-                date_val = str(_meta(p.read_text(encoding="utf-8"), "Date") or "")
+                st_file = _am.read_text(
+                    p.read_text(encoding="utf-8"), record_type="ipd"
+                )
+                raw_date = st_file.fields.get("date") or st_file.created_day
+                date_val = str(raw_date).strip() if raw_date else ""
             except OSError:
                 date_val = ""
     else:

@@ -183,11 +183,10 @@ def test_plans_index_scan_query_and_drift(tmp_path: Path) -> None:
         "pln001"
     ]
 
-    # _meta helper
-    text = p_pending.read_text(encoding="utf-8")
-    assert plans_index._meta(text, "Id") == "pln001"
-    assert plans_index._meta(text, "Kind") == "child"
-    assert plans_index._meta(text, "Order") == "1"
+    # Id, Kind and Order read from the file through plan_entry (formerly the _meta helper)
+    assert pe_entry.plan_id == "pln001"
+    assert pe_entry.kind == "child"
+    assert pe_entry.order == 1
 
     # Drift detection: missing Id in pending and name-vs-metadata mismatch
     _write_plan(

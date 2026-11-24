@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_workflows import cli
+from agent_workflows import artifact_meta, cli
 from agent_workflows import plans_refs as refs
 from tests.record_builder import RecordBuilder
 
@@ -188,11 +188,11 @@ def test_bare_metadata_only_regroup_preserves_a_child_order(
     assert "- Order: 1" in text
     m = refs._CLUSTERED_RE.match(kept.name)
     assert m is not None, kept.name
-    order_line = refs._ORDER_LINE_RE.search(text)
-    assert order_line is not None, text
-    assert int(order_line.group(1)) == int(
+    order_val = artifact_meta.read_text(text, record_type="ipd").fields.get("order")
+    assert order_val is not None, text
+    assert int(order_val) == int(
         m.group("nn")
-    ), f"filename NN {m.group('nn')} disagrees with front matter {order_line.group(1)}"
+    ), f"filename NN {m.group('nn')} disagrees with front matter {order_val}"
 
 
 def test_explicit_order_still_renumbers_sequentially(seeded_plans_repo: Path) -> None:

@@ -944,7 +944,7 @@ def insert_id_line(text: str, id6: str) -> Optional[str]:
     for prefix in _ID_ANCHOR_PREFIXES:
         # The old format bolded its field names (`- **Status:** reviewed`); legacyfin `9en4fy` E-07
         # accepts that spelling of the SAME anchors. The Id line itself is always written plain, the
-        # form every reader (`plans_index._meta`, `ipd_schema.parse_metadata_block`) parses.
+        # form every reader (`artifact_meta.read_text`, `artifact_meta.parse_metadata_block`) parses.
         bold = "- **" + prefix[2:] + "**"
         for i in block:
             if lines[i].startswith(prefix) or lines[i].startswith(bold):
