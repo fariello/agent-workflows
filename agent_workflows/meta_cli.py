@@ -482,20 +482,37 @@ def _has_any_record_root(ctx: MetaContext) -> bool:
     return False
 
 
-def index_rebuild(repo_root: Path) -> CommandResult:
+def index_rebuild(repo_root: Path, *, explicit_dir: bool = False) -> CommandResult:
     """Delete the cache and rebuild it from empty through `artifact_meta` (4.5).
 
     Writes no tracked file: the cache lives under the gitignored state root. Reports the counts of
     artifacts, walkthroughs, review files, events, and valid and invalid records. An invalid record
     is a FINDING (exit 1) naming the record, because the rebuild itself succeeded.
+
+    With no records directory it refuses. The recovery advice comes from
+    `project_context.nonsurveyable_root_refusal`, so an explicit `--dir` inside a project is never
+    told to run `aw install .`, which would nest a new project there (plan fbdxmh).
     """
     ctx = meta_context(repo_root)
     if not _has_any_record_root(ctx):
+        from agent_workflows.project_context import nonsurveyable_root_refusal
+
+        summary = "no records directory to index; this is not an aw project (run `aw install .`)"
+        next_actions = [NextAction(command="aw install .")]
+        refusal = nonsurveyable_root_refusal(
+            "index rebuild", ctx.repo_root, explicit_dir=explicit_dir
+        )
+        if explicit_dir and not refusal.may_proceed:
+            summary = f"no records directory to index; {refusal.summary}"
+            next_actions = [
+                NextAction(command=n.command, description=n.description)
+                for n in refusal.next_actions
+            ]
         return CommandResult(
             command="index rebuild",
             status="cannot-run",
             exit_code=2,
-            summary="no records directory to index; this is not an aw project (run `aw install .`)",
+            summary=summary,
             diagnostics=[
                 Diagnostic(
                     location=".aw/records",
@@ -506,7 +523,7 @@ def index_rebuild(repo_root: Path) -> CommandResult:
             ],
             verified=False,
             complete=False,
-            next_actions=[NextAction(command="aw install .")],
+            next_actions=next_actions,
         )
     for p in _cache_paths(ctx.state_root):
         with contextlib.suppress(FileNotFoundError):
@@ -728,7 +745,7 @@ def index_alias(
     if getattr(args, "check", False):
         result = _index_alias_check(args, repo_root, t, said)
     else:
-        result = index_rebuild(repo_root)
+        result = index_rebuild(repo_root, explicit_dir=bool(getattr(args, "dir", None)))
     if ctx.is_human:
         with contextlib.suppress(BrokenPipeError, OSError):
             ctx.stderr.write(notice + "\n")

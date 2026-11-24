@@ -34,11 +34,14 @@ def _create_fixture_repo(root: Path, *, mode: str = "missing") -> None:
 
     Modes:
     - "missing": valid record files, missing INDEX.json / INDEX.md (no finding, exit 0)
-    - "clean": indexes generated and matching content (clean, exit 0)
-    - "stale": indexes present but content outdated (no finding, exit 0)
+    - "clean": valid record files and no INDEX file, the state every producer now leaves
+      (clean, exit 0)
+    - "stale": leftover INDEX files with outdated content beside the records (no finding, exit 0)
 
     Plan 6qh68x (spec 4sd62s 4.5) deleted the INDEX-file drift rules (`check.stale-index-*`), so a
-    missing or stale INDEX file is not drift; the three modes differ only in the files on disk.
+    missing or stale INDEX file is not drift; the modes differ only in the files on disk. Plan
+    f6y2yy removed the INDEX builders from the "clean" mode: no command generates an INDEX file
+    any more, so "clean" and "missing" now leave the same tree.
     """
     # 1. Plans
     plans_dir = root / ".aw" / "records" / "plans"
@@ -93,34 +96,7 @@ def _create_fixture_repo(root: Path, *, mode: str = "missing") -> None:
         encoding="utf-8",
     )
 
-    if mode == "clean":
-        from agent_workflows import plans_index, prompts_index, research_index
-
-        p_entries, _ = plans_index.scan_plans(plans_dir)
-        (plans_dir / "INDEX.json").write_text(
-            plans_index.build_index_json(p_entries), encoding="utf-8"
-        )
-        (plans_dir / "INDEX.md").write_text(
-            plans_index.build_index_md(p_entries), encoding="utf-8"
-        )
-
-        pr_entries, _ = prompts_index.scan_prompts(prompts_dir)
-        (prompts_dir / "INDEX.json").write_text(
-            prompts_index.build_index_json(pr_entries), encoding="utf-8"
-        )
-        (prompts_dir / "INDEX.md").write_text(
-            prompts_index.build_index_md(pr_entries), encoding="utf-8"
-        )
-
-        r_entries, _ = research_index._scan_docs(research_dir, repo_root=root)
-        (research_dir / "INDEX.json").write_text(
-            research_index.build_index_json(r_entries), encoding="utf-8"
-        )
-        (research_dir / "INDEX.md").write_text(
-            research_index.build_index_md(r_entries), encoding="utf-8"
-        )
-
-    elif mode == "stale":
+    if mode == "stale":
         (plans_dir / "INDEX.json").write_text("{}", encoding="utf-8")
         (plans_dir / "INDEX.md").write_text("# Old\n", encoding="utf-8")
 
@@ -342,9 +318,7 @@ class IndexCheckSubprocessTests(unittest.TestCase):
         subprocess.run(["git", "init"], cwd=self.root, capture_output=True, check=True)
         _create_fixture_repo(self.root, mode="clean")
         plans_md = self.root / ".aw" / "records" / "plans" / "INDEX.md"
-        plans_md.write_text(
-            plans_md.read_text(encoding="utf-8") + "\n# Extra\n", encoding="utf-8"
-        )
+        plans_md.write_text("# Old plans index\n\n# Extra\n", encoding="utf-8")
 
         # (b) --agent: plan 6qh68x deleted the INDEX-file drift rules, so one stale plans INDEX.md
         # is no finding: rc == 0, exactly one line with exit == 0, outcome == "conforms", and no
@@ -390,16 +364,11 @@ class IndexCheckSubprocessTests(unittest.TestCase):
                 _create_fixture_repo(repo_single, mode="clean")
 
                 if mode == "partial_stale":
-                    p_all = repo_all / ".aw" / "records" / "plans" / "INDEX.md"
-                    p_all.write_text(
-                        p_all.read_text(encoding="utf-8") + "\n# Extra\n",
-                        encoding="utf-8",
-                    )
-                    p_single = repo_single / ".aw" / "records" / "plans" / "INDEX.md"
-                    p_single.write_text(
-                        p_single.read_text(encoding="utf-8") + "\n# Extra\n",
-                        encoding="utf-8",
-                    )
+                    for repo in (repo_all, repo_single):
+                        p_md = repo / ".aw" / "records" / "plans" / "INDEX.md"
+                        p_md.write_text(
+                            "# Old plans index\n\n# Extra\n", encoding="utf-8"
+                        )
 
                 res_all = run_cli(["index", "all", "--check"], cwd=repo_all)
 

@@ -15433,7 +15433,9 @@ def _run_noun_verb(
         from agent_workflows import meta_cli
 
         repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
-        rb = meta_cli.index_rebuild(repo_root)
+        rb = meta_cli.index_rebuild(
+            repo_root, explicit_dir=bool(getattr(args, "dir", None))
+        )
         return get_renderer(ctx).emit(rb, ctx)
 
     types, err_msg = _nv_resolve_types(args, term, verb, emit_human=emit_human)
