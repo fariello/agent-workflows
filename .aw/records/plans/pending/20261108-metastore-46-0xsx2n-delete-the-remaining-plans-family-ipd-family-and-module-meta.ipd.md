@@ -89,6 +89,7 @@ flowchart TD
   - Carrier: qttoyc
 - Moved to nx7fws (round-3 split 2026-11-09 per research nj8zdp guidance): E-22 subset 1, `ipd_lint` (4), `ipd_lifecycle` (4, writer), `ipd_schema` (3), `ipd_authoring` (2).
   - Carrier: nx7fws
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-246-nx7fws-delete-the-ipd-module-metadata-regex-literals.ipd.md
 - Moved to akhrp5 (round-3 split 2026-11-09 per research nj8zdp guidance): E-22 subset 2, `plan_readiness` (6, with `_STATUS_RE`), `readiness_recheck` (1), `coverage_record` (4), `orchestrator_readiness` (1), and `tests/test_coverage_record.py`. Subsets 1 and 2 equal E-22's list.
   - Carrier: akhrp5
 - Moved to tdhav3 (round-3 split 2026-11-09 per research nj8zdp guidance): E-23 (attention, review and research).
