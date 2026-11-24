@@ -1041,20 +1041,29 @@ def build_record_log(
     repo_root: Optional[Path] = None,
     ruleset: Optional[Any] = None,
     validate: bool = True,
+    text: Optional[str] = None,
+    art_row: Optional[Mapping[str, Any]] = None,
+    mint_pool: Optional[Set[str]] = None,
 ) -> Tuple[str, str, List[Dict[str, Any]], Dict[str, Any]]:
     """Build the migrated event log (``append`` 0) for one record.
 
     Returns ``(id6, art_type, events, parsed_meta)``.
     """
-    text = record_path.read_text(encoding="utf-8")
+    if text is None:
+        text = record_path.read_text(encoding="utf-8")
     rel_path = record_path.relative_to(records_root).as_posix()
 
-    art_row, _ = artifact_meta.load_legacy_artifact(
-        record_path, records_root, text=text
-    )
+    if art_row is None:
+        art_row, _ = artifact_meta.load_legacy_artifact(
+            record_path, records_root, text=text
+        )
     id6 = str(art_row["id6"])
     if art_row.get("id_derived"):
-        id6 = artifact_core.mint_id6(repo_root or records_root)
+        if mint_pool is not None:
+            id6 = artifact_core.generate_id6(mint_pool)
+            mint_pool.add(id6)
+        else:
+            id6 = artifact_core.mint_id6(repo_root or records_root)
     art_type = str(art_row["type"])
     if art_type not in ALL_RECORD_TYPES:
         raise layout_migration.MigrationError(
@@ -1729,6 +1738,7 @@ def convert_records(
     rewritten_files: List[str] = []
     by_type: Dict[str, int] = {}
     seen_id6s: Set[str] = set()
+    mint_pool: Optional[Set[str]] = None
 
     for rec_path in target_files:
         rel_path = rec_path.relative_to(resolved_records).as_posix()
@@ -1748,6 +1758,11 @@ def convert_records(
         id6_probe = str(art_probe["id6"])
         sc_events = (sidecar_events or {}).get(id6_probe, ())
         rf_specs = reviews_by_subject.get(id6_probe, ())
+        if art_probe.get("id_derived") and mint_pool is None:
+            mint_pool = set(
+                artifact_core.global_id6s(resolved_repo or resolved_records)
+            )
+            mint_pool |= seen_id6s
 
         id6, art_type, events, parsed_meta = build_record_log(
             rec_path,
@@ -1763,12 +1778,17 @@ def convert_records(
             repo_root=resolved_repo,
             ruleset=shared_ruleset,
             validate=True,
+            text=orig_text,
+            art_row=art_probe,
+            mint_pool=mint_pool,
         )
         if id6 in seen_id6s:
             raise layout_migration.MigrationError(
                 f"Duplicate id6 {id6!r} encountered during conversion at {rel_path}"
             )
         seen_id6s.add(id6)
+        if mint_pool is not None:
+            mint_pool.add(id6)
 
         log_rel = f"meta/{id6}.jsonl"
         log_abs = resolved_records / log_rel

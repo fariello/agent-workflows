@@ -1103,6 +1103,25 @@ class ArtifactIndex:
 # identity claims against disk at the point of use and re-derives from a fresh index when one fails.
 
 
+def _read_declared_id_for_path(p: Path) -> Optional[str]:
+    """Read declared ``- Id:`` via selectors, stat-cached inside an active status_read_session."""
+    session = _STATUS_READ_SESSION.get()
+    if session is not None:
+        try:
+            st = p.stat()
+        except OSError:
+            return None
+        key = (str(p), st.st_mtime_ns, st.st_size)
+        if key in session.claimed_id_cache:
+            return session.claimed_id_cache[key]
+        header = _sel._read_header(p)
+        did = _sel._read_id(header) if header else None
+        session.claimed_id_cache[key] = did
+        return did
+    header = _sel._read_header(p)
+    return _sel._read_id(header) if header else None
+
+
 def build_index(
     repo_root: Path, *, record_types: Sequence[str] = TYPE_PRECEDENCE
 ) -> ArtifactIndex:
@@ -1132,11 +1151,9 @@ def build_index(
             fid = _filename_id6(p.name)
             if fid:
                 by_filename.setdefault(fid, []).append(p)
-            header = _sel._read_header(p)
-            if header:
-                did = _sel._read_id(header)
-                if did:
-                    by_declared.setdefault(did, []).append(p)
+            did = _read_declared_id_for_path(p)
+            if did:
+                by_declared.setdefault(did, []).append(p)
 
     return ArtifactIndex(
         paths=paths, by_declared_id=by_declared, by_filename_id=by_filename
@@ -1185,8 +1202,7 @@ def find_artifact(
                 # same selectors._read_header and selectors._read_id reader build_index used.
                 # Both single hits and collision lists are verified.
                 def _claims_id6(p: Path) -> bool:
-                    hdr = _sel._read_header(p)
-                    return hdr is not None and _sel._read_id(hdr) == id6
+                    return _read_declared_id_for_path(p) == id6
 
                 if not all(_claims_id6(p) for p in exact):
                     # Re-derive once from a fresh index. When the caller passed artifact_index=,
@@ -1276,6 +1292,9 @@ class _StatusReadSession:
     legacy_root_res: Optional[Path]
     meta_by_path: Optional[Dict[str, Any]]
     status_cache: Dict[Tuple[str, str], Optional[str]] = field(default_factory=dict)
+    claimed_id_cache: Dict[Tuple[str, int, int], Optional[str]] = field(
+        default_factory=dict
+    )
 
 
 _STATUS_READ_SESSION: ContextVar[Optional[_StatusReadSession]] = ContextVar(

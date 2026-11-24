@@ -429,22 +429,6 @@ def _member_source_bytes(
     return resolved.encode("utf-8")
 
 
-_OWN_SOURCE_WORKFLOWS_CACHE: Optional[Path] = None
-
-
-def _is_own_source_workflows(source_root: Path) -> bool:
-    """True when ``source_root`` resolves to this checkout's own `.aw/system/workflows` tree."""
-    global _OWN_SOURCE_WORKFLOWS_CACHE
-    try:
-        if _OWN_SOURCE_WORKFLOWS_CACHE is None:
-            _OWN_SOURCE_WORKFLOWS_CACHE = (
-                Path(__file__).resolve().parent.parent / ".aw" / "system" / "workflows"
-            ).resolve()
-        return source_root.resolve() == _OWN_SOURCE_WORKFLOWS_CACHE
-    except OSError:
-        return False
-
-
 def read_version(source_root: Path) -> str:
     """Return the framework version for the source at ``source_root``.
 
@@ -464,15 +448,6 @@ def read_version(source_root: Path) -> str:
 
     version_file = _nested_bundle_version_path(source_root)
     if _VERSIONING is not None:
-        # When reading from our own live checkout's workflows bundle (not a synthetic test repo),
-        # reuse the package's already-resolved `__version__` instead of spawning `git describe` +
-        # `git status --porcelain` on the 5,000-file repository 3 times per `aw install`.
-        if _is_own_source_workflows(source_root):
-            import agent_workflows as _aw_pkg
-
-            own_ver = getattr(_aw_pkg, "__version__", "")
-            if own_ver:
-                return str(own_ver)
         # The resolver runs `git describe` in source_root (git works from any subdir of
         # the work tree) and falls back to the VERSION file itself when there is no git.
         # Under nested `.aw/system/workflows/`, VERSION is the system-root sibling.

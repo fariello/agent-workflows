@@ -3066,14 +3066,26 @@ def stored_path(
     repo_root: Optional[Union[str, Path]] = None,
 ) -> str:
     """Return the cache-stored path for ``abs_path``: records-relative or ``@repo/...``."""
-    resolved = Path(abs_path).resolve()
-    rec_resolved = Path(records_root).resolve()
+    rec_resolved = _core._resolved_root(Path(records_root))
+    abs_p = Path(abs_path)
+    # Fast path: when abs_path is already normalized under rec_resolved with no symlink
+    # component (the common case inside os.walk loops), avoid repeating realpath().
+    if not abs_p.is_symlink():
+        abs_str = str(abs_p)
+        rec_str = str(rec_resolved)
+        sep = os.sep
+        rec_prefix = rec_str if rec_str.endswith(sep) else rec_str + sep
+        if abs_str.startswith(rec_prefix) and ".." not in abs_str:
+            rel = abs_str[len(rec_prefix) :]
+            if rel:
+                return rel.replace("\\", "/") if sep == "\\" else rel
+    resolved = abs_p.resolve()
     try:
         return resolved.relative_to(rec_resolved).as_posix()
     except ValueError:
         pass
     if repo_root is not None:
-        repo_resolved = Path(repo_root).resolve()
+        repo_resolved = _core._resolved_root(Path(repo_root))
         try:
             return "@repo/" + resolved.relative_to(repo_resolved).as_posix()
         except ValueError:
