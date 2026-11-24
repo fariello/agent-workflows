@@ -152,12 +152,12 @@ def _run_stale_findings(
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
         return (), False, "unreadable: {0}".format(exc), []
-    import re
+    from agent_workflows import artifact_meta as _meta
 
-    m = re.search(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$", text)
-    if not m:
+    declared_id6 = _meta.read_loose_id(text)
+    if not declared_id6:
         return (), False, "no `- Id:` bullet, so no review record can be matched", []
-    stale = RF.stale_escalated_findings(repo_root, m.group(1), text)
+    stale = RF.stale_escalated_findings(repo_root, declared_id6, text)
     if not stale:
         return (), False, "", []
     if not apply:

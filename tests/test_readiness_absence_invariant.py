@@ -63,7 +63,7 @@ def check_corpus_partition(plans_dir: Path) -> List[str]:
         if status in (
             "draft",
             "to-review",
-        ) and plan_readiness._READINESS_FIELD_PRESENT_RE.search(text):
+        ) and plan_readiness.readiness_field_present(text):
             violations.append(str(p))
     return violations
 

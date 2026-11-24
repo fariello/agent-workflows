@@ -26,14 +26,12 @@ COVERAGE_PASS = "pass"
 COVERAGE_FAIL = "fail"
 COVERAGE_ABSENT = "absent"
 
-_COVERAGE_LINE_RE = re.compile(r"^-\s*Coverage:\s*(\S+)\s*$", re.MULTILINE)
 _FINGERPRINT_LINE_RE = re.compile(
     r"^-\s*Coverage-Fingerprint:\s*(\S+)\s*$", re.MULTILINE
 )
 _CHECKED_LINE_RE = re.compile(
     r"^-\s*Coverage-Checked:\s*(\S+)(?:\s+by\s+(.*))?$", re.MULTILINE
 )
-_ID_LINE_RE = re.compile(r"^-\s*Id:\s*([0-9a-z]{6})\b", re.MULTILINE)
 _VALIDATION_HDR_RE = re.compile(r"^##\s*Validation and cross-check\b.*$", re.MULTILINE)
 _FINDINGS_HDR_RE = re.compile(r"^##\s*Coverage findings\s*$", re.MULTILINE)
 
@@ -62,11 +60,10 @@ def read(plan_text: str) -> CoverageRecord:
     Returns a :class:`CoverageRecord` with verdict `pass`, `fail`, or `absent`.
     On `fail`, parses quotes from the `## Coverage findings` section if present.
     """
-    cov_match = _COVERAGE_LINE_RE.search(plan_text)
-    if not cov_match:
-        return CoverageRecord(verdict=COVERAGE_ABSENT)
+    from agent_workflows import artifact_meta as _meta
 
-    verdict = cov_match.group(1).strip()
+    state = _meta.read_text(_meta.metadata_region(plan_text), record_type="ipd")
+    verdict = str(state.fields.get("coverage") or "").strip()
     if verdict not in (COVERAGE_PASS, COVERAGE_FAIL):
         return CoverageRecord(verdict=COVERAGE_ABSENT)
 
@@ -255,8 +252,7 @@ def write(
             )
 
     # 2. Update/remove ## Coverage findings body section (N3) and append op="coverage".
-    id6_match = _ID_LINE_RE.search(plan_text)
-    id6_or_none = id6_match.group(1).strip() if id6_match else None
+    id6_or_none = _meta.read_loose_id(plan_text)
     body_text = _update_coverage_findings_section(plan_text, verdict, quotes)
 
     event: dict[str, object] = {
@@ -320,9 +316,9 @@ def write(
         )
 
     # Derive id6 from plan text or filename
-    id6_match_after = _ID_LINE_RE.search(final_text)
-    if id6_match_after:
-        id6 = id6_match_after.group(1).strip()
+    declared_id6 = _meta.read_loose_id(final_text)
+    if declared_id6:
+        id6 = declared_id6
     else:
         fname_match = re.search(r"\b([0-9a-z]{6})\b", path.name)
         id6 = fname_match.group(1) if fname_match else path.stem

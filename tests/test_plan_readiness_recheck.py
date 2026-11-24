@@ -288,8 +288,11 @@ class WriteTargetIsPinnedTests(_RepoCase):
         """
         p = _plan(self.repo)
         text = p.read_text(encoding="utf-8")
-        widened, n = pr._READINESS_LINE_SUB_RE.subn("- Readiness: go", text, count=1)
-        self.assertEqual(n, 1)
+        lines = text.split("\n")
+        hits = [i for i, line in enumerate(lines) if line.startswith("- Readiness:")]
+        self.assertTrue(hits)
+        lines[hits[0]] = "- Readiness: go"
+        widened = "\n".join(lines)
         self.assertEqual(S.read_readiness(widened), "go")
         with self.assertRaises(AssertionError):
             self.assertEqual(

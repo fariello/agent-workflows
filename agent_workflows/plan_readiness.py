@@ -252,10 +252,32 @@ def classify_verdict(text: str) -> Tuple[Optional[str], Optional[str]]:
     return None, None
 
 
-# Whether a `- Readiness:` bullet is PRESENT AT ALL, regardless of value. Needed because
-# `read_readiness` collapses "absent" and "out-of-vocab" to None, and the two must be distinguished:
-# absent falls back to prose, corrupt refuses outright (see `is_plan_review_approved`).
-_READINESS_FIELD_PRESENT_RE = re.compile(r"(?m)^-[ \t]*Readiness:")
+def readiness_field_present(text: str) -> bool:
+    """Whether a `- Readiness:` bullet is PRESENT AT ALL in the metadata block, regardless of value.
+
+    Needed because `read_readiness` collapses "absent" and "out-of-vocab" to None, and the two must
+    be distinguished: absent falls back to prose, corrupt refuses outright (see
+    `is_plan_review_approved`). Reads the same metadata block `read_readiness` reads, so a
+    `- Readiness:` line in the body is neither the field nor evidence that the field is present.
+    The LOOSE bullet spelling (`-Readiness:`) counts as present, so a malformed bullet still refuses
+    as corrupt rather than falling back to prose.
+    """
+    if not text or "Readiness:" not in text:
+        return False
+    from agent_workflows import artifact_meta as _meta
+
+    _, loose, _, _ = _meta._parse_bullet_metadata_with_loose(
+        _meta.metadata_region(text)
+    )
+    return "Readiness" in loose
+
+
+def _declared_id6(text: str) -> Optional[str]:
+    """The plan's own `- Id:` id6 from its metadata block via ``artifact_meta``, or None."""
+    from agent_workflows import artifact_meta as _meta
+
+    return _meta.read_loose_id(text or "")
+
 
 _OQ_HEADING_RE = _schema.OQ_HEADING_RE
 _OQ_FIELD_RE = re.compile(r"^-[ \t]*([A-Za-z][A-Za-z /-]*?):[ \t]?(.*)$")
@@ -436,7 +458,7 @@ def is_plan_review_approved(plan_path: Path) -> bool:
         if not history_has_review_record(text):
             return False
         return readiness in _schema.READINESS_APPROVABLE
-    if _READINESS_FIELD_PRESENT_RE.search(text):
+    if readiness_field_present(text):
         # PRESENT but out-of-vocab (`read_readiness` normalizes that to None). Refuse OUTRIGHT: the
         # review tried to record a readiness and we cannot tell what it meant, so falling back to
         # prose could approve a plan whose author meant `no-go`. Absence -> fall back; corrupt -> no.
@@ -695,7 +717,7 @@ def approval_refusals(
                     readiness
                 )
             )
-    elif _READINESS_FIELD_PRESENT_RE.search(plan_text):
+    elif readiness_field_present(plan_text):
         refusals.append(
             "a `- Readiness:` field is present but its value is not one of {0}. A CORRUPT "
             "readiness is not treated as an absent one: the review tried to record a readiness "
@@ -713,12 +735,12 @@ def approval_refusals(
             )
 
     # (2) The TYPED review artifact, reused unchanged. Absent artifact -> silent, by contract.
-    id6_match = re.search(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$", plan_text)
-    if id6_match is not None:
+    declared_id6 = _declared_id6(plan_text)
+    if declared_id6 is not None:
         try:
             from agent_workflows import review_findings as _rf
 
-            for block in _rf.subject_gating_blocks(repo_root, id6_match.group(1)):
+            for block in _rf.subject_gating_blocks(repo_root, declared_id6):
                 refusals.append(
                     "the typed review artifact records an unresolved gating finding: {0}".format(
                         block.describe()
@@ -903,8 +925,7 @@ def recheck_conditions(
                 ),
             )
 
-    id6_match = re.search(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$", plan_text)
-    id6 = id6_match.group(1) if id6_match else ""
+    id6 = _declared_id6(plan_text) or ""
 
     # ---- Condition 1: an unresolved BLOCKING open question (the shipped, blocking-only predicate).
     blocking = has_unresolved_blocking_question(plan_text)
@@ -1008,7 +1029,7 @@ def recheck_conditions(
     # they are reasons the re-check may not act at all, as distinct from reasons the plan is not ready.
     refusals: List[str] = []
     readiness = _schema.read_readiness(plan_text)
-    present = bool(_READINESS_FIELD_PRESENT_RE.search(plan_text))
+    present = readiness_field_present(plan_text)
     if readiness is None and not present:
         # ABSENT. Refuse rather than mint: absence means NO REVIEW RECORDED A SIGNAL, and writing one
         # here would be exactly the forgery `AGENTS.md` forbids. Absence is also a LEGITIMATE state
@@ -1342,9 +1363,6 @@ def recheck_readiness(
         target_readiness, written
     )
     return result, new_text
-
-
-_READINESS_LINE_SUB_RE = re.compile(r"(?m)^-[ \t]*Readiness:[ \t]*.*$")
 
 
 # ------------------------------------------------------------------------------------------------
