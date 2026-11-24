@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5 and 4.3 require deleting every `^-` metadata regex outside `artifact_meta`. `plans_index`, `plans_refs` and `plans_archive` hold 16 such literals, including `plans_index._META_RE` and its reader `plans_index._meta`, which `9o83cr` E-12 names. This is part 1 of the round-3 split of `0xsx2n` (Order 46), carrying the plans-module subset of `0xsx2n` E-21.
 - Scope: delete the 16 literals in three modules, each use reading through `artifact_meta.read`, `read_text` or `read_at`; update `tests/test_plans_archive.py` where a test names a deleted pattern. EXCLUDES the artifact-family modules of E-21 (Order 245).
 - Scope-Paths: agent_workflows/plans_index.py, agent_workflows/plans_refs.py, agent_workflows/plans_archive.py, tests/test_plans_archive.py, tests/test_plans_index.py, .aw/records/plans/pending/20261109-metastore-244-tbvx4r-delete-the-plans-index-plans-refs-and-plans-archive-metadata.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261124-rlugex-01-rlugex-metastore-deletion-plans-compare-aw-find-plans-age.backlog.md (defect-report carrier required by the driver prompt found while comparing V-04 against 786w7r F-30); agent_workflows/ipd_authoring.py (comment named the deleted plans_index._meta reader); tests/test_plans_group_order_preservation.py (named the deleted plans_refs._ORDER_LINE_RE retargeted onto artifact_meta.read_text); tests/test_readers_record_modules.py (asserted the deleted plans_index._meta reader retargeted onto plans_index.plan_entry keeping the Id/Kind/Order cases)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: tbvx4r
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: tbvx4r verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261124-rlugex-01-rlugex-metastore-deletion-plans-compare-aw-find-plans-age.backlog.md: defect-report carrier required by the driver prompt; found while comparing V-04 against 786w7r F-30; out-of-scope agent_workflows/ipd_authoring.py: comment named the deleted plans_index._meta reader; out-of-scope tests/test_plans_group_order_preservation.py: named the deleted plans_refs._ORDER_LINE_RE; retargeted onto artifact_meta.read_text; out-of-scope tests/test_readers_record_modules.py: asserted the deleted plans_index._meta reader; retargeted onto plans_index.plan_entry keeping the Id/Kind/Order cases; in-scope-unmodified agent_workflows/plans_archive.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_plans_archive.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_plans_index.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006; review record .aw/records/reviews/20261109-metastore-244-tbvx4r-delete-the-plans-index-plans-refs-and-plans-archive-metadata.review.md
