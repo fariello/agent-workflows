@@ -23,6 +23,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import agent_schema
+from agent_workflows import artifact_meta as META
 from agent_workflows import attention_contract as A
 from agent_workflows import backlog as B
 from tests.record_builder import RecordBuilder
@@ -347,9 +348,9 @@ class BacklogDescriptiveSafetyTests(unittest.TestCase):
             history=["- 2026-09-28 created (aw backlog): legit"],
             text_only=True,
         )
-        parsed = B.parse_item(injected_raw)
-        self.assertEqual(parsed.summary, "legit")
-        self.assertEqual(parsed.blocks_release, "next")
+        fields = META.read_text(injected_raw, record_type="backlog").fields
+        self.assertEqual(fields.get("summary"), "legit")
+        self.assertEqual(fields.get("blocks_release"), "next")
         # Validate that checker reports zero drift because value was split
         fake_path = self.repo / "20260928-s-01-inj001-legit.backlog.md"
         self.assertEqual(B.validate_item(fake_path, injected_raw), [])

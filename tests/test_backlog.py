@@ -17,6 +17,7 @@ import unittest
 from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
 
+from agent_workflows import artifact_meta as META
 from agent_workflows import attention as ATT
 from agent_workflows import attention_contract as A
 from agent_workflows import backlog as B
@@ -415,8 +416,8 @@ class BacklogVerbTests(unittest.TestCase):
         items = list((self.repo / ".agents/backlog/open").glob("*.md"))
         self.assertEqual(len(items), 1)
         text = items[0].read_text(encoding="utf-8")
-        parsed = B.parse_item(text)
-        self.assertEqual(parsed.blocks_release, "next")
+        fields = META.read_text(text, record_type="backlog").fields
+        self.assertEqual(fields.get("blocks_release"), "next")
         self.assertIn("- Blocks-Release: next", text)
         self.assertIn("created (aw backlog): custom creation note", text)
         self.assertEqual(releases.check_blocks_release(self.repo), [])
@@ -475,8 +476,8 @@ class BacklogVerbTests(unittest.TestCase):
         items = list((self.repo / ".agents/backlog/open").glob("*.md"))
         self.assertEqual(len(items), 1)
         text = items[0].read_text(encoding="utf-8")
-        parsed = B.parse_item(text)
-        self.assertIsNone(parsed.blocks_release)
+        fields = META.read_text(text, record_type="backlog").fields
+        self.assertIsNone(fields.get("blocks_release"))
         self.assertNotIn("Blocks-Release", text)
 
     def test_new_custom_message_and_default_message(self):
@@ -536,7 +537,9 @@ class BacklogVerbTests(unittest.TestCase):
                 )
             )
         item1_file = next((r1 / ".agents/backlog/open").glob("*.md"))
-        p1 = B.parse_item(item1_file.read_text(encoding="utf-8"))
+        p1 = META.read_text(
+            item1_file.read_text(encoding="utf-8"), record_type="backlog"
+        ).fields
 
         # Repo 2: Two-call creation (new then set)
         tmp2 = tempfile.TemporaryDirectory()
@@ -565,15 +568,20 @@ class BacklogVerbTests(unittest.TestCase):
                     apply=True,
                 )
             )
-        p2 = B.parse_item(item2_file.read_text(encoding="utf-8"))
+        p2 = META.read_text(
+            item2_file.read_text(encoding="utf-8"), record_type="backlog"
+        ).fields
 
-        self.assertEqual(p1.status, p2.status)
-        self.assertEqual(p1.set, p2.set)
-        self.assertEqual(p1.priority, p2.priority)
-        self.assertEqual(p1.kind, p2.kind)
-        self.assertEqual(p1.summary, p2.summary)
-        self.assertEqual(p1.blocks_release, p2.blocks_release)
-        self.assertEqual(p1.blocks_release, "next")
+        for field in (
+            "status",
+            "set",
+            "priority",
+            "work_kind",
+            "summary",
+            "blocks_release",
+        ):
+            self.assertEqual(p1.get(field), p2.get(field), field)
+        self.assertEqual(p1.get("blocks_release"), "next")
 
         tmp1.cleanup()
         tmp2.cleanup()
@@ -1558,7 +1566,7 @@ class BacklogPreservationTests(unittest.TestCase):
             raw_fields={"Work-Kind": None, "Kind": "chore\n- Work-Kind: bug"},
             text_only=True,
         )
-        parsed = backlog.parse_item(raw_item)
+        parsed = backlog.item_from_text(raw_item)
         direct_rendered = backlog._render_item(parsed, "", source_text=raw_item)
         wk_direct = [
             ln for ln in direct_rendered.splitlines() if ln.startswith("- Work-Kind:")
@@ -1619,7 +1627,7 @@ class BacklogPreservationTests(unittest.TestCase):
             history=["- 2026-09-26 created (tester): initial"],
             text_only=True,
         )
-        parsed = backlog.parse_item(raw_item)
+        parsed = backlog.item_from_text(raw_item)
         parsed.status = "done"
         direct_rendered = backlog._render_item(parsed, "", source_text=raw_item)
         self.assertNotIn("- Gate-Summary:", direct_rendered)
@@ -1833,7 +1841,7 @@ class BacklogPreservationTests(unittest.TestCase):
             body="Prose body",
             text_only=True,
         )
-        item = B.parse_item(text)
+        item = B.item_from_text(text)
         rendered = B._render_item(item, "Prose body\n", source_text=text)
         self.assertIn("- Release-Exempt-Kind: decision\n", rendered)
         self.assertIn("- Release-Exempt-Ref: D42\n", rendered)
@@ -1856,7 +1864,7 @@ class BacklogPreservationTests(unittest.TestCase):
             release_exempt_ref="D42",
             text_only=True,
         )
-        item = B.parse_item(text)
+        item = B.item_from_text(text)
         rendered_no_source = B._render_item(item, "body")
         self.assertNotIn("- Release-Exempt-Kind:", rendered_no_source)
         self.assertNotIn("- Release-Exempt-Ref:", rendered_no_source)
