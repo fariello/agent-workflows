@@ -378,12 +378,6 @@ from agent_workflows.runner_shared import (
     report_parked_drain_summary as report_parked_drain_summary,
 )
 from agent_workflows.runner_shared import (
-    _ORDER_RE as _ORDER_RE,
-)
-from agent_workflows.runner_shared import (
-    _SET_RE as _SET_RE,
-)
-from agent_workflows.runner_shared import (
     new_run_id as new_run_id,
 )
 from agent_workflows.runner_shared import (
@@ -870,8 +864,8 @@ LANE_PROMPT_TIMEOUT = runner_shared.LANE_PROMPT_TIMEOUT
 
 # `_PLAN_FILENAME_RE` is IMPORTED from `runner_shared` (rununify 06 `sy7uwh` E-03), not defined here.
 # It was BYTE-IDENTICAL to oc's copy and is closed over only by `parse_plan_file`, which moved to the
-# shared module, so it moved with it rather than being injected - the same rule `_SET_RE`/`_ORDER_RE`
-# already follow. A duplicate CONSTANT left behind would reproduce the defect one layer down.
+# shared module, so it moved with it rather than being injected. A duplicate CONSTANT left behind
+# would reproduce the defect one layer down.
 #
 # NOTE (lanetruth-03 / 8guhs0 E-01): there is deliberately NO dependency regex here. See the
 # identical note in `oc_runipd`. The canonical field NAME comes from

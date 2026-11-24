@@ -6284,3 +6284,94 @@ class LoadStateValidationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewSequenceIncompleteStatusRestoreTests(unittest.TestCase):
+    """k6nukd E-03: an incomplete review sequence leaves the plan's `- Status:` at `to-review`.
+
+    The restore rewrites only the metadata-region status mirror (through `artifact_meta.append`), so a
+    `- Status:` line quoted in the plan BODY and every other front-matter field stay as they were.
+    """
+
+    def test_review_sequence_incomplete_restores_to_review_on_both_hosts(self) -> None:
+        import subprocess
+
+        from agent_workflows import artifact_meta, ipd_lint
+        from tests.test_review_sequence_runner import (
+            _make_test_repo,
+            _render_plan_text,
+        )
+
+        body = (
+            "## Goal\n\nA quoted example the restore must not touch:\n\n"
+            "- Status: approved\n"
+        )
+        for host_name, host_mod in (("oc", oc_runipd), ("agy", agy_runipd)):
+            with self.subTest(host=host_name), tempfile.TemporaryDirectory() as td:
+                repo = _make_test_repo(pathlib.Path(td))
+                plan_dir = repo / ".aw" / "records" / "plans" / "pending"
+                plan_dir.mkdir(parents=True)
+                plan_path = plan_dir / "20261015-revsteps-01-rsq001-test-plan.ipd.md"
+                plan_path.write_text(
+                    _render_plan_text(
+                        id6="rsq001",
+                        status="reviewed",
+                        readiness="go-pending-approval",
+                        body=body,
+                    ),
+                    encoding="utf-8",
+                )
+                subprocess.run(["git", "add", str(plan_path)], cwd=repo, check=True)
+                subprocess.run(
+                    ["git", "commit", "-qm", "add plan"], cwd=repo, check=True
+                )
+                before = plan_path.read_text(encoding="utf-8")
+                run_dir = repo / ".aw" / "records" / "runs" / f"run-rsq-{host_name}"
+                run_dir.mkdir(parents=True)
+                item = {
+                    "position": 1,
+                    "id6": "rsq001",
+                    "setid": "revsteps",
+                    "configured_file": str(plan_path.relative_to(repo)),
+                    "artifact_type": "ipd",
+                    "action": "review",
+                    "status": "queued",
+                    "review_handler": "plan-review",
+                    "attempts": [],
+                }
+                state = {
+                    "run_id": f"run-rsq-{host_name}",
+                    "repo": str(repo),
+                    "options": {
+                        "action": "review",
+                        "review_mode": "steps",
+                        "review_variant": "single-12",
+                        "isolate_worktree": False,
+                    },
+                    "queue": [item],
+                }
+
+                def no_session_launcher(
+                    *args: Any, _run_dir: pathlib.Path = run_dir, **kwargs: Any
+                ):
+                    log = _run_dir / "log.jsonl"
+                    log.write_text("", encoding="utf-8")
+                    return 0, None, str(log), ["cmd"]
+
+                patch_target = "run_opencode" if host_name == "oc" else "run_agy_turn"
+                with mock.patch.object(host_mod, patch_target, no_session_launcher):
+                    host_mod.execute_item(run_dir, state, item, recovery=False)
+
+                self.assertEqual(
+                    item["attempts"][-1].get("review_outcome"), "incomplete"
+                )
+                after = plan_path.read_text(encoding="utf-8")
+                self.assertEqual(
+                    ipd_lint.parse(after).meta_fields.get("Status"), "to-review"
+                )
+                self.assertEqual(artifact_meta.read_text(after).status, "to-review")
+                self.assertIn("\n- Status: approved\n", after)
+                self.assertEqual(
+                    after.replace("- Status: to-review", "- Status: reviewed", 1),
+                    before,
+                )

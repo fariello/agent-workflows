@@ -97,10 +97,10 @@ the plan's 34-symbol manifest will otherwise think they were forgotten:
     answer. It stays defined in both runners, while `lane_reclaim_prompt` is shared and takes
     suppression as an injected parameter; `tests/test_forkresid_shared_shells.py::LanePromptSuppressionTests`
     pins that reason so it is not "finished" later by someone who reads the count and not the constraint.
-  * `_read_set`/`_read_order`/`describe_unresolved_plan_selector`/`validate_manifest` close over the
-    module constants `_SET_RE`, `_ORDER_RE`, `ID6_RE` and `SCHEMA_VERSION`. Those four constants are
-    themselves byte-identical in both runners, so they MOVE here rather than being injected, and each
-    runner re-exports them so its other call sites are untouched.
+  * `describe_unresolved_plan_selector`/`validate_manifest` close over the module constants `ID6_RE`
+    and `SCHEMA_VERSION`. Those constants are byte-identical in both runners, so they MOVE here rather
+    than being injected, and each runner re-exports them so its other call sites are untouched.
+    `_read_set`/`_read_order` read through `artifact_meta` (metastore `k6nukd`).
 
 Conventions follow `host_runner.py`: a docstring stating what the module owns and its design posture,
 banner comments per section, and no import of a caller.
@@ -241,16 +241,12 @@ SCHEMA_VERSION = 1
 
 ID6_RE = re.compile(r"^[a-z0-9]{6}$")
 
-_SET_RE = re.compile(r"(?m)^-\s*Set:\s*(.+?)\s*$")
-_ORDER_RE = re.compile(r"(?m)^-\s*Order:\s*(\d+)\s*$")
-
-# rununify 06 (`sy7uwh`) E-03: the two constants `parse_plan_file` closes over, moved here with it.
-#
-# `_KIND_RE` came from `oc_runipd` (agy had none and imported the READER instead), and
-# `_PLAN_FILENAME_RE` was BYTE-IDENTICAL in both runners, so both move rather than being injected -
-# the same rule `_SET_RE`/`_ORDER_RE` above already follow. Leaving a duplicate constant behind
-# reproduces the defect one layer down: a fix to the pattern would still not reach the runner
-# carrying its own copy. Both runners re-export them, so their other call sites are unchanged.
+# rununify 06 (`sy7uwh`) E-03: `_PLAN_FILENAME_RE`, which `parse_plan_file` closes over, was
+# BYTE-IDENTICAL in both runners, so it moved here rather than being injected. Leaving a duplicate
+# constant behind reproduces the defect one layer down: a fix to the pattern would still not reach the
+# runner carrying its own copy. The `- Set:`/`- Order:`/`- Kind:` patterns that once sat here were
+# deleted by metastore `k6nukd`: those fields are read through `artifact_meta` (`_read_set`,
+# `_read_order`, `_read_kind`).
 #
 # NOTE (lanetruth-03 / 8guhs0 E-01) there is deliberately NO dependency regex here, and the note is
 # carried from `oc_runipd` because that is where the trap lives: the deleted `_DEPS_RE` matched a
@@ -259,7 +255,6 @@ _ORDER_RE = re.compile(r"(?m)^-\s*Order:\s*(\d+)\s*$")
 # from `ipd_schema.META_ITEM_DEPENDENCIES` and its GRAMMAR from `ipd_schema.parse_item_dependencies`
 # (see `_read_item_dependencies`). Re-adding a dependency regex here was guarded by
 # `tests/test_runner_item_dependencies.py` (a code pin deleted in `19313eed` under P16; will not return).
-_KIND_RE = re.compile(r"(?m)^-\s*Kind:\s*(\S+)\s*$")
 
 
 #: pe7g6r (gvf2sq) E-01: sentinel token for an unrequested force stop.
@@ -5710,15 +5705,6 @@ REDERIVE_SHAPE_MATCH = "records-only-front-matter"
 REDERIVE_SHAPE_NOT = "not-this-shape"
 REDERIVE_SHAPE_UNKNOWN = "unknown"
 
-#: A history bullet: `- YYYY-MM-DD <anything>`. Appended by every status setter and by the backfill
-#: lane alike, which is why an INSERTED one is part of this shape.
-_HISTORY_BULLET_RE = re.compile(r"^- \d{4}-\d{2}-\d{2}[ \t]")
-
-#: A front-matter bullet: `- Key: value`. Deliberately NOT `selectors`' identity readers, which answer
-#: only about `- Id:`/`- Status:`/`- Set:`; this classifier must enumerate EVERY key present in order
-#: to prove that only allow-listed ones were added.
-_FRONT_MATTER_BULLET_RE = re.compile(r"^- ([A-Za-z][A-Za-z0-9 _-]*):[ \t]*(.*)$")
-
 
 class RecordsOnlyConflictVerdict(NamedTuple):
     """One conflicting path's verdict, with the facts a refusal message and a re-derivation need.
@@ -5756,19 +5742,26 @@ def _split_metadata_region(text: str) -> tuple[str, str]:
     return region, text[len(region) :]
 
 
-def _front_matter_bullets(region: str) -> tuple[dict[str, list[str]], tuple[str, ...]]:
+def _region_bullet_keys(region: str) -> tuple[dict[str, list[str]], tuple[str, ...]]:
     """Every `- Key: value` bullet in a metadata region, plus every line that is NOT one.
+
+    Each line is read through `artifact_meta.parse_metadata_block`, one line at a time, so every
+    occurrence of a duplicated key is kept (the block parser alone keeps only the first). This
+    classifier must enumerate EVERY key present to prove that only allow-listed ones were added.
 
     The NON-bullet lines are returned because they must be UNCHANGED for this shape to hold: a
     difference there is prose or structure, not a field addition, and the classifier must not
     generalize past what it measured.
     """
+    from agent_workflows import artifact_meta as _meta
+
     keys: dict[str, list[str]] = {}
     other: list[str] = []
     for line in region.splitlines():
-        m = _FRONT_MATTER_BULLET_RE.match(line)
-        if m:
-            keys.setdefault(m.group(1), []).append(m.group(2).strip())
+        fields, _errors = _meta.parse_metadata_block([line])
+        if fields:
+            for key, value in fields.items():
+                keys.setdefault(key, []).append(value)
         else:
             other.append(line)
     return keys, tuple(other)
@@ -5797,6 +5790,8 @@ def _body_change_is_history_insert_only(
     """
     import difflib
 
+    from agent_workflows import artifact_meta as _meta
+
     norm_path = path.strip().replace("\\", "/") if path else ""
     is_jsonl_log = bool(norm_path.endswith(".jsonl"))
     if is_jsonl_log:
@@ -5824,7 +5819,7 @@ def _body_change_is_history_insert_only(
                     return False, ()
                 if not isinstance(parsed, dict):
                     return False, ()
-            elif not _HISTORY_BULLET_RE.match(line):
+            elif not _meta.is_history_record(line):
                 return False, ()
             inserted.append(line)
     return True, tuple(inserted)
@@ -5920,9 +5915,9 @@ def classify_records_only_front_matter_conflict(
     base_region, base_body = _split_metadata_region(base_text)
     target_region, _target_body = _split_metadata_region(target_text)
     incoming_region, incoming_body = _split_metadata_region(incoming_text)
-    base_keys, base_other = _front_matter_bullets(base_region)
-    target_keys, _target_other = _front_matter_bullets(target_region)
-    incoming_keys, incoming_other = _front_matter_bullets(incoming_region)
+    base_keys, base_other = _region_bullet_keys(base_region)
+    target_keys, _target_other = _region_bullet_keys(target_region)
+    incoming_keys, incoming_other = _region_bullet_keys(incoming_region)
 
     # 4. NON-BULLET METADATA LINES MUST BE IDENTICAL on the incoming side.
     if base_other != incoming_other:
@@ -6330,11 +6325,9 @@ def apply_records_only_rederivation(
                 "its current content is unknown",
             )
         region, _body = _split_metadata_region(target_text)
-        existing, _other = _front_matter_bullets(region)
+        existing, _other = _region_bullet_keys(region)
         new_pairs = [(k, v) for k, v in verdict.added_keys if k not in existing]
-        if new_pairs and not any(
-            _FRONT_MATTER_BULLET_RE.match(ln.rstrip("\n")) for ln in region.splitlines()
-        ):
+        if new_pairs and not existing:
             return (
                 False,
                 f"refusing to re-derive: the target {verdict.path!r} has no front-matter bullet to "
@@ -6797,10 +6790,6 @@ def _three_way_merge_text(
     return rc, merged
 
 
-#: A `## Workflow history` bullet: `- YYYY-MM-DD <anything>`. The date is the sort key.
-_HISTORY_BULLET_RE = re.compile(r"^- (\d{4}-\d{2}-\d{2})\b")
-
-
 def resolve_history_append_conflict(merged_text: Any) -> str | None:
     """Keep both sides of a conflict that ONLY appends dated `## Workflow history` bullets.
 
@@ -6858,13 +6847,15 @@ def resolve_history_append_conflict(merged_text: Any) -> str | None:
                 return None
             if heading != "## Workflow history" or not (ours or theirs):
                 return None
+            from agent_workflows import artifact_meta as _meta
+
             dated: list[tuple[str, int, str]] = []
             for rank, side in ((0, theirs), (1, ours)):
                 for entry in side:
-                    match = _HISTORY_BULLET_RE.match(entry)
-                    if not match:
+                    entry_date = _meta.history_record_date(entry.rstrip("\r\n"))
+                    if entry_date is None:
                         return None
-                    dated.append((match.group(1), rank, entry))
+                    dated.append((entry_date, rank, entry))
             seen: set[str] = set()
             # Newest first; `rank` breaks date ties with the incoming side first (stable sort).
             for _date, _rank, entry in sorted(
@@ -16433,11 +16424,18 @@ def reconcile_item_on_interrupt(
 # ---- plans / selectors ---------------------------------------------------------------------------
 
 
+def _plan_meta_field(text: str, field: str) -> str | None:
+    """One `- <Field>:` value of a plan's metadata region, read through `artifact_meta.read_text`."""
+    st = _read_text_with_loose(text, record_type="ipd")
+    value = (getattr(st, "fields", None) or {}).get(field)
+    return str(value).strip() if value else None
+
+
 def _read_set(text: str) -> str | None:
-    m = _SET_RE.search(text)
-    if not m:
+    value = _plan_meta_field(text, "set")
+    if not value:
         return None
-    raw = m.group(1).split("(")[0].strip()
+    raw = value.split("(")[0].strip()
     if not raw:
         return None
     token = raw.split()[0].strip("\"'").strip()
@@ -16445,8 +16443,8 @@ def _read_set(text: str) -> str | None:
 
 
 def _read_order(text: str) -> int | None:
-    m = _ORDER_RE.search(text)
-    return int(m.group(1)) if m else None
+    value = _plan_meta_field(text, "order")
+    return int(value) if value and value.isascii() and value.isdigit() else None
 
 
 # ==================================================================================================
@@ -16490,8 +16488,8 @@ def _read_kind(text: str) -> str | None:
     """Read the IPD's `- Kind:` metadata (orchestrator|child). This is the RELIABLE
     signal for 'is this an orchestrator' - NOT the Order number - matching
     ipd_schema.KIND_ORCHESTRATOR/KIND_CHILD."""
-    m = _KIND_RE.search(text)
-    return m.group(1).lower() if m else None
+    value = _plan_meta_field(text, "plan_role")
+    return value.split()[0].lower() if value else None
 
 
 def _read_item_dependencies(
@@ -33351,9 +33349,24 @@ def run_review_sequence(
         cur = plan_file.read_text(encoding="utf-8")
         doc_c = ipd_lint.parse(cur)
         if doc_c.meta_fields.get("Status") != "to-review":
-            plan_file.write_text(
-                re.sub(r"(?m)^- Status:.*$", "- Status: to-review", cur),
-                encoding="utf-8",
+            from agent_workflows import artifact_core as _core
+            from agent_workflows import artifact_meta as _am
+
+            # The status MIRROR is rewritten through the one legacy writer: `LegacyRender.status`
+            # with no events, because a generic `set` of `status` is refused (it is event-owned) and
+            # a `transition` would also demand clearing `Readiness`/`Approval`, which this restore
+            # to the reviewed snapshot must not touch.
+            _am.append(
+                _am.LegacyTarget(plan_file, "plans", item.get("id6")),
+                [],
+                legacy_render=_am.LegacyRender(
+                    tag="legacy",
+                    day=_core.utc_history_date(),
+                    actor_label="aw run",
+                    history=False,
+                    status="to-review",
+                ),
+                repo_root=target_root,
             )
         save_state(run_dir, state)
         return 1, s_id, last_log, last_argv
@@ -54934,12 +54947,20 @@ def perform_coordinator_proposal_file(
             p_path = resolve_plan_path(repo, str(item_plan_file), item_id6)
             if p_path and p_path.is_file():
                 raw_txt = p_path.read_text(encoding="utf-8")
-                m_prio = re.search(r"(?m)^-\s*Priority:\s*(\S+)", raw_txt)
-                if m_prio:
-                    item_priority = m_prio.group(1).strip()
-                m_kind = re.search(r"(?m)^-\s*Work-Kind:\s*(\S+)", raw_txt)
-                if m_kind:
-                    item_work_kind = m_kind.group(1).strip()
+                raw_fields = (
+                    getattr(
+                        _read_text_with_loose(raw_txt, record_type="ipd"),
+                        "fields",
+                        None,
+                    )
+                    or {}
+                )
+                raw_prio = str(raw_fields.get("priority") or "").split()
+                if raw_prio:
+                    item_priority = raw_prio[0]
+                raw_kind = str(raw_fields.get("work_kind") or "").split()
+                if raw_kind:
+                    item_work_kind = raw_kind[0]
                 item_blocks_release = _meta_reader.read_loose_blocks_release(raw_txt)
         except Exception:
             pass

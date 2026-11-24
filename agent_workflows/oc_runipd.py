@@ -685,12 +685,6 @@ from agent_workflows.runner_shared import (
     report_parked_drain_summary as report_parked_drain_summary,
 )
 from agent_workflows.runner_shared import (
-    _ORDER_RE as _ORDER_RE,
-)
-from agent_workflows.runner_shared import (
-    _SET_RE as _SET_RE,
-)
-from agent_workflows.runner_shared import (
     new_run_id as new_run_id,
 )
 from agent_workflows.runner_shared import (
@@ -843,7 +837,6 @@ from agent_workflows.runner_shared import (
 # legacy-manifest `kind` fallback this host previously LACKED (`sy7uwh` OQ-03).
 from agent_workflows.runner_shared import (
     PlanRecord as PlanRecord,
-    _KIND_RE as _KIND_RE,
     _read_from_backlog as _read_from_backlog,
     _read_item_dependencies as _read_item_dependencies,
     _read_kind as _read_kind,
@@ -952,12 +945,12 @@ EXECUTION_SUCCESS_STATES = runner_shared.EXECUTION_SUCCESS_STATES
 # Read from `runner_shared` (kz4j7o / s2ewh8 E-04).
 LANE_PROMPT_TIMEOUT = runner_shared.LANE_PROMPT_TIMEOUT
 
-# `_KIND_RE` and `_PLAN_FILENAME_RE` are IMPORTED from `runner_shared` (rununify 06 `sy7uwh` E-03), not
-# defined here. They MOVED with `parse_plan_file`/`_read_kind`, which are the only things that close
-# over them: `_PLAN_FILENAME_RE` was byte-identical in both runners and `_KIND_RE` was oc-only, so
-# leaving a duplicate CONSTANT behind would reproduce the same defect one layer down - a fix to either
-# pattern would still not reach the runner carrying its own copy, which is exactly how `render_stream`'s
-# ANSI constants came to be re-forked. Both are re-exported below with the rest of the shared names.
+# `_PLAN_FILENAME_RE` is IMPORTED from `runner_shared` (rununify 06 `sy7uwh` E-03), not defined here.
+# It MOVED with `parse_plan_file`, the only thing that closes over it: it was byte-identical in both
+# runners, so leaving a duplicate CONSTANT behind would reproduce the same defect one layer down - a fix
+# to the pattern would still not reach the runner carrying its own copy, which is exactly how
+# `render_stream`'s ANSI constants came to be re-forked. The oc-only `_KIND_RE` that moved with it was
+# deleted by metastore `k6nukd`; `_read_kind` reads `- Kind:` through `artifact_meta`.
 #
 # NOTE (lanetruth-03 / 8guhs0 E-01): there is deliberately NO dependency regex here. The runner
 # used to carry a private `_DEPS_RE` matching a LEGACY `Dependencies:`/`Depends-on:` field that no

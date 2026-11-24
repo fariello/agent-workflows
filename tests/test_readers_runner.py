@@ -278,12 +278,24 @@ def test_parse_plan_file_both_hosts_fields(tmp_path: Path) -> None:
         "pending",
     )
 
-    # Host re-exports for _read_id, _SET_RE, _ORDER_RE, _KIND_RE
+    # Host re-exports for _read_id, _read_set, _read_order, _read_kind (the `- Set:`/`- Order:`/
+    # `- Kind:` regex constants were deleted by k6nukd; the readers go through artifact_meta).
     assert oc_runipd._read_id("-  Id: abc123\n") == "abc123"
     assert agy_runipd._read_id("-\tId: abc123\n") == "abc123"
-    assert hasattr(oc_runipd, "_SET_RE") and hasattr(agy_runipd, "_SET_RE")
-    assert hasattr(oc_runipd, "_ORDER_RE") and hasattr(agy_runipd, "_ORDER_RE")
-    assert hasattr(oc_runipd, "_KIND_RE")
+    header = '# IPD: t\n\n-  Set: "my-set" (descriptive)\n-\tOrder: 07\n- Kind: Orchestrator\n'
+    quoted_only = "# IPD: t\n\n## Goal\n\n- Set: body-set\n- Order: 3\n- Kind: child\n"
+    for host in (oc_runipd, agy_runipd):
+        assert host._read_set(header) == "my-set"
+        assert host._read_order(header) == 7
+        assert host._read_kind(header) == "orchestrator"
+        assert host._read_set("# IPD: t\n\n- Set: 'custom-set'\n") == "custom-set"
+        assert host._read_order("# IPD: t\n\n- Order: x\n") is None
+        assert host._read_kind("# IPD: t\n\n- Title: none\n") is None
+        assert (host._read_set(quoted_only), host._read_order(quoted_only)) == (
+            None,
+            None,
+        )
+        assert host._read_kind(quoted_only) is None
 
 
 def test_hold_attended_plan_pins_attended_field(tmp_path: Path) -> None:
