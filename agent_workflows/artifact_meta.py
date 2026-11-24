@@ -949,6 +949,83 @@ _GENERIC_FIXTURE_GIT_TOKENS: FrozenSet[str] = frozenset(
 )
 
 
+_WRITER_RULESET_CACHE: Dict[Tuple[Any, ...], "_leak.Ruleset"] = {}
+_WRITER_RULESET_CACHE_MAX = 64
+
+
+def _stat_sig(path: Path) -> Optional[Tuple[int, int]]:
+    try:
+        st = path.stat()
+        return (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
+
+
+def _writer_ruleset_cache_key(repo_root: Path) -> Tuple[Any, ...]:
+    import socket as _socket
+
+    resolved = _core._resolved_root(repo_root)
+    git_entry = resolved / ".git"
+    git_cfg_sig = _stat_sig(git_entry / "config")
+    git_entry_sig: Any = None
+    if git_cfg_sig is None and git_entry.is_file():
+        try:
+            raw_gd = git_entry.read_text(encoding="utf-8").strip()
+            if raw_gd.startswith("gitdir:"):
+                gd_path = Path(raw_gd.split(":", 1)[1].strip())
+                if not gd_path.is_absolute():
+                    gd_path = (resolved / gd_path).resolve()
+                git_entry_sig = (
+                    _stat_sig(git_entry),
+                    _stat_sig(gd_path / "config"),
+                    _stat_sig(gd_path.parent.parent / "config"),
+                )
+        except OSError:
+            git_entry_sig = _stat_sig(git_entry)
+    allowlist_path = _leak.resolve_allowlist_path(resolved)
+    hints_path = _leak._config_dir() / _leak.USER_HINTS_FILENAME
+    try:
+        home_dir = Path.home()
+    except Exception:
+        home_dir = None
+    home_gitconfig = _stat_sig(home_dir / ".gitconfig") if home_dir else None
+    xdg_cfg = os.environ.get("XDG_CONFIG_HOME")
+    xdg_gitconfig = (
+        _stat_sig(Path(xdg_cfg) / "git" / "config")
+        if xdg_cfg
+        else (_stat_sig(home_dir / ".config" / "git" / "config") if home_dir else None)
+    )
+    try:
+        hostname = _socket.gethostname()
+    except Exception:
+        hostname = ""
+    return (
+        str(resolved),
+        hostname,
+        os.environ.get("HOME"),
+        os.environ.get("USERPROFILE"),
+        os.environ.get("USER"),
+        os.environ.get("USERNAME"),
+        os.environ.get("XDG_CONFIG_HOME"),
+        os.environ.get("AW_CONFIG_DIR"),
+        os.environ.get("AW_HOME"),
+        os.environ.get("GIT_CONFIG"),
+        os.environ.get("GIT_CONFIG_GLOBAL"),
+        os.environ.get("GIT_CONFIG_SYSTEM"),
+        os.environ.get("GIT_CONFIG_NOSYSTEM"),
+        os.environ.get("GIT_CONFIG_PARAMETERS"),
+        os.environ.get("GIT_CONFIG_COUNT"),
+        git_cfg_sig,
+        git_entry_sig,
+        str(allowlist_path),
+        _stat_sig(allowlist_path),
+        str(hints_path),
+        _stat_sig(hints_path),
+        home_gitconfig,
+        xdg_gitconfig,
+    )
+
+
 def _writer_ruleset(repo_root: Path) -> "_leak.Ruleset":
     """The leak ruleset the writer scans with: every `fail` rule plus every auto-derived `warn`
     token EXCEPT sibling checkout directory names and synthetic test-fixture git identities
@@ -960,19 +1037,41 @@ def _writer_ruleset(repo_root: Path) -> "_leak.Ruleset":
     repo such as `../uri` would otherwise substring-refuse valid model identifiers like
     `uri/its_direct/...` and ordinary words like `during` or `security`). Sibling names remain
     advisory-only in `leak_sanitizer.derive_warn_tokens` for `aw check-local-leaks`."""
-    ruleset = _leak.build_ruleset(repo_root, include_warn=True)
+    cache_key: Optional[Tuple[Any, ...]] = None
+    try:
+        cache_key = _writer_ruleset_cache_key(repo_root)
+        cached = _WRITER_RULESET_CACHE.get(cache_key)
+        if cached is not None:
+            return _leak.Ruleset(
+                fail=dict(cached.fail),
+                warn=dict(cached.warn),
+                allow_line_substrings=cached.allow_line_substrings,
+            )
+    except Exception:
+        cache_key = None
+
     try:
         derived = _leak.derive_warn_tokens(repo_root)
     except Exception:
-        return ruleset
-    for tok, reason in derived.items():
-        if reason == "sibling checkout dir name":
-            ruleset.warn.pop(f"derived:{tok}", None)
-        elif (
-            reason in ("git user.name", "git user.email")
-            and tok.lower() in _GENERIC_FIXTURE_GIT_TOKENS
-        ):
-            ruleset.warn.pop(f"derived:{tok}", None)
+        derived = None
+    ruleset = _leak.build_ruleset(repo_root, include_warn=True, derived_tokens=derived)
+    if derived is not None:
+        for tok, reason in derived.items():
+            if reason == "sibling checkout dir name":
+                ruleset.warn.pop(f"derived:{tok}", None)
+            elif (
+                reason in ("git user.name", "git user.email")
+                and tok.lower() in _GENERIC_FIXTURE_GIT_TOKENS
+            ):
+                ruleset.warn.pop(f"derived:{tok}", None)
+    if cache_key is not None:
+        if len(_WRITER_RULESET_CACHE) >= _WRITER_RULESET_CACHE_MAX:
+            _WRITER_RULESET_CACHE.clear()
+        _WRITER_RULESET_CACHE[cache_key] = _leak.Ruleset(
+            fail=dict(ruleset.fail),
+            warn=dict(ruleset.warn),
+            allow_line_substrings=ruleset.allow_line_substrings,
+        )
     return ruleset
 
 

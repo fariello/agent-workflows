@@ -1384,6 +1384,25 @@ def has_stored_records_placement(
     )
 
 
+def project_records_dir_and_stored(
+    repo_root: str | Path,
+    aw_home: Optional[str | Path] = None,
+) -> tuple[Path, bool]:
+    """Return ``(records_dir, has_stored_placement)`` in a single config lookup."""
+    repo = Path(repo_root)
+    stored = _stored_physical_classes(
+        repo, aw_home=aw_home, root_class=RootClass.RECORDS.value
+    )
+    if stored is None:
+        return repo / ".aw" / "records", False
+    records_path = stored.get(RootClass.RECORDS.value, stored.get("records"))
+    if not records_path:
+        return repo / ".aw" / "records", True
+    if _canonical_path(records_path) == _canonical_path(repo / ".aw" / "records"):
+        return repo / ".aw" / "records", True
+    return Path(records_path), True
+
+
 def project_records_dir(
     repo_root: str | Path,
     aw_home: Optional[str | Path] = None,
@@ -1392,18 +1411,7 @@ def project_records_dir(
 
     Pure and side-effect free (spec 20260810-1447-01 Section 4 & 7).
     """
-    repo = Path(repo_root)
-    stored = _stored_physical_classes(
-        repo, aw_home=aw_home, root_class=RootClass.RECORDS.value
-    )
-    if stored is None:
-        return repo / ".aw" / "records"
-    records_path = stored.get(RootClass.RECORDS.value, stored.get("records"))
-    if not records_path:
-        return repo / ".aw" / "records"
-    if _canonical_path(records_path) == _canonical_path(repo / ".aw" / "records"):
-        return repo / ".aw" / "records"
-    return Path(records_path)
+    return project_records_dir_and_stored(repo_root, aw_home=aw_home)[0]
 
 
 def record_git_root(path: str | Path) -> Optional[Path]:

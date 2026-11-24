@@ -551,6 +551,7 @@ def build_ruleset(
     repo_root: Path,
     *,
     include_warn: bool = False,
+    derived_tokens: dict[str, str] | None = None,
 ) -> Ruleset:
     """Assemble the active ruleset: structural fail patterns + curated allowlist + hints,
     and (when include_warn) the advisory auto-derived tokens as warn patterns.
@@ -594,7 +595,12 @@ def build_ruleset(
     hostname_fail = bool(bools.get("hostname_fail"))
 
     if include_warn or hostname_fail:
-        for tok, reason in derive_warn_tokens(repo_root).items():
+        tokens = (
+            derived_tokens
+            if derived_tokens is not None
+            else derive_warn_tokens(repo_root)
+        )
+        for tok, reason in tokens.items():
             is_host = reason in _HOSTNAME_REASONS
             if is_host and hostname_fail:
                 rs.fail[f"hostname:{tok}"] = re.compile(re.escape(tok))

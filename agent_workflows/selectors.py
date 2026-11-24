@@ -270,27 +270,25 @@ def _compute_record_dirs(repo_root_str: str, record_type: str) -> tuple[Path, ..
     seen: set = set()
 
     def _add(p: Path) -> None:
+        if not p.is_dir():
+            return
         try:
             rp = p.resolve()
         except OSError:
             return
         key = str(rp)
-        if key not in seen and p.is_dir():
+        if key not in seen:
             seen.add(key)
             out.append(p)
 
-    from agent_workflows.project_context import (
-        project_records_dir,
-        has_stored_records_placement,
-    )
+    from agent_workflows.project_context import project_records_dir_and_stored
 
     scan_cache = current_scan_cache()
     placement_key = ("selectors._records_placement", repo_root_str)
     if scan_cache is not None and placement_key in scan_cache:
         rec_root, has_stored = scan_cache[placement_key]
     else:
-        rec_root = project_records_dir(repo_root)
-        has_stored = has_stored_records_placement(repo_root)
+        rec_root, has_stored = project_records_dir_and_stored(repo_root)
         if scan_cache is not None:
             scan_cache[placement_key] = (rec_root, has_stored)
 
