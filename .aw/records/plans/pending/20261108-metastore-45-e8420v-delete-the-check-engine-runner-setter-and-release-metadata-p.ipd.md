@@ -43,15 +43,15 @@ This plan deletes nothing; the PIN RULE lives in each part.
 
 ### Task group 1: finish
 
-- [ ] E-17 Finish, part 1: update code comments in `check_engine`, `runner_shared`, `status_set` and `releases` that still cite a deleted symbol (`rg -n "_blob_text|_status_meta|_metadata_status|_front_matter_bullets|_STATUS_RE|_STATUS_META_RE" agent_workflows/check_engine.py agent_workflows/runner_shared.py agent_workflows/status_set.py agent_workflows/releases.py`), then run the `LIT` search of `786w7r` (using `LIT='re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?["'"'"'](\(\?m\))?\^-'`) over those four modules.
+- [x] E-17 Finish, part 1: update code comments in `check_engine`, `runner_shared`, `status_set` and `releases` that still cite a deleted symbol (`rg -n "_blob_text|_status_meta|_metadata_status|_front_matter_bullets|_STATUS_RE|_STATUS_META_RE" agent_workflows/check_engine.py agent_workflows/runner_shared.py agent_workflows/status_set.py agent_workflows/releases.py`), then run the `LIT` search of `786w7r` (using `LIT='re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?["'"'"'](\(\?m\))?\^-'`) over those four modules.
   - Depends on: none
   - Expected outcome: the comment search prints nothing; the `LIT` search shows only F-26 `body prose` rows.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-21 Finish, part 2: run `tests/test_check_engine_status_meta.py`, `tests/test_gate_drop_audit.py`, `tests/test_runner_shared.py`, `tests/test_status_set.py`, `tests/test_releases.py` and the `tests/test_check_engine*.py` modules; compare `aw check all --agent` and `aw check all --all --agent` rule multisets with `786w7r` F-30; run the bare core gate `python3 -m pytest`, `aw ipd lint` on this plan and `aw sanitize --agent`; commit through `aw commit e8420v -- <paths>` with only Scope-Paths files, never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-21 Finish, part 2: run `tests/test_check_engine_status_meta.py`, `tests/test_gate_drop_audit.py`, `tests/test_runner_shared.py`, `tests/test_status_set.py`, `tests/test_releases.py` and the `tests/test_check_engine*.py` modules; compare `aw check all --agent` and `aw check all --all --agent` rule multisets with `786w7r` F-30; run the bare core gate `python3 -m pytest`, `aw ipd lint` on this plan and `aw sanitize --agent`; commit through `aw commit e8420v -- <paths>` with only Scope-Paths files, never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-17
   - Expected outcome: all runs pass; both multisets equal F-30.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -130,15 +130,67 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-17 validates E-17
+- [x] V-17 validates E-17
   - Required evidence: paste the E-17 comment search printing nothing, the `git diff` hunks of any comment edits, and the `LIT` search over the four modules listing only F-26 `body prose` rows.
   - Observed evidence:
-  - Result: pending
+    Run 2026-11-24 in lane worktree `e8420v` at HEAD `e29e38eb1`. The comment search exactly as written in E-17 prints 7 lines, all in `runner_shared.py`, and every one is the substring `_STATUS_RE` inside the live constant names `UNTOOLED_STATUS_RETRY_COUNT_KEY` / `UNTOOLED_STATUS_REFUSAL_CODE` (the pattern is unanchored), not a citation of a deleted symbol (decision 28-e8420v-D1):
 
-- [ ] V-21 validates E-21
+    ```text
+    agent_workflows/runner_shared.py:10726:UNTOOLED_STATUS_RETRY_COUNT_KEY: str = "untooled_status_retry_attempts"
+    agent_workflows/runner_shared.py:10728:UNTOOLED_STATUS_REFUSAL_CODE: str = "untooled-status-change"
+    agent_workflows/runner_shared.py:32368:    UNTOOLED_STATUS_RETRY_COUNT_KEY,
+    agent_workflows/runner_shared.py:48323:                    used = int(item.get(UNTOOLED_STATUS_RETRY_COUNT_KEY) or 0)
+    agent_workflows/runner_shared.py:48333:                        item[UNTOOLED_STATUS_RETRY_COUNT_KEY] = used + 1
+    agent_workflows/runner_shared.py:48345:                            code=UNTOOLED_STATUS_REFUSAL_CODE,
+    agent_workflows/runner_shared.py:48378:                            code=UNTOOLED_STATUS_REFUSAL_CODE,
+    ```
+
+    The same search as whole words (`rg -nw "_blob_text|_status_meta|_metadata_status|_front_matter_bullets|_STATUS_RE|_STATUS_META_RE"` over the four modules) prints nothing, exit 1. No comment cites a deleted symbol, so no comment edit was made and there is no `git diff` hunk (`git diff -- agent_workflows/` is empty).
+
+    `rg -n "$LIT"` over the four modules prints 8 lines, which are the 8 F-26 `body prose (N3)` rows (F26-18, F26-21, F26-35 to F26-40; line numbers moved since the baseline); `status_set.py` and `releases.py` have no hit:
+
+    ```text
+    agent_workflows/check_engine.py:9779:_TARGET_BULLET_RE = _re.compile(r"^-\s*(?:Concern|Scope|Scope-Paths):[ \t]*(.*)$")
+    agent_workflows/check_engine.py:9991:                if not _re.match(r"^-+$", c) and c.lower() not in (
+    agent_workflows/runner_shared.py:22530:    status_m = re.search(r"(?m)^-[ \t]+Status:[ \t]*open\b", block, flags=re.IGNORECASE)
+    agent_workflows/runner_shared.py:22534:    blocking_m = re.search(r"(?m)^-[ \t]+Blocking:[^\n]*", block)
+    agent_workflows/runner_shared.py:22535:    owner_m = re.search(r"(?m)^-[ \t]+Owner:[^\n]*", block)
+    agent_workflows/runner_shared.py:22563:        bullets = list(re.finditer(r"(?m)^-[ \t]+[^\n]*", new_block))
+    agent_workflows/runner_shared.py:22577:    new_blocking_m = re.search(r"(?m)^-[ \t]+Blocking:[^\n]*", new_block)
+    agent_workflows/runner_shared.py:22578:    new_owner_m = re.search(r"(?m)^-[ \t]+Owner:[^\n]*", new_block)
+    ```
+  - Result: pass
+
+- [x] V-21 validates E-21
   - Required evidence: paste the per-module summary of `python3 -m pytest -o addopts="" -rA` over `tests/test_check_engine_status_meta.py`, `tests/test_gate_drop_audit.py`, `tests/test_runner_shared.py`, `tests/test_status_set.py`, `tests/test_releases.py` and `tests/test_check_engine*.py` (one pass count per module); the two rule-id multiset diffs against `786w7r` F-30 (empty, or each difference traced); beside those, the bare `python3 -m pytest` summary line; `aw sanitize --agent` with zero `fail`; and `git show --stat` of every `aw commit e8420v` commit listing only Scope-Paths files.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest -o addopts="" -n 6 --junitxml=... tests/test_gate_drop_audit.py tests/test_runner_shared.py tests/test_status_set.py tests/test_releases.py tests/test_check_engine*.py` (the glob includes `test_check_engine_status_meta.py`): `482 passed in 32.57s`. Per-module counts from the JUnit XML (0 failed, errored or skipped in each):
+
+    ```text
+    test_check_engine: 57 passed
+    test_check_engine_from_spec_missing: 37 passed
+    test_check_engine_metadata_region: 3 passed
+    test_check_engine_plan_date_filename: 7 passed
+    test_check_engine_release_gate: 53 passed
+    test_check_engine_restored_behavior: 3 passed
+    test_check_engine_source_test_citation: 11 passed
+    test_check_engine_spec_criteria: 15 passed
+    test_check_engine_status_meta: 5 passed
+    test_check_engine_test_citation: 5 passed
+    test_gate_drop_audit: 10 passed
+    test_releases: 22 passed
+    test_runner_shared: 144 passed
+    test_status_set: 110 passed
+    ```
+
+    Rule-id multisets (`jq -r '.diagnostics[].rule' | sort | uniq -c`) of `aw check all --agent` (exit 1) and `aw check all --all --agent` (exit 1), each `diff`ed against the multiset text extracted from `786w7r` F-30: `diffA=0`, `diffB=0` (both diffs empty; exit codes equal F-30's 1 and 1).
+
+    Bare core gate `python3 -m pytest`: `2894 passed, 1 skipped, 11 warnings in 164.68s (0:02:44)`, exit 1; a re-run reported only "Core tier wall time: 67.55s exceeded budget of 30.00s" (load average 9.32), no failed test. This is the same wall-time-only exit 1 recorded in F-30 (backlog `6o5aan`).
+
+    `aw sanitize --agent`: `"outcome":"clean","exit":0,"checked":7168,"findings":0`.
+
+    `aw ipd lint` on this plan before the evidence edit: `conforming`. The only commit is this plan file (`git show --stat` is in the run's execution report, since the commit cannot cite its own hash).
+  - Result: pass
 
 ## Approval and execution gate
 
