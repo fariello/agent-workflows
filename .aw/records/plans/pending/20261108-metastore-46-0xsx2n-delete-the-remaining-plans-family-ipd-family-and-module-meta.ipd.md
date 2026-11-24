@@ -85,6 +85,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-238-786w7r-record-the-baseline-for-the-remaining-metadata-regex-deletio.ipd.md
 - Moved to tbvx4r (round-3 split 2026-11-09 per research nj8zdp guidance): E-21 subset 1, `plans_index` (6, with `_META_RE` and `_meta`), `plans_refs` (5), `plans_archive` (5), and `tests/test_plans_archive.py`.
   - Carrier: tbvx4r
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-244-tbvx4r-delete-the-plans-index-plans-refs-and-plans-archive-metadata.ipd.md
 - Moved to qttoyc (round-3 split 2026-11-09 per research nj8zdp guidance): E-21 subset 2, `artifact_rename` (5), `artifact_refs` (1), `artifact_adopt` (1), `artifact_audit` (1, `_STATUS_LINE_RE`), and `tests/test_artifact_audit.py`. Subsets 1 and 2 equal E-21's list.
   - Carrier: qttoyc
 - Moved to nx7fws (round-3 split 2026-11-09 per research nj8zdp guidance): E-22 subset 1, `ipd_lint` (4), `ipd_lifecycle` (4, writer), `ipd_schema` (3), `ipd_authoring` (2).
