@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5 allows exactly one metadata reader (`artifact_meta`). Part 19 of the round-3 split of `k6jd6l` (Order 43, research `nj8zdp` guidance). `backlog.parse_item` returns a `BacklogItem` with metadata fields and body sections; `k6jd6l` E-18 removes its metadata part. This part moves the callers that read METADATA from it onto `artifact_meta`. Measured at `f83159217` (`k6jd6l` F-25 live list): `attention._backlog_record` (1), `set_records.promote_question_to_backlog` and `set_records.close_on_answer` (2), `tools/gate_drop_audit.census` (1), and the `backlog` internal callers `find_duplicate_candidates`, `validate_item`, `existing_backlog_ids`, `blocks_release_of_item`, `find_item`, `run_new`, `run_note` and `run_check` (8).
 - Scope: The caller half of `k6jd6l` E-18's `backlog.parse_item` work. Callers in `check_engine`, `runner_shared`, `status_set` and `production_checks` are in phase-B Scope-Paths (`ffceq0`, `t4gl15`) and expected moved; a live one in Order 280's F-25 is retargeted here with `--scope-reason`. EXCLUDES changing `parse_item` itself (Order 299).
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/set_records.py, tools/gate_drop_audit.py, agent_workflows/backlog.py, tests/test_gate_drop_audit.py, .aw/records/plans/pending/20261109-metastore-298-po3o1c-move-the-backlog-parse-item-metadata-callers-onto-artifact-m.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261124-metastore-01-5t533v-artifact-meta-bullet-reader-strips-edge-whitespace.backlog.md (defect-report carrier the driver requires for a finding made while executing po3o1c artifact_meta.read_text strips edge FF/VT/FS-US/NEL that parse_item kept, hiding them from is_safe_descriptive a new...); agent_workflows/runner_shared.py (k6jd6l F-25 plan 6bxlzb assigns the live runner_shared.perform_coordinator_proposal_file parse_item caller to this plan the plan's Scope says a live F-25 caller is retargeted here with --scope-reason)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15, executed:um2kvx
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: po3o1c
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: po3o1c verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261124-metastore-01-5t533v-artifact-meta-bullet-reader-strips-edge-whitespace.backlog.md: defect-report carrier the driver requires for a finding made while executing po3o1c (artifact_meta.read_text strips edge FF/VT/FS-US/NEL that parse_item kept, hiding them from is_safe_descriptive); a new record, edits no existing file; out-of-scope agent_workflows/runner_shared.py: k6jd6l F-25 (plan 6bxlzb) assigns the live runner_shared.perform_coordinator_proposal_file parse_item caller to this plan; the plan's Scope says a live F-25 caller is retargeted here with --scope-reason; in-scope-unmodified agent_workflows/attention.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_gate_drop_audit.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-298-po3o1c-move-the-backlog-parse-item-metadata-callers-onto-artifact-m.review.md
