@@ -100,7 +100,8 @@ repos:
         always_run: true
 
       # Fast-first pre-push ordering: check remote fast-forward (~0.5s), attention (~8s), and mypy
-      # (~18s) BEFORE spending ~15 minutes on the thorough test suite.
+      # (~18s) BEFORE spending ~15 minutes on the thorough test suite. Each fast gate sets
+      # fail_fast: true so pre-commit aborts immediately instead of falling through to thorough-suite.
       - id: prepush-fast-forward-gate
         name: verify remote fast-forward before slow push gates
         entry: python3 -m agent_workflows.hooks.prepush_fast_forward_gate
@@ -108,6 +109,7 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-push]
+        fail_fast: true
         verbose: true
 
       # basegate (run-20261107T023507Z-1895321): COMMIT-TIME type gate. A hand commit put a mypy
@@ -132,6 +134,7 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-push]
+        fail_fast: true
         verbose: true
 
       # cihealth: static type gate before push.
@@ -142,6 +145,7 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-push]
+        fail_fast: true
         verbose: true
 
       # testtier hguae9: Run the thorough test suite before git push.

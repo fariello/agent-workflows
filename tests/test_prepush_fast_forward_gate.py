@@ -191,12 +191,18 @@ def test_unreachable_remote_fails_fast(tmp_path: Path) -> None:
 def test_precommit_config_runs_fast_gates_before_thorough_suite() -> None:
     cfg_path = Path(__file__).resolve().parents[1] / ".pre-commit-config.yaml"
     data = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
-    pre_push_ids = [
-        hook["id"]
+    pre_push_hooks = [
+        hook
         for repo in data["repos"]
         for hook in repo["hooks"]
         if "pre-push" in (hook.get("stages") or [])
     ]
+    pre_push_ids = [hook["id"] for hook in pre_push_hooks]
+    hooks_by_id = {hook["id"]: hook for hook in pre_push_hooks}
     assert pre_push_ids[0] == "prepush-fast-forward-gate"
     assert pre_push_ids.index("attention-gate") < pre_push_ids.index("thorough-suite")
     assert pre_push_ids.index("static-type-gate") < pre_push_ids.index("thorough-suite")
+    for fast_id in ("prepush-fast-forward-gate", "attention-gate", "static-type-gate"):
+        assert (
+            hooks_by_id[fast_id].get("fail_fast") is True
+        ), f"{fast_id} must set fail_fast: true so pre-commit does not fall through to thorough-suite"
