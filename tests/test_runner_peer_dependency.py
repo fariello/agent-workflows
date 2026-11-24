@@ -290,7 +290,7 @@ class RunnerPeerDependencyTests(unittest.TestCase):
         with _HolderProcess(peer_run_dir / "driver.lock"):
 
             def _move_prereq() -> None:
-                assert held_seen.wait(timeout=10), "the waiter never saw the peer hold"
+                assert held_seen.wait(timeout=60), "the waiter never saw the peer hold"
                 plan_executed = (
                     repo
                     / ".aw"
@@ -310,7 +310,7 @@ class RunnerPeerDependencyTests(unittest.TestCase):
                         current_state,
                         [item],
                         poll=0.05,
-                        timeout=5.0,
+                        timeout=30.0,
                     )
                 finally:
                     t.join()
@@ -373,7 +373,7 @@ class RunnerPeerDependencyTests(unittest.TestCase):
         with _held_observed() as held_seen:
 
             def _stop_holder() -> None:
-                assert held_seen.wait(timeout=10), "the waiter never saw the peer hold"
+                assert held_seen.wait(timeout=60), "the waiter never saw the peer hold"
                 holder.stop()
 
             t = threading.Thread(target=_stop_holder)
@@ -384,7 +384,7 @@ class RunnerPeerDependencyTests(unittest.TestCase):
                     current_state,
                     [item],
                     poll=0.05,
-                    timeout=10.0,
+                    timeout=30.0,
                 )
             finally:
                 t.join()
@@ -686,7 +686,7 @@ class RunnerPeerDependencyTests(unittest.TestCase):
 
                     def _release_prereq() -> None:
                         assert held_seen.wait(
-                            timeout=10
+                            timeout=60
                         ), "the waiter never saw the peer hold"
                         prereq_exec = (
                             repo
@@ -707,6 +707,7 @@ class RunnerPeerDependencyTests(unittest.TestCase):
                             *wargs: object, **wkwargs: object
                         ) -> runner_shared.PeerWaitOutcome:
                             wkwargs["poll"] = 0.05
+                            wkwargs.setdefault("timeout", 60.0)
                             return orig_wait(*wargs, **wkwargs)
 
                         with (

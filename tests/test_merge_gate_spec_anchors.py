@@ -23,6 +23,7 @@ from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared, spec_citations
 from tests import support
+from tests.repo_template import copy_template_repo
 from tests.record_builder import RecordBuilder
 from tests.test_oc_runipd import _CONFORMING_PLAN
 
@@ -63,18 +64,7 @@ class MergeGateSpecAnchorsTests(unittest.TestCase):
     def _setup_fixture(
         self, td: str, id6: str = "spc001", retry_budget: int = 2
     ) -> tuple[pathlib.Path, pathlib.Path, dict, dict]:
-        repo = pathlib.Path(td) / "repo"
-        repo.mkdir(parents=True, exist_ok=True)
-        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
-        subprocess.run(
-            ["git", "config", "user.email", "test@example.invalid"],
-            cwd=repo,
-            check=True,
-        )
-        subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
-        subprocess.run(
-            ["git", "config", "commit.gpgsign", "false"], cwd=repo, check=True
-        )
+        repo = copy_template_repo(pathlib.Path(td) / "repo")
         (repo / ".gitignore").write_text(
             ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
         )

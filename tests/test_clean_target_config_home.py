@@ -37,6 +37,7 @@ from pathlib import Path
 
 from agent_workflows import config, ipd_lifecycle
 from agent_workflows.project_context import project_config_dir, resolve_project_context
+from tests.repo_template import copy_template_repo
 
 
 class TestCleanTargetConfigHome(unittest.TestCase):
@@ -52,17 +53,7 @@ class TestCleanTargetConfigHome(unittest.TestCase):
         self.aw_home.mkdir()
 
         # Initialize git repo
-        subprocess.run(
-            ["git", "init", "-b", "main", "-q"], cwd=str(self.repo), check=True
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "Test User"], cwd=str(self.repo), check=True
-        )
-        subprocess.run(
-            ["git", "config", "user.email", "test@example.com"],
-            cwd=str(self.repo),
-            check=True,
-        )
+        copy_template_repo(self.repo)
         (self.repo / "README.md").write_text("# Test Repo\n", encoding="utf-8")
         subprocess.run(["git", "add", "README.md"], cwd=str(self.repo), check=True)
         subprocess.run(
@@ -383,21 +374,7 @@ class TestCleanTargetConfigHome(unittest.TestCase):
 
     def test_case_j_public_target_private_companion(self) -> None:
         """Case (j): public-target-private-companion install keeps config_project in target and tracked delivery."""
-        companion_repo = self.base / "companion_repo"
-        companion_repo.mkdir()
-        subprocess.run(
-            ["git", "init", "-b", "main", "-q"], cwd=str(companion_repo), check=True
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "Test User"],
-            cwd=str(companion_repo),
-            check=True,
-        )
-        subprocess.run(
-            ["git", "config", "user.email", "test@example.com"],
-            cwd=str(companion_repo),
-            check=True,
-        )
+        companion_repo = copy_template_repo(self.base / "companion_repo")
         (companion_repo / "README.md").write_text("# Companion\n", encoding="utf-8")
         subprocess.run(["git", "add", "README.md"], cwd=str(companion_repo), check=True)
         subprocess.run(
@@ -426,19 +403,7 @@ class TestCleanTargetConfigHome(unittest.TestCase):
     def test_case_k_clean_target_install_zero_target_delta(self) -> None:
         """Case (k): clean-target install (both presets) leaves zero target delta and writes home state."""
         for i, preset in enumerate(("completely-clean-target", "local-only")):
-            target = self.base / f"repo_k_{i}"
-            target.mkdir()
-            subprocess.run(
-                ["git", "init", "-b", "main", "-q"], cwd=str(target), check=True
-            )
-            subprocess.run(
-                ["git", "config", "user.name", "Test User"], cwd=str(target), check=True
-            )
-            subprocess.run(
-                ["git", "config", "user.email", "test@example.com"],
-                cwd=str(target),
-                check=True,
-            )
+            target = copy_template_repo(self.base / f"repo_k_{i}")
             (target / "README.md").write_text("# Test\n", encoding="utf-8")
             subprocess.run(["git", "add", "README.md"], cwd=str(target), check=True)
             subprocess.run(
@@ -512,17 +477,7 @@ class TestCleanTargetConfigHome(unittest.TestCase):
 
     def test_case_l_tracked_install_still_writes_target(self) -> None:
         """Case (l): tracked private-target install still writes target, commits under -y, and matches baseline."""
-        target = self.base / "repo_l"
-        target.mkdir()
-        subprocess.run(["git", "init", "-b", "main", "-q"], cwd=str(target), check=True)
-        subprocess.run(
-            ["git", "config", "user.name", "Test User"], cwd=str(target), check=True
-        )
-        subprocess.run(
-            ["git", "config", "user.email", "test@example.com"],
-            cwd=str(target),
-            check=True,
-        )
+        target = copy_template_repo(self.base / "repo_l")
         (target / "README.md").write_text("# Test\n", encoding="utf-8")
         subprocess.run(["git", "add", "README.md"], cwd=str(target), check=True)
         subprocess.run(
@@ -713,11 +668,7 @@ class TestCleanTargetConfigHome(unittest.TestCase):
         )
 
         # 1. completely-clean-target -> True
-        repo_clean = self.base / "repo_pred_clean"
-        repo_clean.mkdir()
-        subprocess.run(
-            ["git", "init", "-b", "main", "-q"], cwd=str(repo_clean), check=True
-        )
+        repo_clean = copy_template_repo(self.base / "repo_pred_clean")
         pol_clean = resolve_policy_noninteractive(
             str(repo_clean),
             explicit_preset="completely-clean-target",
@@ -727,11 +678,7 @@ class TestCleanTargetConfigHome(unittest.TestCase):
         self.assertTrue(engine._is_clean_delta_install(repo_clean))
 
         # 2. local-only -> True
-        repo_local = self.base / "repo_pred_local"
-        repo_local.mkdir()
-        subprocess.run(
-            ["git", "init", "-b", "main", "-q"], cwd=str(repo_local), check=True
-        )
+        repo_local = copy_template_repo(self.base / "repo_pred_local")
         pol_local = resolve_policy_noninteractive(
             str(repo_local),
             explicit_preset="local-only",
@@ -741,11 +688,7 @@ class TestCleanTargetConfigHome(unittest.TestCase):
         self.assertTrue(engine._is_clean_delta_install(repo_local))
 
         # 3. private-target -> False
-        repo_priv = self.base / "repo_pred_priv"
-        repo_priv.mkdir()
-        subprocess.run(
-            ["git", "init", "-b", "main", "-q"], cwd=str(repo_priv), check=True
-        )
+        repo_priv = copy_template_repo(self.base / "repo_pred_priv")
         pol_priv = resolve_policy_noninteractive(
             str(repo_priv),
             explicit_preset="private-target",
@@ -755,11 +698,7 @@ class TestCleanTargetConfigHome(unittest.TestCase):
         self.assertFalse(engine._is_clean_delta_install(repo_priv))
 
         # 4. public-target-private-companion -> False
-        repo_comp = self.base / "repo_pred_comp"
-        repo_comp.mkdir()
-        subprocess.run(
-            ["git", "init", "-b", "main", "-q"], cwd=str(repo_comp), check=True
-        )
+        repo_comp = copy_template_repo(self.base / "repo_pred_comp")
         comp_dir = self.base / "repo_pred_comp_store"
         comp_dir.mkdir()
         pol_comp = resolve_policy_noninteractive(
@@ -772,11 +711,7 @@ class TestCleanTargetConfigHome(unittest.TestCase):
         self.assertFalse(engine._is_clean_delta_install(repo_comp))
 
         # 5. unconfigured repo -> False
-        repo_unconf = self.base / "repo_pred_unconf"
-        repo_unconf.mkdir()
-        subprocess.run(
-            ["git", "init", "-b", "main", "-q"], cwd=str(repo_unconf), check=True
-        )
+        repo_unconf = copy_template_repo(self.base / "repo_pred_unconf")
         self.assertFalse(engine._is_clean_delta_install(repo_unconf))
 
         # 6. stored-tracked repo -> False
@@ -815,21 +750,7 @@ class TestCleanTargetConfigHome(unittest.TestCase):
 
         for preset in ("completely-clean-target", "local-only"):
             with self.subTest(preset=preset):
-                r = self.base / f"repo_o_{preset}"
-                r.mkdir()
-                subprocess.run(
-                    ["git", "init", "-b", "main", "-q"], cwd=str(r), check=True
-                )
-                subprocess.run(
-                    ["git", "config", "user.name", "Test User"],
-                    cwd=str(r),
-                    check=True,
-                )
-                subprocess.run(
-                    ["git", "config", "user.email", "test@example.com"],
-                    cwd=str(r),
-                    check=True,
-                )
+                r = copy_template_repo(self.base / f"repo_o_{preset}")
                 (r / "README.md").write_text("# Test\n", encoding="utf-8")
                 subprocess.run(["git", "add", "README.md"], cwd=str(r), check=True)
                 subprocess.run(

@@ -17,6 +17,7 @@ from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, render_stream, runner_shared
 from tests import support
+from tests.repo_template import copy_template_repo
 from tests.record_builder import RecordBuilder
 from tests.test_oc_runipd import _CONFORMING_PLAN
 
@@ -71,13 +72,7 @@ class TestFrozenFixItCaps(unittest.TestCase):
         import argparse
 
         with tempfile.TemporaryDirectory() as td:
-            repo = pathlib.Path(td)
-            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-            for cmd in (
-                ["git", "config", "user.email", "test@example.invalid"],
-                ["git", "config", "user.name", "Test"],
-            ):
-                subprocess.run(cmd, cwd=repo, check=True)
+            repo = copy_template_repo(pathlib.Path(td))
             cfg_dir = repo / ".aw" / "config"
             cfg_dir.mkdir(parents=True)
             (cfg_dir / "project.json").write_text(
@@ -767,18 +762,7 @@ class TestEndToEndGlobalCaps(unittest.TestCase):
         fix_it_caps: dict | None = None,
         setid: str = "demo",
     ) -> tuple[pathlib.Path, pathlib.Path, dict, dict]:
-        repo = pathlib.Path(td) / "repo"
-        repo.mkdir(parents=True, exist_ok=True)
-        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
-        subprocess.run(
-            ["git", "config", "user.email", "test@example.invalid"],
-            cwd=repo,
-            check=True,
-        )
-        subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
-        subprocess.run(
-            ["git", "config", "commit.gpgsign", "false"], cwd=repo, check=True
-        )
+        repo = copy_template_repo(pathlib.Path(td) / "repo")
         (repo / ".gitignore").write_text(
             ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
         )

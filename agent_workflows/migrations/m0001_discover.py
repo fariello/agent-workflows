@@ -392,10 +392,19 @@ def _detect_source_tree(
     return "records"
 
 
-def _repo_rel(path: Path, repo_path: Path, fallback_rel: str) -> str:
+def _repo_rel(
+    path: Path,
+    repo_path: Path,
+    fallback_rel: str,
+    *,
+    resolved_repo: Optional[Path] = None,
+    resolved_path: Optional[Path] = None,
+) -> str:
     """Return ``path`` relative to ``repo_path`` when inside it, else ``fallback_rel``."""
     try:
-        return path.resolve().relative_to(repo_path.resolve()).as_posix()
+        rp = resolved_path if resolved_path is not None else path.resolve()
+        rr = resolved_repo if resolved_repo is not None else repo_path.resolve()
+        return rp.relative_to(rr).as_posix()
     except (OSError, ValueError):
         return fallback_rel
 
@@ -523,14 +532,24 @@ def discover(
         "no spec or backlog history names a sidecar-writing setter"
     )
 
+    resolved_repo = repo_path.resolve()
     for tree_root, is_agents in scan_roots:
         source_tree = _detect_source_tree(
             repo_path, eff_records_root, tree_root, is_agents=is_agents
         )
+        resolved_tree_root = tree_root.resolve()
+        try:
+            tree_rel_obj = resolved_tree_root.relative_to(resolved_repo)
+            tree_rel_prefix: Optional[str] = (
+                "" if tree_rel_obj == Path(".") else f"{tree_rel_obj.as_posix()}/"
+            )
+        except ValueError:
+            tree_rel_prefix = None
         for cur_dir, dirs, files in os.walk(tree_root):
             cur_path = Path(cur_dir)
             rel_dir = cur_path.relative_to(tree_root)
             rel_dir_parts = rel_dir.parts if rel_dir != Path(".") else ()
+            cur_rel_prefix = f"{rel_dir.as_posix()}/" if rel_dir_parts else ""
 
             kept_dirs: List[str] = []
             excluded_subdirs: List[Tuple[str, str, str]] = []
@@ -575,15 +594,34 @@ def discover(
                 sub_path = cur_path / dname
                 for ex_cur, _ex_dirs, ex_files in os.walk(sub_path):
                     ex_cur_p = Path(ex_cur)
+                    ex_rel_dir = ex_cur_p.relative_to(tree_root)
+                    ex_rel_prefix = (
+                        f"{ex_rel_dir.as_posix()}/" if ex_rel_dir != Path(".") else ""
+                    )
                     for fname in sorted(ex_files):
                         if not fname.endswith(".md"):
                             continue
                         fpath = ex_cur_p / fname
-                        f_res = fpath.resolve()
+                        rel_p = f"{ex_rel_prefix}{fname}"
+                        if fpath.is_symlink():
+                            f_res = fpath.resolve()
+                            ex_repo_rel_p = _repo_rel(
+                                fpath,
+                                repo_path,
+                                rel_p,
+                                resolved_repo=resolved_repo,
+                                resolved_path=f_res,
+                            )
+                        else:
+                            f_res = resolved_tree_root / rel_p
+                            ex_repo_rel_p = (
+                                f"{tree_rel_prefix}{rel_p}"
+                                if tree_rel_prefix is not None
+                                else rel_p
+                            )
                         if f_res in seen_files:
                             continue
                         seen_files.add(f_res)
-                        rel_p = fpath.relative_to(tree_root).as_posix()
                         eff_cat = (
                             "excluded-manifest"
                             if is_non_record_filename(fname)
@@ -598,7 +636,7 @@ def discover(
                             UnclassifiedFile(
                                 path=fpath,
                                 rel_path=rel_p,
-                                repo_rel_path=_repo_rel(fpath, repo_path, rel_p),
+                                repo_rel_path=ex_repo_rel_p,
                                 source_tree=source_tree,
                                 category=eff_cat,
                                 reason=eff_reason,
@@ -611,14 +649,28 @@ def discover(
                 if not fname.endswith(".md"):
                     continue
                 fpath = cur_path / fname
-                f_res = fpath.resolve()
+                rel_p = f"{cur_rel_prefix}{fname}"
+                if fpath.is_symlink():
+                    f_res = fpath.resolve()
+                    repo_rel_p = _repo_rel(
+                        fpath,
+                        repo_path,
+                        rel_p,
+                        resolved_repo=resolved_repo,
+                        resolved_path=f_res,
+                    )
+                else:
+                    f_res = resolved_tree_root / rel_p
+                    repo_rel_p = (
+                        f"{tree_rel_prefix}{rel_p}"
+                        if tree_rel_prefix is not None
+                        else rel_p
+                    )
                 if f_res in seen_files:
                     continue
                 seen_files.add(f_res)
 
-                rel_p = fpath.relative_to(tree_root).as_posix()
-                repo_rel_p = _repo_rel(fpath, repo_path, rel_p)
-                rel_parts = Path(rel_p).parts
+                rel_parts = (*rel_dir_parts, fname)
 
                 if (
                     is_agents

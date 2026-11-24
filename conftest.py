@@ -737,7 +737,16 @@ def pytest_runtest_call(item):
                 f"\n[conftest] TEST HANG GUARD: {item.nodeid} exceeded {cpu_budget:g}s CPU budget; "
                 "stacks of every thread at expiry follow.\n"
             )
-            _faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+            try:
+                _faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+            except Exception:
+                if sys.__stderr__ is not None:
+                    try:
+                        _faulthandler.dump_traceback(
+                            file=sys.__stderr__, all_threads=True
+                        )
+                    except Exception:
+                        pass
             sys.stderr.flush()
         raise TestHangTimeout(
             f"TEST HANG GUARD: {item.nodeid} exceeded its {cpu_budget:g}s CPU budget. The frame "
@@ -752,7 +761,16 @@ def pytest_runtest_call(item):
                 f"\n[conftest] TEST HANG GUARD: {item.nodeid} exceeded {wall_budget:g}s wall ceiling; "
                 "stacks of every thread at expiry follow.\n"
             )
-            _faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+            try:
+                _faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+            except Exception:
+                if sys.__stderr__ is not None:
+                    try:
+                        _faulthandler.dump_traceback(
+                            file=sys.__stderr__, all_threads=True
+                        )
+                    except Exception:
+                        pass
             sys.stderr.flush()
         raise TestHangTimeout(
             f"TEST HANG GUARD: {item.nodeid} exceeded its {wall_budget:g}s wall ceiling. The frame "
