@@ -127,6 +127,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-294-8ysz6b-delete-the-selectors-record-text-readers-and-rebind-the-runn.ipd.md
 - E-11: the `prompts` readers and `attention._frontmatter_block`: Moved to iup4lp (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: iup4lp
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-295-iup4lp-delete-the-prompts-text-readers-and-attention-frontmatter-bl.ipd.md
 - E-11: the `plans` readers, deleting `selectors.metadata_region`, and the subset-1 check (V-11): Moved to hrbbhy (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: hrbbhy
 - E-18: the `specs._read_*` readers: Moved to um2kvx (round-3 split 2026-11-09 per research nj8zdp guidance).
