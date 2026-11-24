@@ -42,25 +42,25 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 
 ### Task group 1: one module per item
 
-- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-08-before.txt`. In `agent_workflows/releases.py`, delete `releases._in_metadata_region`, `releases.set_blocks_release_line`, `set_priority_line` and `set_work_kind_line`.
+- [x] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-08-before.txt`. In `agent_workflows/releases.py`, delete `releases._in_metadata_region`, `releases.set_blocks_release_line`, `set_priority_line` and `set_work_kind_line`.
   - Depends on: none
   - Expected outcome: the four definitions are gone and nothing imports them.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/releases.py`, delete `releases.set_from_backlog_line`, `set_from_spec_line`, `set_item_dependencies_line` and `set_graduated_to_line`.
+- [x] E-02 In `agent_workflows/releases.py`, delete `releases.set_from_backlog_line`, `set_from_spec_line`, `set_item_dependencies_line` and `set_graduated_to_line`.
   - Depends on: E-01
   - Expected outcome: the four definitions are gone and nothing imports them.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Delete `backlog.set_release_exempt_kind_line`, `backlog.set_release_exempt_ref_line`, `backlog.set_close_evidence_line` and `research_cmd._set_priority_line`.
+- [x] E-03 Delete `backlog.set_release_exempt_kind_line`, `backlog.set_release_exempt_ref_line`, `backlog.set_close_evidence_line` and `research_cmd._set_priority_line`.
   - Depends on: E-02
   - Expected outcome: the four definitions are gone.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Update the comments that cite a deleted writer in `agent_workflows/hooks/backlog_blocking_close_gate.py`, `agent_workflows/attention.py` and `agent_workflows/ipd_schema.py` to name the `artifact_meta` writer instead; then save the after-list and commit through `aw commit zs7a45 -- <paths>`.
+- [x] E-04 Update the comments that cite a deleted writer in `agent_workflows/hooks/backlog_blocking_close_gate.py`, `agent_workflows/attention.py` and `agent_workflows/ipd_schema.py` to name the `artifact_meta` writer instead; then save the after-list and commit through `aw commit zs7a45 -- <paths>`.
   - Depends on: E-03
   - Expected outcome: `rg -n "def set_[a-z_]+_line|def _in_metadata_region|def _set_priority_line" agent_workflows` lists only `artifact_meta.py`; the eleven pinned modules pass with the same cases.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -117,25 +117,50 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "_in_metadata_region|set_(blocks_release|priority|work_kind)_line" agent_workflows tools tests` listing only `artifact_meta.py` (and comment lines, each quoted).
   - Observed evidence:
-  - Result: pending
+      `rg -n "_in_metadata_region|set_(blocks_release|priority|work_kind)_line" agent_workflows tools tests` after commit d4c5c4981 lists only `agent_workflows/artifact_meta.py` (the folded `_legacy_*` copies, their docstrings and the `bullet_writers` table), first and last lines:
+        agent_workflows/artifact_meta.py:6500:def _legacy_in_metadata_region(
+        agent_workflows/artifact_meta.py:6509:    Copy of ``releases._set_bullet_via_meta``, which replaced ``releases._in_metadata_region`` in
+        agent_workflows/artifact_meta.py:6518:def _legacy_set_blocks_release_line(text: str, value: Optional[str]) -> str:
+        ...
+        agent_workflows/artifact_meta.py:7347:        "work_kind": _legacy_set_work_kind_line,
+      No line in `releases.py`, `tools/` or `tests/`. `releases._in_metadata_region` had already been renamed `releases._set_bullet_via_meta` by commit 135a585b2; that helper was deleted here (no caller remained, decision D1).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "set_(from_backlog|from_spec|item_dependencies|graduated_to)_line" agent_workflows tools tests` listing only `artifact_meta.py` and comment lines.
   - Observed evidence:
-  - Result: pending
+      `rg -n "set_(from_backlog|from_spec|item_dependencies|graduated_to)_line" agent_workflows tools tests` lists `agent_workflows/artifact_meta.py` lines 6545 to 7351 (the `_legacy_*` copies and their docstrings) plus one comment line outside scope:
+        agent_workflows/status_set.py:4615:    edit happens in ``apply_status_change`` via the shared ``releases.set_item_dependencies_line``
+      That line is a stale docstring in `status_set.py`, a file outside this plan's Scope-Paths and outside the three comment sites the plan names. It is not a caller. It was left unedited and filed as a backlog item (see the run's outcome file defect report).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "def (set_release_exempt_(kind|ref)_line|set_close_evidence_line|_set_priority_line)" agent_workflows/backlog.py agent_workflows/research_cmd.py` printing nothing.
   - Observed evidence:
-  - Result: pending
+      `rg -n "def (set_release_exempt_(kind|ref)_line|set_close_evidence_line|_set_priority_line)" agent_workflows/backlog.py agent_workflows/research_cmd.py` printed nothing (exit 1).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n "set_[a-z_]+_line|_set_priority_line" agent_workflows/hooks/backlog_blocking_close_gate.py agent_workflows/attention.py agent_workflows/ipd_schema.py` printing nothing, `rg -n "def set_[a-z_]+_line|def _in_metadata_region|def _set_priority_line" agent_workflows` listing only `agent_workflows/artifact_meta.py`, `diff .aw/state/9o83cr/E-08-before.txt .aw/state/9o83cr/E-08-after.txt` with no FAILED or ERROR line, and `git show --stat` of the `aw commit zs7a45` commit.
   - Observed evidence:
-  - Result: pending
+      `rg -n "set_[a-z_]+_line|_set_priority_line" agent_workflows/hooks/backlog_blocking_close_gate.py agent_workflows/attention.py agent_workflows/ipd_schema.py` printed nothing (exit 1).
+      `rg -n "def set_[a-z_]+_line|def _in_metadata_region|def _set_priority_line" agent_workflows`:
+        agent_workflows/artifact_meta.py:6446:def set_legacy_bullet_line(
+      `diff .aw/state/9o83cr/E-08-before.txt .aw/state/9o83cr/E-08-after.txt` printed nothing (identical, 202 lines each, all PASSED, `grep -cE "^(FAILED|ERROR)"` = 0). Per module after: test_artifact_meta_legacy 19, test_backlog_handoff_close 40, test_backlog_metadata_duplicate_and_gate_summary 8, test_blocks_release_reader_bounding 9, test_check_engine_from_spec_missing 37, test_check_engine_spec_criteria 15, test_from_backlog_cardinality 7, test_releases_line_writers 23, test_releases_sibling_line_writers_bounding 9, test_research_descriptive_safety 24, test_research_priority 11. No test renamed or removed.
+      `aw suite`: `2898 passed, 1 skipped, 11 warnings in 147.64s (0:02:27)`.
+      `git show --stat d4c5c4981`:
+        work(zs7a45): delete the original metadata value writers; artifact_meta is the one writer
+         agent_workflows/attention.py                       |  7 +-
+         agent_workflows/backlog.py                         | 82 +-----------------
+         .../hooks/backlog_blocking_close_gate.py           |  3 +-
+         agent_workflows/ipd_schema.py                      |  2 +-
+         agent_workflows/releases.py                        | 97 ----------------------
+         agent_workflows/research_cmd.py                    | 40 ---------
+         6 files changed, 8 insertions(+), 223 deletions(-)
+  - Result: pass
 
 ## Approval and execution gate
 
