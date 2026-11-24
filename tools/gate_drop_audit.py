@@ -48,7 +48,7 @@ import re
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-from agent_workflows import backlog, check_engine
+from agent_workflows import artifact_meta, backlog, check_engine
 
 
 #: The date plan orb9zb was finalized (commit 844533abf, Tue Aug 25 23:41:30 2026 -0400),
@@ -188,8 +188,12 @@ def census(repo_root: Path, *, naive: bool = False) -> Dict[str, Any]:
             else:
                 partition = "post-predicate"
 
-            item_obj = backlog.parse_item(item_text)
-            work_kind = item_obj.kind or "unknown"
+            work_kind = (
+                artifact_meta.read_text(item_text, record_type="backlog").fields.get(
+                    "work_kind"
+                )
+                or "unknown"
+            )
 
             try:
                 rel_filename = str(item_path.relative_to(repo_root)).replace("\\", "/")

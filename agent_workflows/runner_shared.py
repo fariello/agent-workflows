@@ -54768,7 +54768,6 @@ def perform_coordinator_proposal_file(
         git_commit_helper as _gch,
         ipd_lifecycle,
     )
-    from agent_workflows.backlog import parse_item
 
     # 1. Inherit priority, work_kind, blocks_release from the proposing item
     item_priority = "medium"
@@ -55226,8 +55225,11 @@ def perform_coordinator_proposal_file(
                             skipped_backlog_reasons=tuple(lane_pre_skipped),
                         )
                     created_backlog = bl_files[0]
-                    bl_parsed = parse_item(created_backlog.read_text(encoding="utf-8"))
-                    record_id6 = bl_parsed.id or item_id6
+                    bl_state = _meta_reader.read_text(
+                        created_backlog.read_text(encoding="utf-8"),
+                        record_type="backlog",
+                    )
+                    record_id6 = bl_state.id6 or item_id6
                     new_record_rel = str(
                         created_backlog.relative_to(coord.path)
                     ).replace("\\", "/")

@@ -19,7 +19,7 @@ inspects through normal AW records/attention:
   * ``promote_local_checkpoints`` - on recovery, promote any untracked local decision/question
     checkpoint into the tracked walkthrough before releasing another lane.
 
-Reuses: ``backlog.BacklogItem``/``_render_item``/``parse_item``/``validate_item``,
+Reuses: ``backlog.BacklogItem``/``_render_item``/``item_from_text``/``validate_item``,
 ``attention_contract.validate_gate_ref``, ``artifact_naming.build_clustered_name``,
 ``record_producers.resolve_record_path``, and ``artifact_core.atomic_write``. Emits no consent and
 never marks an IPD executed.
@@ -371,7 +371,7 @@ def promote_question_to_backlog(
 
     existing_ids = set()
     for f in _backlog._iter_items(repo_root):
-        pid = _backlog.parse_item(f.read_text(encoding="utf-8")).id
+        pid = _backlog.item_from_text(f.read_text(encoding="utf-8")).id
         if pid:
             existing_ids.add(pid)
     # IPD sk7ggr E-01: repository-wide mint (see artifact_core.mint_id6). This site was absent from
@@ -463,7 +463,7 @@ def close_on_answer(repo_root: Path, backlog_path: Path) -> Path:
     from agent_workflows import check_engine as _check_engine
 
     text = backlog_path.read_text(encoding="utf-8")
-    item = _backlog.parse_item(text)
+    item = _backlog.item_from_text(text)
     if item.status != "blocked":
         raise ValueError(
             f"close_on_answer requires status 'blocked', got {item.status!r}"

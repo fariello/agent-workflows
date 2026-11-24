@@ -302,7 +302,7 @@ def find_duplicate_candidates(
             text = f.read_text(encoding="utf-8")
         except OSError:
             continue
-        items_data.append((f, parse_item(text), text))
+        items_data.append((f, item_from_text(text), text))
     return find_duplicate_candidates_in_items(items_data, summary=summary, body=body)
 
 
@@ -397,6 +397,46 @@ def parse_item(text: str) -> BacklogItem:
     return item
 
 
+def _single_token(value: object) -> Optional[str]:
+    if value is None:
+        return None
+    s = str(value).strip()
+    return s if (s and len(s.split()) == 1) else None
+
+
+def _nonempty(value: object) -> Optional[str]:
+    if value is None:
+        return None
+    s = str(value).strip()
+    return s or None
+
+
+def item_from_text(text: str) -> BacklogItem:
+    """A :class:`BacklogItem` whose metadata fields are read through ``artifact_meta.read_text``.
+
+    Single-token fields (``Id``, ``Status``, ``Set``, ``Priority``, ``Work-Kind``, ``Gate-Kind``,
+    ``Blocks-Release``, ``Release-Exempt-Kind``) are ``None`` unless the value is one token, as the
+    ``\\S+`` patterns of :func:`parse_item` required; the descriptive fields keep their whole value.
+    """
+    from agent_workflows import artifact_meta as _meta
+
+    fields = _meta.read_text(text, record_type="backlog").fields or {}
+    item = BacklogItem()
+    item.id = _single_token(fields.get("id"))
+    item.status = _single_token(fields.get("status"))
+    item.set = _single_token(fields.get("set"))
+    item.priority = _single_token(fields.get("priority"))
+    item.kind = _single_token(fields.get("work_kind"))
+    item.summary = _nonempty(fields.get("summary"))
+    item.gate_kind = _single_token(fields.get("gate_kind"))
+    item.gate_ref = _nonempty(fields.get("gate_ref"))
+    item.blocks_release = _single_token(fields.get("blocks_release"))
+    item.release_exempt_kind = _single_token(fields.get("release_exempt_kind"))
+    item.release_exempt_ref = _nonempty(fields.get("release_exempt_ref"))
+    item.close_evidence = _nonempty(fields.get("close_evidence"))
+    return item
+
+
 def _dir_status(path: Path) -> Optional[str]:
     """The disposition-directory status for an item path (its parent dir name), or None."""
 
@@ -441,7 +481,7 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
 
     rel = drift_location(path)
     drift: List[core.Drift] = []
-    item = parse_item(text)
+    item = item_from_text(text)
 
     # Duplicate-bullet rule (IPD 7ohskw E-02): walk the leading bullet block using parse_item's
     # boundary and canonicalize the legacy Kind spelling.
@@ -681,7 +721,7 @@ def existing_backlog_ids(repo_root: Path) -> set:
             text = f.read_text(encoding="utf-8")
         except OSError:
             continue
-        item = parse_item(text)
+        item = item_from_text(text)
         if item.id:
             ids.add(item.id)
     return ids
@@ -709,7 +749,7 @@ def blocks_release_of_item(repo_root: Path, item_id6: Optional[str]) -> Optional
             text = f.read_text(encoding="utf-8")
         except OSError:
             continue
-        item = parse_item(text)
+        item = item_from_text(text)
         if item.id == item_id6:
             return item.blocks_release
     return None
@@ -729,7 +769,7 @@ def find_item(repo_root: Path, item_id6: Optional[str]) -> Optional[BacklogItem]
             text = f.read_text(encoding="utf-8")
         except OSError:
             continue
-        item = parse_item(text)
+        item = item_from_text(text)
         if item.id == item_id6:
             return item
     return None
@@ -988,7 +1028,7 @@ def run_new(args) -> int:
             text = f.read_text(encoding="utf-8")
         except OSError:
             continue
-        parsed = parse_item(text)
+        parsed = item_from_text(text)
         if parsed.id:
             existing_ids.add(parsed.id)
         existing_items_data.append((f, parsed, text))
@@ -1494,7 +1534,7 @@ def run_note(args) -> int:
 
     src = res.paths[0]
     text = src.read_text(encoding="utf-8")
-    item = parse_item(text)
+    item = item_from_text(text)
     date = getattr(args, "date", None) or core.utc_history_date()
 
     from agent_workflows import artifact_meta as _meta
@@ -1659,7 +1699,7 @@ def run_check(args) -> int:
         item_drift = validate_item(f, text)
         drift.extend(item_drift)
         drift.extend(prose_dash_advisories(f, text))
-        pid = parse_item(text).id
+        pid = item_from_text(text).id
         if pid and core.is_valid_id6(pid):
             loc = drift_location(f)
             if pid in seen_ids:
