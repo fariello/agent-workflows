@@ -259,7 +259,7 @@ class TestResearchUnsafeField(unittest.TestCase):
     def test_non_regression_live_research_tree_clean(self):
         # Repaired research tree in repository produces ZERO attention.unsafe-field findings
         live_rroot = REPO_ROOT / ".aw" / "records" / "research"
-        drifts = I.check_drift(REPO_ROOT, live_rroot, limit=1000)
+        drifts = I.check_drift(REPO_ROOT, live_rroot)
         unsafe = [d for d in drifts if d.rule == "attention.unsafe-field"]
         self.assertEqual(
             unsafe,

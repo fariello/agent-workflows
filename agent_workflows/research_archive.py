@@ -12,9 +12,10 @@ background or index-time side effect, spec 4.10):
   per-item accept/override (reference vs archive) before applying, recording the resulting status.
 * a miscategorization flag: a doc in ``archive/`` that IS cited (via ``consumed-by`` or Order 04's
   detector) is reported ("should be reference?").
-* an INDEX refresh after any archival move (reference stays in the hot glance; archive excluded).
+* no INDEX file is written after an archival move: the SQLite metadata cache replaced the generated
+  ``INDEX.{json,md}`` views (spec 4sd62s 4.5).
 
-Consumes Order 01 (contract), Order 03 (index refresh) and Order 04 (reference-updater + detector).
+Consumes Order 01 (contract), Order 03 (doc scan) and Order 04 (reference-updater + detector).
 """
 
 from __future__ import annotations
@@ -312,13 +313,13 @@ def sweep_candidates(
 
 
 # --------------------------------------------------------------------------------------
-# Applying a move (frontmatter status + tracked git mv + reference update + index refresh)
+# Applying a move (frontmatter status + tracked git mv + reference update)
 # --------------------------------------------------------------------------------------
 
 
 def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> List[str]:
-    """Apply archival moves; RETURN the repo-relative touched paths (moved files + regenerated
-    INDEX) for the self-commit offer (selfcommit jgcm68 E-02). The caller drives the offer."""
+    """Apply archival moves; RETURN the repo-relative touched paths (the moved files) for the
+    self-commit offer (selfcommit jgcm68 E-02). The caller drives the offer."""
     """Apply status transitions: rewrite status, git mv into the shard, update references."""
 
     # Refuse before the first move if any destination companion directory already exists (E-05).
@@ -389,18 +390,8 @@ def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> List
         renames[m.old_path.name] = m.new_path.name
         touched.append(src_rel)
         touched.append(dst_rel)
-    # Refresh the index after the moves.
-    entries, _drift = RI._scan_docs(research_root, repo_root=repo_root)
-    research_root.mkdir(parents=True, exist_ok=True)
-    (research_root / RI.INDEX_JSON).write_text(
-        RI.build_index_json(entries), encoding="utf-8"
-    )
-    (research_root / RI.INDEX_MD).write_text(
-        RI.build_index_md(entries), encoding="utf-8"
-    )
-    # The regenerated INDEX.json/INDEX.md are deliberately NOT appended to `touched`: they are
-    # refreshed on disk just above, but generated manifests are not committed by any `aw` verb
-    # (idxuntrack `4r0qp1` E-07), and the caller commits this list verbatim.
+    # No INDEX file is written after the moves (spec 4sd62s 4.5); the caller commits this list
+    # verbatim.
     seen: dict = {}
     for t in touched:
         seen.setdefault(t, None)
@@ -772,9 +763,8 @@ def run_archive(args: argparse.Namespace) -> int:
 def _offer_archive_commit(
     args: argparse.Namespace, repo_root: Path, touched: List[str]
 ) -> None:
-    """selfcommit jgcm68 E-02: offer to path-scoped-commit exactly the archived moves. The
-    regenerated INDEX is NOT included (idxuntrack `4r0qp1` E-07): it is refreshed on disk but never
-    committed. Interactive-gated via child-01 ``offer_commit`` (TTY prompts;
+    """selfcommit jgcm68 E-02: offer to path-scoped-commit exactly the archived moves (no INDEX
+    file is written or committed; spec 4sd62s 4.5). Interactive-gated via child-01 ``offer_commit`` (TTY prompts;
     non-interactive-without ``--commit`` is a NO-OP); path-scoped, no push, no ``add -A``;
     unrelated dirty files never folded in. A commit failure is non-fatal (the archive already
     happened)."""

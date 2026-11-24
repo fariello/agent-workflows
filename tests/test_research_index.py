@@ -1,9 +1,9 @@
-"""Tests for the research index generator + find + --check (Set research-org, Order 03).
+"""Tests for the research scan + find + drift check (Set research-org, Order 03).
 
-Stdlib unittest, throwaway dirs. Verifies JSON completeness, INDEX.md bounding (archive excluded,
-reference included, intake shown, N honored), determinism (regenerate twice byte-identical), find
-filters, and --check across the spec-5.2 four drift classes including dangling citations (via the
-Order 04 detector).
+Stdlib unittest, throwaway dirs. Verifies scan completeness, find filters, and check_drift across
+the drift classes including dangling citations (via the Order 04 detector), with no finding for a
+stale or missing INDEX file (plan 6qh68x). No INDEX file is written: the SQLite metadata cache
+replaced them (spec 4sd62s 4.5).
 """
 
 from __future__ import annotations
@@ -16,7 +16,6 @@ from agent_workflows import artifact_core as _core
 from agent_workflows import research_contract as R
 from agent_workflows import research_cmd as C
 from agent_workflows import research_index as I
-from tests import support
 
 import pytest
 from tests.record_builder import RecordBuilder
@@ -102,46 +101,14 @@ class IndexBuildTests(unittest.TestCase):
         )
 
     def test_json_contains_every_doc(self):
+        # Retargeted from INDEX.json to the scan entries `aw find research` reads (plan s6k01k):
+        # every doc, archive included, carries its status.
         entries, drift = I._scan_docs(self.rroot)
         self.assertEqual(drift, [])
-        ids = {e.id6 for e in entries}
-        self.assertEqual(ids, {"aaaaaa", "bbbbbb", "cccccc"})
-
-    def test_index_md_archive_excluded_reference_included_intake_shown(self):
-        entries, _ = I._scan_docs(self.rroot)
-        md = I.build_index_md(entries)
-        self.assertIn(
-            "aaaaaa", md
-        )  # todo shown (a legacy `intake` fixture normalizes into the band)
-        self.assertIn("bbbbbb", md)  # reference included
-        self.assertNotIn("cccccc", md)  # archive excluded
-        self.assertIn("Needs addressing (todo)", md)  # rstodo p3o9je: header renamed
-
-    def test_n_honored(self):
-        # Add more hot docs and bound to 2.
-        for i in range(5):
-            _write(
-                self.root,
-                set_id=f"s{i}",
-                order=0,
-                id6=f"d{i}{i}{i}{i}{i}",
-                slug="x",
-                status="active",
-                created="2026080%d" % (i + 1),
-            )
-        entries, _ = I._scan_docs(self.rroot)
-        md = I.build_index_md(entries, limit=2)
-        # "Most recent" section should list only 2 bullets.
-        recent_block = support.final_section(md, "## Most recent", next_marker="## ")
-        bullets = [ln for ln in recent_block.splitlines() if ln.startswith("- `")]
-        self.assertEqual(len(bullets), 2)
-
-    def test_determinism(self):
-        entries, _ = I._scan_docs(self.rroot)
-        a = I.build_index_json(entries) + I.build_index_md(entries)
-        entries2, _ = I._scan_docs(self.rroot)
-        b = I.build_index_json(entries2) + I.build_index_md(entries2)
-        self.assertEqual(a, b)
+        by_id = {e.id6: e for e in entries}
+        self.assertEqual(set(by_id), {"aaaaaa", "bbbbbb", "cccccc"})
+        self.assertEqual(by_id["bbbbbb"].status, "reference")
+        self.assertEqual(by_id["cccccc"].status, "archive")
 
 
 class FindTests(unittest.TestCase):
@@ -218,25 +185,11 @@ class CheckDriftTests(unittest.TestCase):
             created="20260701",
         )
 
-    def _regen(self):
-        entries, _ = I._scan_docs(self.rroot)
-        (self.rroot / I.INDEX_JSON).write_text(
-            I.build_index_json(entries), encoding="utf-8"
-        )
-        (self.rroot / I.INDEX_MD).write_text(
-            I.build_index_md(entries), encoding="utf-8"
-        )
-
-    def test_clean_after_regen(self):
-        self._regen()
-        drift = I.check_drift(self.root, self.rroot)
-        self.assertEqual(drift, [])
-
     def test_stale_index_file_is_not_drift(self):
         # Plan 6qh68x (spec 4sd62s 4.5): the INDEX-file drift rules are deleted with the INDEX files.
-        # A manifest that is present but not byte-equal to a rebuild is no longer a finding at all.
-        self._regen()
-        (self.rroot / I.INDEX_MD).write_text("stale", encoding="utf-8")
+        # A leftover manifest with arbitrary bytes is no longer a finding at all.
+        (self.rroot / "INDEX.json").write_text("[]\n", encoding="utf-8")
+        (self.rroot / "INDEX.md").write_text("stale", encoding="utf-8")
         drift = I.check_drift(self.root, self.rroot)
         self.assertEqual(drift, [])
         self.assertEqual(_core.drift_exit_code(drift), 0)
@@ -248,8 +201,8 @@ class CheckDriftTests(unittest.TestCase):
         metadata cache replaced the INDEX files, so an absent manifest produces no finding and does
         not fail the gate.
         """
-        self._regen()
-        (self.rroot / I.INDEX_JSON).unlink()
+        for name in ("INDEX.json", "INDEX.md"):
+            self.assertFalse((self.rroot / name).exists(), f"fixture sanity: {name}")
         drift = I.check_drift(self.root, self.rroot)
         self.assertEqual(drift, [])
         self.assertEqual(_core.drift_exit_code(drift), 0)
@@ -270,7 +223,6 @@ class CheckDriftTests(unittest.TestCase):
         self.assertTrue(any(d.rule == "frontmatter-invalid" for d in drift))
 
     def test_dangling_citation_detected(self):
-        self._regen()
         (self.root / "DECISIONS.md").write_text(
             "cite 20260601-old-00-qppqpp-gone.notes.md\n", encoding="utf-8"
         )
@@ -349,15 +301,6 @@ class StaleStateDriftTests(unittest.TestCase):
         self.root = Path(tempfile.mkdtemp())
         self.rroot = self.root / R.RESEARCH_ROOT
 
-    def _regen(self):
-        entries, _ = I._scan_docs(self.rroot)
-        (self.rroot / I.INDEX_JSON).write_text(
-            I.build_index_json(entries), encoding="utf-8"
-        )
-        (self.rroot / I.INDEX_MD).write_text(
-            I.build_index_md(entries), encoding="utf-8"
-        )
-
     def test_trigger_a_run_set_flags_intake_and_clean_after_promote(self):
         # A RUN (synthesized) prompt-set with an intake report member -> stale-state-to-promote.
         _write(
@@ -392,7 +335,6 @@ class StaleStateDriftTests(unittest.TestCase):
             kind="research-report",
             body="## Report\nBody.",
         )
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         stale = [d for d in drift if d.rule == I.STALE_STATE_RULE]
         self.assertTrue(
@@ -406,7 +348,6 @@ class StaleStateDriftTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        self._regen()
         drift2 = I.check_drift(self.root, self.rroot)
         self.assertFalse(
             any(d.rule == I.STALE_STATE_RULE for d in drift2),
@@ -425,7 +366,6 @@ class StaleStateDriftTests(unittest.TestCase):
             created="20260801",
             kind="notes",
         )
-        self._regen()
         RecordBuilder(self.root).plan(
             id6="pln001",
             title="Plan",
@@ -507,7 +447,7 @@ class StaleStateDriftTests(unittest.TestCase):
 
 
 class ConsumedByIndexTests(unittest.TestCase):
-    """IPD xjrdjp E-02: INDEX.json carries consumed-by."""
+    """IPD xjrdjp E-02: the scan entry carries consumed-by (retargeted from INDEX.json, s6k01k)."""
 
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
@@ -532,9 +472,7 @@ class ConsumedByIndexTests(unittest.TestCase):
     def test_docentry_and_json_carry_consumed_by(self):
         entries, _ = I._scan_docs(self.rroot)
         self.assertEqual(entries[0].consumed_by, ["pln001"])
-        js = I.build_index_json(entries)
-        self.assertIn('"consumed_by"', js)
-        self.assertIn("pln001", js)
+        self.assertEqual(entries[0]._asdict()["consumed_by"], ["pln001"])
 
 
 class ConsumedByValidationTests(unittest.TestCase):
@@ -543,15 +481,6 @@ class ConsumedByValidationTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
         self.rroot = self.root / R.RESEARCH_ROOT
-
-    def _regen(self):
-        entries, _ = I._scan_docs(self.rroot)
-        (self.rroot / I.INDEX_JSON).write_text(
-            I.build_index_json(entries), encoding="utf-8"
-        )
-        (self.rroot / I.INDEX_MD).write_text(
-            I.build_index_md(entries), encoding="utf-8"
-        )
 
     def test_dangling_consumed_by_flagged(self):
         p = _write(
@@ -569,7 +498,6 @@ class ConsumedByValidationTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         self.assertTrue(
             any(
@@ -595,7 +523,6 @@ class ConsumedByValidationTests(unittest.TestCase):
             disposition="executed",
             body="body",
         )
-        self._regen()
         drift2 = I.check_drift(self.root, self.rroot)
         self.assertFalse(any(d.rule == I.DANGLING_CONSUMED_RULE for d in drift2))
 
@@ -615,7 +542,6 @@ class ConsumedByValidationTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         self.assertTrue(any(d.rule == I.ADOPTED_NO_CONSUMER_RULE for d in drift))
         # give it a resolving consumer -> clears.
@@ -636,7 +562,6 @@ class ConsumedByValidationTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        self._regen()
         drift2 = I.check_drift(self.root, self.rroot)
         self.assertFalse(any(d.rule == I.ADOPTED_NO_CONSUMER_RULE for d in drift2))
 
@@ -732,144 +657,6 @@ class PendingQueryTests(unittest.TestCase):
         lines = [ln for ln in out.splitlines() if ln.strip()]
         self.assertEqual(len(lines), 1)
         self.assertTrue(lines[0].startswith("prmpt1\t"))
-
-
-class RunIndexOutputTests(unittest.TestCase):
-    def setUp(self):
-        self.root = Path(tempfile.mkdtemp())
-        self.rroot = self.root / ".agents" / "docs" / "research"
-        _write(
-            self.root,
-            set_id="alpha",
-            order=0,
-            id6="aaaaaa",
-            slug="a",
-            status="intake",
-            created="20260701",
-        )
-
-    def test_run_index_change_detection_and_output(self):
-        import argparse
-        import io
-        from contextlib import redirect_stdout
-
-        args = argparse.Namespace(
-            dir=str(self.root), limit=None, check=False, quiet=False, no_color=True
-        )
-        buf = io.StringIO()
-        with redirect_stdout(buf):
-            rc = I.run_index(args)
-        self.assertEqual(rc, 0)
-        out = buf.getvalue()
-        self.assertIn("wrote", out)
-        self.assertIn(".agents/docs/research/INDEX.json, INDEX.md", out)
-        self.assertIn("(1 docs)", out)
-
-        # Second run: up to date
-        buf2 = io.StringIO()
-        with redirect_stdout(buf2):
-            rc2 = I.run_index(args)
-        self.assertEqual(rc2, 0)
-        out2 = buf2.getvalue()
-        self.assertIn("up to date", out2)
-        self.assertIn(".agents/docs/research/INDEX.json, INDEX.md", out2)
-
-
-class DefaultLimitTests(unittest.TestCase):
-    def test_default_is_40(self):
-        self.assertEqual(I.DEFAULT_INDEX_LIMIT, 40)
-
-
-class IndexOutcomeWordsAreNotLifecycleStatusesTests(unittest.TestCase):
-    """The research twin of `test_plans_index.IndexOutcomeWordsAreNotLifecycleStatusesTests`.
-
-    Both index modules print the SAME four generic outcome words through the SAME forced-color
-    `Term`, so they carried the same criterion A14 leak and are exposed to the same mistaken
-    conversion. Asserted separately rather than parameterized across modules because each command is
-    a distinct public surface, and a reader of this file should not have to open another to learn
-    that this one is pinned. See the long docstring there for the full reasoning (plan `9zvl2w`
-    E-01/E-05, spec `uonrjg` R10.3, criteria A14 and A20).
-    """
-
-    def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self._tmp.name)
-        _write(
-            self.root,
-            set_id="alpha",
-            order=0,
-            id6="aaaaaa",
-            slug="a",
-            status="todo",
-            created="20260701",
-        )
-
-    def tearDown(self):
-        self._tmp.cleanup()
-
-    def _run(self, **overrides):
-        import argparse
-        import io
-        from contextlib import redirect_stdout
-
-        ns = dict(
-            dir=str(self.root),
-            limit=None,
-            check=False,
-            quiet=False,
-            no_color=False,
-            color=False,
-            agent=False,
-            json=False,
-        )
-        ns.update(overrides)
-        buf = io.StringIO()
-        with redirect_stdout(buf):
-            rc = I.run_index(argparse.Namespace(**ns))
-        return rc, buf.getvalue()
-
-    def test_the_generic_outcome_words_are_never_rendered_as_an_unknown_lifecycle_glyph(
-        self,
-    ):
-        import os
-        from unittest import mock
-
-        with mock.patch.dict(os.environ, {"FORCE_COLOR": "1"}, clear=False):
-            _rc, out = self._run()
-        self.assertIn("wrote", out)
-        self.assertNotIn(
-            "?",
-            out,
-            "AN OUTCOME WORD WAS ROUTED THROUGH THE LIFECYCLE RESOLVER; see the twin test in "
-            "tests/test_plans_index.py for why `wrote`/`updated`/`up to date` must NOT be.",
-        )
-        self.assertIn("\033[1;38;5;46mwrote\033[0m", out)
-
-    def test_machine_and_suppressed_modes_emit_no_ansi(self):
-        import os
-        from unittest import mock
-
-        cases = (
-            ("--agent", {"agent": True}, {}),
-            ("--json", {"json": True}, {}),
-            ("--no-color", {"no_color": True}, {}),
-            ("NO_COLOR=1", {}, {"NO_COLOR": "1"}),
-            ("TERM=dumb", {}, {"TERM": "dumb"}),
-            ("piped stdout (not a tty)", {}, {}),
-        )
-        for label, overrides, env in cases:
-            with self.subTest(mode=label):
-                patched = dict(env)
-                with mock.patch.dict(os.environ, patched, clear=False):
-                    if "NO_COLOR" not in patched:
-                        os.environ.pop("NO_COLOR", None)
-                    os.environ.pop("FORCE_COLOR", None)
-                    _rc, out = self._run(**overrides)
-                self.assertNotIn(
-                    "\033",
-                    out,
-                    f"criterion A14/A11 violation: `aw index research` emitted ANSI in {label} mode.",
-                )
 
 
 class PipelinePositionDerivationTests(unittest.TestCase):
@@ -1123,15 +910,6 @@ class RepeatedFrontmatterKeyTests(unittest.TestCase):
 
         shutil.rmtree(self.root, ignore_errors=True)
 
-    def _regen(self):
-        entries, _ = I._scan_docs(self.rroot, repo_root=self.root)
-        (self.rroot / I.INDEX_JSON).write_text(
-            I.build_index_json(entries), encoding="utf-8"
-        )
-        (self.rroot / I.INDEX_MD).write_text(
-            I.build_index_md(entries), encoding="utf-8"
-        )
-
     def _write_doc(
         self,
         id6: str = "abc001",
@@ -1179,7 +957,6 @@ class RepeatedFrontmatterKeyTests(unittest.TestCase):
         self._write_doc(
             id6="rep001", slug="two-status", extra_fm_lines=["status: reference"]
         )
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
         self.assertEqual(len(rep), 1)
@@ -1194,7 +971,6 @@ class RepeatedFrontmatterKeyTests(unittest.TestCase):
             slug="two-br",
             extra_fm_lines=["blocks-release: next", "blocks-release: none"],
         )
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
         self.assertEqual(len(rep), 1)
@@ -1209,7 +985,6 @@ class RepeatedFrontmatterKeyTests(unittest.TestCase):
             slug="br-casing",
             extra_fm_lines=["blocks-release: next", "Blocks-Release: next"],
         )
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
         self.assertEqual(len(rep), 1)
@@ -1246,7 +1021,6 @@ class RepeatedFrontmatterKeyTests(unittest.TestCase):
         lines = base_fm.splitlines()
         raw = "\n".join(lines[:-1] + ["id: rep004", "---"]) + "\n"
         (self.rroot / name).write_text(raw, encoding="utf-8")
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
         self.assertEqual(len(rep), 1)
@@ -1261,7 +1035,6 @@ class RepeatedFrontmatterKeyTests(unittest.TestCase):
             slug="two-keys",
             extra_fm_lines=["status: reference", "priority: high", "priority: low"],
         )
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
         self.assertEqual(len(rep), 2)
@@ -1273,7 +1046,6 @@ class RepeatedFrontmatterKeyTests(unittest.TestCase):
 
     def test_case_6_conformant_doc_yields_zero_findings(self):
         self._write_doc(id6="rep006", slug="conformant")
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
         self.assertEqual(len(rep), 0)
@@ -1285,7 +1057,6 @@ class RepeatedFrontmatterKeyTests(unittest.TestCase):
             slug="body-status",
             body="## Notes\nstatus: reference\npriority: high\n",
         )
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
         self.assertEqual(len(rep), 0)
@@ -1311,7 +1082,6 @@ class RepeatedFrontmatterKeyTests(unittest.TestCase):
                 "# Note: no closing fence\n"
             ),
         )
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
         self.assertEqual(len(rep), 0)
@@ -1321,7 +1091,6 @@ class RepeatedFrontmatterKeyTests(unittest.TestCase):
         self._write_doc(
             id6="rep009", slug="agreeing-status", extra_fm_lines=["status: todo"]
         )
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
         self.assertEqual(len(rep), 1)
@@ -1335,7 +1104,6 @@ class RepeatedFrontmatterKeyTests(unittest.TestCase):
         self._write_doc(
             id6="rep010", slug="consumer-test", extra_fm_lines=["status: reference"]
         )
-        self._regen()
 
         # 1. aw research index --check: fails (exit 1) on repeated key
         rc_idx = cli.main(["research", "index", "--check", "--dir", str(self.root)])
@@ -1400,19 +1168,9 @@ class StatusTierMismatchTests(unittest.TestCase):
         doc_path.write_text(content, encoding="utf-8")
         return doc_path
 
-    def _regen(self):
-        entries, _ = I._scan_docs(self.rroot)
-        (self.rroot / I.INDEX_JSON).write_text(
-            I.build_index_json(entries), encoding="utf-8"
-        )
-        (self.rroot / I.INDEX_MD).write_text(
-            I.build_index_md(entries), encoding="utf-8"
-        )
-
     def test_case_1_cold_status_at_hot_root_flagged(self):
         # Case 1: cold-status doc at hot root is flagged (catches F-09 .value trap).
         doc = self._write_doc(id6="stm001", status="reference", tier="root")
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         mismatches = [d for d in drift if d.rule == I.STATUS_TIER_MISMATCH_RULE]
         self.assertEqual(len(mismatches), 1)
@@ -1425,7 +1183,6 @@ class StatusTierMismatchTests(unittest.TestCase):
     def test_case_2_hot_status_in_reference_shard_flagged(self):
         # Case 2: hot-status doc inside a reference/ shard is flagged.
         doc = self._write_doc(id6="stm002", status="active", tier="reference")
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         mismatches = [d for d in drift if d.rule == I.STATUS_TIER_MISMATCH_RULE]
         self.assertEqual(len(mismatches), 1)
@@ -1438,7 +1195,6 @@ class StatusTierMismatchTests(unittest.TestCase):
     def test_case_3_hot_status_in_archive_shard_flagged(self):
         # Case 3: hot-status doc inside an archive/ shard is flagged.
         doc = self._write_doc(id6="stm003", status="todo", tier="archive")
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         mismatches = [d for d in drift if d.rule == I.STATUS_TIER_MISMATCH_RULE]
         self.assertEqual(len(mismatches), 1)
@@ -1453,7 +1209,6 @@ class StatusTierMismatchTests(unittest.TestCase):
         self._write_doc(id6="stm004", status="active", tier="root")
         self._write_doc(id6="stm005", status="reference", tier="reference")
         self._write_doc(id6="stm006", status="archive", tier="archive")
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         mismatches = [d for d in drift if d.rule == I.STATUS_TIER_MISMATCH_RULE]
         self.assertEqual(len(mismatches), 0)
@@ -1462,7 +1217,6 @@ class StatusTierMismatchTests(unittest.TestCase):
     def test_case_5_legacy_intake_status_in_cold_shard_flagged(self):
         # Case 5: legacy intake-status doc inside cold shard is flagged (proves normalization).
         doc = self._write_doc(id6="stm007", status="intake", tier="reference")
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         mismatches = [d for d in drift if d.rule == I.STATUS_TIER_MISMATCH_RULE]
         self.assertEqual(len(mismatches), 1)
@@ -1478,20 +1232,20 @@ class StatusTierMismatchTests(unittest.TestCase):
         self._write_doc(id6="stm008", status="", tier="root")
         # Doc 2: unrecognized status token
         self._write_doc(id6="stm009", status="unrecognized-custom", tier="root")
-        self._regen()
         drift = I.check_drift(self.root, self.rroot)
         mismatches = [d for d in drift if d.rule == I.STATUS_TIER_MISMATCH_RULE]
         self.assertEqual(len(mismatches), 0)
 
     def test_manifest_regeneration_not_blocked_by_tier_mismatch(self):
-        # V-02: emission is in check_drift ONLY, so _scan_docs drift is clean and
-        # manifest regeneration succeeds on a tier-mismatched doc.
+        # V-02: emission is in check_drift ONLY, so _scan_docs drift is clean and the
+        # tier-mismatched doc stays in the scan `aw find research` reads (retargeted from the
+        # INDEX files, plan s6k01k).
         self._write_doc(id6="stm010", status="reference", tier="root")
         entries, scan_drift = I._scan_docs(self.rroot)
         self.assertEqual(scan_drift, [])
-        self._regen()
-        self.assertTrue((self.rroot / I.INDEX_JSON).is_file())
-        self.assertTrue((self.rroot / I.INDEX_MD).is_file())
+        self.assertEqual([e.id6 for e in entries], ["stm010"])
+        drift = I.check_drift(self.root, self.rroot)
+        self.assertTrue(any(d.rule == I.STATUS_TIER_MISMATCH_RULE for d in drift))
 
 
 if __name__ == "__main__":
