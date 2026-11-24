@@ -42,25 +42,25 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 
 ### Task group 1: one module per item
 
-- [ ] E-01 Capture the baseline PIN list (`mkdir -p .aw/state/9o83cr/` and save `.aw/state/9o83cr/E-18b-before.txt`); then in `attention._backlog_record`, read the item's metadata through `artifact_meta.read_text(text, record_type="backlog")` instead of `backlog_mod.parse_item`.
+- [x] E-01 Capture the baseline PIN list (`mkdir -p .aw/state/9o83cr/` and save `.aw/state/9o83cr/E-18b-before.txt`); then in `attention._backlog_record`, read the item's metadata through `artifact_meta.read_text(text, record_type="backlog")` instead of `backlog_mod.parse_item`.
   - Depends on: none
   - Expected outcome: `attention` calls no `parse_item`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `set_records.promote_question_to_backlog` and `set_records.close_on_answer`, read the item id and metadata through `artifact_meta`; keep `parse_item` only where the body sections are re-rendered.
+- [x] E-02 In `set_records.promote_question_to_backlog` and `set_records.close_on_answer`, read the item id and metadata through `artifact_meta`; keep `parse_item` only where the body sections are re-rendered.
   - Depends on: E-01
   - Expected outcome: `set_records` reads no metadata field from `parse_item`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `tools/gate_drop_audit.census`, replace `backlog.parse_item` with `artifact_meta.read`/`read_at`.
+- [x] E-03 In `tools/gate_drop_audit.census`, replace `backlog.parse_item` with `artifact_meta.read`/`read_at`.
   - Depends on: E-02
   - Expected outcome: `tools/gate_drop_audit.py` calls no `parse_item`; its test passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In the eight `backlog` internal callers (`backlog.find_duplicate_candidates`, `validate_item`, `existing_backlog_ids`, `blocks_release_of_item`, `find_item`, `run_new`, `run_note`, `run_check`), read metadata fields through `artifact_meta.read_text`; keep `parse_item` only for body sections; save the after-list; commit through `aw commit po3o1c -- <paths>`.
+- [x] E-04 In the eight `backlog` internal callers (`backlog.find_duplicate_candidates`, `validate_item`, `existing_backlog_ids`, `blocks_release_of_item`, `find_item`, `run_new`, `run_note`, `run_check`), read metadata fields through `artifact_meta.read_text`; keep `parse_item` only for body sections; save the after-list; commit through `aw commit po3o1c -- <paths>`.
   - Depends on: E-03
   - Expected outcome: no `backlog` caller reads a metadata field from `parse_item`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -72,6 +72,8 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 ## Findings
 
 Measured 2026-11-09 at `f83159217` with `rg -n "parse_item\(" agent_workflows tools tests`: see the Concern. Other production callers at that commit: `check_engine` 3, `runner_shared` 9, `status_set` 5, `production_checks` 2 (phase B).
+
+Execution (2026-11-24, starting HEAD `7821d7423`): no production caller used `parse_item` for body sections (it parses only the leading bullet block). Every caller was therefore retargeted, through a new `backlog.item_from_text` adapter that fills the `BacklogItem` fields from `artifact_meta.read_text(text, record_type="backlog").fields`, keeping the single-token rule the old `\S+` patterns enforced. After this plan, `parse_item` has no production caller, only tests, which is the input Order 299 (`vw88h0`) needs to choose deleting it.
 
 ## Proposed changes (ordered, validatable)
 
@@ -123,25 +125,68 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "parse_item\(" agent_workflows/attention.py` printing nothing and the before/after per-test lines of `tests/test_attention.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "parse_item\(" agent_workflows/attention.py` printed nothing (`attention_rc=1`). `attention._backlog_record` already read every field through `artifact_meta.read_text(text, record_type="backlog")` at starting HEAD `7821d7423`, and no edit was needed (decision 12-po3o1c-D1). Baseline saved to `.aw/state/9o83cr/E-18b-before.txt` before any edit. `tests/test_attention.py` lines: 76 PASSED before and 76 PASSED after; the before/after lists are identical (the full `diff` under V-04 printed nothing).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "parse_item\(" agent_workflows/set_records.py` with each remaining hit labelled body-only.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "parse_item\(" agent_workflows/set_records.py` printed nothing (`sr_rc=1`), so no hit remains to label. `set_records.promote_question_to_backlog` reads the id through `_backlog.item_from_text(...).id`, and `set_records.close_on_answer` reads the status and id through `_backlog.item_from_text(text)`. Both read through the new `backlog.item_from_text` adapter, which builds a `BacklogItem` from `artifact_meta.read_text(text, record_type="backlog").fields`. Neither function re-renders body sections from `parse_item`. Covered by `tests/test_backlog.py` and `tests/test_history_block_bounding.py` (part of the 312 passed in the narrowed run).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "parse_item" tools/gate_drop_audit.py` printing nothing and the before/after per-test lines of `tests/test_gate_drop_audit.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "parse_item" tools/gate_drop_audit.py` printed nothing (`gda_rc=1`). `census` now reads `artifact_meta.read_text(item_text, record_type="backlog").fields.get("work_kind")`. `tests/test_gate_drop_audit.py`: 10 PASSED before and 10 PASSED after, with the same names:
 
-- [ ] V-04 validates E-04
+    ```
+    PASSED tests/test_gate_drop_audit.py::TestGateDropAudit::test_custom_message_flag_spelling_close_dated
+    PASSED tests/test_gate_drop_audit.py::TestGateDropAudit::test_gated_done_item_executed_carrier_handoff_not_reported
+    PASSED tests/test_gate_drop_audit.py::TestGateDropAudit::test_gated_done_item_no_carrier_reported
+    PASSED tests/test_gate_drop_audit.py::TestGateDropAudit::test_gated_done_item_superseded_carrier_reported_carrier_not_executed
+    PASSED tests/test_gate_drop_audit.py::TestGateDropAudit::test_graduated_then_done_dated_by_done_line
+    PASSED tests/test_gate_drop_audit.py::TestGateDropAudit::test_persisted_close_evidence_not_reported
+    PASSED tests/test_gate_drop_audit.py::TestGateDropAudit::test_pre_boundary_close_partitioned_pre_predicate
+    PASSED tests/test_gate_drop_audit.py::TestGateDropAudit::test_read_only_property_preserves_bytes_and_mtime
+    PASSED tests/test_gate_drop_audit.py::TestGateDropAudit::test_undated_item_partitioned_undated
+    PASSED tests/test_gate_drop_audit.py::TestGateDropAudit::test_ungated_done_item_not_reported
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n "parse_item\(" agent_workflows/backlog.py` with each hit labelled body-only (or the definition), `diff .aw/state/9o83cr/E-18b-before.txt .aw/state/9o83cr/E-18b-after.txt` with no FAILED or ERROR line, and `git show --stat` of the `aw commit po3o1c` commit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "parse_item\(" agent_workflows/backlog.py` prints only the definition:
+
+    ```
+    342:def parse_item(text: str) -> BacklogItem:
+    ```
+
+  The eight callers (`find_duplicate_candidates`, `validate_item`, `existing_backlog_ids`, `blocks_release_of_item`, `find_item`, `run_new`, `run_note`, `run_check`) call `item_from_text`. Across the whole repository, `rg -n "parse_item\(" agent_workflows tools` prints only that definition: the two `runner_shared.perform_coordinator_proposal_file` references that k6jd6l F-25 (plan `6bxlzb`) assigned here were also moved, to `_meta_reader.read_text(..., record_type="backlog").id6`, with a `--scope-reason`. `diff .aw/state/9o83cr/E-18b-before.txt .aw/state/9o83cr/E-18b-after.txt` printed nothing (`diff_rc=0`). Both lists hold 142 lines and `grep -cE "^(FAILED|ERROR)"` counts 0 in the after-list (76 attention, 47 backlog, 9 duplicate guard, 10 gate_drop_audit). Parity probe (starting-HEAD `parse_item` against `item_from_text` on all 12 fields): `1293 inputs 7 diffs`. The input set is 1277 corpus items, the tests' `*.backlog.md` files and 16 fixtures (CRLF, FF, NEL, U+2028, bare CR, multi-word values, legacy and dual Kind, duplicate Status, gate, fence, title, trailing whitespace, tab). All 7 diffs fall in two synthetic fixtures, and `validate_item` differs on those same 2 of 1293 inputs (decisions D2 and D3). Core suite `aw suite`: `2889 passed, 1 skipped, 11 warnings in 107.23s`. `git show --stat HEAD` of the `aw commit po3o1c` commit:
+
+    ```
+    commit d941c41258caa7fca43c0829c10fd76bbdd9ecb5
+        metastore 298 (po3o1c): move the backlog parse_item metadata callers onto artifact_meta (backlog.item_from_text adapter; set_records, gate_drop_audit, runner_shared proposal filing retargeted)
+     agent_workflows/backlog.py       | 56 ++++++++++++++++++++++++++++++++++------
+     agent_workflows/runner_shared.py |  8 +++---
+     agent_workflows/set_records.py   |  6 ++---
+     tools/gate_drop_audit.py         | 10 ++++---
+     4 files changed, 63 insertions(+), 17 deletions(-)
+    ```
+
+  Attempt 2 re-verification (2026-11-24, lane `aw/lane/po3o1c_attempt2`, base `f31580e26`, which adds an `artifact_meta.py` perf commit after attempt 1's base). The attempt-1 code diff was applied unchanged. The PIN baseline was re-captured on the UNMODIFIED base (`.aw/state/9o83cr/E-18b-before.txt`: 142 lines, all `PASSED`), the diff was applied, and the after-list re-captured: `diff ... E-18b-before.txt ... E-18b-after.txt` printed nothing (`diff_rc=0`), 142 lines, `grep -cE "^(FAILED|ERROR)"` printed `0`, per module 76 attention, 10 gate_drop_audit, 47 backlog, 9 duplicate guard. `rg -n "parse_item\(" agent_workflows tools` printed only `agent_workflows/backlog.py:342:def parse_item(text: str) -> BacklogItem:`. Corpus parity probe (`parse_item` against `item_from_text` on the 12 fields, every `*.backlog.md` under `.aw/records/backlog` and `tests`): `1276 inputs 0 differing`. `aw suite`: `2889 passed, 1 skipped, 11 warnings in 98.42s (0:01:38)`. `git show --stat 8fa20ac0a` (this attempt's `aw commit po3o1c` commit):
+
+    ```
+    commit 8fa20ac0abd41c907c697ea9b7228a28240672cd
+        metastore 298 (po3o1c): move the backlog parse_item metadata callers onto artifact_meta (backlog.item_from_text adapter; set_records, gate_drop_audit, runner_shared proposal filing retargeted; brought forward from lane aw/lane/po3o1c d941c4125)
+     agent_workflows/backlog.py       | 56 ++++++++++++++++++++++++++++++++++------
+     agent_workflows/runner_shared.py |  8 +++---
+     agent_workflows/set_records.py   |  6 ++---
+     tools/gate_drop_audit.py         | 10 ++++---
+     4 files changed, 63 insertions(+), 17 deletions(-)
+    ```
+
+  Scope reasons recorded with `aw commit po3o1c --scope-reason`: `agent_workflows/runner_shared.py` (k6jd6l F-25 live caller, as the plan's Scope directs) and `.aw/records/backlog/open/20261124-metastore-01-5t533v-artifact-meta-bullet-reader-strips-edge-whitespace.backlog.md` (the defect-report carrier for finding 5t533v, committed as `4524dc046`).
+  - Result: pass
 
 ## Approval and execution gate
 
