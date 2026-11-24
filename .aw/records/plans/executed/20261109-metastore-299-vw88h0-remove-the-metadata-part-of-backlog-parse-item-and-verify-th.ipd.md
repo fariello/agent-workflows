@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5 allows exactly one metadata reader (`artifact_meta`). Part 20 of the round-3 split of `k6jd6l` (Order 43, research `nj8zdp` guidance): after Order 298 moved the metadata callers, remove the metadata fields from `backlog.parse_item` (it survives only as a body parser, or is deleted if no caller needs body sections) and verify `k6jd6l` E-18's expected outcome. Measured test callers at `f83159217`: `tests/test_backlog.py` (8), `tests/test_backlog_duplicate_guard.py` (7), `tests/test_backlog_descriptive_safety.py` (1), `tests/test_run_proposal_channel.py` (1).
 - Scope: The last part of `k6jd6l` E-18 and its V-18 evidence.
 - Scope-Paths: agent_workflows/backlog.py, tests/test_backlog.py, tests/test_backlog_duplicate_guard.py, tests/test_backlog_descriptive_safety.py, tests/test_run_proposal_channel.py, .aw/records/plans/pending/20261109-metastore-299-vw88h0-remove-the-metadata-part-of-backlog-parse-item-and-verify-th.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261124-s2d4wu-01-s2d4wu-check-engine-comment-above-check-live-bug-ungated.backlog.md (Driver contract requires every defect-report finding to be filed with aw backlog new this item carries the vw88h0 finding that agent_workflows/check_engine.py still cites the deleted backlog.parse_ite...)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:po3o1c, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: vw88h0
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: vw88h0 verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261124-s2d4wu-01-s2d4wu-check-engine-comment-above-check-live-bug-ungated.backlog.md: Driver contract requires every defect-report finding to be filed with aw backlog new; this item carries the vw88h0 finding that agent_workflows/check_engine.py still cites the deleted backlog.parse_item in a comment, which is outside this plan's Scope-Paths so it is filed rather than fixed]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, baseline diff commands, execution gate, and PIN rule; findings PR-001..PR-004 fixed; marked reviewed and go-pending-approval.
