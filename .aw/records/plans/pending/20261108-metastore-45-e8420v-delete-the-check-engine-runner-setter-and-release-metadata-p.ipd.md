@@ -97,6 +97,9 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-243-kmf6w4-delete-the-status-set-and-releases-metadata-regex-literals.ipd.md
 - The remaining modules' regex literals (`9o83cr` E-12 for every module not named here).
   - Carrier: 0xsx2n
+  - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-46-0xsx2n-delete-the-remaining-plans-family-ipd-family-and-module-meta.ipd.md
+- Residue of the row above, left after 0xsx2n executed (2026-11-24): five `^-` metadata regex literals in `agent_workflows/specs.py` (`specs._SPEC_ID_RE`, `specs._TOP_KEY_RE`, the `^- Status:` match in `specs.run_migrate`, `specs._SPEC_ID_BULLET_RE`) and `agent_workflows/backlog.py` (`backlog._TOP_KEY_RE`). Order 43 (`k6jd6l`) owned them and left them; 0xsx2n V-17 recorded them as `delete (follow-on)` without fixing them.
+  - Carrier: ebbfmn
 - The residual inventory F-20, the AC-1 test and audit.
   - Carrier: 9o83cr
 
