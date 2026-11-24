@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 4.5 says the SQLite cache REPLACES the `INDEX.{json,md}` files, `plans/STATUS.md` and `artifact_audit._INDEX_CACHE`. Once Order 41 (`q6epwc`) has removed every caller of the INDEX write path, the writers themselves, the dead STATUS renderer and the in-process audit cache are still in the package. Measured 2026-11-07 at `ac76110f4`: `rg -n "build_index_(json|md)|emit_index_(write|check)_result|DEFAULT_INDEX_LIMIT|_set_last_touched" agent_workflows` prints 50 lines in 7 files; 11 test modules import one of those symbols or `run_index`; `rg -n "render_status_index|write_index" agent_workflows` prints 6 lines; `rg -n "_INDEX_CACHE" agent_workflows tests` prints 29 lines (10 in `artifact_audit`, 19 in three test modules). Part 2 of the split of `9o83cr` (Order 11).
 - Scope: FINISHING PART after the round-3 split (2026-11-09). `9o83cr` E-03 (INDEX writers), E-06 (STATUS code), E-07 (`_INDEX_CACHE`) and this plan's baseline E-01 now run in eight earlier parts: baseline `54a80m` (Order 230); test retargets `f6y2yy` (231) and `6966zq` (232); plans, research and prompts writers `uopi8z` (233), `s6k01k` (234), `drav0u` (235); STATUS renderer `3v2ew2` (236); audit cache `h3jp4e` (237). This plan keeps the one E-03 member shared by all three index modules, the `artifact_core.emit_index_write_result` and `emit_index_check_result` helpers (new id E-18), and the family-wide finish E-17. EXCLUDES: the aliases, regeneration calls and stale-index rules (Order 41, `q6epwc`); value writers, adapters and parsers (Orders 43 to 46); the AC-1 test, audit and documents (`9o83cr`); on-disk INDEX files and skip names (`cxxmyv`).
 - Scope-Paths: agent_workflows/artifact_core.py, .aw/records/plans/pending/20261108-metastore-42-snin8q-delete-the-index-writers-the-status-code-and-the-audit-index.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261124-f3geta-01-f3geta-aggregate-index-results-uncalled.backlog.md (defect-report carrier the runner contract requires for a finding: artifact_core.aggregate_index_results has no caller after E-18, but E-18 names only the emit_index_* helpers so it was filed instead o...); tests/test_prompts_index.py (test name test_scan_and_build_index_json matched the E-17 family search build_index_json|md renamed to test_scan_prompts_entries so the search prints nothing, no behavior change)
 - Item-Dependencies: executed:1ajqaa, executed:3v2ew2, executed:54a80m, executed:59aiyh, executed:6966zq, executed:dcerjg, executed:drav0u, executed:f6y2yy, executed:ffceq0, executed:g5hpbb, executed:h3jp4e, executed:q6epwc, executed:s6k01k, executed:t4gl15, executed:uopi8z
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 18
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: snin8q
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: snin8q verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261124-f3geta-01-f3geta-aggregate-index-results-uncalled.backlog.md: defect-report carrier the runner contract requires for a finding: artifact_core.aggregate_index_results has no caller after E-18, but E-18 names only the emit_index_* helpers so it was filed instead of deleted; out-of-scope tests/test_prompts_index.py: test name test_scan_and_build_index_json matched the E-17 family search build_index_(json|md); renamed to test_scan_prompts_entries so the search prints nothing, no behavior change]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005; review record .aw/records/reviews/20261108-metastore-42-snin8q-delete-the-index-writers-the-status-code-and-the-audit-index.review.md
