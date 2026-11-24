@@ -91,6 +91,7 @@ flowchart TD
   - Carrier: bcrko1
 - Moved to k6nukd (round-3 split 2026-11-09 per research nj8zdp guidance): E-19 (runner).
   - Carrier: k6nukd
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-242-k6nukd-delete-the-runner-shared-metadata-parsers-and-regex-literals.ipd.md
 - Moved to kmf6w4 (round-3 split 2026-11-09 per research nj8zdp guidance): E-20 (setter and release) without its `tools/gate_drop_audit.py` retargets.
   - Carrier: kmf6w4
 - The remaining modules' regex literals (`9o83cr` E-12 for every module not named here).
