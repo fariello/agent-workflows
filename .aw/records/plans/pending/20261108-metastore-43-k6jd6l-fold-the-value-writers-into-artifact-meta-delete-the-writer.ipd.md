@@ -118,6 +118,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-291-ay6sxp-move-the-plan-readiness-backlog-and-setter-history-readers-o.ipd.md
 - E-10: history readers in `attention` and `check_engine`, `SPEC_STATUS_RE`, deleting the originals: Moved to csobg7 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: csobg7
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-292-csobg7-move-the-attention-history-readers-and-spec-status-re-and-de.ipd.md
 - E-11: `metadata_region` move and its non-`selectors` callers: Moved to 71ewpn (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 71ewpn
 - E-11: the `selectors` readers and patterns and the runner re-exports: Moved to 8ysz6b (round-3 split 2026-11-09 per research nj8zdp guidance).
