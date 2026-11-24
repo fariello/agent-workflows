@@ -621,10 +621,10 @@ class TestMechanismAndDetectionBlindness(_ResearchSetAssignContainmentTestCase):
         self.assertEqual(rc_idx_chk, 0)
         self.assertIn("index --check: clean", out_idx_chk)
 
-        # 2. index reports 0 docs
+        # 2. index reports 0 artifacts (aw research index aliases aw index rebuild)
         rc_idx, out_idx, _ = self._run(["research", "index"])
         self.assertEqual(rc_idx, 0)
-        self.assertIn("(0 docs)", out_idx)
+        self.assertIn("0 artifacts", out_idx)
 
         # 3. find reports no matching docs
         rc_find, out_find, _ = self._run(["research", "find", "--agent"])
