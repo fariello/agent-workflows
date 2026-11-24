@@ -109,6 +109,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-236-3v2ew2-delete-the-unreachable-status-renderer.ipd.md
 - Moved to h3jp4e (round-3 split 2026-11-09 per research nj8zdp guidance): E-07 (`_INDEX_CACHE`).
   - Carrier: h3jp4e
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-237-h3jp4e-delete-the-artifact-audit-in-process-index-cache.ipd.md
 - Aliases, regeneration calls and stale-index rules.
   - Carrier: q6epwc
   - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-41-q6epwc-make-the-typed-aw-index-spellings-aliases-and-stop-index-reg.ipd.md

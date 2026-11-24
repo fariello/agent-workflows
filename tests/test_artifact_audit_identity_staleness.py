@@ -1,14 +1,14 @@
-"""Tests for artifact_audit identity staleness verification (IPD 0a7v0x).
+"""Tests for artifact_audit identity freshness (IPD 0a7v0x; retargeted by IPD h3jp4e).
 
-Validates that find_artifact's tier-one verification closes the three wrong
-answers reachable from an in-place - Id: rewrite without widening the signature,
-and preserves the cache's memoization and cost invariants:
+`artifact_audit.build_index` holds no in-process cache (spec 4sd62s 4.5), so an in-place `- Id:`
+rewrite between two lookups is reflected by the second. A caller-held `ArtifactIndex` can still be
+stale, and `find_artifact`'s tier-one verification closes the wrong answers that reach it:
 - Outcome 1: Stale positive returns fresh truth (None)
 - Outcome 2: Wrong path returns fresh truth (new owner)
 - Outcome 3: Phantom collision returns fresh truth (clean single hit)
-- Cost shape 1: Unchanged tree reuses cached ArtifactIndex without re-traversal
-- Cost shape 2: True tier-one answer does not re-derive or re-traverse
-- Explicit index: Caller's ArtifactIndex is preserved; revalidation reuses cache
+- Unchanged tree: repeated build_index calls return equal indexes and answers
+- True tier-one answer from a supplied index does not re-derive or re-traverse
+- Explicit stale index: caller's ArtifactIndex is preserved; every lookup answers fresh truth
 """
 
 from __future__ import annotations
@@ -23,13 +23,7 @@ from tests.record_builder import RecordBuilder
 
 
 class TestArtifactAuditIdentityStaleness(unittest.TestCase):
-    """Pin the three wrong answers and the two cost-shape invariants."""
-
-    def setUp(self) -> None:
-        _audit._INDEX_CACHE.clear()
-
-    def tearDown(self) -> None:
-        _audit._INDEX_CACHE.clear()
+    """Pin the three wrong answers and the freshness invariants."""
 
     def test_stale_positive_returns_fresh_truth(self) -> None:
         """Scenario 1: Stale positive returns the fresh truth (None)."""
@@ -45,9 +39,9 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            # Prime the cache
             prime = _audit.find_artifact(root, "aaaaaa")
             self.assertIsNotNone(prime.path)
+            stale_idx = _audit.build_index(root)
 
             # In-place rewrite of X's declared id
             art_x.write_text(
@@ -55,14 +49,13 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            cached_ans = _audit.find_artifact(root, "aaaaaa")
-
-            _audit._INDEX_CACHE.clear()
+            stale_ans = _audit.find_artifact(root, "aaaaaa", artifact_index=stale_idx)
             fresh_truth = _audit.find_artifact(root, "aaaaaa")
 
-            self.assertEqual(cached_ans.path, fresh_truth.path)
-            self.assertEqual(cached_ans.collisions, fresh_truth.collisions)
-            self.assertIsNone(cached_ans.path)
+            self.assertEqual(stale_ans.path, fresh_truth.path)
+            self.assertEqual(stale_ans.collisions, fresh_truth.collisions)
+            self.assertIsNone(fresh_truth.path)
+            self.assertEqual(_audit.find_artifact(root, "cccccc").path.name, art_x.name)
 
     def test_wrong_path_returns_fresh_truth(self) -> None:
         """Scenario 2: Wrong path returns the fresh truth (new owner)."""
@@ -83,9 +76,9 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            # Prime the cache
             prime = _audit.find_artifact(root, "aaaaaa")
             self.assertIsNotNone(prime.path)
+            stale_idx = _audit.build_index(root)
 
             # In-place rewrites: X -> cccccc, Y -> aaaaaa (no files added, removed or renamed)
             art_x.write_text(
@@ -97,14 +90,12 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            cached_ans = _audit.find_artifact(root, "aaaaaa")
-
-            _audit._INDEX_CACHE.clear()
+            stale_ans = _audit.find_artifact(root, "aaaaaa", artifact_index=stale_idx)
             fresh_truth = _audit.find_artifact(root, "aaaaaa")
 
-            self.assertEqual(cached_ans.path, fresh_truth.path)
-            self.assertEqual(cached_ans.collisions, fresh_truth.collisions)
-            self.assertEqual(cached_ans.path.name, art_y.name)
+            self.assertEqual(stale_ans.path, fresh_truth.path)
+            self.assertEqual(stale_ans.collisions, fresh_truth.collisions)
+            self.assertEqual(fresh_truth.path.name, art_y.name)
 
     def test_phantom_collision_returns_fresh_truth(self) -> None:
         """Scenario 3: Phantom collision resolves cleanly to single true hit."""
@@ -125,10 +116,11 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            # Prime the cache: genuine collision
+            # Genuine collision first
             prime = _audit.find_artifact(root, "aaaaaa")
             self.assertIsNone(prime.path)
             self.assertEqual(len(prime.collisions), 2)
+            stale_idx = _audit.build_index(root)
 
             # Fix collision in place: rewrite Y to bbbbbb
             art_y.write_text(
@@ -136,18 +128,16 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            cached_ans = _audit.find_artifact(root, "aaaaaa")
-
-            _audit._INDEX_CACHE.clear()
+            stale_ans = _audit.find_artifact(root, "aaaaaa", artifact_index=stale_idx)
             fresh_truth = _audit.find_artifact(root, "aaaaaa")
 
-            self.assertEqual(cached_ans.path, fresh_truth.path)
-            self.assertEqual(cached_ans.collisions, fresh_truth.collisions)
-            self.assertEqual(cached_ans.path.name, art_x.name)
-            self.assertEqual(cached_ans.collisions, [])
+            self.assertEqual(stale_ans.path, fresh_truth.path)
+            self.assertEqual(stale_ans.collisions, fresh_truth.collisions)
+            self.assertEqual(fresh_truth.path.name, art_x.name)
+            self.assertEqual(fresh_truth.collisions, [])
 
-    def test_cost_shape_cache_is_reused_on_unchanged_tree(self) -> None:
-        """Cost shape 1: Traversal runs once for unchanged tree; cached index is reused."""
+    def test_unchanged_tree_repeated_build_index_is_equal(self) -> None:
+        """Unchanged tree: every call enumerates afresh and returns an equal index and answer."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             pending_dir = root / ".aw" / "records" / "plans" / "pending"
@@ -177,16 +167,17 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
 
                 ans_2 = _audit.find_artifact(root, "aaaaaa")
                 self.assertEqual(ans_1.path, ans_2.path)
-                c2 = traversal_count
-                self.assertEqual(c1, c2)
+                self.assertGreater(traversal_count, c1)
 
                 idx_2 = _audit.build_index(root)
-                self.assertIs(idx_1, idx_2)
+                self.assertEqual(idx_1.paths, idx_2.paths)
+                self.assertEqual(idx_1.by_declared_id, idx_2.by_declared_id)
+                self.assertEqual(idx_1.by_filename_id, idx_2.by_filename_id)
             finally:
                 _sel._iter_paths = orig_iter
 
     def test_cost_shape_true_tier_one_answer_does_not_rederive(self) -> None:
-        """Cost shape 2: Verification of a true tier-one answer does not re-derive."""
+        """Verification of a true tier-one answer from a supplied index does not re-derive."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             pending_dir = root / ".aw" / "records" / "plans" / "pending"
@@ -198,8 +189,8 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            # Prime the cache
-            prime = _audit.find_artifact(root, "aaaaaa")
+            idx = _audit.build_index(root)
+            prime = _audit.find_artifact(root, "aaaaaa", artifact_index=idx)
             self.assertIsNotNone(prime.path)
 
             orig_iter = _sel._iter_paths
@@ -212,16 +203,16 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
 
             _sel._iter_paths = counted_iter
             try:
-                second_ans = _audit.find_artifact(root, "aaaaaa")
+                second_ans = _audit.find_artifact(root, "aaaaaa", artifact_index=idx)
                 self.assertEqual(traversal_count, 0)
                 self.assertEqual(prime.path, second_ans.path)
             finally:
                 _sel._iter_paths = orig_iter
 
-    def test_explicit_artifact_index_preserves_caller_object_and_revalidates_without_extra_traversal(
+    def test_explicit_stale_artifact_index_preserves_caller_object_and_answers_fresh_truth(
         self,
     ) -> None:
-        """Explicit index: caller object is untouched; repeat lookups reuse rebuilt cache."""
+        """Explicit stale index: caller object is untouched; every lookup answers fresh truth."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             pending_dir = root / ".aw" / "records" / "plans" / "pending"
@@ -262,13 +253,13 @@ class TestArtifactAuditIdentityStaleness(unittest.TestCase):
                 self.assertEqual(caller_idx.by_declared_id, orig_mapping)
                 self.assertIn("aaaaaa", caller_idx.by_declared_id)
 
-                # (c) Second identical call against same stale caller index does not re-traverse
+                # (c) Each call against the stale caller index re-derives from disk
+                self.assertGreater(c1, 0)
                 ans2 = _audit.find_artifact(root, "aaaaaa", artifact_index=caller_idx)
-                c2 = traversal_count
-                self.assertEqual(c1, c2)
+                self.assertGreater(traversal_count, c1)
+                self.assertEqual(caller_idx.by_declared_id, orig_mapping)
 
                 # (a) Answer equals freshly built index's answer
-                _audit._INDEX_CACHE.clear()
                 truth = _audit.find_artifact(root, "aaaaaa")
                 self.assertEqual(ans1.path, truth.path)
                 self.assertEqual(ans1.collisions, truth.collisions)
