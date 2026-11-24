@@ -5,8 +5,9 @@
 - Concern: Two families, `e8420v` (Order 45) and `0xsx2n` (Order 46), delete the remaining `^-` metadata regular expressions outside `artifact_meta` (spec `4sd62s` C5, 4.3). Each family's finishing item compares `aw check all`, `aw find plans` and `aw attention` against a baseline taken before any deletion, and its parts need a classified site table. `.aw/state/` does not travel between lane worktrees, so after the round-3 split both the baseline and the site tables must be committed in a plan file. This plan carries `e8420v` E-01 and `0xsx2n` E-01.
 - Scope: run the read-only baseline commands and the `^-` site searches, and write tables F-26 (the `e8420v` modules) and F-27 (the `0xsx2n` modules) and baseline table F-30 into this plan; commit this plan file. EXCLUDES every code or test edit (Orders 239 to 249).
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-238-786w7r-record-the-baseline-for-the-remaining-metadata-regex-deletio.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261124-ebbfmn-01-ebbfmn-k6jd6l-left-five-metadata-regex-literals-in-specs.backlog.md (defect-report carrier: the driver prompt requires each finding of this turn to be filed with aw backlog new found by 786w7r E-02/E-03 site searches and cited in F-26/F-27 notes); .aw/records/backlog/open/20261124-hmtpj2-01-hmtpj2-ac-1-lit-search-misses-metadata-regex-literals-spl.backlog.md (defect-report carrier: the driver prompt requires each finding of this turn to be filed with aw backlog new found by 786w7r E-02/E-03 site searches and cited in F-26/F-27 notes); .aw/records/backlog/open/20261124-q2vkdv-01-q2vkdv-aw-check-all-agent-picks-a-different-top-level-nex.backlog.md (defect-report carrier required by the driver prompt found while re-verifying F-30); .aw/records/backlog/open/20261124-yb6z41-01-yb6z41-metastore-deletion-plans-243-247-248-delete-regex.backlog.md (defect-report carrier: the driver prompt requires each finding of this turn to be filed with aw backlog new found by 786w7r E-02/E-03 site searches and cited in F-26/F-27 notes)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 786w7r
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to .aw/system/workflows/technical-writing/technical-writing.md. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: 786w7r verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261124-ebbfmn-01-ebbfmn-k6jd6l-left-five-metadata-regex-literals-in-specs.backlog.md: defect-report carrier: the driver prompt requires each finding of this turn to be filed with aw backlog new; found by 786w7r E-02/E-03 site searches and cited in F-26/F-27 notes; out-of-scope .aw/records/backlog/open/20261124-hmtpj2-01-hmtpj2-ac-1-lit-search-misses-metadata-regex-literals-spl.backlog.md: defect-report carrier: the driver prompt requires each finding of this turn to be filed with aw backlog new; found by 786w7r E-02/E-03 site searches and cited in F-26/F-27 notes; out-of-scope .aw/records/backlog/open/20261124-q2vkdv-01-q2vkdv-aw-check-all-agent-picks-a-different-top-level-nex.backlog.md: defect-report carrier required by the driver prompt; found while re-verifying F-30; out-of-scope .aw/records/backlog/open/20261124-yb6z41-01-yb6z41-metastore-deletion-plans-243-247-248-delete-regex.backlog.md: defect-report carrier: the driver prompt requires each finding of this turn to be filed with aw backlog new; found by 786w7r E-02/E-03 site searches and cited in F-26/F-27 notes]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-238-786w7r-record-the-baseline-for-the-remaining-metadata-regex-deletio.review.md
