@@ -196,12 +196,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     diff-exit=0
     $ grep -cE "^(FAILED|ERROR)" .aw/state/9o83cr/E-10a-after.txt
     0
-    (run tail: ======================= 125 passed in 230.21s (0:03:50) ========================)
+    (run tail: ======================= 125 passed in 147.84s (0:02:27) ========================)
     $ diff .aw/state/k6jd6l/lint-all-before.txt .aw/state/k6jd6l/lint-all-after.txt; echo diff-exit=$?
     diff-exit=0
-    (both files end: counts: conforming=105, quarantined=0, legacy/not evaluated=1880, error=0)
-    $ git show --stat 8fe1a9c87
-    commit 8fe1a9c87fd8520e3f7286411d0196b91d17f9ae
+    (both files end: counts: conforming=104, quarantined=0, legacy/not evaluated=1881, error=0)
+    $ git show --stat 98f43d3cc
+    commit 98f43d3cc4884dcada2b4fdda16376166cf434e7
         ad86ym: move parse_metadata_block and the prompt-comment parser into artifact_meta
      agent_workflows/artifact_meta.py       | 146 ++++++++++++++++++++-------------
      agent_workflows/ipd_lint.py            |  10 ++-
@@ -212,6 +212,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
      6 files changed, 103 insertions(+), 122 deletions(-)
     ```
     No rename to map (lists identical). Core tier `aw suite`: `2898 passed, 1 skipped, 11 warnings in 196.31s`.
+    Re-measured 2026-11-24 in attempt 2 (lane `aw/lane/ad86ym_attempt2`, attempt-1 commits carried forward by cherry-pick onto base `32fba8f53`). The before-list and the before lint file were regenerated from a `git archive 32fba8f53` export (the attempt-1 `.aw/state` files are gitignored and stayed in the attempt-1 lane): before=125 lines, after=125 lines, both diffs empty as pasted above. `aw suite`: `2898 passed, 1 skipped, 11 warnings in 173.46s (0:02:53)`.
   - Result: pass
 
 ## Approval and execution gate
