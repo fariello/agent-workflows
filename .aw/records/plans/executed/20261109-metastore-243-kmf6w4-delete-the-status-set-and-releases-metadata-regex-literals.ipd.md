@@ -6,7 +6,7 @@
 - Scope: delete the 16 literals, each of their uses reading through `artifact_meta.read`, `read_text` or `read_at`; update `tests/test_status_set.py` and `tests/test_releases.py` only where a test names a deleted pattern. EXCLUDES every other module.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/releases.py, tests/test_status_set.py, tests/test_releases.py, .aw/records/plans/pending/20261109-metastore-243-kmf6w4-delete-the-status-set-and-releases-metadata-regex-literals.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:7uq6xg, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,12 +18,12 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: kmf6w4
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
-- Scope-Exceeded: agent_workflows/attention.py (attention._resolve_release_version read the deleted releases._VERSION_RE inside try/except, so deleting it would have silently dropped the release version; retargeted onto releases.parse_release, backlog yb6z41 item 1)
+- Scope-Exceeded: agent_workflows/attention.py (attention._resolve_release_version read the deleted releases._VERSION_RE inside try/except, so the deletion would silently drop the release version retargeted onto releases.parse_release backlog yb6z4...)
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: kmf6w4 verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/attention.py: attention._resolve_release_version read the deleted releases._VERSION_RE inside try/except, so the deletion would silently drop the release version; retargeted onto releases.parse_release (backlog yb6z41 item 1); in-scope-unmodified agent_workflows/status_set.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_releases.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_status_set.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
