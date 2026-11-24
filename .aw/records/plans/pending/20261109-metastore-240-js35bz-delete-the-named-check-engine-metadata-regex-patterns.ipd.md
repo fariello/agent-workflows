@@ -42,30 +42,30 @@ PIN RULE (carried from `9o83cr`): before E-01, create directory `mkdir -p .aw/st
 
 ### Task group 1: four pattern groups, then verify
 
-- [ ] E-01 Ensure `.aw/state/js35bz/` exists (`mkdir -p .aw/state/js35bz/`) and capture baseline per PIN rule. Group A (identity and status): delete `_ID_LINE_RE`, `_SET_LINE_RE`, `_IDENT_ID_BULLET_RE`, `_IDENT_SET_BULLET_RE`, `_STATUS_META_RE`, `_PLAN_STATUS_RE`.
+- [x] E-01 Ensure `.aw/state/js35bz/` exists (`mkdir -p .aw/state/js35bz/`) and capture baseline per PIN rule. Group A (identity and status): delete `_ID_LINE_RE`, `_SET_LINE_RE`, `_IDENT_ID_BULLET_RE`, `_IDENT_SET_BULLET_RE`, `_STATUS_META_RE`, `_PLAN_STATUS_RE`.
   - Depends on: none
   - Expected outcome: `rg -n "\b(_ID_LINE_RE|_SET_LINE_RE|_IDENT_ID_BULLET_RE|_IDENT_SET_BULLET_RE|_STATUS_META_RE|_PLAN_STATUS_RE)\b" agent_workflows/check_engine.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Group B (item fields): delete `_ITEM_ID_RE`, `_ITEM_PRIORITY_RE`, `_ITEM_WORK_KIND_RE`, `_ITEM_DEPENDENCIES_RE`, `_DATE_LINE_RE`.
+- [x] E-02 Group B (item fields): delete `_ITEM_ID_RE`, `_ITEM_PRIORITY_RE`, `_ITEM_WORK_KIND_RE`, `_ITEM_DEPENDENCIES_RE`, `_DATE_LINE_RE`.
   - Depends on: E-01
   - Expected outcome: `rg -n "\b(_ITEM_ID_RE|_ITEM_PRIORITY_RE|_ITEM_WORK_KIND_RE|_ITEM_DEPENDENCIES_RE|_DATE_LINE_RE)\b" agent_workflows/check_engine.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Group C (gate and provenance fields): delete `_META_BLOCKS_RELEASE_RE`, `_META_CLOSE_EVIDENCE_RE`, `_META_FROM_BACKLOG_RE`, both definitions of `_ITEM_FROM_SPEC_RE`, and `_FROM_SPEC_LINE_RE`.
+- [x] E-03 Group C (gate and provenance fields): delete `_META_BLOCKS_RELEASE_RE`, `_META_CLOSE_EVIDENCE_RE`, `_META_FROM_BACKLOG_RE`, both definitions of `_ITEM_FROM_SPEC_RE`, and `_FROM_SPEC_LINE_RE`.
   - Depends on: E-02
   - Expected outcome: `rg -n "\b(_META_BLOCKS_RELEASE_RE|_META_CLOSE_EVIDENCE_RE|_META_FROM_BACKLOG_RE|_ITEM_FROM_SPEC_RE|_FROM_SPEC_LINE_RE)\b" agent_workflows/check_engine.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Group D (review and scope fields): delete `_REVIEW_SUBJECT_TYPE_RE`, `_SCOPE_PATHS_LINE_RE`, `_CARRIER_DATE_RE`.
+- [x] E-04 Group D (review and scope fields): delete `_REVIEW_SUBJECT_TYPE_RE`, `_SCOPE_PATHS_LINE_RE`, `_CARRIER_DATE_RE`.
   - Depends on: E-03
   - Expected outcome: `rg -n "\b(_REVIEW_SUBJECT_TYPE_RE|_SCOPE_PATHS_LINE_RE|_CARRIER_DATE_RE)\b" agent_workflows/check_engine.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Save `after.txt`, run every `tests/test_check_engine*.py` module, compare `aw check all --agent` and `aw check all --all --agent` rule-id multisets with `786w7r` F-30, and commit through `aw commit js35bz -- <paths>` with only Scope-Paths files (or justified test paths); never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-05 Save `after.txt`, run every `tests/test_check_engine*.py` module, compare `aw check all --agent` and `aw check all --all --agent` rule-id multisets with `786w7r` F-30, and commit through `aw commit js35bz -- <paths>` with only Scope-Paths files (or justified test paths); never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-04
   - Expected outcome: the modules pass; both multisets equal F-30.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -126,30 +126,35 @@ No spec change; implements part of `4sd62s` 4.3.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the E-01 `rg` command printing nothing (group A, six names).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "\b(_ID_LINE_RE|_SET_LINE_RE|_IDENT_ID_BULLET_RE|_IDENT_SET_BULLET_RE|_STATUS_META_RE|_PLAN_STATUS_RE)\b" agent_workflows/check_engine.py` printed nothing, exit 1 (no match). Baseline `.aw/state/js35bz/before.txt` captured first (196 lines, all PASSED). `_read_declared_id`/`_read_item_id`/`_read_plan_status`/`_parse_setid` now read `id`/`status`/`set` from `artifact_meta.read_text` over the metadata region (new helper `check_engine._declared_bullet_fields`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the E-02 `rg` command printing nothing (group B, five names).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "\b(_ITEM_ID_RE|_ITEM_PRIORITY_RE|_ITEM_WORK_KIND_RE|_ITEM_DEPENDENCIES_RE|_DATE_LINE_RE)\b" agent_workflows/check_engine.py` printed nothing, exit 1. `_ITEM_ID_RE` had one use (`_read_item_id`, retargeted); the other four had no use left (OQ-01: definition deleted only).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the E-03 `rg` command printing nothing (group C, five names, both `_ITEM_FROM_SPEC_RE` definitions).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "\b(_META_BLOCKS_RELEASE_RE|_META_CLOSE_EVIDENCE_RE|_META_FROM_BACKLOG_RE|_ITEM_FROM_SPEC_RE|_FROM_SPEC_LINE_RE)\b" agent_workflows/check_engine.py` printed nothing, exit 1. Both `_ITEM_FROM_SPEC_RE` definitions (graduation block and `_FROM_SPEC_DANGLING_RULE` block) are gone. `_read_blocks_release` reads `blocks_release` through `artifact_meta`; the comment above `GRADUATION_ARTIFACT_TYPES` that cited `_META_FROM_BACKLOG_RE`/`_ITEM_FROM_SPEC_RE` now names the `artifact_meta` `from_backlog`/`from_spec` fields.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the E-04 `rg` command printing nothing (group D, three names).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "\b(_REVIEW_SUBJECT_TYPE_RE|_SCOPE_PATHS_LINE_RE|_CARRIER_DATE_RE)\b" agent_workflows/check_engine.py` printed nothing, exit 1. `check_plan_spec_link_missing` reads `scope_paths` through `_declared_bullet_fields` (metadata region) instead of `_SCOPE_PATHS_LINE_RE.search(text)`; `_REVIEW_SUBJECT_TYPE_RE` and `_CARRIER_DATE_RE` had no use left.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `diff .aw/state/js35bz/before.txt .aw/state/js35bz/after.txt` (empty, or each change mapped), the per-module summary of `python3 -m pytest -o addopts="" tests/test_check_engine*.py`, the two rule-id multiset diffs against `786w7r` F-30 (empty), and `git show --stat` of the `aw commit js35bz` commit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `diff .aw/state/js35bz/before.txt .aw/state/js35bz/after.txt`: empty, exit 0 (196 PASSED both sides).
+    `python3 -m pytest -o addopts="" tests/test_check_engine*.py`: `196 passed in 14.82s`.
+    `aw check all --agent`: exit 1, findings_by_severity `{"error":11,"warning":2,"info":80}`; `diff` of the rule-id multiset (`jq -r '.diagnostics[].rule' | sort | uniq -c`) against the pre-edit capture on this tree: empty, and the multiset is line-for-line the `786w7r` F-30 one (1 check.graduated-to-dangling, 1 check.identity-absent-from-name, 1 check.ipd-carrier-finished-unverified, 32 check.lifecycle-transition-unvalidated, 4 check.name-nonconformant, 1 check.plan-spec-link-missing, 6 check.prompt-metadata-missing, 42 check.source-test-citation-dangling, 2 check.spec-criteria-uncovered, 1 check.system-layout-missing, 2 spec.prose-dash).
+    `aw check all --all --agent`: exit 1, findings_by_severity `{"error":16,"warning":15,"info":509}`; multiset diff empty, equal to F-30 (35 adopted-without-consumer ... 358 dangling-citation ... 4 unrecognized-model).
+    Core gate `aw suite`: `2893 passed, 1 skipped, 11 warnings in 124.77s (0:02:04)`, exit 0. Callers outside the module: `tests/test_gate_drop_audit*.py tests/test_review_sequence*.py`: `29 passed`.
+    `git show --stat dc4989de5`: `agent_workflows/check_engine.py | 80 +++++++++++++++++++----------------------` / `1 file changed, 36 insertions(+), 44 deletions(-)`.
+  - Result: pass
 
 ## Approval and execution gate
 
