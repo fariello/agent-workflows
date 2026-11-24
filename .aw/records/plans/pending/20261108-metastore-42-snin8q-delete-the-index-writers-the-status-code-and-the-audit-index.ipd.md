@@ -90,6 +90,7 @@ flowchart TD
 
 - Moved to 54a80m (round-3 split 2026-11-09 per research nj8zdp guidance): E-01 (baseline), committed as table F-29.
   - Carrier: 54a80m
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-230-54a80m-record-the-baseline-for-the-index-writer-deletion-family.ipd.md
 - Moved to f6y2yy (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 test subset 1, `tests/test_index_write_agent_records.py` and `tests/test_index_check_agent_records.py`.
   - Carrier: f6y2yy
 - Moved to 6966zq (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 test subset 2, `tests/test_drift_rule_registration.py`, `tests/test_model_vocab.py`, `tests/test_research_priority.py`, `tests/test_research_unsafe_field.py`, `tests/test_research_set_assign_date_containment.py`.
