@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5 allows exactly one metadata reader (`artifact_meta`). Part 10 of the round-3 split of `k6jd6l` (Order 43, research `nj8zdp` guidance). Before Order 290 deletes `research_contract.parse_frontmatter`, eight test modules that call it must read through `artifact_meta.read_text` instead. Measured references at `f83159217`: `tests/test_research_cmd_create.py` 15, `tests/test_research_rename_frontmatter.py` 12, `tests/test_research_archive.py` 7, `tests/test_research_descriptive_safety.py` 5, `tests/test_artifact_adopt.py` 1, `tests/test_date_reader_clock_parity.py` 2, `tests/test_research_unsafe_field.py` 3, `tests/test_selector_two_dialect_readers.py` 2.
 - Scope: Test retargets for the `parse_frontmatter` move of `k6jd6l` E-10 (`k6jd6l` named only the loader test modules; these eight were found on 2026-11-09 by running the E-10 search over `tests`). Items E-01 to E-04 take one large module each; E-05 takes the four small ones.
 - Scope-Paths: tests/test_research_cmd_create.py, tests/test_research_rename_frontmatter.py, tests/test_research_archive.py, tests/test_research_descriptive_safety.py, tests/test_artifact_adopt.py, tests/test_date_reader_clock_parity.py, tests/test_research_unsafe_field.py, tests/test_selector_two_dialect_readers.py, .aw/records/plans/pending/20261109-metastore-289-5lgpix-retarget-the-tests-that-still-call-parse-frontmatter.ipd.md
+- Scope-Exceeded: tests/test_record_builder.py (calls research_contract.parse_frontmatter missed by the f83159217 census, backlog 816pmu the plan Goal 'no test module calls parse_frontmatter' requires retargeting it before bxupy8 deletes the origin...); tests/test_research_meta_writer_characterization.py (calls research_contract.parse_frontmatter 3 times missed by the census, backlog 816pmu required by the plan Goal before bxupy8 deletes the original)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:sq6v7i, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 5lgpix
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: 5lgpix verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope tests/test_record_builder.py: calls research_contract.parse_frontmatter (missed by the f83159217 census, backlog 816pmu); the plan Goal 'no test module calls parse_frontmatter' requires retargeting it before bxupy8 deletes the original; out-of-scope tests/test_research_meta_writer_characterization.py: calls research_contract.parse_frontmatter 3 times (missed by the census, backlog 816pmu); required by the plan Goal before bxupy8 deletes the original]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, test retargeting coverage, and execution gate; marked reviewed and go-pending-approval.
