@@ -106,6 +106,7 @@ flowchart TD
   - Carrier: h3jp4e
 - Aliases, regeneration calls and stale-index rules.
   - Carrier: q6epwc
+  - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-41-q6epwc-make-the-typed-aw-index-spellings-aliases-and-stop-index-reg.ipd.md
 - The residual inventory, the AC-1 test and audit, and the INDEX documents.
   - Carrier: 9o83cr
 - Deleting the on-disk INDEX files and `plans/STATUS.md`, and the skip-name entries that protect scans from them.
