@@ -12960,17 +12960,6 @@ def _run_plans(
             if r.status not in status_not_set and r.disposition not in status_not_set
         ]
 
-    if getattr(args, "write_index", False):
-        index_path = plans_dir / "STATUS.md"
-        index_path.write_text(
-            plans_mod.render_status_index(root, records), encoding="utf-8"
-        )
-        term.status(
-            "ok",
-            f"Wrote {index_path.relative_to(root).as_posix()} ({len(records)} entries).",
-        )
-        return 0
-
     if ctx.is_agent or ctx.is_json:
         plan_rows = []
         for r in records:

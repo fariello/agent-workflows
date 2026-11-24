@@ -1,7 +1,8 @@
 """Tests for the plan status board helper and the `aw plans` verb (D52 follow-on).
 
-Covers grouping/counts by disposition + readiness, legacy free-text tolerance, the deterministic
-`--write-index` STATUS.md, plain (NO_COLOR) output, and the front-matter-only / read-only contract.
+Covers grouping/counts by disposition + readiness, legacy free-text tolerance, deterministic
+`aw ipd board` output, Set grouping and warnings, plain (NO_COLOR) output, and the
+front-matter-only / read-only contract.
 """
 
 from __future__ import annotations
@@ -9,13 +10,13 @@ from __future__ import annotations
 import io
 import json
 import unittest
+import unittest.mock
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from agent_workflows import cli
 from agent_workflows import plans as plans_mod
 from agent_workflows.term import Term
-from tests import support
 from tests.record_builder import RecordBuilder
 
 
@@ -51,6 +52,13 @@ def _write(
         text_only=True,
     )
     path.write_text(text, encoding="utf-8")
+
+
+def _board(root: Path) -> tuple[int, str]:
+    buf = io.StringIO()
+    with unittest.mock.patch("sys.stdout", buf):
+        rc = cli.main(["ipd", "board", "--dir", str(root)])
+    return rc, buf.getvalue()
 
 
 def _fixture(root: Path) -> None:
@@ -107,16 +115,16 @@ class ScanGroupTests(unittest.TestCase):
             self.assertEqual(before, after)
 
 
-class WriteIndexTests(unittest.TestCase):
-    def test_deterministic_index(self):
+class BoardDeterminismTests(unittest.TestCase):
+    def test_deterministic_board(self):
         with TemporaryDirectory() as td:
             root = Path(td)
             _fixture(root)
-            records = plans_mod.scan(root)
-            first = plans_mod.render_status_index(root, records)
-            second = plans_mod.render_status_index(root, plans_mod.scan(root))
-            self.assertEqual(first, second)  # deterministic -> no spurious diff
-            self.assertIn("## pending/", first)
+            rc_first, first = _board(root)
+            rc_second, second = _board(root)
+            self.assertEqual((rc_first, rc_second), (0, 0))
+            self.assertEqual(first, second)  # byte-identical across runs
+            self.assertIn("pending/ (", first)
             self.assertIn("legacy/unknown", first)
             self.assertTrue(first.endswith("\n"))
 
@@ -180,7 +188,7 @@ class SetOrderTests(unittest.TestCase):
                 recs["20260101-0003-01-bad.md"].set_id
             )  # malformed -> None
 
-    def test_board_renders_sets_section_and_warnings(self):
+    def test_group_sets_orders_members_and_warns_on_duplicate_order(self):
         with TemporaryDirectory() as td:
             root = Path(td)
             plans = root / ".agents" / "plans"
@@ -193,24 +201,28 @@ class SetOrderTests(unittest.TestCase):
             _write(
                 plans / "pending" / "20260101-0002-01-c.md", "approved", "myset", "1"
             )  # dup order
-            out = plans_mod.render_status_index(root, plans_mod.scan(root))
-            self.assertIn("## Sets", out)
-            self.assertIn("**myset**", out)
-            self.assertIn("WARNING", out)  # duplicate Order
-            # Within the Sets section, Order-1 members render before the Order-2 member
-            # (grouped + order-sorted). Scope the check to the Sets section, since the primary
-            # status board above lists the same files by filename order.
-            sets = support.final_section(out, "## Sets", next_marker="## ")
+            by_set = plans_mod.group_sets(plans_mod.scan(root))
+            self.assertEqual(sorted(by_set), ["myset"])
+            members = by_set["myset"]
+            self.assertEqual(len(members), 3)
+            self.assertEqual(
+                plans_mod.set_warnings("myset", members),
+                ["set `myset`: duplicate Order values"],
+            )
+            # Order-1 members sort before the Order-2 member.
+            ordered = [
+                r.path.name for r in sorted(members, key=plans_mod._set_member_sort_key)
+            ]
             self.assertLess(
-                sets.index("20260101-0001-01-b.md"), sets.index("20260101-0000-01-a.md")
+                ordered.index("20260101-0001-01-b.md"),
+                ordered.index("20260101-0000-01-a.md"),
             )
 
-    def test_no_sets_section_when_no_set_declared(self):
+    def test_no_sets_when_no_set_declared(self):
         with TemporaryDirectory() as td:
             root = Path(td)
             _fixture(root)  # none of these declare Set:
-            out = plans_mod.render_status_index(root, plans_mod.scan(root))
-            self.assertNotIn("## Sets", out)
+            self.assertEqual(plans_mod.group_sets(plans_mod.scan(root)), {})
 
 
 class BoardCliFilterTests(unittest.TestCase):
