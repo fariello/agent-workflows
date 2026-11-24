@@ -42,30 +42,30 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 
 ### Task group 1: rebind, retarget tests, delete
 
-- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-11b-before.txt`. Rebind `oc_runipd._read_id` and `agy_runipd._read_id` to a function returning `artifact_meta.read_text(text).fields`' loose `id` value (`ffceq0` D-2, `t4gl15` D-4), and change `artifact_meta.append_legacy`'s `_sel.read_front_matter_id` call to the same local reader.
+- [x] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-11b-before.txt`. Rebind `oc_runipd._read_id` and `agy_runipd._read_id` to a function returning `artifact_meta.read_text(text).fields`' loose `id` value (`ffceq0` D-2, `t4gl15` D-4), and change `artifact_meta.append_legacy`'s `_sel.read_front_matter_id` call to the same local reader.
   - Depends on: none
   - Expected outcome: no module imports `read_front_matter_id` for the re-export; `CrossHostReadIdReExportTests` passes unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Retarget `tests/test_front_matter_loose_whitespace.py`, `tests/test_history_order.py` and `tests/test_fixfirst_end_to_end.py` from `selectors.read_front_matter_id`/`read_front_matter_status` to `artifact_meta.read_text`, keeping every case.
+- [x] E-02 Retarget `tests/test_front_matter_loose_whitespace.py`, `tests/test_history_order.py` and `tests/test_fixfirst_end_to_end.py` from `selectors.read_front_matter_id`/`read_front_matter_status` to `artifact_meta.read_text`, keeping every case.
   - Depends on: E-01
   - Expected outcome: none of the three calls a `read_front_matter_*` reader.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Retarget `tests/test_blocks_release_reader_bounding.py` from `selectors.read_front_matter_blocks_release` to `artifact_meta.read_text(...).fields`, keeping every case.
+- [x] E-03 Retarget `tests/test_blocks_release_reader_bounding.py` from `selectors.read_front_matter_blocks_release` to `artifact_meta.read_text(...).fields`, keeping every case.
   - Depends on: E-02
   - Expected outcome: the module calls no `read_front_matter_*` reader.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Delete `selectors.read_front_matter_id`, `read_front_matter_status` and `read_front_matter_blocks_release` with their private patterns.
+- [x] E-04 Delete `selectors.read_front_matter_id`, `read_front_matter_status` and `read_front_matter_blocks_release` with their private patterns.
   - Depends on: E-03
   - Expected outcome: `rg -n "read_front_matter_(id|status|blocks_release)" agent_workflows tools tests` prints only comment lines.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Delete `selectors._ID_RE`, `_STATUS_RE` and `_SET_RE` (their readers `selectors._read_id`, `_read_status`, `_read_setid` read through `artifact_meta` since Order 142, `cdglt1`); save the after-list; commit through `aw commit 8ysz6b -- <paths>`.
+- [x] E-05 Delete `selectors._ID_RE`, `_STATUS_RE` and `_SET_RE` (their readers `selectors._read_id`, `_read_status`, `_read_setid` read through `artifact_meta` since Order 142, `cdglt1`); save the after-list; commit through `aw commit 8ysz6b -- <paths>`.
   - Depends on: E-04
   - Expected outcome: the three patterns are gone; no pinned case is dropped.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -126,30 +126,87 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "read_front_matter_id" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py agent_workflows/artifact_meta.py` printing nothing and `python3 -m pytest -o addopts="" -v tests/test_runner_shared.py -k CrossHostReadIdReExport` with every test PASSED and `git diff --stat tests/test_runner_shared.py` empty.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (attempt 1 commit `b7644bfc1` on lane `aw/lane/8ysz6b`, brought forward unchanged in attempt 2 as commit `315bb34b0`; every command below re-run in attempt 2 with identical output) Both hosts bind `_read_id` to the new `artifact_meta.read_loose_id(text)` (= `read_text(metadata_region(text)).loose_id`, byte-identical behavior to the deleted reader; measured over all 5129 `.aw/records/**/*.md` with 0 divergences before deletion), and `artifact_meta.write_legacy`'s sidecar fallback calls the same function.
+    ```
+    $ rg -n "read_front_matter_id" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py agent_workflows/artifact_meta.py; echo "rg exit=$?"
+    rg exit=1
+    $ python3 -m pytest -o addopts="" -v -n 0 tests/test_runner_shared.py -k CrossHostReadIdReExport
+    tests/test_runner_shared.py::CrossHostReadIdReExportTests::test_cross_host_read_id_permissive_reader_reexport PASSED [100%]
+    ====================== 1 passed, 142 deselected in 0.28s =======================
+    $ git diff --stat tests/test_runner_shared.py
+    (empty)
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "read_front_matter_" tests/test_front_matter_loose_whitespace.py tests/test_history_order.py tests/test_fixfirst_end_to_end.py` printing nothing and each module's before/after per-test lines.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "read_front_matter_" tests/test_front_matter_loose_whitespace.py tests/test_history_order.py tests/test_fixfirst_end_to_end.py; echo "rg exit=$?"
+    rg exit=1
+    ```
+    Per-module counts in `.aw/state/9o83cr/E-11b-{before,after}.txt` (all PASSED, identical names): `test_front_matter_loose_whitespace` before=4 after=4; `test_history_order` before=7 after=7; `test_fixfirst_end_to_end` before=35 after=35. The diff (V-05) shows no line for any of these three modules, so every case survives under its original name.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "read_front_matter_" tests/test_blocks_release_reader_bounding.py` printing nothing and its before/after per-test lines.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "read_front_matter_" tests/test_blocks_release_reader_bounding.py; echo "rg exit=$?"
+    rg exit=1
+    ```
+    `test_blocks_release_reader_bounding` before=9 after=9, all PASSED. One rename, same four input cases (`text_fm`, `text_body`, `text_yaml`, `text_trailing`): `test_read_front_matter_blocks_release_cases` -> `test_loose_blocks_release_cases` (now through `artifact_meta.read_loose_blocks_release`).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste that `rg` output (empty, or each line a quoted comment).
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "read_front_matter_(id|status|blocks_release)" agent_workflows tools tests
+    agent_workflows/check_engine.py:2087:# documented at `selectors.read_front_matter_id` happened before.
+    agent_workflows/selectors.py:473:# The PUBLIC loose-whitespace readers that used to live here (`read_front_matter_id`, `_status`,
+    agent_workflows/runner_shared.py:55899:        # the former `selectors.read_front_matter_status` (now `artifact_meta.read_loose_status`) is the shared PERMISSIVE reader, and
+    tests/test_runner_shared.py:209:    """s4jctz / h0zk2g E-03: both hosts expose `_read_id` bound to permissive `read_front_matter_id`."""
+    tests/test_ipdrunner_runagy_shim.py:329:        # status reading is owned by selectors.read_front_matter_status and tested in tests/.
+    ```
+    Every line is a comment or docstring. `tests/test_runner_shared.py:209` is a docstring left as is because V-01 requires that file unchanged. Live callers outside the fence that would have broken on deletion were retargeted with `--scope-reason` (`releases` 3, `runner_shared` 2, `review_basis` 3, `tests/test_readers_selectors_find.py` 9, `tests/test_artifact_meta_legacy_writer.py` 1); their pin list (190 cases, 9 modules) was identical before and after in attempt 1 (`.aw/state/8ysz6b/extra-{before,after}.txt`, `diff` exit 0); in attempt 2 those modules all pass inside the full `aw suite` run cited in V-05.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `rg -n "^_(ID|STATUS|SET)_RE =" agent_workflows/selectors.py` printing nothing, `diff .aw/state/9o83cr/E-11b-before.txt .aw/state/9o83cr/E-11b-after.txt` with no FAILED or ERROR line, and `git show --stat` of the `aw commit 8ysz6b` commit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: The three patterns were already absent at the starting HEAD `9cfa6aa23` (removed by `cdglt1`, commit `36012ee0d`; `selectors._read_id`/`_read_status`/`_read_setid` read through `artifact_meta`, so OQ-01's stop condition does not apply). This run removed the stale comment references to them.
+    ```
+    $ rg -n "^_(ID|STATUS|SET)_RE =" agent_workflows/selectors.py; echo "rg exit=$?"
+    rg exit=1
+    $ diff .aw/state/9o83cr/E-11b-before.txt .aw/state/9o83cr/E-11b-after.txt
+    3a4
+    > PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_loose_blocks_release_cases
+    5d5
+    < PASSED tests/test_blocks_release_reader_bounding.py::TestBlocksReleaseReaderBounding::test_read_front_matter_blocks_release_cases
+    $ grep -cE "^(FAILED|ERROR)" .aw/state/9o83cr/E-11b-after.txt
+    0
+    $ git show --stat 315bb34b0
+    commit 315bb34b0e4586d7c8fb26ab6328d51b48f340ca
+        metastore 294 (8ysz6b): delete selectors read_front_matter_* readers; rebind host _read_id to artifact_meta.read_loose_id (brought forward from lane aw/lane/8ysz6b b7644bfc1)
+     agent_workflows/agy_runipd.py                |  18 ++---
+     agent_workflows/artifact_meta.py             |  31 +++++++-
+     agent_workflows/oc_runipd.py                 |  12 +--
+     agent_workflows/releases.py                  |  13 +++-
+     agent_workflows/review_basis.py              |  10 +--
+     agent_workflows/runner_shared.py             |  12 +--
+     agent_workflows/selectors.py                 | 105 ++++-----------------------
+     tests/test_artifact_meta_legacy_writer.py    |   2 +-
+     tests/test_blocks_release_reader_bounding.py |  20 +++--
+     tests/test_fixfirst_end_to_end.py            |   3 +-
+     tests/test_front_matter_loose_whitespace.py  |  21 ++++--
+     tests/test_history_order.py                  |   4 +-
+     tests/test_readers_selectors_find.py         |  20 ++---
+     13 files changed, 118 insertions(+), 153 deletions(-)
+    ```
+    Both lists hold 198 lines; the only difference is the V-03 rename. Attempt 2 regenerated both lists (the before-list from a `git archive` of starting HEAD `ee436f6e3`, the after-list from the working tree; 198 lines each, 0 FAILED/ERROR) with the same diff shown. Full core suite (`aw suite`, attempt 2, after commit `315bb34b0`): `2889 passed, 1 skipped, 11 warnings in 117.21s (0:01:57)`.
+  - Result: pass
 
 ## Approval and execution gate
 
