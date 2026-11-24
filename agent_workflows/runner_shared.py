@@ -38531,9 +38531,21 @@ def finalize_already_done(repo: Path, plan_path: Path, id6: str) -> bool:
         repo = Path(repo)
         if not plan_path.is_file():
             return False
+        contained = False
         try:
             plan_path.resolve().relative_to(repo.resolve())
+            contained = True
         except ValueError:
+            storage_ctx = ipd_lifecycle._plan_storage_context(repo, plan_path)
+            if (
+                storage_ctx.owned
+                and storage_ctx.mode != "companion-lane-staged"
+                and not (
+                    repo / ".aw" / "state" / "companion-staged-baseline.json"
+                ).is_file()
+            ):
+                contained = True
+        if not contained:
             return False
 
         return bool(ipd_lifecycle.plan_already_finalized(repo, plan_path, id6).already)
@@ -52109,6 +52121,13 @@ def execute_item_core(
                 try:
                     current_plan_for_finalize = resolve_plan_path(
                         finalize_repo, item.get("configured_file", ""), item["id6"]
+                    )
+                    from agent_workflows import ipd_lifecycle as _ipd_lc
+
+                    current_plan_for_finalize = (
+                        _ipd_lc._resolve_staged_companion_lane_plan(
+                            finalize_repo, current_plan_for_finalize
+                        )
                     )
                 except DriverError as exc:
                     fin_reason, fin_remedy = finalize_unresolvable_text(plan_path, exc)

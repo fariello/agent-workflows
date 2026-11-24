@@ -1625,23 +1625,25 @@ def plan_already_finalized(
         return AlreadyFinalizedVerdict(False, bucket, None)
     commit: Optional[str] = None
     if plan_id:
-        subject = _core.finalize_commit_subject(plan_id)
-        # `--grep` is anchored with `^` because the reader contract is "STARTS WITH this subject"
-        # (the producer appends `<id6> -> executed`); a looser match would let an ordinary work
-        # commit naming the plan pass as finalize evidence, which the pre-commit gate's OQ-02
-        # already rejected for the same reason.
-        rc, out, _err = _git(
-            repo_root,
-            [
-                "log",
-                "--format=%H",
-                "-1",
-                "--extended-regexp",
-                f"--grep=^{re.escape(subject)}",
-            ],
-        )
-        if rc == 0 and out.strip():
-            commit = out.strip().splitlines()[0].strip()
+        storage_ctx = _plan_storage_context(repo_root, plan_path)
+        if storage_ctx.git_root is not None:
+            subject = _core.finalize_commit_subject(plan_id)
+            # `--grep` is anchored with `^` because the reader contract is "STARTS WITH this subject"
+            # (the producer appends `<id6> -> executed`); a looser match would let an ordinary work
+            # commit naming the plan pass as finalize evidence, which the pre-commit gate's OQ-02
+            # already rejected for the same reason.
+            rc, out, _err = _git(
+                storage_ctx.git_root,
+                [
+                    "log",
+                    "--format=%H",
+                    "-1",
+                    "--extended-regexp",
+                    f"--grep=^{re.escape(subject)}",
+                ],
+            )
+            if rc == 0 and out.strip():
+                commit = out.strip().splitlines()[0].strip()
     return AlreadyFinalizedVerdict(True, bucket, commit)
 
 
@@ -2472,9 +2474,177 @@ def _repo_relative(repo_root: Path, path: Path) -> str:
     Delegates to :func:`artifact_core.repo_relative_posix` (IPD ``61lsze``).
     The returned path is an IDENTITY key (``plan_rel`` feeds ``repo_root / plan_rel``,
     ``coord.path / plan_rel``, ``git checkout HEAD -- plan_rel``, and the owned commit paths)
-    which is only sound for an in-root path, guaranteed by E-06's containment check.
+    which is only sound for an in-root path; companion/external plans resolve their git
+    ownership and relative path through :func:`_plan_storage_context`.
     """
     return repo_relative_posix(path, repo_root)
+
+
+class _PlanStorage(NamedTuple):
+    """Ownership and git-commit target for a plan relative to ``repo_root``.
+
+    Modes:
+      * ``"in-tree"``: under ``repo_root`` (not a staged companion lane copy). Lifecycle git
+        operations run on ``repo_root``.
+      * ``"companion-lane-staged"``: ``repo_root`` has an external ``project_records_dir`` and
+        ``plan_path`` is a lane-local copy under ``repo_root / ".aw" / "records"``. Finalize
+        updates and moves on disk inside the lane without committing to the target branch so
+        ``integrate_lane_branch`` can route the executed plan to the companion repo on merge.
+      * ``"companion-git"``: under ``project_records_dir(repo_root)`` (outside ``repo_root``)
+        inside a companion git repository (``record_git_root``). Code scope auditing runs on
+        ``repo_root`` while lifecycle commits run on ``git_root``.
+      * ``"external-unversioned"``: under ``project_records_dir(repo_root)`` outside any git
+        repository (for example ``AW_HOME``). Lifecycle updates and moves on disk directly.
+      * ``"outside"``: outside both ``repo_root`` and ``project_records_dir(repo_root)``.
+    """
+
+    owned: bool
+    mode: str
+    git_root: Optional[Path]
+    plan_git_rel: str
+
+
+def _is_subpath(child: Path, parent: Path) -> bool:
+    try:
+        child.resolve().relative_to(parent.resolve())
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+def _plan_storage_context(repo_root: Path, plan_path: Path) -> _PlanStorage:
+    """Classify where ``plan_path`` lives relative to ``repo_root`` and its records backend."""
+    from agent_workflows import project_context as _pc
+
+    root_res = Path(repo_root).resolve()
+    plan_res = Path(plan_path).resolve()
+    try:
+        records_dir = _pc.project_records_dir(repo_root).resolve()
+    except Exception:
+        records_dir = (root_res / ".aw" / "records").resolve()
+
+    external_records = not _is_subpath(records_dir, root_res)
+
+    try:
+        rel_in_repo = plan_res.relative_to(root_res).as_posix()
+    except ValueError:
+        rel_in_repo = None
+
+    if rel_in_repo is not None:
+        if external_records and (
+            rel_in_repo == ".aw/records" or rel_in_repo.startswith(".aw/records/")
+        ):
+            return _PlanStorage(True, "companion-lane-staged", None, rel_in_repo)
+        return _PlanStorage(True, "in-tree", repo_root, rel_in_repo)
+
+    if external_records and _is_subpath(plan_res, records_dir):
+        try:
+            comp_git = _pc.record_git_root(plan_res)
+        except Exception:
+            comp_git = None
+        if comp_git is not None and _is_subpath(plan_res, comp_git):
+            comp_root = comp_git.resolve()
+            comp_rel = plan_res.relative_to(comp_root).as_posix()
+            return _PlanStorage(True, "companion-git", comp_root, comp_rel)
+        return _PlanStorage(
+            True, "external-unversioned", None, _repo_relative(repo_root, plan_path)
+        )
+
+    return _PlanStorage(False, "outside", None, _repo_relative(repo_root, plan_path))
+
+
+def _resolve_staged_companion_lane_plan(repo_root: Path, plan_path: Path) -> Path:
+    """Resolve a companion plan to its staged writable copy inside an isolated lane worktree.
+
+    When an isolated lane stages a companion plan under ``repo_root / ".aw" / "records"`` (marked
+    by ``.aw/state/companion-staged-baseline.json``), selector resolution against ``repo_root``
+    still finds the untouched source file in the companion records root. This read-only resolver
+    maps that companion source path to the lane's staged copy (either in its staged disposition
+    or already moved to ``executed/`` inside the lane) without staging or overwriting anything.
+    """
+    from agent_workflows import project_context as _pc
+
+    baseline_path = Path(repo_root) / ".aw" / "state" / "companion-staged-baseline.json"
+    if not baseline_path.is_file():
+        return plan_path
+
+    root_res = Path(repo_root).resolve()
+    plan_res = Path(plan_path).resolve()
+    if _is_subpath(plan_res, root_res):
+        return plan_path
+
+    try:
+        records_dir = _pc.project_records_dir(repo_root).resolve()
+    except Exception:
+        return plan_path
+    if _is_subpath(records_dir, root_res) or not _is_subpath(plan_res, records_dir):
+        return plan_path
+
+    rel = plan_res.relative_to(records_dir)
+    staged = Path(repo_root) / ".aw" / "records" / rel
+    if staged.is_file():
+        return staged
+
+    if rel.parts and rel.parts[0] == "plans" and len(rel.parts) >= 3:
+        tail = Path(*rel.parts[2:])
+        staged_exec = Path(repo_root) / ".aw" / "records" / "plans" / "executed" / tail
+        if staged_exec.is_file():
+            return staged_exec
+        flat_exec = (
+            Path(repo_root) / ".aw" / "records" / "plans" / "executed" / plan_path.name
+        )
+        if flat_exec.is_file():
+            return flat_exec
+
+    return plan_path
+
+
+def _build_finalize_transition_inputs(
+    actor: str,
+    message: str,
+    evidence: Dict[str, Any],
+    *,
+    run_id: Optional[str] = None,
+) -> Tuple[Any, Optional[List[Dict[str, Any]]]]:
+    """Build the `status_set` args namespace and extra scope events for finalize transitions."""
+    import argparse
+
+    from agent_workflows import status_set as _ss
+
+    extra_events: Optional[List[Dict[str, Any]]] = None
+    if evidence.get("transition") == "orchestrator-rollup":
+        evidence["finalize_scope_fields"] = None
+    else:
+        scope_recon = evidence.get("scope_reconciliation", {}) or {}
+        recon_reasons = scope_recon.get("reasons", {}) or {}
+        widened_set = set(scope_recon.get("widened_paths", []) or [])
+        out_of_scope_paths = [
+            {"path": p, "reason": str(recon_reasons[p])}
+            for p in sorted(recon_reasons)
+            if p not in widened_set
+        ]
+        widened_paths = [
+            {"path": p, "reason": str(recon_reasons.get(p, ""))}
+            for p in sorted(widened_set)
+        ]
+        scope_result = (
+            "exceeded"
+            if out_of_scope_paths
+            else ("widened" if widened_paths else "within")
+        )
+        scope_fields: Dict[str, Any] = {
+            "scope_result": scope_result,
+            "out_of_scope_paths": out_of_scope_paths,
+            "widened_paths": widened_paths,
+        }
+        evidence["finalize_scope_fields"] = scope_fields
+        extra_events = [{"op": "set", "fields": scope_fields}]
+
+    evidence["finalize_actor"] = _ss._build_event_actor(
+        actor, default_tool="aw ipd finalize", run_id=run_id
+    )
+    ns = argparse.Namespace(actor=actor, message=message, by_human=False, run_id=run_id)
+    return ns, extra_events
 
 
 # --------------------------------------------------------------------------------------
@@ -3222,10 +3392,10 @@ def derive_baseline(
     the commit used so a reviewer can judge it. Returns None when git cannot answer.
     """
 
-    try:
-        rel = plan_path.resolve().relative_to(repo_root.resolve()).as_posix()
-    except ValueError:
+    storage_ctx = _plan_storage_context(repo_root, plan_path)
+    if not storage_ctx.owned:
         return None
+    rel = storage_ctx.plan_git_rel
 
     def _show(sha: str, path: str) -> Optional[str]:
         rc, out, _e = _git(repo_root, ["show", f"{sha}:{path}"])
@@ -3240,13 +3410,16 @@ def derive_baseline(
         if rc != 0 or not out.strip():
             return None
         sha = out.strip()
-        text = _show(sha, rel)
+        text = _show(sha, rel) if storage_ctx.mode == "in-tree" else None
         if text is None:
             try:
                 text = plan_path.read_text(encoding="utf-8")
             except OSError:
                 return None
         return DerivedBaseline(sha, _date(sha), text, rel)
+
+    if storage_ctx.mode != "in-tree":
+        return None
 
     # The plan's own history, newest-first, tracing renames BACKWARDS by hand. `git log --follow` was
     # measured missing the `aw migrate-layout` rename (a small plan that also gained an Id line), so
@@ -4656,9 +4829,13 @@ def _rollback_precommit(
     if not shared_tree_untouched:
         shared_tree_untouched = bool(journal.get("shared_tree_untouched", False))
 
+    plan_root = (
+        Path(journal["plan_git_root"]) if journal.get("plan_git_root") else repo_root
+    )
+    plan_git_mode = str(journal.get("plan_git_mode") or "in-tree")
     orig_rel = journal["original_path"]
     dest_rel = journal.get("dest_path")
-    orig_abs = repo_root / orig_rel
+    orig_abs = plan_root / orig_rel
     orig_bytes = journal["original_bytes"]
     # The bytes this transaction believes it left at the ORIGIN. Absent (the ordinary case now) means
     # the transaction never wrote there, so the correct default is to leave the file alone entirely.
@@ -4666,7 +4843,7 @@ def _rollback_precommit(
 
     # 1. Remove the moved destination (if the move happened) unless a concurrent change altered it.
     if dest_rel and dest_rel != orig_rel:
-        dest_abs = repo_root / dest_rel
+        dest_abs = plan_root / dest_rel
         if dest_abs.exists():
             # Only remove a destination that matches what THIS transaction wrote (our plan bytes),
             # so we never clobber a concurrent writer that legitimately owns that path.
@@ -4744,39 +4921,40 @@ def _rollback_precommit(
     #    line via `git update-index --index-info`.
     import subprocess
 
-    owned = journal.get("owned_paths", [])
-    prior_index = journal.get("git_index_entries", {})
-    for p in owned:
-        current_entry = _git_index_entries(repo_root, [p]).get(p)
-        prior_entry = prior_index.get(p)
-        if current_entry == prior_entry:
-            # Case 1: current index entry already matches recorded state (including both absent).
-            # Do nothing; leaves the shared index untouched.
-            continue
-        elif p in prior_index:
-            # Case 2: path has a recorded prior index entry. Restore the exact line via update-index.
-            line = prior_index[p]
-            res = subprocess.run(
-                ["git", "update-index", "--index-info"],
-                cwd=repo_root,
-                input=line + "\n",
-                text=True,
-                capture_output=True,
-            )
-            if res.returncode != 0:
-                err = res.stderr.strip()
-                return (
-                    False,
-                    f"rollback could not restore the index entry for {p}: {err}",
+    if plan_git_mode not in ("companion-lane-staged", "external-unversioned"):
+        owned = journal.get("owned_paths", [])
+        prior_index = journal.get("git_index_entries", {})
+        for p in owned:
+            current_entry = _git_index_entries(plan_root, [p]).get(p)
+            prior_entry = prior_index.get(p)
+            if current_entry == prior_entry:
+                # Case 1: current index entry already matches recorded state (including both absent).
+                # Do nothing; leaves the shared index untouched.
+                continue
+            elif p in prior_index:
+                # Case 2: path has a recorded prior index entry. Restore the exact line via update-index.
+                line = prior_index[p]
+                res = subprocess.run(
+                    ["git", "update-index", "--index-info"],
+                    cwd=plan_root,
+                    input=line + "\n",
+                    text=True,
+                    capture_output=True,
                 )
-        else:
-            # Case 3: absent-evidence guard (p not in prior_index). Write NOTHING.
-            # An unrecorded path must never be force-removed: `git update-index --force-remove` on a
-            # path in the index stages a deletion (`D  <path>`), and `_git_index_entries` returns `{}`
-            # both when unindexed and when `git ls-files` fails. Absence is evidence absence, not
-            # evidence of absence; writing would invert the refuse-rather-than-overwrite discipline
-            # of steps 1 and 2 ("refusing a destructive restore").
-            pass
+                if res.returncode != 0:
+                    err = res.stderr.strip()
+                    return (
+                        False,
+                        f"rollback could not restore the index entry for {p}: {err}",
+                    )
+            else:
+                # Case 3: absent-evidence guard (p not in prior_index). Write NOTHING.
+                # An unrecorded path must never be force-removed: `git update-index --force-remove` on a
+                # path in the index stages a deletion (`D  <path>`), and `_git_index_entries` returns `{}`
+                # both when unindexed and when `git ls-files` fails. Absence is evidence absence, not
+                # evidence of absence; writing would invert the refuse-rather-than-overwrite discipline
+                # of steps 1 and 2 ("refusing a destructive restore").
+                pass
 
     # 4. The plans manifests are DELIBERATELY NOT TOUCHED. See this function's docstring for the
     #    measurement: nothing in the pre-commit phase writes the shared `INDEX.json`/`INDEX.md`, so
@@ -5354,16 +5532,20 @@ def retire_orchestrator(
         return early
 
     # --- The scope-delta consequence, ASSERTED rather than assumed (see ROLLUP_OMITTED_GATES).
+    storage_ctx = _plan_storage_context(repo_root, plan_path)
     plan_rel = _repo_relative(repo_root, plan_path)
-    unowned = _assert_rollup_touched_only_owned_paths(repo_root, plan_rel)
-    if unowned is not None:
-        return FinalizeResult(
-            EXIT_FINDINGS,
-            None,
-            f"REFUSED: {unowned}",
-            evidence,
-            (ROLLUP_REFUSED_UNOWNED_EDIT,),
+    if storage_ctx.git_root is not None:
+        unowned = _assert_rollup_touched_only_owned_paths(
+            storage_ctx.git_root, storage_ctx.plan_git_rel
         )
+        if unowned is not None:
+            return FinalizeResult(
+                EXIT_FINDINGS,
+                None,
+                f"REFUSED: {unowned}",
+                evidence,
+                (ROLLUP_REFUSED_UNOWNED_EDIT,),
+            )
 
     # --- GATE: orchestrator row conformance (IPD-S407).
     # Audited before retirement so an orchestrator cannot reach executed carrying untyped or
@@ -5404,7 +5586,7 @@ def retire_orchestrator(
             (),
         )
 
-    rec = _ss.read_artifact_record(plan_path, repo_root)
+    rec = _ss.read_artifact_record(plan_path, repo_root, default_type="plans")
     if rec is None:
         return FinalizeResult(
             EXIT_CANNOT_RUN,
@@ -5716,7 +5898,7 @@ def finalize(
         message = f"{message} [{receiptless_note}]"
 
     # --- E-02/E-03 forward transition, wrapped in the durable two-phase journal (Order 3xh53a) ---
-    rec = _ss.read_artifact_record(plan_path, repo_root)
+    rec = _ss.read_artifact_record(plan_path, repo_root, default_type="plans")
     if rec is None:
         return FinalizeResult(
             EXIT_CANNOT_RUN,
@@ -5809,22 +5991,14 @@ def _finalize_transaction(
     succeeded, which is also why a post-commit manifest-refresh failure lands there rather than being
     rolled back.
     """
-    import argparse
-
     from agent_workflows import artifact_core as _core
     from agent_workflows import status_set as _ss
 
+    storage_ctx = _plan_storage_context(repo_root, plan_path)
     plans_dir = _plans_dir_of(repo_root, plan_path)
-    dest_rel = _repo_relative(repo_root, plans_dir / "executed" / Path(plan_path).name)
-    # The generated plans manifests (INDEX.json/INDEX.md) are deliberately ABSENT here. Finalize no
-    # longer writes them at all (plan `lywgzs`, spec `4sd62s` 4.5: the SQLite metadata cache replaces
-    # them), and they are generated output that no `aw` verb commits, so naming
-    # them here would (a) put a gitignored path in the `git add` set, which exits 1 and stages
-    # NOTHING, wedging the whole transaction, and (b) make `_rollback_precommit`'s
-    # `git restore --staged -- <p>` emit a spurious "pathspec did not match" error for an untracked
-    # path, precisely when something has already gone wrong. `aw index plans --check` byte-compares
-    # a rebuild against the file ON DISK, never against git, so it is unaffected.
-    owned_paths = [plan_rel, dest_rel]
+    evidence["plan_storage_mode"] = storage_ctx.mode
+    if storage_ctx.mode == "companion-lane-staged":
+        evidence["companion_lane_staged"] = True
 
     def _fault(tag: str) -> None:
         if fault_injection == tag:
@@ -5865,15 +6039,138 @@ def _finalize_transaction(
         else:
             _clear_finalize_journal(repo_root, plan_id)
 
-    # --- PREPARED: snapshot everything needed to roll back, atomically, before any mutation. ---
-    rc, pre_head, _err = _git(repo_root, ["rev-parse", "HEAD"])
-    pre_head = pre_head.strip() if rc == 0 else "unversioned"
     try:
         original_bytes = plan_path.read_text(encoding="utf-8")
     except OSError as exc:
         return FinalizeResult(
             EXIT_CANNOT_RUN, None, f"cannot read plan: {exc}", evidence
         )
+
+    # --- Non-git / companion-lane-staged transition: move & update on disk without committing to
+    #     the target git branch. For `companion-lane-staged`, `.aw/records/` is gitignored inside
+    #     the lane and `integrate_lane_branch` atomically routes the executed plan to the companion
+    #     repository after target code validation and merge succeed. ---
+    if storage_ctx.git_root is None:
+        plan_root = (
+            repo_root if storage_ctx.mode == "companion-lane-staged" else plans_dir
+        )
+        orig_rel = (
+            storage_ctx.plan_git_rel
+            if storage_ctx.mode == "companion-lane-staged"
+            else plan_path.resolve().relative_to(plans_dir.resolve()).as_posix()
+        )
+        dest_rel = (
+            (plans_dir / "executed" / Path(plan_path).name)
+            .resolve()
+            .relative_to(plan_root.resolve())
+            .as_posix()
+        )
+        rc, pre_head, _err = _git(repo_root, ["rev-parse", "HEAD"])
+        pre_head = pre_head.strip() if rc == 0 else "unversioned"
+        journal: Dict[str, Any] = {
+            "schema_version": FINALIZE_JOURNAL_SCHEMA_VERSION,
+            "plan_id": plan_id,
+            "plan_digest": plan_content_digest(original_bytes),
+            "original_path": orig_rel,
+            "original_bytes": original_bytes,
+            "original_mode": replacement_mode(plan_path),
+            "dest_path": dest_rel,
+            "pre_head": pre_head,
+            "owned_paths": [orig_rel, dest_rel],
+            "git_index_entries": {},
+            "plan_git_mode": storage_ctx.mode,
+            "receipt_id": plan_id,
+            "actor": actor,
+            "message": message,
+            "phase": PHASE_PREPARED,
+            "created_at": _utc_now(),
+        }
+        if plan_root.resolve() != repo_root.resolve():
+            journal["plan_git_root"] = str(plan_root.resolve())
+        _write_finalize_journal(repo_root, journal)
+
+        def _rollback_nongit(
+            reason: str, exit_code: int = EXIT_CANNOT_RUN
+        ) -> FinalizeResult:
+            cur = read_finalize_journal(repo_root, plan_id) or journal
+            ok, msg = _rollback_precommit(repo_root, cur)
+            if not ok:
+                cur["phase"] = PHASE_UNKNOWN_OUTCOME
+                cur["rollback_error"] = msg
+                _write_finalize_journal(repo_root, cur)
+                return FinalizeResult(
+                    exit_code,
+                    None,
+                    f"{reason}; rollback FAILED ({msg}); journal retained, repository NOT reported "
+                    "restored.",
+                    evidence,
+                )
+            _clear_finalize_journal(repo_root, plan_id)
+            return FinalizeResult(
+                exit_code,
+                None,
+                f"{reason}; rolled back to pre-finalize state.",
+                evidence,
+            )
+
+        journal["phase"] = PHASE_MUTATING
+        _write_finalize_journal(repo_root, journal)
+        try:
+            _fault("before_mutation")
+            ns, extra_events = _build_finalize_transition_inputs(
+                actor, message, evidence, run_id=run_id
+            )
+            dest_path, _norm = _ss.apply_status_change(
+                rec, "executed", repo_root, ns, extra_events=extra_events
+            )
+            if evidence.get("transition") == "orchestrator-rollup":
+                moved_text = dest_path.read_text(encoding="utf-8")
+                updated_text = _insert_rollup_checklist_statement(moved_text)
+                if updated_text != moved_text:
+                    dest_path.write_text(updated_text, encoding="utf-8")
+            dest_rel = dest_path.resolve().relative_to(plan_root.resolve()).as_posix()
+            try:
+                journal["moved_bytes"] = dest_path.read_text(encoding="utf-8")
+            except OSError:
+                journal["moved_bytes"] = None
+            journal["dest_path"] = dest_rel
+            journal["owned_paths"] = [orig_rel, dest_rel]
+            _write_finalize_journal(repo_root, journal)
+            _fault("after_move")
+        except _InjectedFault as exc:
+            return _rollback_nongit(f"fault-injected finalize failure ({exc})")
+        except Exception as exc:
+            return _rollback_nongit(f"finalize mutation failed ({exc})")
+
+        commit_ref = pre_head
+        journal["phase"] = PHASE_COMMITTED_INCOMPLETE
+        journal["lifecycle_commit"] = commit_ref
+        _write_finalize_journal(repo_root, journal)
+        return _complete_after_commit(
+            repo_root, dest_path, plan_id, commit_ref, actor, evidence
+        )
+
+    tx_git_root = storage_ctx.git_root
+    tx_plan_rel = storage_ctx.plan_git_rel
+    dest_rel = (
+        (plans_dir / "executed" / Path(plan_path).name)
+        .resolve()
+        .relative_to(tx_git_root.resolve())
+        .as_posix()
+    )
+    # The generated plans manifests (INDEX.json/INDEX.md) are deliberately ABSENT here. Finalize no
+    # longer writes them at all (plan `lywgzs`, spec `4sd62s` 4.5: the SQLite metadata cache replaces
+    # them), and they are generated output that no `aw` verb commits, so naming
+    # them here would (a) put a gitignored path in the `git add` set, which exits 1 and stages
+    # NOTHING, wedging the whole transaction, and (b) make `_rollback_precommit`'s
+    # `git restore --staged -- <p>` emit a spurious "pathspec did not match" error for an untracked
+    # path, precisely when something has already gone wrong. `aw index plans --check` byte-compares
+    # a rebuild against the file ON DISK, never against git, so it is unaffected.
+    owned_paths = [tx_plan_rel, dest_rel]
+
+    # --- PREPARED: snapshot everything needed to roll back, atomically, before any mutation. ---
+    rc, pre_head, _err = _git(tx_git_root, ["rev-parse", "HEAD"])
+    pre_head = pre_head.strip() if rc == 0 else "unversioned"
 
     # NOTE: the journal deliberately carries no `index_json_before`/`index_md_before` content
     # snapshot, and it STILL does not need one after plan `4xt6u4` - but the REASON changed, so read
@@ -5890,23 +6187,26 @@ def _finalize_transaction(
     # WHEN A SNAPSHOT WOULD BECOME CORRECT: only if that invariant is broken, i.e. if some future
     # step writes the shared manifests BEFORE the commit. The test pinning the invariant is designed
     # to fail first in that case; do not add the keys back without breaking it.
-    journal: Dict[str, Any] = {
+    journal = {
         "schema_version": FINALIZE_JOURNAL_SCHEMA_VERSION,
         "plan_id": plan_id,
         "plan_digest": plan_content_digest(original_bytes),
-        "original_path": plan_rel,
+        "original_path": tx_plan_rel,
         "original_bytes": original_bytes,
         "original_mode": replacement_mode(plan_path),
         "dest_path": dest_rel,
         "pre_head": pre_head,
         "owned_paths": owned_paths,
-        "git_index_entries": _git_index_entries(repo_root, owned_paths),
+        "git_index_entries": _git_index_entries(tx_git_root, owned_paths),
+        "plan_git_mode": storage_ctx.mode,
         "receipt_id": plan_id,
         "actor": actor,
         "message": message,
         "phase": PHASE_PREPARED,
         "created_at": _utc_now(),
     }
+    if tx_git_root.resolve() != repo_root.resolve():
+        journal["plan_git_root"] = str(tx_git_root.resolve())
     _write_finalize_journal(repo_root, journal)
 
     def _rollback_and_return(
@@ -5988,53 +6288,21 @@ def _finalize_transaction(
     stage = list(owned_paths)
     try:
         with _clock.coordinator_worktree(
-            repo_root, label=plan_id, base=pre_head
+            tx_git_root, label=plan_id, base=pre_head
         ) as coord:
             _fault("before_mutation")
             # Mirror the plan's CURRENT shared-tree bytes to the worktree copy, so an uncommitted
             # in-progress edit rides the transition exactly as it does today.
-            wt_plan = coord.path / plan_rel
+            wt_plan = coord.path / tx_plan_rel
             wt_plan.parent.mkdir(parents=True, exist_ok=True)
             wt_plan.write_text(original_bytes, encoding="utf-8")
-            wt_rec = _ss.read_artifact_record(wt_plan, coord.path)
+            wt_rec = _ss.read_artifact_record(wt_plan, coord.path, default_type="plans")
             if wt_rec is None:
                 raise RuntimeError(
                     f"could not read the plan record inside the coordinator worktree ({wt_plan})"
                 )
-            extra_events: Optional[List[Dict[str, Any]]] = None
-            if evidence.get("transition") == "orchestrator-rollup":
-                evidence["finalize_scope_fields"] = None
-            else:
-                scope_recon = evidence.get("scope_reconciliation", {}) or {}
-                recon_reasons = scope_recon.get("reasons", {}) or {}
-                widened_set = set(scope_recon.get("widened_paths", []) or [])
-                out_of_scope_paths = [
-                    {"path": p, "reason": str(recon_reasons[p])}
-                    for p in sorted(recon_reasons)
-                    if p not in widened_set
-                ]
-                widened_paths = [
-                    {"path": p, "reason": str(recon_reasons.get(p, ""))}
-                    for p in sorted(widened_set)
-                ]
-                scope_result = (
-                    "exceeded"
-                    if out_of_scope_paths
-                    else ("widened" if widened_paths else "within")
-                )
-                scope_fields: Dict[str, Any] = {
-                    "scope_result": scope_result,
-                    "out_of_scope_paths": out_of_scope_paths,
-                    "widened_paths": widened_paths,
-                }
-                evidence["finalize_scope_fields"] = scope_fields
-                extra_events = [{"op": "set", "fields": scope_fields}]
-
-            evidence["finalize_actor"] = _ss._build_event_actor(
-                actor, default_tool="aw ipd finalize", run_id=run_id
-            )
-            ns = argparse.Namespace(
-                actor=actor, message=message, by_human=False, run_id=run_id
+            ns, extra_events = _build_finalize_transition_inputs(
+                actor, message, evidence, run_id=run_id
             )
             wt_dest, _norm = _ss.apply_status_change(
                 wt_rec, "executed", coord.path, ns, extra_events=extra_events
@@ -6044,7 +6312,7 @@ def _finalize_transaction(
                 updated_text = _insert_rollup_checklist_statement(moved_text)
                 if updated_text != moved_text:
                     wt_dest.write_text(updated_text, encoding="utf-8")
-            dest_rel = _repo_relative(coord.path, wt_dest)
+            dest_rel = wt_dest.resolve().relative_to(coord.path.resolve()).as_posix()
             # Record the moved bytes so rollback can distinguish our write from a concurrent one, and
             # so the post-reconciliation checks read the same content the commit carries.
             try:
@@ -6060,7 +6328,7 @@ def _finalize_transaction(
             # old path from disk, and `git add` on a vanished path exits 128 ("pathspec did not match
             # any files"), which would abort the whole transaction. The rename is already in this
             # worktree's index, so the commit carries BOTH halves of the move.
-            owned_paths = [plan_rel, dest_rel]
+            owned_paths = [tx_plan_rel, dest_rel]
             stage = list(owned_paths)
             add_paths = [p for p in owned_paths if (coord.path / p).exists()]
             if add_paths:
@@ -6099,8 +6367,8 @@ def _finalize_transaction(
             # bytes are verified to be our own mirror input AND to be carried by the landed commit) and
             # a no-op in every other case, including a peer's edit, which must keep refusing below.
             released = _release_own_plan_edit_before_landing(
-                repo_root,
-                plan_rel,
+                tx_git_root,
+                tx_plan_rel,
                 landed=landed,
                 dest_rel=dest_rel,
                 mirrored_bytes=original_bytes,
@@ -6109,9 +6377,9 @@ def _finalize_transaction(
             if released:
                 evidence.setdefault("reconciliation_prep", []).append(released)
                 try:
-                    journal["origin_written_bytes"] = (repo_root / plan_rel).read_text(
-                        encoding="utf-8"
-                    )
+                    journal["origin_written_bytes"] = (
+                        tx_git_root / tx_plan_rel
+                    ).read_text(encoding="utf-8")
                 except OSError:
                     journal["origin_written_bytes"] = None
                 _write_finalize_journal(repo_root, journal)
@@ -6119,7 +6387,7 @@ def _finalize_transaction(
             # --- LAND IT: the ff-only merge is the SINGLE step that advances the branch AND updates
             # the shared working tree. Never `update-ref` first (that makes this a reporting-success
             # no-op and hides the peer-protecting refusal), and never force a refusal.
-            landing = land_worktree_commit(repo_root, landed, expected_base=pre_head)
+            landing = land_worktree_commit(tx_git_root, landed, expected_base=pre_head)
     except _InjectedFault as exc:
         return _rollback_and_return(f"fault-injected finalize failure ({exc})")
     except _CommitRefused as exc:
@@ -6138,7 +6406,7 @@ def _finalize_transaction(
             # branch is concerned: rolling back is correct and loses nothing, because the coordinator
             # worktree's commit was deliberately abandoned with its branch.
             ref_name = _clock.abandoned_ref_name(landed)
-            rc_v, _, _ = _git(repo_root, ["rev-parse", "--verify", ref_name])
+            rc_v, _, _ = _git(tx_git_root, ["rev-parse", "--verify", ref_name])
             if rc_v == 0:
                 recovery_text = (
                     f"Abandoned coordinator commit {landed[:12]} retained at {ref_name} "
@@ -6172,18 +6440,18 @@ def _finalize_transaction(
                 journal["shared_tree_untouched"] = True
                 _write_finalize_journal(repo_root, journal)
 
-    dest_path = repo_root / journal["dest_path"]
+    dest_path = tx_git_root / journal["dest_path"]
 
     # --- CLASSIFY the commit boundary by OBSERVED repository state (E-03). ---
-    lifecycle_commit = _lifecycle_commit_exists(repo_root, pre_head, plan_id)
-    rc_head, cur_head, _e = _git(repo_root, ["rev-parse", "HEAD"])
+    lifecycle_commit = _lifecycle_commit_exists(tx_git_root, pre_head, plan_id)
+    rc_head, cur_head, _e = _git(tx_git_root, ["rev-parse", "HEAD"])
     cur_head = cur_head.strip() if rc_head == 0 else pre_head
     if lifecycle_commit is None:
         if cur_head == pre_head:
             # No lifecycle commit: pure pre-commit failure -> rollback.
             # Diagnose a FOREIGN cause (a concurrent writer inside pre-commit's stash window) so the
             # recorded reason does not imply this plan or its Set was at fault. Still fails closed.
-            foreign = classify_commit_refusal(repo_root, err, stage)
+            foreign = classify_commit_refusal(tx_git_root, err, stage)
             base = f"lifecycle commit did not happen (git rc={rc}: {err.strip()})"
             untouched = landing is not None and landing.status == RECONCILED_REFUSED
             return _rollback_and_return(
@@ -6319,18 +6587,25 @@ def _resume_post_commit(
             "unknown-outcome (fail closed).",
             evidence,
         )
-    # Verify the recorded lifecycle commit still exists in history.
-    rc, _out, _err = _git(repo_root, ["cat-file", "-e", f"{commit_hash}^{{commit}}"])
-    if rc != 0:
-        journal["phase"] = PHASE_UNKNOWN_OUTCOME
-        _write_finalize_journal(repo_root, journal)
-        return FinalizeResult(
-            EXIT_CANNOT_RUN,
-            None,
-            f"recorded lifecycle commit {commit_hash[:12]} for {plan_id} not found; unknown-outcome.",
-            evidence,
+    plan_root = (
+        Path(journal["plan_git_root"]) if journal.get("plan_git_root") else repo_root
+    )
+    plan_git_mode = str(journal.get("plan_git_mode") or "in-tree")
+    if plan_git_mode not in ("companion-lane-staged", "external-unversioned"):
+        # Verify the recorded lifecycle commit still exists in history.
+        rc, _out, _err = _git(
+            plan_root, ["cat-file", "-e", f"{commit_hash}^{{commit}}"]
         )
-    dest_path = repo_root / dest_rel
+        if rc != 0:
+            journal["phase"] = PHASE_UNKNOWN_OUTCOME
+            _write_finalize_journal(repo_root, journal)
+            return FinalizeResult(
+                EXIT_CANNOT_RUN,
+                None,
+                f"recorded lifecycle commit {commit_hash[:12]} for {plan_id} not found; unknown-outcome.",
+                evidence,
+            )
+    dest_path = plan_root / dest_rel
     if not dest_path.is_file():
         journal["phase"] = PHASE_UNKNOWN_OUTCOME
         _write_finalize_journal(repo_root, journal)
@@ -6432,7 +6707,7 @@ def run_begin(args) -> int:
         )
     plan_path = resolution.paths[0]
     plan_rel = _repo_relative(repo_root, plan_path)
-    if (repo_root / plan_rel).resolve() != plan_path.resolve():
+    if not _plan_storage_context(repo_root, plan_path).owned:
         return _emit(
             EXIT_CANNOT_RUN,
             "cannot-run",
@@ -6614,9 +6889,9 @@ def run_finalize(args) -> int:
             "cannot-run",
             f"selector {selector!r} is ambiguous ({resolution.kind}); matched: {cand}.",
         )
-    plan_path = resolution.paths[0]
+    plan_path = _resolve_staged_companion_lane_plan(repo_root, resolution.paths[0])
     plan_rel = _repo_relative(repo_root, plan_path)
-    if (repo_root / plan_rel).resolve() != plan_path.resolve():
+    if not _plan_storage_context(repo_root, plan_path).owned:
         return _emit(
             EXIT_CANNOT_RUN,
             "cannot-run",
