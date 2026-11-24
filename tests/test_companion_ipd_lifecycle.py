@@ -453,6 +453,145 @@ class TestCompanionIpdLifecycle(unittest.TestCase):
                 self.assertEqual(_git_head(target, env), target_head_before)
                 self.assertFalse(_target_has_aw_records(target, env))
 
+    def test_companion_backlog_and_spec_pass_structure_preflight_and_initialize_run(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            target, companion, env = _provision_companion_repos(td_path)
+            records_root = companion / "records"
+
+            b1_name = "20261124-bkl101-01-bkl101-sample-one.backlog.md"
+            b2_name = "20261124-bkl102-01-bkl102-sample-two.backlog.md"
+            (records_root / "backlog" / "open" / b1_name).write_text(
+                str(
+                    RecordBuilder().backlog(
+                        title="Sample companion backlog one",
+                        when="2026-11-24",
+                        id6="bkl101",
+                        set="bkl101",
+                        status="open",
+                        priority="medium",
+                        text_only=True,
+                    )
+                ),
+                encoding="utf-8",
+            )
+            (records_root / "backlog" / "open" / b2_name).write_text(
+                str(
+                    RecordBuilder().backlog(
+                        title="Sample companion backlog two",
+                        when="2026-11-24",
+                        id6="bkl102",
+                        set="bkl102",
+                        status="open",
+                        priority="low",
+                        text_only=True,
+                    )
+                ),
+                encoding="utf-8",
+            )
+            spec_dir = records_root / "specs" / "to-review"
+            spec_dir.mkdir(parents=True, exist_ok=True)
+            s1_name = "20261124-spc101-01-spc101-sample-spec.spec.md"
+            (spec_dir / s1_name).write_text(
+                str(
+                    RecordBuilder().spec(
+                        title="Sample companion spec",
+                        when="2026-11-24",
+                        id6="spc101",
+                        set="spc101",
+                        status="to-review",
+                        text_only=True,
+                    )
+                ),
+                encoding="utf-8",
+            )
+            _commit_in_repo(
+                companion,
+                [
+                    f"records/backlog/open/{b1_name}",
+                    f"records/backlog/open/{b2_name}",
+                    f"records/specs/to-review/{s1_name}",
+                ],
+                "seed companion backlog and spec items",
+                env,
+            )
+
+            with _patched_env(env):
+                manifest = runner_shared.build_dynamic_manifest(
+                    target, runner_shared.discover_plans(target)
+                )
+                b_map = runner_shared.populate_manifest_backlog(manifest, target)
+                self.assertEqual(
+                    b_map["bkl101"]["file"], f".aw/records/backlog/open/{b1_name}"
+                )
+                s_map = runner_shared.populate_manifest_specs(manifest, target)
+                self.assertEqual(
+                    s_map["spc101"]["file"], f".aw/records/specs/to-review/{s1_name}"
+                )
+
+                # Full `aw oc run --action plan bkl101 bkl102 --prepare-only` initializes cleanly
+                # without RUN-NOT-FOUND in RUN-STRUCTURE-PREFLIGHT.
+                parser = oc_runipd.build_parser()
+                args = parser.parse_args(
+                    [
+                        "start",
+                        "--repo",
+                        str(target),
+                        "--action",
+                        "plan",
+                        "--prepare-only",
+                        "bkl101",
+                        "bkl102",
+                    ]
+                )
+                run_dir = oc_runipd.initialize_run(args)
+                self.assertTrue(run_dir.is_dir())
+                state = oc_runipd.load_state(run_dir)
+                self.assertEqual(
+                    [it["id6"] for it in state["queue"]], ["bkl101", "bkl102"]
+                )
+                self.assertEqual(
+                    [it["action"] for it in state["queue"]], ["plan", "plan"]
+                )
+
+                # Companion spec also passes freeze-time structure preflight.
+                runner_shared.enforce_freeze_time_refusal(
+                    [
+                        {
+                            "id6": "spc101",
+                            "artifact_type": "spec",
+                            "initial_status": "to-review",
+                            "status": "queued",
+                            "action": "review",
+                            "configured_file": s_map["spc101"]["file"],
+                            "dependencies": [],
+                        }
+                    ],
+                    repo=target,
+                    host="oc",
+                )
+
+                # A genuinely missing backlog file still refuses with RUN-NOT-FOUND.
+                with self.assertRaises(runner_shared.DriverError) as ctx:
+                    runner_shared.enforce_freeze_time_refusal(
+                        [
+                            {
+                                "id6": "ghost9",
+                                "artifact_type": "backlog",
+                                "initial_status": "open",
+                                "status": "queued",
+                                "action": "plan",
+                                "configured_file": ".aw/records/backlog/open/nonexistent.backlog.md",
+                                "dependencies": [],
+                            }
+                        ],
+                        repo=target,
+                        host="oc",
+                    )
+                self.assertIn("RUN-NOT-FOUND", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

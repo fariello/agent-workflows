@@ -17221,6 +17221,21 @@ def populate_manifest_specs(manifest: dict[str, Any], repo: Path) -> dict[str, A
     return specs_dict
 
 
+def _logical_record_file_rel(
+    resolved: Path, repo_root: Path, records_root: Path
+) -> str:
+    """Render a resolved artifact path as a repo-relative or logical `.aw/records/...` POSIX path."""
+    try:
+        return resolved.relative_to(repo_root).as_posix()
+    except (ValueError, OSError):
+        pass
+    try:
+        rec_rel = resolved.relative_to(records_root).as_posix()
+        return f".aw/records/{rec_rel}"
+    except (ValueError, OSError):
+        return resolved.name
+
+
 def populate_manifest_backlog(manifest: dict[str, Any], repo: Path) -> dict[str, Any]:
     """Populate manifest['backlog'] lazily from ``artifact_meta.query(type="backlog")`` (artdispatch 8l8dgb E-03)."""
     if "backlog" in manifest:
@@ -17264,10 +17279,7 @@ def populate_manifest_backlog(manifest: dict[str, Any], repo: Path) -> dict[str,
                 if resolved.parent.name not in _backlog.STATUS_DIRS:
                     continue
                 seen_paths.add(resolved)
-                try:
-                    rel = str(resolved.relative_to(root)).replace("\\", "/")
-                except (ValueError, OSError):
-                    rel = resolved.name
+                rel = _logical_record_file_rel(resolved, root, records_root_res)
                 br = (getattr(st, "fields", None) or {}).get("blocks_release")
                 backlog_dict[st.id6] = {
                     "file": rel,
@@ -17284,10 +17296,7 @@ def populate_manifest_backlog(manifest: dict[str, Any], repo: Path) -> dict[str,
             st, _raw = _read_state_for_path(repo, resolved, record_type="backlog")
             if st is None or not st.id6 or getattr(st, "id_derived", False):
                 continue
-            try:
-                rel = str(resolved.relative_to(root)).replace("\\", "/")
-            except (ValueError, OSError):
-                rel = resolved.name
+            rel = _logical_record_file_rel(resolved, root, records_root_res)
             br = (getattr(st, "fields", None) or {}).get("blocks_release")
             backlog_dict[st.id6] = {
                 "file": rel,
@@ -17476,10 +17485,7 @@ def discover_specs(repo: Path) -> dict[str, SpecRecord]:
                 if id6 in specs:
                     continue
                 status = (_non_plan_status_from_state(st) or "").strip().lower()
-                try:
-                    rel = str(resolved.relative_to(root)).replace("\\", "/")
-                except (ValueError, OSError):
-                    rel = resolved.name
+                rel = _logical_record_file_rel(resolved, root, records_root_res)
                 specs[id6] = SpecRecord(id6=id6, status=status, file=rel, path=resolved)
     except Exception:
         return specs
@@ -21866,6 +21872,10 @@ def enforce_no_active_runner_conflict(
                         cand = repo / f
                         if cand.is_file():
                             id_to_path[id6] = cand.resolve()
+                        else:
+                            rec = discover_specs(repo).get(id6)
+                            if rec is not None and rec.path.is_file():
+                                id_to_path[id6] = rec.path.resolve()
                     except Exception:
                         pass
                 elif "backlog" in manifest and id6 in manifest["backlog"]:
@@ -21874,6 +21884,10 @@ def enforce_no_active_runner_conflict(
                         cand = repo / f
                         if cand.is_file():
                             id_to_path[id6] = cand.resolve()
+                        else:
+                            b_path = resolve_backlog_item(repo, id6)
+                            if b_path is not None and b_path.is_file():
+                                id_to_path[id6] = b_path.resolve()
                     except Exception:
                         pass
 
@@ -25078,22 +25092,53 @@ def enforce_freeze_time_refusal(
         atype = str(entry.get("artifact_type") or "")
         status = str(entry.get("initial_status") or entry.get("status") or "")
         action = str(entry.get("action") or "")
-        conf_file = entry.get("configured_file") or ""
+        conf_file = str(entry.get("configured_file") or "")
         file_path = Path(conf_file) if conf_file else None
 
+        abs_path: Path | None = None
+        rel_path = ""
         if file_path:
             if not file_path.is_absolute():
-                abs_path = (repo / file_path).resolve()
-                rel_path = str(file_path)
+                rel_path = str(file_path).replace("\\", "/")
+                cand = (repo / file_path).resolve()
+                if cand.is_file():
+                    abs_path = cand
+                elif rel_path.startswith(".aw/records/"):
+                    try:
+                        from agent_workflows import project_context as _proj_ctx
+
+                        rec_cand = (
+                            _proj_ctx.project_records_dir(repo)
+                            / rel_path[len(".aw/records/") :]
+                        ).resolve()
+                        if rec_cand.is_file():
+                            abs_path = rec_cand
+                    except Exception:
+                        pass
+                if abs_path is None:
+                    abs_path = cand
             else:
                 abs_path = file_path.resolve()
                 try:
                     rel_path = str(abs_path.relative_to(repo.resolve()))
                 except ValueError:
                     rel_path = str(abs_path)
-        else:
-            abs_path = None
-            rel_path = ""
+
+        if (
+            (abs_path is None or not abs_path.is_file())
+            and id6
+            and atype in ("ipd", "spec", "backlog")
+        ):
+            try:
+                resolved_art = queue_artifact_path(repo, entry).resolve()
+                if resolved_art.is_file() and (
+                    not conf_file or resolved_art.name == Path(conf_file).name
+                ):
+                    abs_path = resolved_art
+                    if not rel_path:
+                        rel_path = resolved_art.name
+            except Exception:
+                pass
 
         # -------------------------------------------------------------------------
         # 1. Undetermined action (spec 5.1, 1.7, E-03)
