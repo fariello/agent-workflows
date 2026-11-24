@@ -80,6 +80,7 @@ flowchart TD
 
 - Moved to 786w7r (round-3 split 2026-11-09 per research nj8zdp guidance): E-01 (baseline and F-26), shared with `0xsx2n`.
   - Carrier: 786w7r
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-238-786w7r-record-the-baseline-for-the-remaining-metadata-regex-deletio.ipd.md
 - Moved to 7uq6xg (round-3 split 2026-11-09 per research nj8zdp guidance): E-12 subset 1, `check_engine._blob_text`, `_status_meta`, `_metadata_status`, their callers in `hooks/ipd_dependency_statement_gate.py`, `status_set`, `runner_shared`, and `tests/test_check_engine_status_meta.py`; plus E-20's `tools/gate_drop_audit.py` `_status_meta` retarget.
   - Carrier: 7uq6xg
 - Moved to js35bz (round-3 split 2026-11-09 per research nj8zdp guidance): E-12 subset 2, the 19 named `check_engine` patterns.
