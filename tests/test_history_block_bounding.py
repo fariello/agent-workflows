@@ -30,7 +30,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import artifact_core as core
-from agent_workflows import attention_contract as ac
+from agent_workflows import artifact_meta as meta
 from agent_workflows import backlog
 from agent_workflows import cli
 from agent_workflows import set_records
@@ -62,7 +62,7 @@ class HistoryBlockBoundingTests(unittest.TestCase):
             "Prose body line 1\n"
             "Prose body line 2\n"
         )
-        hb = ac.history_block(text)
+        hb = meta.history_records(text)
         expected_records = [
             "- 2026-10-12 second (tester): second note",
             "- 2026-10-11 first (tester): first note",
@@ -71,7 +71,7 @@ class HistoryBlockBoundingTests(unittest.TestCase):
         self.assertEqual(hb.record_lines, expected_records)
         self.assertEqual(hb.body, "Prose body line 1\nProse body line 2")
         self.assertEqual(
-            ac.newest_history_record(hb.records),
+            meta._newest_history_record(hb.records),
             "- 2026-10-12 second (tester): second note",
         )
 
@@ -85,14 +85,14 @@ class HistoryBlockBoundingTests(unittest.TestCase):
             f"    - {today} same-status (aw backlog): metadata only\n\n"
             "Prose body\n"
         )
-        hb = ac.history_block(text)
+        hb = meta.history_records(text)
         self.assertEqual(hb.records, [])
         self.assertEqual(hb.record_lines, [])
         self.assertTrue(
             hb.body.startswith(f"    - {today} same-status (aw backlog): metadata only")
         )
         self.assertIn("Prose body", hb.body)
-        self.assertIsNone(ac.newest_history_record(hb.records))
+        self.assertIsNone(meta._newest_history_record(hb.records))
 
     def test_c_tk1gqo_shape_prose_quoted_records(self) -> None:
         """(c) tk1gqo shape: column-zero records, blank line, prose with indented quoted records."""
@@ -104,7 +104,7 @@ class HistoryBlockBoundingTests(unittest.TestCase):
             "    - 2026-01-01 quoted (tester): example\n"
             "    - 2026-01-02 quoted (tester): another example\n"
         )
-        hb = ac.history_block(text)
+        hb = meta.history_records(text)
         expected_records = [
             "- 2026-10-12 second (tester): second note",
             "- 2026-10-11 first (tester): first note",
@@ -124,7 +124,7 @@ class HistoryBlockBoundingTests(unittest.TestCase):
             "- 2026-10-11 first (tester): first note\n\n"
             "Prose body\n"
         )
-        hb = ac.history_block(text)
+        hb = meta.history_records(text)
         self.assertEqual(
             hb.records,
             [
@@ -151,7 +151,7 @@ class HistoryBlockBoundingTests(unittest.TestCase):
             "    - 2026-01-01 quoted (tester): example\n"
             "    further indented body\n"
         )
-        hb = ac.history_block(text)
+        hb = meta.history_records(text)
         self.assertEqual(hb.records, ["- 2026-10-12 second (tester): second note"])
         self.assertEqual(hb.record_lines, ["- 2026-10-12 second (tester): second note"])
         self.assertEqual(
@@ -201,7 +201,7 @@ class HistoryBlockBoundingTests(unittest.TestCase):
         rec_idx = lines1.index("- 2026-10-10 created (tester): created")
         self.assertEqual(lines1[rec_idx + 1], "  wrapped continuation")
         # history_block.records has new done record + original records
-        hb1 = ac.history_block(dest1_text)
+        hb1 = meta.history_records(dest1_text)
         self.assertEqual(
             hb1.records,
             [
@@ -241,7 +241,7 @@ class HistoryBlockBoundingTests(unittest.TestCase):
         self.assertEqual(dest2.parent.name, "done")
         dest2_text = dest2.read_text(encoding="utf-8")
 
-        hb2 = ac.history_block(dest2_text)
+        hb2 = meta.history_records(dest2_text)
         # Quoted line was NOT promoted to a record
         self.assertEqual(
             hb2.records,
@@ -297,7 +297,7 @@ class HistoryBlockBoundingTests(unittest.TestCase):
             )
         self.assertEqual(rc1, 0)
         text1 = f1.read_text(encoding="utf-8")
-        hb1 = ac.history_block(text1)
+        hb1 = meta.history_records(text1)
         self.assertGreaterEqual(len(hb1.records), 1)
         self.assertTrue(
             any(
@@ -346,7 +346,7 @@ class HistoryBlockBoundingTests(unittest.TestCase):
             )
         self.assertEqual(rc2, 0)
         text2 = f2.read_text(encoding="utf-8")
-        hb2 = ac.history_block(text2)
+        hb2 = meta.history_records(text2)
         self.assertGreaterEqual(len(hb2.records), 1)
         self.assertTrue(
             any(
@@ -437,7 +437,7 @@ class HistoryBlockBoundingTests(unittest.TestCase):
             )
         self.assertEqual(rc, 0)
         spec_text = spec_path.read_text(encoding="utf-8")
-        hb = ac.history_block(spec_text)
+        hb = meta.history_records(spec_text)
         self.assertGreaterEqual(len(hb.records), 1)
         self.assertTrue(
             any(

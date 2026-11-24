@@ -72,19 +72,22 @@ def _metadata_end(lines: List[str]) -> int:
 
 
 def _find_status_index(lines: List[str]) -> int:
+    from agent_workflows import artifact_meta as _meta
+
     end = _metadata_end(lines)
     for i in range(end):
-        if A.SPEC_STATUS_RE.match(lines[i]):
+        if _meta.spec_status_bullet(lines[i]) is not None:
             return i
     return -1
 
 
 def _read_status(lines: List[str]) -> Optional[str]:
+    from agent_workflows import artifact_meta as _meta
+
     i = _find_status_index(lines)
     if i < 0:
         return None
-    m = A.SPEC_STATUS_RE.match(lines[i])
-    return m.group(1) if m else None
+    return _meta.spec_status_bullet(lines[i])
 
 
 # --------------------------------------------------------------------------------------

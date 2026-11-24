@@ -10,7 +10,6 @@ import pytest
 
 from agent_workflows import artifact_meta as meta
 from agent_workflows import artifact_naming as naming
-from agent_workflows import attention_contract as att
 
 
 pytestmark = pytest.mark.core
@@ -431,7 +430,7 @@ def test_legacy_two_review_files_distinct_bindings(tmp_path: Path):
 
 
 def test_legacy_history_lines_order_and_last_history_day(tmp_path: Path):
-    """History rows returned in file order, and last_history_day equals attention_contract.last_history_at."""
+    """History rows returned in file order, and last_history_day equals artifact_meta._last_history_at."""
     records_root = tmp_path / "records"
     p_dir = records_root / "plans" / "pending"
     p_dir.mkdir(parents=True)
@@ -461,8 +460,8 @@ def test_legacy_history_lines_order_and_last_history_day(tmp_path: Path):
     assert [hr["seq"] for hr in hist_rows] == [1, 2, 3]
     assert [hr["line"] for hr in hist_rows] == history_lines
 
-    # V-12 quotation: legacy last_history_day equals attention_contract.last_history_at
-    expected_day = att.last_history_at(history_lines)
+    # V-12 quotation: legacy last_history_day equals the newest-record date rule
+    expected_day = meta._last_history_at(history_lines)
     assert art_row["last_history_day"] == expected_day
     assert art_row["last_history_day"] == "2026-10-24"
 
@@ -568,9 +567,68 @@ _HISTORY_FIXTURE_TEXTS = [
 ]
 
 
+# The answers the retired ``attention_contract`` history-block reader, newest-record rule and
+# ``last_history_at`` derivation gave for each fixture above (captured from them before IPD ``csobg7`` deleted
+# them), so the ``artifact_meta`` grammar is still held to the original behavior.
+_HISTORY_FIXTURE_EXPECTED = [
+    (([], [], ""), None, None),
+    (
+        (
+            [
+                "- 2026-10-24 approved (aw set): maintainer approved",
+                "- 2026-10-20 created (aw ipd new): initial creation",
+            ],
+            [
+                "- 2026-10-24 approved (aw set): maintainer approved",
+                "- 2026-10-20 created (aw ipd new): initial creation",
+            ],
+            "## Goal\n\nBody.",
+        ),
+        "- 2026-10-24 approved (aw set): maintainer approved",
+        "2026-10-24",
+    ),
+    (
+        (
+            [
+                "- 2026-11-02 reviewed (agent): a record whose text",
+                "- 2026-11-01 to-review (agent): second record",
+            ],
+            [
+                "- 2026-11-02 reviewed (agent): a record whose text",
+                "  wraps onto a continuation line",
+                "- 2026-11-01 to-review (agent): second record",
+            ],
+            "    an indented quotation after a blank line ends the block\n"
+            "- 2026-01-01 not a record because the block already ended",
+        ),
+        "- 2026-11-02 reviewed (agent): a record whose text",
+        "2026-11-02",
+    ),
+    (
+        (
+            ["- 2026-09-09 note: only record"],
+            ["- 2026-09-09 note: only record"],
+            "Prose at column zero.\n- 2026-09-08 after the block",
+        ),
+        "- 2026-09-09 note: only record",
+        "2026-09-09",
+    ),
+    (
+        (
+            ["- 2026-08-01 created (x): crlf record"],
+            ["- 2026-08-01 created (x): crlf record"],
+            "## Next",
+        ),
+        "- 2026-08-01 created (x): crlf record",
+        "2026-08-01",
+    ),
+    (([], [], "## Next"), None, None),
+]
+
+
 @pytest.mark.parametrize(
-    "text",
-    _HISTORY_FIXTURE_TEXTS,
+    "text,expected",
+    list(zip(_HISTORY_FIXTURE_TEXTS, _HISTORY_FIXTURE_EXPECTED)),
     ids=[
         "no-history",
         "two-records",
@@ -580,28 +638,39 @@ _HISTORY_FIXTURE_TEXTS = [
         "empty-block",
     ],
 )
-def test_history_records_matches_attention_contract_history_block(text: str):
+def test_history_records_matches_attention_contract_history_block(text: str, expected):
     """`artifact_meta.history_records` is the one history grammar and answers exactly as the
-    `attention_contract` original does, including the newest record and its day."""
+    retired `attention_contract` original did, including the newest record and its day."""
+    want_block, want_newest, want_day = expected
     got = meta.history_records(text)
-    want = att.history_block(text)
-    assert got.records == want.records
-    assert got.record_lines == want.record_lines
-    assert got.body == want.body
-    assert tuple(got) == tuple(want)
-    assert meta._newest_history_record(got.records) == att.newest_history_record(
-        want.records
-    )
-    assert meta._last_history_at(got.records) == att.last_history_at(want.records)
+    assert got.records == want_block[0]
+    assert got.record_lines == want_block[1]
+    assert got.body == want_block[2]
+    assert tuple(got) == want_block
+    assert meta._newest_history_record(got.records) == want_newest
+    assert meta._last_history_at(got.records) == want_day
 
 
 def test_last_history_at_copy_matches_original_for_event_dicts():
+    # Expected values are what the retired `attention_contract` derivation returned.
     events = [
-        [{"line": "- 2026-10-24 approved (aw set): x"}, {"line": "- 2026-10-20 y z"}],
-        [{"observed_day": "2026-07-01"}, {"at": "2026-07-03T10:00:00Z"}],
-        [{"at": "2026-07-03T10:00:00Z"}, {"observed_day": "2026-07-04"}],
-        [{"at": "bad"}],
-        [],
+        (
+            [
+                {"line": "- 2026-10-24 approved (aw set): x"},
+                {"line": "- 2026-10-20 y z"},
+            ],
+            "2026-10-24",
+        ),
+        (
+            [{"observed_day": "2026-07-01"}, {"at": "2026-07-03T10:00:00Z"}],
+            "2026-07-03",
+        ),
+        (
+            [{"at": "2026-07-03T10:00:00Z"}, {"observed_day": "2026-07-04"}],
+            "2026-07-04",
+        ),
+        ([{"at": "bad"}], None),
+        ([], None),
     ]
-    for ev in events:
-        assert meta._last_history_at(ev) == att.last_history_at(ev)
+    for ev, want in events:
+        assert meta._last_history_at(ev) == want
