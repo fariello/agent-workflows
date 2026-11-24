@@ -618,7 +618,7 @@ def test_unrelated_frontmatter_keys_are_unmutated(temp_git_repo: Path):
 
 
 def test_gate_agreement_on_all_four_fields(temp_git_repo: Path):
-    """E-05(d): aw research index --check passes and INDEX.json records set_id, order, model, kind matching new name."""
+    """E-05(d): aw research index --check passes and `aw show` reports set, order, model, kind matching new name."""
     _commit_research_shard_file(
         temp_git_repo,
         "20260901-oldsetid-03-k7m2xq-a-demo-doc.sonnet5high.notes.md",
@@ -661,16 +661,22 @@ def test_gate_agreement_on_all_four_fields(temp_git_repo: Path):
     )
     assert rc_chk == 0, f"index --check failed: {out_chk}\n{err_chk}"
 
-    # Validate generated INDEX.json fields
-    idx_path = temp_git_repo / ".aw" / "records" / "research" / "INDEX.json"
-    idx_data = json.loads(idx_path.read_text(encoding="utf-8"))
-    entries = [e for e in idx_data if e.get("id6") == "k7m2xq"]
+    # Validate the replayed metadata state (spec 4sd62s 4.5: the cache replaces INDEX.json)
+    rc_show, out_show, err_show = _run_cli(
+        ["show", "k7m2xq", "--format", "json", "--dir", str(temp_git_repo)]
+    )
+    assert rc_show == 0, f"show failed: {out_show}\n{err_show}"
+    entries = [
+        e for e in json.loads(out_show)["data"]["records"] if e.get("id6") == "k7m2xq"
+    ]
     assert len(entries) == 1
     entry = entries[0]
-    assert entry["set_id"] == "newsetid"
-    assert entry["order"] == "01"
-    assert entry["model"] == "sonnet5high"
-    assert entry["kind"] == "notes"
+    assert "-newsetid-01-k7m2xq-" in entry["path"]
+    assert entry["set"] == "newsetid"
+    assert entry["order"] == 1
+    assert entry["fields"]["model"] == "sonnet5high"
+    assert entry["fields"]["research_kind"] == "notes"
+    assert not (temp_git_repo / ".aw" / "records" / "research" / "INDEX.json").exists()
 
 
 def test_model_provenance_preserved_on_facetless_name(temp_git_repo: Path):
