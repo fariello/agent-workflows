@@ -1358,8 +1358,8 @@ def _plan_status_event_groups(
     to oldest-first). If direction is unknown/mixed or events span multiple blocks, ordered=False and
     members keep file order for display only.
     """
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import record_history as _rh
-    from agent_workflows.attention_contract import HISTORY_RECORD_RE as _HIST_RE
 
     in_hist = False
     blocks: List[List[str]] = []
@@ -1377,7 +1377,7 @@ def _plan_status_event_groups(
                     blocks.append(current_block)
                     current_block = []
                 continue
-            if _HIST_RE.match(line):
+            if _meta.is_history_record(line):
                 current_block.append(line)
             else:
                 # Indented continuation or non-record line inside history; continues current block.

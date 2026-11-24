@@ -21,8 +21,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from agent_workflows import artifact_meta as _meta
 from agent_workflows import attention as att
-from agent_workflows import attention_contract as ac
 from agent_workflows import backlog, cli
 from tests.record_builder import RecordBuilder
 
@@ -171,9 +171,7 @@ class HistoryLabelParityTests(unittest.TestCase):
         self.assertTrue(moved.exists(), f"expected moved item at {moved}")
         text = moved.read_text(encoding="utf-8")
         records = [
-            ln
-            for ln in att._history_section_lines(text)
-            if ac.HISTORY_RECORD_RE.match(ln)
+            ln for ln in att._history_section_lines(text) if _meta.is_history_record(ln)
         ]
         self.assertGreaterEqual(len(records), 2)
         newest = records[0]
@@ -277,12 +275,12 @@ class HistoryLabelParityTests(unittest.TestCase):
         rec1 = [
             ln
             for ln in att._history_section_lines(res1_file.read_text(encoding="utf-8"))
-            if ac.HISTORY_RECORD_RE.match(ln)
+            if _meta.is_history_record(ln)
         ][0]
         rec2 = [
             ln
             for ln in att._history_section_lines(res2_file.read_text(encoding="utf-8"))
-            if ac.HISTORY_RECORD_RE.match(ln)
+            if _meta.is_history_record(ln)
         ][0]
 
         # Positively assert label tokens
@@ -382,12 +380,12 @@ class HistoryLabelParityTests(unittest.TestCase):
         rec1 = [
             ln
             for ln in att._history_section_lines(f1.read_text(encoding="utf-8"))
-            if ac.HISTORY_RECORD_RE.match(ln)
+            if _meta.is_history_record(ln)
         ][0]
         rec2 = [
             ln
             for ln in att._history_section_lines(f2.read_text(encoding="utf-8"))
-            if ac.HISTORY_RECORD_RE.match(ln)
+            if _meta.is_history_record(ln)
         ][0]
 
         # Positively assert label tokens
@@ -451,9 +449,7 @@ class HistoryLabelParityTests(unittest.TestCase):
         self.assertTrue(moved.exists())
         text = moved.read_text(encoding="utf-8")
         records = [
-            ln
-            for ln in att._history_section_lines(text)
-            if ac.HISTORY_RECORD_RE.match(ln)
+            ln for ln in att._history_section_lines(text) if _meta.is_history_record(ln)
         ]
         self.assertEqual(len(records), 4)
         self.assertIn("transitioning", records[0])
@@ -483,9 +479,7 @@ class HistoryLabelParityTests(unittest.TestCase):
 
         res = backlog._reattach_history(old_text, rendered, "done", "test message")
         history_lines = [
-            ln
-            for ln in att._history_section_lines(res)
-            if ac.HISTORY_RECORD_RE.match(ln)
+            ln for ln in att._history_section_lines(res) if _meta.is_history_record(ln)
         ]
         self.assertEqual(len(history_lines), 4)
         self.assertIn(" set (aw backlog): test message", history_lines[0])

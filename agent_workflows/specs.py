@@ -400,7 +400,7 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
         )
 
     hist = _history_lines(lines)
-    if not any(A.HISTORY_RECORD_RE.match(h) for h in hist):
+    if not any(_meta.is_history_record(h) for h in hist):
         drift.append(
             core.Drift(
                 loc,

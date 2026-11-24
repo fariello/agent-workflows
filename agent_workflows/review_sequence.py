@@ -567,8 +567,6 @@ def count_verdict_bearing_entries(plan_text: str) -> int:
     """Count history entries that are review records and contain a classified verdict."""
     count = 0
     for candidate in artifact_meta.history_records(plan_text or "").records:
-        if not plan_readiness.HISTORY_RECORD_RE.match(candidate):
-            continue
         if not plan_readiness.is_review_history_entry(candidate):
             continue
         m = plan_readiness._HISTORY_RECORD_PARTS_RE.match(candidate)

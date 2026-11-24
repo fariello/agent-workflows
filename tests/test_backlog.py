@@ -721,9 +721,7 @@ class BacklogNoteVerbTests(unittest.TestCase):
         except support.SectionBoundError:
             sec = support.final_section(text, "## Workflow history", next_marker="## ")
         return [
-            ln.strip()
-            for ln in sec.splitlines()
-            if A.HISTORY_RECORD_RE.match(ln.strip())
+            ln.strip() for ln in sec.splitlines() if META.is_history_record(ln.strip())
         ]
 
     def _note(self, message, **kw):
@@ -1318,7 +1316,6 @@ class BacklogPreservationTests(unittest.TestCase):
     def test_close_on_answer_preserves_prior_history_records(self):
         """(a) close_on_answer on a 3-record item yields 4 records, close-record first, originals byte-identical."""
         from agent_workflows import attention as att
-        from agent_workflows import attention_contract as ac
         from agent_workflows import set_records
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -1360,7 +1357,7 @@ class BacklogPreservationTests(unittest.TestCase):
             history_lines = [
                 ln
                 for ln in att._history_section_lines(text)
-                if ac.HISTORY_RECORD_RE.match(ln)
+                if META.is_history_record(ln)
             ]
             self.assertEqual(len(history_lines), 4)
             self.assertIn("question answered; close-on-answer", history_lines[0])
@@ -1410,7 +1407,6 @@ class BacklogPreservationTests(unittest.TestCase):
     def test_close_on_answer_does_not_promote_indented_prose_quoted_history_lines(self):
         """(c) indented prose-quoted history-shaped line in body is not promoted into history block."""
         from agent_workflows import attention as att
-        from agent_workflows import attention_contract as ac
         from agent_workflows import set_records
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -1447,7 +1443,7 @@ class BacklogPreservationTests(unittest.TestCase):
             history_lines = [
                 ln
                 for ln in att._history_section_lines(text)
-                if ac.HISTORY_RECORD_RE.match(ln)
+                if META.is_history_record(ln)
             ]
             self.assertEqual(len(history_lines), 2)
             self.assertTrue(

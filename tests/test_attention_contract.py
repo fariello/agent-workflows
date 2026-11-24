@@ -358,11 +358,9 @@ class FixtureParseTests(unittest.TestCase):
 
     def test_unsafe_field_fixture_is_unsafe(self):
         f = FIX / "violations" / "unsafe-field.md"
-        summary = None
-        for line in f.read_text(encoding="utf-8").splitlines():
-            m = A.GATE_SUMMARY_RE.match(line)
-            if m:
-                summary = m.group("value")
+        summary = meta.read_text(
+            f.read_text(encoding="utf-8"), record_type="spec"
+        ).fields.get("gate_summary")
         self.assertIsNotNone(summary)
         self.assertFalse(A.is_safe_descriptive(summary))  # over-length
 

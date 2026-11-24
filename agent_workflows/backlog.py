@@ -405,7 +405,11 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
 
     # Duplicate-bullet rule (IPD 7ohskw E-02): walk the leading bullet block using the retired
     # parse_item's boundary and canonicalize the legacy Kind spelling.
-    gate_summary: Optional[str] = None
+    from agent_workflows import artifact_meta as _meta
+
+    gate_summary = _nonempty(
+        (_meta.read_text(text, record_type="backlog").fields or {}).get("gate_summary")
+    )
     key_counts: Dict[str, int] = {}
     for line in text.replace("\r\n", "\n").split("\n"):
         if line.startswith("## ") or (line.strip() and not line.startswith("- ")):
@@ -415,9 +419,6 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
             k = m.group(1)
             canon_k = "Work-Kind" if k == "Kind" else k
             key_counts[canon_k] = key_counts.get(canon_k, 0) + 1
-        ms = A.GATE_SUMMARY_RE.match(line)
-        if ms and gate_summary is None:
-            gate_summary = ms.group("value")
 
     for k, count in key_counts.items():
         if count > 1:
@@ -1513,7 +1514,7 @@ def _prior_history_records(text: str) -> List[str]:
     now lives in :func:`artifact_meta.history_records`.
 
     THE BUG THIS SHAPE PREVENTS, measured on a real legacy item (`tk1gqo`) while implementing
-    `vhbvwz` E-08. An earlier version scanned the whole post-heading region for `HISTORY_RECORD_RE`
+    `vhbvwz` E-08. An earlier version scanned the whole post-heading region for the history record grammar
     against `line.strip()`, so five INDENTED, PROSE-QUOTED example lines deep inside that item's body
     (it is a bug report whose text quotes history lines verbatim) matched as records and were
     re-emitted into the history block: 11 records became 17, and quoted examples were promoted into

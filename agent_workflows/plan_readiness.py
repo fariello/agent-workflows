@@ -23,8 +23,8 @@ bug the plan was written to fix.
    to say newest-first (E-07) precisely so a future reader does not "fix" this back into the bug.
 
    The bounding and the record grammar are REUSED, not re-implemented: ``artifact_meta.history_records``
-   already bounds the section canonically and ``attention_contract.HISTORY_RECORD_RE``
-   already defines the ``- YYYY-MM-DD <text>`` record grammar. A fourth hand-rolled history parser
+   already bounds the section canonically and applies the ``- YYYY-MM-DD <text>`` record grammar
+   (``artifact_meta.is_history_record``). A fourth hand-rolled history parser
    would have been the wrong move.
 
 DECISION ORDER (field first, prose only as a bounded fallback):
@@ -79,7 +79,6 @@ from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import ipd_schema as _schema
-from agent_workflows.attention_contract import HISTORY_RECORD_RE
 
 __all__ = [
     "POSITIVE",
@@ -278,7 +277,7 @@ def extract_newest_history_entry(text: str) -> Optional[str]:
 
     The section is BOUNDED at the next ``## `` heading or non-record block boundary (via
     ``artifact_meta.history_records``), so a bullet in a later section can never be returned, and
-    a bullet must match the ``- YYYY-MM-DD ...`` record grammar (``HISTORY_RECORD_RE``) to count, so
+    a bullet must match the ``- YYYY-MM-DD ...`` record grammar (``artifact_meta.is_history_record``) to count, so
     an undated stray bullet inside the section is skipped rather than returned.
 
     Pure. Returns the record with surrounding whitespace stripped.
@@ -580,8 +579,6 @@ def history_has_review_record(text: str) -> bool:
     from agent_workflows import artifact_meta as _meta
 
     for candidate in _meta.history_records(text or "").records:
-        if not HISTORY_RECORD_RE.match(candidate):
-            continue
         if is_review_history_entry(candidate):
             return True
     return False
@@ -621,8 +618,6 @@ def newest_verdict(text: str) -> Tuple[Optional[str], str]:
     from agent_workflows import artifact_meta as _meta
 
     for candidate in _meta.history_records(text or "").records:
-        if not HISTORY_RECORD_RE.match(candidate):
-            continue
         if not is_review_history_entry(candidate):
             continue  # a non-review record states no verdict of its own; keep looking backwards.
         m = _HISTORY_RECORD_PARTS_RE.match(candidate)

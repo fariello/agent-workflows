@@ -15,8 +15,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from agent_workflows import artifact_meta as _meta
 from agent_workflows import attention as att
-from agent_workflows import attention_contract as ac
 from agent_workflows import cli, record_history
 from tests.record_builder import RecordBuilder
 
@@ -54,7 +54,7 @@ class HistoryProvenanceRoutingTests(unittest.TestCase):
         before = [
             ln
             for ln in att._history_section_lines(item.read_text(encoding="utf-8"))
-            if ac.HISTORY_RECORD_RE.match(ln)
+            if _meta.is_history_record(ln)
         ]
         self.assertEqual(len(before), 3)
 
@@ -80,7 +80,7 @@ class HistoryProvenanceRoutingTests(unittest.TestCase):
         after = [
             ln
             for ln in att._history_section_lines(moved.read_text(encoding="utf-8"))
-            if ac.HISTORY_RECORD_RE.match(ln)
+            if _meta.is_history_record(ln)
         ]
         self.assertEqual(len(after), 4)
         self.assertIn("a real transition", after[0])
@@ -135,7 +135,7 @@ class HistoryProvenanceRoutingTests(unittest.TestCase):
         records = [
             ln
             for ln in att._history_section_lines(spec.read_text(encoding="utf-8"))
-            if ac.HISTORY_RECORD_RE.match(ln)
+            if _meta.is_history_record(ln)
         ]
         self.assertEqual(
             records,
@@ -187,9 +187,7 @@ class HistoryProvenanceRoutingTests(unittest.TestCase):
         moved = self.root / ".aw" / "records" / "backlog" / "done" / item.name
         text = moved.read_text(encoding="utf-8")
         inline = [
-            ln
-            for ln in att._history_section_lines(text)
-            if ac.HISTORY_RECORD_RE.match(ln)
+            ln for ln in att._history_section_lines(text) if _meta.is_history_record(ln)
         ]
         self.assertEqual(len(inline), 3, inline)
         self.assertIn("finished", inline[0])

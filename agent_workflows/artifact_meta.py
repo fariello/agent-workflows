@@ -3015,6 +3015,25 @@ def history_records(text: str) -> HistoryBlock:
     return _history_block(text)
 
 
+def history_record_date(line: str) -> Optional[str]:
+    """The ``YYYY-MM-DD`` date of ``line`` when it is one ``## Workflow history`` record
+    (``- YYYY-MM-DD <text>``), else ``None``.
+
+    The record grammar for a caller that already holds a single line (for example a line-by-line
+    scanner, or a test filtering lines). It is the grammar :func:`history_records` applies; it does
+    not bound the section, so a caller holding whole text uses :func:`history_records` instead.
+    """
+
+    m = _HISTORY_RECORD_RE.match(line)
+    return m.group("date") if m else None
+
+
+def is_history_record(line: str) -> bool:
+    """True iff ``line`` is one ``## Workflow history`` record (see :func:`history_record_date`)."""
+
+    return history_record_date(line) is not None
+
+
 def _parse_bullet_metadata_with_loose(
     text: str,
 ) -> Tuple[Dict[str, str], Dict[str, str], Optional[str], List[str]]:

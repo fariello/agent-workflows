@@ -36,8 +36,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
+from agent_workflows import artifact_meta as _meta
 from agent_workflows import attention as att
-from agent_workflows import attention_contract as ac
 from agent_workflows import backlog, cli, runner_shared, specs, status_set
 from tests import support
 from tests.record_builder import RecordBuilder
@@ -875,7 +875,7 @@ class TestBacklogSetDispatchParity(unittest.TestCase):
                     for ln in att._history_section_lines(
                         moved.read_text(encoding="utf-8")
                     )
-                    if ac.HISTORY_RECORD_RE.match(ln)
+                    if _meta.is_history_record(ln)
                 ]
                 self.assertEqual(len(after_lines), 4)
                 self.assertIn("fourth record", after_lines[0])
@@ -893,7 +893,7 @@ class TestBacklogSetDispatchParity(unittest.TestCase):
                         for ln in att._history_section_lines(
                             item.read_text(encoding="utf-8")
                         )
-                        if ac.HISTORY_RECORD_RE.match(ln)
+                        if _meta.is_history_record(ln)
                     ]
                 )
                 out, err = io.StringIO(), io.StringIO()
@@ -937,7 +937,7 @@ class TestBacklogSetDispatchParity(unittest.TestCase):
                         for ln in att._history_section_lines(
                             moved.read_text(encoding="utf-8")
                         )
-                        if ac.HISTORY_RECORD_RE.match(ln)
+                        if _meta.is_history_record(ln)
                     ]
                 )
                 self.assertEqual(after_count, before_count + 1)
@@ -1943,7 +1943,7 @@ class TestSpecsSetDispatchParity(unittest.TestCase):
                     for ln in att._history_section_lines(
                         moved.read_text(encoding="utf-8")
                     )
-                    if ac.HISTORY_RECORD_RE.match(ln)
+                    if _meta.is_history_record(ln)
                 ]
                 self.assertEqual(len(after_lines), 3)
                 self.assertIn("third note", after_lines[0])

@@ -30,7 +30,7 @@ Mapping purity (Section 6): ``class_of(tree, native_status)`` depends ONLY on ``
 It NEVER infers activity or gate state from prose, dates, mtime, lock files, or agent context. Every
 native enum value of every tracked tree maps to exactly one class; an unknown value is a violation,
 never a default. ``last_history_at`` derivation (Section 8.5): parse the ``## Workflow history`` records
-(``HISTORY_RECORD_RE``); ``last_history_at`` is the date of the NEWEST record, and the section is
+(``artifact_meta.history_records``); ``last_history_at`` is the date of the NEWEST record, and the section is
 NEWEST-FIRST, so that is the FIRST record in file order (see ``artifact_meta._newest_history_record``; corrected
 by plan ``vhbvwz`` E-02, which measured 534 artifacts reporting a date that was not their newest);
 empty history yields ``None`` (not a violation here; the scanner decides whether absence is a per-tree
@@ -657,10 +657,8 @@ GATE_KINDS: FrozenSet[str] = frozenset(
     ("artifact", "decision", "todo", "issue", "date", "external")
 )
 
-# Gate fields are sibling front-matter bullets, one value per line, no trailing prose on kind/ref.
-GATE_KIND_RE = re.compile(r"^- Gate-Kind:[ \t]*(?P<value>\S+)[ \t]*$")
-GATE_REF_RE = re.compile(r"^- Gate-Ref:[ \t]*(?P<value>.+?)[ \t]*$")
-GATE_SUMMARY_RE = re.compile(r"^- Gate-Summary:[ \t]*(?P<value>.+?)[ \t]*$")
+# Gate fields are sibling front-matter bullets read through ``artifact_meta`` (``gate_kind``,
+# ``gate_ref``, ``gate_summary``; spec ``4sd62s`` C5), the one metadata reader.
 
 # Output-safety (Section 8.8): descriptive fields are single-line, bounded, control-char-free.
 MAX_DESCRIPTIVE_LEN = 300
@@ -812,8 +810,8 @@ def refuse_unsafe_descriptive(
 # One dated record per touch: ``- YYYY-MM-DD <free single line>``. The DATE is the machine field.
 # The history block reader, the newest-record rule and the ``last_history_at`` derivation live in
 # ``artifact_meta`` (``history_records``, ``_newest_history_record``, ``_last_history_at``; IPD
-# ``csobg7``, spec ``4sd62s`` C5), the one metadata reader.
-HISTORY_RECORD_RE = re.compile(r"^- (?P<date>\d{4}-\d{2}-\d{2}) .+$")
+# ``csobg7``, spec ``4sd62s`` C5), the one metadata reader, as does the record grammar
+# (``artifact_meta.is_history_record``, ``artifact_meta.history_record_date``).
 
 
 # The ONE definition of "is this actor writable into a history line" (plan fn2l1u E-01).
@@ -822,9 +820,8 @@ HISTORY_RECORD_RE = re.compile(r"^- (?P<date>\d{4}-\d{2}-\d{2}) .+$")
 # born inside `ipd_lifecycle.retire_orchestrator`, but `status_set.apply_status_change` is the SINGLE
 # writer of every artifact's history line and must call it too (E-07), and `ipd_lifecycle` already
 # imports `status_set` (as `_ss`), so a helper hosted in `ipd_lifecycle` would force a cycle. This
-# module is stdlib-only with ZERO package imports, already OWNS the history-record grammar
-# (`HISTORY_RECORD_RE` directly above), and is already imported by both readers of that grammar
-# (`plan_readiness`, `record_history`), so every caller can reach it and no cycle is possible.
+# module is stdlib-only with ZERO package imports and sits beside the history-record writers'
+# contract, so every caller can reach it and no cycle is possible.
 #
 # WHY THE REFUSAL SURVIVES THE READER WIDENING, which is the question a later reader will ask. Plan
 # fn2l1u E-03/E-08 made the three readers TOLERANT of a parenthesized actor (lazy captures), so this

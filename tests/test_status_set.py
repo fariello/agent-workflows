@@ -2831,13 +2831,12 @@ class SameStatusMessageIsRecordedTests(StatusSetTestBase):
 
     def _history_records(self, path: Path):
         from agent_workflows import attention as att
-        from agent_workflows import attention_contract as A
 
         text = path.read_text(encoding="utf-8")
         return [
             ln.strip()
             for ln in att._history_section_lines(text)
-            if A.HISTORY_RECORD_RE.match(ln.strip())
+            if artifact_meta.is_history_record(ln.strip())
         ]
 
     def test_same_status_message_recording_and_deduplication(self):

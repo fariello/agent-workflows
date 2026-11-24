@@ -28,9 +28,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple as _Tuple
 
 from agent_workflows import artifact_core as _core
-from agent_workflows.attention_contract import (
-    HISTORY_RECORD_RE as _HISTORY_RECORD_RE,
-)
+from agent_workflows import artifact_meta as _meta
 
 SIDECAR_RELPATH = ".aw/records/history.jsonl"
 
@@ -366,15 +364,16 @@ def _inline_history_records(text: str) -> List[str]:
         if in_hist:
             if line.startswith("## "):
                 break
-            if _HISTORY_RECORD_RE.match(line):
+            if _meta.is_history_record(line):
                 out.append(line)
     return out
 
 
 def _parse_record_line(line: str) -> _Tuple[str, str, str, str]:
     """(date, workflow, actor, message) from one record line. date is guaranteed by the caller."""
-    m = _HISTORY_RECORD_RE.match(line)
-    date = m.group("date")
+    date = _meta.history_record_date(line)
+    if date is None:
+        raise ValueError(f"not a workflow-history record: {line!r}")
     tail = line[len("- " + date) :].strip()
     tm = _TAIL_RE.match(tail)
     if tm:
