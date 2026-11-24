@@ -42,30 +42,32 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 
 ### Task group 1: one module per item
 
-- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-10e-before.txt`. In `agent_workflows/plan_readiness.py`, replace the `history_block` and `newest_history_record` imports and their uses in `plan_readiness.extract_newest_history_entry`, `history_has_review_record` and `newest_verdict` with the `artifact_meta` history functions; keep the `HISTORY_RECORD_RE` import.
+- [x] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-10e-before.txt`. In `agent_workflows/plan_readiness.py`, replace the `history_block` and `newest_history_record` imports and their uses in `plan_readiness.extract_newest_history_entry`, `history_has_review_record` and `newest_verdict` with the `artifact_meta` history functions; keep the `HISTORY_RECORD_RE` import.
   - Depends on: none
   - Expected outcome: `plan_readiness` imports no history function from `attention_contract`.
-  - Execution state: pending
+  - Execution note: removing the import also removed the module attribute `plan_readiness.history_block`, which `artifact_meta.restore_legacy_snapshot` read (`_plan_read.history_block(pre_pass_text or "")`). That one line now calls `artifact_meta._history_block`, the same grammar; `agent_workflows/artifact_meta.py` is outside Scope-Paths and was committed with a `--scope-reason`.
+  - Execution state: performed
 
-- [ ] E-02 In `review_sequence.count_verdict_bearing_entries` and `review_sequence.restore_pre_s7_plan`, replace `plan_readiness.history_block` with the `artifact_meta` text entry point.
+- [x] E-02 In `review_sequence.count_verdict_bearing_entries` and `review_sequence.restore_pre_s7_plan`, replace `plan_readiness.history_block` with the `artifact_meta` text entry point.
   - Depends on: E-01
   - Expected outcome: `review_sequence` reaches the history grammar only through `artifact_meta`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `backlog.validate_item`, `backlog._strip_metadata_and_history` and `backlog._prior_history_records`, replace `A.history_block` with the `artifact_meta` text entry point.
+- [x] E-03 In `backlog.validate_item`, `backlog._strip_metadata_and_history` and `backlog._prior_history_records`, replace `A.history_block` with the `artifact_meta` text entry point.
   - Depends on: E-02
   - Expected outcome: `backlog` calls no `A.history_block`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `set_records._extract_body`, replace `_ac.history_block` with the `artifact_meta` text entry point.
+- [x] E-04 In `set_records._extract_body`, replace `_ac.history_block` with the `artifact_meta` text entry point.
   - Depends on: E-03
   - Expected outcome: `set_records` calls no `_ac.history_block`.
-  - Execution state: pending
+  - Execution note: nothing to edit. Plan `x2dxvf` (commit `710fcda51`) already removed `set_records._extract_body` and its `_ac.history_block` call; `set_records` keeps `_ac` only for `validate_gate_ref` and `refuse_unsafe_descriptive`. Recorded as D1 in the run's decisions register.
+  - Execution state: performed
 
-- [ ] E-05 In `status_set.same_status_message_is_duplicate`, replace `_ac.newest_history_record(_ac.history_block(text).records)` with the `artifact_meta` functions; save the after-list; commit through `aw commit ay6sxp -- <paths>`.
+- [x] E-05 In `status_set.same_status_message_is_duplicate`, replace `_ac.newest_history_record(_ac.history_block(text).records)` with the `artifact_meta` functions; save the after-list; commit through `aw commit ay6sxp -- <paths>`.
   - Depends on: E-04
   - Expected outcome: the five modules import no history function from `attention_contract`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -124,30 +126,143 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "history_block|newest_history_record" agent_workflows/plan_readiness.py` showing only `artifact_meta` uses, and the before/after per-test lines of `tests/test_history_consumers_shared_reader.py`.
   - Observed evidence:
-  - Result: pending
+    $ rg -n "history_block|newest_history_record" agent_workflows/plan_readiness.py
+    274:    ``artifact_meta._newest_history_record``, which ``artifact_meta._last_history_at`` also
+    288:    return _meta._newest_history_record(_meta.history_records(text or "").records)
+    (both hits are `artifact_meta` uses; the two loops at lines 582 and 623 call `_meta.history_records`.)
+    Before (5 lines) and after (5 lines) are IDENTICAL (`diff` printed nothing); no case removed or renamed. After-list:
+    PASSED tests/test_history_consumers_shared_reader.py::TestHistoryConsumersSharedReader::test_backlog_indented_history_ignored_by_attention_scan
+    PASSED tests/test_history_consumers_shared_reader.py::TestHistoryConsumersSharedReader::test_gate_case_indented_quoted_review_does_not_attest_readiness
+    PASSED tests/test_history_consumers_shared_reader.py::TestHistoryConsumersSharedReader::test_gate_case_indented_quoted_review_under_real_reject
+    PASSED tests/test_history_consumers_shared_reader.py::TestHistoryConsumersSharedReader::test_multiline_wrapped_plan_record_preserves_subsequent_records
+    PASSED tests/test_history_consumers_shared_reader.py::TestHistoryConsumersSharedReader::test_prose_bounded_history_in_check_engine_date_readers
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "history_block" agent_workflows/review_sequence.py` showing only `artifact_meta` uses and the before/after per-test lines of `tests/test_review_sequence.py`.
   - Observed evidence:
-  - Result: pending
+    $ rg -n "history_block" agent_workflows/review_sequence.py; echo "exit=$?"
+    exit=1
+    (no hit at all; `count_verdict_bearing_entries` now reads `artifact_meta.history_records(plan_text or "").records`. `restore_pre_s7_plan` had no history-grammar call left at this HEAD: it delegates to `artifact_meta.restore_legacy_snapshot`, whose one `_plan_read.history_block` read was retargeted to `artifact_meta._history_block`.)
+    Before (9 lines) and after (9 lines) are IDENTICAL (`diff` printed nothing); no case removed or renamed. After-list:
+    PASSED tests/test_review_sequence.py::test_postcondition_P
+    PASSED tests/test_review_sequence.py::test_postcondition_S5
+    PASSED tests/test_review_sequence.py::test_postcondition_S7
+    PASSED tests/test_review_sequence.py::test_postcondition_steps
+    PASSED tests/test_review_sequence.py::test_postcondition_T
+    PASSED tests/test_review_sequence.py::test_prompt_plan_counts
+    PASSED tests/test_review_sequence.py::test_raise_tier_plan
+    PASSED tests/test_review_sequence.py::test_render_prompt_and_reask
+    PASSED tests/test_review_sequence.py::test_structural_diff
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "A\.history_block" agent_workflows/backlog.py` printing nothing and the before/after per-test lines of `tests/test_backlog.py`.
   - Observed evidence:
-  - Result: pending
+    $ rg -n "A\.history_block" agent_workflows/backlog.py; echo "exit=$?"
+    exit=1
+    Before (47 lines) and after (47 lines) are IDENTICAL (`diff` printed nothing); no case removed or renamed. After-list:
+    PASSED tests/test_backlog.py::BacklogAttentionTests::test_blocked_item_carries_gate
+    PASSED tests/test_backlog.py::BacklogAttentionTests::test_board_hides_parked_shows_blocked_with_gate
+    PASSED tests/test_backlog.py::BacklogAttentionTests::test_json_includes_parked
+    PASSED tests/test_backlog.py::BacklogAttentionTests::test_record_for_branch_is_load_bearing
+    PASSED tests/test_backlog.py::BacklogAttentionTests::test_scan_includes_backlog_with_correct_classes
+    PASSED tests/test_backlog.py::BacklogDryRunTests::test_backlog_set_positional_dry_run_leaves_file_untouched
+    PASSED tests/test_backlog.py::BacklogDryRunTests::test_backlog_set_status_done_dry_run_refuses_illegitimate_blocking_close_without_sidecar
+    PASSED tests/test_backlog.py::BacklogDryRunTests::test_backlog_set_status_dry_run_leaves_file_and_sidecar_untouched
+    PASSED tests/test_backlog.py::BacklogMappingTests::test_class_of_values
+    PASSED tests/test_backlog.py::BacklogMappingTests::test_map_covers_every_status
+    PASSED tests/test_backlog.py::BacklogMappingTests::test_unknown_status_raises
+    PASSED tests/test_backlog.py::BacklogNoteVerbTests::test_a_second_note_preserves_the_first
+    PASSED tests/test_backlog.py::BacklogNoteVerbTests::test_note_records_history_without_changing_status_or_moving_the_file
+    PASSED tests/test_backlog.py::BacklogNoteVerbTests::test_note_refuses_an_empty_message_and_an_unknown_item
+    PASSED tests/test_backlog.py::BacklogNoteVerbTests::test_the_cli_registers_the_verb
+    PASSED tests/test_backlog.py::BacklogPreservationTests::test_backlog_set_blocks_release_dash_removes_gate_and_preserves_custom_field
+    PASSED tests/test_backlog.py::BacklogPreservationTests::test_backlog_set_metadata_preservation_both_spellings_agree
+    PASSED tests/test_backlog.py::BacklogPreservationTests::test_backlog_set_status_graduated_to_replaces_and_preserves_custom_field
+    PASSED tests/test_backlog.py::BacklogPreservationTests::test_close_on_answer_does_not_promote_indented_prose_quoted_history_lines
+    PASSED tests/test_backlog.py::BacklogPreservationTests::test_close_on_answer_preserves_custom_field_and_handed_off_blocks_release
+    PASSED tests/test_backlog.py::BacklogPreservationTests::test_close_on_answer_preserves_pre_history_prose_exactly_once
+    PASSED tests/test_backlog.py::BacklogPreservationTests::test_close_on_answer_preserves_prior_history_records
+    PASSED tests/test_backlog.py::BacklogPreservationTests::test_duplicate_work_kind_deduped
+    PASSED tests/test_backlog.py::BacklogPreservationTests::test_gated_close_refused_without_carrier
+    PASSED tests/test_backlog.py::BacklogPreservationTests::test_header_prose_survives
+    PASSED tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity
+    PASSED tests/test_backlog.py::BacklogPreservationTests::test_render_item_drops_unknown_without_source_text_and_creation_emits_pair
+    PASSED tests/test_backlog.py::BacklogPreservationTests::test_render_item_preserves_release_exempt_with_source_text
+    PASSED tests/test_backlog.py::BacklogPreservationTests::test_stale_gate_summary_dropped
+    PASSED tests/test_backlog.py::BacklogPreservationTests::test_validate_item_release_exempt_findings
+    PASSED tests/test_backlog.py::BacklogVerbTests::test_check_duplicate_id_cross_layout_names_distinct_paths
+    PASSED tests/test_backlog.py::BacklogVerbTests::test_check_duplicate_id_names_distinct_repo_relative_paths
+    PASSED tests/test_backlog.py::BacklogVerbTests::test_check_fails_closed_on_duplicate_id
+    PASSED tests/test_backlog.py::BacklogVerbTests::test_check_fails_closed_on_status_dir_mismatch
+    PASSED tests/test_backlog.py::BacklogVerbTests::test_check_rejects_gate_on_non_blocked
+    PASSED tests/test_backlog.py::BacklogVerbTests::test_new_blocked_requires_gate
+    PASSED tests/test_backlog.py::BacklogVerbTests::test_new_blocks_release_dash_omits_field
+    PASSED tests/test_backlog.py::BacklogVerbTests::test_new_blocks_release_unresolvable_fails_closed
+    PASSED tests/test_backlog.py::BacklogVerbTests::test_new_blocks_release_valid_and_appears_in_release_blockers
+    PASSED tests/test_backlog.py::BacklogVerbTests::test_new_creates_conformant_item_that_checks_clean
+    PASSED tests/test_backlog.py::BacklogVerbTests::test_new_custom_message_and_default_message
+    PASSED tests/test_backlog.py::BacklogVerbTests::test_new_requires_summary
+    PASSED tests/test_backlog.py::BacklogVerbTests::test_one_call_vs_two_call_parity
+    PASSED tests/test_backlog.py::BacklogVerbTests::test_set_to_blocked_requires_gate
+    PASSED tests/test_backlog.py::BacklogVerbTests::test_set_to_blocked_with_gate_records_it
+    PASSED tests/test_backlog.py::BacklogVerbTests::test_set_transitions_status_moves_file_and_appends_history
+    PASSED tests/test_backlog.py::BacklogVerbTests::test_set_transitions_status_moves_file_and_appends_history_bounds_with_body
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n "_ac\.history_block" agent_workflows/set_records.py` printing nothing and the before/after per-test lines of `tests/test_history_block_bounding.py`.
   - Observed evidence:
-  - Result: pending
+    $ rg -n "_ac\.history_block" agent_workflows/set_records.py; echo "exit=$?"
+    exit=1
+    (already true before this plan: `x2dxvf` commit `710fcda51` removed `set_records._extract_body`.)
+    Before (9 lines) and after (9 lines) are IDENTICAL (`diff` printed nothing); no case removed or renamed. After-list:
+    PASSED tests/test_history_block_bounding.py::HistoryBlockBoundingTests::test_a_well_formed_multi_record_block
+    PASSED tests/test_history_block_bounding.py::HistoryBlockBoundingTests::test_b_f01_indented_only_fixture
+    PASSED tests/test_history_block_bounding.py::HistoryBlockBoundingTests::test_c_tk1gqo_shape_prose_quoted_records
+    PASSED tests/test_history_block_bounding.py::HistoryBlockBoundingTests::test_d_wrapped_record_with_continuation_lines
+    PASSED tests/test_history_block_bounding.py::HistoryBlockBoundingTests::test_e2_writer_round_trip_wrapped_and_quoted
+    PASSED tests/test_history_block_bounding.py::HistoryBlockBoundingTests::test_e_blank_separated_indented_quotation
+    PASSED tests/test_history_block_bounding.py::HistoryBlockBoundingTests::test_f_end_to_end_backlog_set_both_spellings
+    PASSED tests/test_history_block_bounding.py::HistoryBlockBoundingTests::test_g_predicate_and_prior_history_records_agree
+    PASSED tests/test_history_block_bounding.py::HistoryBlockBoundingTests::test_h_specs_note_with_indented_history_fixture
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `rg -n "(_ac|A|attention_contract)\.(history_block|newest_history_record)|import .*history_block" agent_workflows/plan_readiness.py agent_workflows/review_sequence.py agent_workflows/backlog.py agent_workflows/set_records.py agent_workflows/status_set.py` printing nothing, `diff .aw/state/9o83cr/E-10e-before.txt .aw/state/9o83cr/E-10e-after.txt` with no FAILED or ERROR line, and `git show --stat` of the `aw commit ay6sxp` commit.
   - Observed evidence:
-  - Result: pending
+    $ rg -n "(_ac|A|attention_contract)\.(history_block|newest_history_record)|import .*history_block" agent_workflows/plan_readiness.py agent_workflows/review_sequence.py agent_workflows/backlog.py agent_workflows/set_records.py agent_workflows/status_set.py; echo "exit=$?"
+    exit=1
+    $ diff .aw/state/9o83cr/E-10e-before.txt .aw/state/9o83cr/E-10e-after.txt; echo diff_exit=$?
+    diff_exit=0
+    $ wc -l .aw/state/9o83cr/E-10e-*.txt
+      180 .aw/state/9o83cr/E-10e-after.txt
+      180 .aw/state/9o83cr/E-10e-before.txt
+    $ grep -cE "^(FAILED|ERROR)" .aw/state/9o83cr/E-10e-after.txt
+    0
+    $ git show --stat 79ed9c72f
+    commit 79ed9c72f76fb485a28684cb71c0d71b0b396d8b
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Tue Nov 24 02:56:21 2026 -0500
+
+        ay6sxp: move plan_readiness, review_sequence, backlog and status_set history readers onto artifact_meta.history_records
+
+        AW-Run: run-20261124T050731Z-1001505
+        AW-Item: ay6sxp
+        AW-Runner: aw oc run
+
+     agent_workflows/artifact_meta.py   |  2 +-
+     agent_workflows/backlog.py         | 20 +++++++++++++-------
+     agent_workflows/plan_readiness.py  | 24 +++++++++++++-----------
+     agent_workflows/review_sequence.py |  2 +-
+     agent_workflows/status_set.py      |  6 +++---
+     5 files changed, 31 insertions(+), 23 deletions(-)
+    Full core suite (`aw suite`) after the change: `2889 passed, 1 skipped, 11 warnings in 152.14s (0:02:32)`.
+  - Result: pass
 
 ## Approval and execution gate
 
