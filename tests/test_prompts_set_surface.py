@@ -78,7 +78,7 @@ class TestPromptsSetSurface(unittest.TestCase):
         p = matches[0]
         text = p.read_text(encoding="utf-8")
         self.assertEqual(len(text.splitlines()), 1)
-        id6 = prompts.read_metadata_id6(text)
+        id6 = artifact_meta.read_text(text, record_type="prompt").id6 or None
         self.assertIsNotNone(id6)
         assert id6 is not None
         self.assertEqual(p.name, f"20261002-{set_id}-01-{id6}-{slug}.prompt.md")

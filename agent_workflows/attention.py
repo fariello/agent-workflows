@@ -419,8 +419,9 @@ _FIELD_PATTERNS = (
 )
 _H1_RX = re.compile(r"(?m)^#\s+(?:[A-Za-z0-9_-]+:\s*)?(.+)$")
 
-# The UNBULLETED (plain YAML) spelling of the same keys, for a doc whose front matter is real YAML
-# rather than the `- Key: value` bullet list the plan/spec/backlog trees use (attcor `rkn8ya` E-10).
+# The UNBULLETED (plain YAML) spelling of the same keys is read too, for a doc whose front matter is
+# real YAML rather than the `- Key: value` bullet list the plan/spec/backlog trees use (attcor
+# `rkn8ya` E-10).
 #
 # THE RESEARCH CORPUS IS WHY: every pattern above requires the `-\s*` bullet, but research front
 # matter is plain YAML. Measured on this tree, 110 research files carry an unbulleted `summary:` and
@@ -428,22 +429,12 @@ _H1_RX = re.compile(r"(?m)^#\s+(?:[A-Za-z0-9_-]+:\s*)?(.+)$")
 # to the H1. The H1 fallback is usually adequate but NOT equivalent: `_H1_RX` strips a leading
 # `Word:` prefix, turning `# Research: the design prompts...` into a mid-sentence fragment, and 4
 # files have no H1 at all and so showed NO detail despite carrying a summary.
-_UNBULLETED_FIELD_PATTERNS = tuple(
-    (tag, re.compile(r"(?mi)^" + tag + r":[ \t]*(.+)$")) for tag, _rx in _FIELD_PATTERNS
-)
-
+#
 # FRONT-MATTER SCOPED, deliberately. 55 files under `.aw/records/` carry an unbulleted `summary:`-like
 # key in their BODY PROSE (a quoted example, a table cell, an instruction). Matching the whole document
-# would surface that prose as the artifact's own summary, so the unbulleted form is read ONLY from a
-# leading `---` fenced YAML block. A document with no front matter is unaffected.
-_FRONTMATTER_RX = re.compile(r"\A---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)", re.S)
-
-
-def _frontmatter_block(text: str) -> str:
-    """The raw YAML front-matter block (between the leading `---` fences), or `""` when absent."""
-
-    m = _FRONTMATTER_RX.match(text)
-    return m.group(1) if m else ""
+# would surface that prose as the artifact's own summary, so the unbulleted form is read ONLY from the
+# leading `---` YAML front matter, through `artifact_meta.read_text`. A document with no front matter
+# is unaffected.
 
 
 def _extract_detail(text: str) -> Tuple[Optional[str], Optional[str]]:
@@ -455,8 +446,8 @@ def _extract_detail(text: str) -> Tuple[Optional[str], Optional[str]]:
     front-matter block (the research shape). The CASCADE ORDER is unchanged, and the bulleted form
     WINS at each step, so no artifact that already reported a detail reports a different one.
     """
-    fm = _frontmatter_block(text)
-    for (tag, rx), (_utag, urx) in zip(_FIELD_PATTERNS, _UNBULLETED_FIELD_PATTERNS):
+    yaml_fields: Optional[Dict[str, Any]] = None
+    for tag, rx in _FIELD_PATTERNS:
         cap = tag.capitalize() + ":"
         low = tag + ":"
         up = tag.upper() + ":"
@@ -467,12 +458,17 @@ def _extract_detail(text: str) -> Tuple[Optional[str], Optional[str]]:
                 if val:
                     return tag, val
             # The bulleted form is absent (or empty): try the unbulleted front-matter spelling.
-            if fm:
-                um = urx.search(fm)
-                if um:
-                    uval = um.group(1).strip()
-                    if uval:
-                        return tag, uval
+            if yaml_fields is None:
+                from agent_workflows import artifact_meta as _meta
+
+                yaml_fields = (
+                    _meta.read_text(text, record_type="research").fields
+                    if text.startswith("---")
+                    else {}
+                )
+            uval = str(yaml_fields.get(tag) or "").strip()
+            if uval:
+                return tag, uval
     if "# " in text:
         m = _H1_RX.search(text)
         if m:
@@ -1894,15 +1890,17 @@ def _research_record(
     state: Any = None,
     project_context: Any = None,
 ) -> Tuple[Optional[Item], List[core.Drift]]:
-    if state is None:
-        from agent_workflows import artifact_meta as _meta
+    from agent_workflows import artifact_meta as _meta
 
+    if state is None:
         state = _meta.read_text(text, record_type="research")
     drift: List[core.Drift] = []
     is_log = bool(
         getattr(state, "created_at", None) or getattr(state, "updated_at", None)
     )
-    has_yaml = is_log or (text.startswith("---") and bool(_frontmatter_block(text)))
+    has_yaml = is_log or (
+        text.startswith("---") and bool(_meta.front_matter_mapping(text))
+    )
     if not has_yaml:
         drift.append(
             core.Drift(

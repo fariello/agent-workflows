@@ -36,7 +36,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
-from agent_workflows import cli
+from agent_workflows import artifact_meta, cli
 from agent_workflows import prompts as prompts_mod
 from tests.record_builder import RecordBuilder
 
@@ -146,7 +146,9 @@ class TestApplyWritesConformingFile(_PromptsRepoTestCase):
         self.assertRegex(m.group("id6"), r"\A[0-9a-z]{6}\Z")
         # The minted id6 is the SAME one recorded inside the file (E-02), not a second draw.
         self.assertEqual(
-            prompts_mod.read_metadata_id6(path.read_text(encoding="utf-8")),
+            artifact_meta.read_text(
+                path.read_text(encoding="utf-8"), record_type="prompt"
+            ).id6,
             m.group("id6"),
         )
 

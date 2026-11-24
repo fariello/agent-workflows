@@ -1242,7 +1242,7 @@ def test_ipd_scaffold_check_all_agent_clean_for_short_description(
 
 
 def _extract_prompt_id6(text: str) -> str:
-    id6 = _prompts.read_metadata_id6(text)
+    id6 = _meta.read_text(text, record_type="prompt").id6 or None
     assert id6 is not None, f"missing Id: in prompt comment:\n{text}"
     return id6
 

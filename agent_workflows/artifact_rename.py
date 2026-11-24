@@ -418,7 +418,11 @@ def _read_existing_id6(
     if artifact_type == "prompts":
         from agent_workflows import prompts as _prompts
 
-        return _prompts.read_metadata_id6(text)
+        if not _prompts.has_metadata_comment(text):
+            return None
+        # Only line 1 holds the comment; a body `- Id:` bullet is not a declaration.
+        declared = _meta.read_text(text.split("\n", 1)[0], record_type="prompt").id6
+        return declared if _core.ID6_RE.fullmatch(declared or "") else None
     m = _ID_LINE_RE.search(text)
     return m.group(1) if m else None
 

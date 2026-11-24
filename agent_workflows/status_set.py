@@ -1539,9 +1539,13 @@ def _prepare_status_change(
     norm_status = normalize_target_status(target_status, rec.record_type)
     curr_rec_status = rec.status
     if curr_rec_status is None and rec.record_type == "prompts":
+        from agent_workflows import artifact_meta as _meta
         from agent_workflows import prompts as _prompts
 
-        curr_rec_status = _prompts.read_metadata_status(rec.raw_text)
+        if _prompts.has_metadata_comment(rec.raw_text):
+            curr_rec_status = _meta.read_text(
+                rec.raw_text.split("\n", 1)[0], record_type="prompt"
+            ).legacy_raw_status
     old_status = (
         normalize_target_status((curr_rec_status or "draft"), rec.record_type)
         .strip()

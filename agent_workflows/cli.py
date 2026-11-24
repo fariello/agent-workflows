@@ -14671,8 +14671,10 @@ def _run_describe(
     source_digest = hashlib.sha256(raw_bytes).hexdigest()
 
     id6: Optional[str] = None
-    if record_type == "prompts":
-        id6 = _prompts.read_metadata_id6(text)
+    if record_type == "prompts" and _prompts.has_metadata_comment(text):
+        id6 = _meta.read_text(text.split("\n", 1)[0], record_type="prompt").id6 or None
+        if id6 and not _core.ID6_RE.fullmatch(id6):
+            id6 = None
     if not id6:
         id6 = selectors.declared_id6(target_path)
     if not id6:

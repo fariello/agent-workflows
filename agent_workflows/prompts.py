@@ -85,9 +85,6 @@ _STAGED_NAME_RE = _naming._LEGACY_TIMESTAMP_RE
 # `Key: value` shape of that comment, so a bare `Id:` elsewhere in a prompt BODY is not read as a
 # declaration.
 _METADATA_ID_RE = re.compile(r"(?:\A|\|)\s*Id:\s*([0-9a-z]{6})\s*(?=\||$)")
-_METADATA_STATUS_RE = re.compile(
-    r"(?:\A|\|)\s*Status:\s*([a-zA-Z0-9_-]+)\s*(?=\||$|\.|\-\->)"
-)
 
 
 def _now() -> _dt.datetime:
@@ -276,20 +273,6 @@ def has_metadata_comment(text: str) -> bool:
     return "<!-- aw-prompt:" in text.split("\n", 1)[0]
 
 
-def read_metadata_id6(text: str) -> Optional[str]:
-    """The id6 declared inside a prompt's single `<!-- aw-prompt: ... -->` comment, or None.
-
-    Reads the FIRST LINE only, which is where the purity contract puts that comment (R1/P4), so an
-    `Id: <id6>` that a prompt BODY happens to quote is never read as a declaration.
-    """
-
-    first = text.split("\n", 1)[0]
-    if "<!-- aw-prompt:" not in first:
-        return None
-    m = _METADATA_ID_RE.search(first)
-    return m.group(1) if m else None
-
-
 def inject_metadata_id6(text: str, *, id6: str, set_id: Optional[str] = None) -> str:
     """Return ``text`` with ``Id:`` (and optionally ``Set:``) written INTO its one metadata comment.
 
@@ -337,18 +320,6 @@ def inject_metadata_id6(text: str, *, id6: str, set_id: Optional[str] = None) ->
     return "\n".join(lines)
 
 
-def read_metadata_status(text: str) -> Optional[str]:
-    """The status declared inside a prompt's single `<!-- aw-prompt: ... -->` comment, or None.
-
-    Reads the FIRST LINE only, matching the prompt purity contract (R1/P4).
-    """
-    first = text.split("\n", 1)[0]
-    if "<!-- aw-prompt:" not in first:
-        return None
-    m = _METADATA_STATUS_RE.search(first)
-    return m.group(1).strip() if m else None
-
-
 def update_metadata_status(text: str, status: str) -> str:
     """Return ``text`` with ``Status: <status>`` updated in its one metadata comment.
 
@@ -366,7 +337,9 @@ def update_metadata_status(text: str, status: str) -> str:
         return text
 
     first = lines[0]
-    current = read_metadata_status(text)
+    from agent_workflows import artifact_meta as _meta
+
+    current = _meta.read_text(first, record_type="prompt").legacy_raw_status
     if current == status:
         return text
 

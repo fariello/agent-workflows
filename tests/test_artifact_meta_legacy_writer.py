@@ -19,7 +19,6 @@ import pytest
 
 from agent_workflows import artifact_meta as meta
 from agent_workflows import cli
-from agent_workflows import prompts as prompts_mod
 from agent_workflows import selectors as sel
 
 pytestmark = pytest.mark.core
@@ -908,7 +907,7 @@ def test_prompt_create_and_cli_new_preserve_prompt_kind_and_created_day(
     )
     assert len(cli_files) == 1
     cli_text = cli_files[0].read_text(encoding="utf-8")
-    cli_id6 = prompts_mod.read_metadata_id6(cli_text)
+    cli_id6 = meta.read_text(cli_text, record_type="prompt").id6 or None
     assert cli_id6 is not None
 
     st_cli = meta.read(cli_id6, project_context=ctx)
