@@ -42,25 +42,25 @@ PIN RULE (carried from `9o83cr`): before E-01, save the per-test outcome list of
 
 ### Task group 1: one module per item, then verify
 
-- [ ] E-01 In `agent_workflows/artifact_rename.py`, delete `artifact_rename._SET_LINE_RE`, `_ORDER_LINE_RE`, `_ID_LINE_RE`, `_STATUS_LINE_RE` and `_DATE_LINE_RE`.
+- [x] E-01 In `agent_workflows/artifact_rename.py`, delete `artifact_rename._SET_LINE_RE`, `_ORDER_LINE_RE`, `_ID_LINE_RE`, `_STATUS_LINE_RE` and `_DATE_LINE_RE`.
   - Depends on: none
   - Expected outcome: the `LIT` search over `agent_workflows/artifact_rename.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/artifact_refs.py`, delete the literal in `artifact_refs.classify_citing_plans_for_rewrite`.
+- [x] E-02 In `agent_workflows/artifact_refs.py`, delete the literal in `artifact_refs.classify_citing_plans_for_rewrite`.
   - Depends on: E-01
   - Expected outcome: the `LIT` search over `agent_workflows/artifact_refs.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `agent_workflows/artifact_adopt.py`, delete `artifact_adopt._BULLET_ID_RE`; in `agent_workflows/artifact_audit.py`, delete `artifact_audit._STATUS_LINE_RE`.
+- [x] E-03 In `agent_workflows/artifact_adopt.py`, delete `artifact_adopt._BULLET_ID_RE`; in `agent_workflows/artifact_audit.py`, delete `artifact_audit._STATUS_LINE_RE`.
   - Depends on: E-02
   - Expected outcome: the `LIT` search over both files prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Update `tests/test_artifact_audit.py` and `tests/test_artifact_rename.py` only where a case names a deleted pattern; save `after.txt`; run both modules; compare `aw find plans --agent` with `786w7r` F-30; commit through `aw commit qttoyc -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-04 Update `tests/test_artifact_audit.py` and `tests/test_artifact_rename.py` only where a case names a deleted pattern; save `after.txt`; run both modules; compare `aw find plans --agent` with `786w7r` F-30; commit through `aw commit qttoyc -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-03
   - Expected outcome: both modules pass; the `aw find plans` hash equals F-30.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -123,25 +123,87 @@ No spec change; implements part of `4sd62s` 4.3.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `LIT` search over `agent_workflows/artifact_rename.py` printing nothing.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ LIT='re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?["'"'"'](\(\?m\))?\^-'
+    $ rg -n "$LIT" agent_workflows/artifact_rename.py; echo "exit=$?"
+    exit=1
+    ```
+    Before the edit the same search printed the five F-27 rows (F27-25 to F27-29: `_SET_LINE_RE` 38, `_ORDER_LINE_RE` 39, `_ID_LINE_RE` 252, `_STATUS_LINE_RE` 253, `_DATE_LINE_RE` 254). Every use now reads the strict metadata bullets through `artifact_meta.parse_metadata_block(artifact_meta.metadata_region(text).splitlines())` (new helpers `artifact_rename._metadata_bullets`, `_has_set_bullet`, `_has_order_bullet`, `_bullet_id6`); uses retargeted: `_rename_metadata_events` (Set/Order presence), `_id6_write_message` (Status/Date presence), `_read_existing_id6` and `_existing_type_id6s` (Id). Decision 25-qttoyc-D1.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the `LIT` search over `agent_workflows/artifact_refs.py` printing nothing and the `git diff` hunk of `artifact_refs.classify_citing_plans_for_rewrite`.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ LIT='re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?["'"'"'](\(\?m\))?\^-'
+    $ rg -n "$LIT" agent_workflows/artifact_refs.py; echo "exit=$?"
+    exit=1
+    $ git diff agent_workflows/artifact_refs.py
+    @@ -828,6 +828,7 @@ def classify_citing_plans_for_rewrite(
 
-- [ ] V-03 validates E-03
+         Returns (rewritable_files, skipped_files_with_reasons).
+         """
+    +    from agent_workflows import artifact_meta as _meta
+         from agent_workflows import ipd_lifecycle as _life
+
+         rewritable: List[Path] = []
+    @@ -840,13 +841,11 @@ def classify_citing_plans_for_rewrite(
+                 must_skip.append((path, f"cannot read plan file: {exc}"))
+                 continue
+
+    -        # Extract - Id: bullet
+    -        m = re.search(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$", text)
+    -        if not m:
+    +        plan_id = _meta.read_loose_id(text)
+    +        if not plan_id:
+                 must_skip.append((path, "missing - Id:"))
+                 continue
+
+    -        plan_id = m.group(1)
+             receipt_path = _life.receipt_path_for(repo_root, plan_id)
+             if receipt_path.exists():
+                 must_skip.append((path, "live begin receipt present"))
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `LIT` search over `agent_workflows/artifact_adopt.py` and `agent_workflows/artifact_audit.py` printing nothing.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ LIT='re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?["'"'"'](\(\?m\))?\^-'
+    $ rg -n "$LIT" agent_workflows/artifact_adopt.py; echo "exit=$?"
+    exit=1
+    $ rg -n "$LIT" agent_workflows/artifact_audit.py; echo "exit=$?"
+    exit=1
+    $ grep -n "_BULLET_ID_RE\|_STATUS_LINE_RE" agent_workflows/artifact_adopt.py agent_workflows/artifact_audit.py; echo "exit=$?"
+    exit=1
+    ```
+    Both sites are `already gone` (OQ-01): `786w7r` F-27 notes list `artifact_adopt._BULLET_ID_RE` and `artifact_audit._STATUS_LINE_RE` as zero-hit, zero-reference sites, and the searches above confirm it at HEAD `20f581b20`. No edit was needed in either file.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `diff .aw/state/qttoyc/before.txt .aw/state/qttoyc/after.txt` (empty, or each change mapped), the summary line of `python3 -m pytest -o addopts="" tests/test_artifact_audit.py tests/test_artifact_rename.py` passing, the `aw find plans --agent | sha256sum` beside the `786w7r` F-30 hash, and `git show --stat` of the `aw commit qttoyc` commit.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ diff .aw/state/qttoyc/before.txt .aw/state/qttoyc/after.txt; echo diff_exit=$?
+    diff_exit=0
+    $ python3 -m pytest -o addopts="" -m "" -p no:randomly -n 0 -rA tests/test_artifact_audit.py tests/test_artifact_rename.py tests/test_record_residual_helpers.py
+    ============================== 41 passed in 5.28s ==============================
+    $ python3 -m pytest -o addopts="" -n 6 -q <19 rename/group/refs/adopt test modules>
+    344 passed in 45.75s
+    $ aw suite
+    2894 passed, 1 skipped, 11 warnings in 133.62s (0:02:13)
+    $ aw find plans --agent | sha256sum      (edited tree)
+    3474e248b9f21ac90b86212e368951940a65b9a1fa892a07b95fabce8549d90b  (1986 lines; summary total 1985, emitted 1985, complete true)
+    $ aw find plans --agent | sha256sum      (unedited HEAD 20f581b20, throwaway worktree)
+    3474e248b9f21ac90b86212e368951940a65b9a1fa892a07b95fabce8549d90b  (1986 lines)
+    786w7r F-30 (HEAD 56e9d649f): 0f626c69d414081bedd1aa5640c96ce4b257db0a6a38251d14c7e0a9a7bc9af3 (1986 lines, total 1985)
+    ```
+    `before.txt` and `after.txt` (41 outcomes each, PIN modules plus `tests/test_record_residual_helpers.py`, which exercises `artifact_rename._existing_type_id6s`) are identical; no test edit was needed because no test names a deleted pattern. The `aw find plans` output is byte-identical with and without this change. It differs from the F-30 hash only because plans moved through the lifecycle between `56e9d649f` and `20f581b20` (line and record counts are equal); the like-for-like comparison against the unedited current HEAD is the equality this item checks (decision 25-qttoyc-D2). `git show --stat` of the `aw commit qttoyc` commit is recorded in the lane execution report, because a commit cannot contain its own hash.
+  - Result: pass
 
 ## Approval and execution gate
 

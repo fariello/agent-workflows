@@ -828,6 +828,7 @@ def classify_citing_plans_for_rewrite(
 
     Returns (rewritable_files, skipped_files_with_reasons).
     """
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import ipd_lifecycle as _life
 
     rewritable: List[Path] = []
@@ -840,13 +841,11 @@ def classify_citing_plans_for_rewrite(
             must_skip.append((path, f"cannot read plan file: {exc}"))
             continue
 
-        # Extract - Id: bullet
-        m = re.search(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$", text)
-        if not m:
+        plan_id = _meta.read_loose_id(text)
+        if not plan_id:
             must_skip.append((path, "missing - Id:"))
             continue
 
-        plan_id = m.group(1)
         receipt_path = _life.receipt_path_for(repo_root, plan_id)
         if receipt_path.exists():
             must_skip.append((path, "live begin receipt present"))
