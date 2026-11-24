@@ -1005,7 +1005,10 @@ def test_rename_payload_lists_no_manifest_change(temp_repo: Path):
         for c in data.get("changes", [])
         if c.get("detail") == "manifest index auto-refreshed"
     ]
-    assert sorted(temp_repo.rglob("INDEX.*")) == []
+    assert (
+        sorted(p for p in temp_repo.rglob("INDEX.*") if p.name.startswith("INDEX."))
+        == []
+    )
 
 
 def test_commit_path_set_unchanged_plans(temp_repo: Path):

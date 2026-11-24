@@ -1131,7 +1131,7 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
 
         # The raw absolute home-shaped citation is refused before anything is rendered.
         with self.assertRaises(ValueError) as refused:
-            _write(str(fake_abs_ev))
+            _write(fake_abs_ev.as_posix())
         self.assertIn("home-path", str(refused.exception))
 
         # The repo-relative form (what the backlog setter normalizes an absolute citation to

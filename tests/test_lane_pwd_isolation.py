@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import os
-import stat
 import subprocess
 import sys
 import tempfile
@@ -20,6 +19,7 @@ from pathlib import Path
 from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
+from tests import support
 
 
 def _init_git_repo(repo: Path) -> None:
@@ -36,7 +36,7 @@ def _init_git_repo(repo: Path) -> None:
     subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
 
 
-def _write_recording_stub(script_path: Path, record_path: Path, *, mode: str) -> None:
+def _write_recording_stub(script_path: Path, record_path: Path, *, mode: str) -> Path:
     """Create an executable script that records its observed PWD, OLDPWD, and os.getcwd()."""
     if mode == "opencode":
         body = f"""#!{sys.executable}
@@ -64,10 +64,7 @@ print(json.dumps({{"event": "result", "result": {{"status": "SUCCESS", "conversa
 """
     else:
         raise ValueError(mode)
-    script_path.write_text(body, encoding="utf-8")
-    script_path.chmod(
-        script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
-    )
+    return support.make_fake_executable(script_path, body)
 
 
 class LanePwdIsolationTests(unittest.TestCase):
@@ -87,8 +84,9 @@ class LanePwdIsolationTests(unittest.TestCase):
             prompt_path.write_text("do work\n", encoding="utf-8")
 
             record_path = root / "oc-observed.json"
-            stub = root / "fake-opencode"
-            _write_recording_stub(stub, record_path, mode="opencode")
+            stub = _write_recording_stub(
+                root / "fake-opencode", record_path, mode="opencode"
+            )
 
             state = {
                 "run_id": "run-test-vl3pvt-oc",
@@ -149,8 +147,7 @@ class LanePwdIsolationTests(unittest.TestCase):
             prompt_path.write_text("do work\n", encoding="utf-8")
 
             record_path = root / "agy-observed.json"
-            stub = root / "fake-agy"
-            _write_recording_stub(stub, record_path, mode="agy")
+            stub = _write_recording_stub(root / "fake-agy", record_path, mode="agy")
 
             state = {
                 "run_id": "run-test-vl3pvt-agy",

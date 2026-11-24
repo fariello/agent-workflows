@@ -243,7 +243,10 @@ def test_research_mv_beside_drift_regenerates_no_manifest(temp_repo: Path):
     assert res.diagnostics == ()
     assert res.generated == ()
     assert not any("manifest was not regenerated" in n for n in res.notes)
-    assert sorted(temp_repo.rglob("INDEX.*")) == []
+    assert (
+        sorted(p for p in temp_repo.rglob("INDEX.*") if p.name.startswith("INDEX."))
+        == []
+    )
     assert (rdir / "20261001-seta-01-r1id66-renamed-demo.findings.md").is_file()
     # The drift is still reported, by the checker that owns it.
     check = subprocess.run(

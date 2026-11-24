@@ -236,7 +236,7 @@ def test_home_records_reproduction_prompts_index(home_records_env):
     assert (
         index_files == []
     ), f"Expected no INDEX file under AW_HOME, found: {index_files}"
-    assert list(target.rglob("INDEX.*")) == []
+    assert [p for p in target.rglob("INDEX.*") if p.name.startswith("INDEX.")] == []
 
 
 def test_home_records_prompts_index_refuses_absent_dir(home_records_env):

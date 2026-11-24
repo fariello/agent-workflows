@@ -499,7 +499,10 @@ class FailureOrderingTests(_AdoptRepo):
         self.assertEqual(len(files), 1, files)
         # No manifest is regenerated: no INDEX file anywhere, no refresh line, and the machine
         # payload reports that no refresh ran.
-        self.assertEqual(sorted(self.tmp.rglob("INDEX.*")), [])
+        self.assertEqual(
+            sorted(p for p in self.tmp.rglob("INDEX.*") if p.name.startswith("INDEX.")),
+            [],
+        )
         self.assertNotIn("index refreshed", out)
 
     def test_successful_adoption_reports_no_index_refresh_in_json(self):
@@ -509,7 +512,10 @@ class FailureOrderingTests(_AdoptRepo):
         doc = json.loads(out)
         self.assertIs(doc["data"]["index_refreshed"], False)
         self.assertEqual(doc["data"]["index_detail"], "")
-        self.assertEqual(sorted(self.tmp.rglob("INDEX.*")), [])
+        self.assertEqual(
+            sorted(p for p in self.tmp.rglob("INDEX.*") if p.name.startswith("INDEX.")),
+            [],
+        )
         self.assertFalse(src.exists())
 
     def test_existing_destination_is_not_clobbered(self):
