@@ -86,6 +86,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-239-7uq6xg-delete-the-check-engine-blob-and-status-parsers-and-retarget.ipd.md
 - Moved to js35bz (round-3 split 2026-11-09 per research nj8zdp guidance): E-12 subset 2, the 19 named `check_engine` patterns.
   - Carrier: js35bz
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-240-js35bz-delete-the-named-check-engine-metadata-regex-patterns.ipd.md
 - Moved to bcrko1 (round-3 split 2026-11-09 per research nj8zdp guidance): E-12 subset 3, the inline literals in six `check_engine` functions and the two `body prose` confirmations. Subsets 1 to 3 equal E-12's list.
   - Carrier: bcrko1
 - Moved to k6nukd (round-3 split 2026-11-09 per research nj8zdp guidance): E-19 (runner).
