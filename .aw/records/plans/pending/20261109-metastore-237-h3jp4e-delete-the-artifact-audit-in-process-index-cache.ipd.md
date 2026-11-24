@@ -42,25 +42,25 @@ PIN RULE (carried from `9o83cr`): before the edit, save the modules' per-test ou
 
 ### Task group 1: pin, delete, retarget
 
-- [ ] E-01 Ensure directory `.aw/state/h3jp4e/` exists (`mkdir -p .aw/state/h3jp4e/`) and pin the three test modules (PIN RULE, `E-01-before.txt`).
+- [x] E-01 Ensure directory `.aw/state/h3jp4e/` exists (`mkdir -p .aw/state/h3jp4e/`) and pin the three test modules (PIN RULE, `E-01-before.txt`).
   - Depends on: none
   - Expected outcome: `.aw/state/h3jp4e/E-01-before.txt` exists.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/artifact_audit.py`, delete `_INDEX_CACHE`, `_INDEX_CACHE_MAX` and their comment block; in `artifact_audit.build_index` remove the cache lookup, insert and eviction so it builds from `artifact_meta.query`/`resolve` on every call; in `artifact_audit.find_artifact` remove the stale-entry pop. Delete `artifact_audit._dir_signature` if no caller remains.
+- [x] E-02 In `agent_workflows/artifact_audit.py`, delete `_INDEX_CACHE`, `_INDEX_CACHE_MAX` and their comment block; in `artifact_audit.build_index` remove the cache lookup, insert and eviction so it builds from `artifact_meta.query`/`resolve` on every call; in `artifact_audit.find_artifact` remove the stale-entry pop. Delete `artifact_audit._dir_signature` if no caller remains.
   - Depends on: E-01
   - Expected outcome: `rg -n "_INDEX_CACHE" agent_workflows` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Delete `tests/test_artifact_audit_cache_eviction.py`, and in `tests/test_artifact_audit_index_cache.py` and `tests/test_artifact_audit_identity_staleness.py` remove every `_audit._INDEX_CACHE` reference (the `.clear()` setup calls and the `_INDEX_CACHE[key][1]` reads), asserting instead that a record added, deleted or moved between two `build_index` calls is reflected by the second.
+- [x] E-03 Delete `tests/test_artifact_audit_cache_eviction.py`, and in `tests/test_artifact_audit_index_cache.py` and `tests/test_artifact_audit_identity_staleness.py` remove every `_audit._INDEX_CACHE` reference (the `.clear()` setup calls and the `_INDEX_CACHE[key][1]` reads), asserting instead that a record added, deleted or moved between two `build_index` calls is reflected by the second.
   - Depends on: E-02
   - Expected outcome: `rg -n "_INDEX_CACHE" tests` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Save `E-04-after.txt`, run the two remaining modules, and commit through `aw commit h3jp4e -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-04 Save `E-04-after.txt`, run the two remaining modules, and commit through `aw commit h3jp4e -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-03
   - Expected outcome: both modules pass; the mapping accounts for every case.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -117,25 +117,129 @@ No spec change; implements part of `4sd62s` 4.5.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `wc -l .aw/state/h3jp4e/E-01-before.txt` and one line from each of the three named modules.
   - Observed evidence:
-  - Result: pending
+    - `wc -l .aw/state/h3jp4e/E-01-before.txt` printed `16 .aw/state/h3jp4e/E-01-before.txt` (re-pinned in attempt 2 with the four scope files restored to base `3223c1a8f`, before re-applying the edit).
+    - One line per module from that file:
+      - `PASSED tests/test_artifact_audit_cache_eviction.py::TestArtifactAuditCacheEviction::test_cache_size_is_bounded_at_cap`
+      - `PASSED tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_route1_same_tick_addition_detected`
+      - `PASSED tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_stale_positive_returns_fresh_truth`
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "_INDEX_CACHE" agent_workflows` printing nothing, and the `git diff` hunks of `artifact_audit.build_index` and `artifact_audit.find_artifact`.
   - Observed evidence:
-  - Result: pending
+    - `rg -n "_INDEX_CACHE" agent_workflows` printed nothing (exit 1).
+    - `artifact_audit._dir_signature` had no remaining caller (`rg -n "_dir_signature" agent_workflows tests` printed nothing after the edit) and was deleted with the now-unused `import os` and `from collections import OrderedDict`.
+    - Deviation, recorded as decision `02-h3jp4e-D1`: `build_index` still enumerates through `selectors._iter_paths` and reads `- Id:` through `selectors._read_id` (which parses via `artifact_meta.read_text`) rather than calling `artifact_meta.query`. The `artifacts` table keys on `id6` (`id6 TEXT PRIMARY KEY`), so `query` cannot report two files declaring one id6, which the phantom-collision tests require. Follow-up carrier: backlog `juua3p`. Cold-call cost is unchanged (about 3.0s before and after on 3549 paths).
+    - `git diff` hunks (commit `35c678128`, carried forward from attempt-1 commit `800d17783`), comment-only lines elided:
+      ```
+      @@ -1203,12 +1116,2 @@ def build_index(
+           repo_root = Path(repo_root)
+      -    try:
+      -        key = (str(repo_root.resolve()), tuple(record_types))
+      -    except OSError:
+      -        key = (str(repo_root), tuple(record_types))
+      -    sig = _dir_signature(repo_root, record_types)
+      -    cached = _INDEX_CACHE.get(key)
+      -    if cached is not None and cached[0] == sig:
+      -        _INDEX_CACHE.move_to_end(key)
+      -        return cached[1]
+      -
+           paths: List[Path] = []
+      @@ -1237,9 +1140,5 @@ def build_index(
+      -    index = ArtifactIndex(
+      +    return ArtifactIndex(
+               paths=paths, by_declared_id=by_declared, by_filename_id=by_filename
+           )
+      -    _INDEX_CACHE[key] = (sig, index)
+      -    while len(_INDEX_CACHE) > _INDEX_CACHE_MAX:
+      -        _INDEX_CACHE.popitem(last=False)
+      -    return index
+      @@ -1292,17 +1191,2 @@ def find_artifact(
+                       if not all(_claims_id6(p) for p in exact):
+      -                    try:
+      -                        cache_key = (str(repo_root.resolve()), tuple(record_types))
+      -                    except OSError:
+      -                        cache_key = (str(repo_root), tuple(record_types))
+      -                    cached_entry = _INDEX_CACHE.get(cache_key)
+      -                    if cached_entry is not None and cached_entry[1] is index:
+      -                        _INDEX_CACHE.pop(cache_key, None)
+      -
+                           # Re-derive once from a fresh index. When the caller passed artifact_index=,
+      ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "_INDEX_CACHE" tests` printing nothing, and the `git diff --stat` line deleting `tests/test_artifact_audit_cache_eviction.py`.
   - Observed evidence:
-  - Result: pending
+    - `rg -n "_INDEX_CACHE" tests` printed nothing (exit 1).
+    - `git diff --stat` line: ` tests/test_artifact_audit_cache_eviction.py     | 147 ------------------------` (file deleted in `35c678128`).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `diff .aw/state/h3jp4e/E-01-before.txt .aw/state/h3jp4e/E-04-after.txt` with each removed name mapped or marked "subject removed (LRU deleted)", `python3 -m pytest -o addopts="" -v tests/test_artifact_audit_index_cache.py tests/test_artifact_audit_identity_staleness.py` with the add, delete and move freshness cases PASSED, and `git show --stat` of the `aw commit h3jp4e` commit listing only Scope-Paths files.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/h3jp4e/E-01-before.txt .aw/state/h3jp4e/E-04-after.txt` output and mapping:
+      ```
+      1,5d0
+      < PASSED tests/test_artifact_audit_cache_eviction.py::TestArtifactAuditCacheEviction::test_cache_invalidated_on_real_change
+      < PASSED tests/test_artifact_audit_cache_eviction.py::TestArtifactAuditCacheEviction::test_cache_size_is_bounded_at_cap
+      < PASSED tests/test_artifact_audit_cache_eviction.py::TestArtifactAuditCacheEviction::test_hot_root_retained_across_interleaved_queries
+      < PASSED tests/test_artifact_audit_cache_eviction.py::TestArtifactAuditCacheEviction::test_no_rebuild_on_cache_hit
+      < PASSED tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_cost_shape_cache_is_reused_on_unchanged_tree
+      7c2
+      < PASSED tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_explicit_artifact_index_preserves_caller_object_and_revalidates_without_extra_traversal
+      ---
+      > PASSED tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_explicit_stale_artifact_index_preserves_caller_object_and_answers_fresh_truth
+      9a5
+      > PASSED tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_unchanged_tree_repeated_build_index_is_equal
+      13d8
+      < PASSED tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_memoization_cache_reuses_index_and_invalidates_on_change
+      16a12,14
+      > PASSED tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_second_build_index_reflects_addition
+      > PASSED tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_second_build_index_reflects_deletion
+      > PASSED tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_second_build_index_reflects_move
+      ```
+      - `cache_eviction::test_cache_size_is_bounded_at_cap`: subject removed (LRU deleted).
+      - `cache_eviction::test_hot_root_retained_across_interleaved_queries`: subject removed (LRU deleted).
+      - `cache_eviction::test_no_rebuild_on_cache_hit`: subject removed (LRU deleted).
+      - `cache_eviction::test_cache_invalidated_on_real_change`: subject removed (LRU deleted); its add-between-calls case survives as `index_cache::test_second_build_index_reflects_addition`.
+      - `identity_staleness::test_cost_shape_cache_is_reused_on_unchanged_tree` -> `identity_staleness::test_unchanged_tree_repeated_build_index_is_equal` (same fixture; now asserts equal indexes and answers, and that each call re-traverses).
+      - `identity_staleness::test_explicit_artifact_index_preserves_caller_object_and_revalidates_without_extra_traversal` -> `identity_staleness::test_explicit_stale_artifact_index_preserves_caller_object_and_answers_fresh_truth` (same input case; renamed because "without extra traversal" was a cache property).
+      - `index_cache::test_memoization_cache_reuses_index_and_invalidates_on_change` -> `index_cache::test_second_build_index_reflects_addition` (same fixture: plan A, repeat on unchanged tree, then add plan B), plus the new deletion and move cases.
+      - The three wrong-answer tests (stale positive, wrong path, phantom collision) keep their names and inputs; each now primes a caller-held `stale_idx` from `build_index` and asserts the stale-index answer equals fresh truth.
+    - `python3 -m pytest -o addopts="" -v tests/test_artifact_audit_index_cache.py tests/test_artifact_audit_identity_staleness.py`:
+      ```
+      tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_second_build_index_reflects_deletion PASSED
+      tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_route3_deep_directory_addition_detected PASSED
+      tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_compound_route2_untyped_tree_with_pinned_mtime PASSED
+      tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_compound_route3_deep_directory_with_pinned_mtime PASSED
+      tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_route2_untyped_tree_addition_detected PASSED
+      tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_route1_same_tick_addition_detected PASSED
+      tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_second_build_index_reflects_addition PASSED
+      tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_second_build_index_reflects_move PASSED
+      tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_cost_shape_true_tier_one_answer_does_not_rederive PASSED
+      tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_wrong_path_returns_fresh_truth PASSED
+      tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_explicit_stale_artifact_index_preserves_caller_object_and_answers_fresh_truth PASSED
+      tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_phantom_collision_returns_fresh_truth PASSED
+      tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_stale_positive_returns_fresh_truth PASSED
+      tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_unchanged_tree_repeated_build_index_is_equal PASSED
+      ============================== 14 passed in 2.51s ==============================
+      ```
+    - Full suite (`aw suite`, core gate): `2898 passed, 1 skipped, 11 warnings in 225.31s (0:03:45)` (attempt 2, at `35c678128`).
+    - `git show --stat` of the `aw commit h3jp4e` commit (`aw commit: committed 4 path(s): 35c6781289ae7c8b5906133b986c268171bd9ddb`):
+      ```
+      35c6781289ae7c8b5906133b986c268171bd9ddb feat(h3jp4e): delete artifact_audit in-process index cache; build_index answers fresh on every call
+       agent_workflows/artifact_audit.py               | 138 ++--------------------
+       tests/test_artifact_audit_cache_eviction.py     | 147 ------------------------
+       tests/test_artifact_audit_identity_staleness.py |  93 +++++++--------
+       tests/test_artifact_audit_index_cache.py        | 140 ++++++++++++----------
+       4 files changed, 134 insertions(+), 384 deletions(-)
+      ```
+      Every path is in Scope-Paths; nothing pushed.
+  - Result: pass
 
 ## Approval and execution gate
 
