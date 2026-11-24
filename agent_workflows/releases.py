@@ -184,28 +184,6 @@ def validate_release(path: Path, text: str) -> List[_core.Drift]:
     return drift
 
 
-def _set_bullet_via_meta(
-    text: str,
-    label: str,
-    value: Optional[str],
-    *,
-    anchors: Tuple[Tuple[str, str], ...] = (("Status", "after"), ("Id", "after")),
-) -> str:
-    """Delegate bounded bullet surgery to ``artifact_meta.set_legacy_bullet_line``."""
-    from agent_workflows import artifact_meta as _meta
-
-    return _meta.set_legacy_bullet_line(text, label, value, anchors=anchors)
-
-
-def set_blocks_release_line(text: str, value: Optional[str]) -> str:
-    """Return `text` with the `- Blocks-Release:` metadata line set to `value`, or removed when
-    `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
-    (falling back to after `- Id:`, or leaving unchanged). Tolerates any value so an existing
-    malformed line is still replaced (matching precedent in `set_priority_line` and
-    `set_work_kind_line`). Bounded to metadata_region via `artifact_meta.set_legacy_bullet_line`."""
-    return _set_bullet_via_meta(text, "Blocks-Release", value)
-
-
 def resolve_release_outcome(repo_root: Path, value: str) -> ReleaseResolution:
     """Resolve a Blocks-Release value to an outcome enum and candidate paths.
 
@@ -536,68 +514,6 @@ def _declared_blocks_release(repo_root: Path, rel_path: str) -> Optional[str]:
     return None
 
 
-def set_priority_line(text: str, value: Optional[str]) -> str:
-    """Return `text` with the `- Priority:` metadata line set to `value`, or removed when `value` is
-    '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:` (falling back
-    to after `- Id:`, or leaving unchanged). xprio Order 1b45el; mirrors `set_from_backlog_line`. The
-    ENUM check (value in backlog.PRIORITIES) is enforced by `aw check`, not here (this is a pure
-    idempotent line writer). Tolerates any value so an existing malformed line is still replaced.
-    Bounded to metadata_region via `artifact_meta.set_legacy_bullet_line`."""
-    return _set_bullet_via_meta(text, "Priority", value)
-
-
-def set_work_kind_line(text: str, value: Optional[str]) -> str:
-    """Return `text` with the `- Work-Kind:` metadata line set to `value`, or removed when `value` is
-    '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:` (falling back
-    to after `- Id:`, or leaving unchanged). wkindname Order ng2blv; mirrors `set_priority_line`
-    exactly, so the two optional metadata fields cannot drift on anchor or clearing semantics. The
-    ENUM check (value in backlog.KINDS) is enforced by `aw check` / validate_spec, not here (this is a
-    pure idempotent line writer). Tolerates any value so an existing malformed line is still replaced.
-
-    Bounded to metadata_region via `artifact_meta.set_legacy_bullet_line` (never touches
-    `- Gate-Kind:` or `- Kind:`)."""
-    return _set_bullet_via_meta(text, "Work-Kind", value)
-
-
-def set_from_backlog_line(text: str, value: Optional[str]) -> str:
-    """Return `text` with the `- From-Backlog:` metadata line set to `value`, or removed when
-    `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
-    (falling back to after `- Id:`, or leaving unchanged). Mirrors `set_blocks_release_line` and
-    `set_from_spec_line` (bklggrad Order ku93tn). Tolerates any value so an existing malformed line
-    is still replaced (matching precedent in `set_priority_line` and `set_work_kind_line`).
-    Bounded to metadata_region via `artifact_meta.set_legacy_bullet_line`."""
-    return _set_bullet_via_meta(text, "From-Backlog", value)
-
-
-def set_from_spec_line(text: str, value: Optional[str]) -> str:
-    """Return `text` with the `- From-Spec:` metadata line set to `value`, or removed when
-    `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
-    (falling back to after `- Id:`, or leaving unchanged). Spec-side sibling of
-    `set_from_backlog_line` (IPD 0ykozn). Tolerates any value so an existing malformed or
-    empty-valued line is still replaced (matching `set_priority_line`/`set_work_kind_line`).
-    Bounded to metadata_region via `artifact_meta.set_legacy_bullet_line`."""
-    return _set_bullet_via_meta(text, "From-Spec", value)
-
-
-def set_item_dependencies_line(text: str, value: Optional[str]) -> str:
-    """Return `text` with the `- Item-Dependencies:` metadata line set to `value`, or removed when
-    `value` is '-' or None. Idempotent: replaces an existing line or inserts one.
-
-    ANCHOR (ipddeps Order g69y23 E-02): spec 25kzda 2.7 mandates this field live IMMEDIATELY AFTER
-    `- Scope-Paths:` (and before `Blocks-Release`/`From-Backlog`). This is DELIBERATELY DIFFERENT
-    from `set_blocks_release_line`/`set_from_backlog_line`, which anchor after `- Status:` - in the
-    real block order (`... Scope-Paths, Status, Set, Order ...`) that would be the WRONG position
-    for this field. So anchor after `- Scope-Paths:`; when absent, fall back to inserting BEFORE
-    `- Status:` (keeping the field ahead of Status/Set/Order), then after `- Id:`, leaving unchanged
-    if no anchor exists. Bounded to metadata_region via `artifact_meta.set_legacy_bullet_line`."""
-    return _set_bullet_via_meta(
-        text,
-        "Item-Dependencies",
-        value,
-        anchors=(("Scope-Paths", "after"), ("Status", "before"), ("Id", "after")),
-    )
-
-
 _ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^-[ \t]*From-Backlog:[ \t]*([^\n]*?)[ \t]*$")
 
 # ======================================================================================
@@ -657,19 +573,6 @@ def parse_graduated_to(text: str) -> List[str]:
     if m is None:
         return []
     return [part.strip() for part in m.group(1).split(",") if part.strip()]
-
-
-def set_graduated_to_line(text: str, value: Optional[str]) -> str:
-    """Return `text` with the `- Graduated-To:` metadata line set to `value`, or removed when `value`
-    is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:` (falling
-    back to after `- Id:`, or leaving unchanged).
-
-    setidhard Order bwgyum E-04. Mirrors `set_from_backlog_line` exactly on anchor and clearing
-    semantics, so the forward and back links cannot drift on where they land or how they clear. The
-    value is written VERBATIM (a comma-separated setid list is one line); the SHAPE check lives in the
-    setter, which refuses a malformed token before calling this, and in `aw check`.
-    Bounded to metadata_region via `artifact_meta.set_legacy_bullet_line`."""
-    return _set_bullet_via_meta(text, "Graduated-To", value)
 
 
 def canonicalize_graduated_to(

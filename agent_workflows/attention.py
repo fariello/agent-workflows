@@ -1203,9 +1203,10 @@ def _order_key(
         # This aligns the one reader of four that omitted the guard: `matches_blocking`,
         # `release_blockers`, `_resolve_release_version` and the render-time flag all exclude `"-"`.
         #
-        # LATENT, recorded so nobody over-claims the impact: `releases.set_blocks_release_line`
-        # REMOVES the line for value `-`, and 0 artifacts in this tree carry `Blocks-Release: -`, so
-        # only a hand-edit produces the condition. It is a consistency fix, not an observed outage.
+        # LATENT, recorded so nobody over-claims the impact: the `artifact_meta` writer
+        # (`artifact_meta.append_legacy`) REMOVES the line for value `-`, and 0 artifacts in this
+        # tree carry `Blocks-Release: -`, so only a hand-edit produces the condition. It is a
+        # consistency fix, not an observed outage.
         blk = it.blocks_release
         return (_PRESENT, blk) if (blk and blk != "-") else (_ABSENT, "")
     if order_by == "depth":

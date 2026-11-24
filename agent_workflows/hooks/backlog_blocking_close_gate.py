@@ -20,7 +20,8 @@ Commit-time legitimacy is reconstructed from PERSISTED state only (the predicate
 same `Blocks-Release` must exist and every `From-Backlog` carrier, gated or not, must be executed or implemented) and DE-GATED (`Blocks-Release` absent from the
 staged item) are decidable from the staged tree. A transient `--evidence` CLI arg is NOT visible to the
 hook, but the setter now durably persists the citation as a `- Close-Evidence:` bullet (gateatrest
-f7igdu, via `backlog.set_close_evidence_line`), so the SATISFIED path IS honored from persisted state.
+f7igdu, via the `artifact_meta` writer `artifact_meta.append_legacy`), so the SATISFIED path IS
+honored from persisted state.
 
 Honest limits (never oversold): git hooks are LOCAL, not cloned by default, and skippable with
 `--no-verify`. This hook is OPT-IN (NOT installed by default) - the authoritative, portable boundary is
