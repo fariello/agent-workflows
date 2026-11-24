@@ -10,7 +10,6 @@ Covers:
 
 from __future__ import annotations
 
-import argparse
 from datetime import date
 import io
 import os
@@ -604,17 +603,14 @@ class TestMechanismAndDetectionBlindness(_ResearchSetAssignContainmentTestCase):
         )
         shutil.move(str(src), str(dst))
 
-        # Regenerate index to simulate the post-escape index write
+        # The post-escape scan of the research root sees no record and reports no drift.
         from agent_workflows import research_index
 
-        research_index.run_index(
-            argparse.Namespace(
-                dir=str(self.repo_dir),
-                check=False,
-                agent=False,
-                limit=None,
-            )
+        entries, scan_drift = research_index._scan_docs(
+            self.research_root, repo_root=self.repo_dir
         )
+        self.assertEqual(entries, [])
+        self.assertEqual(scan_drift, [])
 
         # 1. index --check reports clean
         rc_idx_chk, out_idx_chk, _ = self._run(["research", "index", "--check"])

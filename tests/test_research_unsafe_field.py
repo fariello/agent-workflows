@@ -31,15 +31,6 @@ class TestResearchUnsafeField(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.root, ignore_errors=True)
 
-    def _regen(self):
-        entries, _ = I._scan_docs(self.rroot, repo_root=self.root)
-        (self.rroot / I.INDEX_JSON).write_text(
-            I.build_index_json(entries), encoding="utf-8"
-        )
-        (self.rroot / I.INDEX_MD).write_text(
-            I.build_index_md(entries), encoding="utf-8"
-        )
-
     def _write_doc(
         self,
         id6: str = "abc001",
@@ -100,7 +91,8 @@ class TestResearchUnsafeField(unittest.TestCase):
             shutil.rmtree(self.rroot, ignore_errors=True)
             self.rroot.mkdir(parents=True, exist_ok=True)
             doc_path = self._write_doc(id6="sh0001", summary=val)
-            self._regen()
+            # The finding comes from the scan alone: no INDEX file is on disk.
+            self.assertEqual(list(self.rroot.glob("INDEX*")), [])
 
             # F-06: Non-destruction property - entries list must still contain doc
             entries, scan_drift = I._scan_docs(self.rroot, repo_root=self.root)
@@ -140,7 +132,6 @@ class TestResearchUnsafeField(unittest.TestCase):
     def test_summary_boundary_300_and_301(self):
         # 300 characters is conforming
         self._write_doc(id6="bnd300", summary="x" * 300)
-        self._regen()
         drifts_300 = I.check_drift(self.root, self.rroot)
         unsafe_300 = [d for d in drifts_300 if d.rule == "attention.unsafe-field"]
         self.assertEqual(
@@ -151,7 +142,6 @@ class TestResearchUnsafeField(unittest.TestCase):
         shutil.rmtree(self.rroot, ignore_errors=True)
         self.rroot.mkdir(parents=True, exist_ok=True)
         self._write_doc(id6="bnd301", summary="x" * 301)
-        self._regen()
         drifts_301 = I.check_drift(self.root, self.rroot)
         unsafe_301 = [d for d in drifts_301 if d.rule == "attention.unsafe-field"]
         self.assertEqual(
@@ -161,7 +151,6 @@ class TestResearchUnsafeField(unittest.TestCase):
 
     def test_topic_token_unsafe_shape(self):
         self._write_doc(id6="top001", topic=["valid-token", "topic\x07control"])
-        self._regen()
         entries, scan_drift = I._scan_docs(self.rroot, repo_root=self.root)
         self.assertEqual(
             len(entries), 1, "Doc with unsafe topic token must remain indexed (F-06)"
@@ -177,7 +166,6 @@ class TestResearchUnsafeField(unittest.TestCase):
 
     def test_consumed_by_token_unsafe_shape(self):
         self._write_doc(id6="con001", consumed_by=["c\x1b[31mbad\x1b[0m"])
-        self._regen()
         entries, scan_drift = I._scan_docs(self.rroot, repo_root=self.root)
         self.assertEqual(
             len(entries),
@@ -223,7 +211,6 @@ class TestResearchUnsafeField(unittest.TestCase):
             "---"
         )
         doc_path = self._write_doc(id6="nl0001", custom_frontmatter=injected_block)
-        self._regen()
 
         raw_text = doc_path.read_text(encoding="utf-8")
         fm = R.parse_frontmatter(raw_text)
@@ -256,7 +243,6 @@ class TestResearchUnsafeField(unittest.TestCase):
         # LIMIT TWO: check_drift reports but does NOT sanitize (carrier llnvwj handles rendering)
         unsafe_val = "sum\x1b[31minjected\x1b[0m"
         doc_path = self._write_doc(id6="san001", summary=unsafe_val)
-        self._regen()
 
         bytes_before = doc_path.read_bytes()
         I.check_drift(self.root, self.rroot)
@@ -303,7 +289,6 @@ class TestResearchUnsafeField(unittest.TestCase):
             + "\n\nBody\n",
             encoding="utf-8",
         )
-        self._regen()
         drifts = I.check_drift(self.root, self.rroot)
         self.assertIn("adopted-without-consumer", [d.rule for d in drifts])
 
@@ -311,7 +296,6 @@ class TestResearchUnsafeField(unittest.TestCase):
         shutil.rmtree(self.rroot, ignore_errors=True)
         self.rroot.mkdir(parents=True, exist_ok=True)
         self._write_doc(id6="dng001", consumed_by=["nonexistent123"])
-        self._regen()
         drifts = I.check_drift(self.root, self.rroot)
         self.assertIn("dangling-consumed-by", [d.rule for d in drifts])
 
@@ -336,13 +320,11 @@ class TestResearchUnsafeField(unittest.TestCase):
             + "\n\nBody\n",
             encoding="utf-8",
         )
-        self._regen()
         drifts = I.check_drift(self.root, self.rroot)
         self.assertIn("unrecognized-model", [d.rule for d in drifts])
 
     def test_non_regression_empty_lists_no_fault(self):
         self._write_doc(id6="emp001", topic=[], consumed_by=[])
-        self._regen()
         drifts = I.check_drift(self.root, self.rroot)
         unsafe = [d for d in drifts if d.rule == "attention.unsafe-field"]
         self.assertEqual(unsafe, [])

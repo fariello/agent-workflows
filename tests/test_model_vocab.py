@@ -8,7 +8,7 @@ All tests test observable behavior and outcomes:
 - Unknown-token warning containing `aw research add-model`
 - Hyphen admitted verbatim and malformed tokens refused
 - F-5 artifact_adopt facet detector regression guard
-- End-to-end aw research index manifest generation without F-2 outage
+- End-to-end research scan of known, unknown, and hyphenated models without F-2 outage
 - Advisory info-severity drift in --check exiting 0 vs real drift exiting 1
 - Zero undeclared parser leaves after E-08 add-model
 - aw research add-model round trip including --normalize-from and dry-run preview
@@ -287,7 +287,7 @@ class TestModelVocab(unittest.TestCase):
         self.assertIsNone(meta4.model)
 
     def test_08_research_index_eliminates_f2_manifest_outage(self):
-        """E-06 / V-06 / F-20: INDEX.json is written with known, unknown, and hyphenated models."""
+        """E-06 / V-06 / F-20: the research scan admits known, unknown, and hyphenated models."""
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td) / "repo"
             repo.mkdir()
@@ -310,22 +310,12 @@ class TestModelVocab(unittest.TestCase):
                 model="gemini-4-pro",
             )
 
-            args = argparse.Namespace(
-                dir=str(repo),
-                check=False,
-                limit=None,
-                agent=False,
-                json=False,
-            )
-            rc = _ri.run_index(args)
-            self.assertEqual(rc, 0)
+            rroot = repo / ".aw" / "records" / "research"
+            entries, drift = _ri._scan_docs(rroot, repo_root=repo)
+            self.assertEqual(drift, [])
+            self.assertEqual(_core.drift_exit_code(_ri.check_drift(repo, rroot)), 0)
 
-            index_json = repo / ".aw" / "records" / "research" / "INDEX.json"
-            self.assertTrue(index_json.is_file())
-            import json
-
-            data = json.loads(index_json.read_text(encoding="utf-8"))
-            indexed_models = {doc["id6"]: doc.get("model") for doc in data}
+            indexed_models = {e.id6: e.model for e in entries}
             self.assertEqual(indexed_models["aaaaaa"], "sonnet5")
             self.assertEqual(indexed_models["bbbbbb"], "deepseek4")
             self.assertEqual(indexed_models["cccccc"], "gemini-4-pro")
@@ -343,26 +333,19 @@ class TestModelVocab(unittest.TestCase):
                 repo, set_id="s1", order=1, id6="bbbbbb", slug="unkn", model="deepseek4"
             )
 
-            # Regenerate index first
-            rc_regen = _ri.run_index(
-                argparse.Namespace(
-                    dir=str(repo), check=False, limit=None, agent=False, json=False
-                )
-            )
-            self.assertEqual(rc_regen, 0)
+            rroot = repo / ".aw" / "records" / "research"
+            # The scan reads every doc cleanly with no INDEX file on disk.
+            _entries, scan_drift = _ri._scan_docs(rroot, repo_root=repo)
+            self.assertEqual(scan_drift, [])
 
-            # Check index: should report unrecognized-model at info severity and exit 0
-            drift = _ri.check_drift(repo, repo / ".aw" / "records" / "research")
+            # Drift check: should report unrecognized-model at info severity and exit 0
+            drift = _ri.check_drift(repo, rroot)
             unrecognized_findings = [d for d in drift if d.rule == "unrecognized-model"]
             self.assertTrue(len(unrecognized_findings) > 0)
             for f in unrecognized_findings:
                 self.assertEqual(f.severity, "info")
 
-            rc_check = _ri.run_index(
-                argparse.Namespace(
-                    dir=str(repo), check=True, limit=None, agent=False, json=False
-                )
-            )
+            rc_check = _core.drift_exit_code(drift)
             self.assertEqual(rc_check, 0)
 
             # Corrupt a doc with real broken frontmatter -> exits 1
@@ -375,11 +358,9 @@ class TestModelVocab(unittest.TestCase):
                 model="sonnet5",
                 corrupt_frontmatter=True,
             )
-            rc_broken = _ri.run_index(
-                argparse.Namespace(
-                    dir=str(repo), check=True, limit=None, agent=False, json=False
-                )
-            )
+            broken_drift = _ri.check_drift(repo, rroot)
+            self.assertIn("frontmatter-invalid", [d.rule for d in broken_drift])
+            rc_broken = _core.drift_exit_code(broken_drift)
             self.assertEqual(rc_broken, 1)
 
     def test_10_zero_undeclared_leaves(self):

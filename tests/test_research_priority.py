@@ -2,7 +2,7 @@
 Restored for backlog q86fxm (findings b1mx2w) from 19313eed^. All tests restored.
 Tests for xprio Order 03 (6vgd0k): recognized-but-optional Priority on research docs.
 
-Covers E-01 (optional `priority:` frontmatter key carried into INDEX.json; NOT added to the required
+Covers E-01 (optional `priority:` frontmatter key carried into the research scan entry; NOT added to the required
 FRONTMATTER_FIELDS so absence is clean), E-02 (`validate_frontmatter` enum-checks the value against
 the shared `backlog.PRIORITIES`, silent when absent), E-03 (`aw research new --priority` emits it and
 `aw research set-priority` writes/clears it), and E-04 (`attention._research_record` populates
@@ -88,8 +88,8 @@ class ResearchPriorityIndexTests(unittest.TestCase):
             self.assertEqual([d for d in drift if d.rule == "frontmatter-invalid"], [])
             self.assertEqual(len(entries), 1)
             self.assertEqual(entries[0].priority, "high")
-            # INDEX.json carries the field (via _asdict()).
-            self.assertIn('"priority": "high"', ridx.build_index_json(entries))
+            # The scan entry's serialized record carries the field (via _asdict()).
+            self.assertEqual(entries[0]._asdict()["priority"], "high")
 
     def test_index_priority_empty_when_absent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
