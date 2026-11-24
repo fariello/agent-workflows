@@ -93,6 +93,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-246-nx7fws-delete-the-ipd-module-metadata-regex-literals.ipd.md
 - Moved to akhrp5 (round-3 split 2026-11-09 per research nj8zdp guidance): E-22 subset 2, `plan_readiness` (6, with `_STATUS_RE`), `readiness_recheck` (1), `coverage_record` (4), `orchestrator_readiness` (1), and `tests/test_coverage_record.py`. Subsets 1 and 2 equal E-22's list.
   - Carrier: akhrp5
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-247-akhrp5-delete-the-readiness-and-coverage-metadata-regex-literals.ipd.md
 - Moved to tdhav3 (round-3 split 2026-11-09 per research nj8zdp guidance): E-23 (attention, review and research).
   - Carrier: tdhav3
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-248-tdhav3-delete-the-attention-review-and-research-metadata-regex-lite.ipd.md
