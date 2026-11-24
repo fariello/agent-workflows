@@ -42,30 +42,35 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 
 ### Task group 1: one module per item
 
-- [ ] E-01 Create `.aw/state/9o83cr/` (`mkdir -p .aw/state/9o83cr/`) and record both the baseline PIN list (`tests/test_attention.py`, `tests/test_releases.py`, `tests/test_research_archive.py`, `tests/test_research_index.py`, `tests/test_selector_two_dialect_readers.py` into `.aw/state/9o83cr/E-10b-before.txt`) and `aw find research --agent | sha256sum > .aw/state/9o83cr/research-find-before-sha.txt`. Then copy `research_contract.parse_frontmatter` into `artifact_meta` as a private function with unchanged behavior, and point `artifact_meta._parse_yaml_front_matter` (or wherever the loader calls `_res_contract`) at the copy, so `artifact_meta` no longer calls `research_contract.parse_frontmatter`.
+- [x] E-01 Create `.aw/state/9o83cr/` (`mkdir -p .aw/state/9o83cr/`) and record both the baseline PIN list (`tests/test_attention.py`, `tests/test_releases.py`, `tests/test_research_archive.py`, `tests/test_research_index.py`, `tests/test_selector_two_dialect_readers.py` into `.aw/state/9o83cr/E-10b-before.txt`) and `aw find research --agent | sha256sum > .aw/state/9o83cr/research-find-before-sha.txt`. Then copy `research_contract.parse_frontmatter` into `artifact_meta` as a private function with unchanged behavior, and point `artifact_meta._parse_yaml_front_matter` (or wherever the loader calls `_res_contract`) at the copy, so `artifact_meta` no longer calls `research_contract.parse_frontmatter`.
   - Depends on: none
   - Expected outcome: `artifact_meta` holds the copy and does not call the original.
-  - Execution state: pending
+  - Execution note (2026-11-24): baseline saved (187 PASSED in `.aw/state/9o83cr/E-10b-before.txt`; hash `10564ed82d64...` in `.aw/state/9o83cr/research-find-before-sha.txt`). Added `agent_workflows/artifact_meta.py::_parse_frontmatter` (behavior copy) and the public text wrapper `artifact_meta.front_matter_mapping`. At this HEAD `artifact_meta` did not call `_res_contract.parse_frontmatter` before the edit either (only `_res_contract.STATUSES`); its loader uses its own `_parse_yaml_front_matter`, which is left as is.
+  - Execution state: performed
 
-- [ ] E-02 Change `attention._research_record` and `releases._declared_blocks_release` to read research metadata through `artifact_meta.read_text(text, record_type="research")`.
+- [x] E-02 Change `attention._research_record` and `releases._declared_blocks_release` to read research metadata through `artifact_meta.read_text(text, record_type="research")`.
   - Depends on: E-01
   - Expected outcome: neither function calls `parse_frontmatter`.
-  - Execution state: pending
+  - Execution note (2026-11-24): `attention._research_record` already read `artifact_meta.read_text(text, record_type="research")` (commit 0d8cfb228, dqutt8). `releases._declared_blocks_release` changed in e3b704a23 to read `artifact_meta.read_text(text, record_type="research").fields.get("blocks_release")`.
+  - Execution state: performed
 
-- [ ] E-03 Change `research_archive._all_docs` and `research_archive.plan_transition_for_path` to read through `artifact_meta.read_text`.
+- [x] E-03 Change `research_archive._all_docs` and `research_archive.plan_transition_for_path` to read through `artifact_meta.read_text`.
   - Depends on: E-02
   - Expected outcome: `research_archive` calls no `parse_frontmatter`.
-  - Execution state: pending
+  - Execution note (2026-11-24): already done before this run. `research_archive._all_docs` and `plan_transition_for_path` read through `RI._cached_research_states`/`RI._state_to_frontmatter` on `artifact_meta` (commits 11aaee8ee cb5eda, 690ff549d 9gy5jk). No edit needed; verified by V-03.
+  - Execution state: performed
 
-- [ ] E-04 Change `research_index._doc_entry` (2 calls) to read through `artifact_meta.read_text`; keep the raw-text duplicate-key read noted beside it (a comment says `parse_frontmatter` loses duplicates).
+- [x] E-04 Change `research_index._doc_entry` (2 calls) to read through `artifact_meta.read_text`; keep the raw-text duplicate-key read noted beside it (a comment says `parse_frontmatter` loses duplicates).
   - Depends on: E-03
   - Expected outcome: `research_index` calls no `parse_frontmatter`.
-  - Execution state: pending
+  - Execution note (2026-11-24): already done before this run (commit 11aaee8ee, cb5eda): `research_index._doc_entry` reads via `artifact_meta`. The raw-text duplicate-key read and its comment in `research_index.check_drift` are kept unchanged.
+  - Execution state: performed
 
-- [ ] E-05 Change `selectors._read_yaml_scalar` to read through `artifact_meta.read_text`; commit through `aw commit sq6v7i -- <paths>`.
+- [x] E-05 Change `selectors._read_yaml_scalar` to read through `artifact_meta.read_text`; commit through `aw commit sq6v7i -- <paths>`.
   - Depends on: E-04
   - Expected outcome: only `research_contract` and `artifact_meta` define or call `parse_frontmatter` in production.
-  - Execution state: pending
+  - Execution note (2026-11-24): `selectors._read_yaml_scalar` already read `artifact_meta.read_text` (commit 36012ee0d, cdglt1); its two comments naming `research_contract.parse_frontmatter` as the parser were corrected. Five later production callers (added after the f83159217 census) were also moved to `artifact_meta.front_matter_mapping` so the Goal holds: `artifact_adopt`, `research_cmd`, `migrations/m0001_convert` (2), `m0001_discover`, `m0001_verify` (2). Committed via `aw commit sq6v7i` as e3b704a23 with a `--scope-reason` per out-of-fence path (attempt 2 brought forward attempt 1's commit fbf47f9bc from lane `aw/lane/sq6v7i` unchanged; the evidence below was re-run in the attempt-2 lane).
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -133,30 +138,99 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "_res_contract\.parse_frontmatter|def _parse_frontmatter" agent_workflows/artifact_meta.py` showing only the private definition.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "_res_contract\.parse_frontmatter|def _parse_frontmatter" agent_workflows/artifact_meta.py
+    2753:def _parse_frontmatter(text: str) -> Optional[Dict[str, object]]:
+    ```
+    Behavior parity on every research document in the repo: `research_contract.parse_frontmatter(t) == artifact_meta._parse_frontmatter(t)` for all 177 `.aw/records/research/**/*.md` files ("docs 177 copy-mismatch 0").
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "parse_frontmatter" agent_workflows/attention.py agent_workflows/releases.py` printing nothing, and the before/after per-test lines of `tests/test_attention.py` and `tests/test_releases.py`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "parse_frontmatter" agent_workflows/attention.py agent_workflows/releases.py
+    exit=1
+    ```
+    (no output.) tests/test_attention.py + tests/test_releases.py: 98 lines, all PASSED, identical before and after. Per-test outcome lists (PIN rule): before and after are byte-identical, so no case was dropped or renamed.
+    ```
+    $ sha256sum .aw/state/9o83cr/E-10b-before.txt .aw/state/9o83cr/E-10b-after.txt
+    04586cc3f0e95186f939e7f213bd6e2e1ce40d783924a30290768b7ddd99f5d3  .aw/state/9o83cr/E-10b-before.txt
+    04586cc3f0e95186f939e7f213bd6e2e1ce40d783924a30290768b7ddd99f5d3  .aw/state/9o83cr/E-10b-after.txt
+    $ diff .aw/state/9o83cr/E-10b-before.txt .aw/state/9o83cr/E-10b-after.txt && echo IDENTICAL
+    IDENTICAL
+    ```
+    `releases._declared_blocks_release` old-vs-new value on all 177 research docs: "blocks_release-diff 0".
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "parse_frontmatter" agent_workflows/research_archive.py` printing nothing and the before/after per-test lines of `tests/test_research_archive.py`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "parse_frontmatter" agent_workflows/research_archive.py
+    exit=1
+    ```
+    (no output.) tests/test_research_archive.py: 26 lines, all PASSED, identical before and after (same files as V-02).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n "parse_frontmatter\(" agent_workflows/research_index.py` printing nothing and the before/after per-test lines of `tests/test_research_index.py`.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "parse_frontmatter\(" agent_workflows/research_index.py
+    exit=1
+    ```
+    (no output.) tests/test_research_index.py: 52 lines, all PASSED, identical before and after (same files as V-02).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `rg -n "parse_frontmatter\(" agent_workflows` listing only `research_contract.py` and `artifact_meta.py`, the before/after per-test lines of `tests/test_selector_two_dialect_readers.py`, `aw find research --agent | sha256sum` beside the pre-edit hash (from `.aw/state/9o83cr/research-find-before-sha.txt`), and `git show --stat` of the `aw commit sq6v7i` commit.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "\bparse_frontmatter\(" agent_workflows
+    agent_workflows/research_contract.py:645:def parse_frontmatter(text: str) -> Optional[Dict[str, object]]:
+    $ rg -n "parse_frontmatter\(" agent_workflows
+    agent_workflows/artifact_meta.py:2753:def _parse_frontmatter(text: str) -> Optional[Dict[str, object]]:
+    agent_workflows/artifact_meta.py:2792:    return _parse_frontmatter(text)
+    agent_workflows/research_contract.py:645:def parse_frontmatter(text: str) -> Optional[Dict[str, object]]:
+    ```
+    tests/test_selector_two_dialect_readers.py per-test lines (identical before and after):
+    ```
+    PASSED tests/test_selector_two_dialect_readers.py::BoundedReaderMetadataRegionTests::test_metadata_region_bounds_all_three_readers_against_quoted_prose
+    PASSED tests/test_selector_two_dialect_readers.py::BoundedReaderMetadataRegionTests::test_metadata_region_prevents_id6_collision_from_quoted_block
+    PASSED tests/test_selector_two_dialect_readers.py::HarnessProvenanceTests::test_harness_measures_workspace_package
+    PASSED tests/test_selector_two_dialect_readers.py::YamlIdFallbackObservableResolutionTests::test_same_filename_trap_demonstration
+    PASSED tests/test_selector_two_dialect_readers.py::YamlIdFallbackObservableResolutionTests::test_yaml_id_fallback_resolves_unique_id6_and_succeeds_for_mutation
+    PASSED tests/test_selector_two_dialect_readers.py::YamlKeyLookupCaseSensitivityTests::test_capitalized_yaml_keys_not_matched_by_readers_or_find
+    PASSED tests/test_selector_two_dialect_readers.py::YamlKeyLookupCaseSensitivityTests::test_case_sensitivity_is_lookup_not_parser_failure
+    PASSED tests/test_selector_two_dialect_readers.py::YamlScalarNormalizationAndBulletAsymmetryTests::test_bullet_setid_preserves_backticks_verbatim_without_normalization
+    PASSED tests/test_selector_two_dialect_readers.py::YamlScalarNormalizationAndBulletAsymmetryTests::test_yaml_scalars_strip_backticks_and_quotes_for_bare_resolution
+    PASSED tests/test_selector_two_dialect_readers.py::YamlStatusAndSetFallbacksDirectTests::test_yaml_setid_fallback_resolves_setid_directly
+    PASSED tests/test_selector_two_dialect_readers.py::YamlStatusAndSetFallbacksDirectTests::test_yaml_status_fallback_resolves_status_directly
+    ```
+    ```
+    $ aw find research --agent | sha256sum
+    10564ed82d64a9dde62445051700190a1d6cc3f78f3c99dc1d506f394fd051c5  -
+    $ cat .aw/state/9o83cr/research-find-before-sha.txt
+    10564ed82d64a9dde62445051700190a1d6cc3f78f3c99dc1d506f394fd051c5  -
+    $ git show --stat e3b704a23
+    commit e3b704a23fe990ab5e3356ca9c693e8059673b8f
+        work(sq6v7i): copy parse_frontmatter into artifact_meta and retarget its production readers
+     agent_workflows/artifact_adopt.py            |  4 +--
+     agent_workflows/artifact_meta.py             | 42 ++++++++++++++++++++++++++++
+     agent_workflows/migrations/m0001_convert.py  |  5 ++--
+     agent_workflows/migrations/m0001_discover.py |  3 +-
+     agent_workflows/migrations/m0001_verify.py   |  5 ++--
+     agent_workflows/releases.py                  | 19 ++++++-------
+     agent_workflows/research_cmd.py              |  2 +-
+     agent_workflows/selectors.py                 | 16 +++++------
+     8 files changed, 66 insertions(+), 30 deletions(-)
+    ```
+    Regression: tests for the five extra retargeted modules (`tests/test_artifact_adopt.py tests/test_date_reader_clock_parity.py tests/test_m0001_*.py tests/test_research_cmd_create.py tests/test_research_meta_writer_characterization.py tests/test_record_builder.py`): "225 passed in 419.79s (0:06:59)". Core suite `aw suite`: "2890 passed, 1 skipped, 11 warnings in 119.42s (0:01:59)".
+  - Result: pass
 
 ## Approval and execution gate
 
