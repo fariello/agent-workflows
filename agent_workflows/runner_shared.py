@@ -8742,7 +8742,9 @@ def integrate_under_repository_lock(
     if consent:
         with (
             _tab_status.temporary_active_state(_tab_status.STATE_INTEGRATING),
-            _render_stream.temporary_active_activity(_lifecycle_style.INTEGRATING),
+            _render_stream.temporary_active_activity(
+                _lifecycle_style.INTEGRATING, progress_source="int"
+            ),
         ):
             item["integration_serialization"] = {
                 "serialized": False,
@@ -8758,9 +8760,18 @@ def integrate_under_repository_lock(
             )
             return integrate(item, handle)
 
+    lock_limit = (
+        INTEGRATION_LOCK_TIMEOUT_SECONDS
+        if timeout is None
+        else max(0.0, float(timeout))
+    )
     with (
         _tab_status.temporary_active_state(_tab_status.STATE_WAITING_LOCK),
-        _render_stream.temporary_active_activity(_lifecycle_style.INTEGRATING),
+        _render_stream.temporary_active_activity(
+            _lifecycle_style.INTEGRATING,
+            timeout=lock_limit,
+            progress_source="lock",
+        ),
     ):
         with integration_lock(
             repo,
@@ -8799,7 +8810,12 @@ def integrate_under_repository_lock(
                         lock_outcome.waited_seconds, lock_outcome.holder, tip
                     )
                 )
-            return integrate(item, handle)
+            with _render_stream.temporary_active_activity(
+                _lifecycle_style.INTEGRATING,
+                timeout=None,
+                progress_source="int",
+            ):
+                return integrate(item, handle)
 
 
 _UNRECORDED_LOCK_HOLDER = "an unrecorded holder"
@@ -55770,19 +55786,21 @@ def run_suite_check(
     PASS satisfies the check while a cached FAILURE is never served to a gate (every failure a gate
     acts on, and every `rerun_suite` re-check in a gate-answer follow-up, is an observed run).
     """
+    from agent_workflows import render_stream as _render_stream
     from agent_workflows import suite_cache
 
     started = time.monotonic()
     try:
-        res = suite_cache.run_full_suite(
-            repo_dir,
-            argv=list(SUITE_CHECK_ARGV),
-            use_cache=True,
-            serve_failures=False,
-            timeout=timeout,
-            stream=False,
-            run_id=run_id,
-        )
+        with _render_stream.temporary_active_timeout(timeout, progress_source="test"):
+            res = suite_cache.run_full_suite(
+                repo_dir,
+                argv=list(SUITE_CHECK_ARGV),
+                use_cache=True,
+                serve_failures=False,
+                timeout=timeout,
+                stream=False,
+                run_id=run_id,
+            )
     except Exception as exc:  # noqa: BLE001  # pragma: no cover
         # DELIBERATE blind catch, and not redundant: `capture_command` guards its own subprocess call
         # (timeout -> 124, other -> 127) but the lines BEFORE it are unguarded -- `Path(cwd).resolve()`

@@ -140,6 +140,7 @@ def compute_queue_telemetry(
     current_item: Optional[Mapping[str, Any]] = None,
     now_ts: Optional[float] = None,
     run_start_ts: Optional[float] = None,
+    item_elapsed_seconds: Optional[float] = None,
 ) -> dict[str, Any]:
     """Compute ETA, avg time/item, avg time/step, validation errors, retries, fix-its, attempt."""
     out: dict[str, Any] = {
@@ -166,6 +167,13 @@ def compute_queue_telemetry(
     if not isinstance(queue, list):
         return out
 
+    cur_id6 = (
+        str(current_item.get("id6") or "").strip()
+        if isinstance(current_item, Mapping)
+        else ""
+    )
+    current_matched_in_queue = False
+
     completed_item_durs: list[float] = []
     step_durs: list[float] = []
     val_errors = 0
@@ -183,9 +191,16 @@ def compute_queue_telemetry(
         if action == "skip":
             continue
 
+        entry_id6 = str(entry.get("id6") or "").strip()
+        is_current = current_item is not None and (
+            entry is current_item or (bool(cur_id6) and entry_id6 == cur_id6)
+        )
+        if is_current:
+            current_matched_in_queue = True
+
         attempts = entry.get("attempts")
         att_list = attempts if isinstance(attempts, list) else []
-        if att_list or status in ("running", "in-progress"):
+        if att_list or is_current or status in ("running", "in-progress"):
             attempted_items += 1
         if len(att_list) > 1:
             retries += len(att_list) - 1
@@ -237,12 +252,17 @@ def compute_queue_telemetry(
                     fix_its += len(sb)
                     retries += len(sb)
 
-        if status in ("queued", "running", "in-progress"):
+        # Keep the active in-flight item counted as remaining even if a provisional
+        # post-turn status (e.g. fail-gate before a fix-it turn or integration) was written.
+        if is_current or status in ("queued", "running", "in-progress"):
             remaining_count += 1
         elif status not in ("not-run", "not-started", "skipped"):
             completed_count += 1
             if item_has_dur:
                 completed_item_durs.append(item_dur_sum)
+
+    if current_item is not None and not current_matched_in_queue:
+        remaining_count += 1
 
     if current_item is not None:
         cur_atts = current_item.get("attempts")
@@ -265,7 +285,12 @@ def compute_queue_telemetry(
 
     eta_s: Optional[float] = None
     if avg_item_s is not None and remaining_count > 0:
-        eta_s = avg_item_s * remaining_count
+        if current_item is not None and item_elapsed_seconds is not None:
+            other_remaining = max(0, remaining_count - 1)
+            cur_remaining = max(0.0, avg_item_s - max(0.0, float(item_elapsed_seconds)))
+            eta_s = (other_remaining * avg_item_s) + cur_remaining
+        else:
+            eta_s = avg_item_s * remaining_count
 
     out["eta_seconds"] = eta_s
     out["avg_item_seconds"] = avg_item_s
@@ -1034,14 +1059,17 @@ def render_option2_statusline_lines(
     else:
         lbl_now, lbl_elap, lbl_eta = "Now:  ", "Elap: ", "ETA:  "
 
-    if eta_seconds is not None and eta_seconds > 0:
-        eta_dur = f"~{format_compact_duration(eta_seconds)}"
-        eta_clk = time.strftime("%H:%M", time.localtime(now_ts + eta_seconds))
-        eta_val = (
-            f"{eta_dur} @{eta_clk}"
-            if cw[0] >= len(lbl_eta) + len(eta_dur) + 8
-            else eta_dur
-        )
+    if eta_seconds is not None:
+        if eta_seconds > 0:
+            eta_dur = f"~{format_compact_duration(eta_seconds)}"
+            eta_clk = time.strftime("%H:%M", time.localtime(now_ts + eta_seconds))
+            eta_val = (
+                f"{eta_dur} @{eta_clk}"
+                if cw[0] >= len(lbl_eta) + len(eta_dur) + 8
+                else eta_dur
+            )
+        else:
+            eta_val = "<1m"
     else:
         eta_val = "--:--"
 
@@ -1349,7 +1377,7 @@ def render_option2_statusline_lines(
                 else (b_warn if stall_remaining < 300 else b_clock)
             )
         else:
-            t_disp = "--:--"
+            t_disp = "none"
             t_col = dim_hdr
 
         step_elapsed = max(0, int(now_ts - item_start_ts))

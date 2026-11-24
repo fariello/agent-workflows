@@ -781,3 +781,168 @@ def test_tg3v86_seed_from_state_dep_blocked_tally_full_labels_and_unified_oc_col
         2, 1, dep_blocked=10, use_unicode=False, color=False
     )
     assert p_asc == "[2 ok, 1 fail, 10 dep]"
+
+
+def test_eta_tracks_active_last_item_even_with_provisional_status() -> None:
+    """Active last item with provisional status (e.g. fail-gate before integration) keeps ETA live."""
+    last_item = {
+        "id6": "e8420v",
+        "action": "execute",
+        "status": "fail-gate",
+        "attempts": [
+            {
+                "started_at": "2026-11-24T19:47:49Z",
+                "ended_at": "2026-11-24T19:56:47Z",
+            }
+        ],
+    }
+    state = {
+        "options": {"retry_budget": 2},
+        "queue": [
+            {
+                "id6": "prev01",
+                "action": "execute",
+                "status": "executed",
+                "attempts": [
+                    {
+                        "started_at": "2026-11-24T18:00:00Z",
+                        "ended_at": "2026-11-24T18:20:00Z",  # 1200s
+                    }
+                ],
+            },
+            last_item,
+        ],
+    }
+    # Elapsed 600s out of 1200s average -> 600s remaining (~10m00s), never None / --:--.
+    tel = _sl.compute_queue_telemetry(
+        state, current_item=last_item, item_elapsed_seconds=600.0
+    )
+    assert tel["avg_item_seconds"] == pytest.approx(1200.0)
+    assert tel["eta_seconds"] == pytest.approx(600.0)
+
+    # Past average duration on final item -> eta_seconds == 0.0 -> renders "<1m", not "--:--".
+    tel_over = _sl.compute_queue_telemetry(
+        state, current_item=last_item, item_elapsed_seconds=1500.0
+    )
+    assert tel_over["eta_seconds"] == pytest.approx(0.0)
+    lines_over = rs.format_statusline_lines(
+        now_ts=1700000000.0,
+        run_start_ts=1700000000.0 - 2700.0,
+        item_start_ts=1700000000.0 - 1500.0,
+        last_act_ts=1700000000.0,
+        current_idx=1,
+        total_items=2,
+        setid="metastore",
+        id6="e8420v",
+        pal=rs.Palette(False, use_unicode=True),
+        eta_seconds=tel_over["eta_seconds"],
+        width=160,
+    )
+    assert "ETA:    <1m" in lines_over[3]
+    assert "Timeout:none" in lines_over[1]
+    assert " out " not in lines_over[2]
+
+    # Before any item has completed, ETA remains "--:--".
+    empty_state = {"queue": [last_item]}
+    tel_none = _sl.compute_queue_telemetry(
+        empty_state, current_item=last_item, item_elapsed_seconds=30.0
+    )
+    assert tel_none["eta_seconds"] is None
+    lines_none = rs.format_statusline_lines(
+        now_ts=1700000000.0,
+        run_start_ts=1700000000.0 - 30.0,
+        item_start_ts=1700000000.0 - 30.0,
+        last_act_ts=1700000000.0,
+        current_idx=0,
+        total_items=1,
+        setid="metastore",
+        id6="e8420v",
+        pal=rs.Palette(False, use_unicode=True),
+        eta_seconds=tel_none["eta_seconds"],
+        width=160,
+    )
+    assert "ETA:    --:--" in lines_none[3]
+
+
+def test_phase_timeout_and_source_tags_during_integration_and_suite_check() -> None:
+    """Phase timeouts render real limits during integration/suite checks and ignore background threads."""
+    import threading
+
+    class FakeTurnWatchdog:
+        timeout = 1800.0
+
+        def remaining(self) -> float:
+            return 1750.0
+
+    assert rs.format_progress_source_tag(None) == "    "
+    assert rs.format_progress_source_tag("stdout") == "out "
+    assert rs.format_progress_source_tag("lock") == "lock"
+    assert rs.format_progress_source_tag("test") == "test"
+    assert rs.format_progress_source_tag("int") == "int "
+
+    tty = _FakeTTY()
+    sl = rs.Statusline(
+        rs.Palette(False, use_unicode=True),
+        tty,
+        interval=0.0,
+        current_idx=1,
+        total_items=2,
+        setid="metastore",
+        id6="e8420v",
+        action="execute",
+        artifact_kind="child",
+        runner="opencode",
+        model="claude-opus-5.5",
+        width=160,
+    )
+    with sl:
+        # Detached state: Timeout:none and no misleading "out" tag.
+        detached = sl.render_line()
+        assert "Timeout:none" in detached
+        assert " out " not in detached
+
+        # Integration lock wait attaches real lock timeout and "lock" progress source.
+        with rs.temporary_active_activity(
+            "integrating", timeout=1800.0, progress_source="lock"
+        ):
+            lock_rendered = sl.render_line()
+            assert "Integrating" in lock_rendered
+            assert "/30:00" in lock_rendered
+            assert " lock" in lock_rendered
+
+            # Nested integration body clears lock timeout -> "int", then suite check attaches 20:00 + "test".
+            with rs.temporary_active_activity(
+                "integrating", timeout=None, progress_source="int"
+            ):
+                int_rendered = sl.render_line()
+                assert "Timeout:none" in int_rendered
+                assert " int " in int_rendered
+
+                with rs.temporary_active_timeout(1200.0, progress_source="test"):
+                    suite_rendered = sl.render_line()
+                    assert "/20:00" in suite_rendered
+                    assert " test" in suite_rendered
+
+        # Restored to detached state after exiting integration scopes.
+        assert "Timeout:none" in sl.render_line()
+
+        # Background thread (e.g. suite-baseline) must never clobber an active turn watchdog.
+        turn_wd = FakeTurnWatchdog()
+        sl.attach_turn(watchdog=turn_wd, activity="executing")
+        bg_err: list[BaseException] = []
+
+        def _bg_suite() -> None:
+            try:
+                with rs.temporary_active_timeout(600.0, progress_source="test"):
+                    assert sl.watchdog is turn_wd
+                    assert sl.progress_source == "stdout"
+            except BaseException as exc:
+                bg_err.append(exc)
+
+        t = threading.Thread(target=_bg_suite)
+        t.start()
+        t.join(timeout=5.0)
+        assert not bg_err, bg_err
+        assert sl.watchdog is turn_wd
+        assert sl.progress_source == "stdout"
+        sl.detach_turn()

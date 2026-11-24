@@ -995,7 +995,7 @@ class TestStatuslineClass:
             ):
                 time.sleep(0.02)
             assert len(stream.getvalue()) > size_after_detach
-            assert "Timeout:--:--" in outer.render_line()
+            assert "Timeout:none" in outer.render_line()
 
             item["integration_signal"] = "integrating"
             assert "Integrating" in outer.render_line()

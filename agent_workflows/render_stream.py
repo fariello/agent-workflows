@@ -1289,18 +1289,25 @@ PROGRESS_SOURCE_DISPLAY_MAP: dict[str, str] = {
     "chat": "chat",
     "stdout": "out",
     "out": "out",
+    "gate": "gate",
+    "suite": "test",
+    "test": "test",
+    "lock": "lock",
+    "integrating": "int",
+    "int": "int",
+    "coord": "ctrl",
+    "ctrl": "ctrl",
 }
 
 
 def format_progress_source_tag(source: str | None) -> str:
-    """Format the progress source into a fixed-width tag: logs, task, chat, out .
+    """Format the progress source into a fixed-width 4-char tag (or 4 spaces when detached).
 
     Always returns exactly 4 visible characters without parentheses.
     """
     if not source:
-        norm = "out"
-    else:
-        norm = PROGRESS_SOURCE_DISPLAY_MAP.get(str(source).strip().lower(), "out")
+        return "    "
+    norm = PROGRESS_SOURCE_DISPLAY_MAP.get(str(source).strip().lower(), "out")
     if norm == "out":
         return "out "
     if len(norm) < 4:
@@ -2502,6 +2509,7 @@ class Statusline:
             current_item=self._item,
             now_ts=now_wall,
             run_start_ts=run_wall,
+            item_elapsed_seconds=max(0.0, cur_mono - self._item_start_mono),
         )
 
         cur_tot = _tracker_total_tokens(self.tracker)
@@ -2912,9 +2920,25 @@ def get_active_statusline() -> Statusline | None:
     return _ACTIVE_STATUSLINE
 
 
+class _PhaseTimeout:
+    """Lightweight watchdog-shaped deadline for bounded coordinator phases (lock wait, suite check)."""
+
+    def __init__(self, timeout: float, start_mono: float | None = None) -> None:
+        self.timeout = float(timeout)
+        self.start_mono = time.monotonic() if start_mono is None else float(start_mono)
+
+    def remaining(self) -> float:
+        return max(0.0, self.timeout - (time.monotonic() - self.start_mono))
+
+
 @contextlib.contextmanager
-def temporary_active_activity(activity: str) -> Any:
-    """Temporarily override the live Statusline's activity (e.g. 'integrating') and redraw."""
+def temporary_active_activity(
+    activity: str,
+    *,
+    timeout: float | None = None,
+    progress_source: str | None = None,
+) -> Any:
+    """Temporarily override the live Statusline's activity (and optional phase timeout/source)."""
     sl = _ACTIVE_STATUSLINE
     if sl is None:
         yield
@@ -2922,8 +2946,25 @@ def temporary_active_activity(activity: str) -> Any:
     with sl._lock:
         prev_activity = sl.activity
         prev_override = sl._turn_activity_override
+        prev_watchdog = sl.watchdog
+        prev_stall_timeout = sl._stall_timeout
+        prev_progress_source = sl.progress_source
+        prev_last_activity = sl._last_activity
         sl.activity = activity
         sl._turn_activity_override = True
+        can_set_phase_wd = sl.watchdog is None or isinstance(sl.watchdog, _PhaseTimeout)
+        if can_set_phase_wd:
+            if timeout is not None and float(timeout) > 0:
+                phase_wd = _PhaseTimeout(float(timeout))
+                sl.watchdog = phase_wd
+                sl._stall_timeout = phase_wd.timeout
+                sl._last_activity = phase_wd.start_mono
+            elif isinstance(sl.watchdog, _PhaseTimeout):
+                sl.watchdog = None
+                sl._stall_timeout = None
+                sl._last_activity = time.monotonic()
+        if progress_source is not None and can_set_phase_wd:
+            sl.progress_source = progress_source
         sl.redraw()
     try:
         yield
@@ -2931,6 +2972,54 @@ def temporary_active_activity(activity: str) -> Any:
         with sl._lock:
             sl.activity = prev_activity
             sl._turn_activity_override = prev_override
+            if sl.watchdog is None or isinstance(sl.watchdog, _PhaseTimeout):
+                sl.watchdog = prev_watchdog
+                sl._stall_timeout = prev_stall_timeout
+                sl.progress_source = prev_progress_source
+                sl._last_activity = prev_last_activity
+            sl.redraw()
+
+
+@contextlib.contextmanager
+def temporary_active_timeout(
+    timeout: float | None,
+    *,
+    progress_source: str | None = None,
+) -> Any:
+    """Attach a phase-scoped timeout to the active foreground Statusline without clobbering a turn watchdog."""
+    sl = _ACTIVE_STATUSLINE
+    if sl is None or threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    with sl._lock:
+        if sl.watchdog is not None and not isinstance(sl.watchdog, _PhaseTimeout):
+            yield_without_change = True
+        else:
+            yield_without_change = False
+            prev_watchdog = sl.watchdog
+            prev_stall_timeout = sl._stall_timeout
+            prev_progress_source = sl.progress_source
+            prev_last_activity = sl._last_activity
+            if timeout is not None and float(timeout) > 0:
+                phase_wd = _PhaseTimeout(float(timeout))
+                sl.watchdog = phase_wd
+                sl._stall_timeout = phase_wd.timeout
+                sl._last_activity = phase_wd.start_mono
+            if progress_source is not None:
+                sl.progress_source = progress_source
+            sl.redraw()
+    if yield_without_change:
+        yield
+        return
+    try:
+        yield
+    finally:
+        with sl._lock:
+            if sl.watchdog is None or isinstance(sl.watchdog, _PhaseTimeout):
+                sl.watchdog = prev_watchdog
+                sl._stall_timeout = prev_stall_timeout
+                sl.progress_source = prev_progress_source
+                sl._last_activity = prev_last_activity
             sl.redraw()
 
 
