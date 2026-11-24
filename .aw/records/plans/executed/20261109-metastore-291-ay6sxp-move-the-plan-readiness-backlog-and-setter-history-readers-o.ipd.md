@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5 allows exactly one metadata reader (`artifact_meta`). Part 12 of the round-3 split of `k6jd6l` (Order 43, research `nj8zdp` guidance). Order 290 put the history grammar in `artifact_meta`; this part moves five reader modules off `attention_contract.history_block`/`newest_history_record`. Measured at `f83159217`: `plan_readiness` (`extract_newest_history_entry`, `history_has_review_record`, `newest_verdict`; 4 references), `review_sequence` (`count_verdict_bearing_entries`, `restore_pre_s7_plan`, through `plan_readiness.history_block`; 2), `backlog` (`validate_item`, `_strip_metadata_and_history`, `_prior_history_records`; 3), `set_records._extract_body` (1), `status_set.same_status_message_is_duplicate` (1).
 - Scope: The `plan_readiness`, `review_sequence`, `backlog`, `set_records` and `status_set` readers of `k6jd6l` E-10's history grammar. EXCLUDES `attention`, `check_engine`, `specs`, `research_index` and deleting the originals (Order 292); `HISTORY_RECORD_RE` uses stay (Order 248, `tdhav3`).
 - Scope-Paths: agent_workflows/plan_readiness.py, agent_workflows/review_sequence.py, agent_workflows/backlog.py, agent_workflows/set_records.py, agent_workflows/status_set.py, .aw/records/plans/pending/20261109-metastore-291-ay6sxp-move-the-plan-readiness-backlog-and-setter-history-readers-o.ipd.md
+- Scope-Exceeded: agent_workflows/artifact_meta.py (restore_legacy_snapshot read plan_readiness.history_block, a re-export E-01 removes retargeted to artifact_meta's own _history_block so the import keeps working)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:bxupy8, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ay6sxp
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: ay6sxp verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/artifact_meta.py: restore_legacy_snapshot read plan_readiness.history_block, a re-export E-01 removes; retargeted to artifact_meta's own _history_block so the import keeps working; in-scope-unmodified agent_workflows/set_records.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
