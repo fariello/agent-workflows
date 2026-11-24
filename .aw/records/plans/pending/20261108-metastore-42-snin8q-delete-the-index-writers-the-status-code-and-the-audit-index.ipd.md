@@ -44,15 +44,15 @@ PIN RULE (carried from `9o83cr`): E-18 deletes two helpers whose only callers we
 
 ### Task group 1: shared helpers and finish
 
-- [ ] E-18 In `agent_workflows/artifact_core.py`, delete `artifact_core.emit_index_write_result` and `artifact_core.emit_index_check_result`, whose only callers were the three `run_index` functions deleted by `uopi8z`, `s6k01k` and `drav0u`. Keep `artifact_core.emit_index_missing_dir_refusal` only if `rg -n "emit_index_missing_dir_refusal" agent_workflows` still shows a caller; otherwise delete it too.
+- [x] E-18 In `agent_workflows/artifact_core.py`, delete `artifact_core.emit_index_write_result` and `artifact_core.emit_index_check_result`, whose only callers were the three `run_index` functions deleted by `uopi8z`, `s6k01k` and `drav0u`. Keep `artifact_core.emit_index_missing_dir_refusal` only if `rg -n "emit_index_missing_dir_refusal" agent_workflows` still shows a caller; otherwise delete it too.
   - Depends on: none
   - Expected outcome: `rg -n "emit_index_(write|check)_result" agent_workflows tests` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-17 Finish: run `aw check plans --all --agent`, `aw check research --all --agent` and `aw check prompts --all --agent` (rule multisets equal the `54a80m` F-29 baselines; any difference traced to a record changed in between), the family search `rg -n "build_index_(json|md)|emit_index_(write|check)_result|DEFAULT_INDEX_LIMIT|_set_last_touched|render_status_index|_INDEX_CACHE" agent_workflows tests`, the bare core gate `python3 -m pytest`, `aw ipd lint` on this plan, and `aw sanitize --agent`; commit through `aw commit snin8q -- <paths>` with only Scope-Paths files, never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-17 Finish: run `aw check plans --all --agent`, `aw check research --all --agent` and `aw check prompts --all --agent` (rule multisets equal the `54a80m` F-29 baselines; any difference traced to a record changed in between), the family search `rg -n "build_index_(json|md)|emit_index_(write|check)_result|DEFAULT_INDEX_LIMIT|_set_last_touched|render_status_index|_INDEX_CACHE" agent_workflows tests`, the bare core gate `python3 -m pytest`, `aw ipd lint` on this plan, and `aw sanitize --agent`; commit through `aw commit snin8q -- <paths>` with only Scope-Paths files, never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-18
   - Expected outcome: all runs pass; the family search prints nothing; every commit's `git show --stat` lists only Scope-Paths files (or paths justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -93,6 +93,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-230-54a80m-record-the-baseline-for-the-index-writer-deletion-family.ipd.md
 - Moved to f6y2yy (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 test subset 1, `tests/test_index_write_agent_records.py` and `tests/test_index_check_agent_records.py`.
   - Carrier: f6y2yy
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-231-f6y2yy-retarget-the-index-agent-record-tests-off-the-index-write-pa.ipd.md
 - Moved to 6966zq (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 test subset 2, `tests/test_drift_rule_registration.py`, `tests/test_model_vocab.py`, `tests/test_research_priority.py`, `tests/test_research_unsafe_field.py`, `tests/test_research_set_assign_date_containment.py`.
   - Carrier: 6966zq
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-232-6966zq-retarget-five-research-and-registry-tests-off-the-index-buil.ipd.md
@@ -145,15 +146,50 @@ No spec change; implements part of `4sd62s` 4.5 and section 7 step 7.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-18 validates E-18
+- [x] V-18 validates E-18
   - Required evidence: paste `rg -n "emit_index_(write|check)_result" agent_workflows tests` printing nothing, `rg -n "emit_index_missing_dir_refusal" agent_workflows` with its result (callers listed, or nothing and the function deleted), and the `git diff` hunk of `agent_workflows/artifact_core.py`.
   - Observed evidence:
-  - Result: pending
+    Commit `0528a5aa2` (attempt 2 lane `snin8q_attempt2`, run `run-20261124T201012Z-1437032`; brought forward unchanged from attempt 1's `6a8b09f28` on `aw/lane/snin8q`, base `00c41aec9`). Re-checked in attempt 2 at lane HEAD `3d910132f`: both searches below still print nothing.
+    `rg -n "emit_index_(write|check)_result" agent_workflows tests` printed nothing (rg exit 1).
+    Before the edit, `rg -n "emit_index_missing_dir_refusal" agent_workflows` printed only its definition, `agent_workflows/artifact_core.py:1383:def emit_index_missing_dir_refusal(`, with no caller (the `prompts_index.run_index` caller was removed by `drav0u`), so it was deleted too; after the edit the same search printed nothing (rg exit 1).
+    `git show 0528a5aa2 -- agent_workflows/artifact_core.py` hunks (identical to `6a8b09f28`):
+    ```text
+    @@ -31,9 +31,7 @@ import tempfile
+     from typing import (
+         TYPE_CHECKING,
+    -    Any,
+         Callable,
+    -    Dict,
+         List,
+    @@ -1198,276 +1196,6 @@ def drift_exit_code(drift: List[Drift]) -> int:
+    -def emit_index_check_result(
+    -def emit_index_write_result(
+    -def emit_index_missing_dir_refusal(
+    ```
+    The second hunk removes the three functions whole (270 lines, from `def emit_index_check_result(` up to `def aggregate_index_results(`, which is kept). `Any` and `Dict` became unused and were removed (`python3 -m ruff check --select F agent_workflows/artifact_core.py`: "All checks passed!"). `aggregate_index_results` has no caller left either; it is outside E-18's named list and was left alone (filed as a backlog finding).
+  - Result: pass
 
-- [ ] V-17 validates E-17
+- [x] V-17 validates E-17
   - Required evidence: paste the output of `rg -n "build_index_(json|md)|emit_index_(write|check)_result|DEFAULT_INDEX_LIMIT|_set_last_touched|render_status_index|_INDEX_CACHE" agent_workflows tests` (empty); the three `aw check <type> --all --agent` rule multiset diffs against `54a80m` F-29 (empty, or each difference traced); beside those, the bare `python3 -m pytest` summary line; `aw sanitize --agent` with zero `fail`; and `git show --stat` of every `aw commit snin8q` commit listing only Scope-Paths files.
   - Observed evidence:
-  - Result: pending
+    Family search `rg -n "build_index_(json|md)|emit_index_(write|check)_result|DEFAULT_INDEX_LIMIT|_set_last_touched|render_status_index|_INDEX_CACHE" agent_workflows tests` printed nothing (rg exit 1). Before this plan it printed one line, `tests/test_prompts_index.py:63:    def test_scan_and_build_index_json(self):`, a test `drav0u` retargeted onto `prompts_index.scan_prompts` but left with a name matching `build_index_json`; it was renamed `test_scan_prompts_entries` (outside Scope-Paths, justified with `--scope-reason` at commit; `python3 -m pytest tests/test_prompts_index.py -q -o addopts=""`: `7 passed in 0.75s`).
+    `aw check research --all --agent` exit 1, multiset identical to F-29: `35 adopted-without-consumer, 1 check.collisions-not-checked, 358 dangling-citation, 1 name-invalid, 30 stale-state-to-promote, 2 status-tier-mismatch, 4 unrecognized-model`.
+    `aw check prompts --all --agent` exit 1, multiset identical to F-29: `1 check.collisions-not-checked, 6 check.name-nonconformant, 6 check.prompt-metadata-missing`.
+    `aw check plans --all --agent` exit 1, multiset (after adding the `f6y2yy` Carrier-Evidence line below):
+    ```text
+          1 check.collisions-not-checked
+          1 check.ipd-dependency-findings-blocked
+         32 check.lifecycle-transition-unvalidated
+          1 check.plan-spec-link-missing
+          1 check.scope-drift
+          2 check.spec-criteria-uncovered
+    ```
+    Differences from F-29, each traced: (a) `check.lifecycle-transition-unvalidated` 41 -> 32. Replaying `check_engine._walk_plan_lifecycle_history` over the F-29 HEAD `0016badc0` copy of `pending/` gives the same 41; no current finding is new, and the 9 gone are plans still in `pending/` (`28k5h5`, `rowsi5`, `4q1rri`, `dvxh1p`, `k1qi85`, `sz4h5i`, `ippuby`, `rulopj`, `rntx9a`) whose later `plan-review: harden <id6> (revisions applied)` commits (for example `ca4dc685d`, `7c2adad21`, `74d2255ff`) added validated transitions. (b) `check.scope-drift` +1 on this plan: the `tests/test_prompts_index.py` rename above, recorded with `--scope-reason` for finalize. (c) Before the Carrier-Evidence edit the run also showed `check.ipd-carrier-finished-unverified` on this plan for the `f6y2yy` deferred row; the line was added and the finding is gone.
+    Bare `python3 -m pytest`: `2894 passed, 1 skipped, 11 warnings in 119.75s (0:01:59)`; exit 1 comes only from the core-tier wall-time budget ("Core tier wall time: 74.52s exceeded budget of 30.00s." on a re-run, host load average 10.68), the same cause as the F-29 baseline; no test failed. The count is 4 below F-29's 2898 because `drav0u` and earlier parts deleted INDEX-only tests after F-29 was recorded.
+    `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,...,"checked":7168,"findings":0,...}`.
+    Attempt 2 re-run at lane HEAD `3d910132f`: family search printed nothing (rg exit 1); the three `aw check <type> --all --agent` multisets are identical to the ones listed above (plans before this plan file's Carrier-Evidence line was re-applied showed the extra `check.ipd-carrier-finished-unverified`, gone after); `aw suite`: `2896 passed, 1 skipped, 11 warnings in 136.90s (0:02:16)`; `aw sanitize --agent`: `"outcome":"clean","exit":0,"checked":7169,"findings":0`; `aw ipd lint --phase pre-transition` on this plan: `conforming`.
+    `git show --stat 0528a5aa2`: `agent_workflows/artifact_core.py | 272 ---`, `tests/test_prompts_index.py | 2 +-`, `2 files changed, 1 insertion(+), 273 deletions(-)` (the test path is the out-of-scope rename, justified with `--scope-reason`). `git show --stat 3d910132f`: `.aw/records/backlog/open/20261124-f3geta-01-f3geta-aggregate-index-results-uncalled.backlog.md | 14 ++`, `1 file changed, 14 insertions(+)` (the defect-report carrier for the uncalled `aggregate_index_results`, justified with `--scope-reason`). This plan file is committed in a third `aw commit snin8q` commit inside Scope-Paths.
+  - Result: pass
 
 ## Approval and execution gate
 
