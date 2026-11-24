@@ -60,7 +60,7 @@ class _PromptsFixtureBase(unittest.TestCase):
 
 
 class PromptsIndexTests(_PromptsFixtureBase):
-    def test_scan_and_build_index_json(self):
+    def test_scan_prompts_entries(self):
         entries, drift = prompts_index.scan_prompts(self.prompts_dir)
         self.assertEqual(drift, [])
         self.assertEqual(len(entries), 3)
