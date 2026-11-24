@@ -632,39 +632,3 @@ def validate_frontmatter(
             )
 
     return errors
-
-
-# --------------------------------------------------------------------------------------
-# Frontmatter reader (the shared parser for the tool-authored block; the tool owns text I/O so
-# the schema stays pure, but the read format is defined ONCE here so index/archive/migration
-# never fork it). Handles the ``--- ... ---`` leading block: ``key: value`` scalars and
-# ``key: [a, b]`` lists, matching what ``research_cmd.build_frontmatter`` writes.
-# --------------------------------------------------------------------------------------
-
-
-def parse_frontmatter(text: str) -> Optional[Dict[str, object]]:
-    """Parse a leading ``---`` frontmatter block into a mapping, or None if absent/malformed.
-
-    Scalars become ``str`` (empty string for an empty value); ``[a, b]`` becomes a ``list`` of
-    trimmed strings (``[]`` for empty). This is deliberately minimal and dependency-free.
-    """
-
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return None
-    data: Dict[str, object] = {}
-    for line in lines[1:]:
-        if line.strip() == "---":
-            return data
-        if ":" not in line:
-            continue
-        key, _, val = line.partition(":")
-        key = key.strip()
-        val = val.strip()
-        if val.startswith("[") and val.endswith("]"):
-            inner = val[1:-1].strip()
-            data[key] = [x.strip() for x in inner.split(",")] if inner else []
-        else:
-            data[key] = val
-    # No closing '---' seen: malformed.
-    return None

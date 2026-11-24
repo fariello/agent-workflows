@@ -536,3 +536,72 @@ def test_read_text_yaml_only_and_multiword_status():
     assert st_multi.legacy_raw_status == "EXECUTED (approved by maintainer)"
     assert st_multi.loose_id == "pln999"
     assert st_multi.loose_status is None
+
+
+_HISTORY_FIXTURE_TEXTS = [
+    "# No history\n\n- Id: nhs001\n- Status: draft\n",
+    (
+        "# Plan\n\n- Id: hst101\n\n## Workflow history\n"
+        "- 2026-10-24 approved (aw set): maintainer approved\n"
+        "- 2026-10-20 created (aw ipd new): initial creation\n"
+        "\n## Goal\n\nBody.\n"
+    ),
+    (
+        "# Wrapped\n\n## Workflow history\n"
+        "- 2026-11-02 reviewed (agent): a record whose text\n"
+        "  wraps onto a continuation line\n"
+        "- not a dated record\n"
+        "  continuation of a non-record bullet\n"
+        "- 2026-11-01 to-review (agent): second record\n"
+        "\n"
+        "    an indented quotation after a blank line ends the block\n"
+        "- 2026-01-01 not a record because the block already ended\n"
+    ),
+    (
+        "# Column zero prose ends it\n\n## Workflow history   \n"
+        "- 2026-09-09 note: only record\n"
+        "Prose at column zero.\n"
+        "- 2026-09-08 after the block\n"
+    ),
+    "# CRLF\r\n\r\n## Workflow history\r\n- 2026-08-01 created (x): crlf record\r\n\r\n## Next\r\n",
+    "# Empty block\n\n## Workflow history\n\n## Next\n",
+]
+
+
+@pytest.mark.parametrize(
+    "text",
+    _HISTORY_FIXTURE_TEXTS,
+    ids=[
+        "no-history",
+        "two-records",
+        "wrapped-and-quoted",
+        "column-zero-prose",
+        "crlf",
+        "empty-block",
+    ],
+)
+def test_history_records_matches_attention_contract_history_block(text: str):
+    """`artifact_meta.history_records` is the one history grammar and answers exactly as the
+    `attention_contract` original does, including the newest record and its day."""
+    got = meta.history_records(text)
+    want = att.history_block(text)
+    assert got.records == want.records
+    assert got.record_lines == want.record_lines
+    assert got.body == want.body
+    assert tuple(got) == tuple(want)
+    assert meta._newest_history_record(got.records) == att.newest_history_record(
+        want.records
+    )
+    assert meta._last_history_at(got.records) == att.last_history_at(want.records)
+
+
+def test_last_history_at_copy_matches_original_for_event_dicts():
+    events = [
+        [{"line": "- 2026-10-24 approved (aw set): x"}, {"line": "- 2026-10-20 y z"}],
+        [{"observed_day": "2026-07-01"}, {"at": "2026-07-03T10:00:00Z"}],
+        [{"at": "2026-07-03T10:00:00Z"}, {"observed_day": "2026-07-04"}],
+        [{"at": "bad"}],
+        [],
+    ]
+    for ev in events:
+        assert meta._last_history_at(ev) == att.last_history_at(ev)

@@ -25,7 +25,6 @@ from agent_workflows import (
     artifact_core,
     artifact_meta,
     artifact_naming,
-    attention_contract,
     layout_migration,
     project_context,
     review_findings,
@@ -624,7 +623,7 @@ def _find_history_section_span(
 ) -> Optional[Tuple[int, int, List[Tuple[str, Optional[str]]]]]:
     """Locate the column-zero ``## Workflow history`` section outside fenced code blocks.
 
-    Uses ``attention_contract.history_block`` termination rules so ``###`` sections
+    Uses ``artifact_meta.history_records`` termination rules so ``###`` sections
     (for example ``### Problem Statement`` in backlog items) and non-bullet body lines
     remain intact.
 
@@ -647,9 +646,7 @@ def _find_history_section_span(
             elif marker[0] == fence_char and len(marker) >= fence_len:
                 in_fence = False
             continue
-        if not in_fence and attention_contract._WORKFLOW_HISTORY_HEADING_RE.match(
-            stripped
-        ):
+        if not in_fence and artifact_meta._HISTORY_HEADING_RE.match(stripped):
             heading_idx = idx
             break
 
@@ -699,7 +696,7 @@ def _find_history_section_span(
         if not is_indented and line.startswith("- "):
             _flush_entry()
             trimmed = line.rstrip()
-            m_rec = attention_contract.HISTORY_RECORD_RE.match(trimmed)
+            m_rec = artifact_meta._HISTORY_RECORD_RE.match(trimmed)
             if m_rec:
                 cur_day = m_rec.group("date")
             else:
@@ -1215,11 +1212,11 @@ def build_record_log(
     hist_entries: List[Tuple[str, Optional[str]]] = (
         hist_span[2] if hist_span is not None else []
     )
-    hb = attention_contract.history_block(hist_source_text)
+    hb = artifact_meta.history_records(hist_source_text)
     if hb.records:
-        newest = attention_contract.newest_history_record(hb.records)
+        newest = artifact_meta._newest_history_record(hb.records)
         if newest:
-            lhd = attention_contract.last_history_at([newest])
+            lhd = artifact_meta._last_history_at([newest])
             if lhd:
                 fields["last_history_day"] = lhd
 
