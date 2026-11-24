@@ -109,6 +109,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-288-sq6v7i-move-parse-frontmatter-into-artifact-meta-and-retarget-its-p.ipd.md
 - E-10: `parse_frontmatter` test retargets: Moved to 5lgpix (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 5lgpix
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-289-5lgpix-retarget-the-tests-that-still-call-parse-frontmatter.ipd.md
 - E-10: deleting `parse_frontmatter`, the history grammar copy and the migration retarget: Moved to bxupy8 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: bxupy8
 - E-10: history readers in `plan_readiness`, `review_sequence`, `backlog`, `set_records`, `status_set`: Moved to ay6sxp (round-3 split 2026-11-09 per research nj8zdp guidance).
