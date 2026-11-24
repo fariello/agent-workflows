@@ -794,7 +794,7 @@ def test_tracked_corpus_five_type_byte_identity_round_trip(tmp_path: Path) -> No
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(p.read_bytes())
 
-            id6 = sel.read_front_matter_id(txt)
+            id6 = meta.read_text(txt).loose_id
             if not id6:
                 m_id = re.search(r"-([0-9a-z]{6})-", p.name)
                 id6 = m_id.group(1) if m_id else ""

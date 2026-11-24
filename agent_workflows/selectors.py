@@ -13,7 +13,8 @@ REVERSED the deliberate exclusion IPD e32j35 E-06 had documented here). The corp
 declaration shapes, and the id6/setid/status rules now read either:
 
   * BULLET front matter (`- Id:`, `- Status:`, `- Set:`), used by plans, specs, backlog, releases,
-    reviews, prompts and walkthroughs; matched by `_ID_RE`/`_STATUS_RE`/`_SET_RE`;
+    reviews, prompts and walkthroughs; read by `_read_id`/`_read_status`/`_read_setid` through
+    `artifact_meta.read_text` (the strict one-space `- Field:` spelling);
   * YAML front matter (`id:`, `status:`, `set:` between `---` fences), used by research and roadmaps;
     read via `artifact_meta.read_text`, the repository's ONE metadata reader (spec `4sd62s` C5).
 
@@ -35,11 +36,11 @@ change, which is why it took its own plan rather than riding along with a resolv
 THE YAML READER IS DELIBERATELY NARROW IN TWO WAYS, and both are load-bearing. The key lookup is
 CASE-SENSITIVE, which is what leaves the `---`-fenced records outside research (the `handoff`
 workflow writes `Kind:`/`Status:` CAPITALIZED) completely unperturbed. And the PUBLIC runner-facing
-readers below (`read_front_matter_id`/`read_front_matter_status`) stay bullet-only. See the notes at
-each site.
+loose-whitespace values (`artifact_meta.read_loose_id`/`read_loose_status`, which replaced this
+module's deleted `read_front_matter_*` readers) stay bullet-only.
 
 Note the separate, still-standing caution about the PLANS index, which this change does not touch:
-see the parity note on `_STATUS_RE` below, where the two readers provably disagree on 24 records.
+the strict status reader `_read_status` and `plans_index` provably disagree on 24 records.
 
 THE CONTENT RULES READ THE METADATA REGION, NOT THE WHOLE BODY (IPD `76w6mq`). The `id6`, `setid`
 and `status` rules match only within a record's leading metadata region - the bullet block before
@@ -101,7 +102,7 @@ _SKIP_NAMES = layout.RECORD_SCAN_SKIP_NAMES
 # re-read what this resolver already read (measured 1240 opens end to end against 620 here, i.e. every
 # record opened about twice); that double read was removed by IPD `qfpnrm` (source backlog `59t9x5`).
 # Note it was not a free win either: `plans_index` and this module DELIBERATELY disagree on 24 records,
-# for the reason the `_STATUS_RE` parity note below states at length.
+# because `_read_status`'s strict status spelling is a matching-behavior contract for `aw find`.
 #
 # ONLY `id6` COULD EVER HAVE BENEFITED FROM SUCH A FILTER, which the original design missed and a
 # measurement caught. Because `setid` (3) and `status` (4) are evaluated BEFORE `stem` (5) and
@@ -469,88 +470,11 @@ def _read_status(text: str) -> str | None:
     return toks[0]
 
 
-# --- Public front-matter readers (rununify 01, `2r306y`) --------------------------------------
-#
-# The PUBLIC, documented form of the two readers above, for callers OUTSIDE this module. Both
-# host runners used to carry their own private `_read_id`/`_read_status` copies; they now call
-# these, so there is ONE definition per reader and a fix reaches both drivers.
-#
-# THEY DELIBERATELY USE A LOOSER PATTERN THAN THIS MODULE'S OWN READERS, and that is the whole
-# design of this pair rather than an oversight. The runner copies were AST-IDENTICAL in body to
-# `_read_id`/`_read_status` but closed over `^-\s*Id:` (ANY whitespace after the dash) where
-# `_ID_RE`/`_STATUS_RE` above require EXACTLY ONE SPACE. So a literal swap to the strict readers
-# would have made both drivers stop recognizing a bullet written `-  Id: abc123` or with a tab.
-#
-# Widening `_ID_RE`/`_STATUS_RE` instead was NOT an option: the PARITY CONSTRAINT comment above
-# records that `_STATUS_RE`'s strictness is a MATCHING-BEHAVIOR CONTRACT for `aw find plans`,
-# deliberately disagreeing with `plans_index._META_RE` on 24 records. Harmonizing them is a
-# contract change, not a cleanup. Hence a separate permissive pattern here, leaving selector
-# matching byte-for-byte unchanged.
-#
-# The permissive spelling is also the one the WRITER uses: `status_set`'s `_ID_RE`/`_STATUS_RE`, which is what
-# actually rewrites these bullets, matches on `^-\s*Id:`/`^-\s*Status:`, as do
-# `check_engine`/`backlog`/`research_index` (via `[ \t]*`). Tolerating the loose form on READ is
-# therefore consistent with the rest of the toolkit, and it fails safe: a missed `- Status:` read
-# silently degrades a runner to a directory-derived status (`oc_runipd.parse_plan_file`), which
-# is precisely the class of silent wrongness this Set exists to remove.
-#
-# THIS PAIR IS REGION-BOUNDED TOO, AND THAT IS THE POINT OF CONSOLIDATING RATHER THAN FIXING ONE
-# SIDE (IPD `76w6mq` E-03, OQ-02). What is shared is the metadata-region BOUND; what stays distinct
-# is the WHITESPACE tolerance above. Bounding only the strict internal pair would deliberately
-# reinstate, in this very module, the reader DRIFT whose prevention is the documented reason this
-# public pair exists at all: both host runners previously carried private `_read_id`/`_read_status`
-# copies that diverged. A driver reads PLAN front matter, where the region boundary is unambiguous
-# (a bullet block before `## Workflow history`), so bounding is behavior-preserving for every real
-# driver input; measured over all 1614 tracked records, exactly ONE file's public-reader answer
-# changes, and it is one of the two quoting research documents this plan exists to fix.
-#
-# The header-exhaustion rule in `metadata_region` matters HERE in particular: a driver reading a
-# long plan whose metadata block outruns one read chunk must not lose its region to a missing `##`,
-# which is why exhaustion means "the region continues" and never an empty region.
-#
-# THIS PAIR IS DELIBERATELY LEFT BULLET-ONLY, AND ITS OMISSION FROM THE YAML DIALECT IS A DECISION
-# RATHER THAN AN OVERSIGHT (IPD `xo3244` E-03). The three INTERNAL readers above now fall back to the
-# YAML dialect; these two do not. Two reasons. FIRST, no caller can produce the input: a host runner
-# reads PLAN front matter, which is bullet-dialect by construction, so a YAML branch here would widen
-# a surface nothing exercises. SECOND, and decisively, this is the ONE reader pair whose failure mode
-# is documented as SILENTLY DEGRADING a runner to a directory-derived status, so its surface is kept
-# as narrow as its callers need. If a driver ever has to read a YAML-fenced record, add the fallback
-# HERE explicitly with its own evidence; do not infer it from the internal readers having one.
-def read_front_matter_id(text: str) -> str | None:
-    """Return the `- Id:` id6 from a record's METADATA REGION, or ``None``.
-
-    Tolerates any whitespace after the leading dash (see the note above). For SELECTOR
-    matching use the strict internal reader instead, so `aw find` behavior is unchanged.
-    Bounded to `metadata_region`, so a QUOTED `- Id:` in a body is not read as a declaration.
-    """
-    from agent_workflows import artifact_meta as _meta
-
-    return _meta.read_text(metadata_region(text)).loose_id
-
-
-def read_front_matter_status(text: str) -> str | None:
-    """Return the single-token `- Status:` value from a record's METADATA REGION, or ``None``.
-
-    A multi-word status (e.g. ``EXECUTED (approved ...)``) yields ``None``, matching the
-    internal reader's `(\\S+)` contract; only the leading whitespace tolerance differs.
-    Bounded to `metadata_region`, like its `read_front_matter_id` twin.
-    """
-    from agent_workflows import artifact_meta as _meta
-
-    return _meta.read_text(metadata_region(text)).loose_status
-
-
-def read_front_matter_blocks_release(text: str) -> str | None:
-    """Return the `- Blocks-Release:` value from a record's METADATA REGION, or ``None``.
-
-    The value is a release id6 or the literal `next`. Note that `-` means ABSENT at every
-    consumer. Bounded to `metadata_region`, like `read_front_matter_id` and
-    `read_front_matter_status`, so a QUOTED `- Blocks-Release:` in a body is not read
-    as a declaration.
-    """
-    from agent_workflows import artifact_meta as _meta
-
-    return _meta.read_text(metadata_region(text)).loose_blocks_release
+# The PUBLIC loose-whitespace readers that used to live here (`read_front_matter_id`, `_status`,
+# `_blocks_release`; rununify 01 `2r306y`) were deleted by metastore `8ysz6b` (spec `4sd62s` C5: one
+# metadata reader). Their permissive `^-\s*Field:` values are `artifact_meta.read_loose_id`,
+# `read_loose_status` and `read_loose_blocks_release` (the `loose_*` fields of `artifact_meta.read_text`),
+# which both host runners bind as `_read_id`. This module's strict readers above are unchanged.
 
 
 def _read_setid(text: str) -> str | None:
@@ -1175,16 +1099,15 @@ def resolve(
 #
 # DO NOT "FIX" THIS BY WIDENING THE WINDOW (IPD paw8so OQ-04). Raising the byte bounds or routing
 # `resolve`'s id6 rule through a whole-file read would change which records `aw find` MATCHES for
-# every type and every front-matter kind, which the `_STATUS_RE` parity note above establishes is a
+# every type and every front-matter kind, which the strict `_read_status` contract above establishes is a
 # MATCHING-BEHAVIOR decision and not a cleanup. This predicate cannot change what matches at all.
 def declares_id6(path: Path, id6: str) -> bool:
     """True iff the file at ``path`` DECLARES ``id6`` as its own identity.
 
     Reads the WHOLE file and bounds the search to `metadata_region`, so a QUOTED example
     ``- Id:`` block in a body is not read as a declaration (the same ARTIFACTS-NOT-MENTIONS rule
-    the selector readers apply, just without the byte bound). Reuses the module's own `_ID_RE`
-    rather than adding a third identity pattern; `plans_index._meta(text, "Id")` and
-    `check_engine._ID_LINE_RE` are byte-identical twins of it.
+    the selector readers apply, just without the byte bound). Reuses the module's own `_read_id`
+    rather than adding a third identity reader.
 
     Returns False (never raises) for an unreadable file.
     """

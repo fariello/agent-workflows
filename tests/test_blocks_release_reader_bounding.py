@@ -1,7 +1,7 @@
 """Outcome tests for bounding Blocks-Release readers and writers to the metadata region.
 
 Covers IPD b92m14 (E-01 through E-08):
-- Bounded reader selectors.read_front_matter_blocks_release
+- Bounded Blocks-Release read through artifact_meta.read_text (loose value)
 - Bidirectional display divergence resolved between aw set and aw attention
 - Setter spellings (positional and flag) write byte-identical front matter
 - Plans with body-only gate bullet excluded from releases.get_release_blockers
@@ -30,7 +30,6 @@ from agent_workflows import (
     check_engine,
     ipd_lint,
     releases,
-    selectors,
     status_set,
 )
 from tests.record_builder import RecordBuilder
@@ -52,11 +51,16 @@ def _set_blocks_release(text: str, value: str) -> str:
     )
 
 
+def _loose_blocks_release(text: str) -> str | None:
+    """The metadata-region Blocks-Release value `artifact_meta.read_text` reads, or None."""
+    return artifact_meta.read_loose_blocks_release(text)
+
+
 class TestBlocksReleaseReaderBounding(unittest.TestCase):
     """Behavioral outcome tests for metadata-bounded Blocks-Release readers/writers."""
 
-    def test_read_front_matter_blocks_release_cases(self) -> None:
-        """E-01 / V-01: read_front_matter_blocks_release on three distinct text shapes."""
+    def test_loose_blocks_release_cases(self) -> None:
+        """E-01 / V-01: artifact_meta.read_text's loose Blocks-Release on distinct text shapes."""
         # Case 1: Declaring in bullet front matter
         text_fm = RecordBuilder().plan(
             title="Plan Title",
@@ -66,7 +70,7 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
             body="## Description\nBody here.\n",
             text_only=True,
         )
-        self.assertEqual(selectors.read_front_matter_blocks_release(text_fm), "next")
+        self.assertEqual(_loose_blocks_release(text_fm), "next")
 
         # Case 2: Only gate bullet sits below ## Workflow history
         text_body = RecordBuilder().plan(
@@ -76,7 +80,7 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
             history=["- 2026-10-01 created: - Blocks-Release: next"],
             text_only=True,
         )
-        self.assertIsNone(selectors.read_front_matter_blocks_release(text_body))
+        self.assertIsNone(_loose_blocks_release(text_body))
 
         # Case 3: YAML-fenced research doc with quoted bullet in body
         text_yaml = RecordBuilder().research(
@@ -85,7 +89,7 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
             body="\n# Research Document\n\nHere is a quote:\n- Blocks-Release: next\n",
             text_only=True,
         )
-        self.assertIsNone(selectors.read_front_matter_blocks_release(text_yaml))
+        self.assertIsNone(_loose_blocks_release(text_yaml))
 
         # Anchored case from F-12: trailing content on gate line
         text_trailing = RecordBuilder().backlog(
@@ -95,7 +99,7 @@ class TestBlocksReleaseReaderBounding(unittest.TestCase):
             raw_fields={"Blocks-Release": "next                  - Set: demo"},
             text_only=True,
         )
-        self.assertIsNone(selectors.read_front_matter_blocks_release(text_trailing))
+        self.assertIsNone(_loose_blocks_release(text_trailing))
 
     def test_bidirectional_display_divergence(self) -> None:
         """E-08(a) / V-02: aw set line and aw attention agree in body-quoted and real gate cases."""

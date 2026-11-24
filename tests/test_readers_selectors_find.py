@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_workflows import cli, plans, selectors
+from agent_workflows import artifact_meta, cli, plans, selectors
 from tests.record_builder import RecordBuilder
 
 pytestmark = pytest.mark.core
@@ -334,15 +334,15 @@ def test_loose_whitespace_and_quoted_example_fixtures(tmp_path: Path) -> None:
         "-\tBlocks-Release: abc123\n\n"
         "## Workflow history\n- 2026-11-01 created\n"
     )
-    assert selectors.read_front_matter_id(two_spaces) == "lse001"
-    assert selectors.read_front_matter_status(two_spaces) == "approved"
-    assert selectors.read_front_matter_blocks_release(two_spaces) == "next"
+    assert artifact_meta.read_text(two_spaces).loose_id == "lse001"
+    assert artifact_meta.read_text(two_spaces).loose_status == "approved"
+    assert artifact_meta.read_text(two_spaces).loose_blocks_release == "next"
     assert selectors._read_id(two_spaces) is None
     assert selectors._read_status(two_spaces) is None
 
-    assert selectors.read_front_matter_id(tab_sep) == "lse002"
-    assert selectors.read_front_matter_status(tab_sep) == "reviewed"
-    assert selectors.read_front_matter_blocks_release(tab_sep) == "abc123"
+    assert artifact_meta.read_text(tab_sep).loose_id == "lse002"
+    assert artifact_meta.read_text(tab_sep).loose_status == "reviewed"
+    assert artifact_meta.read_text(tab_sep).loose_blocks_release == "abc123"
     assert selectors._read_id(tab_sep) is None
     assert selectors._read_status(tab_sep) is None
 
@@ -353,9 +353,9 @@ def test_loose_whitespace_and_quoted_example_fixtures(tmp_path: Path) -> None:
         body="## Example\n- Id: quot01\n- Status: approved\n- Blocks-Release: next",
         text_only=True,
     )
-    assert selectors.read_front_matter_id(quoted) == "real01"
-    assert selectors.read_front_matter_status(quoted) == "draft"
-    assert selectors.read_front_matter_blocks_release(quoted) is None
+    assert artifact_meta.read_text(quoted).loose_id == "real01"
+    assert artifact_meta.read_text(quoted).loose_status == "draft"
+    assert artifact_meta.read_text(quoted).loose_blocks_release is None
 
     p_real = tmp_path / "20261101-demo-01-real01-real.ipd.md"
     p_real.write_text(quoted, encoding="utf-8")

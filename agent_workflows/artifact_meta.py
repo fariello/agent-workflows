@@ -5148,6 +5148,33 @@ def read_text(text: str, *, record_type: Optional[str] = None) -> State:
     )
 
 
+def read_loose_id(text: str) -> Optional[str]:
+    """Return the loose `- Id:` id6 (`^-\\s*Id:`) from `text`'s metadata region, or ``None``.
+
+    The permissive spelling the host runners re-export as `_read_id` (both hosts bind this
+    one function). Bounded to `metadata_region`, so a QUOTED `- Id:` in a body is not read.
+    """
+    return read_text(metadata_region(text)).loose_id
+
+
+def read_loose_status(text: str) -> Optional[str]:
+    """Return the single-token loose `- Status:` value from `text`'s metadata region, or ``None``.
+
+    A multi-word status (e.g. ``EXECUTED (approved ...)``) yields ``None``; a YAML-only record
+    yields ``None`` (bullet dialect only, like `read_loose_id`).
+    """
+    return read_text(metadata_region(text)).loose_status
+
+
+def read_loose_blocks_release(text: str) -> Optional[str]:
+    """Return the loose `- Blocks-Release:` value from `text`'s metadata region, or ``None``.
+
+    The value is a release id6 or the literal `next`; `-` means ABSENT at every consumer. A
+    QUOTED `- Blocks-Release:` in a body is not read as a declaration.
+    """
+    return read_text(metadata_region(text)).loose_blocks_release
+
+
 def read(id6: str, *, project_context: Any = None) -> State:
     """Read current state of an artifact. Fails closed on invalid record."""
     validate_id6(id6)
@@ -8490,9 +8517,7 @@ def write_legacy(
         if sidecar is not None:
             sid = ltarget.id6
             if not sid:
-                from agent_workflows import selectors as _sel
-
-                sid = _sel.read_front_matter_id(rendered)
+                sid = read_loose_id(rendered)
             if sid:
                 from agent_workflows import record_history as _rh
 

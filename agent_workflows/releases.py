@@ -22,7 +22,6 @@ from agent_workflows import artifact_core as _core
 from agent_workflows import attention_contract as A
 from agent_workflows import ipd_schema as _schema
 from agent_workflows import layout
-from agent_workflows import selectors as _sel
 from agent_workflows.project_context import project_records_dir
 
 RELEASE_STATUSES = ("planned", "blocked", "shipped")
@@ -503,7 +502,9 @@ def _declared_blocks_release(repo_root: Path, rel_path: str) -> Optional[str]:
                     "blocks_release"
                 )
                 return str(v).strip() if v else None
-            br = _sel.read_front_matter_blocks_release(text)
+            from agent_workflows import artifact_meta as _meta
+
+            br = _meta.read_loose_blocks_release(text)
             if br is not None:
                 return br
         except OSError:
@@ -635,7 +636,9 @@ def count_blocks_release_sentinel(repo_root: Path) -> int:
                     text = p.read_text(encoding="utf-8")
                 except OSError:
                     continue
-                br = _sel.read_front_matter_blocks_release(text)
+                from agent_workflows import artifact_meta as _meta
+
+                br = _meta.read_loose_blocks_release(text)
                 if br and br.strip() == "next":
                     count += 1
     return count
@@ -687,7 +690,9 @@ def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
                     text = p.read_text(encoding="utf-8")
                 except OSError:
                     continue
-                br = _sel.read_front_matter_blocks_release(text)
+                from agent_workflows import artifact_meta as _meta
+
+                br = _meta.read_loose_blocks_release(text)
                 if not br:
                     continue
                 val = br.strip()

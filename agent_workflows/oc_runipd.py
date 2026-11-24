@@ -869,10 +869,10 @@ from agent_workflows.runner_shared import (
 
 # rununify 01 (`2r306y`): `_read_id`/`_read_status` were defined in THIS module AND in
 # `agy_runipd`, both AST-identical to `selectors`' own readers, so one owner had three copies.
-# They are now the public `selectors` readers, bound to this module's historical private names
-# because that is what every call site here already uses. `selectors` imports no runner, so
-# there is no cycle. NOTE the aliases are deliberately the PERMISSIVE readers: this module's
-# copies tolerated any whitespace after the `-` while `selectors`' internal readers require
+# `_read_id` is now `artifact_meta.read_loose_id` (metastore `8ysz6b`, spec `4sd62s` C5: the one
+# metadata reader), bound to this module's historical private name. `artifact_meta` imports no
+# runner, so there is no cycle. NOTE the alias is deliberately the PERMISSIVE reader: this module's
+# copy tolerated any whitespace after the `-` while `selectors`' internal readers require
 # exactly one space, and that strictness is a documented `aw find` matching contract.
 #
 # `_read_id` F401 handling is re-homed onto __all__ (s4jctz: h0zk2g / sznlsf). Once
@@ -887,8 +887,8 @@ from agent_workflows.runner_shared import (
 # consumed in `tests/test_ipdrunner_runagy_shim.py::AgyParserAndDiscoveryTests::test_read_deps_and_set`; `oc_runipd._read_id` has no local caller, but is
 # retained for cross-host symmetry and guarded by `tests/test_runner_shared.py::CrossHostReadIdReExportTests`.
 # Sznlsf E-01's execution census measured these callers at HEAD, and E-02's conditional gate confirmed retention.
-# (Note: `_read_status` is exposed on neither host; status reading is done via `selectors`.)
-from agent_workflows.selectors import read_front_matter_id as _read_id
+# (Note: `_read_status` is exposed on neither host; status reading is done via `artifact_meta`.)
+from agent_workflows.artifact_meta import read_loose_id as _read_id
 
 # The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
 # live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.

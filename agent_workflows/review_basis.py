@@ -94,7 +94,7 @@ def provisional_targets(
     """The prerequisites of a review `item` that are satisfied ONLY because of the flag."""
     from agent_workflows import runner_shared as rs
     from agent_workflows import selectors
-    from agent_workflows.selectors import read_front_matter_status
+    from agent_workflows.artifact_meta import read_loose_status
 
     out: List[Dict[str, str]] = []
     deps = item.get("dependencies") or ()
@@ -114,7 +114,7 @@ def provisional_targets(
                 text = dep_path.read_text(encoding="utf-8")
             except Exception:
                 continue
-            status = read_front_matter_status(text)
+            status = read_loose_status(text)
             if status in PROVISIONAL_STATUSES:
                 out.append(
                     {"id6": edge.id6, "digest": contract_digest(text), "status": status}
@@ -167,7 +167,7 @@ def stale_bases(repo: Path, *, prune: bool = True) -> List[StaleBasis]:
     """
     from agent_workflows import runner_shared as rs
     from agent_workflows import selectors
-    from agent_workflows.selectors import read_front_matter_status
+    from agent_workflows.artifact_meta import read_loose_status
 
     d = basis_dir(repo)
     if not d.is_dir():
@@ -188,7 +188,7 @@ def stale_bases(repo: Path, *, prune: bool = True) -> List[StaleBasis]:
         try:
             text = rs.resolve_plan_path(Path(repo), "", tid).read_text(encoding="utf-8")
             snapshot: Optional[tuple[Optional[str], str]] = (
-                read_front_matter_status(text),
+                read_loose_status(text),
                 contract_digest(text),
             )
         except Exception:
@@ -206,7 +206,7 @@ def stale_bases(repo: Path, *, prune: bool = True) -> List[StaleBasis]:
         except Exception:
             consumer_cache[cid] = (True, None)
             return (True, None)
-        cstatus = read_front_matter_status(text)
+        cstatus = read_loose_status(text)
         norm_status = str(cstatus or "").strip().lower()
         in_terminal_dir = any(part in TERMINAL_PLAN_DIRS for part in cpath.parts)
         is_non_reviewable = (

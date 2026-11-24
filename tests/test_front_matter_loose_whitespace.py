@@ -3,8 +3,8 @@
 
 Restores behavioral coverage (yuhl6o S-06) originally in
 `tests/test_runner_refork_guard.py::FrontMatterReaderBehaviorTests` (deleted in `19313eed`),
-validating that `parse_plan_file` across both host drivers and the public `selectors`
-readers tolerate loose leading whitespace (`- `, `-  `, `-\t`), while strict internal
+validating that `parse_plan_file` across both host drivers and the loose values of
+`artifact_meta.read_text` tolerate loose leading whitespace (`- `, `-  `, `-\t`), while strict internal
 readers reject loose whitespace, and the single-token status contract is preserved.
 """
 
@@ -12,7 +12,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_workflows import agy_runipd, oc_runipd, runner_shared, selectors
+from agent_workflows import (
+    agy_runipd,
+    artifact_meta,
+    oc_runipd,
+    runner_shared,
+    selectors,
+)
 
 
 class FrontMatterLooseWhitespaceTests(unittest.TestCase):
@@ -57,15 +63,16 @@ class FrontMatterLooseWhitespaceTests(unittest.TestCase):
                         )
 
     def test_public_readers_tolerate_loose_leading_whitespace(self):
-        """E-02 (public permissive): read_front_matter_id and read_front_matter_status accept all 3 spellings."""
+        """E-02 (public permissive): read_text's loose id and status accept all 3 spellings."""
         for spelling_name, text in (
             ("one space", self.ONE_SPACE),
             ("two spaces", self.TWO_SPACES),
             ("tab", self.TAB),
         ):
             with self.subTest(spelling=spelling_name):
-                self.assertEqual(selectors.read_front_matter_id(text), "abc123")
-                self.assertEqual(selectors.read_front_matter_status(text), "approved")
+                st = artifact_meta.read_text(text)
+                self.assertEqual(st.loose_id, "abc123")
+                self.assertEqual(st.loose_status, "approved")
 
     def test_internal_readers_stay_strict(self):
         """E-02 (internal strict): _read_id and _read_status accept only one-space spelling."""
@@ -82,7 +89,7 @@ class FrontMatterLooseWhitespaceTests(unittest.TestCase):
     def test_single_token_status_contract_survives(self):
         """E-03: multi-word status yields canonical status in _read_status (D-1) while public reader returns None."""
         multi = "- Status: EXECUTED (approved by maintainer)\n"
-        self.assertIsNone(selectors.read_front_matter_status(multi))
+        self.assertIsNone(artifact_meta.read_text(multi).loose_status)
         self.assertEqual(selectors._read_status(multi), "executed")
 
         with tempfile.TemporaryDirectory() as tmp:

@@ -49,6 +49,7 @@ from unittest import mock
 from agent_workflows import (
     agy_runipd,
     artifact_core,
+    artifact_meta,
     oc_runipd,
     render_stream,
     run_evidence,
@@ -244,7 +245,7 @@ def _spec_5_5_owner_problems_scan(
                 problems.append(
                     f"Row '{spec_class}': plan `{cited_id}` has set '{set_first_token}', expected 'fixfirst'"
                 )
-            plan_status = selectors.read_front_matter_status(plan_text)
+            plan_status = artifact_meta.read_text(plan_text).loose_status
             if plan_status != "executed":
                 problems.append(
                     f"Row '{spec_class}': plan `{cited_id}` has status '{plan_status}', expected 'executed'"

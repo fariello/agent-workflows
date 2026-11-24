@@ -16,9 +16,9 @@ import tempfile
 from typing import NamedTuple
 import unittest
 
+from agent_workflows import artifact_meta
 from agent_workflows import check_engine as ce
 from agent_workflows import ipd_lifecycle as il
-from agent_workflows import selectors
 from tests.record_builder import RecordBuilder
 
 
@@ -76,7 +76,7 @@ def _compare_plan_derivations(
         for p in sorted(bucket_dir.glob("**/*.ipd.md")):
             rel_path = p.relative_to(root).as_posix()
             text = p.read_text(encoding="utf-8")
-            id6 = selectors.read_front_matter_id(text)
+            id6 = artifact_meta.read_text(text).loose_id
             derived = il.derive_plan_status(text)
             if not id6:
                 missing_id_paths.append(rel_path)

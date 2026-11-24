@@ -17917,7 +17917,7 @@ def plan_bucket(path: Path) -> str | None:
     plan STAYS in `pending/` for its entire non-terminal life, moving through `- Status: draft` ->
     `to-review` -> `reviewed` -> `approved`, and only a TERMINAL state moves the file. So a caller
     that wants to know "is this plan reviewed/approved yet" CANNOT learn it here: it must read the
-    `- Status:` front-matter field with `selectors.read_front_matter_status`. `oc_runipd.edge_satisfied`
+    `- Status:` front-matter field with `artifact_meta.read_loose_status`. `oc_runipd.edge_satisfied`
     is the worked precedent, and the reason it had to change: it compared this function's result
     against `("executed", "reviewed", "approved")`, which made two thirds of that tuple DEAD CODE
     because every non-terminal plan buckets as `pending`.
@@ -54763,10 +54763,10 @@ def perform_coordinator_proposal_file(
     paths = list(proposal.get("paths") or [])
 
     from agent_workflows import (
+        artifact_meta as _meta_reader,
         commit_lock,
         git_commit_helper as _gch,
         ipd_lifecycle,
-        selectors as _sel,
     )
     from agent_workflows.backlog import parse_item
 
@@ -54787,7 +54787,7 @@ def perform_coordinator_proposal_file(
                 m_kind = re.search(r"(?m)^-\s*Work-Kind:\s*(\S+)", raw_txt)
                 if m_kind:
                     item_work_kind = m_kind.group(1).strip()
-                item_blocks_release = _sel.read_front_matter_blocks_release(raw_txt)
+                item_blocks_release = _meta_reader.read_loose_blocks_release(raw_txt)
         except Exception:
             pass
 
@@ -55149,7 +55149,7 @@ def perform_coordinator_proposal_file(
                         )
                     created_plan = matching[0]
                     plan_content = created_plan.read_text(encoding="utf-8")
-                    record_id6 = _sel.read_front_matter_id(plan_content) or item_id6
+                    record_id6 = _meta_reader.read_loose_id(plan_content) or item_id6
 
                     from agent_workflows import artifact_core as _core
                     from agent_workflows import artifact_meta as _am
@@ -55845,7 +55845,7 @@ def edge_satisfied(
         # different halves of one question and only one of them carries information in each case.
         #
         # WHY THE DIRECTORY MUST WIN IN `executed/`, measured and not hypothetical: 24 of the 455
-        # plans in `executed/` carry a `- Status:` that `read_front_matter_status` returns None for
+        # plans in `executed/` carry a `- Status:` that `artifact_meta.read_loose_status` returns None for
         # (all 24 the MULTI-WORD `EXECUTED (approved ...)` form the reader documents as yielding
         # None). Every one of them satisfies an `executed:` edge today because the directory decides.
         # Making the field authoritative EVERYWHERE, or letting a None field override a terminal
@@ -55896,7 +55896,7 @@ def edge_satisfied(
         # module's documented route for a first-party dependency.
         #
         # IT IS THE SAME OBJECT BOTH HOSTS ALREADY BIND, which is what the comment above requires:
-        # `selectors.read_front_matter_status` is the shared PERMISSIVE reader, and
+        # the former `selectors.read_front_matter_status` (now `artifact_meta.read_loose_status`) is the shared PERMISSIVE reader, and
         # `tests/test_runner_refork_guard.py` (a code pin deleted in `19313eed` under P16; will not
         # return) tabled it as `selectors`-owned under both hosts' local `_read_status` spelling.
         # Substituting another reader would change which front-matter spellings this comparison accepts.

@@ -70,11 +70,11 @@ from agent_workflows.run_selection_policy import (
 # drivers now bind the SAME objects. The `as <same-name>` form marks the ones this module does
 # not call itself as an intentional re-export, so an autoformatter cannot strip them.
 # rununify 01 (`2r306y`): identical copies of these two readers lived here and in `oc_runipd`,
-# both AST-identical to `selectors`' readers. Both drivers now bind the SAME public `selectors`
-# functions under the private names their call sites use, so a fix reaches both. The aliases are
-# deliberately the PERMISSIVE readers, preserving the whitespace tolerance these copies had;
-# `selectors`' strict internal readers back `aw find` and are unchanged.
-from agent_workflows import selectors as _selectors
+# both AST-identical to `selectors`' readers. Both drivers now bind the SAME function,
+# `artifact_meta.read_loose_id` (metastore `8ysz6b`), under the private name their call sites use,
+# so a fix reaches both. The alias is deliberately the PERMISSIVE reader, preserving the whitespace
+# tolerance these copies had; `selectors`' strict internal readers back `aw find` and are unchanged.
+from agent_workflows import artifact_meta as _artifact_meta
 
 from agent_workflows.render_stream import (
     get_active_statusline,
@@ -826,15 +826,15 @@ from agent_workflows import agy_models
 # h0zk2g OQ-02). Once `parse_plan_file` moved to `runner_shared`, this module stopped calling `_read_id`
 # directly. Because `agy_runipd` lacks an `__all__` export list (unlike `oc_runipd`), binding it as a
 # module-level assignment avoids relying on a suppression directive (which ruff never reports as an unused import).
-# The re-export binds the permissive reader `read_front_matter_id` (preserving whitespace tolerance).
+# The re-export binds the permissive reader `artifact_meta.read_loose_id` (preserving whitespace tolerance).
 # Its one live reader in the tree is `tests/test_ipdrunner_runagy_shim.py::AgyParserAndDiscoveryTests::test_read_deps_and_set`,
 # which reaches it as `driver._read_id` through `tools/ipdrunner/runagy.py`, a shim that copies
 # `vars(agy_runipd)` wholesale into its own globals.
-# In addition, cross-host parity and object identity against `selectors.read_front_matter_id` are pinned by
+# In addition, cross-host parity of the permissive spellings is pinned by
 # `tests/test_runner_shared.py::CrossHostReadIdReExportTests` and `tests/test_runner_shared.py::RunagyShimReadIdReExportTests`.
 # For the rule governing deliberate re-exports in host runner modules, see DECISIONS.md D168.
-# (Note: _read_status is exposed on neither host; status reading is done via selectors.)
-_read_id = _selectors.read_front_matter_id
+# (Note: _read_status is exposed on neither host; status reading is done via artifact_meta.)
+_read_id = _artifact_meta.read_loose_id
 
 # No model is hardcoded in code; default model is dynamically resolved from the
 # config file (~/.gemini/antigravity-cli/settings.json) or left to agy host default.
