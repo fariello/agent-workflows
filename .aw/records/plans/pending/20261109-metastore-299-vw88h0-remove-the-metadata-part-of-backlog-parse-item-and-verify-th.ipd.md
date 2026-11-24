@@ -42,25 +42,25 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 
 ### Task group 1: tests, then the parser, then verify
 
-- [ ] E-01 Ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the six PIN modules baseline to `.aw/state/9o83cr/E-18c-before.txt`; then retarget the metadata assertions of `tests/test_backlog.py` and `tests/test_backlog_duplicate_guard.py` from `parse_item(...).<field>` to `artifact_meta.read_text(...)`, keeping every case.
+- [x] E-01 Ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the six PIN modules baseline to `.aw/state/9o83cr/E-18c-before.txt`; then retarget the metadata assertions of `tests/test_backlog.py` and `tests/test_backlog_duplicate_guard.py` from `parse_item(...).<field>` to `artifact_meta.read_text(...)`, keeping every case.
   - Depends on: none
   - Expected outcome: neither module reads a metadata field from `parse_item`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Retarget `tests/test_backlog_descriptive_safety.py` and `tests/test_run_proposal_channel.py` the same way.
+- [x] E-02 Retarget `tests/test_backlog_descriptive_safety.py` and `tests/test_run_proposal_channel.py` the same way.
   - Depends on: E-01
   - Expected outcome: neither module reads a metadata field from `parse_item`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Remove the metadata fields from `backlog.parse_item` and its `BacklogItem` result (or delete `parse_item` if Order 298 left no body-section caller), recording the choice in this plan's Findings.
+- [x] E-03 Remove the metadata fields from `backlog.parse_item` and its `BacklogItem` result (or delete `parse_item` if Order 298 left no body-section caller), recording the choice in this plan's Findings.
   - Depends on: E-02
   - Expected outcome: `backlog.parse_item` parses no `- Field:` bullet.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Verify subset 2: save the after-list; `diff` `aw find plans --agent`, `aw attention --format json` and the `aw check all --all --agent` rule multiset against `.aw/state/k6jd6l/before/`; commit through `aw commit vw88h0 -- <paths>`.
+- [x] E-04 Verify subset 2: save the after-list; `diff` `aw find plans --agent`, `aw attention --format json` and the `aw check all --all --agent` rule multiset against `.aw/state/k6jd6l/before/`; commit through `aw commit vw88h0 -- <paths>`.
   - Depends on: E-03
   - Expected outcome: no pinned case is dropped; the three diffs are empty.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -70,6 +70,12 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 ## Findings
 
 Measured 2026-11-09 at `f83159217` with `rg -c "parse_item\(" tests`: see the Concern. The body-parser choice is recorded here by E-03.
+
+E-03 choice (2026-11-24, at starting HEAD `58d894eab`): DELETED `backlog.parse_item`. Order 298 (`po3o1c`) left it no production caller (`rg -n "\bparse_item\b" agent_workflows tools` showed only the definition and comments), and it never parsed a body section, so no body-parser residue was needed. The eleven field regexes only it used (`_ID_RE`, `_STATUS_RE`, `_SET_RE`, `_PRIORITY_RE`, `_WORK_KIND_RE`, `_KIND_RE`, `_SUMMARY_RE`, `_BLOCKS_RELEASE_RE`, `_RELEASE_EXEMPT_KIND_RE`, `_RELEASE_EXEMPT_REF_RE`, `_CLOSE_EVIDENCE_RE`) went with it. `BacklogItem` is KEPT as the plain value object that `backlog.item_from_text` (the `artifact_meta.read_text` adapter) returns and `_render_item` consumes; it parses nothing itself.
+
+Retargeting: assertions on metadata VALUES now read `artifact_meta.read_text(text, record_type="backlog").fields`; call sites that need a `BacklogItem` object (fixture tuples for the duplicate guard and inputs to `_render_item`) now use `backlog.item_from_text`, which reads through `artifact_meta`.
+
+Baseline note: `.aw/state/k6jd6l/before/` is gitignored and was not present in this lane worktree, so E-04 captured an equivalent baseline at the starting HEAD `58d894eab` into `.aw/state/vw88h0/before/` (decision 13-vw88h0-D1).
 
 ## Proposed changes (ordered, validatable)
 
@@ -121,25 +127,35 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "parse_item\(" tests/test_backlog.py tests/test_backlog_duplicate_guard.py` with each remaining hit labelled body-only, and both modules' before/after per-test lines.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "parse_item\(" tests/test_backlog.py tests/test_backlog_duplicate_guard.py` printed nothing (rc=1): no remaining hit, so none to label. Per-test lines (from `.aw/state/9o83cr/E-18c-{before,after}.txt`, count and sha256 prefix of the module's sorted lines): `test_backlog.py` before 47 `b5499caf4be92a55`, after 47 `b5499caf4be92a55`; `test_backlog_duplicate_guard.py` before 9 `a2ce00b2ab49f857`, after 9 `a2ce00b2ab49f857`. Identical lists: no test renamed or dropped, all PASSED.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "parse_item\(" tests/test_backlog_descriptive_safety.py tests/test_run_proposal_channel.py` with each hit labelled body-only (or none), and both modules' before/after per-test lines.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "parse_item\(" tests/test_backlog_descriptive_safety.py tests/test_run_proposal_channel.py` printed nothing (rc=1): none. Per-test lines: `test_backlog_descriptive_safety.py` before 19 `2fb351d6c531b34c`, after 19 `2fb351d6c531b34c`; `test_run_proposal_channel.py` before 49 `eb3fb992a0b3520b`, after 49 `eb3fb992a0b3520b`. Identical lists, all PASSED.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "parse_item\(" agent_workflows tools` showing only body-parser uses (or nothing) and the recorded choice.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "parse_item\(" agent_workflows tools` printed nothing (rc=1). Recorded choice: delete (see Findings, E-03 choice). Remaining bare mentions are comments only: `agent_workflows/backlog.py` docstring of `item_from_text` ("retired ``\\S+`` patterns of ``parse_item``") and the `validate_item` duplicate-bullet comment, plus a stale comment in `agent_workflows/check_engine.py` above `"check.live-bug-ungated"` (outside Scope-Paths; reported as a finding).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `diff .aw/state/9o83cr/E-18c-before.txt .aw/state/9o83cr/E-18c-after.txt` with each removed name mapped and no FAILED or ERROR line, the three `diff` outputs (empty), and `git show --stat` of the `aw commit vw88h0` commit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `diff .aw/state/9o83cr/E-18c-before.txt .aw/state/9o83cr/E-18c-after.txt` printed nothing (rc=0); both files 142 lines, all `PASSED`, `grep -cE "^(FAILED|ERROR)"` on the after-list = 0; no removed name, so nothing to map. Baseline diffs against `.aw/state/vw88h0/before/` (captured at `58d894eab`, see Findings): `diff find.txt` empty (`find_rc=0`); `diff attention.json` empty (`att_rc=0`); `aw check all --all --agent` rule multiset over (location, rule): `before 540 after 540 only_before Counter() only_after Counter()`. Core tier `aw suite` (attempt 2): `2889 passed, 1 skipped, 11 warnings in 98.45s (0:01:38)`. Attempt 2 re-captured every before-list and baseline at its own starting HEAD `58d894eab` (same base), re-ran every after-list and diff above with identical results, and brought the prior lane's code commit forward unchanged. `git show --stat` of the attempt-2 code commit:
+    ```
+    commit 10b71a6e2ff0d234b493a0204c4e6b1c5b844ffc
+        metastore 299 (vw88h0): retire backlog.parse_item; tests read metadata via artifact_meta.read_text / backlog.item_from_text (attempt 2; brought forward from lane aw/lane/vw88h0 580a7bedd)
+     agent_workflows/backlog.py               | 88 ++------------------------------
+     tests/test_backlog.py                    | 44 +++++++++-------
+     tests/test_backlog_descriptive_safety.py |  7 +--
+     tests/test_backlog_duplicate_guard.py    | 14 ++---
+     tests/test_run_proposal_channel.py       | 14 ++---
+     5 files changed, 49 insertions(+), 118 deletions(-)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
