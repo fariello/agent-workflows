@@ -1,10 +1,10 @@
-"""Tests for the plans manifest + browse-by-Set + --check (Set plans-adopter, Order 03).
+"""Tests for the plans scan + find + drift check (Set plans-adopter, Order 03).
 
-Stdlib unittest, throwaway dirs. Verifies JSON completeness, the recursive scan (sharded plans
-visible), the browse-by-Set view (grouping + Order + bound + singleton band), find filters,
-determinism, and --check across the three drift classes (missing/invalid Id, name-vs-metadata
-mismatch on a clustered name, dangling plan citation), with no false positive on an un-migrated
-timestamp-stem name, and no finding for a stale or missing INDEX file (plan w819as).
+Stdlib unittest, throwaway dirs. Verifies scan completeness, the recursive scan (sharded plans
+visible), find filters, and check_drift across the three drift classes (missing/invalid Id,
+name-vs-metadata mismatch on a clustered name, dangling plan citation), with no false positive on
+an un-migrated timestamp-stem name, and no finding for a stale or missing INDEX file (plan w819as).
+No INDEX file is written or read: the SQLite metadata cache replaced them (spec 4sd62s 4.5).
 """
 
 from __future__ import annotations
@@ -114,35 +114,6 @@ class ScanTests(unittest.TestCase):
         self.assertEqual(len(sharded), 1)
         self.assertEqual(sharded[0].disposition, "executed")
 
-    def test_index_md_groups_by_set_with_order(self):
-        entries, _ = I.scan_plans(self.pdir)
-        md = I.build_index_md(entries)
-        self.assertIn("## set-a", md)
-        self.assertIn("## set-b", md)
-        # set-a members listed with their order tokens.
-        self.assertIn("aaaaaa", md)
-        self.assertIn("bbbbbb", md)
-
-    def test_index_md_bound_and_singleton_band(self):
-        _plan(
-            self.root,
-            "executed",
-            "20260705-solo-plan-00-eeeeee-s.md",
-            plan_id="eeeeee",
-            date="20260705",
-        )
-        entries, _ = I.scan_plans(self.pdir)
-        md = I.build_index_md(entries, limit=1)
-        # Only 1 Set section shown; the rest is in JSON.
-        self.assertEqual(md.count("\n## set-"), 1)
-
-    def test_determinism(self):
-        entries, _ = I.scan_plans(self.pdir)
-        a = I.build_index_json(entries) + I.build_index_md(entries)
-        entries2, _ = I.scan_plans(self.pdir)
-        b = I.build_index_json(entries2) + I.build_index_md(entries2)
-        self.assertEqual(a, b)
-
 
 class FindTests(unittest.TestCase):
     def setUp(self):
@@ -193,17 +164,6 @@ class CheckDriftTests(unittest.TestCase):
             order=0,
         )
 
-    def _regen(self):
-        entries, _ = I.scan_plans(self.pdir)
-        (self.pdir / I.INDEX_JSON).write_text(
-            I.build_index_json(entries), encoding="utf-8"
-        )
-        (self.pdir / I.INDEX_MD).write_text(I.build_index_md(entries), encoding="utf-8")
-
-    def test_clean_after_regen(self):
-        self._regen()
-        self.assertEqual(I.check_drift(self.root, self.pdir), [])
-
     def test_missing_id_flagged(self):
         _plan(
             self.root,
@@ -225,7 +185,6 @@ class CheckDriftTests(unittest.TestCase):
             set_id="set-a",
             order=1,
         )
-        self._regen()
         drift = I.check_drift(self.root, self.pdir)
         self.assertFalse(any(d.rule == "id-missing" for d in drift))
 
@@ -252,15 +211,14 @@ class CheckDriftTests(unittest.TestCase):
             set_id="set-a",
             order=1,
         )
-        self._regen()
         drift = I.check_drift(self.root, self.pdir)
         self.assertFalse(any(d.rule == "name-metadata-mismatch" for d in drift))
 
     def test_stale_index_file_is_not_drift(self):
         # Plan w819as (spec 4sd62s 4.5): the INDEX-file drift rules are deleted with the INDEX files.
-        # A manifest that is present but not byte-equal to a rebuild is no longer a finding at all.
-        self._regen()
-        (self.pdir / I.INDEX_MD).write_text("stale", encoding="utf-8")
+        # A leftover manifest with arbitrary bytes is no longer a finding at all.
+        (self.pdir / "INDEX.json").write_text("[]\n", encoding="utf-8")
+        (self.pdir / "INDEX.md").write_text("stale", encoding="utf-8")
         drift = I.check_drift(self.root, self.pdir)
         self.assertEqual(drift, [])
         self.assertEqual(_core.drift_exit_code(drift), 0)
@@ -271,178 +229,18 @@ class CheckDriftTests(unittest.TestCase):
         Plan w819as (spec 4sd62s 4.5): the SQLite metadata cache replaced the INDEX files, so an
         absent manifest produces no finding and does not fail the gate.
         """
-        self._regen()
-        (self.pdir / I.INDEX_JSON).unlink()
+        for name in ("INDEX.json", "INDEX.md"):
+            self.assertFalse((self.pdir / name).exists(), f"fixture sanity: {name}")
         drift = I.check_drift(self.root, self.pdir)
         self.assertEqual(drift, [])
         self.assertEqual(_core.drift_exit_code(drift), 0)
 
     def test_dangling_plan_citation_flagged(self):
-        self._regen()
         (self.root / "DECISIONS.md").write_text(
             "see PLAN-zqzqzq for that\n", encoding="utf-8"
         )
         drift = I.check_drift(self.root, self.pdir)
         self.assertTrue(any(d.rule == "dangling-citation" for d in drift))
-
-
-class RunIndexOutputTests(unittest.TestCase):
-    def setUp(self):
-        self.root = Path(tempfile.mkdtemp())
-        self.pdir = self.root / ".agents" / "plans"
-        _plan(
-            self.root,
-            "executed",
-            "20260701-set-a-00-aaaaaa-x.md",
-            plan_id="aaaaaa",
-            set_id="set-a",
-            order=0,
-        )
-
-    def test_run_index_change_detection_and_output(self):
-        import argparse
-        import io
-        from contextlib import redirect_stdout
-
-        args = argparse.Namespace(
-            dir=str(self.root), limit=None, check=False, quiet=False, no_color=True
-        )
-        buf = io.StringIO()
-        with redirect_stdout(buf):
-            rc = I.run_index(args)
-        self.assertEqual(rc, 0)
-        out = buf.getvalue()
-        self.assertIn("wrote", out)
-        self.assertIn(".agents/plans/INDEX.json, INDEX.md", out)
-        self.assertIn("(1 plans)", out)
-
-        # Second run: up to date
-        buf2 = io.StringIO()
-        with redirect_stdout(buf2):
-            rc2 = I.run_index(args)
-        self.assertEqual(rc2, 0)
-        out2 = buf2.getvalue()
-        self.assertIn("up to date", out2)
-        self.assertIn(".agents/plans/INDEX.json, INDEX.md", out2)
-
-
-class DefaultLimitTests(unittest.TestCase):
-    def test_default(self):
-        self.assertEqual(I.DEFAULT_INDEX_LIMIT, 40)
-
-
-class IndexOutcomeWordsAreNotLifecycleStatusesTests(unittest.TestCase):
-    """Spec `uonrjg` R10.3 / criteria A14 and A20, via plan `9zvl2w` E-01 and E-05.
-
-    THESE ASSERTIONS EXIST BECAUSE THE OBVIOUS READING OF R10.3 WOULD BREAK THIS COMMAND. R10.3 names
-    "plan/spec/research/backlog indexes" among the surfaces that MUST consume the shared lifecycle
-    resolver, and this module is the plan index, so a mechanical conversion looks correct. It is not:
-    every status-shaped word this command prints is a generic command OUTCOME (`up to date`, `wrote`,
-    `updated`), which R10.3 explicitly keeps valid and outside the spec, and which the lifecycle
-    resolver would send to criterion A20's UNKNOWN path and render as `?`. So the first test pins the
-    words against exactly that "fix", and its failure message says what to do instead.
-
-    THE SECOND TEST PINS THE REAL DEFECT E-01 FIXED, a live criterion A14 violation. This print path
-    used `Term(color=not no_color)`, which forced color ON for every caller that did not pass
-    `--no-color`, bypassing `should_color` entirely. Measured before the fix: `aw index plans --agent`
-    emitted a styled line, as did `--json`, `NO_COLOR=1`, `TERM=dumb`, and a plain pipe.
-
-    NO SHIPPED TEST PINNED ANY OF THIS BEFORE (measured: zero `38;5;` assertions in this file), so
-    these are ADDED coverage, not a refreshed snapshot.
-    """
-
-    def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self._tmp.name)
-        _plan(
-            self.root,
-            "executed",
-            "20260701-set-a-00-aaaaaa-x.md",
-            plan_id="aaaaaa",
-            set_id="set-a",
-            order=0,
-        )
-
-    def tearDown(self):
-        self._tmp.cleanup()
-
-    def _run(self, **overrides):
-        import argparse
-        import io
-        from contextlib import redirect_stdout
-
-        ns = dict(
-            dir=str(self.root),
-            limit=None,
-            check=False,
-            quiet=False,
-            no_color=False,
-            color=False,
-            agent=False,
-            json=False,
-        )
-        ns.update(overrides)
-        buf = io.StringIO()
-        with redirect_stdout(buf):
-            rc = I.run_index(argparse.Namespace(**ns))
-        return rc, buf.getvalue()
-
-    def test_the_generic_outcome_words_are_never_rendered_as_an_unknown_lifecycle_glyph(
-        self,
-    ):
-        import os
-        from unittest import mock
-
-        with mock.patch.dict(os.environ, {"FORCE_COLOR": "1"}, clear=False):
-            _rc, out = self._run()
-        self.assertIn(
-            "wrote",
-            out,
-            "the index's generic outcome word vanished from its own output",
-        )
-        self.assertNotIn(
-            "?",
-            out,
-            "AN OUTCOME WORD WAS ROUTED THROUGH THE LIFECYCLE RESOLVER. `wrote`/`updated`/`up to "
-            "date` are generic command outcomes that spec `uonrjg` R10.3 keeps OUTSIDE its scope "
-            "('Generic Term outcomes such as command-level OK, WARN, and FAIL remain valid'), and "
-            "none of them appears anywhere in that spec. Sent through `resolve_lifecycle` each "
-            "lands on criterion A20's unknown path and prints `?`, replacing a word a user reads "
-            "today with a shrug. FIX: leave this print path on `Term.status_256`; the index has no "
-            "lifecycle terminal view to convert (a plan's status reaches a human through `aw find`, "
-            "`aw ipd lint`, `aw set` and `aw attention`, all of which ARE converted).",
-        )
-        # The word keeps its CURRENT palette index (46, bright green), asserted on raw escapes.
-        self.assertIn("\033[1;38;5;46mwrote\033[0m", out)
-
-    def test_machine_and_suppressed_modes_emit_no_ansi(self):
-        import os
-        from unittest import mock
-
-        cases = (
-            ("--agent", {"agent": True}, {}),
-            ("--json", {"json": True}, {}),
-            ("--no-color", {"no_color": True}, {}),
-            ("NO_COLOR=1", {}, {"NO_COLOR": "1"}),
-            ("TERM=dumb", {}, {"TERM": "dumb"}),
-            ("piped stdout (not a tty)", {}, {}),
-        )
-        for label, overrides, env in cases:
-            with self.subTest(mode=label):
-                patched = dict(env)
-                with mock.patch.dict(os.environ, patched, clear=False):
-                    if "NO_COLOR" not in patched:
-                        os.environ.pop("NO_COLOR", None)
-                    os.environ.pop("FORCE_COLOR", None)
-                    _rc, out = self._run(**overrides)
-                self.assertNotIn(
-                    "\033",
-                    out,
-                    f"criterion A14/A11 violation: `aw index plans` emitted ANSI in {label} mode. "
-                    "This print path must resolve color through `should_color` (via "
-                    "`result_types.select_output`), never force it on with "
-                    "`Term(color=not no_color)`.",
-                )
 
 
 if __name__ == "__main__":

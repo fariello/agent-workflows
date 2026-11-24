@@ -5200,40 +5200,24 @@ class AFailedRetirementLeavesTheManifestsAsItFoundThem(RollupTransitionCase):
         }
 
     def _index_check_rc(self) -> int:
+        """Exit code of the plans content drift rules `aw index plans --check` runs (plan `uopi8z`)."""
         import argparse
 
+        from agent_workflows import artifact_core as _core
         from agent_workflows import plans_index as PIDX
 
-        return PIDX.run_index(
-            argparse.Namespace(
-                dir=str(self.root),
-                check=True,
-                agent=False,
-                json=False,
-                no_color=True,
-                limit=None,
-                quiet=True,
-            )
-        )
+        repo_root, plans_dir = PIDX._dirs(argparse.Namespace(dir=str(self.root)))
+        return _core.drift_exit_code(PIDX.check_drift(repo_root, plans_dir))
 
     def _seed_manifests(self) -> None:
-        """Write both manifests with `aw index plans`, so the PRESENT-beforehand case has bytes."""
-        import argparse
+        """Write leftover manifests, so the PRESENT-beforehand case has bytes.
 
-        from agent_workflows import plans_index as PIDX
-
-        rc = PIDX.run_index(
-            argparse.Namespace(
-                dir=str(self.root),
-                check=False,
-                agent=False,
-                json=False,
-                no_color=True,
-                limit=None,
-                quiet=True,
-            )
-        )
-        self.assertEqual(rc, 0)
+        Plan `uopi8z` deleted the plans INDEX writer (spec `4sd62s` 4.5), so the bytes are a fixed
+        stand-in for a manifest an older `aw index plans` left behind.
+        """
+        base = self.root / ".aw" / "records" / "plans"
+        (base / "INDEX.json").write_text("[]\n", encoding="utf-8")
+        (base / "INDEX.md").write_text("<!-- leftover manifest -->\n", encoding="utf-8")
 
     def test_failed_retirement_preserves_manifest_absence_presence_and_peer_writes(
         self,
@@ -5241,27 +5225,16 @@ class AFailedRetirementLeavesTheManifestsAsItFoundThem(RollupTransitionCase):
         from unittest import mock
         from agent_workflows import ipd_lifecycle as LC
 
-        from agent_workflows import plans_index as PIDX
-
-        # Case 1: ABSENT beforehand -> remains absent and no regeneration called
-        calls: list[str] = []
-        real_run_index = PIDX.run_index
-
-        def spy_refresh(args):
-            calls.append(str(getattr(args, "dir", "")))
-            return real_run_index(args)
-
+        # Case 1: ABSENT beforehand -> remains absent (no plans INDEX writer exists, plan `uopi8z`)
         orch = self.make_set("mfabs", [("aaa111", 1, "executed", "executed")])
         for p in self._manifest_paths():
             self.assertFalse(p.exists(), f"fixture sanity: {p.name} must start absent")
 
-        with mock.patch.object(PIDX, "run_index", spy_refresh):
-            res = self.retire(orch, "mfabs", apply=True, fault_injection="after_move")
+        res = self.retire(orch, "mfabs", apply=True, fault_injection="after_move")
         self.assertEqual(res.exit_code, LC.EXIT_CANNOT_RUN, res.message)
 
         for p in self._manifest_paths():
             self.assertFalse(p.exists(), f"a FAILED retirement CREATED {p.name}")
-        self.assertEqual(calls, [], "the rollback path refreshed the plans index")
         self.assertEqual(self._index_check_rc(), 0)
 
         # Case 2: PRESENT beforehand -> remains byte-identical
