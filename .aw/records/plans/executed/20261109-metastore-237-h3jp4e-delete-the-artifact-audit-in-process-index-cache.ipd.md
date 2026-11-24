@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 4.5 says the SQLite cache replaces `artifact_audit._INDEX_CACHE`. Today `artifact_audit.build_index` keeps an `OrderedDict` LRU (`_INDEX_CACHE`, bounded by `_INDEX_CACHE_MAX = 8`) keyed on a directory signature from `artifact_audit._dir_signature`, and `artifact_audit.find_artifact` pops a stale entry. This is part 8 of the round-3 split of `snin8q` (Order 42), carrying `snin8q` E-07 verbatim.
 - Scope: delete the cache and its bound, make `artifact_audit.build_index` answer from `artifact_meta.query`/`resolve` on every call, delete `tests/test_artifact_audit_cache_eviction.py`, and retarget the two freshness test modules. EXCLUDES every other INDEX symbol (Orders 233 to 236).
 - Scope-Paths: agent_workflows/artifact_audit.py, tests/test_artifact_audit_cache_eviction.py, tests/test_artifact_audit_index_cache.py, tests/test_artifact_audit_identity_staleness.py, .aw/records/plans/pending/20261109-metastore-237-h3jp4e-delete-the-artifact-audit-in-process-index-cache.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261124-juua3p-01-juua3p-artifact-audit-build-index-enumerates-by-file-walk.backlog.md (defect_report carrier required by the driver contract: build_index still file-walks instead of reading the artifact_meta cache E-02 wording filing a backlog item is mandated, not optional work)
 - Item-Dependencies: executed:1ajqaa, executed:54a80m, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:q6epwc, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: h3jp4e
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: h3jp4e verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261124-juua3p-01-juua3p-artifact-audit-build-index-enumerates-by-file-walk.backlog.md: defect_report carrier required by the driver contract: build_index still file-walks instead of reading the artifact_meta cache (E-02 wording); filing a backlog item is mandated, not optional work]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005
