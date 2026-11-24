@@ -418,37 +418,6 @@ class MetaError(NamedTuple):
     message: str
 
 
-def parse_metadata_block(
-    lines: Sequence[str],
-) -> Tuple[Dict[str, str], List[MetaError]]:
-    """Parse the contiguous ``- Field: value`` run given the lines BETWEEN the H1 and the first H2.
-
-    Returns (fields, errors). Duplicate fields and unknown fields are recorded as errors. Pure;
-    the caller is responsible for locating the block (the parser in Order 02 supplies the slice).
-    """
-    fields: Dict[str, str] = {}
-    errors: List[MetaError] = []
-    seen: Dict[str, int] = {}
-    for raw in lines:
-        line = raw.rstrip("\n")
-        if not line.strip():
-            continue
-        m = _META_LINE_RE.match(line)
-        if not m:
-            # A non-bullet, non-blank line inside the metadata run ends the block for our purposes.
-            continue
-        field = m.group("field").strip()
-        value = m.group("value").strip()
-        seen[field] = seen.get(field, 0) + 1
-        if seen[field] == 2:
-            errors.append(MetaError(field, "duplicate field"))
-        if field not in META_RECOGNIZED:
-            errors.append(MetaError(field, "unknown field"))
-        # First occurrence wins for the value map; duplicates already flagged.
-        fields.setdefault(field, value)
-    return fields, errors
-
-
 _READINESS_LINE_RE = re.compile(r"(?m)^-[ \t]*Readiness:[ \t]*(?P<value>.*)$")
 
 

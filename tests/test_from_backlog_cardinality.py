@@ -28,7 +28,6 @@ from pathlib import Path
 from agent_workflows import (
     artifact_meta,
     check_engine,
-    ipd_schema,
     production_checks,
     releases,
     runner_shared,
@@ -257,13 +256,13 @@ class TestFromBacklogCardinality(unittest.TestCase):
         self.assertEqual(written_2.count("- From-Backlog:"), 1)
         self.assertIn("- From-Backlog: dddddd", written_2)
 
-        # Verify ipd_schema.parse_metadata_block on metadata lines
+        # Verify artifact_meta.parse_metadata_block on metadata lines
         meta_lines = [
             line
             for line in written_2.split("## Goal")[0].splitlines()
             if line.startswith("- ")
         ]
-        fields, errors = ipd_schema.parse_metadata_block(meta_lines)
+        fields, errors = artifact_meta.parse_metadata_block(meta_lines)
         self.assertEqual(errors, [])
         self.assertEqual(fields.get("From-Backlog"), "dddddd")
 

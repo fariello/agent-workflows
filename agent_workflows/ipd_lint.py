@@ -502,13 +502,15 @@ _STATE_FIELD_TO_META: Tuple[Tuple[str, str], ...] = (
 def _parse_metadata_slice(
     meta_slice: Sequence[str],
 ) -> Tuple[Dict[str, str], List[S.MetaError]]:
-    """Single Phase-B call site for ``ipd_schema.parse_metadata_block``.
+    """Single Phase-B call site for ``artifact_meta.parse_metadata_block``.
 
     Supplies line-level ``meta_errors`` (duplicate/unknown field diagnostics IPD-M102/M103) and
-    non-registry schema fields (Date, Concern, Scope, Quarantine*, Highest E allocated) until
-    Order 287 (ad86ym) moves ``parse_metadata_block`` into ``artifact_meta``.
+    non-registry schema fields (Date, Concern, Scope, Quarantine*, Highest E allocated), which
+    ``artifact_meta.State`` does not carry.
     """
-    return S.parse_metadata_block(meta_slice)
+    from agent_workflows import artifact_meta as _meta
+
+    return _meta.parse_metadata_block(meta_slice)
 
 
 def _overlay_state_into_meta_fields(
