@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5 allows exactly one metadata reader (`artifact_meta`). Part 13 of the round-3 split of `k6jd6l` (Order 43, research `nj8zdp` guidance): move the last readers of the history grammar and of `attention_contract.SPEC_STATUS_RE`, then delete the four `attention_contract` originals. Measured at `f83159217`: `attention` (6 `A.last_history_at(A.history_block(text).records)` sites, in `_prompts_record`, `_release_record`, `_spec_record`, `_plans_record`, `_research_record`, `_backlog_record`); `check_engine._item_close_date`, `_item_graduated_date`, `_spec_implementing_date` (3); `SPEC_STATUS_RE` in `specs._find_status_index`, `specs._read_status` and `research_index._spec_is_implemented`; tests `tests/test_attention_contract.py` and `tests/test_history_block_bounding.py`.
 - Scope: The rest of `k6jd6l` E-10: these readers, `SPEC_STATUS_RE`, and deleting `attention_contract.history_block`, `newest_history_record`, `last_history_at` and `SPEC_STATUS_RE`. EXCLUDES `attention_contract.GATE_KIND_RE`, `GATE_REF_RE`, `GATE_SUMMARY_RE` and `HISTORY_RECORD_RE` (Order 248, `tdhav3`), and the `specs._read_*` readers (Order 297).
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/check_engine.py, agent_workflows/specs.py, agent_workflows/research_index.py, agent_workflows/attention_contract.py, tests/test_attention_contract.py, tests/test_history_block_bounding.py, .aw/records/plans/pending/20261109-metastore-292-csobg7-move-the-attention-history-readers-and-spec-status-re-and-de.ipd.md
+- Scope-Exceeded: agent_workflows/artifact_meta.py (E-03 moves SPEC_STATUS_RE into artifact_meta private with a public spec_status_bullet helper, as E-03 directs plus comment rewording naming the deleted originals); agent_workflows/migrations/m0001_discover.py (last caller of attention_contract.history_block missed by the plan's measurement retargeted to artifact_meta.history_records so E-04's deletion does not break it); tests/test_artifact_meta_legacy.py (parity tests compared artifact_meta against the deleted attention_contract originals now assert the originals' captured answers every case kept); tests/test_m0001_conversion.py (called attention_contract.history_block/newest_history_record, deleted by E-04 retargeted to artifact_meta); tests/test_readers_attention.py (docstrings named the deleted attention_contract functions reworded so V-04's grep is clean)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:ay6sxp, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: csobg7
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: csobg7 verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/artifact_meta.py: E-03 moves SPEC_STATUS_RE into artifact_meta (private) with a public spec_status_bullet helper, as E-03 directs; plus comment rewording naming the deleted originals; out-of-scope agent_workflows/migrations/m0001_discover.py: last caller of attention_contract.history_block missed by the plan's measurement; retargeted to artifact_meta.history_records so E-04's deletion does not break it; out-of-scope tests/test_artifact_meta_legacy.py: parity tests compared artifact_meta against the deleted attention_contract originals; now assert the originals' captured answers (every case kept); out-of-scope tests/test_m0001_conversion.py: called attention_contract.history_block/newest_history_record, deleted by E-04; retargeted to artifact_meta; out-of-scope tests/test_readers_attention.py: docstrings named the deleted attention_contract functions; reworded so V-04's grep is clean; in-scope-unmodified agent_workflows/research_index.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, deletion targets, execution gate, and state directory initialization; findings PR-001..PR-005 fixed; marked reviewed and go-pending-approval.
