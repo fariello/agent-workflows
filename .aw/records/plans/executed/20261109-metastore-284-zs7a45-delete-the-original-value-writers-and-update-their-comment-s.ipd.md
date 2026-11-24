@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5 allows exactly one metadata writer (`artifact_meta`). Part 5 of the round-3 split of `k6jd6l` (Order 43, research `nj8zdp` guidance). After Orders 280 to 283, the twelve original value writers have no caller; this part deletes them and updates the three comments that cite them (in `hooks/backlog_blocking_close_gate`, `attention` and `ipd_schema`).
 - Scope: The deletion half of `k6jd6l` E-08: delete `releases._in_metadata_region`, the seven `releases.set_*_line` writers, the three `backlog` writers and `research_cmd._set_priority_line`; update the three comment sites. EXCLUDES every other symbol.
 - Scope-Paths: agent_workflows/releases.py, agent_workflows/backlog.py, agent_workflows/research_cmd.py, agent_workflows/hooks/backlog_blocking_close_gate.py, agent_workflows/attention.py, agent_workflows/ipd_schema.py, .aw/records/plans/pending/20261109-metastore-284-zs7a45-delete-the-original-value-writers-and-update-their-comment-s.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261123-n1808e-01-n1808e-status-set-docstring-cites-the-deleted-releases-se.backlog.md (Required by the runner defect-report contract each finding must be filed via aw backlog new records the stale status_set.py docstring that cites the deleted releases.set_item_dependencies_line, a file...)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:6v4uao, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: zs7a45
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: zs7a45 verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261123-n1808e-01-n1808e-status-set-docstring-cites-the-deleted-releases-se.backlog.md: Required by the runner defect-report contract (each finding must be filed via aw backlog new); records the stale status_set.py docstring that cites the deleted releases.set_item_dependencies_line, a file outside this plan's Scope-Paths so it was filed rather than edited]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, deletion targets, execution gate, and state directory initialization; findings PR-001..PR-005 fixed; marked reviewed and go-pending-approval.
