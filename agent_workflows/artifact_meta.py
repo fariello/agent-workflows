@@ -8253,7 +8253,7 @@ def restore_legacy_snapshot(
         st_pre = bullets_pre.get("Status") or "to-review"
 
     rd_pre = _ipd_schema.read_readiness(pre_pass_text)
-    pre_history = set(_plan_read.history_block(pre_pass_text or "").records)
+    pre_history = set(_history_block(pre_pass_text or "").records)
 
     out = "\n".join((current_text or "").splitlines())
     from agent_workflows import selectors as _sel

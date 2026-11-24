@@ -1300,7 +1300,7 @@ def same_status_message_is_duplicate(
     True when the artifact's NEWEST existing history record already carries the same status token
     (or ``same-status`` tag), the same date, and a byte-identical message. Pure; ``text`` is whole artifact text.
 
-    THE NEWEST RECORD READS THROUGH :func:`attention_contract.history_block` (plan ``kgv213``, Set
+    THE NEWEST RECORD READS THROUGH :func:`artifact_meta.history_records` (plan ``kgv213``, Set
     ``histdedup``). The predicate must judge against exactly the records the writer will preserve;
     reading through the shared reader prevents judging an indented-only line as a duplicate when the
     writer cannot preserve it.
@@ -1319,10 +1319,10 @@ def same_status_message_is_duplicate(
     different actor string is still the same note.
     """
 
-    from agent_workflows import attention_contract as _ac
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import plan_readiness as _readiness
 
-    newest = _ac.newest_history_record(_ac.history_block(text).records)
+    newest = _meta._newest_history_record(_meta.history_records(text).records)
     if newest is None:
         return False
     # The SHARED record parser, not a second copy of the grammar: `plan_readiness` already owns it and

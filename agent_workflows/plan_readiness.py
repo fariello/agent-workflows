@@ -22,7 +22,7 @@ bug the plan was written to fix.
    "Append" and ``.aw/records/plans/README.md`` said "an appended, dated line"; both were corrected
    to say newest-first (E-07) precisely so a future reader does not "fix" this back into the bug.
 
-   The bounding and the record grammar are REUSED, not re-implemented: ``attention_contract.history_block``
+   The bounding and the record grammar are REUSED, not re-implemented: ``artifact_meta.history_records``
    already bounds the section canonically and ``attention_contract.HISTORY_RECORD_RE``
    already defines the ``- YYYY-MM-DD <text>`` record grammar. A fourth hand-rolled history parser
    would have been the wrong move.
@@ -79,11 +79,7 @@ from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import ipd_schema as _schema
-from agent_workflows.attention_contract import (
-    HISTORY_RECORD_RE,
-    history_block,
-    newest_history_record as _newest_history_record,
-)
+from agent_workflows.attention_contract import HISTORY_RECORD_RE
 
 __all__ = [
     "POSITIVE",
@@ -275,19 +271,21 @@ def extract_newest_history_entry(text: str) -> Optional[str]:
     Do NOT "fix" this to return the last record; that is the bug this function replaced.
 
     THE RULE ITSELF NOW LIVES IN ONE PLACE (plan ``vhbvwz`` E-02): this function delegates to
-    ``attention_contract.newest_history_record``, which ``attention_contract.last_history_at`` also
+    ``artifact_meta._newest_history_record``, which ``artifact_meta._last_history_at`` also
     consumes. Those two used to implement OPPOSITE rules (first record here, last record there), and
     the disagreement was a live bug on 534 artifacts; see that function for the measurement and for
     why the rule is deliberately POSITIONAL rather than greatest-by-date.
 
     The section is BOUNDED at the next ``## `` heading or non-record block boundary (via
-    ``attention_contract.history_block``), so a bullet in a later section can never be returned, and
+    ``artifact_meta.history_records``), so a bullet in a later section can never be returned, and
     a bullet must match the ``- YYYY-MM-DD ...`` record grammar (``HISTORY_RECORD_RE``) to count, so
     an undated stray bullet inside the section is skipped rather than returned.
 
     Pure. Returns the record with surrounding whitespace stripped.
     """
-    return _newest_history_record(history_block(text or "").records)
+    from agent_workflows import artifact_meta as _meta
+
+    return _meta._newest_history_record(_meta.history_records(text or "").records)
 
 
 def history_verdict_approves(entry: Optional[str]) -> bool:
@@ -579,7 +577,9 @@ def history_has_review_record(text: str) -> bool:
 
     Pure. False for text with no history section, which is the fail-closed answer.
     """
-    for candidate in history_block(text or "").records:
+    from agent_workflows import artifact_meta as _meta
+
+    for candidate in _meta.history_records(text or "").records:
         if not HISTORY_RECORD_RE.match(candidate):
             continue
         if is_review_history_entry(candidate):
@@ -618,7 +618,9 @@ def newest_verdict(text: str) -> Tuple[Optional[str], str]:
 
     Pure; takes whole plan text.
     """
-    for candidate in history_block(text or "").records:
+    from agent_workflows import artifact_meta as _meta
+
+    for candidate in _meta.history_records(text or "").records:
         if not HISTORY_RECORD_RE.match(candidate):
             continue
         if not is_review_history_entry(candidate):

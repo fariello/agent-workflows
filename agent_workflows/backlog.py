@@ -631,7 +631,9 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
             )
         )
 
-    hist_block = A.history_block(text)
+    from agent_workflows import artifact_meta as _meta
+
+    hist_block = _meta.history_records(text)
     if not hist_block.records:
         if not _WORKFLOW_HISTORY_HEADING_RE.search(text):
             detail = (
@@ -1535,18 +1537,20 @@ def run_note(args) -> int:
 def _strip_metadata_and_history(text: str) -> str:
     """Return only the free prose body (after the `## Workflow history` section).
 
-    Twin of :func:`_prior_history_records`; delegates to :func:`attention_contract.history_block`.
+    Twin of :func:`_prior_history_records`; delegates to :func:`artifact_meta.history_records`.
     """
-    return A.history_block(text).body
+    from agent_workflows import artifact_meta as _meta
+
+    return _meta.history_records(text).body
 
 
 def _prior_history_records(text: str) -> List[str]:
     """The item's EXISTING inline history records and continuation lines, in file order (newest-first), or `[]`.
 
-    Delegates to :func:`attention_contract.history_block` and returns its ``record_lines``
+    Delegates to :func:`artifact_meta.history_records` and returns its ``record_lines``
     (F-06: the restorable source :func:`_reattach_history` re-emits, carrying wrapped continuation lines;
     its ``[0]`` is the newest record line read by production checks). The canonical bounding rule
-    now lives in :func:`attention_contract.history_block`.
+    now lives in :func:`artifact_meta.history_records`.
 
     THE BUG THIS SHAPE PREVENTS, measured on a real legacy item (`tk1gqo`) while implementing
     `vhbvwz` E-08. An earlier version scanned the whole post-heading region for `HISTORY_RECORD_RE`
@@ -1556,7 +1560,9 @@ def _prior_history_records(text: str) -> List[str]:
     the item's own provenance. Hence two rules here: the block is BOUNDED as above, and a record must
     start at column zero (`ln.startswith("- ")`) so an indented quotation is never mistaken for one.
     """
-    return A.history_block(text).record_lines
+    from agent_workflows import artifact_meta as _meta
+
+    return _meta.history_records(text).record_lines
 
 
 def _reattach_history(
@@ -1577,7 +1583,7 @@ def _reattach_history(
     from agent_workflows import artifact_meta as _meta
 
     head = _WORKFLOW_HISTORY_HEADING_RE.split(rendered, maxsplit=1)[0].rstrip()
-    body = A.history_block(rendered).body
+    body = _meta.history_records(rendered).body
     prior = _prior_history_records(old_text)
     events: List[Dict[str, object]] = [
         {"op": "legacy", "source": "history", "line": line} for line in prior
