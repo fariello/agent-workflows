@@ -114,7 +114,9 @@ def _record(out: str) -> dict:
 
 def _index_files(repo: Path) -> List[str]:
     return sorted(
-        p.relative_to(repo).as_posix() for p in repo.rglob("INDEX.*") if p.is_file()
+        p.relative_to(repo).as_posix()
+        for p in repo.rglob("INDEX.*")
+        if p.is_file() and p.name.startswith("INDEX.")
     )
 
 

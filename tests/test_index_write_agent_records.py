@@ -75,7 +75,9 @@ def _setup_fixture_for_verb(root: Path, verb: str) -> tuple[Path, str]:
 
 def _index_files(root: Path) -> list[str]:
     return sorted(
-        p.relative_to(root).as_posix() for p in root.rglob("INDEX.*") if p.is_file()
+        p.relative_to(root).as_posix()
+        for p in root.rglob("INDEX.*")
+        if p.is_file() and p.name.startswith("INDEX.")
     )
 
 
