@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 4.5 says the SQLite cache replaces `plans/STATUS.md`. `plans.render_status_index` writes that file's text, and it is reached only from the `if getattr(args, "write_index", False):` branch of `cli._run_plans`, which no parser can enable (no parser defines `--write-index`; `aw ipd board --help` lists no write option, `9o83cr` F-02). This is part 7 of the round-3 split of `snin8q` (Order 42), carrying `snin8q` E-06 verbatim.
 - Scope: delete `plans.render_status_index` and the `write_index` branch, and retarget `tests/test_plans_board.py` and `tests/test_support_section.py`. EXCLUDES this repository's tracked `.aw/records/plans/STATUS.md` file and the skip names that protect scans from it (cutover, `cxxmyv`), and `run_cli.write_index` (the run ledger projection, unrelated).
 - Scope-Paths: agent_workflows/plans.py, agent_workflows/cli.py, tests/test_plans_board.py, tests/test_support_section.py, .aw/records/plans/pending/20261109-metastore-236-3v2ew2-delete-the-unreachable-status-renderer.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261124-54znt2-01-54znt2-stale-comments-in-install-wizard-records-scaffold.backlog.md (defect-report filing required by the runner contract: E-02/E-03 removed --write-index, leaving comments in install_wizard.py and artifact_refs.py that still cite it those modules are outside Scope-Pat...)
 - Item-Dependencies: executed:1ajqaa, executed:54a80m, executed:59aiyh, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:q6epwc, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 3v2ew2
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: 3v2ew2 verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261124-54znt2-01-54znt2-stale-comments-in-install-wizard-records-scaffold.backlog.md: defect-report filing required by the runner contract: E-02/E-03 removed --write-index, leaving comments in install_wizard.py and artifact_refs.py that still cite it; those modules are outside Scope-Paths, so the finding is carried as backlog 54znt2]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, renderer removal, and execution gate; marked reviewed and go-pending-approval.
