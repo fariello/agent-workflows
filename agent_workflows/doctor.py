@@ -763,6 +763,8 @@ _DANGLING_REF_ALLOWLIST = {
     # Generated index files created on demand by aw index / aw research index
     "INDEX.json",
     "INDEX.md",
+    # Generated metadata cache created on demand by aw index rebuild (spec 4sd62s 4.5)
+    ".aw/state/index.db",
     # Deprecated work surface cited in AGENTS.md as an explicitly untracked surface
     "TODO.md",
     # Optional project contribution guidelines referenced in plans README
