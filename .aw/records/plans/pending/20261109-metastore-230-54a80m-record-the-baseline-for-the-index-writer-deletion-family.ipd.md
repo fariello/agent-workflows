@@ -2223,10 +2223,66 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `pytest-core.full.txt` is the full core-gate output kept alongside `pytest-core.txt` (its summary line). The owner/group column is redacted to `<user>`.
   - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste table `F-29` as committed (with an exit code per command, `aw find plans --agent` line count, `board.txt` line count and `sha256sum`, and the `python3 -m pytest` summary line), paste the committed `### F-29 rule-id multisets` fenced block in full, paste a byte-identity check confirming the committed `### F-29 board output` fenced block equals `.aw/state/54a80m/before/board.txt` (`cmp -s` exit code `0`, `wc -l`, `sha256sum`, and first and last 3 lines), paste `aw sanitize --agent` showing `"outcome":"clean"` and `"findings":0`, and paste `git show --stat` of the `aw commit 54a80m` commit listing only this plan file.
   - Observed evidence:
-  - Result: pending
+    Table `F-29` as committed in `3f22c79a6db8581e040495f86f960ffc5bbebff6`:
+    ```text
+    | `aw check plans --all --agent` | 1 | `"outcome":"findings"`, 46 diagnostics (multiset below) |
+    | `aw check research --all --agent` | 1 | `"outcome":"findings"`, 431 diagnostics (multiset below) |
+    | `aw check prompts --all --agent` | 1 | `"outcome":"findings"`, 13 diagnostics (multiset below) |
+    | `aw find plans --agent` | 0 | 1986 lines |
+    | `aw ipd board` | 0 | `board.txt` 2036 lines, `sha256sum` `a5f3b7d64b377c01cffd352a10b288eb202985600e3faad5c01c5f4963dac5f7` |
+    | `python3 -m pytest` (bare core gate) | 1 | `2898 passed, 1 skipped, 11 warnings in 148.92s (0:02:28)` (exit 1 is the core-tier wall-time budget only ...) |
+    ```
+    Committed `### F-29 rule-id multisets` (identical to the saved files):
+    ```text
+    $ cat .aw/state/54a80m/before/check-plans.multiset.txt
+          1 check.collisions-not-checked
+          1 check.ipd-dependency-findings-blocked
+         41 check.lifecycle-transition-unvalidated
+          1 check.plan-spec-link-missing
+          2 check.spec-criteria-uncovered
+    $ cat .aw/state/54a80m/before/check-research.multiset.txt
+         35 adopted-without-consumer
+          1 check.collisions-not-checked
+        358 dangling-citation
+          1 name-invalid
+         30 stale-state-to-promote
+          2 status-tier-mismatch
+          4 unrecognized-model
+    $ cat .aw/state/54a80m/before/check-prompts.multiset.txt
+          1 check.collisions-not-checked
+          6 check.name-nonconformant
+          6 check.prompt-metadata-missing
+    ```
+    Byte-identity of the committed `### F-29 board output` block (extracted from `git show 3f22c79:<this plan>`):
+    ```text
+    $ cmp -s /tmp/opencode/54a80m-board-committed.txt .aw/state/54a80m/before/board.txt; echo "cmp exit: $?"
+    cmp exit: 0
+    $ wc -l ...
+      2036 /tmp/opencode/54a80m-board-committed.txt
+      2036 .aw/state/54a80m/before/board.txt
+    $ sha256sum ...
+    a5f3b7d64b377c01cffd352a10b288eb202985600e3faad5c01c5f4963dac5f7  /tmp/opencode/54a80m-board-committed.txt
+    a5f3b7d64b377c01cffd352a10b288eb202985600e3faad5c01c5f4963dac5f7  .aw/state/54a80m/before/board.txt
+    $ head -3 .aw/state/54a80m/before/board.txt
+    Total: 2015 plan/prompt file(s)
+
+    pending/ (109)
+    $ tail -3 .aw/state/54a80m/before/board.txt
+        .aw/records/prompts/reusable/20261024-specflow-04-jsgs0f-spec-refinement.agy.gemini38flashhigh.prompt.md
+        .aw/records/prompts/reusable/20261024-specflow-05-z1zu8c-spec-refinement.codex.gpt61solmedium.prompt.md
+        .aw/records/prompts/reusable/20261024-specflow-06-khjc70-spec-refinement.opencode.opus55high.prompt.md
+    $ aw sanitize --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7133,"findings":0,"evidence":["leak-scan"],"next":null}
+    $ git show --stat 3f22c79
+    commit 3f22c79a6db8581e040495f86f960ffc5bbebff6
+        54a80m: record the pre-deletion baseline F-29 for the index writer deletion family
+     ...ine-for-the-index-writer-deletion-family.ipd.md | 2121 +++++++++++++++++++-
+     1 file changed, 2115 insertions(+), 6 deletions(-)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
