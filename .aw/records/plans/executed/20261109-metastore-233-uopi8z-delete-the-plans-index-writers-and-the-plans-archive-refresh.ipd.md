@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` 4.5 says the SQLite cache replaces the `INDEX.{json,md}` files. After Order 220 (`tqknnc`) and the `q6epwc` family, nothing calls the plans INDEX write path, yet `plans_index.build_index_json`, `plans_index.build_index_md`, `plans_index._set_last_touched`, `plans_index.DEFAULT_INDEX_LIMIT`, the write path of `plans_index.run_index` and the direct writer `plans_archive._refresh_index` remain. This is part 4 of the round-3 split of `snin8q` (Order 42), carrying the plans subset of `snin8q` E-03.
 - Scope: delete those plans symbols and the `plans_index` entry of `record_producers`, keep `plans_index.scan_plans`, `query`, `run_find` and the non-INDEX rules of `plans_index.check_drift`, and retarget the INDEX-byte cases of `tests/test_plans_index.py`. EXCLUDES the research and prompts writers (Orders 234 and 235), the shared `artifact_core.emit_index_*` helpers (`snin8q` itself), and the on-disk files (`cxxmyv`).
 - Scope-Paths: agent_workflows/plans_index.py, agent_workflows/plans_archive.py, agent_workflows/record_producers.py, tests/test_plans_index.py, .aw/records/plans/pending/20261109-metastore-233-uopi8z-delete-the-plans-index-writers-and-the-plans-archive-refresh.ipd.md
+- Scope-Exceeded: tests/test_orchestrator_retirement.py (AFailedRetirementLeavesTheManifestsAsItFoundThem called the deleted plans_index.run_index to seed and check manifests retargeted to check_drift and fixed leftover-manifest bytes so the suite stays gre...)
 - Item-Dependencies: executed:1ajqaa, executed:54a80m, executed:59aiyh, executed:6966zq, executed:dcerjg, executed:f6y2yy, executed:ffceq0, executed:g5hpbb, executed:q6epwc, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: uopi8z
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: uopi8z verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope tests/test_orchestrator_retirement.py: AFailedRetirementLeavesTheManifestsAsItFoundThem called the deleted plans_index.run_index to seed and check manifests; retargeted to check_drift and fixed leftover-manifest bytes so the suite stays green]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
