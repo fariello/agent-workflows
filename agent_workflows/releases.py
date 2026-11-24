@@ -41,13 +41,39 @@ class ReleaseResolution(NamedTuple):
     paths: List[Path]
 
 
-_ID_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
-_STATUS_RE = re.compile(r"(?m)^- Status:\s*(\S+)\s*$")
-_VERSION_RE = re.compile(r"(?m)^- Version:\s*(\S+)\s*$")
-# A release's Summary lives either as a `- Summary:` bullet (the shape `create_release` writes) or as
-# a `## Summary` prose section (the shape the hand-authored 2.0.0 record uses). The reader accepts both
-# so `aw releases` describes every conformant record, not just the CLI-minted shape.
-_SUMMARY_RE = re.compile(r"(?m)^- Summary:[ \t]*(.*?)[ \t]*$")
+class _ReleaseFields(NamedTuple):
+    """A release record's `- Id:`, `- Status:`, `- Version:` and `- Summary:` values, or None each."""
+
+    id6: Optional[str]
+    status: Optional[str]
+    version: Optional[str]
+    summary: Optional[str]
+
+
+def _single_token(value: Any) -> Optional[str]:
+    s = str(value).strip() if value is not None else ""
+    return s if (s and len(s.split()) == 1) else None
+
+
+def _read_release_fields(text: str) -> _ReleaseFields:
+    """Read a release record's metadata through `artifact_meta.read_text` (metastore `kmf6w4`).
+
+    Id must be an id6; Status and Version must be one token, case preserved, so a bad status is
+    still reported as written. A release's Summary lives either as a `- Summary:` bullet or as a
+    `## Summary` prose section (the shape the hand-authored 2.0.0 record uses); this reads only the
+    bullet, and `parse_release` falls back to `_summary_section`.
+    """
+    from agent_workflows import artifact_meta as _meta
+
+    fields = _meta.read_text(text, record_type="release").fields or {}
+    id6 = _single_token(fields.get("id"))
+    summary = fields.get("summary")
+    return _ReleaseFields(
+        id6=id6 if id6 and _core.ID6_RE.match(id6) else None,
+        status=_single_token(fields.get("status")),
+        version=_single_token(fields.get("version")),
+        summary=str(summary).strip() if summary is not None else None,
+    )
 
 
 def _releases_dir(repo_root: Path) -> Path:
@@ -59,9 +85,9 @@ def _existing_ids(repo_root: Path) -> set:
     d = _releases_dir(repo_root)
     if d.is_dir():
         for p in d.rglob("*.release.md"):
-            m = _ID_RE.search(p.read_text(encoding="utf-8"))
-            if m:
-                ids.add(m.group(1))
+            id6 = _read_release_fields(p.read_text(encoding="utf-8")).id6
+            if id6:
+                ids.add(id6)
     return ids
 
 
@@ -141,25 +167,23 @@ def validate_release(path: Path, text: str) -> List[_core.Drift]:
     or an invalid/missing id6."""
     loc = str(path)
     drift: List[_core.Drift] = []
-    m = _ID_RE.search(text)
-    if not m:
+    rf = _read_release_fields(text)
+    if not rf.id6:
         drift.append(_core.Drift(loc, "release.id-missing", "no valid `- Id:` (id6)"))
-    ms = _STATUS_RE.search(text)
-    if ms is None:
+    if rf.status is None:
         drift.append(_core.Drift(loc, "release.status-missing", "no `- Status:`"))
-    elif ms.group(1) not in RELEASE_STATUSES:
+    elif rf.status not in RELEASE_STATUSES:
         drift.append(
             _core.Drift(
                 loc,
                 "release.status-invalid",
-                f"status {ms.group(1)!r} not in {RELEASE_STATUSES}",
+                f"status {rf.status!r} not in {RELEASE_STATUSES}",
             )
         )
-    if _VERSION_RE.search(text) is None:
+    if rf.version is None:
         drift.append(_core.Drift(loc, "release.version-missing", "no `- Version:`"))
 
-    msum = _SUMMARY_RE.search(text)
-    bullet_summary = msum.group(1).strip() if msum else None
+    bullet_summary = rf.summary
     if bullet_summary:
         if not A.is_safe_descriptive(bullet_summary):
             drift.append(
@@ -202,8 +226,7 @@ def resolve_release_outcome(repo_root: Path, value: str) -> ReleaseResolution:
                 txt = p.read_text(encoding="utf-8")
             except OSError:
                 continue
-            ms = _STATUS_RE.search(txt)
-            if ms and ms.group(1) == "planned":
+            if _read_release_fields(txt).status == "planned":
                 planned.append(p)
         if len(planned) == 1:
             return ReleaseResolution(SENTINEL_RESOLVED, planned)
@@ -217,8 +240,7 @@ def resolve_release_outcome(repo_root: Path, value: str) -> ReleaseResolution:
                 txt = p.read_text(encoding="utf-8")
             except OSError:
                 continue
-            m = _ID_RE.search(txt)
-            if m and m.group(1) == value:
+            if _read_release_fields(txt).id6 == value:
                 matches.append(p)
         if len(matches) == 1:
             return ReleaseResolution(SENTINEL_RESOLVED, matches)
@@ -231,11 +253,9 @@ def resolve_release_outcome(repo_root: Path, value: str) -> ReleaseResolution:
             txt = p.read_text(encoding="utf-8")
         except OSError:
             continue
-        m = _VERSION_RE.search(txt)
-        if m:
-            ver = m.group(1).strip()
-            if ver == value or ver.lstrip("v") == val_clean:
-                matching_ver.append(p)
+        ver = _read_release_fields(txt).version
+        if ver and (ver == value or ver.lstrip("v") == val_clean):
+            matching_ver.append(p)
     if len(matching_ver) == 1:
         return ReleaseResolution(SENTINEL_RESOLVED, matching_ver)
     if len(matching_ver) > 1:
@@ -264,12 +284,8 @@ def describe_planned_release(repo_root: Path) -> Optional[Tuple[str, str]]:
         text = p.read_text(encoding="utf-8")
     except OSError:
         return None
-    mid = _ID_RE.search(text)
-    mver = _VERSION_RE.search(text)
-    return (
-        mid.group(1) if mid else "?",
-        mver.group(1) if mver else "?",
-    )
+    rf = _read_release_fields(text)
+    return (rf.id6 or "?", rf.version or "?")
 
 
 class ActiveRelease(NamedTuple):
@@ -357,17 +373,14 @@ def _history_lines(text: str) -> Tuple[str, ...]:
 
 def parse_release(path: Path, text: str) -> ReleaseRecord:
     """Parse one release record's text into a ReleaseRecord (pure; never raises on bad content)."""
-    mid = _ID_RE.search(text)
-    mver = _VERSION_RE.search(text)
-    mst = _STATUS_RE.search(text)
-    msum = _SUMMARY_RE.search(text)
-    summary = msum.group(1).strip() if msum else None
+    rf = _read_release_fields(text)
+    summary = rf.summary
     if not summary:
         summary = _summary_section(text)
     return ReleaseRecord(
-        id6=mid.group(1) if mid else None,
-        version=mver.group(1) if mver else None,
-        status=mst.group(1) if mst else None,
+        id6=rf.id6,
+        version=rf.version,
+        status=rf.status,
         summary=summary or None,
         path=Path(path),
         history=_history_lines(text),
@@ -512,8 +525,6 @@ def _declared_blocks_release(repo_root: Path, rel_path: str) -> Optional[str]:
     return None
 
 
-_ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^-[ \t]*From-Backlog:[ \t]*([^\n]*?)[ \t]*$")
-
 # ======================================================================================
 # setidhard Order bwgyum (spec 4w7d6s G3/G5, carried forward by spec 2lcqno Section 2): the
 # `Graduated-To` FORWARD graduation link and its reader.
@@ -523,22 +534,18 @@ _ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^-[ \t]*From-Backlog:[ \t]*([^\n]*?)[ \
 # (or Sets) a source became, and a source may graduate more than once over its life (a spec may spawn
 # several plan Sets; a re-graduation adds an entry). Hence `<setid>[, <setid>...]`.
 #
-# DO NOT REUSE THE SINGLE-TOKEN PATTERN, AND THE FAILURE IS TOTAL RATHER THAN PARTIAL. Measured
-# against BOTH sibling patterns (`_ITEM_FROM_BACKLOG_RE`'s `(\S+)\s*$` and
-# `check_engine._ITEM_FROM_SPEC_RE`'s `(\S+)[ \t]*$`) on the line `- Graduated-To: first, second`:
-# both match NOTHING, because `\S+` cannot span the space and the `$` anchor then fails. So a copied
-# regex does not under-validate a two-entry field, it reports it as ABSENT and the file as CLEAN. On
-# the no-space form `first,second` the same pattern captures the single junk token `first,second`,
-# which resolves to no Set and reads as one confusing dangling entry. The value pattern below is
-# therefore whole-value (`(.+)`), split in `parse_graduated_to`.
+# DO NOT READ IT AS A SINGLE TOKEN, AND THE FAILURE IS TOTAL RATHER THAN PARTIAL. A single-token
+# reader (`(\S+)\s*$`) on the line `- Graduated-To: first, second` matches NOTHING, because `\S+`
+# cannot span the space and the `$` anchor then fails, so it reports a two-entry field as ABSENT and
+# the file as CLEAN. On the no-space form `first,second` it captures the single junk token
+# `first,second`, which resolves to no Set. `parse_graduated_to` therefore reads the WHOLE value
+# through `artifact_meta.read_text` (metastore `kmf6w4`) and splits it on commas.
 #
 # THE ASYMMETRY WITH THE BACK-LINK IS DELIBERATE (spec 4w7d6s G4): the back-link is by id6 because a
 # child points at exactly ONE source item; the forward link is by SETID because a source points at the
 # whole generated Set (orchestrator plus children). Do NOT "harmonize" the two onto one shape; making
 # the forward link an id6 would lose the Set.
 # ======================================================================================
-
-_ITEM_GRADUATED_TO_RE = re.compile(r"(?m)^-[ \t]*Graduated-To:[ \t]*(.+?)[ \t]*$")
 
 
 def parse_graduated_to(text: str) -> List[str]:
@@ -569,10 +576,10 @@ def parse_graduated_to(text: str) -> List[str]:
 
     from agent_workflows import artifact_meta as _meta
 
-    m = _ITEM_GRADUATED_TO_RE.search(_meta.metadata_region(text))
-    if m is None:
+    value = _meta.read_text(_meta.metadata_region(text)).fields.get("graduated_to")
+    if not value:
         return []
-    return [part.strip() for part in m.group(1).split(",") if part.strip()]
+    return [part.strip() for part in str(value).split(",") if part.strip()]
 
 
 def canonicalize_graduated_to(
@@ -767,6 +774,7 @@ def check_from_backlog(repo_root: Path) -> List[_core.Drift]:
     function returned 1 FALSE finding, having no such guard. `check_graduated_to` deliberately copies
     the SPEC side's posture. Do NOT "harmonize" that guard away to match this function; the difference
     is a known gap here, not a standard to spread."""
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import (
         backlog as _backlog,
     )  # local import avoids an import cycle
@@ -791,16 +799,16 @@ def check_from_backlog(repo_root: Path) -> List[_core.Drift]:
                     text = p.read_text(encoding="utf-8")
                 except OSError:
                     continue
-                m = _ITEM_FROM_BACKLOG_RE.search(text)
-                if not m:
+                link = _meta.read_text(text).fields.get("from_backlog")
+                if link is None:
                     continue
-                cls = _schema.classify_source_link(m.group(1))
+                cls = _schema.classify_source_link(link)
                 if cls.verdict == _schema.SOURCE_LINK_MALFORMED:
                     drift.append(
                         _core.Drift(
                             str(p),
                             FROM_BACKLOG_MALFORMED_RULE,
-                            f"From-Backlog {m.group(1)!r} is not a valid backlog item id6",
+                            f"From-Backlog {link!r} is not a valid backlog item id6",
                         )
                     )
                 elif cls.verdict == _schema.SOURCE_LINK_USABLE:

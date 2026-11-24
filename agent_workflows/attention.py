@@ -3120,9 +3120,11 @@ def _resolve_release_version(repo_root: Optional[Path], val: Optional[str]) -> s
 
             p = _releases.resolve_release(repo_root, val)
             if p and p.is_file():
-                m = _releases._VERSION_RE.search(p.read_text(encoding="utf-8"))
-                if m:
-                    return m.group(1)
+                version = _releases.parse_release(
+                    p, p.read_text(encoding="utf-8")
+                ).version
+                if version:
+                    return version
             if val == "next":
                 desc = _releases.describe_planned_release(repo_root)
                 if desc and desc[1] and desc[1] != "?":
