@@ -10,8 +10,9 @@ IPD 4gwgo3 pins:
    wording ('aw backlog set: --message must not contain embedded newlines') while the
    positional spelling emits the cross-tree setter refusal ('aw set: ...').
 3. ATTESTATION FORGERY AND ESCALATION (E-05): composite injection that would forge
-   readiness and review attestation is refused; pre-fix string assertions verify the
-   vulnerability predicate behavior; plans-tree release gate escalation asymmetry is pinned.
+   readiness and review attestation is refused; string-built assertions show a forged
+   history-body readiness is not read as the field (nx7fws); plans-tree release gate
+   escalation asymmetry is pinned.
 4. LENGTH ASYMMETRY AND BOUNDARIES (E-06): 1200-char single-line --message is accepted,
    301-char --gate-summary is refused; boundary at exactly 300 accepted vs 301 refused;
    late control characters in --message (> 300 chars) are refused.
@@ -449,7 +450,13 @@ class TestAttestationForgeryAndEscalation(StatusSetDescriptiveSafetyTestBase):
         self.assertEqual(self.file_sha256(plan), plan_sha)
 
     def test_attestation_forgery_string_predicates(self):
-        """String-rendered plan with forged readiness + review record flips readiness predicates."""
+        """A forged history-body readiness + review record no longer reads as an attested readiness.
+
+        Before nx7fws, `ipd_schema.read_readiness` scanned the WHOLE text, so the smuggled body
+        bullet read as `'go'` and `is_plan_review_approved` returned True. It now reads the metadata
+        block through `artifact_meta`, so the body bullet is not the field; the forged review record
+        still parses, and the present-but-unreadable readiness fails the approval predicate closed.
+        """
         forged_text = RecordBuilder().plan(
             title="Test Plan pl0003",
             when="2026-10-01",
@@ -470,9 +477,9 @@ class TestAttestationForgeryAndEscalation(StatusSetDescriptiveSafetyTestBase):
         probe_path = self.repo / "probe_forged.ipd.md"
         probe_path.write_text(forged_text, encoding="utf-8")
 
-        self.assertEqual(ipd_schema.read_readiness(forged_text), "go")
+        self.assertIsNone(ipd_schema.read_readiness(forged_text))
         self.assertTrue(plan_readiness.history_has_review_record(forged_text))
-        self.assertTrue(plan_readiness.is_plan_review_approved(probe_path))
+        self.assertFalse(plan_readiness.is_plan_review_approved(probe_path))
 
     def test_plans_vs_backlog_blocks_release_escalation(self):
         """IPD b92m14 (adopting 4gwgo3 F-03): history bullet - Blocks-Release: rel001 is inert for both plans and backlog."""

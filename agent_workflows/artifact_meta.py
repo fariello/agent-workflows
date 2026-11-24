@@ -2692,8 +2692,6 @@ def _first_set_token(value: Optional[str]) -> Optional[str]:
 
 
 #: The IPD metadata-block LINE grammar, owned here (moved with `parse_metadata_block` by ad86ym).
-#: `ipd_schema._META_LINE_RE` is a separate copy kept for `ipd_lint.parse`'s other use until
-#: Order 246 (nx7fws) deletes it.
 _IPD_META_LINE_RE = re.compile(r"^- (?P<field>[A-Za-z][A-Za-z /-]*?):\s?(?P<value>.*)$")
 
 

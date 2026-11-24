@@ -404,21 +404,22 @@ READY_TO_EXECUTE: FrozenSet[str] = frozenset(("approved", "auto-approved"))
 
 
 def plan_requires_attended(text: str) -> bool:
-    """True when the plan's metadata block carries `- Attended: required` (case-insensitive value)."""
-    head = (text or "").split("\n## ", 1)[0]  # metadata block precedes the first H2
-    m = re.search(r"(?m)^- Attended:\s*(\S+)\s*$", head)
-    return bool(m) and m.group(1).strip().lower() == ATTENDED_REQUIRED
+    """True when the plan's metadata block carries `- Attended: required` (case-insensitive value).
 
+    Reads through `artifact_meta.read_text`, which bounds the read to the metadata block.
+    """
+    if not text or "Attended:" not in text:
+        return False
+    from agent_workflows import artifact_meta as _meta
 
-_META_LINE_RE = re.compile(r"^- (?P<field>[A-Za-z][A-Za-z /-]*?):\s?(?P<value>.*)$")
+    state = _meta.read_text(_meta.metadata_region(text), record_type="ipd")
+    value = state.fields.get("attended")
+    return str(value or "").strip().lower() == ATTENDED_REQUIRED
 
 
 class MetaError(NamedTuple):
     field: str
     message: str
-
-
-_READINESS_LINE_RE = re.compile(r"(?m)^-[ \t]*Readiness:[ \t]*(?P<value>.*)$")
 
 
 def read_readiness(text: str) -> Optional[str]:
@@ -432,16 +433,18 @@ def read_readiness(text: str) -> Optional[str]:
     matching is case-insensitive so a reviewer who writes the workflow's shouty ``NO-GO`` still gets
     the safe answer instead of an unparseable one; the FIELD NAME is matched exactly, as elsewhere.
 
-    Pure; takes the whole plan text (the first matching front-matter bullet wins, mirroring
-    `check_engine`'s `_ITEM_PRIORITY_RE` scan shape). ENUM validation for lint/`aw check` reporting
-    is a separate concern: this reader is the READ path and never raises.
+    Pure; takes the whole plan text and reads the metadata block through `artifact_meta.read_text`,
+    so a `- Readiness:` line in the document body (for example one smuggled into the workflow
+    history) is not read as the field. ENUM validation for lint/`aw check` reporting is a separate
+    concern: this reader is the READ path and never raises.
     """
-    if "readiness:" not in text.lower():
+    if not text or "Readiness:" not in text:
         return None
-    m = _READINESS_LINE_RE.search(text)
-    if not m:
-        return None
-    value = m.group("value").strip().lower()
+    from agent_workflows import artifact_meta as _meta
+
+    state = _meta.read_text(_meta.metadata_region(text), record_type="ipd")
+    raw = state.fields.get("readiness")
+    value = str(raw or "").strip().lower()
     return value if value in READINESS_VALUES else None
 
 

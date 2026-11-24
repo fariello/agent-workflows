@@ -375,7 +375,15 @@ def _atomic_write(path: Path, text: str) -> None:
     _core.atomic_write(path, text, prefix=".ipd-tmp-")
 
 
-_ID_LINE_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
+def _declared_plan_id(text: str) -> Optional[str]:
+    """The plan's own ``- Id:`` id6 read from its metadata block via ``artifact_meta``, or None."""
+    if not text:
+        return None
+    from agent_workflows import artifact_meta as _meta
+
+    state = _meta.read_text(_meta.metadata_region(text), record_type="ipd")
+    value = (state.id6 or "").strip()
+    return value if _core.ID6_RE.fullmatch(value) else None
 
 
 def _plans_root_for(path: Path) -> Optional[Path]:
@@ -406,9 +414,9 @@ def _existing_plan_ids(target_path: Path) -> set:
             text = f.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        m = _ID_LINE_RE.search(text)
-        if m:
-            ids.add(m.group(1))
+        declared = _declared_plan_id(text)
+        if declared:
+            ids.add(declared)
     return ids
 
 
@@ -779,7 +787,6 @@ def run_scaffold(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------------------
 
 _UNASSIGNED_LEAF_RE = re.compile(rf"^- \[ \] {re.escape(UNASSIGNED_MARKER)}\b(.*)$")
-_WATERMARK_RE = re.compile(r"^- Highest E allocated:\s*([0-9]+)\s*$")
 _VALIDATION_HEADING_RE = re.compile(r"^## Validation and cross-check\b")
 _GATE_HEADING_RE = re.compile(r"^## Approval and execution gate\b")
 
@@ -925,7 +932,7 @@ def insert_id_line(text: str, id6: str) -> Optional[str]:
     anchor bullet in that block; the caller then leaves the file untouched.
     """
 
-    if _ID_LINE_RE.search(text):
+    if _declared_plan_id(text):
         return None
     lines = text.splitlines(keepends=True)
     # The metadata block: everything before the first H2 (the H1 itself never matches an anchor).
@@ -964,7 +971,7 @@ def backfill_plan_ids(paths: List[Path], repo_root: Path) -> List[tuple]:
             text = p.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        if _ID_LINE_RE.search(text):
+        if _declared_plan_id(text):
             continue
         new_id = _core.generate_id6(existing)
         new_text = insert_id_line(text, new_id)
@@ -979,7 +986,7 @@ def backfill_plan_ids(paths: List[Path], repo_root: Path) -> List[tuple]:
 def _backfill_id(text: str, existing: set) -> tuple[str, Optional[str]]:
     """Insert a `- Id:` line into the metadata block if it lacks one. Returns (new_text, id|None)."""
 
-    if _ID_LINE_RE.search(text):
+    if _declared_plan_id(text):
         return text, None
     new_id = _core.generate_id6(existing)
     new_text = insert_id_line(text, new_id)
@@ -1071,7 +1078,7 @@ def _run_bulk_id_backfill(args: argparse.Namespace, targets: List[str]) -> int:
         except (OSError, UnicodeDecodeError):
             no_anchor.append(p)
             continue
-        if _ID_LINE_RE.search(text):
+        if _declared_plan_id(text):
             have_id.append(p)
         elif insert_id_line(text, "000000") is None:
             no_anchor.append(p)

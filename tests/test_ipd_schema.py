@@ -307,7 +307,7 @@ class MetadataFieldVocabularyTests(unittest.TestCase):
             False,
             "OPTIONAL at the schema layer because a plan with no E items has nothing to watermark; "
             "`watermark_error` makes it CONDITIONALLY mandatory once any E exists. Note the field "
-            "name contains SPACES, which is why `_META_LINE_RE` admits them",
+            "name contains SPACES, which is why `artifact_meta._IPD_META_LINE_RE` admits them",
         ),
         (
             "Approval",

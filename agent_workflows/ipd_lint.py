@@ -244,6 +244,22 @@ _CONTINUATION_SUBFIELDS: FrozenSet[str] = frozenset(
     ("Observed evidence", "Execution note")
 )
 
+_BODY_FIELD_NAME_RE = re.compile(r"[A-Za-z][A-Za-z /-]*")
+
+
+def _body_field(raw: str) -> Optional[Tuple[str, str]]:
+    """Split an unindented ``- Field: value`` body row under an H2 into ``(field, value)``, or None.
+
+    Body prose (N3): an open-question sub-field or the approval gate's ``- Size assessment:``.
+    Metadata-block bullets are read through ``artifact_meta``, never here.
+    """
+    if not raw.startswith("- "):
+        return None
+    field, sep, value = raw[2:].partition(":")
+    if not sep or not _BODY_FIELD_NAME_RE.fullmatch(field):
+        return None
+    return field.strip(), value.strip()
+
 
 # orchtyped `dpdyed` (spec `r07vma` R1a): the TYPED CHILD-TRACKING ROW grammar, and the ONLY
 # definition of it in the tree (R3). A conforming orchestrator checklist row is exactly:
@@ -894,10 +910,9 @@ def parse(
                 cur_fields[key] = val
             continue
         # OQ sub-fields + size assessment (plain "- Field: value" bullets under their H2).
-        mmeta = S._META_LINE_RE.match(raw)
-        if mmeta:
-            fld = mmeta.group("field").strip()
-            val = mmeta.group("value").strip()
+        body_field = _body_field(raw)
+        if body_field is not None:
+            fld, val = body_field
             if current_h2 == S.H_OPEN_QUESTIONS and pending_oq is not None:
                 pending_oq[fld] = val
             elif current_h2 == S.H_APPROVAL_GATE and fld == "Size assessment":
