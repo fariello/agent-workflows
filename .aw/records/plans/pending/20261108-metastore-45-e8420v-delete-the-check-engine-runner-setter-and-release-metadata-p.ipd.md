@@ -83,6 +83,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-238-786w7r-record-the-baseline-for-the-remaining-metadata-regex-deletio.ipd.md
 - Moved to 7uq6xg (round-3 split 2026-11-09 per research nj8zdp guidance): E-12 subset 1, `check_engine._blob_text`, `_status_meta`, `_metadata_status`, their callers in `hooks/ipd_dependency_statement_gate.py`, `status_set`, `runner_shared`, and `tests/test_check_engine_status_meta.py`; plus E-20's `tools/gate_drop_audit.py` `_status_meta` retarget.
   - Carrier: 7uq6xg
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-239-7uq6xg-delete-the-check-engine-blob-and-status-parsers-and-retarget.ipd.md
 - Moved to js35bz (round-3 split 2026-11-09 per research nj8zdp guidance): E-12 subset 2, the 19 named `check_engine` patterns.
   - Carrier: js35bz
 - Moved to bcrko1 (round-3 split 2026-11-09 per research nj8zdp guidance): E-12 subset 3, the inline literals in six `check_engine` functions and the two `body prose` confirmations. Subsets 1 to 3 equal E-12's list.
