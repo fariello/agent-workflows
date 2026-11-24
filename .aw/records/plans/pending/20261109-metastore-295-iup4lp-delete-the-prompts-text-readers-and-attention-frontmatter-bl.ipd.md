@@ -42,25 +42,25 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 
 ### Task group 1: callers first, then delete
 
-- [ ] E-01 Change `artifact_rename._read_existing_id6` and `cli._find_prompt_id6` to read the prompt id through `artifact_meta.read_text(text, record_type="prompts")`.
+- [x] E-01 Change `artifact_rename._read_existing_id6` and `cli._find_prompt_id6` to read the prompt id through `artifact_meta.read_text(text, record_type="prompts")`.
   - Depends on: none
   - Expected outcome: neither calls `read_metadata_id6`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Change `attention._prompts_record`, `status_set.read_artifact_record` and `status_set._prepare_status_change` to read the prompt id and status through `artifact_meta.read_text`; change `prompts.update_metadata_status` to read the current status the same way.
+- [x] E-02 Change `attention._prompts_record`, `status_set.read_artifact_record` and `status_set._prepare_status_change` to read the prompt id and status through `artifact_meta.read_text`; change `prompts.update_metadata_status` to read the current status the same way.
   - Depends on: E-01
   - Expected outcome: no caller outside the definitions remains.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Delete `prompts.read_metadata_id6`, `prompts.read_metadata_status` and `prompts._METADATA_STATUS_RE`; retarget `tests/test_prompts_new.py` to `artifact_meta.read_text`.
+- [x] E-03 Delete `prompts.read_metadata_id6`, `prompts.read_metadata_status` and `prompts._METADATA_STATUS_RE`; retarget `tests/test_prompts_new.py` to `artifact_meta.read_text`.
   - Depends on: E-02
   - Expected outcome: the three symbols are gone.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Replace `attention._frontmatter_block` in `attention._extract_detail` with the research fields from `artifact_meta.read_text`, keeping the bulleted-form-wins cascade order, and delete `attention._frontmatter_block`; save the after-list; commit through `aw commit iup4lp -- <paths>`.
+- [x] E-04 Replace `attention._frontmatter_block` in `attention._extract_detail` with the research fields from `artifact_meta.read_text`, keeping the bulleted-form-wins cascade order, and delete `attention._frontmatter_block`; save the after-list; commit through `aw commit iup4lp -- <paths>`.
   - Depends on: E-03
   - Expected outcome: `attention` defines no `_frontmatter_block`; `aw attention --format json` is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -124,25 +124,79 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "read_metadata_id6" agent_workflows/artifact_rename.py agent_workflows/cli.py` printing nothing and the before/after per-test lines of `tests/test_artifact_rename.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (attempt 2, lane `aw/lane/iup4lp_attempt2`; every command re-run in this attempt after bringing attempt 1's diff forward)
+    ```
+    $ rg -n "read_metadata_id6" agent_workflows/artifact_rename.py agent_workflows/cli.py
+    rc=1   (no output)
+    ```
+    Before/after per-test lines of `tests/test_artifact_rename.py` (identical, 7 = 7):
+    ```
+    PASSED tests/test_artifact_rename.py::TestArtifactRename::test_rename_backlog_preview_and_apply
+    PASSED tests/test_artifact_rename.py::TestArtifactRename::test_rename_comms_is_unsupported
+    PASSED tests/test_artifact_rename.py::TestArtifactRename::test_rename_prompts
+    PASSED tests/test_artifact_rename.py::TestArtifactRename::test_rename_releases
+    PASSED tests/test_artifact_rename.py::TestArtifactRename::test_rename_roadmaps
+    PASSED tests/test_artifact_rename.py::TestArtifactRename::test_rename_specs_legacy_timestamp
+    PASSED tests/test_artifact_rename.py::TestArtifactRename::test_rename_walkthroughs
+    ```
+    Behavior equivalence of the retargeted read (`artifact_meta.read_text(first_line, record_type="prompt").id6`, gated on `prompts.has_metadata_comment`) against the deleted `read_metadata_id6`, over every `*.md` in the tree: `files 5573 prompt-ish 24 diffs 0` (id6 and status both compared). Note: `read_text` parses the `aw-prompt` comment only for the singular registry type `"prompt"`, not the plural `"prompts"` the E-01 text names (decision 09-iup4lp-D1).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "read_metadata_(id6|status)" agent_workflows` listing only the two `prompts.py` definitions, and the before/after per-test lines of `tests/test_status_set.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Taken by attempt 1 after E-02, before E-03 (attempt 2 applied the E-01..E-04 diff as one unit, so this intermediate state was not re-observed):
+    ```
+    $ rg -n "read_metadata_(id6|status)" agent_workflows
+    agent_workflows/prompts.py:279:def read_metadata_id6(text: str) -> Optional[str]:
+    agent_workflows/prompts.py:340:def read_metadata_status(text: str) -> Optional[str]:
+    ```
+    `tests/test_status_set.py` per-test lines: 110 PASSED before, 110 PASSED after, and `diff` of the full before/after lists is empty (see V-04). `attention._prompts_record` already read through `artifact_meta.read_text(text, record_type="prompt")` at the starting HEAD `04186ad3c`, so it needed no change; `status_set.read_artifact_record` reaches `_read_artifact_record_with_state`, which already used `artifact_meta.read_text`; the remaining caller was `status_set._prepare_status_change` (retargeted), plus `prompts.update_metadata_status` (retargeted).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "read_metadata_(id6|status)|_METADATA_STATUS_RE" agent_workflows tests` printing nothing and the before/after per-test lines of `tests/test_prompts_new.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (attempt 2, lane `aw/lane/iup4lp_attempt2`; every command re-run in this attempt after bringing attempt 1's diff forward)
+    ```
+    $ rg -n "read_metadata_(id6|status)|_METADATA_STATUS_RE" agent_workflows tests
+    rc=1   (no output)
+    ```
+    `tests/test_prompts_new.py`: 22 PASSED before and 22 PASSED after, same names (the retargeted assertion is in `TestApplyWritesConformingFile::test_apply_writes_exactly_one_file_at_derived_path`, PASSED in both lists). Three further test modules that called `read_metadata_id6` after the plan's measurement were retargeted too, so the zero-hit demand holds: `tests/test_prompts_set_surface.py` (6 = 6), `tests/test_artifact_meta_legacy_writer.py` (11 = 11), `tests/test_writers_create_summary.py` (82 = 82).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n "_frontmatter_block" agent_workflows/attention.py` printing nothing, the `diff` of `aw attention --format json` against the Order 280 baseline `.aw/state/k6jd6l/before/` file (empty), `diff .aw/state/9o83cr/E-11c-before.txt .aw/state/9o83cr/E-11c-after.txt` with no FAILED or ERROR line, and `git show --stat` of the `aw commit iup4lp` commit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (attempt 2, lane `aw/lane/iup4lp_attempt2`; every command re-run in this attempt after bringing attempt 1's diff forward)
+    ```
+    $ rg -n "_frontmatter_block" agent_workflows/attention.py
+    rc=1   (no output)
+    $ diff .aw/state/iup4lp/attention-before.json .aw/state/iup4lp/attention-after.json      # aw attention --format json --all --details
+    (empty, rc=0)
+    $ diff .aw/state/iup4lp/attention-default-before.json .aw/state/iup4lp/attention-default-after.json   # aw attention --format json
+    (empty, rc=0)
+    $ wc -l .aw/state/9o83cr/E-11c-*.txt ; diff .aw/state/9o83cr/E-11c-before.txt .aw/state/9o83cr/E-11c-after.txt
+      314 .aw/state/9o83cr/E-11c-after.txt
+      314 .aw/state/9o83cr/E-11c-before.txt
+    diff-rc=0   (no FAILED or ERROR line; every line is PASSED)
+    ```
+    The Order 280 baseline `.aw/state/k6jd6l/before/` does not exist in this lane (gitignored state), so the baseline was captured from the starting HEAD before any edit (decision 09-iup4lp-D3). Corpus equivalence of the new cascade (`_extract_detail` and `_research_record` `has_yaml`) against the old `_frontmatter_block` path over every `*.md`: `files 5573 detail diffs 0 has_yaml diffs 0` (re-run in attempt 2). Core suite (`aw suite`, attempt 2): `2889 passed, 1 skipped, 11 warnings in 147.24s (0:02:27)`. `git show --stat` of the `aw commit iup4lp` commit (the three out-of-fence test paths were recorded with `--scope-reason`):
+    ```
+    $ git show --stat dd6bd00fe
+    commit dd6bd00feee2026bc4dbaad5cc1fe6a4d687865c
+    metastore 295 (iup4lp): delete prompts.read_metadata_id6/read_metadata_status/_METADATA_STATUS_RE and attention._frontmatter_block; callers read through artifact_meta.read_text (brought forward from lane aw/lane/iup4lp 85bdcaf88)
+     agent_workflows/artifact_rename.py        |  6 +++-
+     agent_workflows/attention.py              | 52 +++++++++++++++----------------
+     agent_workflows/cli.py                    |  6 ++--
+     agent_workflows/prompts.py                | 33 ++------------------
+     agent_workflows/status_set.py             |  6 +++-
+     tests/test_artifact_meta_legacy_writer.py |  3 +-
+     tests/test_prompts_new.py                 |  6 ++--
+     tests/test_prompts_set_surface.py         |  2 +-
+     tests/test_writers_create_summary.py      |  2 +-
+     9 files changed, 49 insertions(+), 67 deletions(-)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
