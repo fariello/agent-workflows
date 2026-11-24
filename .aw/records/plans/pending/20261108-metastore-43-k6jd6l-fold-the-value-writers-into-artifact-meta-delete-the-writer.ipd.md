@@ -133,6 +133,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-296-hrbbhy-delete-the-plans-record-text-readers-and-verify-the-subset-1.ipd.md
 - E-18: the `specs._read_*` readers: Moved to um2kvx (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: um2kvx
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-297-um2kvx-delete-the-specs-record-text-readers.ipd.md
 - E-18: the `backlog.parse_item` metadata callers: Moved to po3o1c (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: po3o1c
 - E-18: removing the metadata part of `backlog.parse_item` and the subset-2 check (V-18): Moved to vw88h0 (round-3 split 2026-11-09 per research nj8zdp guidance).
