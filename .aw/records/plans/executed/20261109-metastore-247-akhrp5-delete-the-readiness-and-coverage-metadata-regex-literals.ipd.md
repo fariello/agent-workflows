@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C5 and 4.3 require deleting every `^-` metadata regex outside `artifact_meta`. `plan_readiness`, `readiness_recheck`, `coverage_record` and `orchestrator_readiness` hold 12 such literals, including `plan_readiness._STATUS_RE`, which `9o83cr` E-12 names. This is part 4 of the round-3 split of `0xsx2n` (Order 46), carrying the readiness subset of `0xsx2n` E-22.
 - Scope: delete the 12 literals in four modules, each use reading through `artifact_meta`; `plan_readiness._OQ_FIELD_RE` stays (body prose, N3). EXCLUDES the ipd modules (Order 246).
 - Scope-Paths: agent_workflows/plan_readiness.py, agent_workflows/readiness_recheck.py, agent_workflows/coverage_record.py, agent_workflows/orchestrator_readiness.py, tests/test_coverage_record.py, tests/test_orchestrator_readiness.py, tests/test_plan_readiness_recheck.py, .aw/records/plans/pending/20261109-metastore-247-akhrp5-delete-the-readiness-and-coverage-metadata-regex-literals.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261124-inzap9-01-inzap9-plan-readiness-readiness-field-present-calls-the-p.backlog.md (defect-report carrier the driver contract requires for a finding made while executing akhrp5 readiness_field_present calls private artifact_meta._parse_bullet_metadata_with_loose no public loose field...); tests/test_readiness_absence_invariant.py (the test named the deleted plan_readiness._READINESS_FIELD_PRESENT_RE it now calls its replacement plan_readiness.readiness_field_present with the same inputs and assertion, as E-05 requires)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:nx7fws, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: akhrp5
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: akhrp5 verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261124-inzap9-01-inzap9-plan-readiness-readiness-field-present-calls-the-p.backlog.md: defect-report carrier the driver contract requires for a finding made while executing akhrp5 (readiness_field_present calls private artifact_meta._parse_bullet_metadata_with_loose; no public loose field-presence query exists); backlog records sit outside any plan's code Scope-Paths by construction; out-of-scope tests/test_readiness_absence_invariant.py: the test named the deleted plan_readiness._READINESS_FIELD_PRESENT_RE; it now calls its replacement plan_readiness.readiness_field_present with the same inputs and assertion, as E-05 requires; in-scope-unmodified agent_workflows/orchestrator_readiness.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_coverage_record.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_orchestrator_readiness.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, LIT searches, execution gate, and PIN rule; findings PR-001..PR-004 fixed; marked reviewed and go-pending-approval.
