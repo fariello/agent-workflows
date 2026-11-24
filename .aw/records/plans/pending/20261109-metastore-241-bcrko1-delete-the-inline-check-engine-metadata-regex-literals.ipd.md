@@ -42,25 +42,29 @@ PIN RULE (carried from `9o83cr`): before E-01, ensure `.aw/state/bcrko1/` exists
 
 ### Task group 1: inline literals, then verify
 
-- [ ] E-01 Before the first edit, ensure `.aw/state/bcrko1/` exists (`mkdir -p .aw/state/bcrko1/`) and save the baseline test PIN list to `.aw/state/bcrko1/before.txt`. Delete the inline literals in the three date and handoff rules: `check_engine._artifact_compact_date`, `check_engine.evaluate_handoff_ready`, and `check_engine.check_spec_review_attestation`.
+- [x] E-01 Before the first edit, ensure `.aw/state/bcrko1/` exists (`mkdir -p .aw/state/bcrko1/`) and save the baseline test PIN list to `.aw/state/bcrko1/before.txt`. Delete the inline literals in the three date and handoff rules: `check_engine._artifact_compact_date`, `check_engine.evaluate_handoff_ready`, and `check_engine.check_spec_review_attestation`.
   - Depends on: none
   - Expected outcome: the `LIT` search over those three functions prints nothing.
-  - Execution state: pending
+  - Execution note: performed at HEAD `e3333adce` as a confirmed no-op deletion (decision 27-bcrko1-D1). `.aw/state/bcrko1/before.txt` was saved first (196 PASSED). The three literals were already deleted by `5d8e15158` (w1cs3p, `_artifact_compact_date`), `951b53fae` (dbq57g, `evaluate_handoff_ready`) and `5cf7ada96` (na188y, `check_spec_review_attestation`); an AST scan prints 0 `^-` string constants in each body. No code edit was needed.
+  - Execution state: performed
 
-- [ ] E-02 Delete the inline literals in `check_engine.find_obligations_carried_by` and `check_engine.check_ipd_lint_reach`.
+- [x] E-02 Delete the inline literals in `check_engine.find_obligations_carried_by` and `check_engine.check_ipd_lint_reach`.
   - Depends on: E-01
   - Expected outcome: the `LIT` search over those two functions prints nothing.
-  - Execution state: pending
+  - Execution note: confirmed no-op deletion; both literals were already deleted by `5cf7ada96` (na188y), which moved the `Id` and `Date` reads onto `artifact_meta.read_text`. AST scan prints 0 per function.
+  - Execution state: performed
 
-- [ ] E-03 Delete the three inline literals in `check_engine.check_orchestrator_not_review_ready`.
+- [x] E-03 Delete the three inline literals in `check_engine.check_orchestrator_not_review_ready`.
   - Depends on: E-02
   - Expected outcome: the `LIT` search over that function prints nothing.
-  - Execution state: pending
+  - Execution note: confirmed no-op deletion; the three literals (`Kind`, `Status`, `Set`) were already deleted by `5cf7ada96` (na188y), which moved the reads onto the cached `artifact_meta` state map. AST scan prints 0.
+  - Execution state: performed
 
-- [ ] E-04 Re-run the `LIT` search over `agent_workflows/check_engine.py` (only `_TARGET_BULLET_RE` and the `parse_spec_acceptance_criteria` table-rule literal may remain), save `after.txt`, run every `tests/test_check_engine*.py` module, compare both `aw check all` multisets with `786w7r` F-30, and commit through `aw commit bcrko1 -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-04 Re-run the `LIT` search over `agent_workflows/check_engine.py` (only `_TARGET_BULLET_RE` and the `parse_spec_acceptance_criteria` table-rule literal may remain), save `after.txt`, run every `tests/test_check_engine*.py` module, compare both `aw check all` multisets with `786w7r` F-30, and commit through `aw commit bcrko1 -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-03
   - Expected outcome: only the two `body prose` rows remain; tests pass; multisets equal F-30.
-  - Execution state: pending
+  - Execution note: `LIT` search prints only lines 9779 (`_TARGET_BULLET_RE`) and 9991 (`parse_spec_acceptance_criteria` `^-+$`); PIN before/after are equal; 196 passed; both rule-id multisets equal `786w7r` F-30; committed through `aw commit bcrko1` with only this plan file.
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -116,25 +120,95 @@ No spec change; implements part of `4sd62s` 4.3.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git diff` hunks of `check_engine._artifact_compact_date`, `check_engine.evaluate_handoff_ready` and `check_engine.check_spec_review_attestation`, each removing a `^-` literal.
   - Observed evidence:
-  - Result: pending
+    No hunk in this run's diff: the literals were deleted before this plan ran (decision 27-bcrko1-D1). The removing hunks, from `git show <commit> -- agent_workflows/check_engine.py`:
 
-- [ ] V-02 validates E-02
+    ```text
+    5d8e15158  @@ -2456,9 +2533,7 @@ def _artifact_compact_date(path: Path, text: str = "") -> Optional[str]:
+    -        dm = _re.search(r"(?m)^-[ \t]*Date:[ \t]*(\d{4})-(\d{2})-(\d{2})[ \t]*$", text)
+    -        if dm is not None:
+    -            return "{0}{1}{2}".format(*dm.groups())
+    +        return _plan_date_compact(text)
+    951b53fae  @@ -6630,174 +6701,194 @@ def evaluate_handoff_ready(
+    -        m_kind = _re.search(r"^- Kind:\s*(\S+)", text, _re.MULTILINE)
+    5cf7ada96  @@ -8479,11 +8594,15 @@ def check_spec_review_attestation(repo_root: Path) -> List[_core.Drift]:
+    -        ms = _re.search(r"(?m)^-[ \t]*Status:[ \t]*(\S+)[ \t]*$", text)
+    +    for path, st in spec_rows:
+    +        if (st.status or "").lower() != "reviewed":
+    ```
+
+    AST scan of each function body at HEAD `e3333adce` (string constants containing `^-`): `_artifact_compact_date 0`, `evaluate_handoff_ready 0`, `check_spec_review_attestation 0`; the same scan at `ac76110f4` (the `e8420v` F-26 HEAD) prints 1, 1, 1.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `git diff` hunks of `check_engine.find_obligations_carried_by` and `check_engine.check_ipd_lint_reach`.
   - Observed evidence:
-  - Result: pending
+    Removing hunks from `5cf7ada96` (na188y):
 
-- [ ] V-03 validates E-03
+    ```text
+    @@ -10230,11 +10351,12 @@ def find_obligations_carried_by(
+    -                m = _re.search(r"(?m)^- Id:\s*([a-z0-9]{6})\b", text)
+    +                plan_id6 = (
+    +                    _meta_declared_id6(_meta.read_text(text, record_type="ipd"))
+    +                    or p.name[:6]
+    +                )
+    @@ -11011,8 +11133,11 @@ def check_ipd_lint_reach(
+    -        m = _re.search(r"^- Date:\s*(\S+)", text, _re.MULTILINE)
+    -        raw_date = m.group(1) if m else None
+    +        st_date = _meta.read_text(text, record_type="ipd")
+    +        raw_date_val = str((st_date.fields or {}).get("date") or "").strip()
+    ```
+
+    AST scan at HEAD: `find_obligations_carried_by 0`, `check_ipd_lint_reach 0` (1 and 1 at `ac76110f4`).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `git diff` hunk of `check_engine.check_orchestrator_not_review_ready` removing three literals.
   - Observed evidence:
-  - Result: pending
+    Removing hunk from `5cf7ada96` (na188y), three literals:
 
-- [ ] V-04 validates E-04
+    ```text
+    @@ -11077,29 +11202,30 @@ def check_orchestrator_not_review_ready(
+    -        m_kind = _re.search(r"^- Kind:\s*(\S+)", text, _re.MULTILINE)
+    +        raw_kind = _meta_single_token(
+    +            (getattr(st_obj, "fields", None) or {}).get("plan_role")
+    +        )
+    -        m_stat = _re.search(r"^- Status:\s*(\S+)", text, _re.MULTILINE)
+    +        raw_stat = st_obj.legacy_raw_status or st_obj.status
+    -        m_set = _re.search(r"^- Set:\s*([^\n]+)", text, _re.MULTILINE)
+    +        setid = st_obj.legacy_raw_set or st_obj.set_id or ""
+    ```
+
+    AST scan at HEAD: `check_orchestrator_not_review_ready 0` (3 at `ac76110f4`).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `LIT` search over `agent_workflows/check_engine.py` showing only the two `body prose` rows, `diff .aw/state/bcrko1/before.txt .aw/state/bcrko1/after.txt` (empty, or each change mapped), the two rule-id multiset diffs against `786w7r` F-30 (empty), and `git show --stat` of the `aw commit bcrko1` commit.
   - Observed evidence:
-  - Result: pending
+    ```text
+    $ rg -n "$LIT" agent_workflows/check_engine.py
+    9779:_TARGET_BULLET_RE = _re.compile(r"^-\s*(?:Concern|Scope|Scope-Paths):[ \t]*(.*)$")
+    9991:                if not _re.match(r"^-+$", c) and c.lower() not in (
+    $ diff .aw/state/bcrko1/before.txt .aw/state/bcrko1/after.txt && echo PIN-EQUAL
+    PIN-EQUAL
+    $ wc -l .aw/state/bcrko1/before.txt   # all PASSED
+    196 .aw/state/bcrko1/before.txt
+    $ python3 -m pytest -o addopts="" -m "" -n 0 tests/test_check_engine*.py
+    ============================= 196 passed in 18.91s =============================
+    $ aw check all --agent; echo $?          -> exit 1, findings_by_severity {"error":11,"warning":2,"info":80}
+    $ aw check all --all --agent; echo $?    -> exit 1, findings_by_severity {"error":16,"warning":15,"info":509}
+    $ diff <F-30 multiset, aw check all --agent> .aw/state/bcrko1/check.rules && echo A-EQUAL
+    A-EQUAL
+    $ diff <F-30 multiset, aw check all --all --agent> .aw/state/bcrko1/check-all.rules && echo B-EQUAL
+    B-EQUAL
+    $ python3 -m pytest   # bare core gate
+    2894 passed, 1 skipped, 11 warnings in 138.75s (0:02:18)
+    ```
+
+    Exit codes and `findings_by_severity` equal F-30. Since the run changed no code, the commit through `aw commit bcrko1` holds only this plan file; its `git show --stat` is pasted in the run's execution report (`.aw/state/lane-submissions/run-20261124T050731Z-1001505/27-bcrko1/attempt-1/execution-report.md`).
+  - Result: pass
 
 ## Approval and execution gate
 
