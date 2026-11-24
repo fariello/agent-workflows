@@ -98,6 +98,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-232-6966zq-retarget-five-research-and-registry-tests-off-the-index-buil.ipd.md
 - Moved to uopi8z (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 plans subset, `build_index_json`, `build_index_md`, `_set_last_touched`, `DEFAULT_INDEX_LIMIT` and `run_index` in `plans_index`, `plans_archive._refresh_index`, the `plans_index` `record_producers` entry, `tests/test_plans_index.py`.
   - Carrier: uopi8z
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-233-uopi8z-delete-the-plans-index-writers-and-the-plans-archive-refresh.ipd.md
 - Moved to s6k01k (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 research subset, the same five symbols in `research_index`, the post-move refresh in `research_archive`, the `research_index` `record_producers` entry, `tests/test_research_index.py`.
   - Carrier: s6k01k
 - Moved to drav0u (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 prompts subset, the same five symbols in `prompts_index`, `tests/test_prompts_index.py`. With the two test subsets, the three module subsets and E-18 here, this equals E-03's list.

@@ -12,7 +12,7 @@ via deliberate, tool-invoked verbs only (never a background side effect). ``pend
 
 A shard move is a DIR-ONLY move: it changes the plan's path but NOT its filename, and plans are
 cited by basename/stem, so it is a CITATION NO-OP (no reference rewrite). The manifest scan (Order
-03) is recursive, so sharded plans stay visible; the INDEX is refreshed after any move. Moves keep
+03) is recursive, so sharded plans stay visible; no INDEX file is written after a move. Moves keep
 the plan ``Id`` and are atomic tracked ``git mv``. Consumes the Order-01 core (shard math, git mv)
 and the Order-03 manifest.
 """
@@ -319,26 +319,14 @@ def sweep_candidates(
     return sorted(out)
 
 
-def _refresh_index(repo_root: Path, plans_dir: Path) -> None:
-    entries, _drift = _idx.scan_plans(plans_dir)
-    plans_dir.mkdir(parents=True, exist_ok=True)
-    (plans_dir / _idx.INDEX_JSON).write_text(
-        _idx.build_index_json(entries), encoding="utf-8"
-    )
-    (plans_dir / _idx.INDEX_MD).write_text(
-        _idx.build_index_md(entries), encoding="utf-8"
-    )
-
-
 def apply_shard_moves(
     repo_root: Path, plans_dir: Path, moves: List[ShardMove]
 ) -> List[str]:
     """Apply archival shard moves; RETURN repo-relative touched paths (the MOVED FILES) for the
     self-commit offer (selfcommit jgcm68 E-02). The caller drives the offer.
 
-    The regenerated INDEX.json/INDEX.md are deliberately NOT in the returned list. They are still
-    refreshed on disk (`_refresh_index` below), but generated manifests are not committed by any
-    `aw` verb (idxuntrack `4r0qp1` E-07), and the caller commits this list verbatim."""
+    No INDEX file is written: the SQLite metadata cache replaced the generated
+    ``INDEX.{json,md}`` views (spec 4sd62s 4.5), and the caller commits this list verbatim."""
     from agent_workflows import artifact_rename as _rename
 
     touched: List[str] = []
@@ -358,7 +346,6 @@ def apply_shard_moves(
         _core.git_mv(repo_root, src_rel, dst_rel)
         touched.append(src_rel)
         touched.append(dst_rel)
-    _refresh_index(repo_root, plans_dir)
     seen: dict = {}
     for t in touched:
         seen.setdefault(t, None)
@@ -499,8 +486,8 @@ def run_archive(args: argparse.Namespace) -> int:
 def _offer_archive_commit(
     args: argparse.Namespace, repo_root: Path, touched: List[str]
 ) -> None:
-    """selfcommit jgcm68 E-02: offer to path-scoped-commit the archived plan moves. The regenerated
-    INDEX is NOT included (idxuntrack `4r0qp1` E-07): it is refreshed on disk but never committed.
+    """selfcommit jgcm68 E-02: offer to path-scoped-commit the archived plan moves (no INDEX file
+    is written or committed; spec 4sd62s 4.5).
     Interactive-gated via child-01 ``offer_commit`` (TTY prompts; non-interactive-without
     ``--commit`` is a NO-OP); path-scoped, no push, no ``add -A``; unrelated dirty files never
     folded in. A commit failure is non-fatal (the archive already happened)."""

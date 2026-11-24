@@ -276,15 +276,6 @@ PRODUCER_INVENTORY: List[RecordProducerEntry] = [
         commit_policy_consumer="prompt_and_run_commit",
     ),
     RecordProducerEntry(
-        name="plans_index",
-        source_path="agent_workflows/plans_index.py",
-        anchor="run_index",
-        operation="create",
-        category="plans",
-        resolver_surface="python_api",
-        commit_policy_consumer="prompt_and_run_commit",
-    ),
-    RecordProducerEntry(
         name="plans_archive",
         source_path="agent_workflows/plans_archive.py",
         anchor="apply_shard_moves",
