@@ -2099,7 +2099,7 @@ LAYOUT_VERSION = "layout_v1"
 #: enforce strict `^- <Key>:` bullet matching and lowercase scalar normalization for YAML front matter.
 #: "legacy_v7" (2026-11-18, r81uvz): map legacy backlog `- Kind:` bullets to `work_kind` when `- Work-Kind:` is absent.
 #: "legacy_v8" (2026-11-19, xxdzcq): map prompt `Kind`/`kind` to `prompt_kind` and `Created`/`created` to `created_day`, and set `artifact_row["created_day"]` for prompts.
-#: "legacy_v9" (2026-11-21, dqutt8): extract workflow history via `attention_contract.history_block` for both bullet and YAML records (fixing indented-line leaks and YAML research history), and register `blocks_release` on `research`.
+#: "legacy_v9" (2026-11-21, dqutt8): extract workflow history via the shared history-block reader (now `history_records`) for both bullet and YAML records (fixing indented-line leaks and YAML research history), and register `blocks_release` on `research`.
 #: "legacy_v10" (2026-11-21): register `item_dependencies` and `dependency_declaration` on `backlog`, `spec`, and `research` so non-IPD dependency edges reach the cache and `attention.scan()`.
 LEGACY_LOADER_VERSION = "legacy_v10"
 
@@ -2681,9 +2681,9 @@ def _parse_metadata_comment(first_line: str) -> Dict[str, str]:
 
 # --------------------------------------------------------------------------------------
 # Workflow-history grammar (IPD `bxupy8`, spec `4sd62s` C5). Private copies, unchanged in
-# behavior, of ``attention_contract.history_block`` (with its ``HistoryBlock`` result and the
-# record pattern), ``attention_contract.newest_history_record`` and
-# ``attention_contract.last_history_at``, so the one metadata reader owns the one history grammar.
+# behavior, of the ``attention_contract`` history-block reader (with its ``HistoryBlock`` result and
+# the record pattern), newest-record rule and ``last_history_at`` derivation, so the one metadata
+# reader owns the one history grammar. IPD ``csobg7`` deleted those originals.
 # A caller holding only TEXT reaches it through :func:`history_records`.
 # --------------------------------------------------------------------------------------
 
@@ -2886,6 +2886,24 @@ def _last_history_at(
         return None
     m = _HISTORY_RECORD_RE.match(newest)
     return m.group("date") if m else None
+
+
+# A spec's status is a single front-matter bullet ``- Status: <bare-enum-token>`` with NO trailing
+# prose. Moved here from ``attention_contract`` (IPD `csobg7`, spec `4sd62s` C5); a caller reaches
+# it through :func:`spec_status_bullet`.
+_SPEC_STATUS_RE = re.compile(r"^- Status:[ \t]*(?P<value>\S+)[ \t]*$")
+
+
+def spec_status_bullet(line: str) -> Optional[str]:
+    """Return the bare status token when ``line`` is a spec ``- Status: <token>`` bullet, else ``None``.
+
+    A bullet carrying trailing prose (``- Status: approved (2026-09-25)``) is not a bare-enum status
+    and answers ``None``. For a caller that needs the LINE INDEX of the status bullet (for example a
+    rewriter), which :func:`read_text` does not report.
+    """
+
+    m = _SPEC_STATUS_RE.match(line)
+    return m.group("value") if m else None
 
 
 def history_records(text: str) -> HistoryBlock:

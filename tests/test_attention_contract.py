@@ -16,6 +16,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from agent_workflows import artifact_meta as meta
 from agent_workflows import attention_contract as A
 from agent_workflows import plans
 from agent_workflows import research_contract
@@ -214,9 +215,9 @@ class HistoryTests(unittest.TestCase):
             "- 2026-08-05 reviewed (y): reviewed.",
             "- 2026-08-01 draft (x): created.",
         ]
-        self.assertEqual(A.last_history_at(lines), "2026-08-08")
+        self.assertEqual(meta._last_history_at(lines), "2026-08-08")
         self.assertEqual(
-            A.newest_history_record(lines), "- 2026-08-08 approved (z): approved."
+            meta._newest_history_record(lines), "- 2026-08-08 approved (z): approved."
         )
 
     def test_last_history_at(self):
@@ -228,9 +229,9 @@ class HistoryTests(unittest.TestCase):
             "not a record",
             "- 2026-08-08 approved (z): approved.",
         ]
-        self.assertEqual(A.last_history_at(lines), "2026-08-01")
-        self.assertIsNone(A.last_history_at(["no records here", "- bad date line"]))
-        self.assertIsNone(A.newest_history_record([]))
+        self.assertEqual(meta._last_history_at(lines), "2026-08-01")
+        self.assertIsNone(meta._last_history_at(["no records here", "- bad date line"]))
+        self.assertIsNone(meta._newest_history_record([]))
 
     def test_the_newest_record_rule_is_single_sourced(self):
         """`plan_readiness` must CONSUME the rule, not re-implement it (E-02's single-source demand).
@@ -257,7 +258,7 @@ class HistoryTests(unittest.TestCase):
         )
         self.assertEqual(
             PR.extract_newest_history_entry(text),
-            A.newest_history_record(
+            meta._newest_history_record(
                 [
                     "- 2026-09-03 approved (aw set): newest.",
                     "- 2026-09-01 draft (aw set): oldest.",
@@ -288,9 +289,9 @@ class FixtureParseTests(unittest.TestCase):
 
     def _read_status(self, path):
         for line in path.read_text(encoding="utf-8").splitlines():
-            m = A.SPEC_STATUS_RE.match(line)
-            if m:
-                return m.group("value")
+            value = meta.spec_status_bullet(line)
+            if value is not None:
+                return value
         return None
 
     def test_valid_specs_have_bare_enum_status_and_map(self):

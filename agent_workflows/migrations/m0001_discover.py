@@ -28,7 +28,6 @@ from agent_workflows import (
     artifact_core,
     artifact_meta,
     artifact_naming,
-    attention_contract,
     project_context,
     record_history,
 )
@@ -354,7 +353,7 @@ def _is_sidecar_setter_actor(actor: str) -> bool:
 
 def _has_sidecar_setter_history(text: str) -> Optional[str]:
     """Return matching setter actor if ``text``'s history shows a sidecar-writing setter ran."""
-    hb = attention_contract.history_block(text)
+    hb = artifact_meta.history_records(text)
     for line in hb.record_lines:
         m_fb = _LEGACY_TRAILING_ID_ACTOR_RE.search(line)
         if m_fb and _is_sidecar_setter_actor(m_fb.group(1)):

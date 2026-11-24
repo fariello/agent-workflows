@@ -7125,7 +7125,7 @@ def _item_close_date(
 
     Reads events via `artifact_meta.history(item_id6)` when repository context is provided,
     extracting the newest record date and formatting compact YYYYMMDD (D-6). Falls back to
-    `attention_contract.history_block`/`last_history_at` when called directly on in-memory text.
+    `artifact_meta.history_records` and its newest-record date when called directly on in-memory text.
     """
     if repo_root is not None and item_id6 is not None:
         from agent_workflows import artifact_meta as _meta
@@ -7149,10 +7149,10 @@ def _item_close_date(
 
     if not item_text:
         return None
-    from agent_workflows import attention_contract as _ac
+    from agent_workflows import artifact_meta as _meta
 
-    records = _ac.history_block(item_text).records
-    date_str = _ac.last_history_at(records)
+    records = _meta.history_records(item_text).records
+    date_str = _meta._last_history_at(records)
     if not date_str:
         return None
     compact = date_str.replace("-", "").strip()
@@ -7445,7 +7445,7 @@ def _item_graduated_date(
     """Derive the newest graduated date (compact YYYYMMDD) for a backlog item from its history.
 
     Reads events via `artifact_meta.history(item_id6)` when repository context is provided,
-    and falls back to `attention_contract.history_block` when called directly on in-memory text.
+    and falls back to `artifact_meta.history_records` when called directly on in-memory text.
     Returns compact YYYYMMDD, or None if no graduation record is found.
     """
     if repo_root is not None and item_id6 is not None:
@@ -7481,9 +7481,9 @@ def _item_graduated_date(
 
     if not item_text:
         return None
-    from agent_workflows import attention_contract as _ac
+    from agent_workflows import artifact_meta as _meta
 
-    records = _ac.history_block(item_text).records
+    records = _meta.history_records(item_text).records
     for line in records:
         m = _GRADUATED_LINE_RE.match(line)
         if m:
@@ -7507,7 +7507,7 @@ def _spec_implementing_date(
     """Derive the newest implementing transition date (compact YYYYMMDD) for a spec from its history.
 
     Reads events via `artifact_meta.history(spec_id6)` when repository context is provided,
-    and falls back to `attention_contract.history_block` when called directly on in-memory text.
+    and falls back to `artifact_meta.history_records` when called directly on in-memory text.
     Returns compact YYYYMMDD, or None if no implementing record is found.
     """
     if repo_root is not None and spec_id6 is not None:
@@ -7543,9 +7543,9 @@ def _spec_implementing_date(
 
     if not spec_text:
         return None
-    from agent_workflows import attention_contract as _ac
+    from agent_workflows import artifact_meta as _meta
 
-    records = _ac.history_block(spec_text).records
+    records = _meta.history_records(spec_text).records
     for line in records:
         m = _IMPLEMENTING_LINE_RE.match(line)
         if m:

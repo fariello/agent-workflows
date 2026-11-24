@@ -4,7 +4,7 @@ Pins observable behavior of `agent_workflows.attention` on `tmp_path` fixture re
 before moving `attention` metadata and history reads onto `artifact_meta`: per-tree status
 mapping (`attention.missing-status`, `attention.unknown-status`, `attention.disposition-mismatch`),
 `id`, `priority`, `blocks_release`, `readiness`, `last_history_at` (newest record by
-`attention_contract.newest_history_record`), gate fields, open-question counts,
+`artifact_meta._newest_history_record`), gate fields, open-question counts,
 `detail_kind`/`detail_text`, `item_dependencies`, and `aw attention --check --agent` exit code
 with one violation. Calls real `attention` and `cli` functions and never reads production source.
 """
@@ -749,7 +749,7 @@ def test_short_description_wins_over_extract_detail_fallback(tmp_path: Path) -> 
 
 
 def test_log_format_record_history_via_artifact_meta(tmp_path: Path) -> None:
-    """Log-format record reads `last_history_at` via `artifact_meta.history` and `A.last_history_at`."""
+    """Log-format record reads `last_history_at` via `artifact_meta.history` and `artifact_meta._last_history_at`."""
     repo = _init_repo(tmp_path)
     pending_dir = repo / ".aw" / "records" / "plans" / "pending"
     meta_dir = repo / ".aw" / "records" / "meta"

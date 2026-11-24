@@ -295,7 +295,8 @@ def _last_history_at_for_state(
     """Derive `last_history_at` from `artifact_meta` state and `artifact_meta.history`."""
     if state is None:
         return None
-    # Log-format record (replayed from meta/<id6>.jsonl): query artifact_meta.history via A.last_history_at.
+    # Log-format record (replayed from meta/<id6>.jsonl): query artifact_meta.history via the
+    # artifact_meta history grammar.
     if (
         getattr(state, "updated_at", None) is not None
         or getattr(state, "created_at", None) is not None
@@ -308,7 +309,7 @@ def _last_history_at_for_state(
                 events = _meta.history(id6, project_context=project_context)
             except Exception:
                 events = []
-            # Phase B: prefer legacy history lines through the unchanged A.last_history_at rule,
+            # Phase B: prefer legacy history lines through the unchanged newest-record rule,
             # then checkpoint last_history_day, then newest event date.
             legacy_lines = [
                 ev["line"]
@@ -318,12 +319,12 @@ def _last_history_at_for_state(
                 and ev["line"]
             ]
             if legacy_lines:
-                return A.last_history_at(legacy_lines)
+                return _meta._last_history_at(legacy_lines)
             if state.last_history_day:
                 return state.last_history_day
-            return A.last_history_at(events)
+            return _meta._last_history_at(events)
         return state.last_history_day
-    # Legacy .md record: last_history_day is the cached projection of A.last_history_at over
+    # Legacy .md record: last_history_day is the cached projection of the newest-record date over
     # artifact_meta's parsed history lines.
     return state.last_history_day
 
@@ -541,7 +542,7 @@ def _history_section_lines(text: str) -> List[str]:
 
     This function returns raw, unvalidated lines between the history heading and the
     next top-level/second-level heading. Readers that parse history records must use
-    `attention_contract.history_block` to enforce canonical record bounding (column-zero
+    `artifact_meta.history_records` to enforce canonical record bounding (column-zero
     chronological records, omitting indented block quotes and prose).
     """
     if "## Workflow history" not in text:

@@ -31,7 +31,7 @@ It NEVER infers activity or gate state from prose, dates, mtime, lock files, or 
 native enum value of every tracked tree maps to exactly one class; an unknown value is a violation,
 never a default. ``last_history_at`` derivation (Section 8.5): parse the ``## Workflow history`` records
 (``HISTORY_RECORD_RE``); ``last_history_at`` is the date of the NEWEST record, and the section is
-NEWEST-FIRST, so that is the FIRST record in file order (see :func:`newest_history_record`; corrected
+NEWEST-FIRST, so that is the FIRST record in file order (see ``artifact_meta._newest_history_record``; corrected
 by plan ``vhbvwz`` E-02, which measured 534 artifacts reporting a date that was not their newest);
 empty history yields ``None`` (not a violation here; the scanner decides whether absence is a per-tree
 violation); NEVER file mtime.
@@ -41,15 +41,11 @@ from __future__ import annotations
 
 import re
 from typing import (
-    Any,
     Dict,
     FrozenSet,
-    List,
     NamedTuple,
     Optional,
-    Sequence,
     Tuple,
-    Union,
 )
 
 from agent_workflows import lifecycle_dirs as _LD
@@ -490,8 +486,8 @@ def class_of(tree: str, native_status: str) -> str:
 # Spec metadata + transition/authority contract (spec Section 7; OQ10 + the anti-self-approval floor)
 # --------------------------------------------------------------------------------------
 
-# A spec's status is a single front-matter bullet ``- Status: <bare-enum-token>`` with NO trailing prose.
-SPEC_STATUS_RE = re.compile(r"^- Status:[ \t]*(?P<value>\S+)[ \t]*$")
+# A spec's status is a single front-matter bullet ``- Status: <bare-enum-token>`` with NO trailing
+# prose; its grammar lives in ``artifact_meta.spec_status_bullet`` (IPD ``csobg7``).
 
 # Legal spec transitions (spec Section 7). Backward moves (e.g. reviewed -> to-review) are permitted and
 # recorded; ``implemented``/``superseded`` are terminal-forward. Keyed old -> set of allowed new.
@@ -810,210 +806,14 @@ def refuse_unsafe_descriptive(
 
 
 # --------------------------------------------------------------------------------------
-# Workflow-history record grammar + last_history_at derivation (spec Section 8.2/8.5; OQ2)
+# Workflow-history record grammar (spec Section 8.2/8.5; OQ2)
 # --------------------------------------------------------------------------------------
 
-# One dated record per touch: ``- YYYY-MM-DD <free single line>``. The DATE is the machine field;
-# ``last_history_at`` is the date of the NEWEST record, which is the FIRST one in file order because
-# every writer PREPENDS (see :func:`newest_history_record` for the measured reason this is not "last").
+# One dated record per touch: ``- YYYY-MM-DD <free single line>``. The DATE is the machine field.
+# The history block reader, the newest-record rule and the ``last_history_at`` derivation live in
+# ``artifact_meta`` (``history_records``, ``_newest_history_record``, ``_last_history_at``; IPD
+# ``csobg7``, spec ``4sd62s`` C5), the one metadata reader.
 HISTORY_RECORD_RE = re.compile(r"^- (?P<date>\d{4}-\d{2}-\d{2}) .+$")
-_WORKFLOW_HISTORY_HEADING_RE = re.compile(r"(?m)^## Workflow history[ \t]*\r?$")
-
-
-class HistoryBlock(NamedTuple):
-    records: List[str]
-    record_lines: List[str]
-    body: str
-
-
-def history_block(text: str) -> HistoryBlock:
-    """The canonical, pure reader for an artifact's ``## Workflow history`` block.
-
-    States the bounding rule ONCE and returns a :class:`HistoryBlock` with:
-      - ``records``: column-zero records matching :data:`HISTORY_RECORD_RE` against ``line.rstrip()``
-        (never ``strip()``), returned with trailing whitespace stripped, in file order (newest-first).
-      - ``record_lines``: flat, file-order list of every record line FOLLOWED BY its indented
-        continuation lines (each ``rstrip()``ed, indentation KEPT, blank lines dropped; non-record
-        bullets and their continuations excluded). `"\n".join(record_lines)` re-emits each record
-        with its wrapped text.
-      - ``body``: remaining text from the terminating line on with leading blank lines removed and
-        trailing whitespace ``rstrip()``ed, but the first line's indentation PRESERVED (never
-        ``.strip()``/``.lstrip()``; ``""`` when there is none).
-
-    THE BOUNDING RULE (plan ``kgv213``, Set ``histdedup``):
-    1. Locate the heading with ``(?m)^## Workflow history[ \t]*$`` (missing heading yields
-       ``HistoryBlock([], [], "")``).
-    2. Scan subsequent lines. The block ENDS at:
-       - the next line starting with ``## ``, OR
-       - the first non-blank line starting at COLUMN ZERO that is not a ``- `` bullet, OR
-       - an INDENTED non-blank line that does not directly continue a bullet (a blank line ends
-         continuation, so a blank-separated indented quotation is NOT part of the block).
-    3. Inside the block, a record is a column-zero line matching :data:`HISTORY_RECORD_RE` against
-       ``line.rstrip()``. Any following indented line directly continuing it is part of ``record_lines``.
-       Non-record bullets and their continuations are dropped from both ``records`` and ``record_lines``.
-
-    CANONICAL NEWEST RECORD:
-    ``newest_history_record(history_block(t).records)`` is the canonical newest record.
-
-    WHY THIS RULE WAS CHOSEN (findings F-01..F-07):
-    - F-01: Disagreement between readers (`backlog._prior_history_records` ending at column zero
-      vs `attention._history_section_lines` ending only at `## `) caused `status_set` to judge an
-      indented-only line as a duplicate while the writer could not preserve it, suppressing writes.
-    - F-02..F-04: Strict bounding was wrong for plans wrapping records onto continuation lines (155 plans,
-      F-03), while loose bounding re-opened the `tk1gqo` defect where indented prose quotations in bodies
-      were counted as records (F-04). This rule agrees with today's answers across all 2489 tracked
-      artifacts carrying history, changing zero consumer answers.
-    - F-06: Writers need `record_lines` (not `records` alone) and a shared body boundary (`_extract_body`,
-      E-06) so wrapped records and their following records are not duplicated on reattachment.
-    - F-07: De-indenting a blank-separated indented quotation in `body` turns it into a column-zero record
-      on the next rewrite (`tk1gqo` defect by another route); preserving leading indentation prevents this.
-    """
-    m = _WORKFLOW_HISTORY_HEADING_RE.search(text)
-    if not m:
-        return HistoryBlock([], [], "")
-
-    after = text[m.end() :]
-    if after.startswith("\r\n"):
-        after = after[2:]
-    elif after.startswith("\n"):
-        after = after[1:]
-
-    lines = after.splitlines(keepends=True)
-    records: List[str] = []
-    record_lines: List[str] = []
-
-    continuing = False
-    current_bullet_is_record = False
-    terminating_idx: Optional[int] = None
-
-    for idx, raw_line in enumerate(lines):
-        line = raw_line.rstrip("\r\n")
-        if line.startswith("## "):
-            terminating_idx = idx
-            break
-        is_indented = line.startswith(" ") or line.startswith("\t")
-        is_blank = not line.strip()
-        if not is_blank and not is_indented and not line.startswith("- "):
-            terminating_idx = idx
-            break
-        if not is_blank and is_indented and not continuing:
-            terminating_idx = idx
-            break
-
-        if is_blank:
-            continuing = False
-            current_bullet_is_record = False
-        elif not is_indented and line.startswith("- "):
-            stripped_line = line.rstrip()
-            if HISTORY_RECORD_RE.match(stripped_line):
-                records.append(stripped_line)
-                record_lines.append(stripped_line)
-                continuing = True
-                current_bullet_is_record = True
-            else:
-                continuing = True
-                current_bullet_is_record = False
-        elif is_indented:
-            if current_bullet_is_record:
-                record_lines.append(line.rstrip())
-
-    if terminating_idx is None:
-        body = ""
-    else:
-        rem_lines = [ln.rstrip("\r\n") for ln in lines[terminating_idx:]]
-        while rem_lines and not rem_lines[0].strip():
-            rem_lines.pop(0)
-        body = "\n".join(rem_lines).rstrip()
-
-    return HistoryBlock(records, record_lines, body)
-
-
-def newest_history_record(history_lines: List[str]) -> Optional[str]:
-    """THE ONE RULE for "which of these ``## Workflow history`` lines is the newest": the FIRST one
-    matching :data:`HISTORY_RECORD_RE`, or ``None`` when there is no record.
-
-    NEWEST-FIRST IS THE WRITER'S CONTRACT, not an assumption. Every history writer PREPENDS its new
-    record directly under the heading: ``status_set.apply_status_change`` does it with
-    ``new_lines.insert(i + 1, hist_entry)`` and documents it at length, and
-    ``ipd_lifecycle._plan_status_events`` REVERSES a plan's inline records to get oldest-first on
-    exactly that premise. So the first record in file order is the most recent one.
-
-    WHY THIS FUNCTION EXISTS AT ALL, since the answer is a measured bug and not a tidy-up. There used
-    to be TWO readers of this one question and they DISAGREED: ``plan_readiness
-    .extract_newest_history_entry`` took the FIRST record (and carries an explicit warning that
-    taking the last one "is the bug this function replaced"), while ``last_history_at`` right below
-    took the LAST. Measured over this repository at ``2362b102`` with the production parser, the
-    last-in-file-order rule reported a date that was NOT the artifact's newest record for 373 of 679
-    multi-record plans, 153 of 200 backlog items and 8 of 21 specs. The defect was invisible for
-    specs and backlog only because their inline history had been slimmed to a single line, where the
-    first and last record coincide - which is why plan ``vhbvwz`` had to fix this reader BEFORE
-    E-08 let those two trees keep a second line again.
-
-    DELIBERATELY POSITIONAL, NOT MAX-BY-DATE, and this is a safety property rather than a style
-    choice. A "newest = greatest date" scan was measured and REJECTED: it changes which record
-    ``extract_newest_history_entry`` returns for 67 plans, and for 20 of those it flips
-    ``plan_readiness.history_verdict_approves`` from False to True, because a plan's final dated
-    ``approved``/``executed`` line would start being read as its newest REVIEW verdict. That function
-    gates UNATTENDED promotion to an executable tier, so a date-max rule would silently widen a live
-    approval gate. A record out of date order on disk is a data problem to report, never a licence
-    for the reader to reorder history it cannot see the intent of.
-
-    Pure and total; ``history_lines`` is an already-bounded section (see
-    ``attention._history_section_lines``), never whole file text.
-    """
-
-    for line in history_lines:
-        if HISTORY_RECORD_RE.match(line):
-            return line
-    return None
-
-
-def last_history_at(
-    history_lines: Sequence[Union[str, Dict[str, Any]]],
-) -> Optional[str]:
-    """Derive ``last_history_at`` from parsed ``## Workflow history`` lines or ``artifact_meta.history``
-    event dicts: the date of the NEWEST record, or ``None`` when there is no record. Never uses file
-    mtime (Section 8.5).
-
-    The NAME is historical and is kept because it is the published field name in
-    ``aw attention --format json`` and in the spec's Section 8.5; it means "the date this artifact was
-    last touched", never "the date on the last line". :func:`newest_history_record` is the single
-    shared rule that decides which record that is, so no two readers in this toolkit can disagree
-    about the answer.
-    """
-
-    if not history_lines:
-        return None
-    if isinstance(history_lines[0], dict):
-        str_lines = [
-            ev["line"]
-            for ev in history_lines
-            if isinstance(ev, dict) and isinstance(ev.get("line"), str) and ev["line"]
-        ]
-        if str_lines:
-            newest = newest_history_record(str_lines)
-            if newest is None:
-                return None
-            m = HISTORY_RECORD_RE.match(newest)
-            return m.group("date") if m else None
-        # Log-format events without legacy line records: newest event date (seq ASC -> last event).
-        for ev in reversed(history_lines):
-            if not isinstance(ev, dict):
-                continue
-            obs = ev.get("observed_day")
-            if isinstance(obs, str) and _DATE_RE.match(obs.strip()):
-                return obs.strip()
-            at_val = ev.get("at")
-            if isinstance(at_val, str) and len(at_val) >= 10:
-                day = at_val[:10]
-                if _DATE_RE.match(day):
-                    return day
-        return None
-    newest = newest_history_record(list(history_lines))  # type: ignore[arg-type]
-    if newest is None:
-        return None
-    m = HISTORY_RECORD_RE.match(newest)
-    return m.group("date") if m else None
 
 
 # The ONE definition of "is this actor writable into a history line" (plan fn2l1u E-01).

@@ -15,7 +15,7 @@ from typing import Any, Dict, List
 
 import pytest
 
-from agent_workflows import artifact_meta, attention_contract
+from agent_workflows import artifact_meta
 from agent_workflows.migrations import m0001_convert, m0001_metadata_v2
 
 pytestmark = pytest.mark.core
@@ -296,8 +296,8 @@ def test_clock_ac19_filename_date_created_day_and_last_history_day(
     assert st_p1.filename_date == "2026-10-14"
     assert st_p1.fields["filename_date"] == "2026-10-14"
     assert st_p1.fields["created_day"] == "2026-10-15"
-    hb = attention_contract.history_block(p1.read_text(encoding="utf-8"))
-    expected_hist = attention_contract.newest_history_record(hb.records)
+    hb = artifact_meta.history_records(p1.read_text(encoding="utf-8"))
+    expected_hist = artifact_meta._newest_history_record(hb.records)
     assert expected_hist is not None
     assert (
         st_p1.fields["last_history_day"]
