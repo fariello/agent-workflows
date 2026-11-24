@@ -6,7 +6,7 @@
 - Scope: delete the 8 literals in four modules, each use reading through `artifact_meta`; update `tests/test_artifact_audit.py` where a test names a deleted pattern. EXCLUDES the plans modules of E-21 (Order 244).
 - Scope-Paths: agent_workflows/artifact_rename.py, agent_workflows/artifact_refs.py, agent_workflows/artifact_adopt.py, agent_workflows/artifact_audit.py, tests/test_artifact_audit.py, tests/test_artifact_rename.py, .aw/records/plans/pending/20261109-metastore-245-qttoyc-delete-the-artifact-family-metadata-regex-literals.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:t4gl15, executed:tbvx4r
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: qttoyc
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: qttoyc verified (set metastore, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/artifact_adopt.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/artifact_audit.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_artifact_audit.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_artifact_rename.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, regex literal deletions, and execution gate; marked reviewed and go-pending-approval.
