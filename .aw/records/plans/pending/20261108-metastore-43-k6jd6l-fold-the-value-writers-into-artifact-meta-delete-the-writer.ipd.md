@@ -103,6 +103,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-286-8fxic1-delete-the-prompts-and-runner-shared-metadata-adapters.ipd.md
 - E-10: `ipd_schema.parse_metadata_block` and `prompts_index._parse_metadata_comment`: Moved to ad86ym (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: ad86ym
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-287-ad86ym-move-parse-metadata-block-and-parse-metadata-comment-into-ar.ipd.md
 - E-10: `research_contract.parse_frontmatter` copy and production readers: Moved to sq6v7i (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: sq6v7i
 - E-10: `parse_frontmatter` test retargets: Moved to 5lgpix (round-3 split 2026-11-09 per research nj8zdp guidance).
