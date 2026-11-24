@@ -20085,17 +20085,30 @@ def _sleep_poll_interval(
     *,
     sleep_fn: Any = None,
     slice_seconds: float = 1.0,
+    stop_check: Any = None,
 ) -> None:
-    """Sleep for ``seconds`` in short slices so Ctrl-C interrupts promptly."""
+    """Sleep for ``seconds`` in short slices so Ctrl-C or stop requests interrupt promptly."""
     sleeper = sleep_fn if sleep_fn is not None else time.sleep
     if sleep_fn is not None:
         sleeper(seconds)
+        if stop_check is not None and stop_check():
+            raise DriverError(
+                "Stop requested while waiting for external dependencies; claimed items released."
+            )
         return
     remaining = float(seconds)
     while remaining > 0.0:
+        if stop_check is not None and stop_check():
+            raise DriverError(
+                "Stop requested while waiting for external dependencies; claimed items released."
+            )
         step = min(slice_seconds, remaining)
         sleeper(step)
         remaining -= step
+    if stop_check is not None and stop_check():
+        raise DriverError(
+            "Stop requested while waiting for external dependencies; claimed items released."
+        )
 
 
 def _is_waitable_external_dep(edge: Any, target_status: str) -> bool:
@@ -20121,9 +20134,116 @@ class WaitableExternalDependencies(DriverError):
         self,
         waiting_deps: list[tuple[str, str, str, str]],
         message: str,
+        *,
+        claimed_queue: Sequence[Mapping[str, Any]] = (),
     ) -> None:
         super().__init__(message)
         self.waiting_deps = list(waiting_deps)
+        self.claimed_queue = [dict(entry) for entry in claimed_queue]
+
+
+class _PollDepsClaim:
+    """Live lock-backed queue reservation held while ``--poll-for-deps`` waits.
+
+    Creates a temporary canonical ``run-*`` directory holding ``driver.lock`` and a
+    ``state.json`` whose queue entries are marked ``queued``. Because ``get_active_runs_map``,
+    ``enforce_no_active_runner_conflict``, ``plan_holder``, and ``peer_drivers`` all read
+    live ``driver.lock``-backed run directories, this immediately surfaces claimed items as
+    ``queued`` in ``aw att --runs`` and blocks concurrent runners from overlapping them.
+
+    Calling :meth:`release` (guaranteed via ``finally:``) drops ``driver.lock`` and deletes
+    the temporary reservation directory cleanly on promotion, Ctrl-C, SIGTERM, stop request,
+    or error. If the process is SIGKILLed, the OS drops ``flock`` immediately so readers no
+    longer treat the claim as live.
+    """
+
+    def __init__(self, repo: Path, *, host: str) -> None:
+        self.repo = Path(repo).resolve()
+        self.host = str(host or "oc")
+        self.run_id: str | None = None
+        self.run_dir: Path | None = None
+        self._stack = contextlib.ExitStack()
+        self._created_at: str = utc_now()
+        self._released: bool = False
+
+    def _build_state(
+        self,
+        claimed_queue: Sequence[Mapping[str, Any]],
+        waiting_deps: Mapping[str, str],
+    ) -> dict[str, Any]:
+        queue_entries: list[dict[str, Any]] = []
+        for idx, entry in enumerate(claimed_queue, start=1):
+            if not isinstance(entry, Mapping):
+                continue
+            id6 = str(entry.get("id6") or "").strip()
+            if not id6:
+                continue
+            queue_entries.append(
+                {
+                    "position": idx,
+                    "id6": id6,
+                    "setid": str(entry.get("setid") or ""),
+                    "configured_file": str(entry.get("configured_file") or ""),
+                    "artifact_type": str(entry.get("artifact_type") or "ipd"),
+                    "action": str(entry.get("action") or "execute"),
+                    "status": "queued",
+                }
+            )
+        return {
+            "run_id": self.run_id,
+            "host": self.host,
+            "repo": str(self.repo),
+            "created_at": self._created_at,
+            "updated_at": utc_now(),
+            "waiting_for_deps": True,
+            "waiting_deps": [
+                {"id6": tid, "status": st} for tid, st in sorted(waiting_deps.items())
+            ],
+            "queue": queue_entries,
+        }
+
+    def claim(
+        self,
+        claimed_queue: Sequence[Mapping[str, Any]],
+        waiting_deps: Mapping[str, str],
+    ) -> None:
+        if not claimed_queue or self._released:
+            return
+        if self.run_dir is None:
+            run_id, run_dir = mint_run_dir(self.repo, None)
+            self.run_id = run_id
+            self.run_dir = run_dir
+            try:
+                self._stack.enter_context(run_lock(run_dir))
+            except BaseException:
+                self.release()
+                raise
+        assert self.run_dir is not None
+        save_state(self.run_dir, self._build_state(claimed_queue, waiting_deps))
+
+    def stop_requested(self) -> bool:
+        if self.run_dir is None or self._released:
+            return False
+        try:
+            from agent_workflows import runner_stop as _runner_stop
+
+            return _runner_stop.read_stop_request(self.run_dir) is not None
+        except Exception:
+            return False
+
+    def release(self) -> None:
+        if self._released:
+            return
+        self._released = True
+        run_dir = self.run_dir
+        try:
+            self._stack.close()
+        finally:
+            if run_dir is not None:
+                with contextlib.suppress(Exception):
+                    shutil.rmtree(run_dir, ignore_errors=True)
+            self.run_dir = None
+            self.run_id = None
 
 
 DEFAULT_QUESTION_ROUNDS: int = 2
@@ -21686,6 +21806,7 @@ def enforce_no_active_runner_conflict(
     on_conflict: Optional[str] = None,
     interactive: Optional[bool] = None,
     args: Any = None,
+    exclude_run_id: str | None = None,
 ) -> tuple[list[str], list[Path]]:
     """Enforce active runner conflict policy (drop, refuse, force, or prompt).
 
@@ -21699,7 +21820,7 @@ def enforce_no_active_runner_conflict(
     """
     from agent_workflows import attention, term as T
 
-    run_map = attention.get_active_runs_map(repo)
+    run_map = attention.get_active_runs_map(repo, exclude_run_id=exclude_run_id)
     if not run_map:
         return list(queue_ids), list(selected_plan_paths)
 
@@ -25278,7 +25399,9 @@ def enforce_freeze_time_refusal(
             "\n".join(waitable_findings)
             + "\nNo work started, and nothing durable was created."
         )
-        raise WaitableExternalDependencies(waitable_external_deps, message)
+        raise WaitableExternalDependencies(
+            waitable_external_deps, message, claimed_queue=queue
+        )
 
 
 def enforce_orchestrator_shape_gate(
@@ -40005,62 +40128,86 @@ def initialize_run_core(
     )
     poll_label = str(getattr(args, "poll_for_deps", "") or "").strip()
     poll_tick = 0
-    while True:
-        try:
-            return _initialize_run_core_once(
-                args,
-                host=host,
-                driver_path=driver_path,
-                host_options=host_options,
-                labels=labels,
-                expand_selectors_fn=expand_selectors_fn,
-                enforce_dependency_preflight_fn=enforce_dependency_preflight_fn,
-                edge_satisfied_fn=edge_satisfied_fn,
-                set_plan_approved_fn=set_plan_approved_fn,
-                announce_run_order_fn=announce_run_order_fn,
-                is_plan_review_approved_fn=is_plan_review_approved_fn,
-                run_order_rationale_fn=run_order_rationale_fn,
-                write_report_fn=write_report_fn,
-                git_common_dir_fn=git_common_dir_fn,
-                parse_dependency_token_fn=parse_dependency_token_fn,
-                default_runbook_text=default_runbook_text,
-                default_stall_timeout=default_stall_timeout,
-                turn_ceiling_seconds=turn_ceiling_seconds,
-                allow_waitable_external_deps=poll_enabled,
-                report_start_notices=(poll_tick == 0),
-            )
-        except WaitableExternalDependencies as wait_exc:
-            if not poll_enabled or poll_interval is None:
-                raise DriverError(str(wait_exc)) from wait_exc
-            poll_tick += 1
-            unique_waiting: dict[str, str] = {}
-            for (
-                _consumer,
-                _edge_tok,
-                target_id6,
-                target_status,
-            ) in wait_exc.waiting_deps:
-                unique_waiting[target_id6] = target_status
-            waiting_summary = ", ".join(
-                f"{tid} ({st})" for tid, st in sorted(unique_waiting.items())
-            )
-            next_at = time.strftime(
-                "%H:%M:%S", time.localtime(time.time() + poll_interval)
-            )
-            print(
-                f"[aw] waiting for external dependencies: {waiting_summary}; "
-                f"next check in {poll_label} at {next_at} (Ctrl-C to cancel)",
-                file=sys.stderr,
-                flush=True,
-            )
-            from agent_workflows import tab_status as _tab_status
+    wait_claim: _PollDepsClaim | None = None
+    try:
+        while True:
+            try:
+                return _initialize_run_core_once(
+                    args,
+                    host=host,
+                    driver_path=driver_path,
+                    host_options=host_options,
+                    labels=labels,
+                    expand_selectors_fn=expand_selectors_fn,
+                    enforce_dependency_preflight_fn=enforce_dependency_preflight_fn,
+                    edge_satisfied_fn=edge_satisfied_fn,
+                    set_plan_approved_fn=set_plan_approved_fn,
+                    announce_run_order_fn=announce_run_order_fn,
+                    is_plan_review_approved_fn=is_plan_review_approved_fn,
+                    run_order_rationale_fn=run_order_rationale_fn,
+                    write_report_fn=write_report_fn,
+                    git_common_dir_fn=git_common_dir_fn,
+                    parse_dependency_token_fn=parse_dependency_token_fn,
+                    default_runbook_text=default_runbook_text,
+                    default_stall_timeout=default_stall_timeout,
+                    turn_ceiling_seconds=turn_ceiling_seconds,
+                    allow_waitable_external_deps=poll_enabled,
+                    report_start_notices=(poll_tick == 0),
+                    exclude_run_id=(
+                        wait_claim.run_id if wait_claim is not None else None
+                    ),
+                )
+            except WaitableExternalDependencies as wait_exc:
+                if not poll_enabled or poll_interval is None:
+                    raise DriverError(str(wait_exc)) from wait_exc
+                poll_tick += 1
+                unique_waiting: dict[str, str] = {}
+                for (
+                    _consumer,
+                    _edge_tok,
+                    target_id6,
+                    target_status,
+                ) in wait_exc.waiting_deps:
+                    unique_waiting[target_id6] = target_status
+                if wait_exc.claimed_queue:
+                    repo_arg = getattr(args, "repo", None)
+                    if repo_arg:
+                        if wait_claim is None:
+                            wait_claim = _PollDepsClaim(
+                                Path(repo_arg).expanduser().resolve(), host=host
+                            )
+                        wait_claim.claim(wait_exc.claimed_queue, unique_waiting)
+                waiting_summary = ", ".join(
+                    f"{tid} ({st})" for tid, st in sorted(unique_waiting.items())
+                )
+                next_at = time.strftime(
+                    "%H:%M:%S", time.localtime(time.time() + poll_interval)
+                )
+                print(
+                    f"[aw] waiting for external dependencies: {waiting_summary}; "
+                    f"next check in {poll_label} at {next_at} (Ctrl-C to cancel)",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                from agent_workflows import tab_status as _tab_status
 
-            with _tab_status.temporary_active_state(_tab_status.STATE_WAITING_DEPS):
-                _sleep_poll_interval(poll_interval, sleep_fn=poll_sleep_fn)
-            from agent_workflows import selectors as _poll_selectors
+                with _tab_status.temporary_active_state(_tab_status.STATE_WAITING_DEPS):
+                    _sleep_poll_interval(
+                        poll_interval,
+                        sleep_fn=poll_sleep_fn,
+                        stop_check=(
+                            wait_claim.stop_requested
+                            if wait_claim is not None
+                            else None
+                        ),
+                    )
+                from agent_workflows import selectors as _poll_selectors
 
-            _poll_selectors._record_dirs_cached.cache_clear()
-            _poll_selectors.drop_scan()
+                _poll_selectors._record_dirs_cached.cache_clear()
+                _poll_selectors.drop_scan()
+    finally:
+        if wait_claim is not None:
+            wait_claim.release()
 
 
 def _initialize_run_core_once(
@@ -40085,6 +40232,7 @@ def _initialize_run_core_once(
     turn_ceiling_seconds: float | None = None,
     allow_waitable_external_deps: bool = False,
     report_start_notices: bool = True,
+    exclude_run_id: str | None = None,
 ) -> Path:
     repo = Path(args.repo).expanduser().resolve()
     if not (repo / ".git").exists():
@@ -40347,6 +40495,7 @@ def _initialize_run_core_once(
             selected_plan_paths,
             manifest=manifest,
             args=args,
+            exclude_run_id=exclude_run_id,
         )
 
         initial_session = getattr(args, "session", None)

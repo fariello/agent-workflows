@@ -3289,11 +3289,15 @@ _RUN_PRIORITY_ORDER: Dict[str, int] = {
 }
 
 
-def get_active_runs_map(repo_root: Path) -> Dict[str, str]:
+def get_active_runs_map(
+    repo_root: Path, *, exclude_run_id: Optional[str] = None
+) -> Dict[str, str]:
     """Scan active runner sessions and return a mapping of id6/path to runner state.
 
     Only live runs (whose driver process currently holds driver.lock) are inspected.
     States are emitted in the runner's canonical item status vocabulary.
+    Pass ``exclude_run_id`` to omit a caller's own run directory (for example a
+    ``--poll-for-deps`` reservation re-checking dependencies on its next tick).
     """
     from agent_workflows import run_viewer
 
@@ -3305,7 +3309,10 @@ def get_active_runs_map(repo_root: Path) -> Dict[str, str]:
         return run_map
 
     live_runs = [
-        r for r in runs if run_viewer.driver_holder_state(r) == run_viewer.HOLDER_LIVE
+        r
+        for r in runs
+        if (exclude_run_id is None or r.name != exclude_run_id)
+        and run_viewer.driver_holder_state(r) == run_viewer.HOLDER_LIVE
     ]
     if not live_runs:
         return run_map

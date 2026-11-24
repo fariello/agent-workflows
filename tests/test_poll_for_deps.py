@@ -268,13 +268,28 @@ def test_poll_for_deps_waits_until_external_plan_executes_then_starts(
         )
     assert prep_sleeps == []
 
-    # With --poll-for-deps 5m: polls twice, external dep executes on tick 2, tick 3 succeeds
+    # With --poll-for-deps 5m: polls twice, external dep executes on tick 2, tick 3 succeeds.
+    # While waiting, the polling runner claims `cns002` as `queued` for attention/conflict/holder checks,
+    # does not self-conflict across ticks, and removes the temporary claim dir once the real run starts.
+    from agent_workflows import attention
+
     sleeps: list[float] = []
+    observed_active_maps: list[dict[str, str]] = []
+    observed_holder_verdicts: list[str] = []
+    conflict_blocked = False
 
     def _fake_sleep(secs: float) -> None:
+        nonlocal conflict_blocked
         sleeps.append(secs)
-        # No durable run directory exists while still waiting
-        assert not runs_dir.exists() or list(runs_dir.glob("run-*")) == []
+        active = attention.get_active_runs_map(repo)
+        observed_active_maps.append(dict(active))
+        holder = runner_shared.plan_holder(repo, "cns002")
+        observed_holder_verdicts.append(holder.verdict)
+        if len(sleeps) == 1:
+            # A competing runner trying to run the claimed item sees the live claim and refuses/drops it.
+            with pytest.raises(runner_shared.DriverError):
+                _init_via_core(_make_args(repo, ["cns002"]))
+            conflict_blocked = True
         if len(sleeps) == 2:
             dep_path.unlink()
             _write_plan(repo, "dep001", order=1, status="executed", subdir="executed")
@@ -287,8 +302,19 @@ def test_poll_for_deps_waits_until_external_plan_executes_then_starts(
         )
 
     assert sleeps == [300.0, 300.0]
+    assert observed_active_maps == [
+        {k: v for k, v in m.items()} for m in observed_active_maps
+    ]
+    assert all(m.get("cns002") == "queued" for m in observed_active_maps)
+    assert observed_holder_verdicts == [
+        runner_shared.PLAN_HOLDER_HELD,
+        runner_shared.PLAN_HOLDER_HELD,
+    ]
+    assert conflict_blocked is True
     assert "waiting for external dependencies: dep001 (approved)" in err.getvalue()
     assert run_dir.is_dir()
+    # Temporary waiting reservation was cleaned up; only the real run_dir remains.
+    assert [p.name for p in runs_dir.glob("run-*")] == [run_dir.name]
     state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
     assert state["options"]["poll_for_deps"] == "5m"
     assert [it["id6"] for it in state["queue"]] == ["cns002"]
@@ -330,6 +356,8 @@ def test_poll_for_deps_refuses_immediately_on_permanent_or_internal_unsatisfiabl
 def test_poll_for_deps_keyboard_interrupt_cancels_cleanly_without_durable_state(
     tmp_path: Path,
 ) -> None:
+    from agent_workflows import attention
+
     repo = _init_repo(tmp_path)
     _write_plan(repo, "dep001", order=1, status="approved")
     _write_plan(
@@ -338,7 +366,15 @@ def test_poll_for_deps_keyboard_interrupt_cancels_cleanly_without_durable_state(
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-qm", "add plans"], cwd=repo, check=True)
 
+    claimed_while_waiting = False
+
     def _interrupt(_secs: float) -> None:
+        nonlocal claimed_while_waiting
+        claimed_while_waiting = (
+            attention.get_active_runs_map(repo).get("cns002") == "queued"
+            and runner_shared.plan_holder(repo, "cns002").verdict
+            == runner_shared.PLAN_HOLDER_HELD
+        )
         raise KeyboardInterrupt()
 
     with pytest.raises(KeyboardInterrupt):
@@ -346,5 +382,68 @@ def test_poll_for_deps_keyboard_interrupt_cancels_cleanly_without_durable_state(
             _make_args(repo, ["cns002"], poll_for_deps="30m"),
             poll_sleep_fn=_interrupt,
         )
+    assert claimed_while_waiting is True
     runs_dir = repo / ".aw" / "records" / "runs"
     assert not runs_dir.exists() or list(runs_dir.glob("run-*")) == []
+    assert attention.get_active_runs_map(repo) == {}
+    assert (
+        runner_shared.plan_holder(repo, "cns002").verdict
+        == runner_shared.PLAN_HOLDER_NOT_HELD
+    )
+
+
+def test_poll_for_deps_releases_claim_on_stop_request_and_on_dep_failure(
+    tmp_path: Path,
+) -> None:
+    from agent_workflows import attention, runner_stop
+
+    repo = _init_repo(tmp_path)
+    dep_path = _write_plan(repo, "dep001", order=1, status="approved")
+    _write_plan(
+        repo, "cns002", order=2, status="approved", dependencies="executed:dep001"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "add plans"], cwd=repo, check=True)
+
+    runs_dir = repo / ".aw" / "records" / "runs"
+
+    # 1. Stop request written to the waiting claim dir cancels polling and releases the claim.
+    def _send_stop(_secs: float) -> None:
+        live_dirs = list(runs_dir.glob("run-*"))
+        assert len(live_dirs) == 1
+        assert attention.get_active_runs_map(repo).get("cns002") == "queued"
+        runner_stop.request_stop(
+            live_dirs[0],
+            level=3,
+            requester="test-operator",
+        )
+
+    with pytest.raises(runner_shared.DriverError, match="Stop requested"):
+        _init_via_core(
+            _make_args(repo, ["cns002"], poll_for_deps="5m"),
+            poll_sleep_fn=_send_stop,
+        )
+    assert list(runs_dir.glob("run-*")) == []
+    assert attention.get_active_runs_map(repo) == {}
+    assert (
+        runner_shared.plan_holder(repo, "cns002").verdict
+        == runner_shared.PLAN_HOLDER_NOT_HELD
+    )
+
+    # 2. Upstream dependency becomes permanently unsatisfiable mid-wait -> claim released.
+    def _supersede_dep(_secs: float) -> None:
+        assert attention.get_active_runs_map(repo).get("cns002") == "queued"
+        dep_path.unlink()
+        _write_plan(repo, "dep001", order=1, status="superseded", subdir="superseded")
+
+    with pytest.raises(runner_shared.DriverError, match="RUN-DEPENDENCY-UNSATISFIABLE"):
+        _init_via_core(
+            _make_args(repo, ["cns002"], poll_for_deps="5m"),
+            poll_sleep_fn=_supersede_dep,
+        )
+    assert list(runs_dir.glob("run-*")) == []
+    assert attention.get_active_runs_map(repo) == {}
+    assert (
+        runner_shared.plan_holder(repo, "cns002").verdict
+        == runner_shared.PLAN_HOLDER_NOT_HELD
+    )
