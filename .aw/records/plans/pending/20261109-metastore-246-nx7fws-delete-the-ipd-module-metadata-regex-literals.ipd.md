@@ -42,30 +42,35 @@ PIN RULE (carried from `9o83cr`): before E-01, create directory `mkdir -p .aw/st
 
 ### Task group 1: one module per item, then verify
 
-- [ ] E-01 Ensure `.aw/state/nx7fws/` exists (`mkdir -p .aw/state/nx7fws/`) and save the three PIN modules baseline to `.aw/state/nx7fws/before.txt`; then in `agent_workflows/ipd_lint.py`, delete `ipd_lint._HISTORY_LINE_RE`, `_CITATION_PLAN_DATE_RE` and the `m_stat`/`m_prio` literals in `ipd_lint.run_lint`.
+- [x] E-01 Ensure `.aw/state/nx7fws/` exists (`mkdir -p .aw/state/nx7fws/`) and save the three PIN modules baseline to `.aw/state/nx7fws/before.txt`; then in `agent_workflows/ipd_lint.py`, delete `ipd_lint._HISTORY_LINE_RE`, `_CITATION_PLAN_DATE_RE` and the `m_stat`/`m_prio` literals in `ipd_lint.run_lint`.
   - Depends on: none
   - Expected outcome: the `LIT` search over `agent_workflows/ipd_lint.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: baseline saved (134 PASSED rows in `.aw/state/nx7fws/before.txt`). Every named site was ALREADY GONE at starting HEAD `850cab105`, as `786w7r` F-27 records: `_HISTORY_LINE_RE` is the non-regex `_LegacyHistoryLineMatcher` shim, and `_CITATION_PLAN_DATE_RE` and the `run_lint` `m_stat`/`m_prio` literals do not exist. Per OQ-01 no edit was needed. Additionally replaced the `ipd_lint.parse` use of `ipd_schema._META_LINE_RE` (deleted in E-03) with the non-regex `ipd_lint._body_field` helper for the N3 body rows (open-question sub-fields, `Size assessment`).
 
-- [ ] E-02 In `ipd_lifecycle._insert_scope_exceeded_metadata`, replace the four `^-` literals (a bullet WRITER) with one `artifact_meta.append` event.
+- [x] E-02 In `ipd_lifecycle._insert_scope_exceeded_metadata`, replace the four `^-` literals (a bullet WRITER) with one `artifact_meta.append` event.
   - Depends on: E-01
   - Expected outcome: the `LIT` search over `agent_workflows/ipd_lifecycle.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: ALREADY GONE (OQ-01). `ipd_lifecycle._insert_scope_exceeded_metadata` was removed by `f7ed4d835` (`1dvb08`), which moved the finalize scope fields onto `artifact_meta` `set` events passed as `extra_events` to `status_set.apply_status_change`. No edit.
 
-- [ ] E-03 In `agent_workflows/ipd_schema.py`, delete the literal in `ipd_schema.plan_requires_attended`, `_META_LINE_RE` and `_READINESS_LINE_RE`; keep the E/V checklist and section grammar.
+- [x] E-03 In `agent_workflows/ipd_schema.py`, delete the literal in `ipd_schema.plan_requires_attended`, `_META_LINE_RE` and `_READINESS_LINE_RE`; keep the E/V checklist and section grammar.
   - Depends on: E-02
   - Expected outcome: the `LIT` search over `agent_workflows/ipd_schema.py` prints only `body prose` rows.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: `plan_requires_attended` and `read_readiness` now read `artifact_meta.read_text(artifact_meta.metadata_region(text)).fields`; `_META_LINE_RE` and `_READINESS_LINE_RE` deleted. Behavior change: a `- Readiness:` line outside the metadata block (for example in `## Workflow history`) is no longer read; on all 1992 tracked plans the old and new readers agree (0 differences).
 
-- [ ] E-04 In `agent_workflows/ipd_authoring.py`, delete `ipd_authoring._ID_LINE_RE` and `_WATERMARK_RE`.
+- [x] E-04 In `agent_workflows/ipd_authoring.py`, delete `ipd_authoring._ID_LINE_RE` and `_WATERMARK_RE`.
   - Depends on: E-03
   - Expected outcome: the `LIT` search over `agent_workflows/ipd_authoring.py` prints nothing.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: `_ID_LINE_RE` replaced by `ipd_authoring._declared_plan_id` (reads `artifact_meta.read_text(...).id6` bounded to the metadata region, validated by `artifact_core.ID6_RE`); `_WATERMARK_RE` had no reference and was deleted.
 
-- [ ] E-05 Update `tests/test_ipd_lint.py`, `tests/test_ipd_schema.py` and `tests/test_ipd_authoring.py` only where a case names a deleted pattern; save `after.txt`; run the three modules and `aw ipd lint --all` (dispositions equal the pre-edit run); commit through `aw commit nx7fws -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
+- [x] E-05 Update `tests/test_ipd_lint.py`, `tests/test_ipd_schema.py` and `tests/test_ipd_authoring.py` only where a case names a deleted pattern; save `after.txt`; run the three modules and `aw ipd lint --all` (dispositions equal the pre-edit run); commit through `aw commit nx7fws -- <paths>` with only Scope-Paths files; never `git add -A`, a bare `git add` or `git commit -a`; never push.
   - Depends on: E-04
   - Expected outcome: the three modules pass; no plan's lint disposition changes.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: `tests/test_ipd_schema.py` row text renamed `_META_LINE_RE`; `tests/test_status_set_descriptive_safety.py::test_attestation_forgery_string_predicates` (outside Scope-Paths, justified with `--scope-reason`) flipped to assert the forged history-body readiness is no longer read. Committed `1511c4c63` through `aw commit nx7fws` (attempt 1, lane `aw/lane/nx7fws`); brought forward unchanged into attempt 2 as `2b1c69b5e`, with `--scope-reason` recorded for `tests/test_status_set_descriptive_safety.py` and `agent_workflows/artifact_meta.py`.
 
 ## Project conventions discovered (Step 0)
 
@@ -131,30 +136,84 @@ No spec change; implements part of `4sd62s` 4.3.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `LIT` search over `agent_workflows/ipd_lint.py` printing nothing.
   - Observed evidence:
-  - Result: pending
 
-- [ ] V-02 validates E-02
+    $ LIT='re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?["'"'"'](\(\?m\))?\^-'
+    $ rg -n "$LIT" agent_workflows/ipd_lint.py
+    229:_LEAF_RE = re.compile(r"^- \[([ x])\]\s+(.*)$")
+    (exit 0)
+
+    The single hit is `ipd_lint._LEAF_RE`, the E/V checklist leaf `- [x]`, classed `body prose (N3)` as row F27-39 of `786w7r`; every site E-01 names is absent (`_HISTORY_LINE_RE` is the non-regex `_LegacyHistoryLineMatcher` shim, `786w7r` "already gone" list), so the search prints only that body-prose row and no metadata literal remains (the plan Goal's `body prose`-only condition).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `git diff` hunk of `ipd_lifecycle._insert_scope_exceeded_metadata` showing the `artifact_meta.append` call, and the `LIT` search over `agent_workflows/ipd_lifecycle.py` printing nothing. Code path: `ipd_lifecycle._insert_scope_exceeded_metadata` (E-02), reached by `aw ipd finalize --scope-reason`.
   - Observed evidence:
-  - Result: pending
 
-- [ ] V-03 validates E-03
+    $ rg -n "$LIT" agent_workflows/ipd_lifecycle.py
+    (exit 1)
+    $ rg -n "_insert_scope_exceeded_metadata" agent_workflows/ipd_lifecycle.py
+    (no output)
+    $ rg -n "extra_events=extra_events" agent_workflows/ipd_lifecycle.py
+    6124:                rec, "executed", repo_root, ns, extra_events=extra_events
+    6308:                wt_rec, "executed", coord.path, ns, extra_events=extra_events
+
+    No `git diff` hunk exists in this plan: the function was already deleted by `f7ed4d835` ("1dvb08: write finalize scope fields in the executed append"), which replaced the four bullet-writer literals with a `{"op": "set", "fields": scope_fields}` event passed as `extra_events` into `status_set.apply_status_change`, the `artifact_meta` append path. Recorded per OQ-01 (`already gone`).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `LIT` search over `agent_workflows/ipd_schema.py` showing only `body prose` rows, each named in `786w7r` F-27.
   - Observed evidence:
-  - Result: pending
 
-- [ ] V-04 validates E-04
+    $ rg -n "$LIT" agent_workflows/ipd_schema.py
+    1127:V_ROW_RE = re.compile(r"^- \[[ x]\] (V-[0-9]{2,}) validates (E-[0-9]{2,})\b")
+    1129:E_ROW_RE = re.compile(r"^- \[[ x]\] (E-[0-9]{2,})\b")
+    (exit 0)
+
+    Both rows are `body prose (N3)`, named in `786w7r` F-27 as F27-8 (`V_ROW_RE`) and F27-9 (`E_ROW_RE`). F27-5, F27-6 and F27-7 are gone. Corpus check: old and new `read_readiness`, `plan_requires_attended` and plan-Id readers return identical values on all 1992 tracked plan files (`1992 0 0 0`).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `LIT` search over `agent_workflows/ipd_authoring.py` printing nothing.
   - Observed evidence:
-  - Result: pending
 
-- [ ] V-05 validates E-05
+    $ rg -n "$LIT" agent_workflows/ipd_authoring.py
+    (exit 1)
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `diff .aw/state/nx7fws/before.txt .aw/state/nx7fws/after.txt` (empty, or each change mapped), the summary line of `python3 -m pytest -o addopts="" tests/test_ipd_lint.py tests/test_ipd_schema.py tests/test_ipd_authoring.py` passing, `diff` of the `aw ipd lint --all` disposition lists before and after (empty), and `git show --stat` of the `aw commit nx7fws` commit.
   - Observed evidence:
-  - Result: pending
+
+    $ diff .aw/state/nx7fws/before.txt .aw/state/nx7fws/after.txt
+    (empty; exit 0; 134 PASSED rows each)
+    $ python3 -m pytest -o addopts="" tests/test_ipd_lint.py tests/test_ipd_schema.py tests/test_ipd_authoring.py   (PIN run, -m "" -p no:randomly -n 0 -rA; attempt 2)
+    before (code patch reversed): ======================== 134 passed in 78.91s (0:01:18) ========================
+    after:                        ======================== 134 passed in 67.06s (0:01:07) ========================
+    $ diff <aw ipd lint --all before> <aw ipd lint --all after>
+    (empty; exit 0; both runs exit 0, 2037 lines each, attempt 2)
+    $ aw suite   (bare core gate)
+    2892 passed, 1 skipped, 11 warnings in 89.91s (0:01:29)
+    $ git show --stat 2b1c69b5e
+    commit 2b1c69b5ec8ba95927e9da89a3d64d6b97e2e52d
+    (author/date header lines omitted)
+
+        metastore 246 (nx7fws): delete the ipd-module metadata regex literals; read Readiness/Attended/Id through artifact_meta (brought forward from lane nx7fws attempt 1)
+
+        AW-Run: run-20261124T050731Z-1001505
+        AW-Item: nx7fws
+        AW-Runner: aw oc run
+
+     agent_workflows/artifact_meta.py            |  2 --
+     agent_workflows/ipd_authoring.py            | 25 +++++++++++++--------
+     agent_workflows/ipd_lint.py                 | 23 +++++++++++++++----
+     agent_workflows/ipd_schema.py               | 35 ++++++++++++++++-------------
+     tests/test_ipd_schema.py                    |  2 +-
+     tests/test_status_set_descriptive_safety.py | 17 +++++++++-----
+     6 files changed, 67 insertions(+), 37 deletions(-)
+  - Result: pass
 
 ## Approval and execution gate
 
