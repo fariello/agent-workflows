@@ -101,6 +101,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-233-uopi8z-delete-the-plans-index-writers-and-the-plans-archive-refresh.ipd.md
 - Moved to s6k01k (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 research subset, the same five symbols in `research_index`, the post-move refresh in `research_archive`, the `research_index` `record_producers` entry, `tests/test_research_index.py`.
   - Carrier: s6k01k
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-234-s6k01k-delete-the-research-index-writers-and-the-research-archive-r.ipd.md
 - Moved to drav0u (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 prompts subset, the same five symbols in `prompts_index`, `tests/test_prompts_index.py`. With the two test subsets, the three module subsets and E-18 here, this equals E-03's list.
   - Carrier: drav0u
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-235-drav0u-delete-the-prompts-index-writers.ipd.md

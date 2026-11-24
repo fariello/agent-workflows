@@ -2,8 +2,8 @@
 
 Stdlib unittest, throwaway git repos (moves use git mv). Verifies promote-to-reference shard move
 (id/cites intact, correct weekly shard), targeted archive, the aged-and-uncited sweep with per-item
-override + recorded status, the miscategorization flag, and the INDEX refresh (archive out,
-reference in).
+override + recorded status, the miscategorization flag, and that an archival move writes no INDEX
+file (spec 4sd62s 4.5).
 """
 
 from __future__ import annotations
@@ -319,14 +319,20 @@ class IndexRefreshTests(unittest.TestCase):
         )
 
     def test_archived_leaves_index_md(self):
+        # Retargeted (plan s6k01k, spec 4sd62s 4.5): the archive no longer refreshes INDEX files.
+        # The doc is archived in the scan `aw find research` reads, and no INDEX file is written.
         import argparse
 
         args = argparse.Namespace(
             target="aaaaaa", dir=str(self.root), keep=None, apply=True
         )
         A.run_archive(args)
-        md = (self.rroot / I.INDEX_MD).read_text(encoding="utf-8")
-        self.assertNotIn("aaaaaa", md)  # archived -> excluded from the hot glance
+        for name in ("INDEX.json", "INDEX.md"):
+            self.assertFalse((self.rroot / name).exists(), f"{name} was written")
+        entries, _ = I._scan_docs(self.rroot, repo_root=self.root)
+        archived = [e for e in entries if e.id6 == "aaaaaa"]
+        self.assertEqual([e.status for e in archived], ["archive"])
+        self.assertTrue(archived[0].path.startswith("archive/"))
 
 
 def _write_kind_doc(
@@ -489,7 +495,7 @@ class ShardDateTests(unittest.TestCase):
 class IntakeToTodoMigrationTests(unittest.TestCase):
     """rstodo lpqy64: migrating a legacy `intake` doc to `todo` through the contract tool
     (`aw research promote --to todo`) flips ONLY the status line, preserves the rest, keeps the
-    doc at the hot root (no shard move), and leaves it validating + INDEX regenerated."""
+    doc at the hot root (no shard move), and leaves it validating (no INDEX file is written)."""
 
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())

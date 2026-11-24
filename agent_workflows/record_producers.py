@@ -294,15 +294,6 @@ PRODUCER_INVENTORY: List[RecordProducerEntry] = [
         commit_policy_consumer="prompt_and_run_commit",
     ),
     RecordProducerEntry(
-        name="research_index",
-        source_path="agent_workflows/research_index.py",
-        anchor="run_index",
-        operation="create",
-        category="research",
-        resolver_surface="python_api",
-        commit_policy_consumer="prompt_and_run_commit",
-    ),
-    RecordProducerEntry(
         name="research_archive",
         source_path="agent_workflows/research_archive.py",
         anchor="run_archive",
