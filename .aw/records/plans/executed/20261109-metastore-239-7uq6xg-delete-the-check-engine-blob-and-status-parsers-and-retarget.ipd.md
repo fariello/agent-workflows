@@ -6,7 +6,7 @@
 - Scope: retarget the external callers to `artifact_meta.read_at(id6, rev)` or `artifact_meta.read_text(text)`, then delete the three parsers from `check_engine` with their internal callers, and update `tests/test_check_engine_status_meta.py`. EXCLUDES the named and inline `check_engine` regex patterns (Orders 240 and 241) and `tools/gate_drop_audit.py`'s `backlog.parse_item` call (owned by `k6jd6l` E-18).
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/hooks/ipd_dependency_statement_gate.py, agent_workflows/status_set.py, agent_workflows/runner_shared.py, tools/gate_drop_audit.py, tests/test_check_engine_status_meta.py, tests/test_gate_drop_audit.py, .aw/records/plans/pending/20261109-metastore-239-7uq6xg-delete-the-check-engine-blob-and-status-parsers-and-retarget.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:786w7r, executed:dcerjg, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:t4gl15
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 7uq6xg
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-24 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: 7uq6xg verified (set metastore, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/hooks/ipd_dependency_statement_gate.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/runner_shared.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/status_set.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_gate_drop_audit.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
