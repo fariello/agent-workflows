@@ -95,6 +95,7 @@ flowchart TD
   - Carrier: tdhav3
 - Moved to n2cvf0 (round-3 split 2026-11-09 per research nj8zdp guidance): E-24 (remaining modules and the `non-metadata` classification).
   - Carrier: n2cvf0
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-249-n2cvf0-delete-the-remaining-module-metadata-regex-literals.ipd.md
 - `check_engine`, `runner_shared`, `status_set` and `releases` literals and parsers.
   - Carrier: e8420v
 - The residual inventory F-20, the AC-1 test and the AC-1 audit with its exclusion file.
