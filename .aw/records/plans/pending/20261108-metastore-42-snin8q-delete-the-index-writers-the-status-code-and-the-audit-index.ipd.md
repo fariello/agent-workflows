@@ -95,6 +95,7 @@ flowchart TD
   - Carrier: f6y2yy
 - Moved to 6966zq (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 test subset 2, `tests/test_drift_rule_registration.py`, `tests/test_model_vocab.py`, `tests/test_research_priority.py`, `tests/test_research_unsafe_field.py`, `tests/test_research_set_assign_date_containment.py`.
   - Carrier: 6966zq
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-232-6966zq-retarget-five-research-and-registry-tests-off-the-index-buil.ipd.md
 - Moved to uopi8z (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 plans subset, `build_index_json`, `build_index_md`, `_set_last_touched`, `DEFAULT_INDEX_LIMIT` and `run_index` in `plans_index`, `plans_archive._refresh_index`, the `plans_index` `record_producers` entry, `tests/test_plans_index.py`.
   - Carrier: uopi8z
 - Moved to s6k01k (round-3 split 2026-11-09 per research nj8zdp guidance): E-03 research subset, the same five symbols in `research_index`, the post-move refresh in `research_archive`, the `research_index` `record_producers` entry, `tests/test_research_index.py`.
