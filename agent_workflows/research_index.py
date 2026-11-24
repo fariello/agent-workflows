@@ -686,7 +686,12 @@ def _backlog_is_done(path: Path, text: str) -> bool:
     return _am.read_text(text, record_type="backlog").status == "done"
 
 
-def cited_by_executed_ids(repo_root: Path, research_root: Path) -> set:
+def cited_by_executed_ids(
+    repo_root: Path,
+    research_root: Path,
+    *,
+    candidate_ids: Optional[Sequence[str] | set[str]] = None,
+) -> set:
     """Return the research id6s that are cited by an EXECUTED artifact.
 
     An artifact is executed when: it is a plan file under an ``executed/`` disposition dir; OR a
@@ -695,7 +700,15 @@ def cited_by_executed_ids(repo_root: Path, research_root: Path) -> set:
     pending/draft artifact does NOT count. Reuses ``iter_scan_files`` + ``R.iter_id6_citations``
     (the shared citation primitives); the research tree itself is excluded so a doc citing another
     research doc is not treated as an executed-artifact citation here.
+
+    When ``candidate_ids`` is supplied, only ids in that set are sought, allowing a cheap
+    substring precheck and early exit once every candidate has been matched.
     """
+    remaining: Optional[set[str]] = (
+        set(candidate_ids) if candidate_ids is not None else None
+    )
+    if remaining is not None and not remaining:
+        return set()
 
     ctx = _am.legacy_context(repo_root)
     records_root = Path(ctx.logical_roots["records"])
@@ -717,7 +730,22 @@ def cited_by_executed_ids(repo_root: Path, research_root: Path) -> set:
                 target_map[abs_p] = st
 
     cited: set = set()
-    for f in _core.iter_scan_files(repo_root):
+    _EXEC_SCAN_ROOTS = (
+        ".agents/plans",
+        ".agents/docs",
+        ".agents/backlog",
+        ".aw/records/plans",
+        ".aw/records/specs",
+        ".aw/records/backlog",
+    )
+    cand_bytes_re: Optional[re.Pattern[bytes]] = None
+    if remaining is not None:
+        cand_bytes_re = re.compile(
+            b"|".join(re.escape(c.encode("ascii")) for c in sorted(remaining))
+        )
+    for f in _core.iter_scan_files(repo_root, scan_roots=_EXEC_SCAN_ROOTS):
+        if remaining is not None and not remaining:
+            break
         # Skip the research tree itself (we want EXECUTED plan/spec/backlog citers).
         if _under(f, research_root):
             continue
@@ -758,13 +786,39 @@ def cited_by_executed_ids(repo_root: Path, research_root: Path) -> set:
                     executed = _backlog_is_done(f, text)
         if not executed:
             continue
+        if remaining is not None and text is None and cand_bytes_re is not None:
+            try:
+                raw_bytes = f.read_bytes()
+            except OSError:
+                continue
+            if not cand_bytes_re.search(raw_bytes):
+                continue
+            try:
+                text = raw_bytes.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
         if text is None:
             try:
                 text = f.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
-        for cid in R.iter_id6_citations(text):
-            cited.add(cid)
+        if remaining is not None:
+            if not any(cid in text for cid in remaining):
+                continue
+            prev_len = len(remaining)
+            for cid in R.iter_id6_citations(text):
+                if cid in remaining:
+                    cited.add(cid)
+                    remaining.discard(cid)
+                    if not remaining:
+                        break
+            if remaining and len(remaining) != prev_len:
+                cand_bytes_re = re.compile(
+                    b"|".join(re.escape(c.encode("ascii")) for c in sorted(remaining))
+                )
+        else:
+            for cid in R.iter_id6_citations(text):
+                cited.add(cid)
     return cited
 
 

@@ -283,7 +283,15 @@ def _compute_record_dirs(repo_root_str: str, record_type: str) -> tuple[Path, ..
         has_stored_records_placement,
     )
 
-    rec_root = project_records_dir(repo_root)
+    scan_cache = current_scan_cache()
+    placement_key = ("selectors._records_placement", repo_root_str)
+    if scan_cache is not None and placement_key in scan_cache:
+        rec_root, has_stored = scan_cache[placement_key]
+    else:
+        rec_root = project_records_dir(repo_root)
+        has_stored = has_stored_records_placement(repo_root)
+        if scan_cache is not None:
+            scan_cache[placement_key] = (rec_root, has_stored)
 
     if record_type == "other":
         legacy_agents_root = repo_root / ".agents"
@@ -312,7 +320,7 @@ def _compute_record_dirs(repo_root_str: str, record_type: str) -> tuple[Path, ..
         _add(repo_root / ".agents" / "other")
         return tuple(out)
 
-    if has_stored_records_placement(repo_root):
+    if has_stored:
         _add(rec_root / record_type)
     else:
         try:

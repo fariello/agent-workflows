@@ -1301,56 +1301,114 @@ def _iter_type_files(
     include_retired: bool = False,
 ):
     """Yield each non-index *.md path for the type, de-duplicated by resolved path and skipping ignored dirs."""
+    from agent_workflows import selectors as _selectors
+
+    scan_cache = _selectors.current_scan_cache()
+    cache_key = None
+    if scan_cache is not None:
+        cache_key = (
+            "check_engine._iter_type_files",
+            str(repo_root),
+            record_type,
+            bool(include_untracked),
+            bool(include_retired),
+        )
+        cached = scan_cache.get(cache_key)
+        if cached is not None:
+            yield from cached
+            return
+
     ignored_dirs = _core.get_ignored_dirs(repo_root)
+    excluded_dir_names = set(layout.RECORD_SCAN_EXCLUDED_DIRS)
     seen: set = set()
+    results: List[Path] = []
+    _rc = None
+    if record_type == "research":
+        from agent_workflows import research_contract as _rc
+
     for d in _type_dirs(repo_root, record_type):
         if _core.is_ignored_path(
             d, repo_root, ignored_dirs, include_untracked=include_untracked
         ):
             continue
-        # SORTED, because `rglob` order is filesystem-dependent (ext4 hash order, APFS, NTFS all
-        # differ) and first-seen-wins passes (id6/setid collision) then flag a DIFFERENT file of a
-        # colliding pair per machine. Measured on CI 2026-09-25: the same tree reported the
-        # collision on `-02-` locally and on `-03-` on the Linux runner.
+        # SORTED, because filesystem walk order is filesystem-dependent (ext4 hash order, APFS,
+        # NTFS all differ) and first-seen-wins passes (id6/setid collision) then flag a DIFFERENT
+        # file of a colliding pair per machine. Measured on CI 2026-09-25: the same tree reported
+        # the collision on `-02-` locally and on `-03-` on the Linux runner.
         try:
             d_resolved: Optional[Path] = d.resolve()
         except OSError:
             d_resolved = None
-        for p in sorted(d.rglob("*.md")):
-            if p.name in _SKIP_NAMES:
-                continue
-            try:
-                p_resolved = p.resolve()
-            except OSError:
-                continue
-            if d_resolved is not None:
-                try:
-                    rel_parts = p_resolved.relative_to(d_resolved).parts[:-1]
-                    if any(
-                        part in layout.RECORD_SCAN_EXCLUDED_DIRS for part in rel_parts
+        d_str = str(d)
+        d_resolved_str = str(d_resolved) if d_resolved is not None else None
+
+        collected: List[Path] = []
+        for root_str, dirnames, filenames in os.walk(d_str, followlinks=False):
+            cur_path = Path(root_str)
+            if dirnames:
+                kept_dirs: List[str] = []
+                for dn in dirnames:
+                    if dn in excluded_dir_names:
+                        continue
+                    sub = cur_path / dn
+                    if _core.is_ignored_path(
+                        sub,
+                        repo_root,
+                        ignored_dirs,
+                        include_untracked=include_untracked,
                     ):
                         continue
-                except ValueError:
-                    if _is_record_excluded_dir(p, d):
+                    kept_dirs.append(dn)
+                dirnames[:] = kept_dirs
+            for fname in filenames:
+                if not fname.endswith(".md") or fname in _SKIP_NAMES:
+                    continue
+                collected.append(cur_path / fname)
+
+        collected.sort()
+        for p in collected:
+            is_link = p.is_symlink()
+            if not is_link and d_resolved_str is not None:
+                p_str = str(p)
+                if p_str.startswith(d_str + os.sep):
+                    p_resolved_str = d_resolved_str + p_str[len(d_str) :]
+                else:
+                    try:
+                        p_resolved_str = str(p.resolve())
+                    except OSError:
                         continue
-            elif _is_record_excluded_dir(p, d):
-                continue
+            else:
+                try:
+                    p_resolved = p.resolve()
+                except OSError:
+                    continue
+                p_resolved_str = str(p_resolved)
+                if d_resolved is not None:
+                    try:
+                        rel_parts = p_resolved.relative_to(d_resolved).parts[:-1]
+                        if any(part in excluded_dir_names for part in rel_parts):
+                            continue
+                    except ValueError:
+                        if _is_record_excluded_dir(p, d):
+                            continue
+                elif _is_record_excluded_dir(p, d):
+                    continue
             if _core.is_ignored_path(
                 p, repo_root, ignored_dirs, include_untracked=include_untracked
             ):
                 continue
-            if record_type == "research":
-                from agent_workflows import research_contract as _rc
-
-                if _rc.companion_owner_stem(p, d) is not None:
-                    continue
+            if _rc is not None and _rc.companion_owner_stem(p, d) is not None:
+                continue
             if not include_retired and is_retired(p, record_type):
                 continue
-            key = str(p_resolved)
-            if key in seen:
+            if p_resolved_str in seen:
                 continue
-            seen.add(key)
-            yield p
+            seen.add(p_resolved_str)
+            results.append(p)
+
+    if scan_cache is not None and cache_key is not None:
+        scan_cache[cache_key] = tuple(results)
+    yield from results
 
 
 def _load_normalizer():
@@ -12161,21 +12219,29 @@ def check_ipd_lint_reach(
     longer binds, citing by rule id is kept for historical continuity.
     """
     drift: List[_core.Drift] = []
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import ipd_lint as _lint
     from agent_workflows import ipd_schema as _schema
     from agent_workflows import plans as _plans
+
+    state_map = _meta_state_map(repo_root, "ipd", load_fields=True)
 
     # Widening include_retired=True is deliberate (plan lz0o6j E-04): include_retired is the exact
     # flag that produced a measured zero-versus-one check.id6-collision disagreement between
     # aw check and doctor.py. Widening it here allows check_ipd_lint_reach to reach the terminal
     # tree for the cheap path/status predicate only, keeping the full lint scoped to pending/ so the
     # two surfaces (aw check and aw ipd lint) report the identical file set by construction.
-    for p in _iter_type_files(
-        repo_root,
-        "plans",
-        include_untracked=include_untracked,
-        include_retired=True,
-    ):
+    all_plans = list(
+        _iter_type_files(
+            repo_root,
+            "plans",
+            include_untracked=include_untracked,
+            include_retired=True,
+        )
+    )
+    _lint._prewarm_review_staleness([p for p in all_plans if "pending" in p.parts])
+
+    for p in all_plans:
         if "pending" in p.parts:
             drift.extend(evaluate_ipd_lint_diagnostics(repo_root, plan_path=p))
             continue
@@ -12184,12 +12250,31 @@ def check_ipd_lint_reach(
         if not _lint._is_terminal_dir(anchor):
             continue
 
+        # Fast path: consult the cached artifact_meta state before reading/parsing the full file.
+        # Only fall back to reading disk when the plan is uncached, missing date/status, or fails
+        # the path/status predicate (so diagnostics always reflect the authoritative file check).
+        st_cached = state_map.get(p)
+        if st_cached is None:
+            try:
+                st_cached = state_map.get(p.resolve())
+            except OSError:
+                st_cached = None
+        if st_cached is not None:
+            cached_date_val = str((st_cached.fields or {}).get("date") or "").strip()
+            cached_date = cached_date_val.split()[0] if cached_date_val else None
+            if cached_date is not None:
+                if not _lint._m105_terminal_date_applies(cached_date):
+                    continue
+                cached_status = _plans._status_from_state(st_cached)
+                if cached_status is not None and not _schema._check_path_status(
+                    cached_status, anchor
+                ):
+                    continue
+
         try:
             text = p.read_text(encoding="utf-8")
         except OSError:
             continue
-
-        from agent_workflows import artifact_meta as _meta
 
         st_date = _meta.read_text(text, record_type="ipd")
         raw_date_val = str((st_date.fields or {}).get("date") or "").strip()

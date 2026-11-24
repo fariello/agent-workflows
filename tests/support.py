@@ -317,10 +317,63 @@ def git(
     )
 
 
+_INIT_REPO_TEMPLATE: Path | None = None
+
+
+def _get_init_repo_template() -> Path:
+    """Lazily initialize one clean git repo template per process for fast `init_repo`."""
+    global _INIT_REPO_TEMPLATE
+    if _INIT_REPO_TEMPLATE is not None and (_INIT_REPO_TEMPLATE / ".git").is_dir():
+        return _INIT_REPO_TEMPLATE
+
+    import atexit
+    import shutil
+    import tempfile
+
+    tmp_root = Path(tempfile.mkdtemp(prefix="aw-init-repo-tpl-"))
+    atexit.register(shutil.rmtree, str(tmp_root), ignore_errors=True)
+    tpl = tmp_root / "repo"
+    tpl.mkdir(parents=True, exist_ok=True)
+    c_env = clean_git_env()
+    proc = git(tpl, "init", "-q", env=c_env)
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"git init failed at {tpl} (exit {proc.returncode}): {proc.stderr.strip()}"
+        )
+    p_gitdir = git(tpl, "rev-parse", "--absolute-git-dir", env=c_env)
+    expected_gitdir = (tpl / ".git").resolve()
+    actual_gitdir = (
+        Path(p_gitdir.stdout.strip()).resolve() if p_gitdir.returncode == 0 else None
+    )
+    if p_gitdir.returncode != 0 or actual_gitdir != expected_gitdir:
+        raise RuntimeError(
+            f"git rev-parse --absolute-git-dir at {tpl} resolved to {actual_gitdir} "
+            f"(expected {expected_gitdir})"
+        )
+    git(tpl, "config", "--local", "user.email", "test@example.com", env=c_env)
+    git(tpl, "config", "--local", "user.name", "Test", env=c_env)
+    git(tpl, "config", "--local", "commit.gpgsign", "false", env=c_env)
+    _INIT_REPO_TEMPLATE = tpl
+    return _INIT_REPO_TEMPLATE
+
+
 def init_repo(path: Path) -> Path:
     """Initialize a minimal git repo at path with a deterministic identity."""
+    import shutil
 
-    path.mkdir(parents=True, exist_ok=True)
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise RuntimeError(f"git init failed at {path}: {exc}") from exc
+
+    if not (path / ".git").exists():
+        tpl = _get_init_repo_template()
+        try:
+            shutil.copytree(tpl / ".git", path / ".git", symlinks=True)
+        except OSError as exc:
+            raise RuntimeError(f"git init failed at {path}: {exc}") from exc
+        return path
+
     c_env = clean_git_env()
     proc = git(path, "init", "-q", env=c_env)
     if proc.returncode != 0:

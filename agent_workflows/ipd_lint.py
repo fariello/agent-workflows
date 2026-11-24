@@ -2954,6 +2954,14 @@ def _draft_ready_advisory(doc, text: str, checkpoint: str) -> List[Diagnostic]:
 
 def _plan_repo_root(path: Path) -> Path:
     """Find the owning repo root for a plan file, routing through record_owner_root (IPD ki6t17, 4uw2a6)."""
+    scan_cache = _sel.current_scan_cache()
+    parent_key = None
+    if scan_cache is not None and not path.is_symlink():
+        parent_key = ("ipd_lint._plan_repo_root", str(path.parent))
+        cached = scan_cache.get(parent_key)
+        if cached is not None:
+            return cached
+
     try:
         resolved = path.resolve()
     except Exception:
@@ -2963,13 +2971,64 @@ def _plan_repo_root(path: Path) -> Path:
 
     owner = project_context.record_owner_root(resolved)
     if owner is not None:
-        return owner
+        result = owner
+    else:
+        result = resolved.parent
+        for anc in resolved.parents:
+            if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
+                result = anc
+                break
 
-    default_root = resolved.parent
-    for anc in resolved.parents:
-        if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
-            return anc
-    return default_root
+    if scan_cache is not None and parent_key is not None:
+        scan_cache[parent_key] = result
+    return result
+
+
+def _prewarm_review_staleness(paths: Sequence[Path]) -> None:
+    """Pre-warm `plan_readiness.review_staleness_index` in bulk per git root.
+
+    `ipd_lint.lint_file` calls `review_staleness_index(repo_root, [path])` per pending plan;
+    pre-warming once across all pending plans replaces N per-file `git log` subprocesses with
+    one batched `git log` call while populating the exact `_STALENESS_CACHE` keys read later.
+    """
+    if not paths:
+        return
+    try:
+        from agent_workflows import project_context
+        from agent_workflows.plan_readiness import review_staleness_index
+
+        by_git_root: Dict[Path, List[Path]] = {}
+        parent_git_root: Dict[Path, Optional[Path]] = {}
+        for p in paths:
+            try:
+                rp = p.resolve()
+            except OSError:
+                continue
+            par = rp.parent
+            if par not in parent_git_root:
+                owner = project_context.record_owner_root(rp)
+                if owner is not None:
+                    try:
+                        ctx = project_context.resolve_project_context(
+                            target_repo=str(owner)
+                        )
+                        if (
+                            ctx.records_backend
+                            != project_context.RecordsBackend.COMPANION.value
+                        ):
+                            parent_git_root[par] = None
+                            continue
+                    except Exception:
+                        parent_git_root[par] = None
+                        continue
+                parent_git_root[par] = project_context.record_git_root(rp)
+            git_root = parent_git_root[par]
+            if git_root is not None:
+                by_git_root.setdefault(git_root, []).append(p)
+        for git_root, group in by_git_root.items():
+            review_staleness_index(git_root, group)
+    except Exception:
+        pass
 
 
 def _review_stale_advisory(
@@ -3989,16 +4048,22 @@ def run_lint(args: argparse.Namespace) -> int:
                 S.DISPOSITION_ERROR: 0,
             }
             all_diags: list[OutDiag] = []
-            membership_cache = None
-            try:
-                from agent_workflows import orchestrator_readiness as _orch_readiness
-
-                membership_cache = _orch_readiness.resolve_all_set_memberships(root)
-            except Exception:
-                pass
             from agent_workflows import artifact_meta as _meta
 
             with _sel.scan_once(), _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+                membership_cache = None
+                try:
+                    from agent_workflows import (
+                        orchestrator_readiness as _orch_readiness,
+                    )
+
+                    membership_cache = _orch_readiness.resolve_all_set_memberships(root)
+                except Exception:
+                    pass
+                if checkpoint in ("author", "review-finalize"):
+                    _prewarm_review_staleness(
+                        [f for f in files if "pending" in f.parts]
+                    )
                 for f in files:
                     res = lint_file(
                         f,

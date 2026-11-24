@@ -31,22 +31,24 @@ from tests.conformance_matrix import (
     clone_isolated_project,
     get_seeded_project_dir,
     run_cli,
+    run_cli_inproc,
     semantic_facts_from_agent,
 )
 
 
+_PARSER = cli._build_parser()
+_LEAVES = discover_parser_leaves(_PARSER)
+_DECLS = {d.command: d for d in get_all_declarations()}
+
+
 def compute_conformance_universe() -> List[str]:
     """Compute candidate leaves minus the justified exemption registry."""
-    parser = cli._build_parser()
-    leaves = discover_parser_leaves(parser)
-    decls = {d.command: d for d in get_all_declarations()}
-
     candidates = {
         leaf
-        for leaf in leaves
-        if decls.get(leaf)
-        and decls[leaf].command_class in ("read", "check", "bare")
-        and decls[leaf].agent_record_kind == "result"
+        for leaf in _LEAVES
+        if _DECLS.get(leaf)
+        and _DECLS[leaf].command_class in ("read", "check", "bare")
+        and _DECLS[leaf].agent_record_kind == "result"
     }
     universe = sorted(candidates - set(EXEMPTION_REGISTRY.keys()))
     return universe
@@ -57,16 +59,12 @@ UNIVERSE = compute_conformance_universe()
 
 def compute_mutation_conformance_universe() -> List[str]:
     """Compute candidate mutation leaves minus the justified mutation exemption registry (E-02)."""
-    parser = cli._build_parser()
-    leaves = discover_parser_leaves(parser)
-    decls = {d.command: d for d in get_all_declarations()}
-
     candidates = {
         leaf
-        for leaf in leaves
-        if decls.get(leaf)
-        and decls[leaf].command_class == "mutation"
-        and decls[leaf].agent_record_kind == "result"
+        for leaf in _LEAVES
+        if _DECLS.get(leaf)
+        and _DECLS[leaf].command_class == "mutation"
+        and _DECLS[leaf].agent_record_kind == "result"
     }
     universe = sorted(candidates - set(MUTATION_EXEMPTION_REGISTRY.keys()))
     return universe
@@ -87,7 +85,7 @@ def test_agent_surface_conformance(leaf: str, seeded_project_dir: Path) -> None:
     extra_argv = RUNNABLE_ARGV.get(leaf, [])
     full_argv = leaf.split() + extra_argv + ["--agent"]
 
-    res = run_cli(full_argv, cwd=seeded_project_dir)
+    res = run_cli_inproc(full_argv, cwd=seeded_project_dir)
 
     # 1. Non-empty stdout
     assert res.stdout.strip(), (
@@ -198,6 +196,10 @@ def test_mutation_exemption_registry_contract() -> None:
         "owned_elsewhere",
         "known_broken",
     )
+    # Fetch all backlog records in one `aw find backlog --agent` call rather than spawning
+    # a separate subprocess per exemption entry, falling back to per-citation lookup on miss.
+    bulk_res = run_cli(["find", "backlog", "--agent"])
+    bulk_stdout = bulk_res.stdout if bulk_res.returncode == 0 else ""
     for cmd, entry in MUTATION_EXEMPTION_REGISTRY.items():
         assert (
             entry.reason_kind in valid_reason_kinds
@@ -206,11 +208,12 @@ def test_mutation_exemption_registry_contract() -> None:
         assert entry.reason.strip(), f"Exemption for {cmd!r} has empty reason"
         if entry.reason_kind in ("owned_elsewhere", "known_broken"):
             # Citation must be an id6 resolvable via aw find backlog
-            res = run_cli(["find", "backlog", entry.citation])
-            assert res.returncode == 0 and entry.citation in res.stdout, (
-                f"Exemption for {cmd!r} cites {entry.citation!r} which failed to resolve via aw find backlog:\n"
-                f"Exit: {res.returncode}\nStdout: {res.stdout}"
-            )
+            if entry.citation not in bulk_stdout:
+                res = run_cli(["find", "backlog", entry.citation])
+                assert res.returncode == 0 and entry.citation in res.stdout, (
+                    f"Exemption for {cmd!r} cites {entry.citation!r} which failed to resolve via aw find backlog:\n"
+                    f"Exit: {res.returncode}\nStdout: {res.stdout}"
+                )
 
 
 @pytest.fixture(scope="session")
@@ -238,7 +241,7 @@ def test_agent_surface_conformance_mutation(
     iso = isolated_mutation_project
     full_argv = leaf.split() + RUNNABLE_ARGV.get(leaf, []) + ["--agent"]
 
-    res = run_cli(
+    res = run_cli_inproc(
         full_argv,
         cwd=iso.project_dir,
         env_overrides=iso.env_overrides,

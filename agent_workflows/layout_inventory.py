@@ -560,30 +560,53 @@ def _repo_relative(path: Path, repo: Path) -> Optional[str]:
         return None
 
 
+def _ancestor_prefixes(paths: Set[str]) -> Set[str]:
+    """Return every slash-delimited prefix of `paths` for O(1) descendant checks."""
+
+    ancestors: Set[str] = set()
+    for p in paths:
+        idx = p.find("/")
+        while idx != -1:
+            ancestors.add(p[:idx])
+            idx = p.find("/", idx + 1)
+    return ancestors
+
+
 def _git_state(
     rel: Optional[str],
     tracked: Set[str],
     untracked: Set[str],
     ignored: Set[str],
     unmerged: Set[str],
+    *,
+    tracked_anc: Optional[Set[str]] = None,
+    untracked_anc: Optional[Set[str]] = None,
+    ignored_anc: Optional[Set[str]] = None,
+    unmerged_anc: Optional[Set[str]] = None,
 ) -> str:
     """Classify one repo-relative entry using exact or descendant Git membership."""
 
     if rel is None:
         return "external"
-    prefix = rel.rstrip("/") + "/"
+    rel_key = rel.rstrip("/")
+    prefix = rel_key + "/"
     if rel in unmerged:
         return "unmerged"
     groups = (
-        ("tracked", tracked),
-        ("untracked", untracked),
-        ("ignored", ignored),
-        ("unmerged", unmerged),
+        ("tracked", tracked, tracked_anc),
+        ("untracked", untracked, untracked_anc),
+        ("ignored", ignored, ignored_anc),
+        ("unmerged", unmerged, unmerged_anc),
     )
     matched = [
         name
-        for name, paths in groups
-        if rel in paths or any(p.startswith(prefix) for p in paths)
+        for name, paths, anc in groups
+        if rel in paths
+        or (
+            rel_key in anc
+            if anc is not None
+            else any(p.startswith(prefix) for p in paths)
+        )
     ]
     if len(matched) == 1:
         return matched[0]
@@ -655,6 +678,10 @@ def inventory(
     """Build a complete JSON-serializable inventory for declared roots."""
 
     tracked, untracked, ignored, unmerged, common_dir = git_sets(repo)
+    tracked_anc = _ancestor_prefixes(tracked)
+    untracked_anc = _ancestor_prefixes(untracked)
+    ignored_anc = _ancestor_prefixes(ignored)
+    unmerged_anc = _ancestor_prefixes(unmerged)
     ignored_dirs = _ignored_dirs(repo)
     items: List[Dict[str, Any]] = []
     root_docs: List[Dict[str, Any]] = []
@@ -710,7 +737,17 @@ def inventory(
                     identity_material.encode("utf-8", "surrogateescape")
                 ).hexdigest()
                 cls_info = classify_item(label, rel, repo_rel)
-                git_st = _git_state(repo_rel, tracked, untracked, ignored, unmerged)
+                git_st = _git_state(
+                    repo_rel,
+                    tracked,
+                    untracked,
+                    ignored,
+                    unmerged,
+                    tracked_anc=tracked_anc,
+                    untracked_anc=untracked_anc,
+                    ignored_anc=ignored_anc,
+                    unmerged_anc=unmerged_anc,
+                )
 
                 item: Dict[str, Any] = {
                     "item_id": item_id,

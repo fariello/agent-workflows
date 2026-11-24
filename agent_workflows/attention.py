@@ -944,8 +944,15 @@ def scan(
     # canonical `todo` at the scanner, so a legacy `intake` doc is handled identically here.)
     items = _reclassify_stale_research(repo_root, items)
 
-    # rereview ygngc2 E-04: bulk-resolve review staleness for all collected plan items in one call.
-    plan_items = [it for it in items if it.tree == "plans"]
+    # rereview ygngc2 E-04: bulk-resolve review staleness for candidate reviewed/approved plans in one call.
+    # Only plans in reviewed/approved/auto-approved can ever be review-stale; skipping terminal and
+    # draft/to-review plans avoids reading and parsing ~1,900 executed plans on every attention scan.
+    plan_items = [
+        it
+        for it in items
+        if it.tree == "plans"
+        and it.native_status in ("reviewed", "approved", "auto-approved")
+    ]
     if plan_items:
         try:
             from agent_workflows.plan_readiness import review_staleness_index
@@ -1384,8 +1391,24 @@ def _reclassify_stale_research(repo_root: Path, items: List[Item]) -> List[Item]
         entries, _drift = _ridx._scan_docs(research_root)
         positions = _ridx.derive_pipeline_positions(entries)
         run_sets = _ridx.run_prompt_set_ids(entries)
-        cited_exec = _ridx.cited_by_executed_ids(repo_root, research_root)
         by_id = {e.id6: e for e in entries}
+        # Only scan executed plans/specs/backlog for research citations when at least one
+        # ready `todo` research doc is not already covered by `run_sets`.
+        candidate_todo_ids = {
+            it.id
+            for it in research_items
+            if it.native_status == "todo"
+            and it.attention_class == A.READY
+            and it.id in by_id
+            and by_id[it.id].set_id not in run_sets
+        }
+        cited_exec = (
+            _ridx.cited_by_executed_ids(
+                repo_root, research_root, candidate_ids=candidate_todo_ids
+            )
+            if candidate_todo_ids
+            else set()
+        )
     except Exception:
         return items
 

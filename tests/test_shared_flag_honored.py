@@ -39,6 +39,7 @@ from tests.conformance_matrix import (
     clone_isolated_project,
     get_seeded_project_dir,
     run_cli,
+    run_cli_inproc,
 )
 from tests.test_agent_surface_conformance import (
     MUTATION_UNIVERSE,
@@ -270,7 +271,7 @@ def test_json_flag_honored_read(leaf: str, seeded_project_dir: Path) -> None:
     """Assert read/check leaf emits parseable JSON on stdout under --json."""
     extra_argv = RUNNABLE_ARGV.get(leaf, [])
     full_argv = leaf.split() + extra_argv + ["--json"]
-    res = run_cli(full_argv, cwd=seeded_project_dir)
+    res = run_cli_inproc(full_argv, cwd=seeded_project_dir)
     _assert_json_parseable(leaf, full_argv, res)
 
 
@@ -282,7 +283,7 @@ def test_json_flag_honored_mutation(
     iso = isolated_mutation_project
     extra_argv = RUNNABLE_ARGV.get(leaf, [])
     full_argv = leaf.split() + extra_argv + ["--json"]
-    res = run_cli(
+    res = run_cli_inproc(
         full_argv,
         cwd=iso.project_dir,
         env_overrides=iso.env_overrides,
@@ -300,7 +301,7 @@ def test_fields_flag_honored_read(leaf: str, seeded_project_dir: Path) -> None:
     """Assert read/check leaf honors --fields cmd under --agent."""
     extra_argv = RUNNABLE_ARGV.get(leaf, [])
     full_argv = leaf.split() + extra_argv + ["--agent", "--fields", "cmd"]
-    res = run_cli(full_argv, cwd=seeded_project_dir)
+    res = run_cli_inproc(full_argv, cwd=seeded_project_dir)
     _assert_fields_honored(leaf, full_argv, res)
 
 
@@ -312,7 +313,7 @@ def test_fields_flag_honored_mutation(
     iso = isolated_mutation_project
     extra_argv = RUNNABLE_ARGV.get(leaf, [])
     full_argv = leaf.split() + extra_argv + ["--agent", "--fields", "cmd"]
-    res = run_cli(
+    res = run_cli_inproc(
         full_argv,
         cwd=iso.project_dir,
         env_overrides=iso.env_overrides,
@@ -623,7 +624,7 @@ def test_oc_models_fields_branch_behavior(tmp_path: Path) -> None:
         return None
 
     for verb in ("update-models", "sync-models"):
-        res = run_cli(
+        res = run_cli_inproc(
             [
                 "oc",
                 verb,
@@ -640,7 +641,7 @@ def test_oc_models_fields_branch_behavior(tmp_path: Path) -> None:
         rec = json.loads(res.stdout.strip())
         assert "findings" not in rec
 
-        res = run_cli(
+        res = run_cli_inproc(
             ["oc", verb, "--config", str(fake_cfg), "--dry-run", "--agent"],
             env_overrides=env,
         )

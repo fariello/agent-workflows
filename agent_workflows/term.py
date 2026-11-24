@@ -24,6 +24,7 @@ yields clean plain text with the status words intact.
 
 from __future__ import annotations
 
+import functools
 import io
 import os
 import re
@@ -34,10 +35,13 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, TextIO, Tuple, 
 from . import lifecycle_style
 
 _ANSI_RE = re.compile(r"\033\[[0-9;]*m")
+_NON_ASCII_RE = re.compile(r"[^\x00-\x7f]")
 
 
 def strip_ansi(text: str) -> str:
     """Remove ANSI escape sequences from ``text``."""
+    if "\033" not in text:
+        return text
     return _ANSI_RE.sub("", text)
 
 
@@ -87,6 +91,7 @@ def is_zero_width(ch: str) -> bool:
     return unicodedata.category(ch) in _ZERO_WIDTH_CATEGORIES
 
 
+@functools.lru_cache(maxsize=4096)
 def visible_width(text: str) -> int:
     """Return the number of terminal columns ``text`` occupies, ignoring ANSI and zero-width marks.
 
@@ -100,7 +105,12 @@ def visible_width(text: str) -> int:
     It does NOT attempt double-width or ambiguous-width resolution; see the section note above.
     """
 
-    return sum(0 if is_zero_width(ch) else 1 for ch in strip_ansi(text))
+    clean = text if "\033" not in text else _ANSI_RE.sub("", text)
+    if clean.isascii():
+        return len(clean)
+    cat = unicodedata.category
+    zw = _ZERO_WIDTH_CATEGORIES
+    return len(clean) - sum(1 for ch in _NON_ASCII_RE.findall(clean) if cat(ch) in zw)
 
 
 def pad_visible(text: str, width: int, *, align: str = "left") -> str:

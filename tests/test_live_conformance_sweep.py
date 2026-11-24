@@ -32,6 +32,7 @@ from tests.conformance_matrix import (
     live_leaf_argv,
     outcome_family,
     run_cli,
+    run_cli_inproc,
     run_cli_tty,
     seed_ledger_fixture,
     semantic_facts_from_agent,
@@ -94,7 +95,7 @@ def test_help_scenario_exits_zero_and_documents_usage(
     leaf: str, live_ledger_dir: Path
 ) -> None:
     """--help over LIVE_SAFE_LEAVES must exit 0 and document usage (E-02)."""
-    res = run_cli([*leaf.split(), "--help"], cwd=live_ledger_dir)
+    res = run_cli_inproc([*leaf.split(), "--help"], cwd=live_ledger_dir)
     assert res.returncode == 0, f"{leaf} --help rc={res.returncode}"
     assert "usage" in res.stdout.lower(), f"{leaf} --help output did not document usage"
 
@@ -102,7 +103,7 @@ def test_help_scenario_exits_zero_and_documents_usage(
 @pytest.mark.parametrize("leaf", sorted(LIVE_SAFE_LEAVES.keys()))
 def test_usage_error_scenario_exits_two(leaf: str, live_ledger_dir: Path) -> None:
     """Invalid flag over LIVE_SAFE_LEAVES must exit 2 with usage error (E-02)."""
-    res = run_cli([*leaf.split(), USAGE_ERROR_FLAG], cwd=live_ledger_dir)
+    res = run_cli_inproc([*leaf.split(), USAGE_ERROR_FLAG], cwd=live_ledger_dir)
     assert (
         res.returncode == 2
     ), f"{leaf} bad-flag rc={res.returncode} (expected usage error 2)"
@@ -160,10 +161,10 @@ def test_fact_parity_non_vacuous(leaf: str, tmp_path: Path) -> None:
         "AW_HOME": str(tmp_path),
     }
 
-    res_human = run_cli(
+    res_human = run_cli_inproc(
         [*leaf.split(), *extra], cwd=tmp_path, env_overrides=env_overrides
     )
-    res_agent = run_cli(
+    res_agent = run_cli_inproc(
         [*leaf.split(), *extra, "--agent"], cwd=tmp_path, env_overrides=env_overrides
     )
 
@@ -259,9 +260,9 @@ def test_live_ledger_read_leaves_non_vacuous(leaf: str, live_ledger_dir: Path) -
     expected_rc = EXPECTED_READ_EXIT_CODES[leaf]
     argv_base = live_leaf_argv(leaf, live_ledger_dir)
 
-    res_human = run_cli(argv_base, cwd=live_ledger_dir)
-    res_agent = run_cli([*argv_base, "--agent"], cwd=live_ledger_dir)
-    res_json = run_cli([*argv_base, "--json"], cwd=live_ledger_dir)
+    res_human = run_cli_inproc(argv_base, cwd=live_ledger_dir)
+    res_agent = run_cli_inproc([*argv_base, "--agent"], cwd=live_ledger_dir)
+    res_json = run_cli_inproc([*argv_base, "--json"], cwd=live_ledger_dir)
 
     for mode, res in (("human", res_human), ("agent", res_agent), ("json", res_json)):
         assert res.returncode == expected_rc, (
@@ -394,7 +395,7 @@ def test_live_ledger_mutation_leaves_conformance(tmp_path: Path) -> None:
             if mode_name == "tty_no_color":
                 res = run_cli_tty(full_args, no_color=True, cwd=fixture_dir)
             else:
-                res = run_cli([*full_args, *flags], cwd=fixture_dir)
+                res = run_cli_inproc([*full_args, *flags], cwd=fixture_dir)
 
             assert res.returncode == expected_rc, (
                 f"{cmd_leaf} in {mode_name} got {res.returncode}, expected {expected_rc}\n"

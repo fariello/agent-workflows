@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -154,18 +153,16 @@ class _Scratch:
         return _rev_count(cwd, self.env)
 
     def init_repo(self, path: Path) -> None:
-        path.mkdir(parents=True, exist_ok=True)
-        self.git(path, "init", "-q", "-b", "main")
-        self.git(path, "config", "user.name", "Test User")
-        self.git(path, "config", "user.email", "test@example.com")
+        from tests.repo_template import copy_template_repo
+
+        copy_template_repo(path)
         self.git(path, "commit", "-q", "--allow-empty", "-m", "init")
 
     def install(self, preset: str, companion: Optional[Path] = None) -> None:
+        from tests.conformance_matrix import run_cli_inproc
+
         self.init_repo(self.repo)
-        cmd = [
-            sys.executable,
-            "-m",
-            "agent_workflows",
+        argv = [
             "install",
             str(self.repo),
             "--preset",
@@ -175,8 +172,8 @@ class _Scratch:
         ]
         if preset == COMP:
             self.companion = companion or (self.root / "comp")
-            cmd += ["--companion-dir", str(self.companion)]
-        res = subprocess.run(cmd, env=self.env, capture_output=True, text=True)
+            argv += ["--companion-dir", str(self.companion)]
+        res = run_cli_inproc(argv, env_overrides=self.env)
         if res.returncode != 0:
             raise AssertionError(f"installer failed: {res.stdout}\n{res.stderr}")
 

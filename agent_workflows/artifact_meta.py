@@ -4577,28 +4577,29 @@ def check_freshness(
 
         rec_resolved = records_root.resolve()
         seen_extra_dirs: Set[Path] = set()
-        for etype in (
-            "plans",
-            "specs",
-            "prompts",
-            "backlog",
-            "releases",
-            "research",
-            "walkthroughs",
-            "roadmaps",
-            "other",
-        ):
-            for d in _sel.record_dirs(scan_repo, etype):
-                try:
-                    d_res = d.resolve()
-                except OSError:
-                    continue
-                if d_res == rec_resolved or d_res.is_relative_to(rec_resolved):
-                    continue
-                if d_res in seen_extra_dirs or not d.is_dir():
-                    continue
-                seen_extra_dirs.add(d_res)
-                extra_root_dirs.append((etype, d))
+        with _sel.scan_once():
+            for etype in (
+                "plans",
+                "specs",
+                "prompts",
+                "backlog",
+                "releases",
+                "research",
+                "walkthroughs",
+                "roadmaps",
+                "other",
+            ):
+                for d in _sel.record_dirs(scan_repo, etype):
+                    try:
+                        d_res = d.resolve()
+                    except OSError:
+                        continue
+                    if d_res == rec_resolved or d_res.is_relative_to(rec_resolved):
+                        continue
+                    if d_res in seen_extra_dirs or not d.is_dir():
+                        continue
+                    seen_extra_dirs.add(d_res)
+                    extra_root_dirs.append((etype, d))
 
     if not records_root.exists() and not extra_root_dirs:
         return

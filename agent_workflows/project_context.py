@@ -265,19 +265,30 @@ def get_default_aw_home() -> str:
     return _canonical_path(Path.home() / ".aw")
 
 
-def _read_json_file(path_str: str) -> Optional[Dict[str, Any]]:
-    """Safe read of JSON file; returns None if missing or unreadable."""
-    p = Path(path_str)
-    if not p.is_file():
-        return None
+@functools.lru_cache(maxsize=256)
+def _read_json_file_cached(
+    path_str: str, mtime_ns: int, size: int, ino: int
+) -> Optional[Dict[str, Any]]:
     try:
-        with open(p, "r", encoding="utf-8") as f:
+        with open(path_str, "r", encoding="utf-8") as f:
             data = json.load(f)
             if isinstance(data, dict):
                 return data
     except Exception:
         pass
     return None
+
+
+def _read_json_file(path_str: str) -> Optional[Dict[str, Any]]:
+    """Safe read of JSON file with stat-validated memoization; returns None if missing or unreadable."""
+    try:
+        st = os.stat(path_str)
+    except OSError:
+        return None
+    if not os.path.isfile(path_str):
+        return None
+    cached = _read_json_file_cached(path_str, st.st_mtime_ns, st.st_size, st.st_ino)
+    return dict(cached) if cached is not None else None
 
 
 def _config_dir() -> Path:
@@ -1085,6 +1096,58 @@ def _read_validated_companion_attachment(
     return None
 
 
+def _resolve_config_dir_and_primary(
+    repo: Path,
+    eff_aw_home: Optional[str],
+    aw_home: Optional[str | Path] = None,
+) -> tuple[Path, bool, Optional[Path], str]:
+    """Return ``(cfg_dir, has_config, linked_primary, eff_aw_home)`` in a single pass."""
+    target_config = repo / ".aw" / "config"
+    if target_config.is_dir():
+        for name in _CONFIG_FILE_NAMES:
+            if (target_config / name).exists():
+                resolved_home = eff_aw_home
+                if resolved_home is None:
+                    resolved_home = ""
+                return target_config, True, None, resolved_home
+
+    dot_git = repo / ".git"
+    dot_git_is_dir = dot_git.is_dir()
+    dot_git_is_file = False if dot_git_is_dir else dot_git.is_file()
+    primary = _linked_worktree_primary(repo) if dot_git_is_file else None
+    if primary is not None:
+        primary_config = primary / ".aw" / "config"
+        if primary_config.is_dir():
+            for name in _CONFIG_FILE_NAMES:
+                if (primary_config / name).exists():
+                    resolved_home = eff_aw_home
+                    if resolved_home is None:
+                        resolved_home = ""
+                    return primary_config, True, primary, resolved_home
+
+    if eff_aw_home is None:
+        eff_aw_home, _, _ = _resolve_effective_aw_home(aw_home=aw_home)
+
+    if primary is not None:
+        anchor: Path = primary
+    elif dot_git_is_dir:
+        anchor = repo
+    elif dot_git_is_file:
+        try:
+            anchor = checkout_main_root(repo) or repo
+        except (OSError, RuntimeError):
+            anchor = repo
+    else:
+        anchor = repo
+    anchor_abs = _canonical_path(anchor)
+    project_id = _derive_project_id(anchor_abs)
+    home_config = Path(eff_aw_home) / "projects" / project_id / "config"
+    if (home_config / "project.json").exists():
+        return home_config, True, primary, eff_aw_home
+
+    return target_config, False, primary, eff_aw_home
+
+
 def project_config_dir(
     repo_root: str | Path,
     aw_home: Optional[str | Path] = None,
@@ -1111,33 +1174,10 @@ def project_config_dir(
        the root's home config (PR-001).
     4. Else return <repo>/.aw/config.
     """
-    repo = Path(repo_root)
-    target_config = repo / ".aw" / "config"
-    for name in _CONFIG_FILE_NAMES:
-        if (target_config / name).exists():
-            return target_config
-
-    primary = _linked_worktree_primary(repo)
-    if primary is not None:
-        primary_config = primary / ".aw" / "config"
-        for name in _CONFIG_FILE_NAMES:
-            if (primary_config / name).exists():
-                return primary_config
-
-    eff_aw_home, _, _ = _resolve_effective_aw_home(aw_home=aw_home)
-    anchor = repo
-    try:
-        if (repo / ".git").exists():
-            anchor = checkout_main_root(repo) or repo
-    except (OSError, RuntimeError):
-        anchor = repo
-    anchor_abs = _canonical_path(anchor)
-    project_id = _derive_project_id(anchor_abs)
-    home_config = Path(eff_aw_home) / "projects" / project_id / "config"
-    if (home_config / "project.json").exists():
-        return home_config
-
-    return target_config
+    cfg, _, _, _ = _resolve_config_dir_and_primary(
+        Path(repo_root), None, aw_home=aw_home
+    )
+    return cfg
 
 
 def home_configured_root(
@@ -1262,16 +1302,15 @@ def _stored_physical_classes(
     """Return physical classes mapping if repository has stored placement for root_class, else None."""
     repo = Path(repo_root)
     eff_aw_home, _, _ = _resolve_effective_aw_home(aw_home=aw_home)
-    cfg = project_config_dir(repo, aw_home=eff_aw_home)
-    has_config = any(
-        (cfg / name).exists()
-        for name in ("project.json", "local.json", "config.json", "policy.json")
+    cfg, has_config, primary, eff_aw_home = _resolve_config_dir_and_primary(
+        repo, eff_aw_home
     )
     if not has_config:
         return None
 
     repo_abs = _canonical_path(repo)
-    primary = _linked_worktree_primary(repo)
+    if primary is None and (repo / ".git").is_file():
+        primary = _linked_worktree_primary(repo)
     primary_abs = _canonical_path(primary) if primary is not None else None
     anchor_abs = primary_abs or repo_abs
     user_cfg_file = str(_config_dir() / "config.json")

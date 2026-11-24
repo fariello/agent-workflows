@@ -588,6 +588,38 @@ def repo_relative_posix(
     elif str(path).startswith("<") and str(path).endswith(">"):
         return str(path)
 
+    if repo_root is not None:
+        p_str = str(path)
+        r_str = str(repo_root)
+        sep = os.sep
+        if os.path.isabs(p_str) and os.path.isabs(r_str):
+            r_clean = r_str.rstrip(sep) or sep if len(r_str) > 1 else r_str
+            if p_str == r_clean:
+                return "."
+            prefix = r_clean if r_clean == sep else r_clean + sep
+            if (
+                p_str.startswith(prefix)
+                and "//" not in p_str
+                and "/./" not in p_str
+                and "/../" not in p_str
+                and not p_str.endswith(("/.", "/.."))
+                and (
+                    sep == "/"
+                    or (
+                        "\\\\" not in p_str
+                        and "\\.\\" not in p_str
+                        and "\\..\\" not in p_str
+                        and not p_str.endswith(("\\.", "\\.."))
+                    )
+                )
+            ):
+                rel = p_str[len(prefix) :]
+                if rel.endswith(sep):
+                    rel = rel.rstrip(sep)
+                if rel:
+                    return rel.replace("\\", "/") if sep != "/" else rel
+                return "."
+
     p = Path(path)
     escaped_root = False
 
@@ -606,7 +638,7 @@ def repo_relative_posix(
             pass
 
         try:
-            resolved_root = r.resolve()
+            resolved_root = _resolved_root(r)
             try:
                 return lexical_p.relative_to(resolved_root).as_posix()
             except ValueError:

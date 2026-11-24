@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -80,33 +79,23 @@ class TestPlacementSwitchExecute(unittest.TestCase):
         preset: str = "private-target",
         name: str = "repo",
     ) -> tuple[Path, dict[str, str]]:
+        from tests.conformance_matrix import run_cli_inproc
+        from tests.repo_template import copy_template_repo
+
         repo = tpath / name
-        repo.mkdir(parents=True, exist_ok=True)
-        subprocess.run(
-            ["git", "init", "-b", "main", str(repo)], check=True, capture_output=True
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "Test User"], cwd=str(repo), check=True
-        )
-        subprocess.run(
-            ["git", "config", "user.email", "test@example.com"],
-            cwd=str(repo),
-            check=True,
-        )
+        copy_template_repo(repo)
         (repo / "README.md").write_text("hello\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=str(repo), check=True)
         subprocess.run(
             ["git", "commit", "--allow-empty", "-m", "init"],
             cwd=str(repo),
             check=True,
+            capture_output=True,
         )
 
         env = self._make_env(tpath, aw_home, xdg_home)
-        r = subprocess.run(
+        r = run_cli_inproc(
             [
-                sys.executable,
-                "-m",
-                "agent_workflows",
                 "install",
                 str(repo),
                 "--preset",
@@ -114,9 +103,7 @@ class TestPlacementSwitchExecute(unittest.TestCase):
                 "-y",
                 "--no-interactive",
             ],
-            env=env,
-            capture_output=True,
-            text=True,
+            env_overrides=env,
         )
         self.assertEqual(r.returncode, 0, f"installer failed: {r.stdout}\n{r.stderr}")
         return repo, env

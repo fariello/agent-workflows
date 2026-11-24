@@ -961,37 +961,47 @@ def _apply_masked_edits(
     return restored, sub_count
 
 
-def _build_citation_matchers(
+def _build_citation_matchers_with_tokens(
     name_map: Dict[str, str],
-) -> List[Tuple[str, re.Pattern[str]]]:
-    """Return non-overlapping citation matchers ordered full-name -> whole -> legacy -> facetless."""
-    full_pats: List[Tuple[str, re.Pattern[str]]] = []
-    whole_pats: List[Tuple[str, re.Pattern[str]]] = []
-    legacy_pats: List[Tuple[str, re.Pattern[str]]] = []
-    facetless_pats: List[Tuple[str, re.Pattern[str]]] = []
+) -> List[Tuple[str, str, re.Pattern[str]]]:
+    """Return non-overlapping (kind, literal_token, pattern) matchers ordered full -> whole -> legacy -> facetless."""
+    full_pats: List[Tuple[str, str, re.Pattern[str]]] = []
+    whole_pats: List[Tuple[str, str, re.Pattern[str]]] = []
+    legacy_pats: List[Tuple[str, str, re.Pattern[str]]] = []
+    facetless_pats: List[Tuple[str, str, re.Pattern[str]]] = []
 
     seen_whole: Set[str] = set()
     seen_leg: Set[str] = set()
     seen_fac: Set[str] = set()
 
     for old_name in sorted(name_map, key=len, reverse=True):
-        full_pats.append(("full", re.compile(re.escape(old_name))))
+        full_pats.append(("full", old_name, re.compile(re.escape(old_name))))
         whole = artifact_refs._whole_stem(old_name)
         if whole != old_name and len(whole) >= 6 and whole not in seen_whole:
             seen_whole.add(whole)
-            whole_pats.append(("whole", artifact_refs._boundaried(whole)))
+            whole_pats.append(("whole", whole, artifact_refs._boundaried(whole)))
         leg = artifact_refs._legacy_prefix_stem(old_name)
         if leg is not None and leg not in seen_leg:
             seen_leg.add(leg)
-            legacy_pats.append(("legacy", artifact_refs._boundaried(leg)))
+            legacy_pats.append(("legacy", leg, artifact_refs._boundaried(leg)))
         fac = artifact_refs._facetless_stem(old_name)
         if fac is not None and fac != whole and fac not in seen_fac:
             seen_fac.add(fac)
             facetless_pats.append(
-                ("facetless", artifact_refs._facetless_boundaried(fac))
+                ("facetless", fac, artifact_refs._facetless_boundaried(fac))
             )
 
     return full_pats + whole_pats + legacy_pats + facetless_pats
+
+
+def _build_citation_matchers(
+    name_map: Dict[str, str],
+) -> List[Tuple[str, re.Pattern[str]]]:
+    """Return non-overlapping citation matchers ordered full-name -> whole -> legacy -> facetless."""
+    return [
+        (kind, pat)
+        for kind, _tok, pat in _build_citation_matchers_with_tokens(name_map)
+    ]
 
 
 def _scan_unchanged_in_span(
@@ -999,15 +1009,27 @@ def _scan_unchanged_in_span(
     start_line_no: int,
     file_rel: str,
     reason: str,
-    matchers: Sequence[Tuple[str, re.Pattern[str]]],
+    matchers: Sequence[Any],
+    *,
+    prefilter_re: Optional[re.Pattern[str]] = None,
 ) -> List[UnchangedOccurrence]:
     """Find non-overlapping citation occurrences inside one unchanged span."""
+    if prefilter_re is not None and not prefilter_re.search(span_text):
+        return []
     occ: List[UnchangedOccurrence] = []
     for offset_line, line in enumerate(span_text.splitlines()):
+        if prefilter_re is not None and not prefilter_re.search(line):
+            continue
         lineno = start_line_no + offset_line
         taken: List[Tuple[int, int]] = []
         line_hits: List[Tuple[int, str]] = []
-        for _kind, pat in matchers:
+        for entry in matchers:
+            if len(entry) == 3:
+                _kind, tok, pat = entry
+                if tok not in line:
+                    continue
+            else:
+                _kind, pat = entry
             for m in pat.finditer(line):
                 ms, me = m.start(), m.end()
                 if _overlaps_any(ms, me, taken):
@@ -1116,7 +1138,10 @@ def plan_citation_rewrites(
         }
     )
     prefilter_re = re.compile("|".join(re.escape(p) for p in prefixes))
-    matchers = _build_citation_matchers(name_map)
+    matchers = _build_citation_matchers_with_tokens(name_map)
+    span_prefilter_re = artifact_refs._compile_prefilter(
+        [tok for _kind, tok, _pat in matchers]
+    )
 
     protected_spans_by_file: Dict[str, Tuple[ProtectedSpan, ...]] = {}
     substituted_by_file: Dict[str, int] = {}
@@ -1164,7 +1189,12 @@ def plan_citation_rewrites(
         # Record unchanged occurrences in protected spans
         for sp in spans:
             occ_list = _scan_unchanged_in_span(
-                sp.text, sp.line_no, rel_posix, sp.reason, matchers
+                sp.text,
+                sp.line_no,
+                rel_posix,
+                sp.reason,
+                matchers,
+                prefilter_re=span_prefilter_re,
             )
             unchanged_occurrences.extend(occ_list)
             if occ_list:
@@ -1188,6 +1218,7 @@ def plan_citation_rewrites(
                 rel_posix,
                 "fenced-or-permalink",
                 matchers,
+                prefilter_re=span_prefilter_re,
             )
             unchanged_occurrences.extend(occ_list)
             if occ_list:
@@ -1210,6 +1241,7 @@ def plan_citation_rewrites(
                 rel_posix,
                 "fenced-or-permalink",
                 matchers,
+                prefilter_re=span_prefilter_re,
             )
             unchanged_occurrences.extend(occ_list)
             if occ_list:

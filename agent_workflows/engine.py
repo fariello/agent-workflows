@@ -429,6 +429,22 @@ def _member_source_bytes(
     return resolved.encode("utf-8")
 
 
+_OWN_SOURCE_WORKFLOWS_CACHE: Optional[Path] = None
+
+
+def _is_own_source_workflows(source_root: Path) -> bool:
+    """True when ``source_root`` resolves to this checkout's own `.aw/system/workflows` tree."""
+    global _OWN_SOURCE_WORKFLOWS_CACHE
+    try:
+        if _OWN_SOURCE_WORKFLOWS_CACHE is None:
+            _OWN_SOURCE_WORKFLOWS_CACHE = (
+                Path(__file__).resolve().parent.parent / ".aw" / "system" / "workflows"
+            ).resolve()
+        return source_root.resolve() == _OWN_SOURCE_WORKFLOWS_CACHE
+    except OSError:
+        return False
+
+
 def read_version(source_root: Path) -> str:
     """Return the framework version for the source at ``source_root``.
 
@@ -448,6 +464,15 @@ def read_version(source_root: Path) -> str:
 
     version_file = _nested_bundle_version_path(source_root)
     if _VERSIONING is not None:
+        # When reading from our own live checkout's workflows bundle (not a synthetic test repo),
+        # reuse the package's already-resolved `__version__` instead of spawning `git describe` +
+        # `git status --porcelain` on the 5,000-file repository 3 times per `aw install`.
+        if _is_own_source_workflows(source_root):
+            import agent_workflows as _aw_pkg
+
+            own_ver = getattr(_aw_pkg, "__version__", "")
+            if own_ver:
+                return str(own_ver)
         # The resolver runs `git describe` in source_root (git works from any subdir of
         # the work tree) and falls back to the VERSION file itself when there is no git.
         # Under nested `.aw/system/workflows/`, VERSION is the system-root sibling.
@@ -7634,6 +7659,7 @@ def ensure_plans_readmes(
         ".aw/records/README.md" if layout == "aw" else ".agents/README.md"
     )
 
+    deferred_add: list[str] = []
     for rel_path, content_bytes in targets.items():
         readme_path = _records_member_destination(plan.repo_root, rel_path)
         if readme_path.is_file():
@@ -7670,7 +7696,7 @@ def ensure_plans_readmes(
                         shutil.copy2(readme_path, backup)
                     readme_path.write_bytes(content_bytes)
                     if use_git and _is_dest_in_repo(readme_path, plan.repo_root):
-                        git_add_optional(plan.repo_root, rel_path)
+                        deferred_add.append(rel_path)
                     installed.append(f"{rel_path} [overwrite]")
                     continue
             skipped.append(f"{rel_path} [already current]")
@@ -7681,8 +7707,10 @@ def ensure_plans_readmes(
         readme_path.parent.mkdir(parents=True, exist_ok=True)
         readme_path.write_bytes(content_bytes)
         if use_git and _is_dest_in_repo(readme_path, plan.repo_root):
-            git_add_optional(plan.repo_root, rel_path)
+            deferred_add.append(rel_path)
         installed.append(f"{rel_path} [install]")
+    if deferred_add:
+        _git_add_optional_batch(plan.repo_root, deferred_add)
 
 
 def ensure_docs_readmes(
@@ -7706,6 +7734,7 @@ def ensure_docs_readmes(
     research_readme = f"{dirs['research']}/README.md"
     specs_readme = f"{dirs['specs']}/README.md"
 
+    deferred_add: list[str] = []
     for rel_path, content_bytes in targets.items():
         readme_path = _records_member_destination(plan.repo_root, rel_path)
         if readme_path.is_file():
@@ -7746,7 +7775,7 @@ def ensure_docs_readmes(
                         shutil.copy2(readme_path, backup)
                     readme_path.write_bytes(content_bytes)
                     if use_git and _is_dest_in_repo(readme_path, plan.repo_root):
-                        git_add_optional(plan.repo_root, rel_path)
+                        deferred_add.append(rel_path)
                     installed.append(f"{rel_path} [overwrite]")
                     continue
             skipped.append(f"{rel_path} [already current]")
@@ -7757,8 +7786,10 @@ def ensure_docs_readmes(
         readme_path.parent.mkdir(parents=True, exist_ok=True)
         readme_path.write_bytes(content_bytes)
         if use_git and _is_dest_in_repo(readme_path, plan.repo_root):
-            git_add_optional(plan.repo_root, rel_path)
+            deferred_add.append(rel_path)
         installed.append(f"{rel_path} [install]")
+    if deferred_add:
+        _git_add_optional_batch(plan.repo_root, deferred_add)
 
 
 def ensure_prompts_readmes(
@@ -7779,6 +7810,7 @@ def ensure_prompts_readmes(
         plan.repo_root, plan.source_root, category="prompts"
     )
 
+    deferred_add: list[str] = []
     for rel_path, content_bytes in targets.items():
         readme_path = _records_member_destination(plan.repo_root, rel_path)
         if readme_path.is_file():
@@ -7790,8 +7822,10 @@ def ensure_prompts_readmes(
         readme_path.parent.mkdir(parents=True, exist_ok=True)
         readme_path.write_bytes(content_bytes)
         if use_git and _is_dest_in_repo(readme_path, plan.repo_root):
-            git_add_optional(plan.repo_root, rel_path)
+            deferred_add.append(rel_path)
         installed.append(f"{rel_path} [install]")
+    if deferred_add:
+        _git_add_optional_batch(plan.repo_root, deferred_add)
 
 
 def ensure_inbox_readme(

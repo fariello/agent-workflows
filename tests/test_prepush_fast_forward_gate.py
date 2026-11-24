@@ -206,3 +206,6 @@ def test_precommit_config_runs_fast_gates_before_thorough_suite() -> None:
         assert (
             hooks_by_id[fast_id].get("fail_fast") is True
         ), f"{fast_id} must set fail_fast: true so pre-commit does not fall through to thorough-suite"
+    assert "--slots 1" not in str(
+        hooks_by_id["thorough-suite"].get("entry", "")
+    ), "thorough-suite must not force --slots 1 (which spawns 100% of host threads)"

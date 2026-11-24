@@ -864,12 +864,14 @@ def discover_citation_exemptions(
     seen: Set[str] = set()
 
     for old_name in sorted(name_map):
-        if old_name in seen:
+        if old_name in seen or old_name not in text:
             continue
         is_misparse_trap = (
             classify_name(old_name) == "legacy"
             and artifact_naming.parse_clustered(old_name) is not None
         )
+        if not is_misparse_trap and not is_rename_test:
+            continue
         matched = False
         for idx, line in enumerate(lines):
             if old_name not in line:

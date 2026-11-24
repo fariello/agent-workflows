@@ -150,9 +150,11 @@ repos:
 
       # testtier hguae9: Run the thorough test suite before git push.
       # Local feedback only (skippable with --no-verify); not an authority boundary.
+      # Omit --slots 1 so resolve_suite_slots defaults to max(1, cpus // 6) (2 slots / 6 workers
+      # on a 12-thread host, staying at <= half the threads and avoiding slot-wait stalls).
       - id: thorough-suite
         name: thorough test suite before push
-        entry: python3 -m agent_workflows suite --thorough --slots 1
+        entry: python3 -m agent_workflows suite --thorough
         language: system
         pass_filenames: false
         always_run: true

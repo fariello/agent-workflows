@@ -42,11 +42,9 @@ from tests.test_production_correction_turn import (
 
 
 def _make_test_repo(path: Path) -> Path:
-    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=path, check=True)
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"], cwd=path, check=True
-    )
-    subprocess.run(["git", "config", "user.name", "Tester"], cwd=path, check=True)
+    from tests.repo_template import copy_template_repo
+
+    copy_template_repo(path)
     (path / "README.md").write_text("# Test Repo\n", encoding="utf-8")
     (path / ".gitignore").write_text(
         ".aw/records/runs/\n.aw/worktrees/\n.aw/state/\n", encoding="utf-8"

@@ -49,11 +49,8 @@ from typing import (
     Union,
 )
 
-from . import config, discovery, engine, project_context, versioning
 from . import lifecycle_style as _LS
-from . import run_dispatch as _run_dispatch
 from . import term as _term_mod
-from .project_schema import DeliveryMode, GitPolicy, Preset, RecordsBackend
 from .result_types import (
     ConflictingFlagsError,
     OutputContext,
@@ -63,8 +60,50 @@ from .result_types import (
 from .term import Term
 
 if TYPE_CHECKING:
+    from . import config, discovery, engine, project_context, versioning
+    from . import project_schema as _project_schema
+    from . import run_dispatch as _run_dispatch
     from .artifact_rename import MutationResult
     from .result_types import CommandResult
+else:
+
+    class _LazyModule:
+        """Defer importing a sibling module until its first attribute access."""
+
+        __slots__ = ("_mod_name", "_global_name", "_mod")
+
+        def __init__(self, mod_name: str, global_name: str) -> None:
+            object.__setattr__(self, "_mod_name", mod_name)
+            object.__setattr__(self, "_global_name", global_name)
+            object.__setattr__(self, "_mod", None)
+
+        def _load(self) -> Any:
+            mod = object.__getattribute__(self, "_mod")
+            if mod is None:
+                import importlib
+
+                mod = importlib.import_module(
+                    object.__getattribute__(self, "_mod_name")
+                )
+                object.__setattr__(self, "_mod", mod)
+                globals()[object.__getattribute__(self, "_global_name")] = mod
+            return mod
+
+        def __getattr__(self, item: str) -> Any:
+            return getattr(self._load(), item)
+
+        def __setattr__(self, item: str, value: Any) -> None:
+            setattr(self._load(), item, value)
+
+    config = _LazyModule("agent_workflows.config", "config")
+    discovery = _LazyModule("agent_workflows.discovery", "discovery")
+    engine = _LazyModule("agent_workflows.engine", "engine")
+    project_context = _LazyModule("agent_workflows.project_context", "project_context")
+    versioning = _LazyModule("agent_workflows.versioning", "versioning")
+    _project_schema = _LazyModule("agent_workflows.project_schema", "_project_schema")
+    _run_dispatch = _LazyModule("agent_workflows.run_dispatch", "_run_dispatch")
+
+_TITLE_STYLE_VALUES: Tuple[str, ...] = ("short", "medium", "long", "none")
 
 # --------------------------------------------------------------------------------------
 # Process-wide presentation & command publication (s2yf26 E-03, E-04)
@@ -1373,13 +1412,19 @@ class _VersionAction(argparse.Action):
         )
         lines = [version_str]
         try:
-            from . import doctor
+            from ._compat import packaged_source_root
 
-            stale = doctor.check_stale_build()
-            if stale is not None and stale.recovery:
-                lines.append(
-                    f"warning: build is stale; rebuild with '{stale.recovery}'"
-                )
+            if (
+                packaged_source_root() is not None
+                or "agent_workflows.doctor" in sys.modules
+            ):
+                from . import doctor
+
+                stale = doctor.check_stale_build()
+                if stale is not None and stale.recovery:
+                    lines.append(
+                        f"warning: build is stale; rebuild with '{stale.recovery}'"
+                    )
         except Exception:
             pass
         parser._print_message("\n".join(lines) + "\n", sys.stdout)
@@ -1510,7 +1555,63 @@ def validate_dest_shadowing(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _build_parser() -> argparse.ArgumentParser:
+class _NoopParser:
+    """Lightweight sink returned by filtered sub.add_parser() for uninvoked commands."""
+
+    __slots__ = ()
+    prog = ""
+    _actions: Tuple[Any, ...] = ()
+    _mutually_exclusive_groups: Tuple[Any, ...] = ()
+
+    def add_argument(self, *args: Any, **kwargs: Any) -> Any:
+        return self
+
+    def add_argument_group(self, *args: Any, **kwargs: Any) -> "_NoopParser":
+        return self
+
+    def add_mutually_exclusive_group(self, *args: Any, **kwargs: Any) -> "_NoopParser":
+        return self
+
+    def add_subparsers(self, *args: Any, **kwargs: Any) -> "_NoopParser":
+        return self
+
+    def add_parser(self, *args: Any, **kwargs: Any) -> "_NoopParser":
+        return self
+
+    def set_defaults(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+    def register(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        return None
+
+
+_NOOP_PARSER = _NoopParser()
+
+
+def _build_parser(_only_cmd: Optional[str] = None) -> argparse.ArgumentParser:
+    _orig_gettext = getattr(argparse, "_", None)
+    if callable(_orig_gettext):
+        _gt_cache: Dict[str, str] = {}
+
+        def _cached_gettext(message: str) -> str:
+            val = _gt_cache.get(message)
+            if val is None:
+                val = _orig_gettext(message)
+                _gt_cache[message] = val
+            return val
+
+        argparse._ = _cached_gettext  # type: ignore[attr-defined]
+    try:
+        return _build_parser_impl(_only_cmd=_only_cmd)
+    finally:
+        if _orig_gettext is not None:
+            argparse._ = _orig_gettext  # type: ignore[attr-defined]
+
+
+def _build_parser_impl(_only_cmd: Optional[str] = None) -> argparse.ArgumentParser:
     # ttyflags `yaxr4i` E-01/E-02: TWO nested parents, because the two flag pairs have different
     # reach and collapsing them into one was measurably wrong.
     #
@@ -1571,7 +1672,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     presentation.add_argument(
         "--title-style",
-        choices=config.TITLE_STYLE_VALUES,
+        choices=_TITLE_STYLE_VALUES,
         default=None,
         help=(
             "Runner window title style outside Zellij: short ('▶ aw'), medium ('▶ aw <repo>', "
@@ -1646,6 +1747,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Print the agent-workflows version and exit.",
     )
     sub = parser.add_subparsers(dest="command", metavar="<command>")
+    _orig_add_parser = sub.add_parser
+    if _only_cmd is not None:
+
+        def _filtered_add_parser(name: str, *p_args: Any, **p_kwargs: Any) -> Any:
+            aliases = p_kwargs.get("aliases") or ()
+            if name != _only_cmd and _only_cmd not in aliases:
+                return _NOOP_PARSER
+            return _orig_add_parser(name, *p_args, **p_kwargs)
+
+        sub.add_parser = _filtered_add_parser  # type: ignore[method-assign]
 
     p_install = sub.add_parser(
         "install",
@@ -1679,21 +1790,22 @@ def _build_parser() -> argparse.ArgumentParser:
     p_install.add_argument(
         "-y", "--yes", action="store_true", help="Skip preflight confirmations."
     )
-    p_install.add_argument(
-        "--preset",
-        choices=[p.value for p in Preset],
-        help="Select physical placement preset: private-target (default), public-private-companion, clean-target, local-only.",
-    )
-    p_install.add_argument(
-        "--delivery-mode",
-        choices=[d.value for d in DeliveryMode],
-        help="Select framework delivery mode.",
-    )
-    p_install.add_argument(
-        "--records-backend",
-        choices=[r.value for r in RecordsBackend],
-        help="Select records storage location: repository (default), companion, home, repository-untracked.",
-    )
+    if p_install is not _NOOP_PARSER:
+        p_install.add_argument(
+            "--preset",
+            choices=[p.value for p in _project_schema.Preset],
+            help="Select physical placement preset: private-target (default), public-private-companion, clean-target, local-only.",
+        )
+        p_install.add_argument(
+            "--delivery-mode",
+            choices=[d.value for d in _project_schema.DeliveryMode],
+            help="Select framework delivery mode.",
+        )
+        p_install.add_argument(
+            "--records-backend",
+            choices=[r.value for r in _project_schema.RecordsBackend],
+            help="Select records storage location: repository (default), companion, home, repository-untracked.",
+        )
     p_install.add_argument(
         "--companion-dir",
         help="Path to companion repository if companion records backend or preset is selected.",
@@ -1773,21 +1885,22 @@ def _build_parser() -> argparse.ArgumentParser:
     p_setup.add_argument(
         "--source", dest="source_root", type=Path, default=None, help=argparse.SUPPRESS
     )
-    p_setup.add_argument(
-        "--preset",
-        choices=[p.value for p in Preset],
-        help="Select physical placement preset: private-target (default), public-private-companion, clean-target, local-only.",
-    )
-    p_setup.add_argument(
-        "--delivery-mode",
-        choices=[d.value for d in DeliveryMode],
-        help="Select framework delivery mode.",
-    )
-    p_setup.add_argument(
-        "--records-backend",
-        choices=[r.value for r in RecordsBackend],
-        help="Select records storage location: repository (default), companion, home, repository-untracked.",
-    )
+    if p_setup is not _NOOP_PARSER:
+        p_setup.add_argument(
+            "--preset",
+            choices=[p.value for p in _project_schema.Preset],
+            help="Select physical placement preset: private-target (default), public-private-companion, clean-target, local-only.",
+        )
+        p_setup.add_argument(
+            "--delivery-mode",
+            choices=[d.value for d in _project_schema.DeliveryMode],
+            help="Select framework delivery mode.",
+        )
+        p_setup.add_argument(
+            "--records-backend",
+            choices=[r.value for r in _project_schema.RecordsBackend],
+            help="Select records storage location: repository (default), companion, home, repository-untracked.",
+        )
     p_setup.add_argument(
         "--companion-dir",
         help="Path to companion repository if companion records backend or preset is selected.",
@@ -3552,40 +3665,41 @@ def _build_parser() -> argparse.ArgumentParser:
     # from drifting away from `aw oc run as gem X`. REMAINDER cannot capture a LEADING option, so
     # `_dispatch` intercepts these two routes before `parse_args` as well; both paths call the one
     # `run_dispatch.dispatch` entry point.
-    for _route_token, _route_help, _route_desc in (
-        (
-            _run_dispatch.AS_TOKEN,
-            "Run an IPD with a named runner profile (host-neutral: the profile picks the host).",
-            "Launch an IPD run through the host runner that the NAMED PROFILE belongs to, without "
-            "naming that host: `aw run as gem <selector>`. `as` is fixed grammar and the very next "
-            "token is always the profile name, so a profile may be named `status` or `report` "
-            "without shadowing a command. Everything after the profile is forwarded verbatim to "
-            "that host's own driver, which owns every flag, message, and exit code; launch fields "
-            "resolve once, there, with explicit --model/--variant/--agent overriding only the "
-            "matching profile field. Manage profiles with `aw oc profile`.",
-        ),
-        (
-            _run_dispatch.IPD_TOKEN,
-            "Run an IPD with the configured default runner (host-neutral, unqualified).",
-            "Launch an IPD run through the runner configured as `default_runner`, without naming a "
-            "host or a profile: `aw run ipd <selector>`. Refuses (exit 2) when no `default_runner` "
-            "is configured rather than guessing a host, because guessing would launch a model you "
-            "did not choose. That host then applies its own per-runner default profile through the "
-            "shared resolver. Every argument is forwarded verbatim to the host's driver, which owns "
-            "its flags, output, and exit codes.",
-        ),
-    ):
-        _p_route = run_sub.add_parser(
-            _route_token,
-            help=_route_help,
-            add_help=False,
-            description=_route_desc,
-        )
-        _p_route.add_argument(
-            "dispatch_args",
-            nargs=argparse.REMAINDER,
-            help="Profile name (for `as`) and/or selector, then any host-runner flag, forwarded verbatim.",
-        )
+    if run_sub is not _NOOP_PARSER:
+        for _route_token, _route_help, _route_desc in (
+            (
+                _run_dispatch.AS_TOKEN,
+                "Run an IPD with a named runner profile (host-neutral: the profile picks the host).",
+                "Launch an IPD run through the host runner that the NAMED PROFILE belongs to, without "
+                "naming that host: `aw run as gem <selector>`. `as` is fixed grammar and the very next "
+                "token is always the profile name, so a profile may be named `status` or `report` "
+                "without shadowing a command. Everything after the profile is forwarded verbatim to "
+                "that host's own driver, which owns every flag, message, and exit code; launch fields "
+                "resolve once, there, with explicit --model/--variant/--agent overriding only the "
+                "matching profile field. Manage profiles with `aw oc profile`.",
+            ),
+            (
+                _run_dispatch.IPD_TOKEN,
+                "Run an IPD with the configured default runner (host-neutral, unqualified).",
+                "Launch an IPD run through the runner configured as `default_runner`, without naming a "
+                "host or a profile: `aw run ipd <selector>`. Refuses (exit 2) when no `default_runner` "
+                "is configured rather than guessing a host, because guessing would launch a model you "
+                "did not choose. That host then applies its own per-runner default profile through the "
+                "shared resolver. Every argument is forwarded verbatim to the host's driver, which owns "
+                "its flags, output, and exit codes.",
+            ),
+        ):
+            _p_route = run_sub.add_parser(
+                _route_token,
+                help=_route_help,
+                add_help=False,
+                description=_route_desc,
+            )
+            _p_route.add_argument(
+                "dispatch_args",
+                nargs=argparse.REMAINDER,
+                help="Profile name (for `as`) and/or selector, then any host-runner flag, forwarded verbatim.",
+            )
     # `list` is the viewer table under its own name. It takes the viewer's positional/flag shape, not
     # the single-`target` leaf shape, so it is registered directly rather than via _register_run_leaf.
     _p_runs_list = runs_sub.add_parser(
@@ -8572,6 +8686,8 @@ EXAMPLES
         "words", nargs=argparse.REMAINDER, metavar="-- <tokens>"
     )
 
+    if _only_cmd is not None:
+        sub.add_parser = _orig_add_parser  # type: ignore[method-assign]
     _apply_descriptions(parser)
     validate_dest_shadowing(parser)
     return parser
@@ -9585,7 +9701,7 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                 and not getattr(args, "delivery_mode", None)
                 and not getattr(args, "records_backend", None)
             ):
-                explicit_preset = Preset.PRIVATE_TARGET.value
+                explicit_preset = _project_schema.Preset.PRIVATE_TARGET.value
 
             is_relocate = getattr(args, "relocate", False)
 
@@ -9642,7 +9758,7 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                     else:
                         if (
                             policy.preset
-                            == Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
+                            == _project_schema.Preset.PUBLIC_TARGET_PRIVATE_COMPANION.value
                             and not (
                                 getattr(policy, "companion_dir", None) or ""
                             ).strip()
@@ -9867,9 +9983,9 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                         old_data = json.load(f)
                     if (
                         old_data.get("git_policies", {}).get("state_durable")
-                        == GitPolicy.TARGET_GIT.value
+                        == _project_schema.GitPolicy.TARGET_GIT.value
                         and policy.git_policies.get("state_durable")
-                        == GitPolicy.IGNORED.value
+                        == _project_schema.GitPolicy.IGNORED.value
                     ):
                         term.status(
                             "info",
@@ -9884,7 +10000,10 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
                 policy=policy,
                 dry_run=False,
             )
-            if policy.records_backend == RecordsBackend.REPOSITORY_UNTRACKED.value:
+            if (
+                policy.records_backend
+                == _project_schema.RecordsBackend.REPOSITORY_UNTRACKED.value
+            ):
                 engine.ensure_untracked_records_ignore(repo_root)
                 term.status(
                     "warn",
@@ -11873,7 +11992,7 @@ def _run_include(
 def _run_setup(args: argparse.Namespace, term: Term) -> int:
     if (
         getattr(args, "records_backend", None)
-        == RecordsBackend.REPOSITORY_UNTRACKED.value
+        == _project_schema.RecordsBackend.REPOSITORY_UNTRACKED.value
     ):
         term.status(
             "fail",
@@ -21116,22 +21235,61 @@ _consume_presentation_flags = _consume_early_flags
 
 _ORIG_BUILD_PARSER = _build_parser
 _CACHED_DISPATCH_PARSER: Optional[argparse.ArgumentParser] = None
+_CACHED_CMD_PARSERS: Dict[str, argparse.ArgumentParser] = {}
 
 
-def _get_dispatch_parser() -> argparse.ArgumentParser:
+def _parser_has_top_command(parser: argparse.ArgumentParser, cmd: str) -> bool:
+    for act in parser._actions:
+        if isinstance(act, argparse._SubParsersAction):
+            return cmd in act._name_parser_map
+    return False
+
+
+def _get_dispatch_parser(
+    only_cmd: Optional[str] = None,
+) -> argparse.ArgumentParser:
     global _CACHED_DISPATCH_PARSER
     if _build_parser is _ORIG_BUILD_PARSER and not os.environ.get(
         "AW_ALLOW_DEST_SHADOWING"
     ):
+        if only_cmd is not None:
+            cached = _CACHED_CMD_PARSERS.get(only_cmd)
+            if cached is not None:
+                return cached
+            cand = _build_parser(_only_cmd=only_cmd)
+            if _parser_has_top_command(cand, only_cmd):
+                _CACHED_CMD_PARSERS[only_cmd] = cand
+                return cand
         if _CACHED_DISPATCH_PARSER is None:
             _CACHED_DISPATCH_PARSER = _build_parser()
         return _CACHED_DISPATCH_PARSER
     return _build_parser()
 
 
+def _emit_version_text() -> None:
+    lines = [f"agent-workflows {_packaged_version()}"]
+    try:
+        from ._compat import packaged_source_root
+
+        if (
+            packaged_source_root() is not None
+            or "agent_workflows.doctor" in sys.modules
+        ):
+            from . import doctor
+
+            stale = doctor.check_stale_build()
+            if stale is not None and stale.recovery:
+                lines.append(
+                    f"warning: build is stale; rebuild with '{stale.recovery}'"
+                )
+    except Exception:
+        pass
+    sys.stdout.write("\n".join(lines) + "\n")
+
+
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
-    parser = _get_dispatch_parser()
-    _maybe_argcomplete(parser)
+    if "_ARGCOMPLETE" in os.environ:
+        _maybe_argcomplete(_get_dispatch_parser())
     # awcmdsurf Order 05 (hard cutover): the `aw plans <verb>` -> `plans-<verb>` alias shim was
     # removed with the plan-family verbs; the grammar is now `aw <verb> plans` (index/find/...).
     # awhelparg Order 01: a bare `help` token becomes `--help` (natural `aw ipd help` UX).
@@ -21169,9 +21327,13 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     _term_mod.set_color_override(_early_flags.color_override)
     _term_mod.set_interactive_override(_early_flags.interactive_override)
     _term_mod.set_bell_override(_early_flags.bell_override)
-    from agent_workflows import tab_status as _tab_status_mod
+    if (
+        _early_flags.title_style_override is not None
+        or "agent_workflows.tab_status" in sys.modules
+    ):
+        from agent_workflows import tab_status as _tab_status_mod
 
-    _tab_status_mod.set_title_style_override(_early_flags.title_style_override)
+        _tab_status_mod.set_title_style_override(_early_flags.title_style_override)
     # awocrunner Order 02 (nfo184): `aw oc runipd ...` / `aw opencode runipd ...` forward the tail
     # VERBATIM to the packaged runner's own parser (incl. its `--help` and implicit-`start` shim), so
     # the top-level parser never intercepts the runner's flags (e.g. a leading `--help`). This is the
@@ -21263,12 +21425,16 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     # so by the time the routing action runs the token is indistinguishable from a leaf name (measured:
     # `runs -- status` reached the `status` leaf and failed demanding its required `target`).
     # Set ids are free-form, so this is the documented way to reach a colliding one.
+    if argv_list in (["--version"], ["-V"]) and _build_parser is _ORIG_BUILD_PARSER:
+        _emit_version_text()
+        raise SystemExit(0)
     _token = _RAW_DISPATCH_ARGV.set(list(argv_list))
     try:
         if len(argv_list) >= 2 and argv_list[0] == "runs" and "--" in argv_list[1:]:
             _sep = argv_list.index("--", 1)
             _forced = [tok for tok in argv_list[_sep + 1 :] if tok != "--"]
             _rest = argv_list[1:_sep]
+            parser = _get_dispatch_parser(only_cmd="runs")
             args_ns = parser.parse_args(["runs", *_rest])
             # Whatever followed `--` is a TARGET, never a leaf name.
             existing = [t for t in (getattr(args_ns, "targets", None) or []) if t]
@@ -21330,6 +21496,15 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
 
             return runners_monitor.main(list(argv_list[1:]))
         argv = _rewrite_help_token(argv_list)
+        _first_tok = argv[0] if argv else None
+        _only_cmd = (
+            _first_tok
+            if _first_tok
+            and not _first_tok.startswith("-")
+            and _first_tok not in ("completion", "__complete", "help")
+            else None
+        )
+        parser = _get_dispatch_parser(only_cmd=_only_cmd)
         args = parser.parse_args(argv)
         if (
             getattr(args, "command", None) == "partition"

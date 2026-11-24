@@ -175,14 +175,14 @@ def test_live_safe_leaves_exit_contract_membership_cheap(
 
     # 1. Human surface
     argv_human = argv_base
-    res_human = conformance_matrix.run_cli(argv_human, cwd=live_ledger_dir)
+    res_human = conformance_matrix.run_cli_inproc(argv_human, cwd=live_ledger_dir)
     assert (
         res_human.returncode in decl.exit_contract
     ), f"leaf={leaf!r}, surface='human', observed_rc={res_human.returncode}, declared={decl.exit_contract}"
 
     # 2. Agent surface
     argv_agent = [*argv_base, "--agent"]
-    res_agent = conformance_matrix.run_cli(argv_agent, cwd=live_ledger_dir)
+    res_agent = conformance_matrix.run_cli_inproc(argv_agent, cwd=live_ledger_dir)
     assert (
         res_agent.returncode in decl.exit_contract
     ), f"leaf={leaf!r}, surface='agent', observed_rc={res_agent.returncode}, declared={decl.exit_contract}"
@@ -204,14 +204,14 @@ def test_live_safe_leaves_exit_contract_membership_heavy(
 
     # 1. Human surface
     argv_human = argv_base
-    res_human = conformance_matrix.run_cli(argv_human, cwd=live_ledger_dir)
+    res_human = conformance_matrix.run_cli_inproc(argv_human, cwd=live_ledger_dir)
     assert (
         res_human.returncode in decl.exit_contract
     ), f"leaf={leaf!r}, surface='human', observed_rc={res_human.returncode}, declared={decl.exit_contract}"
 
     # 2. Agent surface
     argv_agent = [*argv_base, "--agent"]
-    res_agent = conformance_matrix.run_cli(argv_agent, cwd=live_ledger_dir)
+    res_agent = conformance_matrix.run_cli_inproc(argv_agent, cwd=live_ledger_dir)
     assert (
         res_agent.returncode in decl.exit_contract
     ), f"leaf={leaf!r}, surface='agent', observed_rc={res_agent.returncode}, declared={decl.exit_contract}"

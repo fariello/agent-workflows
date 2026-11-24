@@ -786,7 +786,7 @@ def _save_backup_bytes(
     return existed, safe_name
 
 
-def _write_bytes_atomic(target: Path, data: bytes) -> None:
+def _write_bytes_atomic(target: Path, data: bytes, *, fsync: bool = True) -> None:
     """Atomically write ``data`` to ``target`` via a sibling temp file."""
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = target.parent / f".aw-tmp-{target.name}-{os.getpid()}"
@@ -794,7 +794,8 @@ def _write_bytes_atomic(target: Path, data: bytes) -> None:
         with open(tmp_path, "wb") as fh:
             fh.write(data)
             fh.flush()
-            os.fsync(fh.fileno())
+            if fsync:
+                os.fsync(fh.fileno())
         os.replace(tmp_path, target)
     except Exception:
         if tmp_path.exists():
@@ -937,7 +938,10 @@ def _execute_planned_operations(
                         tx_data["backups"].append(backup_entry)
                         backed_up_by_id[op_id] = backup_entry
                         _append_progress("backup", backup_entry)
-                    _write_bytes_atomic(target, scratch_src.read_bytes())
+                    # Bulk apply loop: atomic temp-file + os.replace per file; durability is
+                    # anchored by backups + progress log + transaction commit rather than
+                    # thousands of synchronous per-file fsync barriers.
+                    _write_bytes_atomic(target, scratch_src.read_bytes(), fsync=False)
                     applied_entry = {
                         "op_id": op_id,
                         "kind": kind,
@@ -1103,6 +1107,27 @@ def _collect_stageable_paths(
 
     already_staged = _staged_paths_in_index(repo_path)
 
+    untracked_existing: List[str] = []
+    for rel in candidates:
+        if rel not in tracked_set:
+            disk_path = repo_path / rel
+            if disk_path.exists() or disk_path.is_symlink():
+                untracked_existing.append(rel)
+
+    ignored_set: Set[str] = set()
+    if untracked_existing:
+        ign = subprocess.run(
+            ["git", "-C", str(repo_path), "check-ignore", "--stdin", "-z"],
+            input=("\0".join(untracked_existing) + "\0").encode("utf-8"),
+            capture_output=True,
+            check=False,
+        )
+        if ign.returncode == 0 and ign.stdout:
+            for item in ign.stdout.decode("utf-8", errors="replace").split("\0"):
+                if item:
+                    ignored_set.add(item)
+
+    untracked_existing_set = set(untracked_existing)
     stageable: List[str] = []
     addable: List[str] = []
     for rel in candidates:
@@ -1110,14 +1135,8 @@ def _collect_stageable_paths(
             stageable.append(rel)
             addable.append(rel)
             continue
-        disk_path = repo_path / rel
-        if disk_path.exists() or disk_path.is_symlink():
-            ign = subprocess.run(
-                ["git", "-C", str(repo_path), "check-ignore", "-q", "--", rel],
-                capture_output=True,
-                check=False,
-            )
-            if ign.returncode != 0:
+        if rel in untracked_existing_set:
+            if rel not in ignored_set:
                 stageable.append(rel)
                 addable.append(rel)
             continue

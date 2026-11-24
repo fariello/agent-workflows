@@ -2290,6 +2290,8 @@ def stranded_lane_records(
                         if not any_live:
                             continue
 
+        wt_cache = worktree_lease._WORKTREE_CACHE
+        br_cache = worktree_lease._BRANCH_CACHE
         for lane in lanes:
             key = (
                 run_id,
@@ -2299,6 +2301,15 @@ def stranded_lane_records(
             if key in seen:
                 continue
             seen.add(key)
+            # Per-lane fast prune when attention_only=True: if neither the lane's branch nor its
+            # registered worktree exists in the memoized git caches, inspect_lane guarantees
+            # holds_work=False (LANE_ABSENT), so classify_lane_integration can only return
+            # LANE_LIVE or LANE_EMPTY_OF_WORK, neither of which needs attention.
+            if attention_only and wt_cache is not None and br_cache is not None:
+                _lane_id = str(lane.get("lane_id") or lane.get("id6") or "")
+                _lane_ref = "refs/heads/" + worktree_lease.lane_branch_name(_lane_id)
+                if _lane_ref not in br_cache and _lane_ref not in wt_cache:
+                    continue
             try:
                 record = classify_lane_integration(repo, lane, target=target)
             except Exception:
@@ -21916,52 +21927,55 @@ def format_slated_artifacts_table(
     if not queue:
         return ""
 
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import attention
+    from agent_workflows import selectors as _sel
 
     items: list[attention.Item] = []
     run_map: dict[str, str] = {}
 
-    for q_item in queue:
-        id6 = q_item.get("id6") or ""
-        cfg = q_item.get("configured_file") or ""
-        q_st = q_item.get("status")
-        if not q_st:
-            mapped_run_st = "queued"
-        else:
-            mapped_run_st = canonical_run_status(q_st) or "queued"
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized(), _sel.scan_once():
+        for q_item in queue:
+            id6 = q_item.get("id6") or ""
+            cfg = q_item.get("configured_file") or ""
+            q_st = q_item.get("status")
+            if not q_st:
+                mapped_run_st = "queued"
+            else:
+                mapped_run_st = canonical_run_status(q_st) or "queued"
 
-        if id6:
-            run_map[id6] = mapped_run_st
-        if cfg:
-            run_map[cfg] = mapped_run_st
-            run_map[Path(cfg).name] = mapped_run_st
+            if id6:
+                run_map[id6] = mapped_run_st
+            if cfg:
+                run_map[cfg] = mapped_run_st
+                run_map[Path(cfg).name] = mapped_run_st
 
-        it = None
-        if cfg:
-            plan_p = repo / cfg if not Path(cfg).is_absolute() else Path(cfg)
-            if plan_p.is_file():
-                it = attention.item_for_path(plan_p, repo_root=repo)
-        if it is None and id6:
-            try:
-                cand = resolve_plan_path(repo, cfg, id6)
-                if cand.is_file():
-                    it = attention.item_for_path(cand, repo_root=repo)
-            except Exception:
-                pass
-        if it is None:
-            it = attention.Item(
-                id=id6,
-                path=cfg,
-                tree="plans",
-                native_status=q_item.get("initial_status")
-                or q_item.get("status")
-                or "approved",
-                attention_class="ready",
-                gate=None,
-                last_history_at=None,
-                item_dependencies=tuple(q_item.get("dependencies") or ()),
-            )
-        items.append(it)
+            it = None
+            if cfg:
+                plan_p = repo / cfg if not Path(cfg).is_absolute() else Path(cfg)
+                if plan_p.is_file():
+                    it = attention.item_for_path(plan_p, repo_root=repo)
+            if it is None and id6:
+                try:
+                    cand = resolve_plan_path(repo, cfg, id6)
+                    if cand.is_file():
+                        it = attention.item_for_path(cand, repo_root=repo)
+                except Exception:
+                    pass
+            if it is None:
+                it = attention.Item(
+                    id=id6,
+                    path=cfg,
+                    tree="plans",
+                    native_status=q_item.get("initial_status")
+                    or q_item.get("status")
+                    or "approved",
+                    attention_class="ready",
+                    gate=None,
+                    last_history_at=None,
+                    item_dependencies=tuple(q_item.get("dependencies") or ()),
+                )
+            items.append(it)
 
     return attention.render_table(
         items,
@@ -50666,54 +50680,63 @@ def execute_item_core(
                     )
                 )
             else:
+                from agent_workflows import artifact_meta as _meta
+                from agent_workflows import selectors as _sel
+
                 host_name = "agy" if "agy" in host_labels.id else "oc"
-                findings.extend(
-                    _pc.spec_plan_count(
-                        target_tree,
-                        item["id6"],
-                        baseline_plan_ids,
-                        host=host_name,
+                with _meta.scan_once(), _meta.ephemeral_if_uninitialized(), _sel.scan_once():
+                    findings.extend(
+                        _pc.spec_plan_count(
+                            target_tree,
+                            item["id6"],
+                            baseline_plan_ids,
+                            host=host_name,
+                        )
                     )
-                )
-                findings.extend(
-                    _pc.spec_plan_set(
-                        target_tree,
-                        item["id6"],
-                        all_verified_paths,
-                        host=host_name,
-                        run_id=str(state.get("run_id") or ""),
-                        state=state,
+                    findings.extend(
+                        _pc.spec_plan_set(
+                            target_tree,
+                            item["id6"],
+                            all_verified_paths,
+                            host=host_name,
+                            run_id=str(state.get("run_id") or ""),
+                            state=state,
+                        )
                     )
-                )
-                findings.extend(
-                    _pc.spec_plan_conformance(
-                        target_tree,
-                        item["id6"],
-                        all_verified_paths,
-                        host=host_name,
-                        run_id=str(state.get("run_id") or ""),
-                        continued_ids=continued_ids,
+                    # spec_plan_set may stamp `- Coverage:` onto the orchestrator plan on disk.
+                    _meta.drop_scan_freshness()
+                    _sel.drop_scan()
+                    findings.extend(
+                        _pc.spec_plan_conformance(
+                            target_tree,
+                            item["id6"],
+                            all_verified_paths,
+                            host=host_name,
+                            run_id=str(state.get("run_id") or ""),
+                            continued_ids=continued_ids,
+                        )
                     )
-                )
-                findings.extend(
-                    _pc.spec_plan_gate_carry(
-                        target_tree,
-                        item["id6"],
-                        all_verified_paths,
-                        host=host_name,
+                    findings.extend(
+                        _pc.spec_plan_gate_carry(
+                            target_tree,
+                            item["id6"],
+                            all_verified_paths,
+                            host=host_name,
+                        )
                     )
-                )
-                findings.extend(
-                    _pc.spec_plan_trace(
-                        target_tree,
-                        item["id6"],
-                        all_verified_paths,
-                        host=host_name,
-                        run_id=str(state.get("run_id") or ""),
-                        continued_ids=continued_ids,
+                    findings.extend(
+                        _pc.spec_plan_trace(
+                            target_tree,
+                            item["id6"],
+                            all_verified_paths,
+                            host=host_name,
+                            run_id=str(state.get("run_id") or ""),
+                            continued_ids=continued_ids,
+                        )
                     )
-                )
-                trace_vacuity = _pc.spec_plan_trace_vacuity(target_tree, item["id6"])
+                    trace_vacuity = _pc.spec_plan_trace_vacuity(
+                        target_tree, item["id6"]
+                    )
                 if trace_vacuity is not None:
                     append_jsonl(
                         run_dir / "events.jsonl",
@@ -50908,6 +50931,9 @@ def execute_item_core(
                             state=state,
                         )
                     )
+                    # spec_plan_set may stamp `- Coverage:` onto the orchestrator plan on disk.
+                    _meta.drop_scan_freshness()
+                    _sel.drop_scan()
                     findings.extend(
                         _pc.spec_plan_conformance(
                             target_tree,
@@ -51325,54 +51351,61 @@ def execute_item_core(
                     )
                 )
             else:
-                host_name = "agy" if "agy" in host_labels.id else "oc"
-                findings.extend(
-                    _pc.backlog_graduate_count(
-                        target_tree,
-                        item["id6"],
-                        baseline_plan_ids,
-                        host=host_name,
-                    )
-                )
-                findings.extend(
-                    _pc.backlog_graduate_set(
-                        target_tree,
-                        item["id6"],
-                        all_verified_paths,
-                        host=host_name,
-                        run_id=str(state.get("run_id") or ""),
-                        state=state,
-                    )
-                )
-                findings.extend(
-                    _pc.backlog_graduate_ipd(
-                        target_tree,
-                        item["id6"],
-                        all_verified_paths,
-                        host=host_name,
-                        run_id=str(state.get("run_id") or ""),
-                        continued_ids=continued_ids,
-                    )
-                )
-                findings.extend(
-                    _pc.backlog_gate_handoff(
-                        target_tree,
-                        item["id6"],
-                        all_verified_paths,
-                        host=host_name,
-                    )
-                )
+                from agent_workflows import artifact_meta as _meta
+                from agent_workflows import selectors as _sel
 
-                # Advisory cross-tree check for mid-graduation warnings (E-02)
-                try:
-                    for _drift in _ce.release_gate_warnings(target_tree):
-                        if item["id6"] in str(_drift.location):
-                            print(
-                                f"[BACKLOG-CROSS-TREE] Warning: {_drift.rule}: {_drift.detail}",
-                                file=sys.stderr,
-                            )
-                except Exception:
-                    pass
+                host_name = "agy" if "agy" in host_labels.id else "oc"
+                with _meta.scan_once(), _meta.ephemeral_if_uninitialized(), _sel.scan_once():
+                    findings.extend(
+                        _pc.backlog_graduate_count(
+                            target_tree,
+                            item["id6"],
+                            baseline_plan_ids,
+                            host=host_name,
+                        )
+                    )
+                    findings.extend(
+                        _pc.backlog_graduate_set(
+                            target_tree,
+                            item["id6"],
+                            all_verified_paths,
+                            host=host_name,
+                            run_id=str(state.get("run_id") or ""),
+                            state=state,
+                        )
+                    )
+                    # backlog_graduate_set may stamp `- Coverage:` onto the orchestrator plan on disk.
+                    _meta.drop_scan_freshness()
+                    _sel.drop_scan()
+                    findings.extend(
+                        _pc.backlog_graduate_ipd(
+                            target_tree,
+                            item["id6"],
+                            all_verified_paths,
+                            host=host_name,
+                            run_id=str(state.get("run_id") or ""),
+                            continued_ids=continued_ids,
+                        )
+                    )
+                    findings.extend(
+                        _pc.backlog_gate_handoff(
+                            target_tree,
+                            item["id6"],
+                            all_verified_paths,
+                            host=host_name,
+                        )
+                    )
+
+                    # Advisory cross-tree check for mid-graduation warnings (E-02)
+                    try:
+                        for _drift in _ce.release_gate_warnings(target_tree):
+                            if item["id6"] in str(_drift.location):
+                                print(
+                                    f"[BACKLOG-CROSS-TREE] Warning: {_drift.rule}: {_drift.detail}",
+                                    file=sys.stderr,
+                                )
+                    except Exception:
+                        pass
 
             # Production correction turn loop (nnsa2o E-02)
             prod_dec = None
@@ -51557,6 +51590,9 @@ def execute_item_core(
                             state=state,
                         )
                     )
+                    # backlog_graduate_set may stamp `- Coverage:` onto the orchestrator plan on disk.
+                    _meta.drop_scan_freshness()
+                    _sel.drop_scan()
                     findings.extend(
                         _pc.backlog_graduate_ipd(
                             target_tree,
@@ -56329,41 +56365,46 @@ def _classify_backlog_carriers(
     Factors the carrier discovery, IPD vs non-IPD partitioning, plan_bucket terminal status check,
     and check_engine._carrier_is_executed spec check into ONE shared lookup so the two cannot diverge.
     """
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import check_engine as _ce
+    from agent_workflows import selectors as _sel
 
     overrides = dict(executed_overrides or {})
 
-    try:
-        item_path = resolve_backlog_item(repo, item_id6)
-    except Exception as exc:  # fail closed: an unreadable backlog tree closes nothing
-        return _BacklogCarrierClassification(
-            None, f"backlog item lookup failed: {exc}", [], [], [], [], [], None
-        )
-    if item_path is None:
-        return _BacklogCarrierClassification(
-            None,
-            f"no backlog item resolves to id6 {item_id6}",
-            [],
-            [],
-            [],
-            [],
-            [],
-            None,
-        )
-    status = item_path.parent.name
-    if status == "done":
-        return _BacklogCarrierClassification(
-            item_path, "item is already done", [], [], [], [], [], None
-        )
+    with _meta.scan_once(), _meta.ephemeral_if_uninitialized(), _sel.scan_once():
+        try:
+            item_path = resolve_backlog_item(repo, item_id6)
+        except (
+            Exception
+        ) as exc:  # fail closed: an unreadable backlog tree closes nothing
+            return _BacklogCarrierClassification(
+                None, f"backlog item lookup failed: {exc}", [], [], [], [], [], None
+            )
+        if item_path is None:
+            return _BacklogCarrierClassification(
+                None,
+                f"no backlog item resolves to id6 {item_id6}",
+                [],
+                [],
+                [],
+                [],
+                [],
+                None,
+            )
+        status = item_path.parent.name
+        if status == "done":
+            return _BacklogCarrierClassification(
+                item_path, "item is already done", [], [], [], [], [], None
+            )
 
-    try:
-        carriers = [
-            Path(p) for p, _br in _ce.find_from_backlog_artifacts(repo, item_id6)
-        ]
-    except Exception as exc:  # fail closed
-        return _BacklogCarrierClassification(
-            item_path, f"carrier lookup failed: {exc}", [], [], [], [], [], None
-        )
+        try:
+            carriers = [
+                Path(p) for p, _br in _ce.find_from_backlog_artifacts(repo, item_id6)
+            ]
+        except Exception as exc:  # fail closed
+            return _BacklogCarrierClassification(
+                item_path, f"carrier lookup failed: {exc}", [], [], [], [], [], None
+            )
 
     def _rel(path: Path) -> str:
         try:

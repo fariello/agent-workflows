@@ -774,6 +774,7 @@ def run_cli_inproc(
     old_cwd = os.getcwd()
     old_env = dict(os.environ)
     old_argv = list(sys.argv)
+    old_stdin = sys.stdin
 
     effective_cwd = str(REPO_ROOT) if cwd is None else str(cwd)
     try:
@@ -789,6 +790,7 @@ def run_cli_inproc(
 
         os.chdir(effective_cwd)
         sys.argv = ["agent_workflows", *argv]
+        sys.stdin = io.StringIO("")
 
         out = io.StringIO()
         err = io.StringIO()
@@ -812,6 +814,7 @@ def run_cli_inproc(
             argv=list(argv), returncode=returncode, stdout=out_str, stderr=err_str
         )
     finally:
+        sys.stdin = old_stdin
         try:
             os.chdir(old_cwd)
         except Exception:
@@ -991,27 +994,17 @@ def build_installed_project_template(base_dir: Path) -> InstalledProjectTemplate
     xdg_config_home.mkdir(parents=True, exist_ok=True)
 
     # Initialize git repo and local identity before installing (F-14)
-    subprocess.run(["git", "init"], cwd=proj_dir, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "config", "user.name", "Test Agent"],
-        cwd=proj_dir,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test-agent@example.com"],
-        cwd=proj_dir,
-        check=True,
-        capture_output=True,
-    )
+    from tests.repo_template import copy_template_repo
+
+    copy_template_repo(proj_dir)
 
     env_overrides = {
         "HOME": str(home_dir),
         "XDG_CONFIG_HOME": str(xdg_config_home),
     }
 
-    # Run aw install . --yes via run_cli with pinned env
-    res = run_cli(
+    # Run aw install . --yes via run_cli_inproc with pinned env
+    res = run_cli_inproc(
         ["install", ".", "--yes"],
         cwd=proj_dir,
         env_overrides=env_overrides,
