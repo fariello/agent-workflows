@@ -10,7 +10,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import backlog as B
-from agent_workflows import plans as plans_mod
+from agent_workflows import cli
 from tests import support
 from tests.record_builder import RecordBuilder
 
@@ -129,8 +129,8 @@ class SectionExtractorTests(unittest.TestCase):
         self.assertIn("## ", msg)
         self.assertIn("offset", msg)
 
-    def test_final_section_against_real_plans_render_status_index(self):
-        """V-03: final_section on real plans.render_status_index output and appended refusal."""
+    def test_final_section_against_real_ipd_board_output(self):
+        """V-03: final_section on real `aw ipd board` output and appended refusal."""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             # Create minimal fixture with plans declaring a Set
@@ -159,28 +159,32 @@ class SectionExtractorTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            out = plans_mod.render_status_index(root, plans_mod.scan(root))
-            self.assertIn("## Sets", out)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = cli.main(["ipd", "board", "--dir", str(root)])
+            self.assertEqual(rc, 0)
+            out = buf.getvalue()
 
-            # final_section extracts the terminal Sets section
-            tail = support.final_section(out, "## Sets", next_marker="## ")
-            self.assertTrue(tail.startswith("## Sets"))
-            self.assertIn("myset", tail)
+            # The pending/ disposition block is the board's terminal section here.
+            tail = support.final_section(out, "pending/ (", next_marker="executed/ (")
+            self.assertTrue(tail.startswith("pending/ (2)"))
+            self.assertIn("20260101-0000-01-a.md", tail)
+            self.assertIn("20260101-0001-01-b.md", tail)
 
-            # Appending a new heading causes final_section to refuse
-            appended = out + "\n## Recently touched\n\n- x\n"
+            # Appending a new disposition heading causes final_section to refuse
+            appended = out + "\nexecuted/ (1)\n  executed (1)\n    x.md\n"
             with self.assertRaises(support.SectionBoundError) as cm:
-                support.final_section(appended, "## Sets", next_marker="## ")
+                support.final_section(appended, "pending/ (", next_marker="executed/ (")
             msg = str(cm.exception)
             self.assertIn("offset", msg)
-            self.assertIn("## Sets", msg)
+            self.assertIn("pending/ (", msg)
 
             # Contrast: unbounded slice absorbs the new section and grows
             unbounded_orig = out[
-                out.index("## Sets") :
+                out.index("pending/ (") :
             ]  # aw-unbounded-ok: control test proving raw slice absorbs appended section
             unbounded_appended = appended[
-                appended.index("## Sets") :
+                appended.index("pending/ (") :
             ]  # aw-unbounded-ok: control test proving raw slice absorbs appended section
             self.assertGreater(len(unbounded_appended), len(unbounded_orig))
 
