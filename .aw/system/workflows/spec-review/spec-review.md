@@ -206,7 +206,8 @@ Both must be clean before you rely on the record.
 Use `../release-review/fix-decision-policy.md` unchanged. Fix every finding unless overall Remediation
 Risk is Medium-High or High; every deferral must state the axis, why the risk reaches the threshold,
 the required decision or evidence, and the consequence of leaving it unresolved. Effort, time, cost,
-and tokens are never valid deferral reasons.
+and tokens are never valid deferral reasons for a spec finding (this governs fixing versus deferring
+findings; it does not require running redundant or full-suite test commands during review).
 
 For OVER-SCOPE in a spec, the default fix is removal or explicit relocation to Non-goals, which is
 normally Low risk.

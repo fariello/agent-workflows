@@ -36940,16 +36940,22 @@ def build_review_prompt(
     )
 
 
-#: Backlog `t1uuxl`: review agents pushed long commands (`aw check plans`, pytest) into the
-#: background and then polled them, and every poll replays the whole context. Waiting in the
-#: foreground is safe for the stall watchdog, which counts command output and the `aw suite`
-#: heartbeat as progress.
+#: Backlog `t1uuxl` and `8nf0jn`: review agents pushed long commands (`aw check plans`, checks)
+#: into the background and then polled them, and every poll replays the whole context. Waiting in
+#: the foreground is safe for the stall watchdog, which counts command output as progress. Backlog
+#: `8nf0jn`: review turns verify plans statically first and must not treat the foreground-wait
+#: rule as a prompt to run full test suites during review.
 REVIEW_FOREGROUND_RULE = (
-    "Run every command you need the result of in the FOREGROUND and wait for it to finish, "
-    "even when it takes minutes (`aw check plans`, test runs). Do not start it as a background "
-    "or scheduled task, and do not check on a background task repeatedly with status, list or "
-    "timer calls: each check costs a full turn of context. If you did start one, end your turn "
-    "and let it finish rather than polling it."
+    "Prefer static reading of code, tests, and records over running commands. When static "
+    "reading cannot settle a blocking factual claim, run one narrow, fast targeted check "
+    "(such as `aw check plans`, `aw ipd lint`, `--collect-only`, or a single test file with "
+    "`--no-cov`). Avoid full-suite test runs, coverage runs, benchmarks, throwaway virtual "
+    "environments, or repeated runs on an unchanged tree. Run every command you do need in "
+    "the FOREGROUND and wait for it to finish, even when it takes minutes (`aw check plans`, "
+    "`aw ipd lint`). Do not start it as a background or scheduled task, and do not check on a "
+    "background task repeatedly with status, list or timer calls: each check costs a full "
+    "turn of context. If you did start one, end your turn and let it finish rather than "
+    "polling it."
 )
 
 

@@ -70,7 +70,7 @@ A deferral MUST state:
 - needed decision or evidence;
 - consequence of leaving it unresolved.
 
-Effort, time, cost, and tokens are invalid reasons.
+Effort, time, cost, and tokens are invalid deferral reasons for a plan finding (this governs fixing versus deferring findings; it does not require running redundant or full-suite test commands during review).
 
 For over-scope, remove or explicitly exclude the unsupported work by default.
 

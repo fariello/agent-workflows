@@ -526,6 +526,10 @@ class TestPromptContents(unittest.TestCase):
             # t1uuxl: the review turn is told to wait in the foreground, not poll.
             self.assertIn("FOREGROUND", prompt)
             self.assertIn("do not check on a background task repeatedly", prompt)
+            # 8nf0jn: review prompt prefers static reading and does not invite full-suite test runs.
+            self.assertNotIn("(`aw check plans`, test runs)", prompt)
+            self.assertIn("Prefer static reading", prompt)
+            self.assertIn("Avoid full-suite test runs", prompt)
 
             # Assert directory created
             m = re.search(r"Required JSON outcome: (\S+)", prompt)

@@ -13,16 +13,20 @@ If either is absent, apply these rules from memory:
 - Defer only when the fix itself has Medium-High or High Remediation Risk on
   complexity, usability, security, or functionality.
 - Severity is for reporting only.
-- Effort, time, cost, and tokens never justify deferral.
+- Effort, time, cost, and tokens never justify deferring a review finding under the Fix Bar. This rule governs fixing versus deferring findings in the plan; it does not require running redundant or full-suite test commands during review.
 - Review through QA/QC, testing/regression, UI/UX, architect, software
   engineer, power user, novice, and stakeholder views.
 - Apply security as a mandatory cross-cutting lens.
+
+## Verification scope
+
+Verify claims by reading repository files first (source code, tests, specs, and records). When static reading cannot settle a blocking factual claim, you may run a narrow, fast targeted check (for example `pytest --collect-only`, or a single test file or `-k` filter with `--no-cov`). Avoid full-suite test runs, coverage sweeps (`--cov`), benchmarks, throwaway virtual environments or `pip install`, and ad-hoc `/tmp` probe plugins unless the plan depends on an unverified runtime failure that no narrower check can settle. Never repeat a full-suite run on an unchanged tree.
 
 ---
 ## Memory kernel
 Re-read this before each step and before the final report:
 1. Review plans only.
-2. Verify claims from repository evidence.
+2. Verify claims from repository evidence (prefer static reading; keep any needed check narrow and fast).
 3. Fix by default. Severity never decides.
 4. Resolve open questions interactively when possible.
 5. Never guess a human decision.

@@ -11,11 +11,11 @@ is the equivalent portable version; the two are kept in deliberate parity.
 These rules apply in every step:
 
 1. Edit planning documents only. Do not implement code or configuration.
-2. Verify material claims against repository evidence. Do not guess.
+2. Verify material claims against repository evidence (prefer static reading; keep any needed check narrow and fast). Do not guess.
 3. Fix findings by default. Severity does not decide whether to fix.
 4. Defer only when the fix itself has Medium-High or High Remediation Risk on
    complexity, usability, security, or functionality.
-5. Effort, time, cost, and tokens never justify deferral.
+5. Effort, time, cost, and tokens never justify deferring a review finding under the Fix Bar (this governs fixing versus deferring findings in the plan; it does not require running redundant or full-suite test commands during review).
 6. Resolve open questions with the human whenever interaction is available.
 7. Never push or include unrelated files in a commit.
 8. The reviewed/not-reviewed enumeration is the final output.
@@ -32,6 +32,8 @@ If those sibling files are absent, apply the same rules from memory.
 
 Review and revise plans only. Do not change code, tests, runtime configuration,
 infrastructure, production data, or deployment state.
+
+Verify claims by reading repository files first (source code, tests, specs, and records). When static reading cannot settle a blocking factual claim, you may run a narrow, fast targeted check (for example `pytest --collect-only`, or a single test file or `-k` filter with `--no-cov`). Avoid full-suite test runs, coverage sweeps (`--cov`), benchmarks, throwaway virtual environments or `pip install`, and ad-hoc `/tmp` probe plugins unless the plan depends on an unverified runtime failure that no narrower check can settle. Never repeat a full-suite run on an unchanged tree.
 
 ## Execution rule
 

@@ -59,7 +59,7 @@ Every deferral MUST state:
 - Required decision or evidence.
 - Consequence of leaving it unresolved.
 
-Effort, time, cost, and tokens are never valid deferral reasons.
+Effort, time, cost, and tokens are never valid deferral reasons for a plan finding. This rule governs fixing versus deferring findings; it does not require running redundant or full-suite test commands during review.
 
 For over-scope, the default fix is removal or explicit deferral from the plan.
 That is normally Low risk.
