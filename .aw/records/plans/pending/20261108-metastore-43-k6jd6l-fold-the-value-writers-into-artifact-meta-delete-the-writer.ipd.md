@@ -247,6 +247,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
      ...ers-into-artifact-meta-delete-the-writer.ipd.md | 67 ++++++++++++++++++++--
      1 file changed, 62 insertions(+), 5 deletions(-)
     ```
+    Attempt 2 (2026-11-24) re-ran the checks in its own lane at the same base `f5bfcb2eb`. The family searches and the re-export pin (`1 passed, 142 deselected in 2.02s`) gave identical output. `aw suite` printed `2889 passed, 1 skipped, 11 warnings in 123.95s (0:02:03)`, and `aw sanitize --agent` reported clean with 0 findings. The record was brought forward as this lane's `aw commit k6jd6l` commit:
+    ```text
+    commit 28056d457711c7c34ca99b1ce62df24100617732
+     ...ers-into-artifact-meta-delete-the-writer.ipd.md | 72 ++++++++++++++++++++--
+     1 file changed, 67 insertions(+), 5 deletions(-)
+    ```
   - Result: pass
 
 ## Approval and execution gate
