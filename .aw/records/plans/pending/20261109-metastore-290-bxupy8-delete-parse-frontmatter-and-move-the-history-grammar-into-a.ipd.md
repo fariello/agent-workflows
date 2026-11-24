@@ -42,25 +42,25 @@ PIN RULE (carried from `9o83cr`): before an edit that deletes or retargets, save
 
 ### Task group 1: one step per item
 
-- [ ] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-10d-before.txt`. Delete `research_contract.parse_frontmatter`.
+- [x] E-01 Before the first edit, ensure `.aw/state/9o83cr/` exists (`mkdir -p .aw/state/9o83cr/`) and save the baseline test PIN list to `.aw/state/9o83cr/E-10d-before.txt`. Delete `research_contract.parse_frontmatter`.
   - Depends on: none
   - Expected outcome: no module defines or calls it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/artifact_meta.py`, add private copies, unchanged in behavior, of `attention_contract.history_block` (with its `HistoryBlock` result type and a private copy of the record pattern), `attention_contract.newest_history_record` and `attention_contract.last_history_at`, and change `artifact_meta.load_legacy_artifact` to call them.
+- [x] E-02 In `agent_workflows/artifact_meta.py`, add private copies, unchanged in behavior, of `attention_contract.history_block` (with its `HistoryBlock` result type and a private copy of the record pattern), `attention_contract.newest_history_record` and `attention_contract.last_history_at`, and change `artifact_meta.load_legacy_artifact` to call them.
   - Depends on: E-01
   - Expected outcome: `artifact_meta` calls no `_att` history function.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add one public `artifact_meta` function for a caller that holds only TEXT and needs the history records (for example `artifact_meta.history_records(text) -> HistoryBlock`), documented as the single history grammar; a caller with an id6 uses `artifact_meta.history` or `read` instead.
+- [x] E-03 Add one public `artifact_meta` function for a caller that holds only TEXT and needs the history records (for example `artifact_meta.history_records(text) -> HistoryBlock`), documented as the single history grammar; a caller with an id6 uses `artifact_meta.history` or `read` instead.
   - Depends on: E-02
   - Expected outcome: the public function exists and returns the same block as the original for the same text.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 If `agent_workflows/migrations/m0001_convert.py` exists, change its `newest_history_record` call to the `artifact_meta` function; save the after-list; commit through `aw commit bxupy8 -- <paths>`.
+- [x] E-04 If `agent_workflows/migrations/m0001_convert.py` exists, change its `newest_history_record` call to the `artifact_meta` function; save the after-list; commit through `aw commit bxupy8 -- <paths>`.
   - Depends on: E-03
   - Expected outcome: the migration calls `artifact_meta`; the migration tests pass unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -119,25 +119,97 @@ No spec change; implements part of `4sd62s` 4.3 and section 7 step 7. CONTRIBUTE
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "parse_frontmatter\b" agent_workflows tools tests` listing only the private `artifact_meta` copy from Order 288 (and comments, each quoted).
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "parse_frontmatter\b" agent_workflows tools tests
+    agent_workflows/research_index.py:906:    # Reads raw text because parse_frontmatter destroys key duplicates by last-wins assignment.
+    agent_workflows/artifact_meta.py:2974:def _parse_frontmatter(text: str) -> Optional[Dict[str, object]]:
+    agent_workflows/artifact_meta.py:2977:    Copy of ``research_contract.parse_frontmatter`` with unchanged behavior (IPD `sq6v7i`), so the
+    agent_workflows/artifact_meta.py:3010:    `State` that `read_text` returns. See `_parse_frontmatter` for the exact framing.
+    agent_workflows/artifact_meta.py:3013:    return _parse_frontmatter(text)
+    ```
+    Only the private `artifact_meta._parse_frontmatter` copy (Order 288), its public wrapper `front_matter_mapping` calling it, and two comments/docstrings: `research_index.py:906` quoted "# Reads raw text because parse_frontmatter destroys key duplicates by last-wins assignment." and `artifact_meta.py:2977` quoted "Copy of ``research_contract.parse_frontmatter`` with unchanged behavior". No module defines or calls `research_contract.parse_frontmatter` (the 36-line definition is removed in commit `c9fb84eec`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "_att\.(history_block|newest_history_record|last_history_at)" agent_workflows/artifact_meta.py` printing nothing and `rg -n "def _(history_block|newest_history_record|last_history_at)\b" agent_workflows/artifact_meta.py` with three hits.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "_att\.(history_block|newest_history_record|last_history_at)" agent_workflows/artifact_meta.py; echo "exit=$?"
+    exit=1
+    $ rg -n "def _(history_block|newest_history_record|last_history_at)\b" agent_workflows/artifact_meta.py
+    2701:def _history_block(text: str) -> HistoryBlock:
+    2803:def _newest_history_record(history_lines: List[str]) -> Optional[str]:
+    2843:def _last_history_at(
+    ```
+    First command prints nothing (exit 1); second has three hits. `artifact_meta` also owns `class HistoryBlock(NamedTuple)` and the private `_HISTORY_RECORD_RE`, `_HISTORY_HEADING_RE`, `_HISTORY_DATE_RE` patterns.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the new test in `tests/test_artifact_meta_legacy.py` that compares `artifact_meta.history_records(text)` with `attention_contract.history_block(text)` on the fixture texts, and its PASSED line.
   - Observed evidence:
-  - Result: pending
+    New tests in `tests/test_artifact_meta_legacy.py`: `test_history_records_matches_attention_contract_history_block` (parametrized over six fixture texts) and `test_last_history_at_copy_matches_original_for_event_dicts`. Core of the comparison test:
+    ```
+    @pytest.mark.parametrize(
+        "text",
+        _HISTORY_FIXTURE_TEXTS,
+        ids=["no-history", "two-records", "wrapped-and-quoted", "column-zero-prose", "crlf", "empty-block"],
+    )
+    def test_history_records_matches_attention_contract_history_block(text: str):
+        got = meta.history_records(text)
+        want = att.history_block(text)
+        assert got.records == want.records
+        assert got.record_lines == want.record_lines
+        assert got.body == want.body
+        assert tuple(got) == tuple(want)
+        assert meta._newest_history_record(got.records) == att.newest_history_record(
+            want.records
+        )
+        assert meta._last_history_at(got.records) == att.last_history_at(want.records)
+    ```
+    PASSED lines (from the after-list run):
+    ```
+    PASSED tests/test_artifact_meta_legacy.py::test_history_records_matches_attention_contract_history_block[column-zero-prose]
+    PASSED tests/test_artifact_meta_legacy.py::test_history_records_matches_attention_contract_history_block[crlf]
+    PASSED tests/test_artifact_meta_legacy.py::test_history_records_matches_attention_contract_history_block[empty-block]
+    PASSED tests/test_artifact_meta_legacy.py::test_history_records_matches_attention_contract_history_block[no-history]
+    PASSED tests/test_artifact_meta_legacy.py::test_history_records_matches_attention_contract_history_block[two-records]
+    PASSED tests/test_artifact_meta_legacy.py::test_history_records_matches_attention_contract_history_block[wrapped-and-quoted]
+    PASSED tests/test_artifact_meta_legacy.py::test_last_history_at_copy_matches_original_for_event_dicts
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n "newest_history_record|attention_contract" agent_workflows/migrations/m0001_convert.py` (no `attention_contract` hit, or 'file absent' with `ls agent_workflows/migrations/`), `diff .aw/state/9o83cr/E-10d-before.txt .aw/state/9o83cr/E-10d-after.txt` with no FAILED or ERROR line, and `git show --stat` of the `aw commit bxupy8` commit.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ rg -n "newest_history_record|attention_contract" agent_workflows/migrations/m0001_convert.py
+    1217:        newest = artifact_meta._newest_history_record(hb.records)
+    $ diff .aw/state/9o83cr/E-10d-before.txt .aw/state/9o83cr/E-10d-after.txt
+    0a1,7
+    > PASSED tests/test_artifact_meta_legacy.py::test_history_records_matches_attention_contract_history_block[column-zero-prose]
+    > PASSED tests/test_artifact_meta_legacy.py::test_history_records_matches_attention_contract_history_block[crlf]
+    > PASSED tests/test_artifact_meta_legacy.py::test_history_records_matches_attention_contract_history_block[empty-block]
+    > PASSED tests/test_artifact_meta_legacy.py::test_history_records_matches_attention_contract_history_block[no-history]
+    > PASSED tests/test_artifact_meta_legacy.py::test_history_records_matches_attention_contract_history_block[two-records]
+    > PASSED tests/test_artifact_meta_legacy.py::test_history_records_matches_attention_contract_history_block[wrapped-and-quoted]
+    > PASSED tests/test_artifact_meta_legacy.py::test_last_history_at_copy_matches_original_for_event_dicts
+    $ git show --stat c9fb84eec
+    commit c9fb84eec5758eb75e36270f719f2deeb8f535c9
+        bxupy8: delete research_contract.parse_frontmatter; move the workflow-history grammar into artifact_meta with public history_records(text); retarget the loader and m0001_convert
+        AW-Run: run-20261124T050731Z-1001505
+        AW-Item: bxupy8
+        AW-Runner: aw oc run
+     agent_workflows/artifact_meta.py            | 237 +++++++++++++++++++++++++++-
+     agent_workflows/migrations/m0001_convert.py |  15 +-
+     agent_workflows/research_contract.py        |  36 -----
+     tests/test_artifact_meta_legacy.py          |  69 ++++++++
+     4 files changed, 304 insertions(+), 53 deletions(-)
+    ```
+    No `attention_contract` hit in `m0001_convert.py` (import removed; the heading pattern, record pattern, `history_block`, `newest_history_record` and `last_history_at` uses all moved to `artifact_meta`). The diff only adds the 7 new test cases; all 37 baseline cases (`tests/test_artifact_meta_legacy.py`, `tests/test_m0001_conversion.py`, `tests/test_m0001_roundtrip.py`) remain PASSED, no FAILED or ERROR line, no case removed. Full core tier (`aw suite`): "2889 passed, 1 skipped, 11 warnings in 197.78s". Every non-livecorpus test module citing `research_contract`, `m0001_convert`, `artifact_meta`, `history_block` or `last_history_at`: "1972 passed in 141.30s".
+  - Result: pass
 
 ## Approval and execution gate
 
