@@ -159,6 +159,7 @@ flowchart LR
   - Carrier-Evidence: .aw/records/plans/executed/20261124-metastore-301-wgn3bl-migrate-surviving-workflow-history-section-readers-onto-arti.ipd.md
 - Prompt comment helpers are owned by Order 302 (`t3t7za`).
   - Carrier: t3t7za
+  - Carrier-Evidence: .aw/records/plans/executed/20261124-metastore-302-t3t7za-move-surviving-aw-prompt-and-managed-prompt-comment-helpers.ipd.md
 - Specs/backlog `^-` regexes are owned by Order 303 (`fkvrc7`).
   - Carrier: fkvrc7
 - Widening the final AC-1 `rg` audit command (including non-front-matter history/OQ-row grammar classification for `ipd_lint._HISTORY_ATTRIB_RE`, `_COVERAGE_HIST_RE`, `plan_readiness._HISTORY_RECORD_PARTS_RE`, and `review_findings._OQ_FINDING_REF_RE` noted in `hmtpj2`) is owned by `9o83cr`.
