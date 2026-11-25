@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import cli
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 pytestmark = pytest.mark.core
 
@@ -77,7 +77,7 @@ class MutationVerbsTests(unittest.TestCase):
         self.assertFalse(self.plan_a.exists())
         moved = list(self.pend.glob("*newslug*.ipd.md"))
         self.assertEqual(len(moved), 1)
-        self.assertIn("- Id: aaa111", moved[0].read_text())  # Id preserved
+        assert_field(moved[0], "id", "aaa111")  # Id preserved
         # doc B citation rewritten by default
         self.assertNotIn("aaa111-original", self.doc_b.read_text())
 
@@ -92,7 +92,7 @@ class MutationVerbsTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         moved = list(self.pend.glob("*aaa111*.ipd.md"))
         self.assertEqual(len(moved), 1)
-        self.assertIn("- Set: regrp", moved[0].read_text())
+        assert_field(moved[0], "set", "regrp")
 
     def test_archive_backcompat_research_bare(self):
         rc, out = self._run(["archive"])  # bare research sweep preview

@@ -23,7 +23,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import check_engine, cli
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 def _setup_repo(root: Path) -> Path:
@@ -396,8 +396,7 @@ class TestBacklogCloseEvidencePlanDisposition(unittest.TestCase):
             self.assertEqual(rc, 0)
             found = _find_item(repo, "bk0001")
             self.assertEqual(found.parent.name, "done")
-            content = found.read_text(encoding="utf-8")
-            self.assertIn(f"- Close-Evidence: {rel_plan}", content)
+            assert_field(found, "close_evidence", rel_plan)
 
     def test_case_d_executed_plan_accepted_positional_spelling(self) -> None:
         """Positional spelling accepts close citing an executed plan."""
@@ -436,8 +435,7 @@ class TestBacklogCloseEvidencePlanDisposition(unittest.TestCase):
             self.assertEqual(rc, 0)
             found = _find_item(repo, "bk0001")
             self.assertEqual(found.parent.name, "done")
-            content = found.read_text(encoding="utf-8")
-            self.assertIn(f"- Close-Evidence: {rel_plan}", content)
+            assert_field(found, "close_evidence", rel_plan)
 
     # =========================================================================
     # Case (e): sharded executed and legacy .agents executed plans accepted
@@ -987,8 +985,7 @@ class TestBacklogCloseEvidencePlanDisposition(unittest.TestCase):
             self.assertEqual(rc, 0)
             found = _find_item(repo, "bk0001")
             self.assertEqual(found.parent.name, "done")
-            content = found.read_text(encoding="utf-8")
-            self.assertIn(f"- Close-Evidence: {rel_spec}", content)
+            assert_field(found, "close_evidence", rel_spec)
 
     def test_spec_implemented_accepted_positional_spelling(self) -> None:
         """Positional spelling accepts close citing an implemented spec."""
@@ -1025,8 +1022,7 @@ class TestBacklogCloseEvidencePlanDisposition(unittest.TestCase):
             self.assertEqual(rc, 0)
             found = _find_item(repo, "bk0001")
             self.assertEqual(found.parent.name, "done")
-            content = found.read_text(encoding="utf-8")
-            self.assertIn(f"- Close-Evidence: {rel_spec}", content)
+            assert_field(found, "close_evidence", rel_spec)
 
     def test_spec_sharded_implemented_accepted(self) -> None:
         """Sharded specs/implemented/YYYYMM/ spec is accepted as close evidence."""
@@ -1068,8 +1064,7 @@ class TestBacklogCloseEvidencePlanDisposition(unittest.TestCase):
             self.assertEqual(rc, 0)
             found = _find_item(repo, "bk0001")
             self.assertEqual(found.parent.name, "done")
-            content = found.read_text(encoding="utf-8")
-            self.assertIn(f"- Close-Evidence: {rel_spec}", content)
+            assert_field(found, "close_evidence", rel_spec)
 
     def test_spec_legacy_flat_implemented_accepted(self) -> None:
         """Legacy flat .agents/docs/specs/ spec is accepted as close evidence."""
@@ -1111,8 +1106,7 @@ class TestBacklogCloseEvidencePlanDisposition(unittest.TestCase):
             self.assertEqual(rc, 0)
             found = _find_item(repo, "bk0001")
             self.assertEqual(found.parent.name, "done")
-            content = found.read_text(encoding="utf-8")
-            self.assertIn(f"- Close-Evidence: {rel_spec}", content)
+            assert_field(found, "close_evidence", rel_spec)
 
     def test_spec_at_rest_consistency_flags_approved_spec(self) -> None:
         """At-rest release gate consistency flags a done item citing an approved spec."""

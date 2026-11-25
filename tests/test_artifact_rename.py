@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import cli
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 class TestArtifactRename(unittest.TestCase):
@@ -106,7 +106,7 @@ class TestArtifactRename(unittest.TestCase):
             self.backlog_dir / "20260823-bklset-01-bk1234-new-shiny-task.backlog.md"
         )
         self.assertTrue(new_bkl.exists())
-        self.assertIn("- Id: bk1234", new_bkl.read_text(encoding="utf-8"))
+        assert_field(new_bkl, "id", "bk1234")
 
         # Inbound reference rewritten
         self.assertIn(

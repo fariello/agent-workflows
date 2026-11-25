@@ -21,7 +21,7 @@ from agent_workflows import agy_runipd, cli, render_stream, runner_shared
 from tests import support
 from tests.repo_template import copy_template_repo
 from tests.test_oc_runipd import _CONFORMING_PLAN
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 def _run_cli(argv):
@@ -248,7 +248,7 @@ class AgySelfFinalizeTests(unittest.TestCase):
             self.assertEqual(rc, 0, msg)
             executed = repo / ".aw" / "records" / "plans" / "executed" / plan.name
             self.assertTrue(executed.is_file())
-            self.assertIn("- Status: executed", executed.read_text(encoding="utf-8"))
+            assert_field(executed, "status", "executed")
 
     def _state_and_item(self, repo, plan, self_finalize=True):
         item = {

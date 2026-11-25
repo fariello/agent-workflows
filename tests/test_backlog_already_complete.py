@@ -32,7 +32,7 @@ from agent_workflows import (
     production_checks,
     runner_shared,
 )
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 from tests.test_backlog_production import (
     _HOSTS,
     _make_test_repo,
@@ -359,7 +359,7 @@ class TestBacklogAlreadyCompleteIntegrationE05(unittest.TestCase):
                     )
                     self.assertEqual(len(bkl_files), 1)
                     self.assertIn("/done/", str(bkl_files[0]).replace("\\", "/"))
-                    self.assertIn("- Status: done", bkl_files[0].read_text("utf-8"))
+                    assert_field(bkl_files[0], "status", "done")
 
                     # backlog-already-complete event present
                     events = [

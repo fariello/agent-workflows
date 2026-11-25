@@ -14,7 +14,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import artifact_meta, cli
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 class TestArtifactGroup(unittest.TestCase):
@@ -103,9 +103,8 @@ class TestArtifactGroup(unittest.TestCase):
         self.assertFalse(bkl.exists())
         new_bkl = self.backlog_dir / "20260823-newgrp-01-bk1234-task.backlog.md"
         self.assertTrue(new_bkl.exists())
-        content = new_bkl.read_text(encoding="utf-8")
-        self.assertIn("- Set: newgrp", content)
-        self.assertIn("- Id: bk1234", content)
+        assert_field(new_bkl, "set", "newgrp")
+        assert_field(new_bkl, "id", "bk1234")
 
         # Reference rewritten
         self.assertIn(
@@ -134,7 +133,7 @@ class TestArtifactGroup(unittest.TestCase):
         )
         self.assertEqual(rc, 0)
         self.assertTrue(bkl.exists())  # file not renamed
-        self.assertIn("- Set: newgrp", bkl.read_text(encoding="utf-8"))
+        assert_field(bkl, "set", "newgrp")
         self.assertIn("set metadata Set: newgrp in ", out)
 
     def test_group_specs_injects_set(self):
@@ -152,8 +151,7 @@ class TestArtifactGroup(unittest.TestCase):
             ["group", "specs", "20260823-1430-01-spec", "--set", "specgrp", "--apply"]
         )
         self.assertEqual(rc, 0)
-        content = spec.read_text(encoding="utf-8")
-        self.assertIn("- Set: specgrp", content)
+        assert_field(spec, "set", "specgrp")
 
     def test_group_walkthroughs_injects_set(self):
         wt = self.walkthroughs_dir / "20260823-migration-walkthrough.md"
@@ -168,8 +166,7 @@ class TestArtifactGroup(unittest.TestCase):
             ["group", "walkthroughs", "20260823-migration", "--set", "wtgrp", "--apply"]
         )
         self.assertEqual(rc, 0)
-        content = wt.read_text(encoding="utf-8")
-        self.assertIn("- Set: wtgrp", content)
+        assert_field(wt, "set", "wtgrp")
 
     def test_group_prompts_with_order(self):
         pr = self.prompts_dir / "20260823-oldset-01-pr1234-prompt.prompt.md"
@@ -218,8 +215,7 @@ class TestArtifactGroup(unittest.TestCase):
             ["group", "roadmaps", "20260823-roadmap", "--set", "rdgrp", "--apply"]
         )
         self.assertEqual(rc, 0)
-        content = rm.read_text(encoding="utf-8")
-        self.assertIn("- Set: rdgrp", content)
+        assert_field(rm, "set", "rdgrp")
 
     def test_group_releases(self):
         rel = self.releases_dir / "20260823-oldrel-01-re1234-rel-2-0.release.md"
@@ -259,9 +255,8 @@ class TestArtifactGroup(unittest.TestCase):
         self.assertFalse(rel.exists())
         new_rel = self.releases_dir / "20260823-newrel-01-re1234-rel-2-0.release.md"
         self.assertTrue(new_rel.exists())
-        content = new_rel.read_text(encoding="utf-8")
-        self.assertIn("- Set: newrel", content)
-        self.assertIn("- Id: re1234", content)
+        assert_field(new_rel, "set", "newrel")
+        assert_field(new_rel, "id", "re1234")
         self.assertIn("renamed ", out)
         self.assertIn("set metadata Set: newrel in ", out)
         self.assertIn(
@@ -275,8 +270,7 @@ class TestArtifactGroup(unittest.TestCase):
         )
         self.assertEqual(rc, 0)
         self.assertTrue(new_rel.exists())
-        content = new_rel.read_text(encoding="utf-8")
-        self.assertIn("- Set: relnext", content)
+        assert_field(new_rel, "set", "relnext")
         self.assertIn("set metadata Set: relnext in ", out)
 
         # 4. Inject - Set: into a release without existing Set
@@ -296,8 +290,7 @@ class TestArtifactGroup(unittest.TestCase):
             ["group", "releases", "re5678", "--set", "relinj", "--apply"]
         )
         self.assertEqual(rc, 0)
-        content_injected = rel_no_set.read_text(encoding="utf-8")
-        self.assertIn("- Set: relinj", content_injected)
+        assert_field(rel_no_set, "set", "relinj")
         self.assertIn("set metadata Set: relinj in ", out)
 
     def test_group_comms_is_unsupported(self):
