@@ -176,8 +176,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
       -4. Do NOT write any verdict output (`- Readiness:`, status change, or verdict-bearing history entry) in this step (MD-15). Verdicts are written in S7 only.
       -5. If recording a progress note in the plan's `## Workflow history`, record it ONLY as:
       +4. Do NOT write any verdict output (do not run `aw reviews record`, do not transition status with `aw ipd set reviewed`, and do not hand-edit metadata logs or front matter) in this step (MD-15). Verdicts are recorded in S7 only.
-      +5. If recording a progress note in the plan's metadata log, record it ONLY through the note command:
-      +   `aw ipd note <id6> --message "review progress (<agent/model>): <note>"`
+      +5. If recording a progress note in the plan's metadata log, record it ONLY through a same-status note call (which appends a `note` event without changing status):
+      +   `aw ipd set to-review <id6> --message "review progress (<agent/model>): <note>"`
       ```
     - `r2-executability.md` (preserving `- Kind:` orchestrator passages for `ngc2a2` E-02 per `qhay6a` F-03 row 30b):
       ```diff
@@ -186,12 +186,15 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
       +   plan remains at status `to-review`, the findings are recorded in the review round, and no gate
       +   `review` event is recorded via `aw reviews record`. Do NOT record `readiness` at all in this path
       ```
-    - `_findings.md` (also owned by `a49djh` E-02 per `qhay6a` F-03 row 29) and `plan-review.md` (Step 7 summary):
+    - `_findings.md` (also owned by `a49djh` E-02 per `qhay6a` F-03 row 29), `plan-review.md` (Step 7 summary), `t-tier.md` (`scope_paths`), and `r7-cross-plan.md` (`item_dependencies`):
       ```diff
       -record the contradiction in a dated `## Workflow history` note where readers
       -will find it.
-      +record the contradiction with a dated note in its metadata log (`aw ipd note <id6> --message "..."`,
-      +inspected with `aw show <id6> --history`) where readers will find it.
+      +record the contradiction in the current review record and in a follow-up corrective IPD
+      +(or, for a non-executed sibling, via a same-status note
+      +`aw ipd set <current-status> <id6> --message "..."`, inspected with `aw show <id6> --history`;
+      +never hand-edit an executed plan or its metadata log, and do not call `aw ipd set executed`,
+      +which delegates to `aw ipd finalize`) where readers will find it.
       ```
     - `spec-review/spec-review.md`:
       ```diff
@@ -333,7 +336,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
       -- <YYYY-MM-DD> draft (<agent/model>): created.
       +> Manage orchestrator metadata, coverage, and lifecycle status with commands (`aw ipd scaffold`, `aw ipd set`, `aw ipd dependencies set`, `aw ipd coverage`, `aw ipd sync`) and inspect them with `aw show <id6>` and `aw show <id6> --history`; never hand-edit `.aw/records/meta/<id6>.jsonl` or the front-matter mirror.
       ```
-    Also rewrote all other `qhay6a` F-03 `a49djh E-04` workflows (`assess-all.md`, `assess.md`, `incident.md`, `migrate.md`, `spec.md`, `verify-execution/intent-audit.md`, `verify-execution/verify-execution.md`, `whatnext.md`) and `.aw/system/workflows/templates/*README.md` templates (`plans-README.md`, `plans-{not-executed,pending,reusable,superseded}-README.md`, `prompts-{not-executed,superseded}-README.md`, `agents-docs-walkthroughs-README.md`, `aw-inbox-README.md`; leaving `prompts-README.md` to `y1zihp` E-04).
+    Also rewrote all other `qhay6a` F-03 `a49djh E-04` workflows (`assess-all.md`, `assess.md`, `incident.md`, `migrate.md`, `spec.md`, `verify-execution/intent-audit.md`, `verify-execution/verify-execution.md`, `whatnext.md`) and `.aw/system/workflows/templates/*README.md` templates (`plans-README.md`, `plans-{not-executed,pending,reusable,superseded}-README.md`, `prompts-{not-executed,superseded}-README.md`, `agents-docs-research-README.md`, `agents-docs-walkthroughs-README.md`, `aw-inbox-README.md`; leaving `prompts-README.md` to `y1zihp` E-04).
 
     Template bullet check (`rg -c '^- (Status|Kind|Set):' .aw/system/workflows/assess/templates .aw/system/workflows/templates` in scratch worktree):
     ```text
@@ -349,12 +352,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     60:- Status: open
     ```
     Three-part explanation for the 2 body hits (per `verify-execution/intent-audit.md` Dimension 1): (1) A literal count of 0 across the whole file is unsatisfiable for `ipd.md` and `orchestrator-ipd.md` without violating the open-question schema, because `ipd_schema.open_question_error` mandates `- Status: open|resolved|deferred` inside `## Open questions` -> `### OQ-01` and spec `4sd62s` N3 explicitly retains open questions in Markdown body prose; (2) empirical measurement via `rg -n` above proves those 2 lines (both inside `### OQ-01`) are the ONLY hits across all template files, with 0 hits in every `.aw/system/workflows/templates/*.md` file; (3) the satisfiable counterpart (metadata region before `## Open questions` across all files in `assess/templates/` and `templates/`) returned 0 hits (`METADATA_REGION_CHECK: OK`).
-    Additional verification in scratch worktree: `python3 -m pytest -o addopts="" tests/test_askme_command_delivery.py tests/test_technical_writing_delivery.py` -> `9 passed in 7.65s`; em/en dash scan across `.aw/records/walkthroughs/README.md` and `.aw/system/workflows/templates/*README.md` -> exit 1 (0 hits); all 23 `qhay6a` F-03 `a49djh` files confirmed present (`ALL_23_F03_FILES_COVERED: OK`).
+    Additional verification in scratch worktree: `python3 -m pytest -o addopts="" tests/test_askme_command_delivery.py tests/test_technical_writing_delivery.py tests/test_plan_review_feasibility_rule.py tests/test_plan_review_step_files.py tests/test_agents_section_records.py` -> `26 passed in 9.51s`; em/en dash scan across `.aw/records/walkthroughs/README.md` and `.aw/system/workflows/templates/*README.md` -> exit 1 (0 hits); all 23 `qhay6a` F-03 `a49djh` files confirmed present (`ALL_23_F03_FILES_COVERED: OK`).
   - Result: pass
 - [x] V-05 validates E-05
   - Required evidence: paste `git apply --stat .aw/system/cutover/metastore-docs.cutover.patch` (the `qhay6a` files plus each file from V-02 to V-04), `git worktree list` showing the scratch worktree removed, and the `aw commit` output naming the commit hash.
   - Observed evidence:
-    `git apply --check .aw/system/cutover/metastore-docs.cutover.patch`: exit 0 (`APPLY_CHECK_EXIT=0`).
+    `git apply --check .aw/system/cutover/metastore-docs.cutover.patch`: exit 0 (`APPLY_CHECK=0`).
     `git apply --stat .aw/system/cutover/metastore-docs.cutover.patch`:
     ```text
      .aw/records/walkthroughs/README.md                 |   20 +++
@@ -367,18 +370,21 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
      .aw/system/workflows/incident/incident.md          |    9 +
      .../workflows/ipd-lifecycle/ipd-lifecycle.md       |   96 ++++++++-------
      .aw/system/workflows/migrate/migrate.md            |   10 +-
-     .../plan-review-long/02-review-and-revise.md       |   10 +-
+     .../plan-review-long/02-review-and-revise.md       |   13 +-
      .../plan-review-long/03-resolve-and-finalize.md    |   60 +++++----
      .../workflows/plan-review-long/plan-review-long.md |   11 +-
      .../workflows/plan-review-long/review-rubric.md    |    2
      .aw/system/workflows/plan-review/plan-review.md    |    2
-     .../workflows/plan-review/steps/_findings.md       |    4 -
+     .../workflows/plan-review/steps/_findings.md       |    7 +
      .../plan-review/steps/r2-executability.md          |   21 ++-
+     .../workflows/plan-review/steps/r7-cross-plan.md   |    2
      .../workflows/plan-review/steps/s6-rereview.md     |   12 +-
-     .../workflows/plan-review/steps/s7-finalize.md     |   73 ++++++-----
+     .../workflows/plan-review/steps/s7-finalize.md     |   71 ++++++-----
+     .aw/system/workflows/plan-review/steps/t-tier.md   |    4 -
      .aw/system/workflows/spec-review/README.md         |    4 -
      .aw/system/workflows/spec-review/spec-review.md    |   83 +++++++------
      .aw/system/workflows/spec/spec.md                  |   18 ++-
+     .../templates/agents-docs-research-README.md       |   15 +-
      .../templates/agents-docs-walkthroughs-README.md   |    2
      .aw/system/workflows/templates/aw-inbox-README.md  |   12 +-
      .aw/system/workflows/templates/plans-README.md     |   70 ++++++-----
@@ -393,10 +399,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
      .aw/system/workflows/whatnext/whatnext.md          |    4 -
      AGENTS.md                                          |  128 +++++++++++---------
      agent_workflows/engine.py                          |  123 ++++++++++++-------
-     36 files changed, 502 insertions(+), 446 deletions(-)
+     39 files changed, 518 insertions(+), 455 deletions(-)
     ```
-    `git worktree list` (repo root sanitized as `<repo>`): `<repo> fffe0e823 [main]`, `<repo>/.aw/worktrees/9o83cr 138f0c3c9 [aw/lane/9o83cr]`, `<repo>/.aw/worktrees/9o83cr_attempt2 3ef955292 [aw/lane/9o83cr_attempt2]`, `<repo>/.aw/worktrees/a49djh fffe0e823 [aw/lane/a49djh]`, `<repo>/.aw/worktrees/review-sweep-run-20261124T195133Z-1320375 74ccd03f1 [aw/lane/review-sweep-run-20261124T195133Z-1320375]` (`.aw/state/a49djh/scratch` removed).
-    `aw commit` output: `aw commit: committed 2 path(s): 0ff5c681ce4bad112fd3180d98583519fcee7784` (via `aw commit a49djh -m "feat(metastore): add review workflow, recorder command, and template rewrites to cutover docs patch" -- .aw/records/plans/pending/20261109-metastore-251-a49djh-add-review-workflow-recorder-command-and-template-rewrites-t.ipd.md .aw/system/cutover/metastore-docs.cutover.patch`).
+    `git worktree list` (repo root sanitized as `<repo>`): `<repo> fffe0e823 [main]`, `<repo>/.aw/worktrees/9o83cr 138f0c3c9 [aw/lane/9o83cr]`, `<repo>/.aw/worktrees/9o83cr_attempt2 3ef955292 [aw/lane/9o83cr_attempt2]`, `<repo>/.aw/worktrees/a49djh 1ccd95cea [aw/lane/a49djh]`, `<repo>/.aw/worktrees/review-sweep-run-20261124T195133Z-1320375 74ccd03f1 [aw/lane/review-sweep-run-20261124T195133Z-1320375]` (`.aw/state/a49djh/scratch` removed).
+    `aw commit` output: `aw commit: committed 2 path(s): 0ff5c681ce4bad112fd3180d98583519fcee7784` (initial execution commit via `aw commit a49djh`); verification correction commit recorded on `aw/lane/a49djh` (replaced nonexistent `aw ipd note` with same-status `aw ipd set`, ordered `aw reviews record` ahead of `aw ipd set reviewed` in `s7-finalize.md`, and updated `t-tier.md`, `r7-cross-plan.md`, and `agents-docs-research-README.md`).
   - Result: pass
 
 ## Approval and execution gate
