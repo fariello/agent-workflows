@@ -91,6 +91,7 @@ flowchart TD
   - Carrier: qtvk2q
 - Batch S12 except `tests/test_review_sequence_runner.py` and `tests/test_review_staleness_advisory.py` (from E-02). Moved to cxylsu (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: cxylsu
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-264-cxylsu-move-setter-byte-assertions-of-batch-s12-first-eight-modules.ipd.md
 - `tests/test_question_visibility.py` (rest of E-01), `tests/test_review_sequence_runner.py` and `tests/test_review_staleness_advisory.py` (rest of E-02), and batch S13 (E-03). Moved to 810kpy (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 810kpy
 - Batches S15, S16, S17: Moved to aqc3m6 (split 2026-11-08 per maintainer step-complexity rule; at most 4 batch items per plan).
