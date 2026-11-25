@@ -45,27 +45,27 @@ Batch rule, applied to every batch E-item of this plan:
 
 ### Task group 1: batches
 
-- [ ] E-01 Before the first edit, ensure `.aw/state/aqc3m6/` exists (`mkdir -p .aw/state/aqc3m6/`). Batch S15: convert the setter-byte assertions of `tests/test_specs_from_backlog.py`, `tests/test_specs_releases_descriptive_safety.py` (25 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S15`.
+- [x] E-01 Before the first edit, ensure `.aw/state/aqc3m6/` exists (`mkdir -p .aw/state/aqc3m6/`). Batch S15: convert the setter-byte assertions of `tests/test_specs_from_backlog.py`, `tests/test_specs_releases_descriptive_safety.py` (25 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S15`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S15 outcome lists; the remaining F-28 matches in the batch's modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Batch S16: convert the setter-byte assertions of `tests/test_specs_set_adapter.py`, `tests/test_specs_set_gate_parity.py`, `tests/test_specs_status_dirs.py`, `tests/test_specs_verbs.py`, `tests/test_status_set_meta_writer.py` (21 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S16`.
+- [x] E-02 Batch S16: convert the setter-byte assertions of `tests/test_specs_set_adapter.py`, `tests/test_specs_set_gate_parity.py`, `tests/test_specs_status_dirs.py`, `tests/test_specs_verbs.py`, `tests/test_status_set_meta_writer.py` (21 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S16`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S16 outcome lists; the remaining F-28 matches in the batch's modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Batch S17: convert the setter-byte assertions of `tests/test_status_set_partial_batch.py` (16 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S17`.
+- [x] E-03 Batch S17: convert the setter-byte assertions of `tests/test_status_set_partial_batch.py` (16 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S17`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S17 outcome lists; the remaining F-28 matches in the batch's modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-04 Finish this part: run the batch rule's command over every module of S15, S16, S17 once more and confirm the outcome multiset equals the union of the batches' `-before.txt` lists; write F-28's remaining-match table for this part (one row per remaining match with its class) so `cxxmyv` E-07 has the exact list of `setter-byte, exact spelling` rows it must still change; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit aqc3m6 -- <each changed path>`, one commit per batch allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-04 Finish this part: run the batch rule's command over every module of S15, S16, S17 once more and confirm the outcome multiset equals the union of the batches' `-before.txt` lists; write F-28's remaining-match table for this part (one row per remaining match with its class) so `cxxmyv` E-07 has the exact list of `setter-byte, exact spelling` rows it must still change; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit aqc3m6 -- <each changed path>`, one commit per batch allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: the union comparison is empty; F-28 for this part is written; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -79,6 +79,7 @@ Batch rule, applied to every batch E-item of this plan:
 | Id | Evidence | Finding |
 |---|---|---|
 | F-28 | Copied from `w13bkp` F-28 (measured at `ac76110f4`): 467 candidate setter-byte lines in 74 modules, split into 20 batches S01 to S20 of at most about 30 lines. This part: S15, S16, S17, 62 lines. | Each batch is at most about 30 one-line conversions in at most 10 modules. The final table (written by E-04) lists every remaining match with its class. |
+| F-28 | Re-measured at `0d6025f4d` before the first edit with the F-28 pattern (`rg -c`): S15 24 (`tests/test_specs_from_backlog.py` 24, `tests/test_specs_releases_descriptive_safety.py` 0), S16 22 (`tests/test_specs_set_adapter.py` 4, `tests/test_specs_set_gate_parity.py` 2, `tests/test_specs_status_dirs.py` 3, `tests/test_specs_verbs.py` 11, `tests/test_status_set_meta_writer.py` 2), S17 15 (`tests/test_status_set_partial_batch.py` 15): 61 lines, against 62 at `ac76110f4` (intervening plans touched these modules; `tests/test_specs_releases_descriptive_safety.py` had no match left). After conversion: 1 remaining match. | Part table for S15 to S17 (1 remaining row: 1 `legacy-format subject`, 0 `setter-byte, exact spelling`, 0 `displayed-output assertion`): (1) `tests/test_status_set_meta_writer.py::test_w14_backlog_single_kind_line_becomes_work_kind` (`assert "- Kind:" not in p.read_text(encoding="utf-8")`) - `legacy-format subject`: the test's subject is the legacy `- Kind:` alias being rewritten to `- Work-Kind:`, `kind` has no builder field label, and the line above already asserts the whole file byte-for-byte. The cutover (`cxxmyv` E-07) has no `setter-byte, exact spelling` row from this part. Outside the single-line pattern: eight whole-file `assertNotIn` lines with no `- ` prefix (`tests/test_specs_from_backlog.py` `"From-Backlog"`/`"Blocks-Release"` in the two dash-clears tests; `tests/test_specs_set_gate_parity.py` `"Gate-Kind"`/`"Gate-Ref"` in two tests) are left as written because they check the whole file body and `assert_no_field` checks only the metadata region, so converting them would weaken them (decision `04-aqc3m6-D1`, following `01-iog3cw-D1`). Five `self.assertNotIn("- Blocks-Release: relaaa", content)` lines in `tests/test_specs_from_backlog.py` were removed rather than rewritten, because the `assert_field(dest_path, "blocks_release", "relbbb")` beside each requires exactly one `- Blocks-Release:` line equal to `relbbb`, which already excludes `relaaa` (decision `04-aqc3m6-D2`). |
 
 ## Proposed changes (ordered, validatable)
 
@@ -136,25 +137,40 @@ No spec change; prepares part of `4sd62s` section 6 and section 7 step 9 (the te
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the empty `diff .aw/state/aqc3m6/S15-before.txt .aw/state/aqc3m6/S15-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_specs_from_backlog.py`, `tests/test_specs_releases_descriptive_safety.py` (one line per module or test class), and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/aqc3m6/S15-before.txt .aw/state/aqc3m6/S15-after.txt`: empty (exit 0, printed `EMPTY-DIFF`; 27 lines in each, all `PASSED`).
+    - F-28 `rg -c` counts (before -> after): `tests/test_specs_from_backlog.py` 24 -> 0; `tests/test_specs_releases_descriptive_safety.py` 0 -> 0 (no match at `0d6025f4d`; its `- Status:`/`- Blocks-Release:` strings are injected forged inputs, not assertions).
+    - Remaining matches: none. Four whole-file `self.assertNotIn("From-Backlog"|"Blocks-Release", content)` lines outside the pattern left as written (decision `04-aqc3m6-D1`); five redundant `assertNotIn("- Blocks-Release: relaaa", content)` lines subsumed by `assert_field(..., "blocks_release", "relbbb")` (decision `04-aqc3m6-D2`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the empty `diff .aw/state/aqc3m6/S16-before.txt .aw/state/aqc3m6/S16-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_specs_set_adapter.py`, `tests/test_specs_set_gate_parity.py`, `tests/test_specs_status_dirs.py`, `tests/test_specs_verbs.py`, `tests/test_status_set_meta_writer.py` (one line per module or test class), and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/aqc3m6/S16-before.txt .aw/state/aqc3m6/S16-after.txt`: empty (exit 0, printed `EMPTY-DIFF`; 53 lines in each, all `PASSED`).
+    - F-28 `rg -c` counts (before -> after): `tests/test_specs_set_adapter.py` 4 -> 0; `tests/test_specs_set_gate_parity.py` 2 -> 0; `tests/test_specs_status_dirs.py` 3 -> 0; `tests/test_specs_verbs.py` 11 -> 0; `tests/test_status_set_meta_writer.py` 2 -> 1.
+    - Remaining match: `tests/test_status_set_meta_writer.py:129` `assert "- Kind:" not in p.read_text(encoding="utf-8")` in `test_w14_backlog_single_kind_line_becomes_work_kind` - `legacy-format subject` (the legacy `- Kind:` alias is the test's subject; `kind` has no builder bullet label). The converted `test_cache_state_does_not_change_setter_bytes_or_stdout` keeps its byte equality `got == ref_bytes` and asserts the status through `assert_field(got_path, "status", "approved")`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the empty `diff .aw/state/aqc3m6/S17-before.txt .aw/state/aqc3m6/S17-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_status_set_partial_batch.py` (one line per module or test class), and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/aqc3m6/S17-before.txt .aw/state/aqc3m6/S17-after.txt`: empty (exit 0, printed `EMPTY-DIFF`; 16 lines in each, all `PASSED`).
+    - F-28 `rg -c` counts (before -> after): `tests/test_status_set_partial_batch.py` 15 -> 0.
+    - Remaining matches: none.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `diff` of the concatenated, sorted `-before.txt` lists of S15, S16, S17 against the combined after-run list (empty), F-28 for this part as written with one row per remaining match and its class, the per-module F-28 `rg -c` count for each of `tests/test_specs_from_backlog.py`, `tests/test_specs_releases_descriptive_safety.py`, `tests/test_specs_set_adapter.py`, `tests/test_specs_set_gate_parity.py`, `tests/test_specs_status_dirs.py`, `tests/test_specs_verbs.py`, `tests/test_status_set_meta_writer.py`, `tests/test_status_set_partial_batch.py`, the bare `python3 -m pytest` summary line beside them and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit aqc3m6` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/aqc3m6/union-before.txt .aw/state/aqc3m6/union-after.txt` (union-before is `cat S15-before.txt S16-before.txt S17-before.txt | sort`; union-after is one run over all eight modules): empty (exit 0, printed `UNION-EMPTY`; 96 lines each).
+    - F-28 for S15 to S17 written in `## Findings` (1 remaining row, `legacy-format subject`; no `setter-byte, exact spelling` row for `cxxmyv`).
+    - Per-module F-28 `rg -c` after: `tests/test_specs_from_backlog.py` 0, `tests/test_specs_releases_descriptive_safety.py` 0, `tests/test_specs_set_adapter.py` 0, `tests/test_specs_set_gate_parity.py` 0, `tests/test_specs_status_dirs.py` 0, `tests/test_specs_verbs.py` 0, `tests/test_status_set_meta_writer.py` 1, `tests/test_status_set_partial_batch.py` 0.
+    - Bare core gate `python3 -m pytest`: `2952 passed, 1 skipped, 11 warnings in 106.90s (0:01:46)` (wall `real 1m47.595s`).
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7230,"findings":0,"evidence":["leak-scan"],"next":null}` (zero `fail`).
+    - `aw commit aqc3m6 -m "test(aqc3m6): move S15-S17 setter-byte assertions onto assert_field/assert_no_field" -- <7 test paths>`: `aw commit: committed 7 path(s): 26f71ba028f14e0e20ec496f42f3e60822f0ee5e`; `git show --stat HEAD` lists only `tests/test_specs_from_backlog.py`, `tests/test_specs_set_adapter.py`, `tests/test_specs_set_gate_parity.py`, `tests/test_specs_status_dirs.py`, `tests/test_specs_verbs.py`, `tests/test_status_set_meta_writer.py`, `tests/test_status_set_partial_batch.py` (all Scope-Paths). `tests/test_specs_releases_descriptive_safety.py` is a declared Scope-Path left unmodified (no match to convert). This plan file's evidence commit follows through `aw commit aqc3m6`.
+  - Result: pass
 
 ## Approval and execution gate
 
