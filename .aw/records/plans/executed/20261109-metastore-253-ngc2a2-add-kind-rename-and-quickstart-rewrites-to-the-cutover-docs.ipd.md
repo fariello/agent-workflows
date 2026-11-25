@@ -6,7 +6,7 @@
 - Scope: In a scratch worktree with the committed patch applied, apply the `Kind` renames in documents and `agent_workflows/cli.py` help strings, and write the two quickstarts plus their installer template text in `agent_workflows/engine.py`; regenerate `.aw/system/cutover/metastore-docs.cutover.patch`. No live document changes; no CLI option is renamed.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-253-ngc2a2-add-kind-rename-and-quickstart-rewrites-to-the-cutover-docs.ipd.md, .aw/system/cutover/metastore-docs.cutover.patch
 - Item-Dependencies: executed:9o83cr, executed:y1zihp
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: ngc2a2
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-25 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: ngc2a2 verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, scratch worktree isolation, and execution gate; marked reviewed and go-pending-approval.
