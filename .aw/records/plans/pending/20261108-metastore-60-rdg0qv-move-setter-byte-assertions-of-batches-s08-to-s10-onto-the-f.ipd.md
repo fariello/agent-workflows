@@ -93,6 +93,7 @@ flowchart TD
 
 - Batch S08 (E-01). Moved to wdz2l9 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: wdz2l9
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-270-wdz2l9-move-setter-byte-assertions-of-batch-s08-onto-the-format-awa.ipd.md
 - Switching the builder to `RECORD_FORMAT = "log"`, adding the helper's log-format branch, and changing the `setter-byte, exact spelling` rows F-28 lists: they change the on-disk format and so belong to the cutover commit (C10a).
   - Carrier: cxxmyv
 - The helper and batches S01 to S04 (S02 and S03 by `iog3cw`; the helper and S04 by `j5fqax`, S01 by `545ag7`, both executed and cited with Carrier-Evidence in the executed `iog3cw` record).
