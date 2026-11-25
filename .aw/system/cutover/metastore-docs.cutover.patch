@@ -1,9 +1,9 @@
 diff --git a/.aw/AGENT_QUICKSTART.md b/.aw/AGENT_QUICKSTART.md
 new file mode 100644
-index 000000000..802dd0d5c
+index 000000000..ceefce56a
 --- /dev/null
 +++ b/.aw/AGENT_QUICKSTART.md
-@@ -0,0 +1,85 @@
+@@ -0,0 +1,86 @@
 +# Agent Quickstart (`.aw/`)
 +
 +This guide tells agents how to read and update tracked records under `.aw/records/`. The `aw-managed` HTML comment banner at the top of each managed record points here.
@@ -41,8 +41,9 @@ index 000000000..802dd0d5c
 +
 +| Task | Command |
 +|---|---|
-+| Read current replayed metadata for one record | `aw show <id6>` (add `--json` or `--agent` for machine output) |
-+| Read sequence-ordered event history | `aw show <id6> --history` |
++| Read current replayed metadata for one record | `aw show <id6> --format json` (add `--history` to include events; cannot combine with `--agent`) |
++| Read sequence-ordered event history | `aw show <id6> --history` (add `--json`, `--format json`, or `--agent` for machine output) |
++| Read full record content | `aw show <id6>` |
 +| Query records by type, Set, or status | `aw find [plans|specs|backlog|research|prompts|walkthroughs|releases]` |
 +| View cross-tree work needing attention | `aw attention` (add `--format json` or `--agent`) |
 +| Check mirrors, filenames, directories, and review rounds against logs | `aw check meta` |
@@ -51,11 +52,11 @@ index 000000000..802dd0d5c
 +
 +## Which command writes which field
 +
-+Creation verbs preview by default; pass `--apply` to write files and initialize `.aw/records/meta/<id6>.jsonl`.
++Most creation verbs preview by default; pass `--apply` to write files and initialize `.aw/records/meta/<id6>.jsonl` (`aw walkthrough new` writes immediately with no preview flag).
 +
 +| Record or field | Owner command | Notes |
 +|---|---|---|
-+| Create a plan (IPD): `plan_role`, `set`, `order`, `priority`, `work_kind`, `from_backlog`, `blocks_release`, `short_description` | `aw ipd scaffold --kind <child|orchestrator> --title "..." --priority <low|medium|high> --work-kind <kind> --apply` | Use `--from-backlog <id6>` to inherit `priority`, `work_kind`, and `blocks_release`. |
++| Create a plan (IPD): `plan_role`, `set`, `order`, `priority`, `work_kind`, `from_backlog`, `blocks_release`, `short_description` | `aw ipd scaffold --kind <child|orchestrator> --title "..." --set <set-id> --order <n> --priority <low|medium|high> --work-kind <kind> --apply` | Use `--from-backlog <id6>` to inherit `priority`, `work_kind`, and `blocks_release`. |
 +| Plan status, `from_spec`, `from_backlog`, `blocks_release`, `priority`, `work_kind`, notes | `aw ipd set <status> <id6>` | Human approval requires `aw ipd set approved <id6> --by-human --message "<why>"`. |
 +| Plan dependencies (`item_dependencies`) | `aw ipd dependencies set <id6> ...` | Replaces hand-edited dependency bullets. |
 +| Plan E/V ids and `highest_e_allocated` | `aw ipd sync <plan> --apply` | Assigns `E-NN`/`V-NN` ids and updates the allocation watermark. |
@@ -91,10 +92,10 @@ index 000000000..802dd0d5c
 +- `docs/artifact-lifecycles.md`: full lifecycle diagrams and status tables for every record type.
 diff --git a/.aw/QUICKSTART.md b/.aw/QUICKSTART.md
 new file mode 100644
-index 000000000..0f88b60f1
+index 000000000..5dad80085
 --- /dev/null
 +++ b/.aw/QUICKSTART.md
-@@ -0,0 +1,68 @@
+@@ -0,0 +1,69 @@
 +# Quickstart (`.aw/`)
 +
 +This repository uses `agent-workflows` (`aw`) to manage specifications, Implementation Plan Documents (IPDs), backlog items, research notes, staged prompts, reviews, walkthroughs, and releases under `.aw/`.
@@ -125,8 +126,9 @@ index 000000000..0f88b60f1
 +aw attention                  # summary of ready, active, blocked, and done work
 +aw ipd board                  # plan board grouped by Set and status
 +aw find plans                 # list active plans (also: specs, backlog, research, prompts)
-+aw show <id6>                 # show current metadata for one record
++aw show <id6> --format json   # show current replayed metadata for one record
 +aw show <id6> --history       # show full sequence-ordered event history
++aw show <id6>                 # show full Markdown content for one record
 +aw releases show next         # show the planned release and every item gating it
 +```
 +
@@ -4141,7 +4143,7 @@ index 4a1c3fe81..f7a03b5cf 100644
      p_research_mv.add_argument(
          "--dir", default=None, help="Repo root (default: current directory)."
 diff --git a/agent_workflows/engine.py b/agent_workflows/engine.py
-index 4b5e93bd4..42d4ca1a4 100755
+index 4b5e93bd4..2129ed795 100755
 --- a/agent_workflows/engine.py
 +++ b/agent_workflows/engine.py
 @@ -1476,13 +1476,15 @@ def agents_pointer_prose(
@@ -4356,7 +4358,18 @@ index 4b5e93bd4..42d4ca1a4 100755
          "THAN TRUSTING YOU TO: see the ORCHESTRATOR COVERAGE GATE described under 'The runners own "
          "ordering, isolation, and orchestrators' above, which refuses before spending anything and "
          "tells you to add a child."
-@@ -6470,6 +6497,169 @@ _PROMPTS_GITIGNORE_TEMPLATE = """\
+@@ -5612,6 +5639,10 @@ _DEEP_CLEANUP_ROOTS = (
+     ".aw/workflow-artifacts",
+     # The raw-drop inbox lane (instbugs xzlu9b): must be pruned by deep cleanup so no .aw/ remains.
+     ".aw/inbox",
++    # Metadata quickstarts (spec 4sd62s 4.1): no-clobber scaffolding files created by
++    # ensure_quickstarts; must be pruned by deep cleanup so no .aw/ remains.
++    ".aw/AGENT_QUICKSTART.md",
++    ".aw/QUICKSTART.md",
+     # Legacy `.agents/*` roots (a not-yet-migrated repo). A repo has one layout or the other; the
+     # per-root is_dir() check below skips whichever set is absent, so listing both is safe.
+     ".agents/plans",
+@@ -6470,6 +6501,171 @@ _PROMPTS_GITIGNORE_TEMPLATE = """\
  untracked/
  """
  
@@ -4402,8 +4415,9 @@ index 4b5e93bd4..42d4ca1a4 100755
 +
 +| Task | Command |
 +|---|---|
-+| Read current replayed metadata for one record | `aw show <id6>` (add `--json` or `--agent` for machine output) |
-+| Read sequence-ordered event history | `aw show <id6> --history` |
++| Read current replayed metadata for one record | `aw show <id6> --format json` (add `--history` to include events; cannot combine with `--agent`) |
++| Read sequence-ordered event history | `aw show <id6> --history` (add `--json`, `--format json`, or `--agent` for machine output) |
++| Read full record content | `aw show <id6>` |
 +| Query records by type, Set, or status | `aw find [plans|specs|backlog|research|prompts|walkthroughs|releases]` |
 +| View cross-tree work needing attention | `aw attention` (add `--format json` or `--agent`) |
 +| Check mirrors, filenames, directories, and review rounds against logs | `aw check meta` |
@@ -4412,11 +4426,11 @@ index 4b5e93bd4..42d4ca1a4 100755
 +
 +## Which command writes which field
 +
-+Creation verbs preview by default; pass `--apply` to write files and initialize `.aw/records/meta/<id6>.jsonl`.
++Most creation verbs preview by default; pass `--apply` to write files and initialize `.aw/records/meta/<id6>.jsonl` (`aw walkthrough new` writes immediately with no preview flag).
 +
 +| Record or field | Owner command | Notes |
 +|---|---|---|
-+| Create a plan (IPD): `plan_role`, `set`, `order`, `priority`, `work_kind`, `from_backlog`, `blocks_release`, `short_description` | `aw ipd scaffold --kind <child|orchestrator> --title "..." --priority <low|medium|high> --work-kind <kind> --apply` | Use `--from-backlog <id6>` to inherit `priority`, `work_kind`, and `blocks_release`. |
++| Create a plan (IPD): `plan_role`, `set`, `order`, `priority`, `work_kind`, `from_backlog`, `blocks_release`, `short_description` | `aw ipd scaffold --kind <child|orchestrator> --title "..." --set <set-id> --order <n> --priority <low|medium|high> --work-kind <kind> --apply` | Use `--from-backlog <id6>` to inherit `priority`, `work_kind`, and `blocks_release`. |
 +| Plan status, `from_spec`, `from_backlog`, `blocks_release`, `priority`, `work_kind`, notes | `aw ipd set <status> <id6>` | Human approval requires `aw ipd set approved <id6> --by-human --message "<why>"`. |
 +| Plan dependencies (`item_dependencies`) | `aw ipd dependencies set <id6> ...` | Replaces hand-edited dependency bullets. |
 +| Plan E/V ids and `highest_e_allocated` | `aw ipd sync <plan> --apply` | Assigns `E-NN`/`V-NN` ids and updates the allocation watermark. |
@@ -4483,8 +4497,9 @@ index 4b5e93bd4..42d4ca1a4 100755
 +aw attention                  # summary of ready, active, blocked, and done work
 +aw ipd board                  # plan board grouped by Set and status
 +aw find plans                 # list active plans (also: specs, backlog, research, prompts)
-+aw show <id6>                 # show current metadata for one record
++aw show <id6> --format json   # show current replayed metadata for one record
 +aw show <id6> --history       # show full sequence-ordered event history
++aw show <id6>                 # show full Markdown content for one record
 +aw releases show next         # show the planned release and every item gating it
 +```
 +
@@ -4526,7 +4541,7 @@ index 4b5e93bd4..42d4ca1a4 100755
  # awgitignore Order 01: the CANONICAL `.aw/` layout ignores every records `untracked/` quarantine
  # lane via ONE framework-owned `.aw/.gitignore` (`.aw/` is exclusively ours, unlike the shared
  # `.agents/`, so this is not a user-root-.gitignore edit). Legacy `.agents/` keeps per-lane files.
-@@ -6841,8 +7031,8 @@ repos:
+@@ -6841,8 +7037,8 @@ repos:
          pass_filenames: false
          always_run: true
  
@@ -4537,7 +4552,7 @@ index 4b5e93bd4..42d4ca1a4 100755
        # Best-effort/local only (--no-verify bypasses it); the backstop is `aw check`/`aw doctor`. No CI.
        - id: ipd-status-untooled-gate
          name: no untooled plan status change (use aw set)
-@@ -6963,7 +7153,7 @@ _BACKLOG_CLOSE_GATE_PRECOMMIT_TEMPLATE = """\
+@@ -6963,7 +7159,7 @@ _BACKLOG_CLOSE_GATE_PRECOMMIT_TEMPLATE = """\
  # hook below into your existing .pre-commit-config.yaml instead of this file.
  repos:
    # OPT-IN local guard (bklggrad f1dhht): refuse committing a release-blocking backlog item closed to
@@ -4546,7 +4561,7 @@ index 4b5e93bd4..42d4ca1a4 100755
    # must be executed or implemented, DE-GATED, or a persisted evidence citation). Delegates to the shared close-legitimacy
    # predicate. LOCAL best-effort only (--no-verify bypasses it); the portable authority is the `aw check` rule + CI.
    - repo: local
-@@ -6979,7 +7169,7 @@ repos:
+@@ -6979,7 +7175,7 @@ repos:
  # The hook block to hand a user (or append) when a .pre-commit-config.yaml already exists.
  _BACKLOG_CLOSE_GATE_PRECOMMIT_BLOCK = """\
    # OPT-IN local guard (bklggrad f1dhht): refuse committing a release-blocking backlog item closed to
@@ -4555,7 +4570,16 @@ index 4b5e93bd4..42d4ca1a4 100755
    # must be executed or implemented, DE-GATED, or a persisted evidence citation). Delegates to the shared close-legitimacy
    # predicate. LOCAL best-effort only (--no-verify bypasses it); the portable authority is the `aw check` rule + CI.
    - repo: local
-@@ -7535,6 +7725,12 @@ def collect_scaffold_members(
+@@ -7394,7 +7590,7 @@ def collect_scaffold_members(
+     Excludes merge-writer paths (AGENTS.md, root .gitignore), layout artifacts,
+     and bookkeeping paths.
+ 
+-    If category is specified ('workflow_artifacts', 'plans', 'docs', 'prompts', 'setup', 'inbox'),
++    If category is specified ('workflow_artifacts', 'plans', 'docs', 'prompts', 'setup', 'inbox', 'quickstarts'),
+     returns only the members for that category to back the corresponding ensurer.
+     If category is None, returns the complete scaffolding map.
+     """
+@@ -7535,6 +7731,12 @@ def collect_scaffold_members(
              except OSError:
                  pass
  
@@ -4568,7 +4592,7 @@ index 4b5e93bd4..42d4ca1a4 100755
      return members
  
  
-@@ -7837,6 +8033,38 @@ def ensure_inbox_readme(
+@@ -7837,6 +8039,38 @@ def ensure_inbox_readme(
          installed.append(f"{rel_path} [install]")
  
  
@@ -4607,7 +4631,7 @@ index 4b5e93bd4..42d4ca1a4 100755
  def create_setup_artifacts(
      repo_root: Path,
      use_git: bool,
-@@ -8555,6 +8783,7 @@ def install_into_repo(
+@@ -8555,6 +8789,7 @@ def install_into_repo(
              git_add_optional(repo_root, AW_GITIGNORE_PATH)
      if not clean:
          ensure_inbox_readme(plan, use_git, installed, skipped)

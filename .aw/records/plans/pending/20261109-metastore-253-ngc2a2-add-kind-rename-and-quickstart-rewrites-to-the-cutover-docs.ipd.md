@@ -279,7 +279,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - [x] V-04 validates E-04
   - Required evidence: paste the content of `.aw/AGENT_QUICKSTART.md` and `.aw/QUICKSTART.md` from the scratch worktree and the `agent_workflows/engine.py` diff hunk that emits them.
   - Observed evidence:
-    Parity verification in `.aw/state/ngc2a2/scratch`: `QUICKSTART_PARITY=OK` (both files match `engine._AGENT_QUICKSTART_TEMPLATE` and `engine._QUICKSTART_TEMPLATE` byte-for-byte) and `python3 -m pytest -o addopts="" tests/test_agents_section_records.py tests/test_installed_text_current.py tests/test_installer_scaffold_preview_parity.py` -> `26 passed in 27.51s`.
+    Parity verification in scratch worktree: `QUICKSTART_PARITY=OK` (both files match `engine._AGENT_QUICKSTART_TEMPLATE` and `engine._QUICKSTART_TEMPLATE` byte-for-byte) and `python3 -m pytest -o addopts="-n auto" tests/test_agents_section_records.py tests/test_installed_text_current.py tests/test_installer_scaffold_preview_parity.py tests/test_installer.py` -> `177 passed in 26.04s` (including `UninstallCompletenessTests.test_deep_cleanup_records_remove_leaves_no_aw_directory` after registering `.aw/AGENT_QUICKSTART.md` and `.aw/QUICKSTART.md` in `_DEEP_CLEANUP_ROOTS`).
     Content of `.aw/AGENT_QUICKSTART.md`:
     ````markdown
     # Agent Quickstart (`.aw/`)
@@ -319,8 +319,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
     | Task | Command |
     |---|---|
-    | Read current replayed metadata for one record | `aw show <id6>` (add `--json` or `--agent` for machine output) |
-    | Read sequence-ordered event history | `aw show <id6> --history` |
+    | Read current replayed metadata for one record | `aw show <id6> --format json` (add `--history` to include events; cannot combine with `--agent`) |
+    | Read sequence-ordered event history | `aw show <id6> --history` (add `--json`, `--format json`, or `--agent` for machine output) |
+    | Read full record content | `aw show <id6>` |
     | Query records by type, Set, or status | `aw find [plans|specs|backlog|research|prompts|walkthroughs|releases]` |
     | View cross-tree work needing attention | `aw attention` (add `--format json` or `--agent`) |
     | Check mirrors, filenames, directories, and review rounds against logs | `aw check meta` |
@@ -329,11 +330,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
     ## Which command writes which field
 
-    Creation verbs preview by default; pass `--apply` to write files and initialize `.aw/records/meta/<id6>.jsonl`.
+    Most creation verbs preview by default; pass `--apply` to write files and initialize `.aw/records/meta/<id6>.jsonl` (`aw walkthrough new` writes immediately with no preview flag).
 
     | Record or field | Owner command | Notes |
     |---|---|---|
-    | Create a plan (IPD): `plan_role`, `set`, `order`, `priority`, `work_kind`, `from_backlog`, `blocks_release`, `short_description` | `aw ipd scaffold --kind <child|orchestrator> --title "..." --priority <low|medium|high> --work-kind <kind> --apply` | Use `--from-backlog <id6>` to inherit `priority`, `work_kind`, and `blocks_release`. |
+    | Create a plan (IPD): `plan_role`, `set`, `order`, `priority`, `work_kind`, `from_backlog`, `blocks_release`, `short_description` | `aw ipd scaffold --kind <child|orchestrator> --title "..." --set <set-id> --order <n> --priority <low|medium|high> --work-kind <kind> --apply` | Use `--from-backlog <id6>` to inherit `priority`, `work_kind`, and `blocks_release`. |
     | Plan status, `from_spec`, `from_backlog`, `blocks_release`, `priority`, `work_kind`, notes | `aw ipd set <status> <id6>` | Human approval requires `aw ipd set approved <id6> --by-human --message "<why>"`. |
     | Plan dependencies (`item_dependencies`) | `aw ipd dependencies set <id6> ...` | Replaces hand-edited dependency bullets. |
     | Plan E/V ids and `highest_e_allocated` | `aw ipd sync <plan> --apply` | Assigns `E-NN`/`V-NN` ids and updates the allocation watermark. |
@@ -400,8 +401,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     aw attention                  # summary of ready, active, blocked, and done work
     aw ipd board                  # plan board grouped by Set and status
     aw find plans                 # list active plans (also: specs, backlog, research, prompts)
-    aw show <id6>                 # show current metadata for one record
+    aw show <id6> --format json   # show current replayed metadata for one record
     aw show <id6> --history       # show full sequence-ordered event history
+    aw show <id6>                 # show full Markdown content for one record
     aw releases show next         # show the planned release and every item gating it
     ```
 
@@ -439,9 +441,16 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     - `AGENTS.md`: repository agent instructions and execution contract.
     - `docs/artifact-lifecycles.md`: complete lifecycle guide for every record type.
     ````
-    `agent_workflows/engine.py` diff hunks emitting them (`AGENT_QUICKSTART_PATH`, `QUICKSTART_PATH`, `_AGENT_QUICKSTART_TEMPLATE`, `_QUICKSTART_TEMPLATE`, `collect_scaffold_members`, `ensure_quickstarts`, and `install_into_repo`):
+    `agent_workflows/engine.py` diff hunks emitting and cleaning them (`_DEEP_CLEANUP_ROOTS`, `AGENT_QUICKSTART_PATH`, `QUICKSTART_PATH`, `_AGENT_QUICKSTART_TEMPLATE`, `_QUICKSTART_TEMPLATE`, `collect_scaffold_members`, `ensure_quickstarts`, and `install_into_repo`):
     ```diff
-    @@ -6495,6 +6497,169 @@ _PROMPTS_GITIGNORE_TEMPLATE = """\
+    @@ -5640,6 +5640,10 @@ _DEEP_CLEANUP_ROOTS: tuple[str, ...] = (
+         # The raw-drop inbox lane (instbugs xzlu9b): must be pruned by deep cleanup so no .aw/ remains.
+         ".aw/inbox",
+    +    # Metadata quickstarts (spec 4sd62s 4.1): no-clobber scaffolding files created by
+    +    # ensure_quickstarts; must be pruned by deep cleanup so no .aw/ remains.
+    +    ".aw/AGENT_QUICKSTART.md",
+    +    ".aw/QUICKSTART.md",
+    @@ -6495,6 +6501,171 @@ _PROMPTS_GITIGNORE_TEMPLATE = """\
      untracked/
      """
 
@@ -520,8 +529,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     ```
     `git apply --stat .aw/system/cutover/metastore-docs.cutover.patch`:
     ```text
-     .aw/AGENT_QUICKSTART.md                            |   85 +++++
-     .aw/QUICKSTART.md                                  |   68 ++++
+     .aw/AGENT_QUICKSTART.md                            |   86 +++++
+     .aw/QUICKSTART.md                                  |   69 ++++
      .aw/records/backlog/README.md                      |  293 ++++++++++------
      .aw/records/plans/README.md                        |  373 ++++++++++++--------
      .aw/records/prompts/README.md                      |  135 ++++---
@@ -574,12 +583,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
      .aw/system/workflows/whatnext/whatnext.md          |   4
      AGENTS.md                                          | 130 ++++---
      agent_workflows/cli.py                             |   4
-     agent_workflows/engine.py                          | 343 +++++++++++++++---
+     agent_workflows/engine.py                          | 351 ++++++++++++++++---
      agent_workflows/ipd_schema.py                      | 126 ++++---
      docs/artifact-lifecycles.md                        | 190 ++++++----
      docs/cli-output-contract.md                        |  44 +-
      docs/run-analytics.md                              |   8
-     59 files changed, 1955 insertions(+), 1265 deletions(-)
+     59 files changed, 1964 insertions(+), 1266 deletions(-)
     ```
     `git worktree list` (repo root sanitized as `<repo>`): `<repo> 95320c524 [main]`, `<repo>/.aw/worktrees/9o83cr 138f0c3c9 [aw/lane/9o83cr]`, `<repo>/.aw/worktrees/9o83cr_attempt2 3ef955292 [aw/lane/9o83cr_attempt2]`, `<repo>/.aw/worktrees/ngc2a2 95320c524 [aw/lane/ngc2a2]`, `<repo>/.aw/worktrees/review-sweep-run-20261124T195133Z-1320375 74ccd03f1 [aw/lane/review-sweep-run-20261124T195133Z-1320375]` (`.aw/state/ngc2a2/scratch` removed).
     `aw commit` output: `aw commit: committed 2 path(s): 3a18d7b06bb87887ed8f57ac53ea67f2746a6217` (via `aw commit ngc2a2 -m "feat(metastore): add Kind renames, cli help updates, and quickstarts to cutover docs patch" -- .aw/records/plans/pending/20261109-metastore-253-ngc2a2-add-kind-rename-and-quickstart-rewrites-to-the-cutover-docs.ipd.md .aw/system/cutover/metastore-docs.cutover.patch`).
