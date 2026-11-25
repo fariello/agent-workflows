@@ -5,8 +5,9 @@
 - Concern: The attended cutover `cxxmyv` wrote the whole code switch to the log format inside one attended turn (its task group 2: E-03, E-04, E-07, E-16). Spec `4sd62s` 5.2 makes the cutover ONE commit and C10a forbids a second on-disk format on `main` before it, so the switch cannot land early. It CAN be prepared early as an inert patch file, exactly as `90iqr1` prepares the documentation: a `.patch` file changes no on-disk format and no behavior until `cxxmyv` applies it. This plan (round-3 split, research `nj8zdp`) starts that cumulative code patch with `cxxmyv` E-03 and adds the guard test that keeps it applying.
 - Scope: In a scratch worktree (docs patch applied as the base), switch `artifact_meta`'s loader and writer to the log format, move the legacy loader into the new `m0001` migration module, delete the legacy write path and set the schema to 2; write the result as `.aw/system/cutover/metastore-code.cutover.patch`; add the core guard test. No live code changes.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-255-2k5t16-start-the-cutover-code-patch-with-the-log-format-loader-and.ipd.md, .aw/system/cutover/metastore-code.cutover.patch, tests/test_metastore_cutover_code_patch.py
+- Scope-Exceeded: .aw/records/backlog/open/20261125-jycxw8-01-jycxw8-postcut-ipd-lint-bullets.backlog.md (Defect carrier required by the driver's defect-report contract: execution found post-cutover ipd_schema/ipd_lint/build_skeleton still assume the bullet block and Workflow history H2 no metastore child...)
 - Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1
-- Status: approved
+- Status: executed
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 2k5t16
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-25 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: 2k5t16 verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261125-jycxw8-01-jycxw8-postcut-ipd-lint-bullets.backlog.md: Defect carrier required by the driver's defect-report contract: execution found post-cutover ipd_schema/ipd_lint/build_skeleton still assume the bullet block and Workflow history H2; no metastore child owns it, so it is filed as backlog jycxw8 (Blocks-Release next) rather than widening this plan]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006
