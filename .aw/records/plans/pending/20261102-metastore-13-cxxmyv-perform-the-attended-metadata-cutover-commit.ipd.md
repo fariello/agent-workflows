@@ -138,6 +138,7 @@ flowchart TD
   - Carrier: tub3ir
 - E-03 (loader and writer switch, legacy loader into `m0001`, legacy write path, schema 2), prepared as the inert code patch with its guard test. Moved to 2k5t16 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 2k5t16
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-255-2k5t16-start-the-cutover-code-patch-with-the-log-format-loader-and.ipd.md
 - E-04 (log-only writers, ledger retirement, ignore lines, skip names) as part of the code patch. Moved to g45vyv (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: g45vyv
 - E-07 (log-format test builder, helper branch, exact-spelling rows, review-pilot corpus, refusal list) as part of the code patch. Moved to x1mmdp (round-3 split 2026-11-09 per research nj8zdp guidance).
