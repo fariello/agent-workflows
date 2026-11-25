@@ -4461,19 +4461,28 @@ def _reconcile_scope(
     if not reason_required and not in_scope_unmodified:
         return ReconcileOutcome(True, {}, {}, (), (), "")
 
-    # Interactive: collect any missing answers via ONE batched prompt (TTY).
+    # Interactive: collect only still-missing answers via ONE batched prompt (TTY).
     if interactive and prompt is not None:
-        collected = prompt(list(reason_required), list(in_scope_unmodified))
-        # prompt returns ({path: reason}, {path: ack}); empty/None reason means "not given".
-        for p, why in (collected.get("reasons") or {}).items():
-            if why is not None and str(why).strip():
-                reasons[p] = str(why).strip()
-        for p, note in (collected.get("acks") or {}).items():
-            acks[p] = (
-                str(note).strip()
-                if note is not None and str(note).strip()
-                else "acknowledged"
-            )
+        unanswered_reasons = [
+            p for p in reason_required if not reasons.get(p, "").strip()
+        ]
+        unanswered_acks = [
+            p
+            for p in in_scope_unmodified
+            if p not in acks and p not in set(widened_paths)
+        ]
+        if unanswered_reasons or unanswered_acks:
+            collected = prompt(unanswered_reasons, unanswered_acks)
+            # prompt returns ({path: reason}, {path: ack}); empty/None reason means "not given".
+            for p, why in (collected.get("reasons") or {}).items():
+                if why is not None and str(why).strip():
+                    reasons[p] = str(why).strip()
+            for p, note in (collected.get("acks") or {}).items():
+                acks[p] = (
+                    str(note).strip()
+                    if note is not None and str(note).strip()
+                    else "acknowledged"
+                )
 
     missing_reasons = tuple(
         p for p in reason_required if not reasons.get(p, "").strip()

@@ -1499,3 +1499,213 @@ class FinalizeLockContentionTests(unittest.TestCase):
         self.assertTrue(dec.lock_contention)
         self.assertFalse(dec.retry)
         self.assertFalse(dec.exhausted)
+
+
+class ScopeAckFallbackAndRemedyAccuracyTests(unittest.TestCase):
+    """Behavioral regressions for run-20261125T103744Z-2547641 scope-ack skew and refusal remedies."""
+
+    def _init_plan_repo(self, repo: Path, plan_id: str, scope_paths: str) -> Path:
+        from tests.test_ipd_lifecycle_cli import (
+            _commit_all,
+            _completed_plan_text,
+            _init_git,
+            _write_plan,
+        )
+
+        repo.mkdir(parents=True, exist_ok=True)
+        _init_git(repo)
+        plan_name = f"20261125-demo-01-{plan_id}-demo.ipd.md"
+        plan = _write_plan(
+            repo,
+            _completed_plan_text(plan_id=plan_id, scope_paths=scope_paths),
+            plan_name,
+        )
+        (repo / "src").mkdir(exist_ok=True)
+        (repo / "src" / "demo.txt").write_text("before\n", encoding="utf-8")
+        (repo / "src" / "unused.txt").write_text("unchanged\n", encoding="utf-8")
+        _commit_all(repo, "init")
+        return plan
+
+    def test_scope_reconciliation_refusal_remedy_names_scope_flags_not_ev_bookkeeping(
+        self,
+    ):
+        """A scope-reconciliation refusal must not tell the operator to fix E-*/V-* bookkeeping."""
+        unmod_refusal = (
+            "refused: finalize needs scope reconciliation answers (plan left unmoved).\n"
+            "  attribution: run-record-exact (this execution's own recorded commit SHAs)\n"
+            "Supply them with:\n"
+            "  aw ipd finalize 810kpy --actor a --message m --apply "
+            "--scope-ack tests/test_runner_shared.py[=not-needed]\n"
+            "  IPD-FINALIZE declared-but-unmodified path needs a --scope-ack: "
+            "tests/test_runner_shared.py"
+        )
+        remedy = runner_shared.finalize_retry_remedy(
+            runner_shared.OC_HOST_LABELS,
+            "810kpy",
+            False,
+            fin_msg=unmod_refusal,
+        )
+        self.assertIn("--scope-ack", remedy)
+        self.assertIn("--scope-reason", remedy)
+        self.assertIn("aw ipd finalize 810kpy", remedy)
+        self.assertIn("aw oc run resume <run-id>", remedy)
+        self.assertNotIn("E-*", remedy)
+        self.assertNotIn("V-*", remedy)
+
+        # Verify handle_finalize_refusal propagates fin_msg into the recorded Refusal.remedy.
+        item = _item(id6="810kpy")
+        attempt = item["attempts"][0]
+        state = _state([item], retry_budget=2)
+        with tempfile.TemporaryDirectory() as tmp:
+            runner_shared.handle_finalize_refusal(
+                run_dir=Path(tmp),
+                state=state,
+                item=item,
+                attempt=attempt,
+                fin_rc=1,
+                fin_msg=unmod_refusal,
+                disposition="fail-gate",
+                host_labels=runner_shared.OC_HOST_LABELS,
+                save_state=lambda _rd, _st: None,
+                append_jsonl=lambda _p, _ev: None,
+            )
+        recorded_remedy = item["refusal"]["remedy"]
+        self.assertIn("--scope-ack", recorded_remedy)
+        self.assertNotIn("E-*", recorded_remedy)
+
+        # Stale receipt and hook refusals also emit tailored remedies.
+        stale_remedy = runner_shared.finalize_retry_remedy(
+            runner_shared.AGY_HOST_LABELS,
+            "zzcrlo",
+            False,
+            fin_msg=STALE_RECEIPT_REFUSAL,
+        )
+        self.assertIn("aw ipd begin zzcrlo", stale_remedy)
+        self.assertIn("aw agy run resume <run-id>", stale_remedy)
+        self.assertNotIn("E-*", stale_remedy)
+
+        hook_msg = (
+            f"refused: {runner_shared.RETRYABLE_HOOK_FINALIZE_SUMMARY} "
+            f"({runner_shared.RETRYABLE_HOOK_FINALIZE_HOOKS_RAN}: trailing-whitespace failed)"
+        )
+        hook_remedy = runner_shared.finalize_retry_remedy(
+            runner_shared.OC_HOST_LABELS,
+            "zzcrlo",
+            False,
+            fin_msg=hook_msg,
+        )
+        self.assertIn("git hook", hook_remedy)
+        self.assertNotIn("E-*", hook_remedy)
+
+    def test_driver_finalize_auto_acks_declared_unmodified_when_precheck_misses_it(
+        self,
+    ):
+        """Even when in-process compute_scope_reconciliation returns empty, driver_finalize auto-acks declared-but-unmodified paths."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            plan = self._init_plan_repo(repo, "ack001", "src/demo.txt, src/unused.txt")
+            actor = oc_driver.driver_actor({"options": {"model": "opus"}})
+            rc, msg = oc_driver.driver_begin(repo, "ack001", actor)
+            self.assertEqual(rc, 0, msg)
+
+            (repo / "src" / "demo.txt").write_text("after\n", encoding="utf-8")
+            subprocess.run(["git", "add", "src/demo.txt"], cwd=repo, check=True)
+            subprocess.run(["git", "commit", "-qm", "work"], cwd=repo, check=True)
+
+            with mock.patch.object(
+                runner_shared,
+                "compute_scope_reconciliation",
+                return_value=runner_shared.ScopeReconciliation({}, {}, ()),
+            ):
+                fin_rc, fin_msg = oc_driver.driver_finalize(
+                    repo, plan, "ack001", actor, "self-finalize verified"
+                )
+            self.assertEqual(fin_rc, 0, fin_msg)
+            executed = repo / ".aw" / "records" / "plans" / "executed" / plan.name
+            self.assertTrue(
+                executed.is_file(), f"expected finalized plan at {executed}"
+            )
+            text = executed.read_text(encoding="utf-8")
+            self.assertIn("src/unused.txt", text)
+            self.assertIn("auto-acknowledged by aw oc run", text)
+
+    def test_driver_finalize_does_not_auto_fill_out_of_scope_reasons(self):
+        """Out-of-scope paths stay fail-closed even while co-occurring declared-but-unmodified paths are auto-acked."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            plan = self._init_plan_repo(repo, "ack002", "src/demo.txt, src/unused.txt")
+            actor = oc_driver.driver_actor({"options": {"model": "opus"}})
+            rc, msg = oc_driver.driver_begin(repo, "ack002", actor)
+            self.assertEqual(rc, 0, msg)
+
+            (repo / "src" / "demo.txt").write_text("after\n", encoding="utf-8")
+            (repo / "src" / "extra.txt").write_text("unplanned\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", "src/demo.txt", "src/extra.txt"], cwd=repo, check=True
+            )
+            subprocess.run(["git", "commit", "-qm", "work"], cwd=repo, check=True)
+
+            with mock.patch.object(
+                runner_shared,
+                "compute_scope_reconciliation",
+                return_value=runner_shared.ScopeReconciliation({}, {}, ()),
+            ):
+                fin_rc, fin_msg = oc_driver.driver_finalize(
+                    repo, plan, "ack002", actor, "self-finalize verified"
+                )
+            self.assertEqual(fin_rc, 1, fin_msg)
+            self.assertIn(
+                "out-of-scope path needs a --scope-reason: src/extra.txt", fin_msg
+            )
+            self.assertNotIn(
+                "declared-but-unmodified path needs a --scope-ack", fin_msg
+            )
+            self.assertTrue(
+                runner_shared.finalize_refusal_is_retryable(fin_msg),
+                f"once unmodified acks are supplied, the remaining out-of-scope refusal must be retryable: {fin_msg}",
+            )
+
+    def test_reconcile_scope_tty_prompt_only_asks_for_unanswered_paths(self):
+        """Interactive TTY prompt skips paths already satisfied by --scope-ack / --scope-reason."""
+        prompt_calls: list[tuple[list[str], list[str]]] = []
+
+        def fake_prompt(oos: list[str], unmod: list[str]) -> dict[str, dict[str, str]]:
+            prompt_calls.append((list(oos), list(unmod)))
+            return {
+                "reasons": {p: "prompted reason" for p in oos},
+                "acks": {p: "prompted ack" for p in unmod},
+            }
+
+        # Already answered via CLI flags -> prompt must NOT be called at all.
+        out = ipd_lifecycle._reconcile_scope(
+            "demo01",
+            "actor",
+            "msg",
+            out_of_scope=["src/extra.py"],
+            in_scope_unmodified=["tests/test_demo.py"],
+            scope_reasons={"src/extra.py": "needed"},
+            scope_acks={"tests/test_demo.py": "not-needed"},
+            interactive=True,
+            prompt=fake_prompt,
+        )
+        self.assertTrue(out.ok)
+        self.assertEqual(prompt_calls, [])
+        self.assertEqual(out.acks["tests/test_demo.py"], "not-needed")
+        self.assertEqual(out.reasons["src/extra.py"], "needed")
+
+        # Partially answered -> prompt receives ONLY the missing paths.
+        out2 = ipd_lifecycle._reconcile_scope(
+            "demo01",
+            "actor",
+            "msg",
+            out_of_scope=["src/extra.py"],
+            in_scope_unmodified=["tests/test_a.py", "tests/test_b.py"],
+            scope_reasons={"src/extra.py": "needed"},
+            scope_acks={"tests/test_a.py": "not-needed"},
+            interactive=True,
+            prompt=fake_prompt,
+        )
+        self.assertTrue(out2.ok)
+        self.assertEqual(prompt_calls, [([], ["tests/test_b.py"])])
+        self.assertEqual(out2.acks["tests/test_a.py"], "not-needed")
+        self.assertEqual(out2.acks["tests/test_b.py"], "prompted ack")

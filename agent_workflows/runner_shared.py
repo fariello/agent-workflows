@@ -11240,6 +11240,7 @@ def handle_finalize_refusal(
             str(item.get("id6") or "?"),
             retry=decision.retry,
             lock_contention=decision.lock_contention,
+            fin_msg=fin_msg,
         ),
     )
     if decision.cap is not None:
@@ -11307,13 +11308,16 @@ def finalize_retry_remedy(
     retry: bool,
     *,
     lock_contention: bool = False,
+    fin_msg: str = "",
 ) -> str:
     """What a reader should DO about a refused finalize. Required by the `Refusal` contract.
 
-    Three wordings, because the three situations need different actions: a PENDING retry needs the reader
-    to do nothing and wait, an EXHAUSTED gate retry needs a human to complete the bookkeeping, and
-    an EXHAUSTED lock contention needs the user to wait for or remove a stuck lock. Saying
-    "re-run it" in the first case would invite a duplicate turn.
+    Wordings match the actual refusal class: a PENDING retry needs the reader to wait, an EXHAUSTED
+    lock contention needs the stuck lock resolved, a scope-reconciliation refusal needs the missing
+    `--scope-reason`/`--scope-ack` flags, a stale receipt needs re-begin or frozen-text restoration,
+    a git-hook refusal needs the failing hook fixed, and an E-*/V-* pre-transition refusal needs
+    bookkeeping completed. Saying "complete E-*/V-* bookkeeping" when the refusal is actually scope
+    reconciliation misleads the operator on a completed lane.
     """
     if lock_contention:
         return (
@@ -11330,6 +11334,26 @@ def finalize_retry_remedy(
             "no action needed yet: the run is handing this item back to the same agent in this run "
             "with the gate's findings, so wait for that turn. Its work is preserved on its lane and "
             "nothing was forced"
+        )
+    text = (fin_msg or "").strip()
+    if RETRYABLE_SCOPE_RECONCILIATION_SUMMARY in text:
+        return (
+            f"supply the missing `--scope-reason` / `--scope-ack` answers shown in the refusal "
+            f"message and finalize with `aw ipd finalize {id6} --apply ...` inside the preserved "
+            f"lane, or resume the run with `{command} resume <run-id>`. Do NOT discard the lane: "
+            f"the verified work itself is preserved there"
+        )
+    if RETRYABLE_STALE_RECEIPT_SUMMARY in text:
+        return (
+            f"restore the frozen plan text or re-freeze the begin receipt with `aw ipd begin "
+            f"{id6}`, then finalize with `aw ipd finalize {id6}` or resume the run with "
+            f"`{command} resume <run-id>`. Do NOT discard the lane: the work itself is preserved there"
+        )
+    if finalize_refusal_is_hook_refusal(text):
+        return (
+            f"resolve the failing git hook reported above inside the preserved lane, then finalize "
+            f"with `aw ipd finalize {id6}` or resume the run with `{command} resume <run-id>`. Do "
+            f"NOT discard the lane: the work itself is preserved there"
         )
     return (
         f"complete the plan's `E-*`/`V-*` bookkeeping (tick each performed item and paste the real "
@@ -40484,6 +40508,20 @@ def initialize_run_core(
     poll_enabled = poll_interval is not None and not bool(
         getattr(args, "prepare_only", False)
     )
+    # Snapshot the toolkit code loaded by this process BEFORE any `--poll-for-deps` sleep so
+    # `loaded_code.code_changed` sees commits that land while the runner waits for external
+    # dependencies, rather than fingerprinting the newer on-disk files hours later.
+    try:
+        from agent_workflows.loaded_code import (
+            loaded_code_record as _startup_loaded_code_record,
+        )
+
+        _repo_arg = getattr(args, "repo", None)
+        _startup_loaded_code_record(
+            Path(_repo_arg).expanduser().resolve() if _repo_arg else None
+        )
+    except Exception:
+        pass
     poll_label = str(getattr(args, "poll_for_deps", "") or "").strip()
     poll_tick = 0
     wait_claim: _PollDepsClaim | None = None
@@ -42191,6 +42229,39 @@ def parse_finalize_payload(stdout: str | None) -> dict[str, Any] | None:
     return candidates[-1]
 
 
+_DECLARED_UNMODIFIED_ACK_PREFIX = "declared-but-unmodified path needs a --scope-ack: "
+
+
+def _missing_declared_unmodified_ack_paths(
+    payload: Mapping[str, Any] | None,
+    existing_acks: Mapping[str, str],
+) -> list[str]:
+    """Return declared-but-unmodified paths reported missing a `--scope-ack` in finalize JSON.
+
+    Only extracts `declared-but-unmodified path needs a --scope-ack: <path>` diagnostics;
+    never touches out-of-scope or widened `--scope-reason` demands.
+    """
+    if not isinstance(payload, Mapping):
+        return []
+    summary = str(payload.get("summary") or "")
+    if RETRYABLE_SCOPE_RECONCILIATION_SUMMARY not in summary:
+        return []
+    diags = payload.get("diagnostics") or []
+    missing: list[str] = []
+    seen: set[str] = set(existing_acks.keys())
+    for d in diags:
+        if not isinstance(d, Mapping):
+            continue
+        detail = str(d.get("detail") or "").strip()
+        if not detail.startswith(_DECLARED_UNMODIFIED_ACK_PREFIX):
+            continue
+        path = detail[len(_DECLARED_UNMODIFIED_ACK_PREFIX) :].strip()
+        if path and path not in seen:
+            seen.add(path)
+            missing.append(path)
+    return missing
+
+
 def driver_finalize(
     repo: Path,
     plan_path: Path,
@@ -42219,37 +42290,41 @@ def driver_finalize(
     """
     _recon = compute_scope_reconciliation(repo, plan_path, labels=labels)
     if isinstance(_recon, tuple) and len(_recon) == 2:
-        reasons, acks = _recon
+        reasons, acks = dict(_recon[0]), dict(_recon[1])
         _unjustified = ()
     else:
-        reasons, acks, _unjustified = _recon
+        reasons, acks, _unjustified = dict(_recon[0]), dict(_recon[1]), _recon[2]
+
     # lanetruth Order 01 (af7i6p): THE primary lane-shadowed site. `repo` here is the LANE
     # worktree (the caller passes `finalize_repo = Path(work_dir) if (work_dir and wt_handle)
     # else repo`), and `cwd=str(repo)` below keeps it that way DELIBERATELY, because finalize
     # must resolve paths against the tree it is finalizing. Only IMPORT resolution is pinned:
     # without this the lane's own (unreviewed, possibly mid-edit) `agent_workflows` would be the
     # code performing the transition meant to gate it.
-    cmd = argv_builder(
-        [
-            "ipd",
-            "finalize",
-            id6,
-            "--actor",
-            actor,
-            "--message",
-            message,
-            "--apply",
-            "--dir",
-            str(repo),
-            "--json",
-        ]
-    )
-    for path, reason in reasons.items():
-        cmd.extend(["--scope-reason", f"{path}={reason}"])
-    for path, note in acks.items():
-        cmd.extend(["--scope-ack", f"{path}={note}"])
-    if run_id:
-        cmd.extend(["--run-id", run_id])
+    def _build_cmd() -> list[str]:
+        built = argv_builder(
+            [
+                "ipd",
+                "finalize",
+                id6,
+                "--actor",
+                actor,
+                "--message",
+                message,
+                "--apply",
+                "--dir",
+                str(repo),
+                "--json",
+            ]
+        )
+        for path, reason in reasons.items():
+            built.extend(["--scope-reason", f"{path}={reason}"])
+        for path, note in acks.items():
+            built.extend(["--scope-ack", f"{path}={note}"])
+        if run_id:
+            built.extend(["--run-id", run_id])
+        return built
+
     from agent_workflows import git_commit_helper as _gch
 
     env = dict(env_builder())
@@ -42259,19 +42334,35 @@ def driver_finalize(
         runner=labels.command,
         model=_gch.model_from_actor(actor),
     )
-    result = subprocess.run(
-        cmd,
-        cwd=str(repo),
-        env=env,
-        text=True,
-        # ttywedge Order 01 (g40w37): DENY the child a terminal. Without this, stdin is INHERITED, so a
-        # nested `aw` sees the operator's TTY, believes it may prompt, and blocks on input() forever
-        # while its prompt goes into the pipe below. Verified: a finalize wedged 1h49m this way.
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    payload = parse_finalize_payload(result.stdout)
+
+    def _run_once() -> tuple[subprocess.CompletedProcess[str], dict[str, Any] | None]:
+        proc = subprocess.run(
+            _build_cmd(),
+            cwd=str(repo),
+            env=env,
+            text=True,
+            # ttywedge Order 01 (g40w37): DENY the child a terminal. Without this, stdin is INHERITED, so a
+            # nested `aw` sees the operator's TTY, believes it may prompt, and blocks on input() forever
+            # while its prompt goes into the pipe below. Verified: a finalize wedged 1h49m this way.
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        return proc, parse_finalize_payload(proc.stdout)
+
+    result, payload = _run_once()
+    if result.returncode == 1 and payload is not None:
+        missing_acks = _missing_declared_unmodified_ack_paths(payload, acks)
+        if missing_acks:
+            # If the in-process precheck disagreed with the pinned finalize subprocess (for example
+            # due to stale loaded modules or cache state) and omitted `--scope-ack` for
+            # declared-but-unmodified paths, auto-acknowledge ONLY those paths and retry once.
+            # Out-of-scope `--scope-reason` demands are never auto-filled here and still refuse.
+            for p in missing_acks:
+                acks[p] = (
+                    f"declared-but-unmodified (auto-acknowledged by {labels.command})"
+                )
+            result, payload = _run_once()
     if payload is not None:
         prefix = {0: "", 1: "refused: ", 2: "error: "}.get(result.returncode, "")
         summary = payload.get("summary") or ""
