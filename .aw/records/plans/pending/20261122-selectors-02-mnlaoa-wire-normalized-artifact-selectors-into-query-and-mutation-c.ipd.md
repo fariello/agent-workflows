@@ -3,7 +3,7 @@
 - Date: 2026-11-22
 - Kind: child
 - Concern: Wire the shared normalized artifact selector flags (`bzsoai`) into all query and mutation CLI commands and resolve existing short-flag collisions (spec `ogd2nv` R-02, R-05, R-06).
-- Scope: Attach `selectors.add_selector_args`, `selectors.parse_selector_namespace`, and `selectors.filter_records` (all from `bzsoai`) for `aw att`/`next`, `aw find`/`search`, `aw partition`, `aw show`, `aw set`, `aw group`, `aw rename`, `aw archive`, `aw index`, and `aw ipd board`, REPLACING each command's existing overlapping registrations; add a `dest_prefix` keyword to `add_selector_args`/`parse_selector_namespace` so `aw set` selector values never reach the write paths that read `args.priority`/`args.status`/`args.date`; move `aw att -d` (`--details`) to `--details`/`--desc`/`-desc`; hide the misspelled `--arcive-state` spelling; rename `aw specs set --date` (the only history-date write override; top-level `aw set` has no `--date`) to `--history-date` and add `--history-date` to top-level `aw set`; drop the `-p` short form of `--paths` on `aw find` and `aw search` and the `-S` short form of `--short` on `aw search`; stop `_reconstruct_apply_command` from dropping a selector `-d` value; amend spec `ogd2nv` R-05/R-06 to match; update every test that uses a moved short flag. EXCLUDES runner CLIs (`agy`, `oc`), shell completions, and docs (`e36q6r`), and leaves `aw check`, `aw specs note --date`, and `aw specs migrate --date` unchanged.
+- Scope: Attach `selectors.add_selector_args`, `selectors.parse_selector_namespace`, and `selectors.filter_records` (all from `bzsoai`) for `aw att`/`next`, `aw find`/`search`, `aw partition`, `aw show`, `aw set`, `aw group`, `aw rename`, `aw archive`, `aw index`, and `aw ipd board`, REPLACING each command's existing overlapping registrations; add a `dest_prefix` keyword to `add_selector_args`/`parse_selector_namespace` so `aw set` selector values never reach the write paths that read `args.priority`/`args.status`/`args.date`; move `aw att -d` (`--details`) to `--details`/`--desc`/`-desc`; hide the misspelled `--arcive-state` spelling; rename `aw specs set --date` (the only history-date write override; top-level `aw set` has no `--date`) to `--history-date` and add `--history-date` to top-level `aw set`; rename the `aw group`/`aw rename` mutation date option from `--date` to `--new-date` (dest unchanged); drop the `-p` short form of `--paths` on `aw find` and `aw search` and the `-S` short form of `--short` on `aw search`; stop `_reconstruct_apply_command` from dropping a selector `-d` value; amend spec `ogd2nv` R-05/R-06 to match; update every test that uses a moved short flag. EXCLUDES runner CLIs (`agy`, `oc`), shell completions, and docs (`e36q6r`), and leaves `aw check`, `aw specs note --date`, and `aw specs migrate --date` unchanged.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/attention.py, agent_workflows/partition.py, agent_workflows/status_set.py, agent_workflows/selectors.py, .aw/records/specs/to-review/20261122-ogd2nv-01-ogd2nv-normalized-selectors-show-and-verb-first-cli.spec.md, tests/test_attention.py, tests/test_cli_find.py, tests/test_find_filters.py, tests/test_index_aliases.py, tests/test_record_builder_slow.py, tests/test_cli_search.py, tests/test_partition.py, tests/test_status_set.py, tests/test_event_overrides.py, tests/test_cli_show.py, tests/test_plans_archive_selectors.py, tests/test_artifact_group.py, tests/test_artifact_rename.py, tests/test_plans_rename_selectors.py, tests/test_plans_board.py, .aw/records/plans/pending/20261122-selectors-02-mnlaoa-wire-normalized-artifact-selectors-into-query-and-mutation-c.ipd.md
 - Item-Dependencies: executed:bzsoai
 - Status: reviewed
@@ -14,7 +14,7 @@
 - From-Spec: ogd2nv
 - Set: selectors
 - Order: 2
-- Readiness: no-go
+- Readiness: go-pending-approval
 - Review-Depth: standard
 - Highest E allocated: 10
 - Author: antigravity
@@ -24,6 +24,7 @@
 
 ## Workflow history
 
+- 2026-11-25 /plan-review (uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; OQ-01 resolved by maintainer (option A, --new-date); PR-004 FIXED; PR-018 FIXED; review record .aw/records/reviews/20261122-selectors-02-mnlaoa-wire-normalized-artifact-selectors-into-query-and-mutation-c.review.md
 - 2026-11-25 reviewed (aw set): status set to reviewed
 - 2026-11-24 /plan-review (uri/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001..PR-003, PR-005..PR-016 FIXED; PR-004 ESCALATED as blocking OQ-01; PR-017 DEFERRED (advisory); review record .aw/records/reviews/20261122-selectors-02-mnlaoa-wire-normalized-artifact-selectors-into-query-and-mutation-c.review.md
 - 2026-11-23 to-review (aw set): status set to to-review
@@ -112,13 +113,13 @@ Safety rule for the mutation verbs (`set`, `group`, `rename`, `archive`): select
   - Execution state: pending
 
 - [ ] E-08 Wire the selectors into `aw group` and `aw rename` (the noun-verb loop in `agent_workflows/cli.py`, around lines 5518-5745, and `_reconstruct_apply_command`, around lines 15289-15320), following the common rules and the mutation safety rule.
-  - BLOCKED ON OQ-01 (Finding PR-004): the loop registers `--date` on `group` and `rename` as a MUTATION value (the new filename date; read at `research_refs.py` lines 765 and 866), which collides with the selector `-d/--date`. Implement the option OQ-01 resolves to. The recommended option renames the mutation option string to `--new-date` while keeping `dest="date"`, so no reader changes; the alternative skips the selector `-d/--date`/`-D` pair on these two verbs and records that in spec `ogd2nv` R-05.
-  - Parser: on `group` and `rename`, delete the loop's `--status` (no `group`/`rename` code path reads it; verified at review by grep of `artifact_rename.py`, `plans_refs.py`, and `research_refs.py`) and `--status-not`/`-S`, and call `add_selector_args(_p, dest_prefix="sel_", allow_set_alias=False)`. `--set`, `--slug`, `--order`, `--id`, `--rename`, `--no-refs`, `--to-id6`, `--force`, and `--allow-invalid-order` stay as mutation options.
+  - Mutation date (OQ-01, resolved by the maintainer 2026-11-25, option A): the loop registers `--date` on `group` and `rename` (`cli.py` around line 5695) as a MUTATION value, the new filename date, read at `research_refs.py` lines 765 and 866. On `group` and `rename` ONLY, register that option as `--new-date` with `dest="date"` and the same `default=None` and help text, and do not register the loop's `--date` there. Because the `dest` stays `date`, `research_refs.py` and every other reader stay unchanged. The selector `-d/--date` and `-D/--date-not` then filter by filename date on these two verbs exactly as on every other selecting command. Leave `aw research set-assign --date` (`cli.py` around line 4322) and the other `aw research`/`aw specs`/`aw prompts` creation `--date` options unchanged; they are not in spec `ogd2nv` R-06 and register their own parsers. No existing test or doc passes `--date` to the noun-verb `group` or `rename` (grep of `tests/`, `docs/`, `agent_workflows/`, and `.aw/system/` at review), so there are no callers to migrate. A hidden `--date` alias for the mutation date is impossible here, because the selector owns `--date` on these parsers.
+  - Parser: on `group` and `rename`, delete the loop's `--status` (no `group`/`rename` code path reads it; verified at review by grep of `artifact_rename.py`, `plans_refs.py`, and `research_refs.py`) and `--status-not`/`-S`, then call `add_selector_args(_p, dest_prefix="sel_", allow_set_alias=False)` after registering `--new-date`. The prefix keeps the selector date at `sel_date`, which never shadows the mutation `date`. `--new-date`, `--set`, `--slug`, `--order`, `--id`, `--rename`, `--no-refs`, `--to-id6`, `--force`, and `--allow-invalid-order` stay as mutation options.
   - Filtering: apply `filter_records` to the records the positional selectors resolve before planning the moves; a selector flag never adds a record.
   - `_reconstruct_apply_command`: it rebuilds the `--apply` retry from `sys.argv` and today skips `-d` plus the next token as if `-d` were `--dir`, but the `group`/`rename` parsers register `--dir` with no `-d`. Skip only `--dir` and `--dir=`, so a selector `-d 2026` survives into the printed `--apply` command and the retry cannot widen the move.
-  - Tests: `tests/test_artifact_group.py`, `tests/test_artifact_rename.py`, and `tests/test_plans_rename_selectors.py`: `-s`/`-d`/`--sid` narrow the preview, nothing outside the narrowed set is renamed under `--apply`, the printed `--apply` command keeps `-d <value>`, and the mutation date option chosen by OQ-01 still sets the new filename date.
+  - Tests: `tests/test_artifact_group.py`, `tests/test_artifact_rename.py`, and `tests/test_plans_rename_selectors.py`: `-s`/`-d`/`--sid` narrow the preview, nothing outside the narrowed set is renamed under `--apply`, the printed `--apply` command keeps `-d <value>`, `--new-date 20261201` sets the new filename date, and `-d 2026` with `--new-date 20261201` on one invocation narrows by the old date while writing the new one.
   - Depends on: E-05
-  - Expected outcome: `aw group` and `aw rename` accept the selector flags as narrowing filters, keep their mutation options, and print an `--apply` command that reproduces the narrowed selection.
+  - Expected outcome: `aw group` and `aw rename` accept the selector flags (including `-d/--date` as a filter) as narrowing filters, take the new filename date from `--new-date`, and print an `--apply` command that reproduces the narrowed selection.
   - Execution state: pending
 
 - [ ] E-09 Wire the selectors into top-level `aw set` and rename the history-date override, in `agent_workflows/cli.py` and `agent_workflows/status_set.py`, following the common rules and the mutation safety rule.
@@ -132,7 +133,7 @@ Safety rule for the mutation verbs (`set`, `group`, `rename`, `archive`): select
 
 ### Task group 3: Spec amendment and existing-test migration
 
-- [ ] E-10 Amend spec `ogd2nv` (`.aw/records/specs/to-review/20261122-ogd2nv-01-ogd2nv-normalized-selectors-show-and-verb-first-cli.spec.md`, still `to-review`) so its contract matches what this plan builds: in R-05, retarget the history-date rename from `aw set` to `aw specs set`/`aw spec set` (with `aw set` gaining `--history-date`), add `aw search -p` (`--paths`) to the moved short flags, and state the group/rename mutation-date outcome of OQ-01; in R-06, state that `aw partition` offers no `-T` because one run schedules one tree, that `aw ipd board` offers no `-t/-T`, and that `aw index` accepts and ignores selector flags with a notice; in AC-03, replace "`aw set` (`--history-date`)" with "`aw set` and `aw specs set` (`--history-date`)". Append a dated `## Workflow history` line through `aw specs note` naming plan `mnlaoa`.
+- [ ] E-10 Amend spec `ogd2nv` (`.aw/records/specs/to-review/20261122-ogd2nv-01-ogd2nv-normalized-selectors-show-and-verb-first-cli.spec.md`, still `to-review`) so its contract matches what this plan builds: in R-05, retarget the history-date rename from `aw set` to `aw specs set`/`aw spec set` (with `aw set` gaining `--history-date`), add `aw search -p` (`--paths`) to the moved short flags, and state that the `aw group`/`aw rename` mutation date moves from `--date` to `--new-date` so `-d/--date` filters there as everywhere else; in R-06, state that `aw partition` offers no `-T` because one run schedules one tree, that `aw ipd board` offers no `-t/-T`, and that `aw index` accepts and ignores selector flags with a notice; in AC-03, replace "`aw set` (`--history-date`)" with "`aw set` and `aw specs set` (`--history-date`)". Append a dated `## Workflow history` line through `aw specs note` naming plan `mnlaoa`.
   - Depends on: E-03, E-08, E-09
   - Expected outcome: Spec `ogd2nv` R-05, R-06, and AC-03 describe the flags this plan ships, so `e36q6r` (completions and docs) is reviewed against the shipped contract.
   - Execution state: pending
@@ -157,6 +158,7 @@ Safety rule for the mutation verbs (`set`, `group`, `rename`, `archive`): select
 
 - Each selecting command hand-registers its own subset of selector flags with different types (single `Store` on `find --status` and `ipd board --status`, `append` on `att`/`search`/`partition`), different short forms, and different dests, so the same spelling means different things across commands (`-p` is priority on `att`/`partition` and paths on `find`/`search`; `-S` is not-status on `att`/`find` and short output on `search`; `-d` is details on `att`).
 - The status-set write path reads `args.priority`, `args.status`, and `args.date` as values to write or echo, so selector flags on `aw set` need dests that no write path reads (E-05 `dest_prefix`).
+- The noun-verb `--date` on `aw group`/`aw rename` sets the new filename date, which collides with the selector `-d/--date` filter; the maintainer chose to rename it to `--new-date` (OQ-01, E-08).
 - The `--apply` retry rebuilt by `_reconstruct_apply_command` drops any `-d <value>` pair, which would silently widen a narrowed `group`/`rename` (E-08).
 - The record type `status_set.ArtifactRecord` carries no priority, readiness, or attention class, and the only scan that does (`attention.scan`) takes about 6 seconds, so a per-path adapter is needed (E-05).
 - Spec `ogd2nv` R-05 names the wrong command for the history-date rename and omits `search -p`; E-10 amends it.
@@ -168,7 +170,7 @@ Safety rule for the mutation verbs (`set`, `group`, `rename`, `archive`): select
 3. Wire `aw find` and `aw search`, dropping `-p` for paths and search's `-S` for short (`E-06`, `E-07`).
 4. Wire `aw partition` (`E-02`).
 5. Wire the read-only inspection verbs `aw show`, `aw archive`, `aw index`, and `aw ipd board` (`E-03`).
-6. Wire `aw group`/`aw rename` and fix the `--apply` retry (`E-08`; the mutation `--date` outcome is OQ-01).
+6. Wire `aw group`/`aw rename`, move their mutation date to `--new-date`, and fix the `--apply` retry (`E-08`).
 7. Wire `aw set` and rename `aw specs set --date` to `--history-date` (`E-09`).
 8. Amend spec `ogd2nv` (`E-10`).
 9. Migrate existing moved-flag tests and run the full validation (`E-04`).
@@ -208,17 +210,17 @@ flowchart LR
 
 - Implements spec `ogd2nv` R-02, R-05, and the query and mutation portion of R-06 (AC-03). Spec `ogd2nv` is still `to-review`.
 - Amends spec `ogd2nv` R-05, R-06, and AC-03 (E-10, declared in `- Scope-Paths:`), because R-05 names `aw set` for a `--date` flag that only `aw specs set` has, and omits the `aw search -p` collision; leaving the spec unchanged would make `e36q6r` document and complete flags that do not exist.
-- Reference docs and shell completions sync in Order 03 (`e36q6r`). Cross-plan note: `e36q6r` lists `tests/test_record_builder_slow.py` as its own but its `- Scope-Paths:` omits it; this plan now owns the `find -p` change there (E-04). `p06t7i` (Set `cliverbs`, Order 02, depends on `e36q6r`) restructures `aw show` later and must keep the selector flags E-03 adds.
+- Reference docs and shell completions sync in Order 03 (`e36q6r`), which must advertise `--new-date` (not `--date`) as the `aw group`/`aw rename` mutation date and `-d/--date` as their filename-date filter. Cross-plan note: `e36q6r` lists `tests/test_record_builder_slow.py` as its own but its `- Scope-Paths:` omits it; this plan now owns the `find -p` change there (E-04). `p06t7i` (Set `cliverbs`, Order 02, depends on `e36q6r`) restructures `aw show` later and must keep the selector flags E-03 adds.
 
 ## Open questions
 
 ### OQ-01: What should the group/rename mutation `--date` become?
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-004
 - Carrier: 1iojci
-- Resolution or deferral rationale: pending maintainer decision. `aw group` and `aw rename` use `--date` today to SET the new filename date (`research_refs.py` lines 765 and 866), and spec `ogd2nv` R-02 gives `-d/--date` to every selecting command as a filename-date FILTER. Option A (recommended, medium strength): rename the mutation option string to `--new-date`, keeping `dest="date"`, so `-d/--date` filters uniformly. Option B: keep the mutation `--date` and offer no `-d/--date`/`-D` filter on these two verbs, recorded in R-05. The flag is unreleased (absent from tag `v1.3.0-rc.1`), so either choice is reversible before 2.0.0.
+- Resolution or deferral rationale: RESOLVED 2026-11-25 by the maintainer (terminal channel): option A. Rename the `group`/`rename` mutation option string to `--new-date`, keeping `dest="date"`, so `-d/--date` filters uniformly; E-08, V-08, and E-10 implement it. Question as posed: `aw group` and `aw rename` use `--date` today to SET the new filename date (`research_refs.py` lines 765 and 866), and spec `ogd2nv` R-02 gives `-d/--date` to every selecting command as a filename-date FILTER. Option A (recommended, medium strength): rename the mutation option string to `--new-date`, keeping `dest="date"`, so `-d/--date` filters uniformly. Option B: keep the mutation `--date` and offer no `-d/--date`/`-D` filter on these two verbs, recorded in R-05. The flag is unreleased (absent from tag `v1.3.0-rc.1`), so either choice is reversible before 2.0.0.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -262,7 +264,7 @@ Every pytest evidence block below must show test names (for example `python3 -m 
   - Result: pending
 
 - [ ] V-08 validates E-08
-  - Required evidence: Pasted pytest output from `tests/test_artifact_group.py`, `tests/test_artifact_rename.py`, and `tests/test_plans_rename_selectors.py` proving `-s`/`--sid` (and `-d`, if OQ-01 chose option A) narrow the preview; that no file outside the narrowed set is renamed under `--apply`; that the printed `--apply` command keeps `-d <value>`; and that the mutation date option chosen by OQ-01 still sets the new filename date.
+  - Required evidence: Pasted pytest output from `tests/test_artifact_group.py`, `tests/test_artifact_rename.py`, and `tests/test_plans_rename_selectors.py` proving `-s`, `--sid`, and `-d` narrow the preview; that no file outside the narrowed set is renamed under `--apply`; that the printed `--apply` command keeps `-d <value>`; that `--new-date 20261201` sets the new filename date; that `-d 2026 --new-date 20261201` filters by the old date and writes the new one; and that `aw group --help` lists `--new-date` and `-d/--date` as distinct options.
   - Observed evidence:
   - Result: pending
 
@@ -281,7 +283,7 @@ Every pytest evidence block below must show test names (for example `python3 -m 
 - Size assessment: standard
 - Cohesion rationale: one CLI grammar applied across every non-runner selecting command; each E-item is one command surface with its own V-item, and all of them depend on the one builder extension in E-05.
 
-Execute only after human approval (`- Status: approved`, recorded with `aw set approved mnlaoa --by-human`) and after OQ-01 is resolved. Open questions: OQ-01 is open and blocking.
+Execute only after human approval (`- Status: approved`, recorded with `aw set approved mnlaoa --by-human`). Open questions: none open (OQ-01 resolved 2026-11-25).
 
 Scope fence: the paths in `- Scope-Paths:` are a declaration. If execution must edit a file outside the fence, make the needed edit and justify it at finalize (`--scope-reason`), and acknowledge any declared path left unmodified (`--scope-ack`).
 

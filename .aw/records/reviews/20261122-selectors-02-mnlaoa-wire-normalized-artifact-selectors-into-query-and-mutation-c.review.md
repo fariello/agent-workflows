@@ -2,9 +2,9 @@
 
 - Subject-Id: mnlaoa
 - Subject-Type: ipd
-- Reviewed-At: 2026-11-24
+- Reviewed-At: 2026-11-25
 - Reviewer: uri/its_direct/pt3-claude-opus-5.5-1m-us
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
 
@@ -108,3 +108,81 @@ AW-TIER: standard
 | D-3 | What does `aw index` do with selector flags? | Accept and ignore them with an info notice | Refuse them (rejected: breaks the uniform grammar R-06 asks for) | `meta_cli.index_alias` lists nothing; `--limit` precedent | yes |
 | D-4 | Does `aw partition` get `-T`? | No; keep its single-tree `-t` and use `include_types=False` | Multi-tree partition (rejected: breaks Set cohesion, out of scope) | PR-016 | yes |
 | D-5 | How is `--arcive-state` fixed? | Hide it with `help=SUPPRESS`, keep all dests | Delete it (rejected: unannounced removal; tests construct its dest) | PR-010 | yes |
+
+## Round 2
+
+This round ran in the same review-sweep lane worktree after the maintainer answered blocking `OQ-01` over the terminal channel: "A (recommended): rename the mutation option to --new-date (dest stays date); -d/--date filters uniformly". The plan was committed and clean at `809f0d5c5`, so the pre-review snapshot commit was skipped. The round folds that answer into the plan and re-checks every item it touches.
+
+### Step T
+
+1. Yes; the answer renames one more public CLI option (`--date` to `--new-date` on `aw group`/`aw rename`).
+2. Partly; unchanged from Round 1 (the `aw set` bulk-write path and the `group`/`rename` `--apply` retry).
+3. Yes; still 10 E-items in 3 task groups.
+4. Yes; no new file is touched, because no test, doc, or workflow passes `--date` to the noun-verb `group`/`rename`.
+5. Yes; if the selector date and the mutation date shared a `dest`, a filter value would be written as the new filename date.
+
+AW-TIER: standard
+
+### Step R1
+
+- Checked: the noun-verb loop's mutation `--date` (`agent_workflows/cli.py` line 5695) and every reader of `args.date` among `agent_workflows/research_refs.py`, `agent_workflows/plans_refs.py`, `agent_workflows/artifact_rename.py`, and `agent_workflows/cli.py` (only `research_refs.py` lines 765 and 866 read it); every `"--date"` in `tests/` (87 matches, all on `research set-assign`, `research new`, `specs`, `prompts`, `backlog`, or `aw specs set`, none on noun-verb `group`/`rename`); `docs/`, `agent_workflows/`, and `.aw/system/` for `group`/`rename ... --date` (none); and `--new-date` (absent today).
+- Found that `aw research set-assign --date` (`cli.py` around line 4322) is a separate parser outside spec `ogd2nv` R-06 and must not be renamed with it (`PR-018`). `aw research mv` registers no `--date`.
+
+### Step R2
+
+- Checked: V-08 against the new E-08 text. V-08 now demands `-d` narrowing unconditionally, `--new-date` setting the filename date, the combined `-d 2026 --new-date 20261201` case, and distinct `--new-date` and `-d/--date` entries in `aw group --help`.
+
+### Step R3
+
+- Checked: E-08 registers `--new-date` with `dest="date"` and the selectors with `dest_prefix="sel_"`, so the filter lands in `sel_date` and the mutation value in `date`; `_reconstruct_apply_command` skips only `--dir`, so both `-d <value>` and `--new-date <value>` survive into the printed `--apply` command. A hidden `--date` alias for the mutation value is impossible, because the selector owns `--date` on these parsers.
+
+### Step R4
+
+- Checked: `find`, `search`, and `index` already drop the loop's `--date` in E-06, E-07, and E-03, so `--new-date` is needed only on `group`/`rename`; `aw check` keeps the loop `--date` as Round 1 stated.
+
+### Step R7
+
+- Checked: `e36q6r` (Order 03) owns completions and docs; `## Spec / documentation sync` now tells it to advertise `--new-date` as the `group`/`rename` mutation date and `-d/--date` as their filter. E-10 now states the `--new-date` rename in R-05 instead of deferring to OQ-01.
+
+### Step S5
+
+- `OQ-01` is `resolved` with the maintainer's answer and date recorded in its rationale; `- Blocking: yes`, `- Owner: maintainer`, `- Finding: PR-004`, and `- Carrier: 1iojci` are kept.
+- The non-gating hidden-alias question for `aw specs set --date` remains unanswered and is re-recorded in the attempt-2 outcome file; the plan still defaults to no alias.
+- No new question arose.
+
+### Pass 2
+
+- Re-checked the whole plan: front matter (Scope bullet now names `--new-date`), E-08, E-10, Findings, Proposed changes step 6, Spec sync, OQ-01, V-08, and the gate ("Open questions: none open").
+- Verified `10/10` E/V bijection, unchanged checkbox and execution states, no `OQ-01` dependency left in E-08 or V-08, and `aw ipd lint --phase review-finalize` reporting only the advisory `IPD-Z603` size notes (rc 0).
+- `AW-REVIEW: DONE`
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|---|---|---|---|---|---|---|---|---|
+| PR-004 | HIGH | IN-SCOPE | R1 / Group and rename mutation `--date` | Maintainer answer to OQ-01 (option A, 2026-11-25); agent_workflows/cli.py:5695; agent_workflows/research_refs.py:765, 866 | On `group`/`rename`, `--date` set the new filename date and collided with the selector `-d/--date`. | C:Low; U:Low; S:Low; Overall:Low | fixed | E-08 registers `--new-date` (`dest="date"`) on `group`/`rename` and adds the selector date pair with `dest_prefix="sel_"`; V-08 tests both; E-10 records the rename in R-05; spec sync tells `e36q6r`. |
+| PR-018 | LOW | IN-SCOPE | R1 / Rename boundary | agent_workflows/cli.py:~4322 (`aw research set-assign --date`); grep of `tests/` (87 `--date` uses, none on noun-verb `group`/`rename`) | Without a stated boundary, an executor could also rename the separate `aw research set-assign --date` and break its containment tests. | C:Low; U:Low; S:Low; Overall:Low | fixed | E-08 limits `--new-date` to the noun-verb `group`/`rename` parsers and names the `research`/`specs`/`prompts` `--date` options as unchanged. |
+
+### Proofreading
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| `Scope` | No mention of the group/rename date | Names the `--date` to `--new-date` rename, dest unchanged | PR-004 |
+| E-08 | "BLOCKED ON OQ-01" with two options | The chosen `--new-date` design, reader impact, untouched parsers, no callers to migrate | PR-004, PR-018 |
+| E-08 tests and V-08 | "if OQ-01 chose option A" | Unconditional `-d` narrowing, `--new-date` write, combined case, help listing | PR-004 |
+| E-10, Findings, Proposed changes, Spec sync | "outcome of OQ-01" | The `--new-date` rename stated directly; `e36q6r` told to advertise it | PR-004 |
+| OQ-01, gate | `open`; "after OQ-01 is resolved" | `resolved` with the maintainer's answer; "none open" | PR-004 |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| (none) | | | | | |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-6 | What becomes of the `group`/`rename` mutation `--date`? | Rename the option string to `--new-date`, keep `dest="date"` (maintainer decision on OQ-01) | Keep `--date` and offer no date filter on these verbs (rejected by the maintainer) | Maintainer answer 2026-11-25; flag absent from `v1.3.0-rc.1` | yes |
