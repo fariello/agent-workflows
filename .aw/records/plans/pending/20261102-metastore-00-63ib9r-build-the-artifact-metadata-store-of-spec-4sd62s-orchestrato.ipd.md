@@ -10,8 +10,8 @@
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Coverage: pass
-- Coverage-Fingerprint: 702f3b688c5bf2c711f8495a0280ebebc638afcf1a8dfc63fe9ca3cc0a232c66
-- Coverage-Checked: 2026-11-13 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: 05de8ffbbfea675f5a29f093445d81ee1ada558e87cf99ca08614b1319fa83de
+- Coverage-Checked: 2026-11-25 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: high
 - Blocks-Release: next
@@ -26,6 +26,7 @@
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-25 coverage pass (aw oc run): fingerprint 05de8ffbbfea, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-13 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-004..PR-007 FIXED
 - 2026-11-13 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-004..PR-007 FIXED; review record .aw/records/reviews/20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.review.md
