@@ -159,9 +159,9 @@ N/A for this orchestrator; each child updates only the docs/help strings directl
 ### OQ-02: Target-repo tracking policy for `.aw/config/project.json` in `public-target-private-companion` (`7gverp`)
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: `install_wizard.get_preset_defaults` sets `config_project="companion-git"`, `project_context` derives `IGNORED`, and `.aw/.gitignore` leaves `/config/project.json` unignored so fresh installs leave `.aw/config/project.json` untracked in the target repo. Order 02 (`7gverp`) should confirm during `/plan-review` whether `.aw/config/project.json` should be `target-git` (committed in target repo) or ignored/stored in the companion repo.
+- Resolution or deferral rationale: `install_wizard.get_preset_defaults` sets `config_project="companion-git"`, `project_context` derives `IGNORED`, and `.aw/.gitignore` leaves `/config/project.json` unignored so fresh installs leave `.aw/config/project.json` untracked in the target repo. Order 02 (`7gverp`) should confirm during `/plan-review` whether `.aw/config/project.json` should be `target-git` (committed in target repo) or ignored/stored in the companion repo. RESOLVED 2026-11-24 by the user via /askme: Keep project.json at <target>/.aw/config/project.json and track it in the target repo (target-git). No reason was given.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 

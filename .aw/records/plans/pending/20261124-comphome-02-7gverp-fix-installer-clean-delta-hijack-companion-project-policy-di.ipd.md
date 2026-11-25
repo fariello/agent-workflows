@@ -110,9 +110,9 @@ Update `public-target-private-companion` policy documentation if `config_project
 ### OQ-01: `config_project` policy for `public-target-private-companion`
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: Confirm during `/plan-review` whether `.aw/config/project.json` in `public-target-private-companion` should be `target-git` (staged/committed on install) or ignored/stored in the companion repo.
+- Resolution or deferral rationale: Confirm during `/plan-review` whether `.aw/config/project.json` in `public-target-private-companion` should be `target-git` (staged/committed on install) or ignored/stored in the companion repo. RESOLVED 2026-11-24 by the user via /askme: Keep project.json at <target>/.aw/config/project.json and track it in the target repo (target-git). No reason was given.
 
 ## Validation and cross-check (verify before reporting done)
 
