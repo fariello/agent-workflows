@@ -46,20 +46,20 @@ Batch rule, applied to every batch E-item of this plan:
 
 ### Task group 1: work
 
-- [ ] E-01 (first half of `iog3cw` E-02.) Batch S01a: convert the setter-byte assertions of `tests/test_agy_runipd_cli.py`, `tests/test_artifact_group.py`, `tests/test_artifact_rename.py`, `tests/test_attention_priority_blocker.py` (part of the 28 candidate assertion lines of S01 at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S01a`.
+- [x] E-01 (first half of `iog3cw` E-02.) Batch S01a: convert the setter-byte assertions of `tests/test_agy_runipd_cli.py`, `tests/test_artifact_group.py`, `tests/test_artifact_rename.py`, `tests/test_attention_priority_blocker.py` (part of the 28 candidate assertion lines of S01 at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S01a`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S01a outcome lists; the remaining F-28 matches in the four modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (second half of `iog3cw` E-02.) Batch S01b: convert the setter-byte assertions of `tests/test_attention.py`, `tests/test_awcmdsurf_mutation_verbs.py`, `tests/test_backlog_already_complete.py`, `tests/test_backlog_close_evidence_plan_disposition.py` (the rest of S01's 28 candidate lines, F-28). Apply the batch rule with `<batch>` = `S01b`.
+- [x] E-02 (second half of `iog3cw` E-02.) Batch S01b: convert the setter-byte assertions of `tests/test_attention.py`, `tests/test_awcmdsurf_mutation_verbs.py`, `tests/test_backlog_already_complete.py`, `tests/test_backlog_close_evidence_plan_disposition.py` (the rest of S01's 28 candidate lines, F-28). Apply the batch rule with `<batch>` = `S01b`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S01b outcome lists; the remaining F-28 matches in the four modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Finish this part: run the batch rule's command over the eight S01 modules once more and confirm the outcome multiset equals the union of `S01a-before.txt` and `S01b-before.txt`; write this plan's F-28 rows (one row per remaining match with its class) and F-29 (per-module PASSED, FAILED, SKIPPED and XFAIL counts of the after run) so `iog3cw` E-12 can assemble the part table; run `aw sanitize --agent`; commit through `aw commit 545ag7 -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-03 Finish this part: run the batch rule's command over the eight S01 modules once more and confirm the outcome multiset equals the union of `S01a-before.txt` and `S01b-before.txt`; write this plan's F-28 rows (one row per remaining match with its class) and F-29 (per-module PASSED, FAILED, SKIPPED and XFAIL counts of the after run) so `iog3cw` E-12 can assemble the part table; run `aw sanitize --agent`; commit through `aw commit 545ag7 -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; F-28 and F-29 for this part are written; every commit is path-scoped to Scope-Paths.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -73,8 +73,8 @@ Batch rule, applied to every batch E-item of this plan:
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-28 | `iog3cw` F-28 (measurement at `ac76110f4`) | This part: S01, 28 lines in 8 modules, as S01a (first four) and S01b (last four). Rows for remaining matches are written by E-03. |
-| F-29 | (written by E-03) | Per-module after-run outcome counts. |
+| F-28 | `iog3cw` F-28 (measurement at `ac76110f4`) and S01 post-conversion scan at `ece613a9a` (`rg -c`: 26 before, 5 after; 21 converted; 2 of the 28 lines measured at `ac76110f4` in `tests/test_artifact_group.py::TestArtifactGroup::test_group_prompts_with_order` were already on `artifact_meta.read`) | Remaining matches across all eight S01 modules (5 rows, all classified; 0 `setter-byte, exact spelling`, 0 `displayed-output assertion`, 5 `legacy-format subject`): (1) `tests/test_attention_priority_blocker.py::ReadinessReaderTests::test_enum_values_round_trip` (`self.assertEqual(attention.read_readiness(f"- Readiness: {value}"), value)`) — `legacy-format subject` (direct parser test of `attention.read_readiness` on literal strings); (2) `tests/test_attention_priority_blocker.py::ReadinessReaderTests::test_absent_and_out_of_vocab_are_both_none` (`self.assertIsNone(attention.read_readiness("- Status: to-review\n"))`) — `legacy-format subject` (direct parser test of `attention.read_readiness` on literal strings); (3) `tests/test_attention_priority_blocker.py::ReadinessReaderTests::test_absent_and_out_of_vocab_are_both_none` (`self.assertIsNone(attention.read_readiness("- Readiness: banana"))`) — `legacy-format subject` (direct parser test of `attention.read_readiness` on literal strings); (4) `tests/test_attention_priority_blocker.py::ReadinessReaderTests::test_absent_and_out_of_vocab_are_both_none` (`self.assertIsNone(attention.read_readiness("- Readiness: CONDITIONAL-GO"))`) — `legacy-format subject` (direct parser test of `attention.read_readiness` on literal strings); (5) `tests/test_attention.py::PlansIdWindowTests::_text_with_id_at` (`self.assertEqual(text.index(f"- Id: {id6}"), offset)`) — `legacy-format subject` (synthetic string buffer byte-offset check for `att._plans_id` window straddling). |
+| F-29 | `.aw/state/545ag7/S01-union-after.txt` (222 tests total) | Per-module after-run counts: `tests/test_agy_runipd_cli.py` — PASSED: 56, FAILED: 0, SKIPPED: 0, XFAIL: 0; `tests/test_artifact_group.py` — PASSED: 8, FAILED: 0, SKIPPED: 0, XFAIL: 0; `tests/test_artifact_rename.py` — PASSED: 7, FAILED: 0, SKIPPED: 0, XFAIL: 0; `tests/test_attention_priority_blocker.py` — PASSED: 28, FAILED: 0, SKIPPED: 0, XFAIL: 0; `tests/test_attention.py` — PASSED: 76, FAILED: 0, SKIPPED: 0, XFAIL: 0; `tests/test_awcmdsurf_mutation_verbs.py` — PASSED: 7, FAILED: 0, SKIPPED: 0, XFAIL: 0; `tests/test_backlog_already_complete.py` — PASSED: 13, FAILED: 0, SKIPPED: 0, XFAIL: 0; `tests/test_backlog_close_evidence_plan_disposition.py` — PASSED: 27, FAILED: 0, SKIPPED: 0, XFAIL: 0. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -130,20 +130,53 @@ No spec change; prepares part of `4sd62s` section 6 and section 7 step 9 (the te
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the empty `diff .aw/state/545ag7/S01a-before.txt .aw/state/545ag7/S01a-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_agy_runipd_cli.py`, `tests/test_artifact_group.py`, `tests/test_artifact_rename.py`, `tests/test_attention_priority_blocker.py`, and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/545ag7/S01a-before.txt .aw/state/545ag7/S01a-after.txt`: empty (exit 0; 99 lines in both files, all PASSED, identical outcomes).
+    - F-28 `rg -c` counts (before -> after):
+      - `tests/test_agy_runipd_cli.py`: `1` -> `0` (1 converted to `assert_field`)
+      - `tests/test_artifact_group.py`: `10` -> `0` (10 converted to `assert_field`)
+      - `tests/test_artifact_rename.py`: `1` -> `0` (1 converted to `assert_field`)
+      - `tests/test_attention_priority_blocker.py`: `4` -> `4` (0 converted; file intentionally unmodified)
+    - Remaining 4 matches classified (all `legacy-format subject`; see F-28):
+      - `tests/test_attention_priority_blocker.py::ReadinessReaderTests::test_enum_values_round_trip` (`self.assertEqual(attention.read_readiness(f"- Readiness: {value}"), value)`, line 240): `legacy-format subject`
+      - `tests/test_attention_priority_blocker.py::ReadinessReaderTests::test_absent_and_out_of_vocab_are_both_none` (`self.assertIsNone(attention.read_readiness("- Status: to-review\n"))`, line 256): `legacy-format subject`
+      - `tests/test_attention_priority_blocker.py::ReadinessReaderTests::test_absent_and_out_of_vocab_are_both_none` (`self.assertIsNone(attention.read_readiness("- Readiness: banana"))`, line 257): `legacy-format subject`
+      - `tests/test_attention_priority_blocker.py::ReadinessReaderTests::test_absent_and_out_of_vocab_are_both_none` (`self.assertIsNone(attention.read_readiness("- Readiness: CONDITIONAL-GO"))`, line 259): `legacy-format subject`
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the empty `diff .aw/state/545ag7/S01b-before.txt .aw/state/545ag7/S01b-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_attention.py`, `tests/test_awcmdsurf_mutation_verbs.py`, `tests/test_backlog_already_complete.py`, `tests/test_backlog_close_evidence_plan_disposition.py`, and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/545ag7/S01b-before.txt .aw/state/545ag7/S01b-after.txt`: empty (exit 0; 123 lines in both files, all PASSED, identical outcomes).
+    - F-28 `rg -c` counts (before -> after):
+      - `tests/test_attention.py`: `1` -> `1` (0 converted; file intentionally unmodified)
+      - `tests/test_awcmdsurf_mutation_verbs.py`: `2` -> `0` (2 converted to `assert_field`)
+      - `tests/test_backlog_already_complete.py`: `1` -> `0` (1 converted to `assert_field`)
+      - `tests/test_backlog_close_evidence_plan_disposition.py`: `6` -> `0` (6 converted to `assert_field`)
+    - Remaining 1 match classified (`legacy-format subject`; see F-28):
+      - `tests/test_attention.py::PlansIdWindowTests::_text_with_id_at` (`self.assertEqual(text.index(f"- Id: {id6}"), offset)`, line 3723): `legacy-format subject`
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the empty union `diff`, this plan's F-28 rows, the F-29 table with one row per S01 module, the `aw sanitize --agent` result with zero `fail`, and every `aw commit 545ag7` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union comparison `diff .aw/state/545ag7/S01-union-before.txt .aw/state/545ag7/S01-union-after.txt`: empty (exit 0; 222 lines in both files, all PASSED).
+    - F-28 rows written in `## Findings` (5 remaining rows across all eight S01 modules: 5 `legacy-format subject`, 0 `setter-byte, exact spelling`, 0 `displayed-output assertion`).
+    - F-29 per-module counts (from `.aw/state/545ag7/S01-union-after.txt`, 222 total):
+      - `tests/test_agy_runipd_cli.py`: PASSED=56, FAILED=0, SKIPPED=0, XFAIL=0
+      - `tests/test_artifact_group.py`: PASSED=8, FAILED=0, SKIPPED=0, XFAIL=0
+      - `tests/test_artifact_rename.py`: PASSED=7, FAILED=0, SKIPPED=0, XFAIL=0
+      - `tests/test_attention_priority_blocker.py`: PASSED=28, FAILED=0, SKIPPED=0, XFAIL=0
+      - `tests/test_attention.py`: PASSED=76, FAILED=0, SKIPPED=0, XFAIL=0
+      - `tests/test_awcmdsurf_mutation_verbs.py`: PASSED=7, FAILED=0, SKIPPED=0, XFAIL=0
+      - `tests/test_backlog_already_complete.py`: PASSED=13, FAILED=0, SKIPPED=0, XFAIL=0
+      - `tests/test_backlog_close_evidence_plan_disposition.py`: PASSED=27, FAILED=0, SKIPPED=0, XFAIL=0
+    - Full core suite (`aw suite`): `2952 passed, 1 skipped, 11 warnings in 128.79s (0:02:08)`.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7229,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit 545ag7 -m "Move S01 setter-byte assertions onto format-aware assert_field helper" -- tests/test_agy_runipd_cli.py tests/test_artifact_group.py tests/test_artifact_rename.py tests/test_awcmdsurf_mutation_verbs.py tests/test_backlog_already_complete.py tests/test_backlog_close_evidence_plan_disposition.py`: `aw commit: committed 6 path(s): 089683a9f9a894041dee549fe167922a1106d0af` (all 6 paths in Scope-Paths; `tests/test_attention_priority_blocker.py` and `tests/test_attention.py` had only `legacy-format subject` matches and were intentionally left unmodified; plan evidence update committed in the follow-up path-scoped `aw commit 545ag7` naming only this IPD path).
+  - Result: pass
 
 ## Approval and execution gate
 
