@@ -130,9 +130,9 @@ N/A: enforces existing documented placement, containment, and `AW_HOME` invarian
 ### OQ-01: Default `AW_HOME` when `XDG_CONFIG_HOME` is set
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: Confirm during `/plan-review` whether to standardize on `~/.aw` (with legacy XDG detection fallback) or honor `XDG_CONFIG_HOME` consistently across `project_context`, `config`, and `project_registry`.
+- Resolution or deferral rationale: Confirm during `/plan-review` whether to standardize on `~/.aw` (with legacy XDG detection fallback) or honor `XDG_CONFIG_HOME` consistently across `project_context`, `config`, and `project_registry`. RESOLVED 2026-11-24 by the user via /askme: Always default AW_HOME to ~/.aw, ignoring XDG_CONFIG_HOME (detect and warn if legacy project data already exists under $XDG_CONFIG_HOME/agent-workflows). No reason was given.
 
 ## Validation and cross-check (verify before reporting done)
 

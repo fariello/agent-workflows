@@ -152,9 +152,9 @@ N/A for this orchestrator; each child updates only the docs/help strings directl
 ### OQ-01: Canonical default for `AW_HOME` when `XDG_CONFIG_HOME` is set (`ywl7uc`)
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: `project_context.get_default_aw_home` currently uses `$XDG_CONFIG_HOME/agent-workflows` when `XDG_CONFIG_HOME` is set, whereas `config.get_aw_home` and `project_registry.find_project` always default to `~/.aw`. Order 01 (`ywl7uc`) should confirm during `/plan-review` whether to standardize on `~/.aw` (with legacy XDG fallback/warning if existing data is detected) or honor `XDG_CONFIG_HOME` across all three modules.
+- Resolution or deferral rationale: `project_context.get_default_aw_home` currently uses `$XDG_CONFIG_HOME/agent-workflows` when `XDG_CONFIG_HOME` is set, whereas `config.get_aw_home` and `project_registry.find_project` always default to `~/.aw`. Order 01 (`ywl7uc`) should confirm during `/plan-review` whether to standardize on `~/.aw` (with legacy XDG fallback/warning if existing data is detected) or honor `XDG_CONFIG_HOME` across all three modules. RESOLVED 2026-11-24 by the user via /askme: Always default AW_HOME to ~/.aw, ignoring XDG_CONFIG_HOME (detect and warn if legacy project data already exists under $XDG_CONFIG_HOME/agent-workflows). No reason was given.
 
 ### OQ-02: Target-repo tracking policy for `.aw/config/project.json` in `public-target-private-companion` (`7gverp`)
 
