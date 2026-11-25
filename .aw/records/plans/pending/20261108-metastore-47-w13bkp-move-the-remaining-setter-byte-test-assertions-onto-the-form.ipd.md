@@ -89,13 +89,16 @@ flowchart TD
 
 - Batch S11 except `tests/test_question_visibility.py` (from E-01). Moved to qtvk2q (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: qtvk2q
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-263-qtvk2q-move-setter-byte-assertions-of-batch-s11-except-question-vis.ipd.md
 - Batch S12 except `tests/test_review_sequence_runner.py` and `tests/test_review_staleness_advisory.py` (from E-02). Moved to cxylsu (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: cxylsu
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-264-cxylsu-move-setter-byte-assertions-of-batch-s12-first-eight-modules.ipd.md
 - `tests/test_question_visibility.py` (rest of E-01), `tests/test_review_sequence_runner.py` and `tests/test_review_staleness_advisory.py` (rest of E-02), and batch S13 (E-03). Moved to 810kpy (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 810kpy
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-265-810kpy-move-setter-byte-assertions-of-batch-s13-and-the-s11-and-s12.ipd.md
 - Batches S15, S16, S17: Moved to aqc3m6 (split 2026-11-08 per maintainer step-complexity rule; at most 4 batch items per plan).
   - Carrier: aqc3m6
+  - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-61-aqc3m6-move-setter-byte-assertions-of-batches-s15-to-s17-onto-the-f.ipd.md
 - Batches S18, S19, S20: Moved to zgyna1 (split 2026-11-08 per maintainer step-complexity rule; at most 4 batch items per plan).
   - Carrier: zgyna1
   - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-62-zgyna1-move-the-test-status-set-setter-byte-assertions-of-batches-s.ipd.md
@@ -106,6 +109,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-44-iog3cw-add-the-format-aware-field-assertion-helper-and-move-the-fir.ipd.md
 - Batches S05 to S10.
   - Carrier: 87rvs2
+  - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-59-87rvs2-move-setter-byte-assertions-of-batches-s05-to-s07-onto-the-f.ipd.md
 - The value-writer test modules (`tests/test_releases_line_writers.py`, `tests/test_releases_sibling_line_writers_bounding.py`, `tests/test_blocks_release_reader_bounding.py`, `tests/test_backlog_metadata_duplicate_and_gate_summary.py`, `tests/test_from_backlog_cardinality.py`, `tests/test_check_engine_from_spec_missing.py`, `tests/test_backlog_handoff_close.py`): retargeted by `k6jd6l` E-08.
   - Carrier: k6jd6l
   - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-43-k6jd6l-fold-the-value-writers-into-artifact-meta-delete-the-writer.ipd.md
