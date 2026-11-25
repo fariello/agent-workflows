@@ -54,7 +54,7 @@ from agent_workflows import (
     runner_shutdown,
 )
 from tests import support
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_no_field
 from tests.support import coordinator_role
 
 
@@ -1100,8 +1100,7 @@ def test_review_sweep_lane_parking_and_refusal_e06_v06(
     ), "Sweep lane HEAD should equal review_lane_tip_before"
 
     # Assert plan 2 file has NO - Readiness:
-    plan_2_text = p2.read_text(encoding="utf-8")
-    assert "- Readiness:" not in plan_2_text
+    assert_no_field(p2, "readiness")
 
     # Execute review 3: normal review, integrates to main
     with (
