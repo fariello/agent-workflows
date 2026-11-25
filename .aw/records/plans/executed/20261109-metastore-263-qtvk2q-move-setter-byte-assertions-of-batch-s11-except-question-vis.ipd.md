@@ -6,7 +6,7 @@
 - Scope: Batches S11a and S11b: 8 modules (`tests/test_production_baseline_same_commit.py`, `tests/test_production_correction_turn.py`, `tests/test_production_resume_handoff.py`, `tests/test_production_set_check.py`, `tests/test_prompts_set_surface.py`, `tests/test_question_drain.py`, `tests/test_question_parking.py`, `tests/test_question_preflight.py`). EXCLUDES the `w13bkp` exclusions: switching `RECORD_FORMAT` to `log`, the log branch of the helper, displayed-output assertions, legacy-format subject tests, the `review-pilot` corpus, production code.
 - Scope-Paths: tests/test_production_baseline_same_commit.py, tests/test_production_correction_turn.py, tests/test_production_resume_handoff.py, tests/test_production_set_check.py, tests/test_prompts_set_surface.py, tests/test_question_drain.py, tests/test_question_parking.py, tests/test_question_preflight.py, .aw/records/plans/pending/20261109-metastore-263-qtvk2q-move-setter-byte-assertions-of-batch-s11-except-question-vis.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:ya4ee4
-- Status: approved
+- Status: executed
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: qtvk2q
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-25 executed (human-assisted finalize): Finalize qtvk2q from preserved lane aw/lane/qtvk2q (run-20261125T103744Z-2547641). [Scope reconciliation - in-scope-unmodified tests/test_prompts_set_surface.py: not-needed: legacy-format subject (prompt grammar); in-scope-unmodified tests/test_question_drain.py: not-needed: legacy-format subject (OQ block status); in-scope-unmodified tests/test_question_preflight.py: not-needed: legacy-format subject (OQ block status)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004.
