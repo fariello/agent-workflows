@@ -6,7 +6,7 @@
 - Scope: Add the three shared pure history-reading helpers needed in `agent_workflows/artifact_meta.py` (`split_history_section`, `history_record_blocks`, `history_section_lines`), then migrate every surviving `Workflow history` section reader and local heading regex in `attention.py`, `backlog.py`, `releases.py`, `specs.py`, `record_history.py`, `ipd_lifecycle.py`, `ipd_lint.py`, `check_engine.py`, and `migrations/chain.py` onto `artifact_meta`, retargeting the six test files that call `attention._history_section_lines` and adding core behavioral tests. Excludes prompt comment helpers (`t3t7za`), specs/backlog `^-` regexes (`fkvrc7`), `Scope-Paths` writer and widened front-matter readers (`75jciz`), phase-B structural heading constants and conflict/scaffolding writers (`ipd_schema.H_WORKFLOW_HISTORY`, `ipd_authoring.py`, `runner_shared.resolve_history_append_conflict`, carried by `cxxmyv`), and the `9o83cr` final AC-1 audit.
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/attention.py, agent_workflows/backlog.py, agent_workflows/releases.py, agent_workflows/specs.py, agent_workflows/record_history.py, agent_workflows/ipd_lifecycle.py, agent_workflows/ipd_lint.py, agent_workflows/check_engine.py, agent_workflows/migrations/chain.py, tests/test_history_order.py, tests/test_backlog.py, tests/test_set_dispatch_parity.py, tests/test_history_label_parity.py, tests/test_backlog_history_dedup_parity.py, tests/test_status_set.py, tests/test_history_provenance.py, .aw/records/plans/pending/20261124-metastore-301-wgn3bl-migrate-surviving-workflow-history-section-readers-onto-arti.ipd.md
 - Item-Dependencies: executed:0xsx2n, executed:e8420v, executed:k6jd6l, executed:q6epwc, executed:snin8q
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,13 +18,13 @@
 - Order: 301
 - Highest E allocated: 5
 - Id: wgn3bl
-- Approval: 2026-11-25, recorded via aw ipd set: status set to approved
 - Author: antigravity
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-25 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: wgn3bl verified (set metastore, attempt 1).
 - 2026-11-25 approved (aw set): status set to approved
 - 2026-11-25 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 FIXED
 - 2026-11-25 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009; review record .aw/records/reviews/20261124-metastore-301-wgn3bl-migrate-surviving-workflow-history-section-readers-onto-arti.review.md
