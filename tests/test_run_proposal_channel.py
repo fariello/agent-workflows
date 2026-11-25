@@ -45,7 +45,7 @@ import pytest
 
 from agent_workflows import agy_runipd, oc_runipd, render_stream, runner_shared
 from tests.support import coordinator_role
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 def _create_test_repo(root: Path) -> Path:
@@ -429,8 +429,8 @@ def test_material_proposal_creates_backlog_item_on_main(
     bl_files = list(bl_dir.glob("*.backlog.md"))
     assert len(bl_files) == 1, f"Expected 1 backlog file on main, got {bl_files}"
     bl_content = bl_files[0].read_text(encoding="utf-8")
-    assert "- Status: open" in bl_content
-    assert "- Priority: high" in bl_content
+    assert_field(bl_files[0], "status", "open")
+    assert_field(bl_files[0], "priority", "high")
     assert "aw check crashed with traceback" in bl_content
 
     # 4. Summary table renders proposal first
@@ -513,9 +513,9 @@ def test_small_proposal_creates_draft_plan_on_main(
     matching = list(plans_dir.glob("*-prop-sml001-01-*.ipd.md"))
     assert len(matching) == 1, f"Expected 1 draft plan, found {matching}"
     plan_text = matching[0].read_text(encoding="utf-8")
-    assert "- Status: draft" in plan_text
-    assert "- Set: prop-sml001" in plan_text
-    assert "- Blocks-Release: rel-123" in plan_text
+    assert_field(matching[0], "status", "draft")
+    assert_field(matching[0], "set", "prop-sml001")
+    assert_field(matching[0], "blocks_release", "rel-123")
     assert "regex failed on trailing newline" in plan_text
 
 
@@ -1886,7 +1886,10 @@ def test_needs_attended_already_marked_still_recovers_lane_defect_backlog(
         text=True,
         check=True,
     ).stdout
-    assert "- Id: atd099" in committed
+    committed_copy = tmp_path / "committed" / Path(defect_rel).name
+    committed_copy.parent.mkdir()
+    committed_copy.write_text(committed, encoding="utf-8")
+    assert_field(committed_copy, "id", "atd099")
 
 
 def test_collect_lane_added_open_backlogs_bounds_legacy_and_noop(

@@ -24,7 +24,7 @@ from unittest import mock
 from agent_workflows import attention as att
 from agent_workflows import render_stream, runner_shared, term
 from tests.support import REPO_ROOT, init_repo
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 _HOLDER_CODE = """
 import sys
@@ -523,7 +523,7 @@ class TestAttentionQuestionVisibility(unittest.TestCase):
         # 3. A10h: Verify artifact status is unchanged
         current_content = self.plan_file.read_text(encoding="utf-8")
         self.assertEqual(current_content, self.initial_plan_content)
-        self.assertIn("- Status: approved", current_content)
+        assert_field(self.plan_file, "status", "approved")
 
         # Scan artifact through att.scan and verify attention_class is still "ready"
         items, _ = att.scan(self.repo_root)

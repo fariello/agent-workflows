@@ -45,20 +45,20 @@ Batch rule, applied to every batch E-item of this plan:
 
 ### Task group 1: work
 
-- [ ] E-01 (rest of `w13bkp` E-01 (S11) and of E-02 (S12)) Batch S1112r: Ensure `.aw/state/810kpy` exists (`mkdir -p .aw/state/810kpy`) and convert the setter-byte assertions of `tests/test_question_visibility.py`, `tests/test_review_sequence_runner.py`, `tests/test_review_staleness_advisory.py` (F-28). Apply the batch rule with `<batch>` = `S1112r`.
+- [x] E-01 (rest of `w13bkp` E-01 (S11) and of E-02 (S12)) Batch S1112r: Ensure `.aw/state/810kpy` exists (`mkdir -p .aw/state/810kpy`) and convert the setter-byte assertions of `tests/test_question_visibility.py`, `tests/test_review_sequence_runner.py`, `tests/test_review_staleness_advisory.py` (F-28). Apply the batch rule with `<batch>` = `S1112r`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S1112r outcome lists; the remaining F-28 matches in these modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (was `w13bkp` E-03) Batch S13: convert the setter-byte assertions of `tests/test_runfresh_end_to_end.py`, `tests/test_runner_backlog_close_behavior.py`, `tests/test_runner_shared.py`, `tests/test_run_proposal_channel.py`, `tests/test_set_dispatch_dedup.py` (F-28). Apply the batch rule with `<batch>` = `S13`.
+- [x] E-02 (was `w13bkp` E-03) Batch S13: convert the setter-byte assertions of `tests/test_runfresh_end_to_end.py`, `tests/test_runner_backlog_close_behavior.py`, `tests/test_runner_shared.py`, `tests/test_run_proposal_channel.py`, `tests/test_set_dispatch_dedup.py` (F-28). Apply the batch rule with `<batch>` = `S13`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S13 outcome lists; the remaining F-28 matches in these modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Finish this part: run the batch rule's command over the 8 modules of this plan once more and confirm the outcome multiset equals the union of the `-before.txt` lists of S1112r, S13; write this plan's F-28 rows (one row per remaining match with its class) and F-29 (per-module PASSED, FAILED, SKIPPED and XFAIL counts of the after run) so `w13bkp` E-11 can assemble the part table; run `aw sanitize --agent`; commit through `aw commit 810kpy -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-03 Finish this part: run the batch rule's command over the 8 modules of this plan once more and confirm the outcome multiset equals the union of the `-before.txt` lists of S1112r, S13; write this plan's F-28 rows (one row per remaining match with its class) and F-29 (per-module PASSED, FAILED, SKIPPED and XFAIL counts of the after run) so `w13bkp` E-11 can assemble the part table; run `aw sanitize --agent`; commit through `aw commit 810kpy -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; F-28 and F-29 for this part are written; every commit is path-scoped to Scope-Paths.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -71,8 +71,8 @@ Batch rule, applied to every batch E-item of this plan:
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-28 | `w13bkp` F-28 (measurement at `ac76110f4`) | This part: S1112r and S13, 8 modules. Rows for remaining matches are written by E-03. |
-| F-29 | (written by E-03) | Per-module after-run outcome counts. |
+| F-28 | `w13bkp` F-28 (measurement at `ac76110f4`); S1112r and S13 post-conversion scan with the F-28 pattern (`rg -c` before/after: `test_question_visibility.py` 1/0, `test_review_sequence_runner.py` 3/0, `test_review_staleness_advisory.py` 3/0, `test_runfresh_end_to_end.py` 1/0, `test_runner_backlog_close_behavior.py` 2/0, `test_runner_shared.py` 2/2, `test_run_proposal_channel.py` 6/0, `test_set_dispatch_dedup.py` 16/0) | This part: S1112r and S13, 8 modules, 32 matches before, 30 converted. 2 remaining rows, both `displayed-output assertion`, 0 `legacy-format subject`, 0 `setter-byte, exact spelling`: (1) `tests/test_runner_shared.py` (`self.assertIn("- Status: to-review", reason)`) and (2) same test (`self.assertIn("- Status: executed", reason)`), in the add/add duplicate-placement integration refusal test; `reason` is the refusal message returned by `integrate_lane_branch`, not a record file. The `tests/test_run_proposal_channel.py` `- Id: atd099` assertion read `git show main:<path>` output, i.e. the committed record bytes; it is converted by writing those bytes to a temporary `.backlog.md` copy and calling `assert_field` on it (decision `02-810kpy-D1`). Two `self.assertNotIn("relaaa", content)` whole-body checks in `tests/test_set_dispatch_dedup.py` are outside the pattern and kept as written. |
+| F-29 | `.aw/state/810kpy/union-after.txt` | Per-module after-run counts (PASSED/FAILED/SKIPPED/XFAIL): `test_question_visibility.py` 12/0/0/0; `test_review_sequence_runner.py` 10/0/0/0; `test_review_staleness_advisory.py` 13/0/0/0; `test_runfresh_end_to_end.py` 6/0/0/0; `test_runner_backlog_close_behavior.py` 48/0/0/0; `test_runner_shared.py` 143/0/1/0; `test_run_proposal_channel.py` 49/0/0/0; `test_set_dispatch_dedup.py` 10/0/0/0. The one skip (`test_runner_shared.py`: `0abc01d9 does not resolve in this checkout`) is present identically before and after. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -122,20 +122,31 @@ No spec change; prepares part of `4sd62s` section 6 and section 7 step 9 (the te
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the empty `diff .aw/state/810kpy/S1112r-before.txt .aw/state/810kpy/S1112r-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_question_visibility.py`, `tests/test_review_sequence_runner.py`, `tests/test_review_staleness_advisory.py`, and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/810kpy/S1112r-before.txt .aw/state/810kpy/S1112r-after.txt` printed nothing (`diff exit 0`); 35 outcomes, all PASSED, before and after.
+    - F-28 `rg -c` before/after: `tests/test_question_visibility.py` 1/0, `tests/test_review_sequence_runner.py` 3/0, `tests/test_review_staleness_advisory.py` 3/0.
+    - No remaining match, so no class to assign. The `- Readiness: go` negative check became `assert_no_field(curr_plan, "readiness")` (decision `02-810kpy-D2`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the empty `diff .aw/state/810kpy/S13-before.txt .aw/state/810kpy/S13-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_runfresh_end_to_end.py`, `tests/test_runner_backlog_close_behavior.py`, `tests/test_runner_shared.py`, `tests/test_run_proposal_channel.py`, `tests/test_set_dispatch_dedup.py`, and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/810kpy/S13-before.txt .aw/state/810kpy/S13-after.txt` printed nothing (`diff exit 0`); 257 outcomes (256 PASSED, 1 SKIPPED) before and after.
+    - F-28 `rg -c` before/after: `tests/test_runfresh_end_to_end.py` 1/0, `tests/test_runner_backlog_close_behavior.py` 2/0, `tests/test_runner_shared.py` 2/2, `tests/test_run_proposal_channel.py` 6/0, `tests/test_set_dispatch_dedup.py` 16/0.
+    - The remaining matches are `tests/test_runner_shared.py:1075` `self.assertIn("- Status: to-review", reason)` and `:1076` `self.assertIn("- Status: executed", reason)`, both `displayed-output assertion` (the integration refusal message).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the empty union `diff`, this plan's F-28 rows, the F-29 table with one row per module of this plan, the `aw sanitize --agent` result with zero `fail`, and every `aw commit 810kpy` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - The union `sort S1112r-before.txt S13-before.txt` vs the 8-module after run; `diff` printed nothing (`union diff exit 0`).
+    - F-28 rows and F-29 table written in `## Findings`.
+    - Bare core gate `python3 -m pytest`: `2952 passed, 1 skipped, 11 warnings in 104.47s (0:01:44)`.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7230,"findings":0,...}`.
+    - The `aw commit 810kpy` commit lists only the 7 changed test modules and this plan (see the run's execution report for the hash).
+  - Result: pass
 
 ## Approval and execution gate
 

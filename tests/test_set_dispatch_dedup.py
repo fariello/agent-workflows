@@ -27,7 +27,7 @@ import unittest
 from pathlib import Path
 
 from tests.support import run_cli
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field, assert_no_field
 
 
 def _setup_test_repo(root: Path, *, with_gate: bool = True) -> dict[str, Path]:
@@ -560,9 +560,8 @@ class TestFromBacklogInheritanceDedup(unittest.TestCase):
             )
             self.assertNotIn("aw set: inherited - Blocks-Release: relaaa", proc.stdout)
 
-            content = spec_path.read_text(encoding="utf-8")
-            self.assertIn("- From-Backlog: bkl001\n", content)
-            self.assertIn("- Blocks-Release: relaaa\n", content)
+            assert_field(spec_path, "from_backlog", "bkl001")
+            assert_field(spec_path, "blocks_release", "relaaa")
 
     def test_inheritance_specs_set_positional_notice_prefix(self) -> None:
         """(b) positional spelling inherits gate and prints 'aw set:' notice prefix."""
@@ -591,9 +590,8 @@ class TestFromBacklogInheritanceDedup(unittest.TestCase):
             )
             self.assertIn("aw set: inherited - Blocks-Release: relaaa", proc.stdout)
 
-            content = spec_path.read_text(encoding="utf-8")
-            self.assertIn("- From-Backlog: bkl001\n", content)
-            self.assertIn("- Blocks-Release: relaaa\n", content)
+            assert_field(spec_path, "from_backlog", "bkl001")
+            assert_field(spec_path, "blocks_release", "relaaa")
 
     def test_inheritance_explicit_blocks_release_wins(self) -> None:
         """(c) explicit --blocks-release in the same call wins over inheritance on both spellings."""
@@ -621,9 +619,8 @@ class TestFromBacklogInheritanceDedup(unittest.TestCase):
             )
             self.assertEqual(proc.returncode, 0)
             self.assertNotIn("inherited - Blocks-Release:", proc.stdout)
-            content = spec_path.read_text(encoding="utf-8")
-            self.assertIn("- From-Backlog: bkl001\n", content)
-            self.assertNotIn("- Blocks-Release:", content)
+            assert_field(spec_path, "from_backlog", "bkl001")
+            assert_no_field(spec_path, "blocks_release")
 
         # positional spelling with --blocks-release -
         with tempfile.TemporaryDirectory() as tmp:
@@ -650,9 +647,8 @@ class TestFromBacklogInheritanceDedup(unittest.TestCase):
             )
             self.assertEqual(proc.returncode, 0)
             self.assertNotIn("inherited - Blocks-Release:", proc.stdout)
-            content = spec_path.read_text(encoding="utf-8")
-            self.assertIn("- From-Backlog: bkl001\n", content)
-            self.assertNotIn("- Blocks-Release:", content)
+            assert_field(spec_path, "from_backlog", "bkl001")
+            assert_no_field(spec_path, "blocks_release")
 
     def test_inheritance_existing_gate_preserved(self) -> None:
         """(d) an artifact that already carries a - Blocks-Release: keeps its own value on both spellings."""
@@ -678,9 +674,9 @@ class TestFromBacklogInheritanceDedup(unittest.TestCase):
             )
             self.assertEqual(proc.returncode, 0)
             self.assertNotIn("inherited - Blocks-Release:", proc.stdout)
+            assert_field(spec_gtd, "from_backlog", "bkl001")
+            assert_field(spec_gtd, "blocks_release", "relorig")
             content = spec_gtd.read_text(encoding="utf-8")
-            self.assertIn("- From-Backlog: bkl001\n", content)
-            self.assertIn("- Blocks-Release: relorig\n", content)
             self.assertNotIn("relaaa", content)
 
         # positional spelling
@@ -706,9 +702,9 @@ class TestFromBacklogInheritanceDedup(unittest.TestCase):
             )
             self.assertEqual(proc.returncode, 0)
             self.assertNotIn("inherited - Blocks-Release:", proc.stdout)
+            assert_field(spec_gtd, "from_backlog", "bkl001")
+            assert_field(spec_gtd, "blocks_release", "relorig")
             content = spec_gtd.read_text(encoding="utf-8")
-            self.assertIn("- From-Backlog: bkl001\n", content)
-            self.assertIn("- Blocks-Release: relorig\n", content)
             self.assertNotIn("relaaa", content)
 
     def test_inheritance_resolvable_ungated_backlog_item(self) -> None:
@@ -737,9 +733,8 @@ class TestFromBacklogInheritanceDedup(unittest.TestCase):
                 proc.returncode, 0, f"stdout: {proc.stdout}\nstderr: {proc.stderr}"
             )
             self.assertNotIn("inherited - Blocks-Release:", proc.stdout)
-            content = spec_path.read_text(encoding="utf-8")
-            self.assertIn("- From-Backlog: bklung\n", content)
-            self.assertNotIn("- Blocks-Release:", content)
+            assert_field(spec_path, "from_backlog", "bklung")
+            assert_no_field(spec_path, "blocks_release")
 
         # positional spelling
         with tempfile.TemporaryDirectory() as tmp:
@@ -766,6 +761,5 @@ class TestFromBacklogInheritanceDedup(unittest.TestCase):
                 proc.returncode, 0, f"stdout: {proc.stdout}\nstderr: {proc.stderr}"
             )
             self.assertNotIn("inherited - Blocks-Release:", proc.stdout)
-            content = spec_path.read_text(encoding="utf-8")
-            self.assertIn("- From-Backlog: bklung\n", content)
-            self.assertNotIn("- Blocks-Release:", content)
+            assert_field(spec_path, "from_backlog", "bklung")
+            assert_no_field(spec_path, "blocks_release")

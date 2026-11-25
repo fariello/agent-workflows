@@ -27,7 +27,7 @@ from agent_workflows.plan_readiness import (
     review_staleness_from_texts,
     review_staleness_index,
 )
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -664,7 +664,7 @@ class TestCliSurfaces(unittest.TestCase):
         )
         self.assertIn("review may be stale for stale1", res_stale.stderr)
         self.assertIn("aw oc review stale1 --yes", res_stale.stderr)
-        self.assertIn("- Status: approved", self.stale_path.read_text())
+        assert_field(self.stale_path, "status", "approved")
 
         # Human mode on non-stale twin01: exits 0, stderr does NOT carry warning, status becomes approved
         cmd_twin = [
@@ -684,7 +684,7 @@ class TestCliSurfaces(unittest.TestCase):
             res_twin.returncode, 0, f"set approved twin failed: {res_twin.stderr}"
         )
         self.assertNotIn("review may be stale", res_twin.stderr)
-        self.assertIn("- Status: approved", self.twin_path.read_text())
+        assert_field(self.twin_path, "status", "approved")
 
         # Agent mode on another stale plan (stale2):
         oq_open = (
@@ -747,7 +747,7 @@ class TestCliSurfaces(unittest.TestCase):
             d for d in diags if "review may be stale for stale2" in d.get("detail", "")
         ]
         self.assertTrue(len(stale_diags) >= 1)
-        self.assertIn("- Status: approved", stale2_path.read_text())
+        assert_field(stale2_path, "status", "approved")
 
     def test_attention_format_json_and_board(self):
         # 1. aw attention --format json

@@ -30,7 +30,7 @@ from agent_workflows import (
     oc_runipd,
     runner_shared,
 )
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field, assert_no_field
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 _DEFAULT_PLAN_HISTORY = [
@@ -637,7 +637,7 @@ class TestReviewSequenceRunner(unittest.TestCase):
             att = item["attempts"][0]
             self.assertEqual(att.get("review_outcome"), "incomplete")
             curr_plan = repo / item["configured_file"]
-            self.assertNotIn("- Readiness: go", curr_plan.read_text(encoding="utf-8"))
+            assert_no_field(curr_plan, "readiness")
 
     def test_ac08_tier_and_tier_answers_recorded_in_run_state(self) -> None:
         """AC-08: tier and tier answers recorded in run state; runner keeps agent tier."""
@@ -788,8 +788,8 @@ class TestReviewSequenceRunner(unittest.TestCase):
             att = item["attempts"][0]
             self.assertEqual(att.get("review_outcome"), "completed-negative")
             curr_plan = repo / item["configured_file"]
-            self.assertIn("- Readiness: no-go", curr_plan.read_text(encoding="utf-8"))
-            self.assertIn("- Status: reviewed", curr_plan.read_text(encoding="utf-8"))
+            assert_field(curr_plan, "readiness", "no-go")
+            assert_field(curr_plan, "status", "reviewed")
 
     def test_e10_sessions_continuity_and_set_change(self) -> None:
         """E-10: Same-Set reviews share session id; different Set starts fresh session without DriverError."""

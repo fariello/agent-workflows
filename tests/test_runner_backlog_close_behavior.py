@@ -94,7 +94,7 @@ from agent_workflows import (
     runner_shared,
     runner_shutdown,
 )
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 from tests.support import REPO_ROOT
 
 _DRIVERS = (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd))
@@ -762,9 +762,8 @@ class TestClosesEndToEnd(_RepoCase):
         self.assertTrue(record["closed"], record["reason"])
         self.assertEqual(self.repo.item_status("bbbbbb"), "done")
         moved = next((self.repo.root / ".aw/records/backlog/done").glob("*bbbbbb*.md"))
-        text = moved.read_text(encoding="utf-8")
-        self.assertIn("- Status: done", text)
-        self.assertIn("- Blocks-Release: next", text)
+        assert_field(moved, "status", "done")
+        assert_field(moved, "blocks_release", "next")
         self.assertEqual(record["evidence"], self.repo.rel(plan))
 
     def test_the_move_is_committed_path_scoped_and_leaves_the_tree_clean(self):

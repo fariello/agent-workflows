@@ -25,7 +25,7 @@ from typing import Any
 
 import pytest
 
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 from tests.support import REPO_ROOT, make_fake_executable
 
 pytestmark = pytest.mark.slow
@@ -652,8 +652,7 @@ class RunfreshEndToEndTests(unittest.TestCase):
             1,
             f"Expected orchestrator in executed/, found: {executed_plans}",
         )
-        orch_executed_text = executed_plans[0].read_text(encoding="utf-8")
-        self.assertIn("- Status: executed", orch_executed_text)
+        assert_field(executed_plans[0], "status", "executed")
 
         # 4. No refusal on orchestrator item
         orch_item = next(
