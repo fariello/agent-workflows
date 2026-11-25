@@ -6,7 +6,7 @@
 - Scope: Add `list_metadata_bullets(text: str, *, leading_block_only: bool = False) -> List[Tuple[str, str]]` in `agent_workflows/artifact_meta.py` (delivering the helper requested by `vl7ybn`); delete `specs._SPEC_ID_RE`, `specs._TOP_KEY_RE`, the inline `^- Status:` regex in `specs.run_migrate`, `specs._SPEC_ID_BULLET_RE`, and `backlog._TOP_KEY_RE`, retargeting all six call sites in `specs.py`, `backlog.py`, and `spec_citations.py` onto `artifact_meta` readers (`ebbfmn`); and verify with `@pytest.mark.core` behavioral tests in `tests/test_backlog_metadata_duplicate_and_gate_summary.py` and `tests/test_specs_metadata_duplicate_bullet.py`. Excludes `Workflow history` readers including `migrations/chain.py::_WORKFLOW_HISTORY_RE` (`wgn3bl`), prompt comment helpers (`t3t7za`), `Scope-Paths` writer and widened front-matter readers (`75jciz`), optional follow-up simplification of `runner_shared._region_bullet_keys` and `plans_refs._check_order_lines` (carried by `vl7ybn`), and the `9o83cr` final AC-1 audit.
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/specs.py, agent_workflows/backlog.py, agent_workflows/spec_citations.py, tests/test_backlog_metadata_duplicate_and_gate_summary.py, tests/test_specs_metadata_duplicate_bullet.py, .aw/records/plans/pending/20261124-metastore-303-fkvrc7-replace-surviving-specs-and-backlog-front-matter-regexes-via.ipd.md
 - Item-Dependencies: executed:0xsx2n, executed:e8420v, executed:k6jd6l, executed:q6epwc, executed:snin8q
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,13 +18,13 @@
 - Order: 303
 - Highest E allocated: 4
 - Id: fkvrc7
-- Approval: 2026-11-25, recorded via aw ipd set: status set to approved
 - Author: antigravity
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-25 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: fkvrc7 verified (set metastore, attempt 1).
 - 2026-11-25 approved (aw set): status set to approved
 - 2026-11-25 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
 - 2026-11-25 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007; review record .aw/records/reviews/20261124-metastore-303-fkvrc7-replace-surviving-specs-and-backlog-front-matter-regexes-via.review.md
