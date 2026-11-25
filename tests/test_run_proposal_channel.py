@@ -2206,3 +2206,173 @@ def test_coordinator_fallback_record_truncates_on_word_boundary(
         assert len(saved) == 1
         text = saved[0].read_text(encoding="utf-8")
         assert f"- Summary: {expected_tail}" in text
+
+
+@pytest.mark.parametrize(
+    "kind,size",
+    [
+        ("tool-defect", "material"),
+        ("tool-defect", "small"),
+        (runner_shared.PROPOSAL_KIND_NEEDS_ATTENDED, "material"),
+    ],
+)
+def test_companion_repo_proposal_filing_commits_to_companion_not_target(
+    tmp_path: Path, kind: str, size: str
+) -> None:
+    """Companion-records repo proposal filing writes & commits into the companion repo without crashing on relative_to(coord.path)."""
+    from tests.test_companion_runner_integration import (
+        _git_head,
+        _patched_env,
+        _provision_companion_repos,
+    )
+
+    target, companion, env = _provision_companion_repos(tmp_path)
+    records_root = companion / "records"
+    plan_name = "20261125-cmpset-01-was3ig-sample.ipd.md"
+    plan_path = records_root / "plans" / "pending" / plan_name
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    plan_path.write_text(
+        "# IPD: Sample companion plan\n\n"
+        "- Date: 2026-11-25\n"
+        "- Kind: child\n"
+        "- Status: approved\n"
+        "- Work-Kind: feature\n"
+        "- Priority: medium\n"
+        "- Set: cmpset\n"
+        "- Order: 01\n"
+        "- Id: was3ig\n\n"
+        "## Workflow history\n"
+        "- 2026-11-25 approved (human): approved\n\n"
+        "## Goal\nDemo.\n",
+        encoding="utf-8",
+    )
+    subprocess.run(
+        ["git", "-C", str(companion), "add", f"records/plans/pending/{plan_name}"],
+        env=env,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(companion), "commit", "-qm", "seed companion plan"],
+        env=env,
+        check=True,
+    )
+
+    target_head_before = _git_head(target, env)
+    comp_head_before = _git_head(companion, env)
+    run_dir = records_root / "runs" / "run-comp-prop"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    proposal = {
+        "kind": kind,
+        "blocked_by": "needs follow-up in companion repo",
+        "why": "companion records live outside target worktree",
+        "proposed_change": "Author and execute a follow-up plan for companion repo handling",
+        "paths": ["src/app.py"],
+        "size": size,
+    }
+    item = {
+        "id6": "was3ig",
+        "configured_file": f"records/plans/pending/{plan_name}",
+        "position": 1,
+    }
+    state = {
+        "repo": str(target),
+        "run_id": "run-comp-prop",
+    }
+
+    with _patched_env(env), coordinator_role():
+        res = runner_shared.perform_coordinator_proposal_file(
+            run_dir=run_dir,
+            state=state,
+            item=item,
+            proposal=proposal,
+        )
+
+    assert res.filed is True, res.reason
+    assert res.commit is not None
+    assert (
+        _git_head(target, env) == target_head_before
+    ), "target repo git history must stay untouched when records live in companion repo"
+    assert (
+        _git_head(companion, env) != comp_head_before
+    ), "companion repo must receive the proposal filing commit"
+    assert (companion / res.record_path).is_file()
+    if kind == runner_shared.PROPOSAL_KIND_NEEDS_ATTENDED:
+        assert "- Attended: required" in plan_path.read_text(encoding="utf-8")
+    elif size == "small":
+        assert res.record_path.startswith("records/plans/pending/")
+    else:
+        assert res.record_path.startswith("records/backlog/open/")
+
+
+@pytest.mark.parametrize("driver_name", ["agy", "oc"])
+def test_runner_main_captures_unexpected_failure_to_crash_log_without_raw_traceback(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], driver_name: str
+) -> None:
+    """Unexpected exceptions in agy_runipd.main / oc_runipd.main save crash.log, emit clean UX, and return 2."""
+    from agent_workflows import agy_runipd, oc_runipd
+
+    driver = agy_runipd if driver_name == "agy" else oc_runipd
+    repo = _create_test_repo(tmp_path)
+    run_id = f"run-crash-{driver_name}"
+    run_dir = repo / ".aw" / "records" / "runs" / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    state_payload = {
+        "run_id": run_id,
+        "repo": str(repo),
+        "created_at": "2026-11-25T19:00:00+00:00",
+        "updated_at": "2026-11-25T19:00:00+00:00",
+        "selectors": ["was3ig"],
+        "queue": [
+            {
+                "position": 1,
+                "id6": "was3ig",
+                "setid": "demo",
+                "action": "execute",
+                "status": "running",
+                "attempts": [],
+            }
+        ],
+        "options": {},
+    }
+    (run_dir / "state.json").write_text(json.dumps(state_payload), encoding="utf-8")
+    (run_dir / "events.jsonl").write_text("", encoding="utf-8")
+
+    with mock.patch.object(
+        driver,
+        "run_queue",
+        side_effect=ValueError("simulated unexpected companion path mismatch"),
+    ), mock.patch.dict(os.environ, {"AW_TRACEBACK": ""}, clear=False):
+        rc = driver.main(["resume", run_id, "--repo", str(repo)])
+
+    assert rc == 2
+    captured = capsys.readouterr()
+    assert "UNEXPECTED FAILURE" in captured.out
+    assert (
+        "unexpected failure (ValueError): simulated unexpected companion path mismatch"
+        in captured.err
+    )
+    assert "Traceback saved to:" in captured.err
+    assert "Traceback (most recent call last):" not in captured.err
+    assert f"resume {run_id}" in captured.err
+
+    crash_log = run_dir / "crash.log"
+    assert crash_log.is_file()
+    crash_text = crash_log.read_text(encoding="utf-8")
+    assert "Traceback (most recent call last):" in crash_text
+    assert "ValueError: simulated unexpected companion path mismatch" in crash_text
+
+    events = [
+        json.loads(line)
+        for line in (run_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert any(
+        ev.get("event") == "unexpected-failure"
+        and ev.get("error_type") == "ValueError"
+        and ev.get("crash_log") == str(crash_log)
+        for ev in events
+    )
+    updated_state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    assert updated_state["unexpected_failure"]["error_type"] == "ValueError"
+    assert updated_state["unexpected_failure"]["crash_log"] == str(crash_log)

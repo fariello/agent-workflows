@@ -26668,6 +26668,156 @@ def report_red_ci_warning(
     return lines
 
 
+def handle_unexpected_runner_failure(
+    exc: BaseException,
+    *,
+    prefix: str,
+    cmd: str,
+    driver_label: str,
+    run_dir: Path | None,
+    args: Any,
+    load_state_fn: Callable[[Path], dict[str, Any]],
+    save_state_fn: Callable[[Path, dict[str, Any]], Any],
+    append_jsonl_fn: Callable[[Path, Mapping[str, Any]], Any],
+    render_summary_fn: Callable[..., str] | None = None,
+    render_hint_fn: Callable[..., str] | None = None,
+    report_spec_edits_fn: Callable[..., Any] | None = None,
+    report_red_ci_fn: Callable[..., Any] | None = None,
+) -> int:
+    """Handle an unexpected exception in a runner entrypoint without dumping a raw crash trace.
+
+    Captures the full Python traceback durably to `<run_dir>/crash.log` (or a fallback crash log
+    when `run_dir` is unavailable), records an `unexpected-failure` event and `state.json` entry
+    when `run_dir` exists, prints a concise operator-friendly summary pointing to the saved trace
+    and resume command, and returns exit code 2 instead of re-raising an uncaught stack trace.
+    Raw tracebacks are printed to stderr only when `AW_TRACEBACK=1` or verbosity >= 2.
+    """
+    import tempfile
+    import traceback
+
+    err_type = type(exc).__name__
+    err_msg = str(exc)
+    now_iso = utc_now()
+    tb_text = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+
+    crash_log_path: Path | None = None
+    crash_block = (
+        f"=== Unexpected runner failure ({now_iso}) ===\n"
+        f"Runner: {prefix} ({cmd})\n"
+        f"Error: {err_type}: {err_msg}\n"
+        f"\n"
+        f"{tb_text}\n"
+    )
+    if run_dir is not None and run_dir.is_dir():
+        candidate = run_dir / "crash.log"
+        try:
+            with candidate.open("a", encoding="utf-8") as fh:
+                fh.write(crash_block)
+            crash_log_path = candidate
+        except OSError:
+            crash_log_path = None
+
+    if crash_log_path is None:
+        stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        fallback_name = f"crash-{stamp}-{os.getpid()}.log"
+        fallback_dirs: list[Path] = []
+        repo_arg = getattr(args, "repo", None) if args is not None else None
+        if repo_arg:
+            try:
+                from agent_workflows import project_context as _proj_ctx
+
+                runs_dir = _proj_ctx.project_records_dir(Path(repo_arg)) / "runs"
+                fallback_dirs.append(runs_dir)
+            except Exception:
+                pass
+        fallback_dirs.append(Path(tempfile.gettempdir()))
+        for parent in fallback_dirs:
+            try:
+                parent.mkdir(parents=True, exist_ok=True)
+                candidate = parent / fallback_name
+                candidate.write_text(crash_block, encoding="utf-8")
+                crash_log_path = candidate
+                break
+            except OSError:
+                continue
+
+    if run_dir is not None and run_dir.is_dir():
+        with contextlib.suppress(Exception):
+            append_jsonl_fn(
+                run_dir / "events.jsonl",
+                {
+                    "at": now_iso,
+                    "event": "unexpected-failure",
+                    "error_type": err_type,
+                    "error": err_msg,
+                    "crash_log": str(crash_log_path) if crash_log_path else None,
+                },
+            )
+        if (run_dir / "state.json").is_file():
+            try:
+                state = load_state_fn(run_dir)
+                state["unexpected_failure"] = {
+                    "at": now_iso,
+                    "error_type": err_type,
+                    "error": err_msg,
+                    "crash_log": str(crash_log_path) if crash_log_path else None,
+                }
+                save_state_fn(run_dir, state)
+                if (
+                    not is_agent_mode(args)
+                    and not state.get("_summary_table_printed")
+                    and render_summary_fn is not None
+                ):
+                    from agent_workflows import term as _term
+
+                    pal = Palette(
+                        should_color(sys.stdout),
+                        use_unicode=_term.should_unicode(sys.stdout),
+                    )
+                    print(
+                        render_summary_fn(
+                            state,
+                            run_dir,
+                            pal=pal,
+                            exit_reason=f"UNEXPECTED FAILURE ({err_type}: {err_msg})",
+                            driver_label=driver_label,
+                            use_unicode=_term.should_unicode(sys.stdout),
+                        )
+                    )
+                    if report_spec_edits_fn is not None:
+                        report_spec_edits_fn(state, partial=True)
+                    if render_hint_fn is not None:
+                        print(render_hint_fn(state, run_dir))
+                    if report_red_ci_fn is not None:
+                        report_red_ci_fn(state)
+            except Exception:
+                pass
+
+    if is_agent_mode(args):
+        detail = f"unexpected failure ({err_type}): {err_msg}"
+        if crash_log_path is not None:
+            detail += f" (traceback saved to {crash_log_path})"
+        emit_agent_run_refusal_record(DriverError(detail), cmd=cmd, run_dir=run_dir)
+        return 2
+
+    print(
+        f"{prefix}: unexpected failure ({err_type}): {err_msg}",
+        file=sys.stderr,
+    )
+    if crash_log_path is not None:
+        print(f"  Traceback saved to: {crash_log_path}", file=sys.stderr)
+    if run_dir is not None and run_dir.is_dir():
+        print(f"  Resume with: aw {cmd} resume {run_dir.name}", file=sys.stderr)
+
+    show_tb = os.environ.get("AW_TRACEBACK") == "1" or (
+        args is not None and int(getattr(args, "verbosity", 0) or 0) >= 2
+    )
+    if show_tb:
+        print(tb_text, file=sys.stderr, end="")
+
+    return 2
+
+
 def emit_agent_run_refusal_record(
     exc: DriverError,
     *,
@@ -55559,8 +55709,11 @@ def perform_coordinator_proposal_file(
     def _stage_validated_lane_backlogs(
         coord_path: Path,
         proposal_record_id6: str,
+        *,
+        records_dir_override: Path | None = None,
+        commit_root_override: Path | None = None,
     ) -> tuple[list[str], list[tuple[str, str]]]:
-        """Validate and atomically write qualifying lane open backlogs into `coord_path`."""
+        """Validate and atomically write qualifying lane open backlogs into `coord_path` (or external `records_dir_override`)."""
         recovered: list[str] = []
         skipped: list[tuple[str, str]] = list(lane_pre_skipped)
         if not lane_candidates:
@@ -55582,7 +55735,12 @@ def perform_coordinator_proposal_file(
         has_planned_next = _releases.resolve_release(coord_path, "next") is not None
 
         for rel_path, blob_bytes in lane_candidates:
-            target_path = coord_path / rel_path
+            if records_dir_override is not None:
+                target_path = (
+                    records_dir_override / "backlog" / "open" / Path(rel_path).name
+                )
+            else:
+                target_path = coord_path / rel_path
             if target_path.exists():
                 skipped.append((rel_path, "path-already-exists"))
                 continue
@@ -55654,12 +55812,42 @@ def perform_coordinator_proposal_file(
                     skipped.append((rel_path, "live-bug-ungated"))
                     continue
 
+            target_path.parent.mkdir(parents=True, exist_ok=True)
             _core.atomic_write(target_path, text)
             if parsed_id:
                 existing_ids.add(parsed_id)
-            recovered.append(rel_path)
+            if commit_root_override is not None:
+                try:
+                    recorded_rel = (
+                        target_path.resolve()
+                        .relative_to(commit_root_override.resolve())
+                        .as_posix()
+                    )
+                except ValueError:
+                    recorded_rel = str(target_path.resolve())
+                recovered.append(recorded_rel)
+            elif records_dir_override is not None:
+                recovered.append(str(target_path.resolve()))
+            else:
+                recovered.append(rel_path)
 
         return recovered, skipped
+
+    from agent_workflows import project_context as _proj_ctx
+
+    try:
+        resolved_records_dir = _proj_ctx.project_records_dir(repo).resolve()
+    except Exception:
+        resolved_records_dir = (repo / ".aw" / "records").resolve()
+    repo_resolved = repo.resolve()
+    try:
+        resolved_records_dir.relative_to(repo_resolved)
+        external_records = False
+    except ValueError:
+        external_records = True
+    external_git_root = (
+        _proj_ctx.record_git_root(resolved_records_dir) if external_records else None
+    )
 
     # 2. Acquire integration lock
     with integration_lock(
@@ -55676,30 +55864,24 @@ def perform_coordinator_proposal_file(
                 skipped_backlog_reasons=tuple(lane_pre_skipped),
             )
 
-        cur_base = _resolved_main_tip(repo, run_checked=run_checked)
-        raced_attempts = 0
-        last_landing: Any = None
-        last_skipped: tuple[tuple[str, str], ...] = tuple(lane_pre_skipped)
-
-        while raced_attempts < max_raced_attempts:
-            raced_attempts += 1
-            with commit_lock.coordinator_worktree(
-                repo, label=f"proposal-{item_id6}", base=cur_base
-            ) as coord:
-                record_id6: str = ""
-                new_record_rel: str = ""
+        if external_records:
+            # Companion-repo or AW_HOME records live OUTSIDE `repo`, so target-repo coordinator
+            # worktrees cannot hold or commit them (`created_path.relative_to(coord.path)` raises
+            # ValueError). Author the record via `repo`'s project context, then commit directly
+            # into the companion git repo (if versioned) or finish cleanly (if unversioned).
+            try:
+                record_id6 = ""
                 needs_attended_unchanged = False
                 clean_summary = _truncate_proposal_summary(
                     proposed_change, max_chars=60
                 )
+                created_path: Path | None = None
+                created_is_new = False
 
                 if kind == PROPOSAL_KIND_NEEDS_ATTENDED:
-                    # Mark the PROPOSING plan rather than filing a new record (see
-                    # `PROPOSAL_KIND_NEEDS_ATTENDED`). The plan is resolved in the coordinator
-                    # checkout, i.e. on main's tip, so the edit lands where later runs read it.
                     try:
                         target = resolve_plan_path(
-                            coord.path, str(item.get("configured_file") or ""), item_id6
+                            repo, str(item.get("configured_file") or ""), item_id6
                         )
                     except DriverError as exc:
                         return _write_fallback_record(
@@ -55709,9 +55891,7 @@ def perform_coordinator_proposal_file(
                     target_text = target.read_text(encoding="utf-8")
                     marked = mark_plan_attended(target_text, why=why or blocked_by)
                     record_id6 = item_id6
-                    new_record_rel = str(target.relative_to(coord.path)).replace(
-                        "\\", "/"
-                    )
+                    created_path = target.resolve()
                     if marked == target_text:
                         needs_attended_unchanged = True
                         commit_msg = f"Recover lane defect backlog items for {item_id6} (agent proposal)"
@@ -55730,6 +55910,12 @@ def perform_coordinator_proposal_file(
                         else OC_HOST_LABELS
                     )
                     actor = driver_actor(dict(state), labels=effective_labels)
+                    plans_dir = resolved_records_dir / "plans" / "pending"
+                    before_plans = (
+                        set(plans_dir.glob(f"*-{setid}-01-*.ipd.md"))
+                        if plans_dir.exists()
+                        else set()
+                    )
                     scaffold_cmd = pinned_module_argv(
                         [
                             "ipd",
@@ -55753,7 +55939,7 @@ def perform_coordinator_proposal_file(
                     )
                     res = subprocess.run(
                         scaffold_cmd,
-                        cwd=coord.path,
+                        cwd=repo,
                         env=pinned_child_env(),
                         capture_output=True,
                         text=True,
@@ -55765,18 +55951,25 @@ def perform_coordinator_proposal_file(
                             f"aw ipd scaffold failed ({res.returncode}): {res.stderr.strip() or res.stdout.strip()}",
                             skipped_backlog_reasons=tuple(lane_pre_skipped),
                         )
-                    from agent_workflows.project_context import project_records_dir
-
-                    plans_dir = project_records_dir(coord.path) / "plans" / "pending"
-                    if not plans_dir.exists():
-                        plans_dir = coord.path / ".agents" / "plans" / "pending"
-                    matching = list(plans_dir.glob(f"*-{setid}-01-*.ipd.md"))
+                    after_plans = (
+                        sorted(
+                            plans_dir.glob(f"*-{setid}-01-*.ipd.md"),
+                            key=lambda f: f.stat().st_mtime,
+                            reverse=True,
+                        )
+                        if plans_dir.exists()
+                        else []
+                    )
+                    new_plans = [p for p in after_plans if p not in before_plans]
+                    matching = new_plans or after_plans
                     if not matching:
                         return _write_fallback_record(
                             f"aw ipd scaffold created no matching plan under {plans_dir}",
                             skipped_backlog_reasons=tuple(lane_pre_skipped),
                         )
-                    created_plan = matching[0]
+                    created_plan = matching[0].resolve()
+                    created_path = created_plan
+                    created_is_new = True
                     plan_content = created_plan.read_text(encoding="utf-8")
                     record_id6 = _meta_reader.read_loose_id(plan_content) or item_id6
 
@@ -55795,19 +55988,21 @@ def perform_coordinator_proposal_file(
                                 actor_label="aw run",
                                 history=False,
                             ),
-                            repo_root=coord.path,
-                            project_context=_am.legacy_context(coord.path),
+                            repo_root=repo,
+                            project_context=_am.legacy_context(repo),
                         )
-                    new_record_rel = str(created_plan.relative_to(coord.path)).replace(
-                        "\\", "/"
-                    )
                     commit_msg = (
                         f"Scaffold draft plan for agent proposal from {item_id6}"
                     )
-
                 else:
                     summary = f"Proposal from {item_id6}: {clean_summary}"
                     slug = _truncate_proposal_slug(summary, max_chars=50)
+                    backlog_dir = resolved_records_dir / "backlog" / "open"
+                    before_bls = (
+                        set(backlog_dir.glob("*.backlog.md"))
+                        if backlog_dir.exists()
+                        else set()
+                    )
                     backlog_args = [
                         "backlog",
                         "new",
@@ -55827,7 +56022,7 @@ def perform_coordinator_proposal_file(
                         backlog_args.extend(["--blocks-release", gate_to_pass])
                     res = subprocess.run(
                         pinned_module_argv(backlog_args),
-                        cwd=coord.path,
+                        cwd=repo,
                         env=pinned_child_env(),
                         capture_output=True,
                         text=True,
@@ -55839,41 +56034,64 @@ def perform_coordinator_proposal_file(
                             f"aw backlog new failed ({res.returncode}): {res.stderr.strip() or res.stdout.strip()}",
                             skipped_backlog_reasons=tuple(lane_pre_skipped),
                         )
-                    from agent_workflows.project_context import project_records_dir
-
-                    backlog_dir = project_records_dir(coord.path) / "backlog" / "open"
-                    if not backlog_dir.exists():
-                        backlog_dir = coord.path / ".agents" / "backlog" / "open"
-                    bl_files = sorted(
-                        backlog_dir.glob("*.backlog.md"),
-                        key=lambda f: f.stat().st_mtime,
-                        reverse=True,
+                    after_bls = (
+                        sorted(
+                            backlog_dir.glob("*.backlog.md"),
+                            key=lambda f: f.stat().st_mtime,
+                            reverse=True,
+                        )
+                        if backlog_dir.exists()
+                        else []
                     )
+                    new_bls = [f for f in after_bls if f not in before_bls]
+                    bl_files = new_bls or after_bls
                     if not bl_files:
                         return _write_fallback_record(
                             f"aw backlog new created no file under {backlog_dir}",
                             skipped_backlog_reasons=tuple(lane_pre_skipped),
                         )
-                    created_backlog = bl_files[0]
+                    created_backlog = bl_files[0].resolve()
+                    created_path = created_backlog
+                    created_is_new = True
                     bl_state = _meta_reader.read_text(
                         created_backlog.read_text(encoding="utf-8"),
                         record_type="backlog",
                     )
                     record_id6 = bl_state.id6 or item_id6
-                    new_record_rel = str(
-                        created_backlog.relative_to(coord.path)
-                    ).replace("\\", "/")
                     commit_msg = f"File backlog item for agent proposal from {item_id6}"
 
-                # Validate and materialize lane defect backlogs AFTER new_record_rel and
-                # record_id6 are resolved so st_mtime selection cannot pick a recovered file.
+                assert created_path is not None
                 recovered_paths, skipped_reasons = _stage_validated_lane_backlogs(
-                    coord.path, record_id6
+                    repo,
+                    record_id6,
+                    records_dir_override=resolved_records_dir,
+                    commit_root_override=external_git_root,
                 )
-                last_skipped = tuple(skipped_reasons)
+
+                if external_git_root is None:
+                    return ProposalFilingResult(
+                        filed=True,
+                        record_id6=record_id6,
+                        record_path=str(created_path),
+                        size=size,
+                        kind=kind,
+                        blocked_by=blocked_by,
+                        commit=None,
+                        landing_status="unversioned-external",
+                        recovered_backlog_paths=tuple(recovered_paths),
+                        skipped_backlog_reasons=tuple(skipped_reasons),
+                    )
+
+                git_root_res = external_git_root.resolve()
+                try:
+                    new_record_rel = created_path.relative_to(git_root_res).as_posix()
+                except ValueError:
+                    return _write_fallback_record(
+                        f"external proposal record {created_path} is outside companion git root {git_root_res}",
+                        skipped_backlog_reasons=tuple(skipped_reasons),
+                    )
 
                 if needs_attended_unchanged and not recovered_paths:
-                    # Already marked and no lane backlogs to recover: nothing to commit.
                     return ProposalFilingResult(
                         filed=True,
                         record_id6=record_id6,
@@ -55890,11 +56108,11 @@ def perform_coordinator_proposal_file(
                     if needs_attended_unchanged
                     else [new_record_rel, *recovered_paths]
                 )
-                commit_sha: str | None = None
-                commit_exc: Exception | None = None
+                commit_sha = None
+                commit_exc = None
                 try:
                     commit_outcome = _gch.offer_commit(
-                        coord.path,
+                        git_root_res,
                         commit_paths,
                         message=commit_msg,
                         assume_yes=True,
@@ -55908,14 +56126,13 @@ def perform_coordinator_proposal_file(
                 if (commit_exc is not None or not commit_sha) and recovered_paths:
                     for rec_rel in recovered_paths:
                         with contextlib.suppress(OSError):
-                            (coord.path / rec_rel).unlink()
+                            (git_root_res / rec_rel).unlink()
                         skipped_reasons.append((rec_rel, "commit-hook-rejected"))
                     _run_git(
-                        coord.path,
+                        git_root_res,
                         ["reset", "--quiet", "HEAD", "--", *recovered_paths],
                     )
                     recovered_paths = []
-                    last_skipped = tuple(skipped_reasons)
                     if needs_attended_unchanged:
                         return ProposalFilingResult(
                             filed=True,
@@ -55931,7 +56148,7 @@ def perform_coordinator_proposal_file(
                     commit_exc = None
                     try:
                         commit_outcome = _gch.offer_commit(
-                            coord.path,
+                            git_root_res,
                             [new_record_rel],
                             message=commit_msg,
                             assume_yes=True,
@@ -55942,55 +56159,374 @@ def perform_coordinator_proposal_file(
                     except Exception as exc:
                         commit_exc = exc
 
-                if commit_exc is not None:
+                if commit_exc is not None or not commit_sha:
+                    if created_is_new:
+                        with contextlib.suppress(OSError):
+                            created_path.unlink()
+                    detail = (
+                        f"commit in companion records repo raised {type(commit_exc).__name__}: {commit_exc}"
+                        if commit_exc is not None
+                        else "commit in companion records repo was rejected (hooks ran)"
+                    )
                     return _write_fallback_record(
-                        f"commit in coordinator worktree raised {type(commit_exc).__name__}: {commit_exc}",
+                        detail,
                         skipped_backlog_reasons=tuple(skipped_reasons),
                     )
 
-                if not commit_sha:
-                    return _write_fallback_record(
-                        "commit in coordinator worktree was rejected (hooks ran)",
-                        skipped_backlog_reasons=tuple(skipped_reasons),
-                    )
-
-                landing = ipd_lifecycle.land_worktree_commit(
-                    repo, commit_sha, expected_base=cur_base
+                return ProposalFilingResult(
+                    filed=True,
+                    record_id6=record_id6,
+                    record_path=new_record_rel,
+                    size=size,
+                    kind=kind,
+                    blocked_by=blocked_by,
+                    commit=commit_sha,
+                    landing_status=ipd_lifecycle.RECONCILED_OK,
+                    recovered_backlog_paths=tuple(recovered_paths),
+                    skipped_backlog_reasons=tuple(skipped_reasons),
                 )
-                last_landing = landing
+            except Exception as exc:
+                return _write_fallback_record(
+                    f"external proposal filing raised {type(exc).__name__}: {exc}",
+                    skipped_backlog_reasons=tuple(lane_pre_skipped),
+                )
 
-                if landing.status == ipd_lifecycle.RECONCILED_OK:
-                    return ProposalFilingResult(
-                        filed=True,
-                        record_id6=record_id6,
-                        record_path=new_record_rel,
-                        size=size,
-                        kind=kind,
-                        blocked_by=blocked_by,
-                        commit=commit_sha,
-                        landing_status=landing.status,
-                        recovered_backlog_paths=tuple(recovered_paths),
-                        skipped_backlog_reasons=tuple(skipped_reasons),
+        cur_base = _resolved_main_tip(repo, run_checked=run_checked)
+        raced_attempts = 0
+        last_landing: Any = None
+        last_skipped: tuple[tuple[str, str], ...] = tuple(lane_pre_skipped)
+
+        while raced_attempts < max_raced_attempts:
+            raced_attempts += 1
+            try:
+                with commit_lock.coordinator_worktree(
+                    repo, label=f"proposal-{item_id6}", base=cur_base
+                ) as coord:
+                    record_id6 = ""
+                    new_record_rel = ""
+                    needs_attended_unchanged = False
+                    clean_summary = _truncate_proposal_summary(
+                        proposed_change, max_chars=60
                     )
-                elif landing.status == ipd_lifecycle.RECONCILED_RACED:
-                    if rebuild_on_race and raced_attempts < max_raced_attempts:
-                        cur_base = _resolved_main_tip(repo, run_checked=run_checked)
-                        continue
+
+                    if kind == PROPOSAL_KIND_NEEDS_ATTENDED:
+                        # Mark the PROPOSING plan rather than filing a new record (see
+                        # `PROPOSAL_KIND_NEEDS_ATTENDED`). The plan is resolved in the coordinator
+                        # checkout, i.e. on main's tip, so the edit lands where later runs read it.
+                        try:
+                            target = resolve_plan_path(
+                                coord.path,
+                                str(item.get("configured_file") or ""),
+                                item_id6,
+                            )
+                        except DriverError as exc:
+                            return _write_fallback_record(
+                                f"needs-attended: the proposing plan could not be resolved: {exc}",
+                                skipped_backlog_reasons=tuple(lane_pre_skipped),
+                            )
+                        target_text = target.read_text(encoding="utf-8")
+                        marked = mark_plan_attended(target_text, why=why or blocked_by)
+                        record_id6 = item_id6
+                        new_record_rel = str(target.relative_to(coord.path)).replace(
+                            "\\", "/"
+                        )
+                        if marked == target_text:
+                            needs_attended_unchanged = True
+                            commit_msg = f"Recover lane defect backlog items for {item_id6} (agent proposal)"
+                        else:
+                            from agent_workflows import artifact_core as _core
+
+                            _core.atomic_write(target, marked)
+                            commit_msg = f"plan({item_id6}): mark Attended: required (agent proposal)"
+                    elif size == "small":
+                        setid = f"prop-{item_id6}"
+                        title = f"Proposal from {item_id6}: {clean_summary}"
+                        effective_labels = host_labels or (
+                            AGY_HOST_LABELS
+                            if "agy"
+                            in str(state.get("options", {}).get("driver", "")).lower()
+                            else OC_HOST_LABELS
+                        )
+                        actor = driver_actor(dict(state), labels=effective_labels)
+                        scaffold_cmd = pinned_module_argv(
+                            [
+                                "ipd",
+                                "scaffold",
+                                "--kind",
+                                "child",
+                                "--set",
+                                setid,
+                                "--order",
+                                "1",
+                                "--title",
+                                title,
+                                "--priority",
+                                item_priority,
+                                "--work-kind",
+                                item_work_kind,
+                                "--author",
+                                actor,
+                                "--apply",
+                            ]
+                        )
+                        res = subprocess.run(
+                            scaffold_cmd,
+                            cwd=coord.path,
+                            env=pinned_child_env(),
+                            capture_output=True,
+                            text=True,
+                            encoding="utf-8",
+                            errors="replace",
+                        )
+                        if res.returncode != 0:
+                            return _write_fallback_record(
+                                f"aw ipd scaffold failed ({res.returncode}): {res.stderr.strip() or res.stdout.strip()}",
+                                skipped_backlog_reasons=tuple(lane_pre_skipped),
+                            )
+                        from agent_workflows.project_context import project_records_dir
+
+                        plans_dir = (
+                            project_records_dir(coord.path) / "plans" / "pending"
+                        )
+                        if not plans_dir.exists():
+                            plans_dir = coord.path / ".agents" / "plans" / "pending"
+                        matching = list(plans_dir.glob(f"*-{setid}-01-*.ipd.md"))
+                        if not matching:
+                            return _write_fallback_record(
+                                f"aw ipd scaffold created no matching plan under {plans_dir}",
+                                skipped_backlog_reasons=tuple(lane_pre_skipped),
+                            )
+                        created_plan = matching[0]
+                        plan_content = created_plan.read_text(encoding="utf-8")
+                        record_id6 = (
+                            _meta_reader.read_loose_id(plan_content) or item_id6
+                        )
+
+                        from agent_workflows import artifact_core as _core
+                        from agent_workflows import artifact_meta as _am
+
+                        plan_content = plan_content.rstrip() + "\n\n" + body_text
+                        _core.atomic_write(created_plan, plan_content)
+                        if gate_to_pass and "- Blocks-Release:" not in plan_content:
+                            _am.append(
+                                _am.LegacyTarget(created_plan, "plans", record_id6),
+                                [
+                                    {
+                                        "op": "set",
+                                        "fields": {"blocks_release": gate_to_pass},
+                                    }
+                                ],
+                                legacy_render=_am.LegacyRender(
+                                    tag="same-status",
+                                    day=_core.utc_history_date(),
+                                    actor_label="aw run",
+                                    history=False,
+                                ),
+                                repo_root=coord.path,
+                                project_context=_am.legacy_context(coord.path),
+                            )
+                        new_record_rel = str(
+                            created_plan.relative_to(coord.path)
+                        ).replace("\\", "/")
+                        commit_msg = (
+                            f"Scaffold draft plan for agent proposal from {item_id6}"
+                        )
+
                     else:
-                        return _write_fallback_record(
-                            f"fast-forward landing raced and exhausted {raced_attempts} attempts: {landing.detail}",
+                        summary = f"Proposal from {item_id6}: {clean_summary}"
+                        slug = _truncate_proposal_slug(summary, max_chars=50)
+                        backlog_args = [
+                            "backlog",
+                            "new",
+                            "--summary",
+                            summary,
+                            "--slug",
+                            slug,
+                            "--priority",
+                            item_priority,
+                            "--work-kind",
+                            item_work_kind,
+                            "--body",
+                            body_text,
+                            "--apply",
+                        ]
+                        if gate_to_pass:
+                            backlog_args.extend(["--blocks-release", gate_to_pass])
+                        res = subprocess.run(
+                            pinned_module_argv(backlog_args),
+                            cwd=coord.path,
+                            env=pinned_child_env(),
+                            capture_output=True,
+                            text=True,
+                            encoding="utf-8",
+                            errors="replace",
+                        )
+                        if res.returncode != 0:
+                            return _write_fallback_record(
+                                f"aw backlog new failed ({res.returncode}): {res.stderr.strip() or res.stdout.strip()}",
+                                skipped_backlog_reasons=tuple(lane_pre_skipped),
+                            )
+                        from agent_workflows.project_context import project_records_dir
+
+                        backlog_dir = (
+                            project_records_dir(coord.path) / "backlog" / "open"
+                        )
+                        if not backlog_dir.exists():
+                            backlog_dir = coord.path / ".agents" / "backlog" / "open"
+                        bl_files = sorted(
+                            backlog_dir.glob("*.backlog.md"),
+                            key=lambda f: f.stat().st_mtime,
+                            reverse=True,
+                        )
+                        if not bl_files:
+                            return _write_fallback_record(
+                                f"aw backlog new created no file under {backlog_dir}",
+                                skipped_backlog_reasons=tuple(lane_pre_skipped),
+                            )
+                        created_backlog = bl_files[0]
+                        bl_state = _meta_reader.read_text(
+                            created_backlog.read_text(encoding="utf-8"),
+                            record_type="backlog",
+                        )
+                        record_id6 = bl_state.id6 or item_id6
+                        new_record_rel = str(
+                            created_backlog.relative_to(coord.path)
+                        ).replace("\\", "/")
+                        commit_msg = (
+                            f"File backlog item for agent proposal from {item_id6}"
+                        )
+
+                    # Validate and materialize lane defect backlogs AFTER new_record_rel and
+                    # record_id6 are resolved so st_mtime selection cannot pick a recovered file.
+                    recovered_paths, skipped_reasons = _stage_validated_lane_backlogs(
+                        coord.path, record_id6
+                    )
+                    last_skipped = tuple(skipped_reasons)
+
+                    if needs_attended_unchanged and not recovered_paths:
+                        # Already marked and no lane backlogs to recover: nothing to commit.
+                        return ProposalFilingResult(
+                            filed=True,
+                            record_id6=record_id6,
+                            record_path=new_record_rel,
+                            size=size,
+                            kind=kind,
+                            blocked_by=blocked_by,
+                            recovered_backlog_paths=(),
                             skipped_backlog_reasons=tuple(skipped_reasons),
                         )
-                elif landing.status == ipd_lifecycle.RECONCILED_REFUSED:
-                    return _write_fallback_record(
-                        f"fast-forward landing refused: {landing.detail}",
-                        skipped_backlog_reasons=tuple(skipped_reasons),
+
+                    commit_paths = (
+                        list(recovered_paths)
+                        if needs_attended_unchanged
+                        else [new_record_rel, *recovered_paths]
                     )
-                else:
-                    return _write_fallback_record(
-                        f"fast-forward landing returned unexpected status: {landing.status}",
-                        skipped_backlog_reasons=tuple(skipped_reasons),
+                    commit_sha = None
+                    commit_exc = None
+                    try:
+                        commit_outcome = _gch.offer_commit(
+                            coord.path,
+                            commit_paths,
+                            message=commit_msg,
+                            assume_yes=True,
+                            interactive=False,
+                            trailers=_gch.run_item_trailers(run_id, item_id6),
+                        )
+                        commit_sha = getattr(commit_outcome, "commit", None)
+                    except Exception as exc:
+                        commit_exc = exc
+
+                    if (commit_exc is not None or not commit_sha) and recovered_paths:
+                        for rec_rel in recovered_paths:
+                            with contextlib.suppress(OSError):
+                                (coord.path / rec_rel).unlink()
+                            skipped_reasons.append((rec_rel, "commit-hook-rejected"))
+                        _run_git(
+                            coord.path,
+                            ["reset", "--quiet", "HEAD", "--", *recovered_paths],
+                        )
+                        recovered_paths = []
+                        last_skipped = tuple(skipped_reasons)
+                        if needs_attended_unchanged:
+                            return ProposalFilingResult(
+                                filed=True,
+                                record_id6=record_id6,
+                                record_path=new_record_rel,
+                                size=size,
+                                kind=kind,
+                                blocked_by=blocked_by,
+                                recovered_backlog_paths=(),
+                                skipped_backlog_reasons=tuple(skipped_reasons),
+                            )
+                        commit_sha = None
+                        commit_exc = None
+                        try:
+                            commit_outcome = _gch.offer_commit(
+                                coord.path,
+                                [new_record_rel],
+                                message=commit_msg,
+                                assume_yes=True,
+                                interactive=False,
+                                trailers=_gch.run_item_trailers(run_id, item_id6),
+                            )
+                            commit_sha = getattr(commit_outcome, "commit", None)
+                        except Exception as exc:
+                            commit_exc = exc
+
+                    if commit_exc is not None:
+                        return _write_fallback_record(
+                            f"commit in coordinator worktree raised {type(commit_exc).__name__}: {commit_exc}",
+                            skipped_backlog_reasons=tuple(skipped_reasons),
+                        )
+
+                    if not commit_sha:
+                        return _write_fallback_record(
+                            "commit in coordinator worktree was rejected (hooks ran)",
+                            skipped_backlog_reasons=tuple(skipped_reasons),
+                        )
+
+                    landing = ipd_lifecycle.land_worktree_commit(
+                        repo, commit_sha, expected_base=cur_base
                     )
+                    last_landing = landing
+
+                    if landing.status == ipd_lifecycle.RECONCILED_OK:
+                        return ProposalFilingResult(
+                            filed=True,
+                            record_id6=record_id6,
+                            record_path=new_record_rel,
+                            size=size,
+                            kind=kind,
+                            blocked_by=blocked_by,
+                            commit=commit_sha,
+                            landing_status=landing.status,
+                            recovered_backlog_paths=tuple(recovered_paths),
+                            skipped_backlog_reasons=tuple(skipped_reasons),
+                        )
+                    elif landing.status == ipd_lifecycle.RECONCILED_RACED:
+                        if rebuild_on_race and raced_attempts < max_raced_attempts:
+                            cur_base = _resolved_main_tip(repo, run_checked=run_checked)
+                            continue
+                        else:
+                            return _write_fallback_record(
+                                f"fast-forward landing raced and exhausted {raced_attempts} attempts: {landing.detail}",
+                                skipped_backlog_reasons=tuple(skipped_reasons),
+                            )
+                    elif landing.status == ipd_lifecycle.RECONCILED_REFUSED:
+                        return _write_fallback_record(
+                            f"fast-forward landing refused: {landing.detail}",
+                            skipped_backlog_reasons=tuple(skipped_reasons),
+                        )
+                    else:
+                        return _write_fallback_record(
+                            f"fast-forward landing returned unexpected status: {landing.status}",
+                            skipped_backlog_reasons=tuple(skipped_reasons),
+                        )
+            except Exception as exc:
+                return _write_fallback_record(
+                    f"proposal filing raised {type(exc).__name__}: {exc}",
+                    skipped_backlog_reasons=last_skipped,
+                )
 
         detail_msg = last_landing.detail if last_landing else "raced attempts exhausted"
         return _write_fallback_record(

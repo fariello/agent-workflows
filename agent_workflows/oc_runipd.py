@@ -6218,9 +6218,22 @@ def main(argv: list[str] | None = None) -> int:
         _mark_killed_tab_status()
         return 2
     except Exception as exc:
-        print(f"runipd: unexpected failure: {exc}", file=sys.stderr)
         _mark_killed_tab_status()
-        raise
+        return runner_shared.handle_unexpected_runner_failure(
+            exc,
+            prefix="runipd",
+            cmd="oc run",
+            driver_label="opencode",
+            run_dir=run_dir,
+            args=args,
+            load_state_fn=load_state,
+            save_state_fn=save_state,
+            append_jsonl_fn=append_jsonl,
+            render_summary_fn=render_run_summary_table,
+            render_hint_fn=render_continuation_hint,
+            report_spec_edits_fn=report_run_spec_edits,
+            report_red_ci_fn=report_red_ci_warning,
+        )
     finally:
         _tab_stack.close()
 
