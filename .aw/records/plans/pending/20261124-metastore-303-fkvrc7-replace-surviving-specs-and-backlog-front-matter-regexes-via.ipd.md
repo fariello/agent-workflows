@@ -40,18 +40,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Public metadata-bullet listing helper in `artifact_meta.py` (`vl7ybn`, `4sd62s` C5)
 
-- [ ] E-01 Add `list_metadata_bullets(text: str, *, leading_block_only: bool = False) -> List[Tuple[str, str]]` to `agent_workflows/artifact_meta.py`:
+- [x] E-01 Add `list_metadata_bullets(text: str, *, leading_block_only: bool = False) -> List[Tuple[str, str]]` to `agent_workflows/artifact_meta.py`:
   1. Normalize `\r\n` to `\n` and split on `\n` (never `str.splitlines()`, which splits on bare `\r` or U+2028).
   2. Match top-level metadata bullets with `r"^- ([A-Za-z0-9_-]+):(?:\s*(.*))?$"`, returning `(original_key, raw_value)` tuples in file order while preserving original key spelling and every duplicate occurrence.
   3. When `leading_block_only=False` (default, for specs and general metadata blocks), scan every line before the first `line.startswith("## ")`, skipping `# Title`, blank lines, and non-bullet prose.
   4. When `leading_block_only=True` (for backlog items), stop at the first `line.startswith("## ")` OR the first non-blank line that does not start with `"- "` (including indented sub-bullets such as `"  - ..."`, preserving the deliberate sub-bullet boundary contract pinned by `tests/test_backlog_metadata_duplicate_and_gate_summary.py::test_sub_bullet_boundary_deliberate_non_finding`).
   - Depends on: none
   - Expected outcome: `agent_workflows/artifact_meta.py` exposes `list_metadata_bullets` preserving original key spelling, duplicate values, and both boundary modes without changing any existing `artifact_meta` reader.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Replace all five `^-` metadata regexes in `specs.py`, `backlog.py`, and `spec_citations.py` (`ebbfmn`, `4sd62s` C5)
 
-- [ ] E-02 Delete the five surviving `^-` metadata regex literals and retarget all callers onto `artifact_meta`:
+- [x] E-02 Delete the five surviving `^-` metadata regex literals and retarget all callers onto `artifact_meta`:
   1. In `agent_workflows/specs.py`:
      - Delete `_TOP_KEY_RE` and replace `validate_spec`'s duplicate-bullet loop with `artifact_meta.list_metadata_bullets(text, leading_block_only=False)`, keeping `SPEC_MULTI_VALUED_KEYS` and exact `spec.metadata-bullet-repeated` detail wording unchanged.
      - Replace the inline `re.match(r"^- Status:\s*(.*)$", line)` in `specs.run_migrate` with a lookup over `artifact_meta.list_metadata_bullets(text, leading_block_only=False)` for key `"Status"` (preserving capture of legacy trailing-prose status lines such as `- Status: approved (2026-09-25)`).
@@ -63,22 +63,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
      - Replace `specs._SPEC_ID_RE.search(sp.read_text(encoding="utf-8"))` in `stale_spec_anchors` with `artifact_meta.read_text(sp.read_text(encoding="utf-8"), record_type="spec").id6` (validated via `core.is_valid_id6`).
   - Depends on: E-01
   - Expected outcome: `specs.py`, `backlog.py`, and `spec_citations.py` contain zero `^-` metadata regex literals while preserving duplicate-bullet detection (including backlog indented sub-bullet boundary), spec id lookup, `specs.run_migrate`, review-attestation / deferred-ID transition gates, and `stale_spec_anchors`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Behavioral tests and validation (`4sd62s` AC-1, C10a)
 
-- [ ] E-03 Add `@pytest.mark.core` behavioral tests in `tests/test_backlog_metadata_duplicate_and_gate_summary.py` and `tests/test_specs_metadata_duplicate_bullet.py` covering:
+- [x] E-03 Add `@pytest.mark.core` behavioral tests in `tests/test_backlog_metadata_duplicate_and_gate_summary.py` and `tests/test_specs_metadata_duplicate_bullet.py` covering:
   1. `artifact_meta.list_metadata_bullets` (original key spelling, duplicate values in order, `leading_block_only=False` vs. `leading_block_only=True` stopping at indented sub-bullets, post-`## ` prose ignored, `\r\n` normalization).
   2. `specs.run_migrate` capturing raw trailing-prose `- Status:` values via `artifact_meta`, `specs._review_attestation_refusal` / `_deferred_ids_refusal` reading loose `-Id:` / `-  Id:` bullets via `read_loose_id`, and `spec_citations.stale_spec_anchors` resolving spec id6 via `artifact_meta`.
   Assert observable outputs, diagnostics, and file bytes only; zero source-reading assertions.
   - Depends on: E-02
   - Expected outcome: all existing and new `@pytest.mark.core` duplicate-bullet, spec-id, spec-migration, and citation-anchor behavioral tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Run targeted pytest suites across all affected spec, backlog, citation, and `artifact_meta` test modules, bare core-tier `python3 -m pytest`, `python3 -m mypy` on all 4 modified production files, `rg` confirming zero `^-` metadata regex literals in `specs.py`, `backlog.py`, and `spec_citations.py`, and `aw sanitize --agent`.
+- [x] E-04 Run targeted pytest suites across all affected spec, backlog, citation, and `artifact_meta` test modules, bare core-tier `python3 -m pytest`, `python3 -m mypy` on all 4 modified production files, `rg` confirming zero `^-` metadata regex literals in `specs.py`, `backlog.py`, and `spec_citations.py`, and `aw sanitize --agent`.
   - Depends on: E-03
   - Expected outcome: all targeted tests and the bare core gate pass, `mypy` reports zero errors across all 4 production files, `rg` reports zero `^-` metadata regex hits in `specs.py`, `backlog.py`, and `spec_citations.py`, and `aw sanitize --agent` reports clean (`pass`).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -174,25 +174,25 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -m pytest tests/test_artifact_meta_legacy.py tests/test_backlog_metadata_duplicate_and_gate_summary.py tests/test_specs_metadata_duplicate_bullet.py` output proving `artifact_meta.list_metadata_bullets` preserves original key spelling, duplicate values in order, and both `leading_block_only=False` and `leading_block_only=True` boundary modes.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_artifact_meta_legacy.py tests/test_backlog_metadata_duplicate_and_gate_summary.py tests/test_specs_metadata_duplicate_bullet.py` -> `46 passed in 7.74s` (exit 0).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/spec_citations.py` showing zero hits, `rg -n "_SPEC_ID_RE|_TOP_KEY_RE|_SPEC_ID_BULLET_RE" agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/spec_citations.py` showing zero code hits, plus `python3 -m pytest tests/test_specs_verbs.py tests/test_spec_id6_filenames.py tests/test_spec_citation_anchors.py tests/test_specs_status_dirs.py tests/test_specs_set_adapter.py tests/test_specs_evidence_gate_parity.py tests/test_specs_recursive_read.py tests/test_spec_review_attestation.py tests/test_implementing_spec_replan.py tests/test_backlog.py` passing summary.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/spec_citations.py` -> empty (0 hits, exit 1); `rg -n "_SPEC_ID_RE|_TOP_KEY_RE|_SPEC_ID_BULLET_RE" agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/spec_citations.py` -> empty (0 hits, exit 1); `python3 -m pytest tests/test_specs_verbs.py tests/test_spec_id6_filenames.py tests/test_spec_citation_anchors.py tests/test_specs_status_dirs.py tests/test_specs_set_adapter.py tests/test_specs_evidence_gate_parity.py tests/test_specs_recursive_read.py tests/test_spec_review_attestation.py tests/test_implementing_spec_replan.py tests/test_backlog.py` -> `169 passed in 16.37s` (exit 0).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `python3 -m pytest -v tests/test_backlog_metadata_duplicate_and_gate_summary.py tests/test_specs_metadata_duplicate_bullet.py` showing all existing and new `@pytest.mark.core` behavioral tests passing, and `rg -n "inspect\.|import ast|getsource|read_text\(.*agent_workflows" tests/test_backlog_metadata_duplicate_and_gate_summary.py tests/test_specs_metadata_duplicate_bullet.py` empty.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest -v tests/test_backlog_metadata_duplicate_and_gate_summary.py tests/test_specs_metadata_duplicate_bullet.py` -> `20 passed in 2.35s` (exit 0); `python3 -m pytest -vv tests/test_backlog_metadata_duplicate_and_gate_summary.py tests/test_specs_metadata_duplicate_bullet.py` -> `20 passed in 4.24s` (including `test_list_metadata_bullets_preserves_spelling_duplicates_and_crlf`, `test_list_metadata_bullets_boundary_modes`, `test_run_migrate_captures_trailing_prose_status_via_artifact_meta`, `test_refusals_read_loose_id_bullets_via_artifact_meta`, `test_stale_spec_anchors_resolves_spec_id_via_artifact_meta`); `rg -n "inspect\.|import ast|getsource|read_text\(.*agent_workflows" tests/test_backlog_metadata_duplicate_and_gate_summary.py tests/test_specs_metadata_duplicate_bullet.py` -> empty (0 hits, exit 1).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the bare `python3 -m pytest` summary line (`N passed`), `python3 -m mypy agent_workflows/artifact_meta.py agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/spec_citations.py` zero-error output, the zero-hit `rg` output over `specs.py`, `backlog.py`, and `spec_citations.py`, and `aw sanitize --agent` clean (`pass`) output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: bare `python3 -m pytest` -> `2917 passed, 1 skipped, 11 warnings in 177.60s (0:02:57)` (exit 0); `python3 -m mypy agent_workflows/artifact_meta.py agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/spec_citations.py` -> `Success: no issues found in 4 source files` (exit 0); `rg -n "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?m\))?\^-" agent_workflows/specs.py agent_workflows/backlog.py agent_workflows/spec_citations.py` -> empty (0 hits, exit 1); `aw sanitize --agent` -> `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7225,"findings":0,"evidence":["leak-scan"],"next":null}`.
+  - Result: pass
 
 ## Approval and execution gate
 

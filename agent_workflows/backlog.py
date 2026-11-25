@@ -100,7 +100,6 @@ GATE_DEFAULT_KINDS = _config.RELEASE_GATE_WORK_KINDS_DEFAULT
 # attention view hides it), so gating a release on one asserts an obligation nobody has taken on.
 _GATE_DEFAULT_SKIP_STATUSES = frozenset(("done", "parked"))
 
-_TOP_KEY_RE = re.compile(r"^- ([A-Za-z0-9_-]+):(?:\s*(.*))?$")
 _TEMPLATE_OWNED_KEYS = frozenset(
     (
         "Id",
@@ -410,14 +409,9 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
         (_meta.read_text(text, record_type="backlog").fields or {}).get("gate_summary")
     )
     key_counts: Dict[str, int] = {}
-    for line in text.replace("\r\n", "\n").split("\n"):
-        if line.startswith("## ") or (line.strip() and not line.startswith("- ")):
-            break
-        m = _TOP_KEY_RE.match(line)
-        if m:
-            k = m.group(1)
-            canon_k = "Work-Kind" if k == "Kind" else k
-            key_counts[canon_k] = key_counts.get(canon_k, 0) + 1
+    for k, _ in _meta.list_metadata_bullets(text, leading_block_only=True):
+        canon_k = "Work-Kind" if k == "Kind" else k
+        key_counts[canon_k] = key_counts.get(canon_k, 0) + 1
 
     for k, count in key_counts.items():
         if count > 1:

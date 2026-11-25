@@ -155,14 +155,11 @@ def _spec_files(repo_root: Path) -> List[Path]:
     return sorted(files)
 
 
-_SPEC_ID_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
-_TOP_KEY_RE = re.compile(r"^- ([A-Za-z0-9_-]+):(?:\s*(.*))?$")
-
 # Multi-valued metadata keys allowlist (IPD 1znlxy E-01).
 # Membership means "repetition is legal". A key absent from the set is treated as
 # single-valued and reported as a defect if repeated in the front-matter metadata block.
-# The backlog detector needs no such set because backlog._TOP_KEY_RE governs a closed,
-# all-single-valued field block.
+# The backlog detector needs no such set because backlog's leading metadata block is a
+# closed, all-single-valued field block.
 SPEC_MULTI_VALUED_KEYS: frozenset[str] = frozenset(
     (
         "Constrained-by",
@@ -274,18 +271,15 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
 
     loc = drift_location(path)
     drift: List[core.Drift] = []
-    lines = _lines(text)
-    end = _metadata_end(lines)
+
+    from agent_workflows import artifact_meta as _meta
 
     # Duplicate-bullet rule (IPD 1znlxy E-02): count top-level `- Key:` bullets
-    # within the metadata block delimited by _metadata_end. Keys not in
+    # within the metadata block before the first `## ` heading. Keys not in
     # SPEC_MULTI_VALUED_KEYS must appear at most once.
     key_counts: Dict[str, int] = {}
-    for line in lines[:end]:
-        m = _TOP_KEY_RE.match(line)
-        if m:
-            k = m.group(1)
-            key_counts[k] = key_counts.get(k, 0) + 1
+    for k, _ in _meta.list_metadata_bullets(text, leading_block_only=False):
+        key_counts[k] = key_counts.get(k, 0) + 1
 
     for k, count in key_counts.items():
         if count > 1 and k not in SPEC_MULTI_VALUED_KEYS:
@@ -296,8 +290,6 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
                     f"metadata bullet - {k}: appears {count} times",
                 )
             )
-
-    from agent_workflows import artifact_meta as _meta
 
     state = _meta.read_text(text, record_type="spec")
     fields = state.fields
@@ -829,6 +821,8 @@ def run_migrate(args) -> int:
             )
             return 1
 
+    from agent_workflows import artifact_meta as _meta
+
     # Capture the old status prose (from an in-front `- Status:` bullet or a bare `Status:` line)
     # and any `- Implemented:` line for the migration history record.
     old_prose = None
@@ -836,11 +830,9 @@ def run_migrate(args) -> int:
     if status_bullet_idx >= 0:
         old_prose = lines[status_bullet_idx][len("- Status:") :].strip()
     else:
-        meta_end = _metadata_end(lines)
-        for line in lines[:meta_end]:
-            m = re.match(r"^- Status:\s*(.*)$", line)
-            if m:
-                old_prose = m.group(1).strip()
+        for key, value in _meta.list_metadata_bullets(text, leading_block_only=False):
+            if key == "Status":
+                old_prose = value.strip()
                 break
         if old_prose is None:
             for line in lines:
@@ -863,7 +855,6 @@ def run_migrate(args) -> int:
             f"; folded Implemented line: {A.escape_detail(implemented_prose)[:160]}"
         )
 
-    from agent_workflows import artifact_meta as _meta
     from agent_workflows.status_set import same_status_message_is_duplicate
 
     is_dup = same_status_message_is_duplicate(
@@ -886,8 +877,8 @@ def run_migrate(args) -> int:
         events.append({"op": "set", "fields": set_fields})
     events.append({"op": "unset", "fields": ["implemented"]})
 
-    m_id = _SPEC_ID_RE.search(text)
-    id6 = m_id.group(1) if m_id else None
+    raw_id = _meta.read_text(text, record_type="spec").id6
+    id6 = raw_id if core.is_valid_id6(raw_id) else None
     target = _meta.LegacyTarget(path, "specs", id6)
     repo_root = _repo_root_of(path)
     render_cfg = _meta.LegacyRender(
@@ -948,8 +939,8 @@ def run_note(args) -> int:
     if not same_status_message_is_duplicate(
         text, status="note", date=date, message=args.message
     ):
-        m = _SPEC_ID_RE.search(text)
-        id6 = m.group(1) if m else None
+        raw_id = _meta.read_text(text, record_type="spec").id6
+        id6 = raw_id if core.is_valid_id6(raw_id) else None
         _meta.append(
             _meta.LegacyTarget(path, "specs", id6),
             [{"op": "note", "message": args.message}],
@@ -973,14 +964,18 @@ def run_note(args) -> int:
 
 def _existing_spec_ids(repo_root: Path) -> set:
     """Every id6 already present in a spec's `- Id:` metadata (collision set for minting)."""
+    from agent_workflows import artifact_meta as _meta
+
     ids: set = set()
     for p in _spec_files(repo_root):
         try:
-            m = _SPEC_ID_RE.search(p.read_text(encoding="utf-8"))
+            raw_id = _meta.read_text(
+                p.read_text(encoding="utf-8"), record_type="spec"
+            ).id6
         except (OSError, UnicodeDecodeError):
             continue
-        if m:
-            ids.add(m.group(1))
+        if core.is_valid_id6(raw_id):
+            ids.add(raw_id)
     return ids
 
 
@@ -1271,9 +1266,6 @@ def _spec_repo_root(spec_path: Path) -> Path:
     return Path(".")
 
 
-_SPEC_ID_BULLET_RE = re.compile(r"(?m)^-[ \t]*Id:[ \t]*([0-9a-z]{6})[ \t]*$")
-
-
 def _review_attestation_refusal(spec_path: Path, text: str) -> Optional[str]:
     """The refusal MESSAGE for a `->reviewed` transition with no conforming review record, or None.
 
@@ -1291,10 +1283,10 @@ def _review_attestation_refusal(spec_path: Path, text: str) -> Optional[str]:
     Never raises: an unreadable reviews tree yields a refusal reason rather than an exception, which
     is the fail-closed direction for an attestation (an attestation we cannot verify is not one).
     """
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import review_findings as _rf
 
-    m = _SPEC_ID_BULLET_RE.search(text or "")
-    id6 = m.group(1) if m else ""
+    id6 = _meta.read_loose_id(text or "") or ""
     repo_root = _spec_repo_root(spec_path)
     try:
         missing = _rf.review_attestation_missing(repo_root, id6, "spec")
@@ -1345,10 +1337,10 @@ def _deferred_ids_refusal(spec_path: Path, text: str) -> Optional[str]:
 
     Governed by spec 89xjll Section 6.5, R-8, R-9, and AC-10 (IPD uiej2a).
     """
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import production_checks as _pc
 
-    m = _SPEC_ID_BULLET_RE.search(text or "")
-    spec_id = m.group(1) if m else spec_path.name
+    spec_id = _meta.read_loose_id(text or "") or spec_path.name
     try:
         markers = _pc.parse_spec_id_markers(text or "")
     except Exception:

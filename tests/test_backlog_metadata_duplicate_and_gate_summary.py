@@ -18,7 +18,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import pytest
+
 from agent_workflows import artifact_core as core
+from agent_workflows import artifact_meta
 from agent_workflows import backlog
 from agent_workflows import check_engine
 from agent_workflows import cli
@@ -488,3 +491,79 @@ class BacklogMetadataDuplicateAndGateSummaryTests(unittest.TestCase):
             drifts_written = backlog.validate_item(item_path, written_content)
             rules_written = [d.rule for d in drifts_written]
             self.assertNotIn("backlog.metadata-bullet-repeated", rules_written)
+
+    @pytest.mark.core
+    def test_list_metadata_bullets_preserves_spelling_duplicates_and_crlf(
+        self,
+    ) -> None:
+        text = (
+            "- Id: abc123\r\n"
+            "- Kind: chore\r\n"
+            "- Work-Kind: bug\r\n"
+            "- Blocks-Release: next\r\n"
+            "- Blocks-Release: 1.0.0\r\n"
+            "- Empty:\r\n"
+            "- Note: line\u2028- Fake: bullet\r\n"
+            "## Workflow history\r\n"
+            "- Status: ignored-after-heading\r\n"
+        )
+        bullets = artifact_meta.list_metadata_bullets(text, leading_block_only=True)
+        self.assertEqual(
+            bullets,
+            [
+                ("Id", "abc123"),
+                ("Kind", "chore"),
+                ("Work-Kind", "bug"),
+                ("Blocks-Release", "next"),
+                ("Blocks-Release", "1.0.0"),
+                ("Empty", ""),
+                ("Note", "line\u2028- Fake: bullet"),
+            ],
+        )
+
+    @pytest.mark.core
+    def test_list_metadata_bullets_boundary_modes(self) -> None:
+        spec_like = (
+            "# Spec: Example\n"
+            "\n"
+            "Intro prose before bullets.\n"
+            "- Id: abc123\n"
+            "- Constrained-by: spec1\n"
+            "  - indented sub-bullet\n"
+            "- Constrained-by: spec2\n"
+            "## Section 1\n"
+            "- Id: post-heading\n"
+        )
+        self.assertEqual(
+            artifact_meta.list_metadata_bullets(spec_like, leading_block_only=False),
+            [
+                ("Id", "abc123"),
+                ("Constrained-by", "spec1"),
+                ("Constrained-by", "spec2"),
+            ],
+        )
+
+        backlog_like = (
+            "- Id: abc123\n"
+            "\n"
+            "- Summary: First line\n"
+            "  - indented sub-bullet\n"
+            "- Work-Kind: bug\n"
+            "## Workflow history\n"
+            "- Status: ignored\n"
+        )
+        self.assertEqual(
+            artifact_meta.list_metadata_bullets(backlog_like, leading_block_only=True),
+            [
+                ("Id", "abc123"),
+                ("Summary", "First line"),
+            ],
+        )
+        self.assertEqual(
+            artifact_meta.list_metadata_bullets(backlog_like, leading_block_only=False),
+            [
+                ("Id", "abc123"),
+                ("Summary", "First line"),
+                ("Work-Kind", "bug"),
+            ],
+        )

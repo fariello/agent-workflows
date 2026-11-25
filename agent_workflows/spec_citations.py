@@ -207,13 +207,18 @@ def stale_spec_anchors(
 ) -> List[StaleSpecAnchor]:
     """Pure detector returning stale spec line-anchor citations in the given paths."""
     repo_root = Path(repo_root)
+    from agent_workflows import artifact_core as core
+    from agent_workflows import artifact_meta as _meta
+
     spec_files = specs._spec_files(repo_root)
     spec_map: Dict[str, Path] = {}
     for sp in spec_files:
         try:
-            m = specs._SPEC_ID_RE.search(sp.read_text(encoding="utf-8"))
-            if m:
-                spec_map[m.group(1)] = sp
+            raw_id = _meta.read_text(
+                sp.read_text(encoding="utf-8"), record_type="spec"
+            ).id6
+            if core.is_valid_id6(raw_id):
+                spec_map[raw_id] = sp
         except (OSError, UnicodeDecodeError):
             continue
 

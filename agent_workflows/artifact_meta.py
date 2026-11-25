@@ -2772,6 +2772,40 @@ def parse_metadata_block(
     return _parse_metadata_block(lines)
 
 
+_TOP_BULLET_KEY_RE = re.compile(r"^- ([A-Za-z0-9_-]+):(?:\s*(.*))?$")
+
+
+def list_metadata_bullets(
+    text: str, *, leading_block_only: bool = False
+) -> List[Tuple[str, str]]:
+    """Return top-level ``- Key: value`` metadata bullets in file order.
+
+    Preserves original key spelling and every duplicate occurrence as ``(key, raw_value)``
+    tuples. Normalizes ``\\r\\n`` to ``\\n`` and splits on ``\\n`` (never ``str.splitlines()``,
+    which splits on bare ``\\r`` or U+2028).
+
+    When ``leading_block_only`` is ``False`` (default, for specs and general metadata blocks),
+    scans every line before the first ``## `` heading, skipping titles, blank lines, and
+    non-bullet prose.
+
+    When ``leading_block_only`` is ``True`` (for backlog items), stops at the first ``## ``
+    heading or the first non-blank line that does not start with ``"- "`` (including indented
+    sub-bullets).
+    """
+    out: List[Tuple[str, str]] = []
+    if not text:
+        return out
+    for line in text.replace("\r\n", "\n").split("\n"):
+        if line.startswith("## "):
+            break
+        if leading_block_only and line.strip() and not line.startswith("- "):
+            break
+        m = _TOP_BULLET_KEY_RE.match(line)
+        if m:
+            out.append((m.group(1), m.group(2) or ""))
+    return out
+
+
 PROMPT_METADATA_TRAILER: str = (
     "This HTML comment is pipeline metadata only; it is invisible when pasted "
     "into a chat and is not part of the prompt."
