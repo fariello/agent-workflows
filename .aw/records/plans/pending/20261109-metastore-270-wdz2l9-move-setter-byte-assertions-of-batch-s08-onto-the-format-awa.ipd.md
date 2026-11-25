@@ -44,20 +44,20 @@ Batch rule, applied to every batch E-item of this plan:
 
 ### Task group 1: work
 
-- [ ] E-01 (first half of `rdg0qv` E-01 (S08)) Batch S08a: convert the setter-byte assertions of `tests/test_handoff_ready_gate.py`, `tests/test_implementing_spec_replan.py`, `tests/test_ipd_lifecycle_cli.py` (F-28). Apply the batch rule with `<batch>` = `S08a`.
+- [x] E-01 (first half of `rdg0qv` E-01 (S08)) Batch S08a: convert the setter-byte assertions of `tests/test_handoff_ready_gate.py`, `tests/test_implementing_spec_replan.py`, `tests/test_ipd_lifecycle_cli.py` (F-28). Apply the batch rule with `<batch>` = `S08a`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S08a outcome lists; the remaining F-28 matches in these modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (second half of `rdg0qv` E-01 (S08)) Batch S08b: convert the setter-byte assertions of `tests/test_oc_runipd.py`, `tests/test_orchestrator_retirement.py`, `tests/test_orchestrator_status_gate.py` (F-28). Apply the batch rule with `<batch>` = `S08b`.
+- [x] E-02 (second half of `rdg0qv` E-01 (S08)) Batch S08b: convert the setter-byte assertions of `tests/test_oc_runipd.py`, `tests/test_orchestrator_retirement.py`, `tests/test_orchestrator_status_gate.py` (F-28). Apply the batch rule with `<batch>` = `S08b`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S08b outcome lists; the remaining F-28 matches in these modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Finish this part: run the batch rule's command over the 6 modules of this plan once more and confirm the outcome multiset equals the union of the `-before.txt` lists of S08a, S08b; write this plan's F-28 rows (one row per remaining match with its class) and F-29 (per-module PASSED, FAILED, SKIPPED and XFAIL counts of the after run) so `rdg0qv` can assemble the part table; run `aw sanitize --agent`; commit through `aw commit wdz2l9 -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-03 Finish this part: run the batch rule's command over the 6 modules of this plan once more and confirm the outcome multiset equals the union of the `-before.txt` lists of S08a, S08b; write this plan's F-28 rows (one row per remaining match with its class) and F-29 (per-module PASSED, FAILED, SKIPPED and XFAIL counts of the after run) so `rdg0qv` can assemble the part table; run `aw sanitize --agent`; commit through `aw commit wdz2l9 -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; F-28 and F-29 for this part are written; every commit is path-scoped to Scope-Paths.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -70,8 +70,8 @@ Batch rule, applied to every batch E-item of this plan:
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-28 | `rdg0qv` F-28 (measurement at `ac76110f4`) | This part: S08, 24 lines in 6 modules. Rows for remaining matches are written by E-03. |
-| F-29 | (written by E-03) | Per-module after-run outcome counts. |
+| F-28 | `rdg0qv` F-28 (measurement at `ac76110f4`); post-conversion scan with the F-28 pattern at `e7427ece2` (`rg -c` before -> after: `tests/test_handoff_ready_gate.py` 4 -> 0, `tests/test_implementing_spec_replan.py` 2 -> 0, `tests/test_ipd_lifecycle_cli.py` 4 -> 0, `tests/test_oc_runipd.py` 3 -> 0, `tests/test_orchestrator_retirement.py` 2 -> 0, `tests/test_orchestrator_status_gate.py` 10 -> 1) | This part: S08, 6 modules, 25 candidate lines at `ac211e7c5` (24 at `ac76110f4`); 24 converted, 1 remaining, 0 `setter-byte, exact spelling`, 0 `legacy-format subject`. (1) `tests/test_orchestrator_status_gate.py::TestOrchestratorStatusGate::test_scaffold_orchestrator_dry_run_emits_draft` (`self.assertIn("- Status: draft", proc.stdout)`) - `displayed-output assertion` (stdout of `aw ipd scaffold --dry-run`, not a record file). One negative byte check was subsumed rather than kept: `self.assertNotIn("- Status: implemented", spec_text)` (`tests/test_implementing_spec_replan.py`), because `assert_field` requires exactly one `- Status:` bullet in the metadata region with the expected value (decision `07-wdz2l9-D1`, same reasoning as `05-cxylsu-D1`). `tests/test_oc_runipd.py` `_refusal_run` now asserts the plan's status inside its temporary directory instead of returning the raw bullet line (decision `07-wdz2l9-D2`). `self.assertNotIn("- Readiness:", text)` in `tests/test_orchestrator_status_gate.py` became `assert_no_field(orch, "readiness")` (decision `07-wdz2l9-D3`). |
+| F-29 | `.aw/state/wdz2l9/union-after.txt` (batch-rule command over all 6 modules, after conversion) | Per-module after-run counts (PASSED / FAILED / SKIPPED / XFAIL): `tests/test_handoff_ready_gate.py` 16/0/0/0; `tests/test_implementing_spec_replan.py` 7/0/0/0; `tests/test_ipd_lifecycle_cli.py` 72/0/0/0; `tests/test_oc_runipd.py` 177/0/0/0; `tests/test_orchestrator_retirement.py` 43/0/0/0; `tests/test_orchestrator_status_gate.py` 13/0/0/0. Total 328 PASSED. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -117,20 +117,33 @@ No spec change; prepares part of `4sd62s` section 6 and section 7 step 9 (the te
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the empty `diff .aw/state/wdz2l9/S08a-before.txt .aw/state/wdz2l9/S08a-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_handoff_ready_gate.py`, `tests/test_implementing_spec_replan.py`, `tests/test_ipd_lifecycle_cli.py`, and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/wdz2l9/S08a-before.txt .aw/state/wdz2l9/S08a-after.txt`: empty (printed `EMPTY-DIFF` from `diff ... && echo EMPTY-DIFF`; 95 lines in both files, all `PASSED`).
+    - F-28 `rg -c` counts (before at `ac211e7c5` -> after): `tests/test_handoff_ready_gate.py` 4 -> 0; `tests/test_implementing_spec_replan.py` 2 -> 0; `tests/test_ipd_lifecycle_cli.py` 4 -> 0.
+    - Remaining matches: none, so no class to assign. The negative `assertNotIn("- Status: implemented", spec_text)` is subsumed by `assert_field`'s exactly-one-bullet check (decision `07-wdz2l9-D1`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the empty `diff .aw/state/wdz2l9/S08b-before.txt .aw/state/wdz2l9/S08b-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_oc_runipd.py`, `tests/test_orchestrator_retirement.py`, `tests/test_orchestrator_status_gate.py`, and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/wdz2l9/S08b-before.txt .aw/state/wdz2l9/S08b-after.txt`: empty (printed `EMPTY-DIFF`; 233 lines in both files, all `PASSED`).
+    - F-28 `rg -c` counts (before at `ac211e7c5` -> after): `tests/test_oc_runipd.py` 3 -> 0; `tests/test_orchestrator_retirement.py` 2 -> 0; `tests/test_orchestrator_status_gate.py` 10 -> 1.
+    - Remaining match: `tests/test_orchestrator_status_gate.py:593` `self.assertIn("- Status: draft", proc.stdout)` (`test_scaffold_orchestrator_dry_run_emits_draft`) - `displayed-output assertion` (stdout of `aw ipd scaffold --dry-run`).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the empty union `diff`, this plan's F-28 rows, the F-29 table with one row per module of this plan, the `aw sanitize --agent` result with zero `fail`, and every `aw commit wdz2l9` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/wdz2l9/union-before.txt .aw/state/wdz2l9/union-after.txt` (union-before is `sort S08a-before.txt S08b-before.txt`; union-after is one batch-rule run over all 6 modules): empty (printed `EMPTY-UNION-DIFF`; 328 lines each).
+    - F-28 rows and F-29 table for this part written in `## Findings` (1 remaining row, `displayed-output assertion`; F-29 328 PASSED, 0 FAILED/SKIPPED/XFAIL).
+    - Bare core gate `python3 -m pytest`: `2952 passed, 1 skipped, 11 warnings in 103.19s (0:01:43)`.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7230,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit wdz2l9 -m "test(wdz2l9): move S08a setter-byte assertions onto assert_field" -- tests/test_handoff_ready_gate.py tests/test_implementing_spec_replan.py tests/test_ipd_lifecycle_cli.py`: `aw commit: committed 3 path(s): 4ac35f0f7557dca012a7b6cf0331b371a4bb7226`.
+    - `aw commit wdz2l9 -m "test(wdz2l9): move S08b setter-byte assertions onto assert_field/assert_no_field" -- tests/test_oc_runipd.py tests/test_orchestrator_retirement.py tests/test_orchestrator_status_gate.py`: `aw commit: committed 3 path(s): e7427ece2b322a70a3221f3933cc4d10cf1c6ec9`.
+    - This plan update is committed in a follow-up `aw commit wdz2l9` naming only this IPD path. All 7 Scope-Paths are modified.
+  - Result: pass
 
 ## Approval and execution gate
 
