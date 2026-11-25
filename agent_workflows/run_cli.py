@@ -636,7 +636,6 @@ def _run_answer(args: argparse.Namespace) -> int:
             ]
 
         for g in groups:
-            clean_text = _clean_worker_text(g.text)
             options = g.options
             allow_free_text = g.allow_free_text
             raisers_str = f"{len(g.members)} raiser(s): {', '.join(g.raisers)}"
@@ -644,11 +643,7 @@ def _run_answer(args: argparse.Namespace) -> int:
             _print_human(
                 f"\n--- Question Group: {g.group_id} ({raisers_str}, unblocks {g.unblock_count}) ---"
             )
-            _print_human(clean_text)
-            if options:
-                _print_human("Options:")
-                for idx, opt in enumerate(options, 1):
-                    _print_human(f"  {idx}. {_clean_worker_text(opt)}")
+            _print_human(question_inbox.format_question_group_for_terminal(g))
 
             while True:
                 try:

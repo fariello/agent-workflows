@@ -1045,3 +1045,47 @@ class TestA30CarrierSeparation(unittest.TestCase):
             # Not handled as a missing input report
             self.assertFalse(attempt.get("lane_paused_for_missing_input", False))
             self.assertFalse(attempt.get("missing_input_refusals", []))
+
+    def test_askme_composition_fields_validated_and_prompted(self) -> None:
+        """Optional askme fields (option_details, recommendation, recommendation_strength, uncertainty) validate cleanly and prompts cite Compose a question."""
+        good_q = {
+            "question_id": "Q1",
+            "text": "The cache cleaner deletes expired files on startup. Should it also delete files with unreadable timestamps?",
+            "artifact_id6": "ask001",
+            "gates_verdict": True,
+            "evidence": ["cache_cleaner.py: currently skips unreadable mtimes"],
+            "options": ["Skip unreadable files", "Delete unreadable files"],
+            "option_details": [
+                "Preserves potentially valid files at the cost of manual cleanup.",
+                "Keeps cache bounded, but risks deleting a file on transient stat error.",
+            ],
+            "recommendation": "Skip unreadable files so transient filesystem errors never cause data loss.",
+            "recommendation_strength": "strong",
+            "uncertainty": "Frequency of unreadable mtime entries on NFS mounts is unmeasured.",
+        }
+        v = runner_shared.validate_questions({"questions": [good_q]}, item_id6="ask001")
+        self.assertEqual(v.verdict, runner_shared.QUESTIONS_VERDICT_VALID)
+        q_out = v.questions[0]
+        self.assertEqual(q_out["option_details"], good_q["option_details"])
+        self.assertEqual(q_out["recommendation"], good_q["recommendation"])
+        self.assertEqual(q_out["recommendation_strength"], "strong")
+        self.assertEqual(q_out["uncertainty"], good_q["uncertainty"])
+
+        bad_strength = dict(good_q, recommendation_strength="super-duper")
+        v_bad = runner_shared.validate_questions(
+            {"questions": [bad_strength]}, item_id6="ask001"
+        )
+        self.assertTrue(v_bad.is_malformed)
+        self.assertIn("recommendation_strength", v_bad.violations[0])
+
+        bad_details_len = dict(good_q, option_details=["only one"])
+        v_bad_det = runner_shared.validate_questions(
+            {"questions": [bad_details_len]}, item_id6="ask001"
+        )
+        self.assertTrue(v_bad_det.is_malformed)
+        self.assertIn("option_details", v_bad_det.violations[0])
+
+        schema_lit = runner_shared.questions_schema_literal("ask001")
+        self.assertIn("option_details", schema_lit)
+        self.assertIn("recommendation_strength", schema_lit)
+        self.assertIn("uncertainty", schema_lit)

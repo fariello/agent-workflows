@@ -21255,7 +21255,9 @@ def freeze_run_policy_flags(args: Any, *, repo: Any = None) -> dict:
         elif row.dest == "on_conflict":
             frozen[row.dest] = resolve_on_conflict(_supplied(row.dest), repo=repo)
         elif row.dest == "question_timeout":
-            frozen[row.dest] = resolve_question_timeout(_supplied(row.dest))
+            supplied_qt = _supplied(row.dest)
+            frozen[row.dest] = resolve_question_timeout(supplied_qt)
+            frozen["question_timeout_explicit"] = supplied_qt is not None
         elif row.dest == "question_rounds":
             frozen[row.dest] = resolve_question_rounds(_supplied(row.dest))
         elif row.dest == "max_park_percent":
@@ -22390,17 +22392,22 @@ def collect_preflight_questions(
 def prompt_for_free_text(
     question: Any,
     *,
-    timeout: float = PREFLIGHT_QUESTION_TIMEOUT,
+    timeout: float | None = PREFLIGHT_QUESTION_TIMEOUT,
     stdin: Any = None,
     stderr: Any = None,
     read_chunk: Any = None,
+    poll_callback: Callable[[], bool] | None = None,
+    poll_interval: float = 1.0,
 ) -> str | None:
-    """Prompt for free-text answer with monotonic timeout, never using input() or readline() (spec 6kwd2e R1.3, E-02).
+    """Prompt for free-text answer with optional monotonic timeout, never using input() or readline() (spec 6kwd2e R1.3, E-02).
 
-    Inherits the four constraints of prompt_for_gate_phrase's docstring:
+    Inherits the hard constraints of prompt_for_gate_phrase's docstring:
     - No TTY on either stream means return None without printing.
-    - Loops on select.select with a monotonic deadline, reading with os.read (never input/readline).
-    - Returns stripped text before newline, None on empty answer (SKIP), None on timeout (PARK) or EOF.
+    - Loops on select.select (never input/readline), reading with os.read.
+    - When `timeout` is None (interactive drain with no remaining runnable work), waits until
+      the human answers, `poll_callback` signals an out-of-band answer or stop, or EOF/Ctrl-C.
+    - When `timeout` is a positive number and expires, prints a clear timeout notice and returns None.
+    - Returns stripped text before newline, None on empty answer (SKIP), None on timeout/poll-wake/EOF.
     - Caps collected answer at 4000 characters and decodes UTF-8 with replacement.
     """
     import select
@@ -22416,16 +22423,8 @@ def prompt_for_free_text(
     if isinstance(question, str):
         prompt_str = question
     elif hasattr(question, "members") and hasattr(question, "group_id"):
-        from agent_workflows import term
+        from agent_workflows import question_inbox as _qi
 
-        clean_text = term.strip_ansi(getattr(question, "text", ""))
-        opts_str = ""
-        opts = getattr(question, "options", [])
-        if opts:
-            opts_lines = ["Options:"]
-            for idx, opt in enumerate(opts, 1):
-                opts_lines.append(f"  {idx}. {term.strip_ansi(opt)}")
-            opts_str = "\n" + "\n".join(opts_lines)
         members_len = len(getattr(question, "members", []))
         unblock_cnt = getattr(question, "unblock_count", 0)
         asked_by = ", ".join(
@@ -22433,9 +22432,10 @@ def prompt_for_free_text(
             for m in getattr(question, "members", [])
         )
         asked_line = f"Asked by: {asked_by}\n" if asked_by else ""
+        body_block = _qi.format_question_group_for_terminal(question)
         prompt_str = (
             f"\n[{question.group_id}] ({members_len} raiser(s), unblocks {unblock_cnt}):\n"
-            f"{asked_line}\n{clean_text}{opts_str}\n\nAnswer: "
+            f"{asked_line}\n{body_block}\n\nAnswer: "
         )
     elif hasattr(question, "heading"):
         art_id = getattr(question, "artifact_id6", "")
@@ -22449,25 +22449,48 @@ def prompt_for_free_text(
     mark_active_startup_first_question()
     from agent_workflows import tab_status as _tab_status
 
+    tick = max(0.05, float(poll_interval))
     with _tab_status.temporary_active_state(_tab_status.STATE_ASKING):
         print(prompt_str, end="", file=stream_err, flush=True)
 
-        deadline = time.monotonic() + float(timeout)
+        deadline: float | None = (
+            (time.monotonic() + float(timeout)) if timeout is not None else None
+        )
         collected = bytearray()
 
         while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0.0:
-                return None
+            if poll_callback is not None:
+                try:
+                    if poll_callback():
+                        return None
+                except (KeyboardInterrupt, SystemExit):
+                    raise
+                except Exception:
+                    pass
+
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0.0:
+                    return None
+                wait_for = (
+                    min(tick, max(0.0, remaining))
+                    if poll_callback is not None
+                    else max(0.0, remaining)
+                )
+            else:
+                wait_for = tick
+
             try:
-                ready, _w, _x = select.select([stream_in], [], [], max(0.0, remaining))
+                ready, _w, _x = select.select([stream_in], [], [], wait_for)
             except (KeyboardInterrupt, SystemExit):
                 raise
             except Exception:
                 return None
 
             if not ready:
-                return None
+                if deadline is not None and poll_callback is None:
+                    return None
+                continue
 
             try:
                 if read_chunk is not None:
@@ -28849,7 +28872,7 @@ def drain_parked_questions(
     """
     import argparse
     import getpass
-    from agent_workflows import question_inbox, term
+    from agent_workflows import question_inbox
 
     p_run_dir = Path(run_dir).resolve()
     if not isinstance(state, dict):
@@ -28909,37 +28932,110 @@ def drain_parked_questions(
         except Exception:
             pass
 
-        q_timeout = resolve_question_timeout(options.get("question_timeout"))
+        explicit_timeout = bool(options.get("question_timeout_explicit"))
+        q_timeout: float | None = (
+            float(resolve_question_timeout(options.get("question_timeout")))
+            if explicit_timeout
+            else None
+        )
         interrupted = False
         recorded_anything = False
+        answered_out_of_band = False
+        stop_requested = False
+
+        # At drain no other item can progress, so interactive mode waits for an answer
+        # (here on stdin, via `aw runs answer`, Telegram, or answers.md) unless an explicit
+        # `--question-timeout` bound was requested.
+        if q_timeout is None:
+            with contextlib.suppress(Exception):
+                print(
+                    "  (waiting for your answer; reply here, via `aw runs answer`, or press Ctrl-C to park and exit)",
+                    file=stream_err,
+                    flush=True,
+                )
+
+        from agent_workflows import runner_stop as _runner_stop
 
         for g in groups:
-            if interrupted:
+            if interrupted or stop_requested:
                 break
 
-            clean_text = term.strip_ansi(g.text)
-            opts_lines = []
-            if g.options:
-                opts_lines.append("Options:")
-                for idx, opt in enumerate(g.options, 1):
-                    opts_lines.append(f"  {idx}. {term.strip_ansi(opt)}")
-            opts_str = ("\n" + "\n".join(opts_lines)) if opts_lines else ""
-
+            body_block = question_inbox.format_question_group_for_terminal(g)
             prompt_str = (
                 f"\n[{g.group_id}] ({len(g.members)} raiser(s), unblocks {g.unblock_count}):\n"
-                f"{clean_text}{opts_str}\nAnswer: "
+                f"{body_block}\n\nAnswer: "
             )
 
+            group_qids = [m.question_id for m in g.members if m.question_id]
+
+            def _drain_poll() -> bool:
+                nonlocal answered_out_of_band, stop_requested
+                if _runner_stop.poll_stop(p_run_dir) is not None:
+                    stop_requested = True
+                    return True
+                with contextlib.suppress(Exception):
+                    if question_inbox.ingest_answers_file(p_run_dir, state) > 0:
+                        answered_out_of_band = True
+                        return True
+                answers_dir = p_run_dir / "answers"
+                if answers_dir.is_dir():
+                    for qid in group_qids:
+                        if (answers_dir / f"{qid}.json").is_file():
+                            answered_out_of_band = True
+                            return True
+                return False
+
+            wait_started = time.monotonic()
             try:
                 ans_text = prompt_for_free_text(
                     prompt_str,
                     timeout=q_timeout,
                     stdin=stdin,
                     stderr=stderr,
+                    poll_callback=_drain_poll,
                 )
             except (KeyboardInterrupt, SystemExit):
                 interrupted = True
                 break
+
+            if stop_requested:
+                break
+
+            if answered_out_of_band:
+                recorded_anything = True
+                with contextlib.suppress(Exception):
+                    print(
+                        f"\n  ✓ Answer received out-of-band for [{g.group_id}]; resuming.",
+                        file=stream_err,
+                        flush=True,
+                    )
+                continue
+
+            if (
+                ans_text is None
+                and q_timeout is not None
+                and (time.monotonic() - wait_started >= max(0.0, q_timeout - 0.05))
+            ):
+                with contextlib.suppress(Exception):
+                    print(
+                        f"\n  [question prompt timed out after {int(round(q_timeout))}s; question remains parked]",
+                        file=stream_err,
+                        flush=True,
+                    )
+                fn_append_to = (
+                    append_jsonl
+                    if append_jsonl is not None
+                    else globals()["append_jsonl"]
+                )
+                fn_append_to(
+                    p_run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "question-prompt-timeout",
+                        "group_id": g.group_id,
+                        "timeout_seconds": int(round(q_timeout)),
+                    },
+                )
 
             if ans_text is not None and ans_text.strip():
                 raw_ans = ans_text.strip()
@@ -29742,6 +29838,12 @@ QUESTION_EVIDENCE_ITEM_MAX_LENGTH: int = 500
 QUESTION_OPTIONS_MIN_COUNT: int = 2
 QUESTION_OPTIONS_MAX_COUNT: int = 8
 QUESTION_OPTION_MAX_LENGTH: int = 120
+QUESTION_OPTION_DETAIL_MAX_LENGTH: int = 500
+QUESTION_RECOMMENDATION_MAX_LENGTH: int = 1000
+QUESTION_UNCERTAINTY_MAX_LENGTH: int = 1000
+QUESTION_RECOMMENDATION_STRENGTHS: frozenset[str] = frozenset(
+    {"very weak", "weak", "medium", "strong", "very strong", "none"}
+)
 QUESTIONS_MAX_COUNT: int = 20
 
 
@@ -29751,11 +29853,15 @@ def questions_schema_literal(artifact_id6: str = "id6") -> str:
         f'  "{QUESTIONS_KEY}": [\n'
         f"    {{\n"
         f'      "question_id": "terse-local-id",\n'
-        f'      "text": "the question for the human (max {QUESTION_TEXT_MAX_LENGTH} chars)",\n'
+        f'      "text": "plain-language question for the human following askme Compose a question the user can answer: subject & purpose, current situation, and exact decision needed; explain every term and ID before or after naming it (max {QUESTION_TEXT_MAX_LENGTH} chars)",\n'
         f'      "artifact_id6": "{artifact_id6}",\n'
         f'      "gates_verdict": true,\n'
         f'      "evidence": ["prior artifact or repo evidence consulted (max {QUESTION_EVIDENCE_MAX_COUNT} items, each <= {QUESTION_EVIDENCE_ITEM_MAX_LENGTH} chars)"],\n'
         f'      "options": ["short choice 1", "short choice 2 (optional, {QUESTION_OPTIONS_MIN_COUNT}-{QUESTION_OPTIONS_MAX_COUNT} items, each <= {QUESTION_OPTION_MAX_LENGTH} chars)"],\n'
+        f'      "option_details": ["plain-language meaning, costs, and consequences of choice 1 (optional, same count/order as options, each <= {QUESTION_OPTION_DETAIL_MAX_LENGTH} chars)", "meaning and consequences of choice 2"],\n'
+        f'      "recommendation": "which option you favor and the factual reason why (optional, <= {QUESTION_RECOMMENDATION_MAX_LENGTH} chars)",\n'
+        f'      "recommendation_strength": "medium",\n'
+        f'      "uncertainty": "unknowns that could change the answer (optional, <= {QUESTION_UNCERTAINTY_MAX_LENGTH} chars)",\n'
         f'      "allow_free_text": true\n'
         f"    }}\n"
         f"  ],"
@@ -30561,6 +30667,70 @@ def validate_questions(outcome: Any, *, item_id6: str) -> QuestionsVerdict:
                 f"question entry at index {idx} 'allow_free_text' must be a boolean"
             )
 
+        # 8. Optional askme composition fields (option_details, recommendation, recommendation_strength, uncertainty)
+        option_details = entry_dict.get("option_details")
+        if option_details is not None:
+            if not isinstance(option_details, (list, tuple)):
+                entry_violations.append(
+                    f"question entry at index {idx} 'option_details' must be a list of strings"
+                )
+            else:
+                if options is not None and len(option_details) != len(options):
+                    entry_violations.append(
+                        f"question entry at index {idx} 'option_details' length ({len(option_details)}) "
+                        f"must match 'options' length ({len(options)})"
+                    )
+                for od_idx, od in enumerate(option_details):
+                    if not isinstance(od, str):
+                        entry_violations.append(
+                            f"question entry at index {idx} 'option_details' item {od_idx} must be a string, "
+                            f"got {type(od).__name__}"
+                        )
+                    elif len(od) > QUESTION_OPTION_DETAIL_MAX_LENGTH:
+                        entry_violations.append(
+                            f"question entry at index {idx} 'option_details' item {od_idx} exceeds "
+                            f"{QUESTION_OPTION_DETAIL_MAX_LENGTH} characters ({len(od)})"
+                        )
+
+        recommendation = entry_dict.get("recommendation")
+        if recommendation is not None:
+            if not isinstance(recommendation, str):
+                entry_violations.append(
+                    f"question entry at index {idx} 'recommendation' must be a string"
+                )
+            elif len(recommendation) > QUESTION_RECOMMENDATION_MAX_LENGTH:
+                entry_violations.append(
+                    f"question entry at index {idx} 'recommendation' exceeds "
+                    f"{QUESTION_RECOMMENDATION_MAX_LENGTH} characters ({len(recommendation)})"
+                )
+
+        recommendation_strength = entry_dict.get("recommendation_strength")
+        if recommendation_strength is not None:
+            if not isinstance(recommendation_strength, str):
+                entry_violations.append(
+                    f"question entry at index {idx} 'recommendation_strength' must be a string"
+                )
+            elif (
+                recommendation_strength.strip().lower()
+                not in QUESTION_RECOMMENDATION_STRENGTHS
+            ):
+                entry_violations.append(
+                    f"question entry at index {idx} 'recommendation_strength' {recommendation_strength!r} "
+                    f"must be one of {sorted(QUESTION_RECOMMENDATION_STRENGTHS)}"
+                )
+
+        uncertainty = entry_dict.get("uncertainty")
+        if uncertainty is not None:
+            if not isinstance(uncertainty, str):
+                entry_violations.append(
+                    f"question entry at index {idx} 'uncertainty' must be a string"
+                )
+            elif len(uncertainty) > QUESTION_UNCERTAINTY_MAX_LENGTH:
+                entry_violations.append(
+                    f"question entry at index {idx} 'uncertainty' exceeds "
+                    f"{QUESTION_UNCERTAINTY_MAX_LENGTH} characters ({len(uncertainty)})"
+                )
+
         if entry_violations:
             all_violations.extend(entry_violations)
             continue
@@ -30578,6 +30748,20 @@ def validate_questions(outcome: Any, *, item_id6: str) -> QuestionsVerdict:
             clean_entry["options"] = [
                 sanitize_front_matter_text(str(opt).strip()) for opt in options
             ]
+        if option_details is not None:
+            clean_entry["option_details"] = [
+                sanitize_front_matter_text(str(od).strip()) for od in option_details
+            ]
+        if recommendation is not None and recommendation.strip():
+            clean_entry["recommendation"] = sanitize_front_matter_text(
+                recommendation.strip()
+            )
+        if recommendation_strength is not None and recommendation_strength.strip():
+            clean_entry["recommendation_strength"] = (
+                recommendation_strength.strip().lower()
+            )
+        if uncertainty is not None and uncertainty.strip():
+            clean_entry["uncertainty"] = sanitize_front_matter_text(uncertainty.strip())
         if allow_free_text is not None:
             clean_entry["allow_free_text"] = bool(allow_free_text)
         else:
@@ -37166,11 +37350,18 @@ def build_review_prompt(
         + lane_containment.isolation_notice(lane_root)
         + f"\n\nRequired JSON outcome: {paths.prompt_outcome}\n\n"
         f"When a material question is the HUMAN'S to decide under the askme three-way sort "
-        f"(see `.aw/system/workflows/askme/askme.md` 'Establish facts before asking'), "
+        f"(see `.aw/system/workflows/askme/askme.md` 'Establish facts before asking', "
+        f"'Compose a question the user can answer', and 'Check before sending'), "
         f"record it in `questions[]` in {paths.prompt_outcome} using the exact entry schema "
-        f"below (`gates_verdict: true` parks a blocking question as `awaiting-human`; put "
-        f"detailed option trade-offs in `text` so each entry in `options` stays <= "
-        f"{QUESTION_OPTION_MAX_LENGTH} chars) and exit normally; never prompt and never wait:\n"
+        f"below (`gates_verdict: true` parks a blocking question as `awaiting-human`). "
+        f"Write every question in clear, plain, jargon-free language assuming the human has not "
+        f"opened the repository and does not know internal IDs (`id6`, `E-*`, `V-*`, `OQ-*`): "
+        f"explain every artifact, step, or term in plain language before or right after naming its "
+        f"ID; state subject and purpose, current situation, and exact decision needed in `text`; "
+        f"keep each `options` label <= {QUESTION_OPTION_MAX_LENGTH} chars and put each option's "
+        f"meaning, costs, and consequences in `option_details`; include `recommendation`, "
+        f"`recommendation_strength` (`very weak`..`very strong` or `none`), and `uncertainty`. "
+        f"Exit normally; never prompt and never wait:\n"
         f"{q_schema}\n\n" + REVIEW_FOREGROUND_RULE
     )
 
@@ -40036,10 +40227,17 @@ source, tests, history, and current primary documentation. If a reasonable recom
 approach exists, choose it, record it in the decisions/questions register with evidence,
 alternatives, rationale, confidence, scope, reversibility, and validation, then continue.
 When a material question is the HUMAN'S to decide under the askme three-way sort (see
-`.aw/system/workflows/askme/askme.md` 'Establish facts before asking'), record it in
-`questions[]` (which supersedes `deferred_question_ids`), finish all independent work,
-and exit normally; never prompt and never wait. A question resolved from evidence still
-gets a `D-*` row in the decisions/questions register.
+`.aw/system/workflows/askme/askme.md` 'Establish facts before asking', 'Compose a question
+the user can answer', and 'Check before sending'), record it in `questions[]`
+(which supersedes `deferred_question_ids`), finish all independent work, and exit normally;
+never prompt and never wait. Every entry in `questions[]` MUST follow `.aw/system/workflows/askme/askme.md`:
+write in clear, plain, jargon-free language assuming the human has not opened the repository
+and does not know internal IDs (`id6`, `E-*`, `V-*`, `OQ-*`); explain every artifact, step,
+or term before or right after naming its ID; state subject and purpose, current situation,
+and exact decision needed in `text`; put each option's plain-language meaning, costs, and
+consequences in `option_details`; and populate `recommendation`, `recommendation_strength`
+(`very weak`..`very strong` or `none`), and `uncertainty`. A question resolved from evidence
+still gets a `D-*` row in the decisions/questions register.
 Continue every independent part of this IPD despite an emergent question.
 If the IPD itself says it needs a human present while it runs (for example it must ask the
 maintainer live questions), do only what it allows without one, then record a `proposal` with

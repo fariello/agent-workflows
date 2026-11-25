@@ -1504,3 +1504,190 @@ def test_e08_a17_preflight_stale_artifact_routes_unanswered(
     state = runner_shared.load_state(run_dir)
     item20 = next(it for it in state["queue"] if it["id6"] == stale_id)
     assert item20["status"] == runner_shared.AWAITING_HUMAN_STATUS
+
+
+def test_interactive_drain_waits_indefinitely_by_default_and_wakes_on_out_of_band_answer(
+    tmp_path: Path,
+) -> None:
+    """At drain with no explicit --question-timeout, interactive mode passes timeout=None and wakes when an answer lands in answers/."""
+    repo = _create_test_repo(tmp_path)
+    plan = _create_plan_file(repo, "drn001", setid="qdrn", order=1)
+    run_dir = repo / ".aw" / "records" / "runs" / "run-drain-wait"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    item = {
+        "id6": "drn001",
+        "setid": "qdrn",
+        "position": 1,
+        "action": "execute",
+        "status": runner_shared.AWAITING_HUMAN_STATUS,
+        "configured_file": str(plan),
+        "attempts": [{"number": 1}],
+        "question_ids": ["01-drn001-a1-Q1"],
+    }
+    state: dict[str, Any] = {
+        "repo": str(repo),
+        "run_id": "run-drain-wait",
+        "queue": [item],
+        "options": {
+            "question_timeout": 300,
+            "question_timeout_explicit": False,
+            "question_rounds": 2,
+        },
+    }
+    question_inbox.write_question(
+        run_dir,
+        item,
+        {
+            "question_id": "Q1",
+            "text": "Should the cache expire entries after 10 minutes or stay warm until invalidated?",
+            "artifact_id6": "drn001",
+            "gates_verdict": True,
+            "evidence": ["cache.py: CacheStore currently has no TTL"],
+            "options": ["10-minute TTL", "Manual invalidation only"],
+            "option_details": [
+                "Caps stale reads at 10 minutes with a small miss-rate cost.",
+                "Zero extra misses, but stale data persists until explicitly cleared.",
+            ],
+            "recommendation": "10-minute TTL prevents unbounded stale entries.",
+            "recommendation_strength": "strong",
+            "uncertainty": "Peak cache miss latency has not been benchmarked.",
+        },
+        attempt=1,
+        repo=repo,
+    )
+
+    observed: dict[str, Any] = {}
+
+    def fake_prompt(
+        prompt_str: Any,
+        *,
+        timeout: float | None = None,
+        stdin: Any = None,
+        stderr: Any = None,
+        poll_callback: Any = None,
+        **_kwargs: Any,
+    ) -> str | None:
+        observed["timeout"] = timeout
+        observed["prompt_str"] = str(prompt_str)
+        assert poll_callback is not None
+        assert poll_callback() is False
+        # Simulate another terminal running `aw runs answer` while drain is waiting.
+        groups = question_inbox.group_open_questions(run_dir, state)
+        question_inbox.write_group_answer(
+            run_dir,
+            state,
+            groups[0].group_id,
+            answer="10-minute TTL",
+            choice=0,
+            channel="cli",
+            sender="tester",
+            actor="human",
+        )
+        assert poll_callback() is True
+        return None
+
+    with (
+        mock.patch(
+            "agent_workflows.runner_shared.is_interactive_run", return_value=True
+        ),
+        mock.patch(
+            "agent_workflows.runner_shared.prompt_for_free_text",
+            side_effect=fake_prompt,
+        ),
+    ):
+        act = runner_shared.drain_parked_questions(
+            run_dir,
+            state,
+            labels=runner_shared.OC_HOST_LABELS,
+            rounds_used=0,
+        )
+
+    assert act == "continue"
+    assert observed["timeout"] is None
+    assert "Recommendation (strong):" in observed["prompt_str"]
+    assert "Uncertainty:" in observed["prompt_str"]
+    assert "Evidence:" in observed["prompt_str"]
+    assert "Caps stale reads at 10 minutes" in observed["prompt_str"]
+
+
+def test_interactive_drain_honors_explicit_question_timeout_and_logs_event(
+    tmp_path: Path,
+) -> None:
+    """When question_timeout_explicit is True, interactive drain passes that timeout and logs question-prompt-timeout on expiry."""
+    repo = _create_test_repo(tmp_path)
+    plan = _create_plan_file(repo, "drn002", setid="qdrn", order=1)
+    run_dir = repo / ".aw" / "records" / "runs" / "run-drain-explicit-timeout"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    item = {
+        "id6": "drn002",
+        "setid": "qdrn",
+        "position": 1,
+        "action": "execute",
+        "status": runner_shared.AWAITING_HUMAN_STATUS,
+        "configured_file": str(plan),
+        "attempts": [{"number": 1}],
+        "question_ids": ["01-drn002-a1-Q1"],
+    }
+    state: dict[str, Any] = {
+        "repo": str(repo),
+        "run_id": "run-drain-explicit-timeout",
+        "queue": [item],
+        "options": {
+            "question_timeout": 1,
+            "question_timeout_explicit": True,
+            "question_rounds": 2,
+        },
+    }
+    question_inbox.write_question(
+        run_dir,
+        item,
+        {
+            "question_id": "Q1",
+            "text": "Proceed with default timeout?",
+            "artifact_id6": "drn002",
+            "gates_verdict": True,
+            "evidence": ["config.py"],
+        },
+        attempt=1,
+        repo=repo,
+    )
+
+    seen_timeouts: list[Any] = []
+
+    def fake_expired_prompt(
+        *_args: Any, timeout: float | None = None, **_kwargs: Any
+    ) -> None:
+        seen_timeouts.append(timeout)
+        return None
+
+    mono_vals = iter([100.0, 102.0])
+    with (
+        mock.patch(
+            "agent_workflows.runner_shared.is_interactive_run", return_value=True
+        ),
+        mock.patch(
+            "agent_workflows.runner_shared.prompt_for_free_text",
+            side_effect=fake_expired_prompt,
+        ),
+        mock.patch(
+            "agent_workflows.runner_shared.time.monotonic",
+            side_effect=lambda: next(mono_vals, 102.0),
+        ),
+    ):
+        act = runner_shared.drain_parked_questions(
+            run_dir,
+            state,
+            labels=runner_shared.OC_HOST_LABELS,
+            rounds_used=0,
+        )
+
+    assert act == "exit"
+    assert seen_timeouts == [1.0]
+    events = [
+        json.loads(line)
+        for line in (run_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert any(e.get("event") == "question-prompt-timeout" for e in events)

@@ -132,6 +132,11 @@ class QuestionGroup:
         allow_free_text: bool,
         members: list[Any],
         unblock_count: int = 0,
+        option_details: list[str] | None = None,
+        recommendation: str | None = None,
+        recommendation_strength: str | None = None,
+        uncertainty: str | None = None,
+        evidence: list[str] | None = None,
     ) -> None:
         self.group_id = group_id
         self.fingerprint = fingerprint
@@ -143,6 +148,11 @@ class QuestionGroup:
             for m in members
         ]
         self.unblock_count = unblock_count
+        self.option_details = list(option_details) if option_details else None
+        self.recommendation = recommendation or None
+        self.recommendation_strength = recommendation_strength or None
+        self.uncertainty = uncertainty or None
+        self.evidence = list(evidence) if evidence else []
 
     @property
     def raisers(self) -> list[str]:
@@ -179,6 +189,46 @@ class QuestionGroup:
             f"QuestionGroup(group_id={self.group_id!r}, "
             f"members={len(self.members)}, unblock_count={self.unblock_count})"
         )
+
+
+def format_question_group_for_terminal(group: Any) -> str:
+    """Render a QuestionGroup with all askme context (options, details, recommendation, uncertainty, evidence)."""
+    from agent_workflows import term
+
+    lines: list[str] = [term.strip_ansi(str(getattr(group, "text", "") or ""))]
+    opts = getattr(group, "options", None) or []
+    opt_details = getattr(group, "option_details", None) or []
+    if opts:
+        lines.append("")
+        lines.append("Options:")
+        for idx, opt in enumerate(opts, 1):
+            lines.append(f"  {idx}. {term.strip_ansi(str(opt))}")
+            if idx - 1 < len(opt_details) and str(opt_details[idx - 1]).strip():
+                lines.append(
+                    f"     {term.strip_ansi(str(opt_details[idx - 1]).strip())}"
+                )
+
+    rec = getattr(group, "recommendation", None)
+    rec_str = getattr(group, "recommendation_strength", None)
+    if rec:
+        strength_lbl = f" ({term.strip_ansi(str(rec_str))})" if rec_str else ""
+        lines.append("")
+        lines.append(f"Recommendation{strength_lbl}: {term.strip_ansi(str(rec))}")
+
+    unc = getattr(group, "uncertainty", None)
+    if unc:
+        lines.append(f"Uncertainty: {term.strip_ansi(str(unc))}")
+
+    ev_list = getattr(group, "evidence", None) or []
+    if ev_list:
+        lines.append("")
+        lines.append("Evidence:")
+        for ev in ev_list:
+            ev_clean = term.strip_ansi(str(ev)).strip()
+            if ev_clean:
+                lines.append(f"  - {ev_clean}")
+
+    return "\n".join(lines)
 
 
 class GroupAnswerResult(NamedTuple):
@@ -416,6 +466,16 @@ def write_question(
     }
     if question.get("oq_id"):
         payload["oq_id"] = str(question["oq_id"])
+    if question.get("option_details"):
+        payload["option_details"] = list(question["option_details"])
+    if question.get("recommendation"):
+        payload["recommendation"] = str(question["recommendation"]).strip()
+    if question.get("recommendation_strength"):
+        payload["recommendation_strength"] = (
+            str(question["recommendation_strength"]).strip().lower()
+        )
+    if question.get("uncertainty"):
+        payload["uncertainty"] = str(question["uncertainty"]).strip()
 
     # Write temp file and link atomically with O_EXCL semantics
     tmp_path = questions_dir / f".tmp_{qid}_{os.getpid()}_{time.time_ns()}"
@@ -1148,6 +1208,39 @@ def group_questions(
         else:
             unblock_count = len(raisers)
 
+        rep_raw = first.get("record")
+        rep_opt_details = (
+            list(rep_raw.get("option_details"))
+            if isinstance(rep_raw, Mapping) and rep_raw.get("option_details")
+            else None
+        )
+        rep_rec = (
+            str(rep_raw.get("recommendation")).strip()
+            if isinstance(rep_raw, Mapping) and rep_raw.get("recommendation")
+            else None
+        )
+        rep_rec_strength = (
+            str(rep_raw.get("recommendation_strength")).strip()
+            if isinstance(rep_raw, Mapping) and rep_raw.get("recommendation_strength")
+            else None
+        )
+        rep_unc = (
+            str(rep_raw.get("uncertainty")).strip()
+            if isinstance(rep_raw, Mapping) and rep_raw.get("uncertainty")
+            else None
+        )
+        rep_evidence: list[str] = []
+        seen_ev: set[str] = set()
+        for item_nr in member_dicts:
+            raw_r = item_nr.get("record")
+            evs = raw_r.get("evidence") if isinstance(raw_r, Mapping) else None
+            if isinstance(evs, (list, tuple)):
+                for ev in evs:
+                    ev_s = str(ev).strip()
+                    if ev_s and ev_s not in seen_ev:
+                        seen_ev.add(ev_s)
+                        rep_evidence.append(ev_s)
+
         groups.append(
             QuestionGroup(
                 group_id=gid,
@@ -1157,6 +1250,11 @@ def group_questions(
                 allow_free_text=allow_free,
                 members=members,
                 unblock_count=unblock_count,
+                option_details=rep_opt_details,
+                recommendation=rep_rec,
+                recommendation_strength=rep_rec_strength,
+                uncertainty=rep_unc,
+                evidence=rep_evidence,
             )
         )
 
@@ -1374,9 +1472,34 @@ def write_answers_file(
         lines.append(f"- Unblocks: {g.unblock_count} item(s)")
         if g.options:
             lines.append("- Options:")
+            opt_details = g.option_details or []
             for idx, opt in enumerate(g.options, 1):
                 clean_opt = _clean_worker_text_for_answers_file(opt)
                 lines.append(f"  {idx}. {clean_opt}")
+                if idx - 1 < len(opt_details) and str(opt_details[idx - 1]).strip():
+                    clean_det = _clean_worker_text_for_answers_file(
+                        opt_details[idx - 1]
+                    )
+                    lines.append(f"     {clean_det}")
+        if g.recommendation:
+            strength_lbl = (
+                f" ({_clean_worker_text_for_answers_file(g.recommendation_strength)})"
+                if g.recommendation_strength
+                else ""
+            )
+            lines.append(
+                f"- Recommendation{strength_lbl}: {_clean_worker_text_for_answers_file(g.recommendation)}"
+            )
+        if g.uncertainty:
+            lines.append(
+                f"- Uncertainty: {_clean_worker_text_for_answers_file(g.uncertainty)}"
+            )
+        if g.evidence:
+            lines.append("- Evidence:")
+            for ev in g.evidence:
+                clean_ev = _clean_worker_text_for_answers_file(ev)
+                if clean_ev:
+                    lines.append(f"  - {clean_ev}")
         lines.append("")
 
         # Quoted worker text: every line prefixed `> `
