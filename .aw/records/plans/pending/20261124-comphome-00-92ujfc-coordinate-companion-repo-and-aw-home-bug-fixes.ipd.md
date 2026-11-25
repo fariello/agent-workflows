@@ -7,6 +7,9 @@
 - Scope-Paths: .aw/records/plans/pending/20261124-comphome-00-92ujfc-coordinate-companion-repo-and-aw-home-bug-fixes.ipd.md
 - Item-Dependencies: executed:4vnd36, executed:7eivm2, executed:7gverp, executed:7hfx7r, executed:mmuv3v, executed:ywl7uc
 - Status: to-review
+- Coverage: pass
+- Coverage-Fingerprint: 78bb57faef4d8c1e8d6c60277233bbde672b663615997fb00d04e80e74bdcca6
+- Coverage-Checked: 2026-11-25 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Priority: high
 - Work-Kind: bug
 - Blocks-Release: next
@@ -20,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-25 coverage pass (aw oc run): fingerprint 78bb57faef4d, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-24 to-review (antigravity): authored orchestrator for `/assess-bugs` (companion repos and `~/.aw/` scope), coordinating six child IPDs (`ywl7uc`, `7gverp`, `mmuv3v`, `7eivm2`, `7hfx7r`, `4vnd36`).
 
 ## Goal
