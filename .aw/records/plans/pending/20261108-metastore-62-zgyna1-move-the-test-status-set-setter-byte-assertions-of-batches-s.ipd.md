@@ -24,6 +24,7 @@
 
 ## Workflow history
 - 2026-11-16 approved (aw set): status set to approved
+- 2026-11-25 executed in lane (opencode its_direct/pt3-claude-opus-5.5-1m-us, run run-20261125T103744Z-2547641): S18, S19, S20 converted in `5f3299b21`; E-01..E-04 performed, V-01..V-04 evidence recorded; finalize left to the runner.
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED.
 - 2026-11-08 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): split from w13bkp (batches S18, S19, S20) per maintainer step-complexity rule (no single E/V item hides hundreds of steps; at most 4 batch items per plan).
@@ -45,27 +46,27 @@ Batch rule, applied to every batch E-item of this plan:
 
 ### Task group 1: batches
 
-- [ ] E-01 Batch S18: convert the setter-byte assertions of `tests/test_status_set.py` (class `TestStatusSetCommands`) (29 candidate assertion lines at `ac76110f4`, F-28). Ensure directory existence (`mkdir -p .aw/state/zgyna1`) and apply the batch rule with `<batch>` = `S18`.
+- [x] E-01 Batch S18: convert the setter-byte assertions of `tests/test_status_set.py` (class `TestStatusSetCommands`) (29 candidate assertion lines at `ac76110f4`, F-28). Ensure directory existence (`mkdir -p .aw/state/zgyna1`) and apply the batch rule with `<batch>` = `S18`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S18 outcome lists; the remaining F-28 matches in the batch's modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Batch S19: convert the setter-byte assertions of `tests/test_status_set.py` (classes `TestApprovedWritesApprovalField`, `BlocksReleaseSetterTests`, `TestGateFieldClearingOnStatusChange`) (23 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S19`.
+- [x] E-02 Batch S19: convert the setter-byte assertions of `tests/test_status_set.py` (classes `TestApprovedWritesApprovalField`, `BlocksReleaseSetterTests`, `TestGateFieldClearingOnStatusChange`) (23 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S19`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S19 outcome lists; the remaining F-28 matches in the batch's modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Batch S20: convert the setter-byte assertions of `tests/test_status_set.py` (classes `ApprovalGateTests`, `SharedSetidCrossTypeResolutionTests`, `FlaglessConfirmationRefusalTests`, `TerminalReopenRefusalTests`, `SetterRefusalRetryCommandTests`), `tests/test_walkthrough_id6.py`, `tests/test_work_begin_plan_path_outside_root.py` (30 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S20`.
+- [x] E-03 Batch S20: convert the setter-byte assertions of `tests/test_status_set.py` (classes `ApprovalGateTests`, `SharedSetidCrossTypeResolutionTests`, `FlaglessConfirmationRefusalTests`, `TerminalReopenRefusalTests`, `SetterRefusalRetryCommandTests`), `tests/test_walkthrough_id6.py`, `tests/test_work_begin_plan_path_outside_root.py` (30 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S20`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S20 outcome lists; the remaining F-28 matches in the batch's modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-04 Finish this part: run the batch rule's command over every module of S18, S19, S20 once more and confirm the outcome multiset equals the union of the batches' `-before.txt` lists; write F-28's remaining-match table for this part (one row per remaining match with its class) so `cxxmyv` E-07 has the exact list of `setter-byte, exact spelling` rows it must still change; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit zgyna1 -- <each changed path>`, one commit per batch allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-04 Finish this part: run the batch rule's command over every module of S18, S19, S20 once more and confirm the outcome multiset equals the union of the batches' `-before.txt` lists; write F-28's remaining-match table for this part (one row per remaining match with its class) so `cxxmyv` E-07 has the exact list of `setter-byte, exact spelling` rows it must still change; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit zgyna1 -- <each changed path>`, one commit per batch allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: the union comparison is empty; F-28 for this part is written; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -78,7 +79,7 @@ Batch rule, applied to every batch E-item of this plan:
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-28 | Copied from `w13bkp` F-28 (measured at `ac76110f4`): 467 candidate setter-byte lines in 74 modules, split into 20 batches S01 to S20 of at most about 30 lines. This part: S18, S19, S20, 82 lines. | Each batch is at most about 30 one-line conversions in at most 10 modules. The final table (written by E-04) lists every remaining match with its class. |
+| F-28 | Copied from `w13bkp` F-28 (measured at `ac76110f4`): 467 candidate setter-byte lines in 74 modules, split into 20 batches S01 to S20 of at most about 30 lines. This part: S18, S19, S20, 82 lines at `ac76110f4`. Re-measured with the F-28 pattern at `ed7c1e16a` (before) and `5f3299b21` (after), per test class (`rg -c` equivalent, one count per class): `tests/test_status_set.py::TestStatusSetCommands` 28 -> 0 (S18); `TestApprovedWritesApprovalField` 10 -> 0, `BlocksReleaseSetterTests` 8 -> 0, `TestGateFieldClearingOnStatusChange` 5 -> 0 (S19, 23); `ApprovalGateTests` 7 -> 0, `SharedSetidCrossTypeResolutionTests` 7 -> 0, `FlaglessConfirmationRefusalTests` 4 -> 0, `TerminalReopenRefusalTests` 5 -> 0, `SetterRefusalRetryCommandTests` 4 -> 0, `tests/test_walkthrough_id6.py` 1 -> 0, `tests/test_work_begin_plan_path_outside_root.py` 2 -> 0 (S20, 30); no other class of `tests/test_status_set.py` held a match. | Remaining-match table for this part: EMPTY. 81 lines at `ed7c1e16a` (S18 had 28, not the 29 counted at `ac76110f4`), 81 converted, 0 `displayed-output assertion`, 0 `legacy-format subject`, 0 `setter-byte, exact spelling`, so `cxxmyv` E-07 has no row from S18 to S20 to change. Conversion notes: the five `- Approval:` presence checks (value-agnostic, because the setter writes a dated value) became `assert_field(plan, "approval", <value read back through artifact_meta.read_text>)`, which fails when the field is absent and also enforces exactly one bullet in the metadata region; this subsumes the former exactly-one count and the before-first-H2 check in `TestApprovedWritesApprovalField::test_set_approved_inserts_approval_field` (decision `08-zgyna1-D1`). The four `assertNotIn("- Approval:", ...)` became `assert_no_field(plan, "approval")`. The two `- Id:` regex extractions in `tests/test_work_begin_plan_path_outside_root.py` now read the id6 through `artifact_meta.read_text` and assert it with `assert_field(plan_file, "id", id6)` (decision `08-zgyna1-D2`). The unprefixed body-wide checks `assertNotIn("Gate-Kind", text)`/`assertNotIn("Gate-Ref", text)` are outside the F-28 pattern and were kept as written, because they check the whole file and `assert_no_field` checks only the metadata region (same reasoning as `01-iog3cw-D1`). |
 | F-29 | Pre-conversion test suite baseline for the 3 target modules: `tests/test_status_set.py` (110 passed), `tests/test_walkthrough_id6.py` (4 passed), `tests/test_work_begin_plan_path_outside_root.py` (3 passed); 117 passed in 13.04s at HEAD `cc9a3a3e1`. | Baseline context for step 1 outcome preservation and E-04 finishing gate. |
 
 ## Proposed changes (ordered, validatable)
@@ -138,25 +139,41 @@ No spec change; prepares part of `4sd62s` section 6 and section 7 step 9 (the te
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the empty `diff .aw/state/zgyna1/S18-before.txt .aw/state/zgyna1/S18-after.txt`, the before and after F-28 `rg -c` count over the batch's named `tests/test_status_set.py` test classes, one line per class, and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/zgyna1/S18-before.txt .aw/state/zgyna1/S18-after.txt`: empty (exit 0, no output; 23 lines in both files, all `PASSED`).
+    - F-28 count over `tests/test_status_set.py::TestStatusSetCommands` (before at `ed7c1e16a` -> after at `5f3299b21`): 28 -> 0.
+    - Remaining matches: none, so no class to assign.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the empty `diff .aw/state/zgyna1/S19-before.txt .aw/state/zgyna1/S19-after.txt`, the before and after F-28 `rg -c` count over the batch's named `tests/test_status_set.py` test classes, one line per class, and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/zgyna1/S19-before.txt .aw/state/zgyna1/S19-after.txt`: empty (exit 0, no output; 15 lines in both files, all `PASSED`).
+    - F-28 counts (before at `ed7c1e16a` -> after at `5f3299b21`): `TestApprovedWritesApprovalField` 10 -> 0; `BlocksReleaseSetterTests` 8 -> 0; `TestGateFieldClearingOnStatusChange` 5 -> 0.
+    - Remaining matches: none. The value-agnostic `- Approval:` presence checks became `assert_field(..., "approval", <value read back>)` (decision `08-zgyna1-D1`).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the empty `diff .aw/state/zgyna1/S20-before.txt .aw/state/zgyna1/S20-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_status_set.py`, `tests/test_walkthrough_id6.py`, `tests/test_work_begin_plan_path_outside_root.py` (one line per module or test class), and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/zgyna1/S20-before.txt .aw/state/zgyna1/S20-after.txt`: empty (exit 0, no output; 45 lines in both files, all `PASSED`).
+    - F-28 counts (before at `ed7c1e16a` -> after at `5f3299b21`): `tests/test_status_set.py::ApprovalGateTests` 7 -> 0; `::SharedSetidCrossTypeResolutionTests` 7 -> 0; `::FlaglessConfirmationRefusalTests` 4 -> 0; `::TerminalReopenRefusalTests` 5 -> 0; `::SetterRefusalRetryCommandTests` 4 -> 0; `tests/test_walkthrough_id6.py` 1 -> 0; `tests/test_work_begin_plan_path_outside_root.py` 2 -> 0.
+    - Remaining matches: none (decision `08-zgyna1-D2` for the two `- Id:` regex extractions).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `diff` of the concatenated, sorted `-before.txt` lists of S18, S19, S20 against the combined after-run list (empty), F-28 for this part as written with one row per remaining match and its class, the per-module F-28 `rg -c` count for each of `tests/test_status_set.py`, `tests/test_walkthrough_id6.py`, `tests/test_work_begin_plan_path_outside_root.py`, the bare `python3 -m pytest` summary line beside them and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit zgyna1` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/zgyna1/union-before.txt .aw/state/zgyna1/union-after.txt` (union-before is `sort` of the S18, S19, S20 `-before.txt` lists; union-after is one batch-rule run over all of the batches' node ids): empty (exit 0; 83 lines each).
+    - F-28 for this part written in `## Findings` (remaining-match table empty: 0 rows of any class).
+    - Per-module F-28 counts after: `tests/test_status_set.py` 0; `tests/test_walkthrough_id6.py` 0; `tests/test_work_begin_plan_path_outside_root.py` 0. Full modules: `117 passed in 40.01s` (F-29 baseline 117).
+    - Bare core gate `python3 -m pytest`: `2952 passed, 1 skipped, 11 warnings in 119.41s (0:01:59)`, wall `120.18s` (`/usr/bin/time`). It exited 1 only because `conftest.py` reported `CORE TIER BUDGET EXCEEDED` (`Core tier wall time: 65.66s exceeded budget of 30.00s`, host 1-minute load average 6.8 on 12 CPUs); 0 failed, 0 errors. This is the pre-existing open backlog `6o5aan`, and the slowest tests are in modules this plan did not touch (decision `08-zgyna1-D3`). The bounded `aw suite`: `2952 passed, 1 skipped, 11 warnings in 65.88s (0:01:05)`, exit 0.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7230,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit zgyna1 -m "test(zgyna1): move S18-S20 setter-byte assertions onto assert_field/assert_no_field" -- tests/test_status_set.py tests/test_walkthrough_id6.py tests/test_work_begin_plan_path_outside_root.py`: `aw commit: committed 3 path(s): 5f3299b21272b6d27bd00abae6cdbf077226ebb7`.
+    - This plan update is committed in a follow-up `aw commit zgyna1` naming only this IPD path. All 4 Scope-Paths are modified.
+  - Result: pass
 
 ## Approval and execution gate
 
