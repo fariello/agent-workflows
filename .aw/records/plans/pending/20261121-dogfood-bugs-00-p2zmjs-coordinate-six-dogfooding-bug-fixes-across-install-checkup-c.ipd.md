@@ -2,14 +2,16 @@
 
 - Date: 2026-11-21
 - Kind: orchestrator
-- Concern: Six user-facing CLI and companion-mode bugs discovered while dogfooding `polyopen` (`n5tqib`, `479wfb`, `bj3x5x`, `dv9ses`, `gqpgvm`, `bqqhdu`) need coordinated fixes across install, checkup, check engine, doctor, and runner selector diagnostics.
+- Concern: Six user-facing CLI and companion-mode bugs discovered while dogfooding `polyopen` (`n5tqib`, `479wfb`, `bj3x5x`, `dv9ses`, `gqpgvm`, `bqqhdu`) need coordinated fixes and regression locks across install, checkup, check engine, doctor, and runner selector handling.
 - Scope: Coordinate child plans `gftvh6` (Order 01), `qw9i5p` (Order 02), `5q8whb` (Order 03), `p0hq1k` (Order 04), `c74ey2` (Order 05), and `d8b9rp` (Order 06), retiring this orchestrator once all six children reach `executed`.
 - Scope-Paths: .aw/records/plans/pending/20261121-dogfood-bugs-00-p2zmjs-coordinate-six-dogfooding-bug-fixes-across-install-checkup-c.ipd.md
 - Item-Dependencies: executed:gftvh6, executed:qw9i5p, executed:5q8whb, executed:p0hq1k, executed:c74ey2, executed:d8b9rp
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: orchestrator
 - Coverage: pass
-- Coverage-Fingerprint: 421903d812a090e094c86773aadb85063f231e7638fc97e3893c0c111aacb184
-- Coverage-Checked: 2026-11-21 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: 271adafc3ddd66cb57d7bdf7dd644f107d55a1c65f28e934dfc2edd37e8ffba5
+- Coverage-Checked: 2026-11-25 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Short-Description: Coordinate fixes for six user-facing CLI and companion-mode bugs discovered while dogfooding polyopen
 - Work-Kind: bug
 - Priority: high
@@ -24,22 +26,24 @@
 
 ## Workflow history
 
+- 2026-11-25 reviewed (/plan-review model=gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261121-dogfood-bugs-00-p2zmjs-coordinate-six-dogfooding-bug-fixes-across-install-checkup-c.review.md
+- 2026-11-25 coverage pass (aw oc run): fingerprint 271adafc3ddd, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-21 to-review (aw set): Review-ready orchestrator for dogfood-bugs
 - 2026-11-21 coverage pass (aw oc run): fingerprint 421903d812a0, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-21 draft (antigravity): created.
 
 ## Goal
 
-Coordinate six independent, bounded child plans fixing user-facing bugs found while dogfooding `agent-workflows` against a companion-mode target repository (`polyopen`), with each child graduating one release-blocking backlog item cleanly.
+Coordinate six bounded child plans addressing user-facing bugs found while dogfooding `agent-workflows` against a companion-mode target repository (`polyopen`), with each child graduating one release-blocking backlog item cleanly. Four children (`qw9i5p`, `5q8whb`, `p0hq1k`, `d8b9rp`) deliver code fixes and tests, and two children (`gftvh6`, `c74ey2`) lock in fixes that already landed on HEAD (`rznd0q`; `w819as`, `6qh68x`, `f1yjlx`) with regression tests and conditional production edits only if a test fails.
 
 ```mermaid
 flowchart TD
-    O["p2zmjs (Order 00) Orchestrator"] --> C1["gftvh6 (Order 01): --no-interactive install"]
+    O["p2zmjs (Order 00) Orchestrator"] --> C1["gftvh6 (Order 01): --no-interactive TTY/PTY regression lock"]
     C1 --> C2["qw9i5p (Order 02): Companion Delta preview"]
     O --> C3["5q8whb (Order 03): checkup missing tests.yml"]
     O --> C4["p0hq1k (Order 04): companion Scope-Paths stale check"]
-    O --> C5["c74ey2 (Order 05): doctor stale-index command & paths"]
-    O --> C6["d8b9rp (Order 06): runner reviews multi-selector hint"]
+    O --> C5["c74ey2 (Order 05): doctor companion paths and no-bare-index lock"]
+    O --> C6["d8b9rp (Order 06): runner multi-selector status-token refusal"]
 ```
 
 ## Detailed Implementation Checklist (TODO)
@@ -50,58 +54,58 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 CONFIRM gftvh6 REACHED executed
   - Depends on: none
-  - Expected outcome: Child plan `gftvh6` (Order 01, backlog `n5tqib`) is in `.aw/records/plans/executed/` with `aw install --no-interactive` respecting non-interactive mode on TTY/PTY.
+  - Expected outcome: Child plan `gftvh6` (Order 01, backlog `n5tqib`) is in `.aw/records/plans/executed/` with `core`-marked TTY and real-PTY regression tests (`tests/test_install_no_interactive_tty.py`) locking in the `rznd0q` fix so `aw install --no-interactive` never prompts on a terminal, a conditional production edit only if a test fails, and one `CHANGELOG.md` bullet.
   - Execution state: pending
 
 - [ ] E-02 CONFIRM qw9i5p REACHED executed
   - Depends on: E-01
-  - Expected outcome: Child plan `qw9i5p` (Order 02, backlog `479wfb`) is in `.aw/records/plans/executed/` with `render_pre_write_plan` printing `{comp_path}/records/`.
+  - Expected outcome: Child plan `qw9i5p` (Order 02, backlog `479wfb`) is in `.aw/records/plans/executed/` with `agent_workflows/install_wizard.py::render_pre_write_plan` printing the resolved companion `records/` directory (`resolved_roots.get("records")` with `{comp_path}/records/` fallback) without `/.aw/records` or `"and config"`, `core`-marked tests (`tests/test_install_wizard_companion_preview.py`), and one `CHANGELOG.md` bullet.
   - Execution state: pending
 
 - [ ] E-03 CONFIRM 5q8whb REACHED executed
   - Depends on: none
-  - Expected outcome: Child plan `5q8whb` (Order 03, backlog `bj3x5x`) is in `.aw/records/plans/executed/` with local CI workflow pre-check in `checkup.py` and `/setup-repo` guidance.
+  - Expected outcome: Child plan `5q8whb` (Order 03, backlog `bj3x5x`) is in `.aw/records/plans/executed/` with the bare-filename local CI workflow pre-check in `agent_workflows/checkup.py::read_ci_status`, updated `tests/test_checkup.py` fixtures, `/setup-repo` guidance in `.aw/system/workflows/setup-repo/setup-repo.md`, tests (`tests/test_checkup_missing_workflow.py`), and `README.md` / `CHANGELOG.md` updates.
   - Execution state: pending
 
 - [ ] E-04 CONFIRM p0hq1k REACHED executed
   - Depends on: none
-  - Expected outcome: Child plan `p0hq1k` (Order 04, backlog `dv9ses`) is in `.aw/records/plans/executed/` with companion-aware `stale_record_scope_paths` emitting portable `.aw/records/` paths only.
+  - Expected outcome: Child plan `p0hq1k` (Order 04, backlog `dv9ses`) is in `.aw/records/plans/executed/` with companion-aware `agent_workflows/check_engine.py::stale_record_scope_paths` and `_logical_scope_rel` resolving `.aw/records/` entries and declared move pairs against `project_context.project_records_dir`, emitting portable `.aw/records/` paths only, plus tests (`tests/test_scope_path_stale_companion.py`) and one `CHANGELOG.md` bullet.
   - Execution state: pending
 
 - [ ] E-05 CONFIRM c74ey2 REACHED executed
   - Depends on: none
-  - Expected outcome: Child plan `c74ey2` (Order 05, backlog `gqpgvm`) is in `.aw/records/plans/executed/` with typed `aw index <type>` remediation and preserved companion index directories in `doctor.py`.
+  - Expected outcome: Child plan `c74ey2` (Order 05, backlog `gqpgvm`) is in `.aw/records/plans/executed/` with function-level and end-to-end regression tests (`tests/test_doctor_companion_paths.py`) locking in that `aw doctor` preserves logical `.aw/records/<type>/...` companion directories (never `- .` or absolute companion paths) and never emits bare `aw index`, with a conditional edit to `agent_workflows/doctor.py` only if a test fails.
   - Execution state: pending
 
 - [ ] E-06 CONFIRM d8b9rp REACHED executed
   - Depends on: none
-  - Expected outcome: Child plan `d8b9rp` (Order 06, backlog `bqqhdu`) is in `.aw/records/plans/executed/` with actionable `--action review` hints in `runner_shared.describe_unresolved_plan_selector`.
+  - Expected outcome: Child plan `d8b9rp` (Order 06, backlog `bqqhdu`) is in `.aw/records/plans/executed/` with a multi-selector status-token guard at the top of `agent_workflows/runner_shared.py::expand_selectors` (exempting exact Set IDs) refusing combined status selectors with `DriverError` and host-specific `aw <host> review` / `--action review` (or `aw <host> run`) commands, `core`-marked function and CLI tests (`tests/test_runner_reviews_selector_hint.py`), and one `CHANGELOG.md` bullet.
   - Execution state: pending
 
 ## Child IPDs, sequence, and dependencies
 
 | Order | Id | File | What it does | Depends on |
 |---|---|---|---|---|
-| 01 | `gftvh6` | `20261121-dogfood-bugs-01-gftvh6-honor-no-interactive-in-aw-install-policy-update-checkpoint.ipd.md` | Thread `ctx.interactive` into `install_wizard.collect_policy_interactive` so `aw install --no-interactive` never blocks on TTY/PTY (backlog `n5tqib`). | none |
-| 02 | `qw9i5p` | `20261121-dogfood-bugs-02-qw9i5p-fix-aw-install-pre-write-plan-companion-delta-to-print-compa.ipd.md` | Replace obsolete `<companion>/.aw/records` decoy path with `<companion>/records/` in `install_wizard.render_pre_write_plan` (backlog `479wfb`). | Order 01 |
-| 03 | `5q8whb` | `20261121-dogfood-bugs-03-5q8whb-handle-missing-local-ci-workflow-in-aw-checkup-instead-of-ra.ipd.md` | Detect absent local `.github/workflows/<wf>` in `checkup.read_ci_status` before invoking `gh` and add `/setup-repo` CI workflow guidance (backlog `bj3x5x`). | none |
-| 04 | `p0hq1k` | `20261121-dogfood-bugs-04-p0hq1k-resolve-companion-records-paths-in-check-scope-path-target-s.ipd.md` | Resolve `.aw/records/` `Scope-Paths` entries against `project_records_dir` in `check_engine.stale_record_scope_paths` and never emit absolute paths (backlog `dv9ses`). | none |
-| 05 | `c74ey2` | `20261121-dogfood-bugs-05-c74ey2-fix-aw-doctor-stale-index-remediation-command-and-companion.ipd.md` | Normalize companion records paths in `doctor._normalize_rel_path` and emit typed `aw index <type>` commands in `doctor.build_remediation` (backlog `gqpgvm`). | none |
-| 06 | `d8b9rp` | `20261121-dogfood-bugs-06-d8b9rp-emit-actionable-action-review-hint-when-reviews-is-combined.ipd.md` | Emit actionable `--action review <selector>` hint in `runner_shared.describe_unresolved_plan_selector` when `reviews`/`review`/`to-review`/`all` is combined with another selector (backlog `bqqhdu`). | none |
+| 01 | `gftvh6` | `20261121-dogfood-bugs-01-gftvh6-honor-no-interactive-in-aw-install-policy-update-checkpoint.ipd.md` | Add `core`-marked simulated-TTY and real-PTY regression tests (`tests/test_install_no_interactive_tty.py`) locking in the `rznd0q` fix so `aw install --no-interactive` never prompts on a terminal, conditionally editing `agent_workflows/install_wizard.py` or `agent_workflows/cli.py` only if a test fails, plus one `CHANGELOG.md` bullet (backlog `n5tqib`). | none |
+| 02 | `qw9i5p` | `20261121-dogfood-bugs-02-qw9i5p-fix-aw-install-pre-write-plan-companion-delta-to-print-compa.ipd.md` | Update `agent_workflows/install_wizard.py::render_pre_write_plan` to print the resolved companion `records/` directory (`resolved_roots.get("records")` with `<companion>/records/` fallback) and drop `"and config"`, plus `core`-marked tests and one `CHANGELOG.md` bullet (backlog `479wfb`). | Order 01 |
+| 03 | `5q8whb` | `20261121-dogfood-bugs-03-5q8whb-handle-missing-local-ci-workflow-in-aw-checkup-instead-of-ra.ipd.md` | Detect absent local `.github/workflows/<wf>` bare filenames in `agent_workflows/checkup.py::read_ci_status` before invoking `gh`, update `tests/test_checkup.py` fixtures, add `/setup-repo` step 5 guidance, add behavioral tests, and update `README.md` and `CHANGELOG.md` (backlog `bj3x5x`). | none |
+| 04 | `p0hq1k` | `20261121-dogfood-bugs-04-p0hq1k-resolve-companion-records-paths-in-check-scope-path-target-s.ipd.md` | Resolve `.aw/records/` `Scope-Paths` entries and declared move pairs against `project_context.project_records_dir` in `agent_workflows/check_engine.py::stale_record_scope_paths` via `_logical_scope_rel`, never emit absolute paths, add tests, and add one `CHANGELOG.md` bullet (backlog `dv9ses`). | none |
+| 05 | `c74ey2` | `20261121-dogfood-bugs-05-c74ey2-fix-aw-doctor-stale-index-remediation-command-and-companion.ipd.md` | Add function-level and end-to-end regression tests (`tests/test_doctor_companion_paths.py`) proving `aw doctor` on a companion install preserves logical `.aw/records/<type>/...` directories and never emits bare `aw index`, conditionally editing `agent_workflows/doctor.py` only if a test fails (backlog `gqpgvm`). | none |
+| 06 | `d8b9rp` | `20261121-dogfood-bugs-06-d8b9rp-emit-actionable-action-review-hint-when-reviews-is-combined.ipd.md` | Add a guard at the top of `agent_workflows/runner_shared.py::expand_selectors` refusing status selectors (`reviews`, `review`, `to-review`, `all`) combined with another selector (exempting exact Set IDs) and naming the host's `aw <host> review` / `--action review` (or `aw <host> run`) command, plus `core`-marked tests and one `CHANGELOG.md` bullet (backlog `bqqhdu`). | none |
 
 ## Completion criteria (the whole Set is done only when)
 
-- `aw install --no-interactive --dry-run` never prompts on a TTY/PTY. Owner: `gftvh6`
-- `aw install --dry-run` Companion Delta prints `<companion>/records/` without the obsolete `.aw/records` decoy. Owner: `qw9i5p`
-- `aw checkup` reports an actionable missing-workflow reason instead of a raw GitHub API HTTP 404 when `.github/workflows/tests.yml` is absent, and `/setup-repo` checks for it. Owner: `5q8whb`
-- `check.scope-path-target-stale` resolves `.aw/records/` paths against companion records storage and never recommends absolute filesystem paths. Owner: `p0hq1k`
-- `aw doctor` preserves companion index parent directories and emits valid `aw index <type>` remediation commands. Owner: `c74ey2`
-- `aw agy run reviews <setid>` and `aw oc run reviews <setid>` emit an actionable `--action review` hint. Owner: `d8b9rp`
+- `aw install --no-interactive` (with and without `--dry-run`) never prompts on a simulated TTY or real PTY, locked in by `core`-marked regression tests and a `CHANGELOG.md` entry. Owner: `gftvh6`
+- `aw install --dry-run` Companion Delta prints the resolved companion `<companion>/records/` directory matching the `records` row, without the obsolete `/.aw/records` decoy or `"and config"`. Owner: `qw9i5p`
+- `aw checkup` reports an actionable missing-workflow reason instead of a raw GitHub API HTTP 404 when a bare-filename `.github/workflows/<wf>` file is absent, `/setup-repo` checks for it, and `README.md` / `CHANGELOG.md` document it. Owner: `5q8whb`
+- `check.scope-path-target-stale` resolves `.aw/records/` paths and declared move pairs against companion records storage and never recommends absolute filesystem paths. Owner: `p0hq1k`
+- `aw doctor` on a companion install preserves logical `.aw/records/<type>/...` directories (never `- .` or absolute companion paths) and never emits a bare `aw index` command, locked in by regression tests. Owner: `c74ey2`
+- `aw agy run` and `aw oc run` refuse a status selector (`reviews`, `review`, `to-review`, `all`) combined with another selector (unless it is an exact Set ID) with exit 2 and print the host's `aw <host> review <others>` / `--action review` (or `aw <host> run`) command. Owner: `d8b9rp`
 
 ## Cross-IPD validation
 
-- Orders 01 (`gftvh6`) and 02 (`qw9i5p`) both edit `agent_workflows/install_wizard.py`; ordering `qw9i5p` after `gftvh6` guarantees `qw9i5p` validates the combined `install_wizard.py` test suite (`tests/test_install_wizard*.py`) after both changes land. Performed by `qw9i5p` (`V-02`).
-- Orders 03 (`5q8whb`), 04 (`p0hq1k`), 05 (`c74ey2`), and 06 (`d8b9rp`) touch disjoint production modules (`checkup.py`, `check_engine.py`, `doctor.py`, `runner_shared.py`); each validates its own module suite, `make typecheck`, and `aw sanitize --agent`. Performed by `5q8whb` (`V-03`), `p0hq1k` (`V-03`), `c74ey2` (`V-03`), and `d8b9rp` (`V-02`).
+- Order 01 (`gftvh6`) conditionally scopes `agent_workflows/install_wizard.py` and creates `tests/test_install_no_interactive_tty.py`; Order 02 (`qw9i5p`) edits `agent_workflows/install_wizard.py` and depends on `executed:gftvh6`, validating the combined preview and install test modules (`tests/test_install_wizard_companion_preview.py`, `tests/test_install_consent_truth.py`, `tests/test_records_untracked_backend.py`, `tests/test_companion_containment_and_storage.py`, and `tests/test_install_no_interactive_tty.py`), bare `python3 -m pytest`, `make typecheck`, and `aw sanitize --agent`. Performed by `qw9i5p` (`V-02`).
+- Orders 03 (`5q8whb`), 04 (`p0hq1k`), 05 (`c74ey2`), and 06 (`d8b9rp`) touch disjoint production and test modules (`agent_workflows/checkup.py`, `agent_workflows/check_engine.py`, `agent_workflows/doctor.py` conditionally, and `agent_workflows/runner_shared.py`). Each validates its targeted pytest suites and `aw sanitize --agent`, with `make typecheck` run unconditionally by `5q8whb` (`V-03`), `p0hq1k` (`V-03`), and `d8b9rp` (`V-04`), and conditionally by `c74ey2` (`V-03`) if `agent_workflows/doctor.py` changes. Performed by `5q8whb` (`V-03`), `p0hq1k` (`V-03`), `c74ey2` (`V-03`), and `d8b9rp` (`V-02`, `V-03`, `V-04`).
 
 ## Deferred / out of scope (with reason)
 
@@ -110,12 +114,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none. Each child addresses one bounded bug with disjoint files (except `qw9i5p` serialized after `gftvh6`).
+- Over-scope: none. Each child addresses one bounded bug with disjoint production and test modules (except `agent_workflows/install_wizard.py`, shared by `gftvh6` conditionally and `qw9i5p`, with `qw9i5p` serialized after `gftvh6`). Five children (`gftvh6`, `qw9i5p`, `5q8whb`, `p0hq1k`, `d8b9rp`) each append one `- Fixed:` bullet to `CHANGELOG.md`, which per-lane worktree isolation and the runner merge gate serialize safely.
 - Under-scope: none. All six backlog items (`n5tqib`, `479wfb`, `bj3x5x`, `dv9ses`, `gqpgvm`, `bqqhdu`) are mapped 1:1 to child plans `gftvh6`, `qw9i5p`, `5q8whb`, `p0hq1k`, `c74ey2`, and `d8b9rp`.
 
 ## Required tests / validation
 
-This orchestrator runs no tests directly. Each child plan (`gftvh6`, `qw9i5p`, `5q8whb`, `p0hq1k`, `c74ey2`, `d8b9rp`) runs its targeted pytest suite, `make typecheck`, and `aw sanitize --agent` before finalizing; the runner merge gate runs the core pytest suite on every child integration.
+This orchestrator runs no tests directly. Each child plan (`gftvh6`, `qw9i5p`, `5q8whb`, `p0hq1k`, `c74ey2`, `d8b9rp`) runs its targeted pytest suites and `aw sanitize --agent` before finalizing; `qw9i5p`, `5q8whb`, `p0hq1k`, and `d8b9rp` run `make typecheck` unconditionally, while `gftvh6` and `c74ey2` run `make typecheck` if a production file changes. The runner merge gate runs the core pytest suite on every child integration.
 
 ## Open questions
 
@@ -160,4 +164,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This orchestrator is not agent-executed directly; the runner retires `p2zmjs` to `executed` automatically once all six child plans (`gftvh6`, `qw9i5p`, `5q8whb`, `p0hq1k`, `c74ey2`, `d8b9rp`) reach `executed`.
+Execution contract:
+- Approval and open questions: this orchestrator must reach `- Status: approved` with all blocking open questions resolved before execution or retirement.
+- Scope fence: `- Scope-Paths:` declares only this orchestrator plan file. Any out-of-scope edit must be justified with `--scope-reason` and any unmodified declared path acknowledged with `--scope-ack` at finalize; stop only for genuinely unsafe conditions (such as an unresolvable concurrent-edit conflict or missing prerequisite state), not for a scope-boundary question.
+- Honesty and evidence: paste actual command or check output into every `V-*` Observed evidence block when retiring standalone; never claim a child reached `executed` without verifying it on disk.
+- Commits and push: commit path-scoped through `aw commit p2zmjs -- <paths>` (or let the runner write the retirement commit); never push without an explicit human request.
+- Lifecycle transition: this orchestrator is not agent-executed directly. When run by a runner (`aw oc run` / `aw agy run`), the runner retires `p2zmjs` to `.aw/records/plans/executed/` automatically once all six child plans (`gftvh6`, `qw9i5p`, `5q8whb`, `p0hq1k`, `c74ey2`, `d8b9rp`) reach `executed` on disk. If finalized standalone outside a runner, run `aw ipd finalize p2zmjs` after verifying all `V-01`..`V-06` evidence; never hand-roll `git mv` to `.aw/records/plans/executed/`.
