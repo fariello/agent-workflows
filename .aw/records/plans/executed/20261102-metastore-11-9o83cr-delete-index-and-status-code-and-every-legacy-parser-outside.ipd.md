@@ -6,7 +6,7 @@
 - Scope: Phase B, section 7 step 7 of `4sd62s`, FINISHING PART after the 2026-11-07 split. The deletions themselves now run in five earlier parts: aliases, regeneration calls, stale-index rules and the INDEX documents (`q6epwc`); INDEX writers, STATUS code and `_INDEX_CACHE` (`snin8q`); value writers, adapters, borrowed grammars and record text readers (`k6jd6l`); `check_engine`, runner, setter and release parsers (`e8420v`); every other metadata regex literal (`0xsx2n`). This plan keeps: (1) the residual audit F-20 after all five parts (E-01); (2) the AC-1 behavioral test (E-13); (3) the AC-1 audit F-21 with its exclusion file (E-14); (4) the final validation and commit (E-16). EXCLUDES: anything that needs the log format or the migrated tree (cutover, `cxxmyv`), and document rewrites for log-based commands (`90iqr1`).
 - Scope-Paths: tests/test_metadata_single_owner.py, .aw/records/plans/pending/20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md
 - Item-Dependencies: executed:0xsx2n, executed:1ajqaa, executed:59aiyh, executed:75jciz, executed:clors0, executed:dcerjg, executed:e8420v, executed:ffceq0, executed:fkvrc7, executed:g5hpbb, executed:k6jd6l, executed:q6epwc, executed:snin8q, executed:t3t7za, executed:t4gl15, executed:wgn3bl
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -17,10 +17,10 @@
 - Highest E allocated: 16
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 9o83cr
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-25 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: 9o83cr verified (set metastore, attempt 1).
 - 2026-11-25 note (antigravity): added executed:wgn3bl, executed:t3t7za, executed:fkvrc7, executed:75jciz (Orders 301-304 split from superseded rgva3w) per maintainer decision on run-20261125T031842Z-2538031 so cleanup executes before 9o83cr V-14.
 - 2026-11-16 approved (aw set): status set to approved
 
