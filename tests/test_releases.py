@@ -9,7 +9,7 @@ from pathlib import Path
 from agent_workflows import engine as _engine
 from agent_workflows import releases
 from agent_workflows.record_producers import RecordClass, resolve_record_path
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 class ReleasesClassTests(unittest.TestCase):
@@ -48,7 +48,7 @@ class ReleasesClassTests(unittest.TestCase):
         p = releases.create_release(self.root, "2.0.0", "first .aw/ release")
         self.assertTrue(p.name.endswith(".release.md"))
         text = p.read_text(encoding="utf-8")
-        self.assertIn("- Status: planned", text)
+        assert_field(p, "status", "planned")
         self.assertIn("- Version: 2.0.0", text)
         self.assertEqual(releases.validate_release(p, text), [])
         # a bad status is flagged

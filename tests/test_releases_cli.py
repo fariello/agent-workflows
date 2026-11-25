@@ -24,7 +24,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import cli, completion, releases
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 def _args(**kw) -> argparse.Namespace:
@@ -271,7 +271,7 @@ class RunNewTests(_ReleasesRepoFixture):
         self.assertEqual(len(created), 1)
         text = created[0].read_text(encoding="utf-8")
         self.assertIn("- Version: 9.9.9", text)
-        self.assertIn("- Status: planned", text)
+        assert_field(created[0], "status", "planned")
         # The canonical validator (the one `aw check releases` calls) accepts it.
         self.assertEqual(releases.validate_release(created[0], text), [])
         from agent_workflows import check_engine as _ce

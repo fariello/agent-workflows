@@ -22,7 +22,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from agent_workflows import check_engine, releases
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 _REPO_ROOT = str(Path(__file__).resolve().parent.parent)
 _ENV = {**os.environ, "PYTHONPATH": _REPO_ROOT}
@@ -337,7 +337,7 @@ class TestReleaseSentinelSuccession(unittest.TestCase):
             self.assertIn("aw releases new", combined_output)
             self.assertIn("1 record", combined_output)
             self.assertEqual(rel_file.read_bytes(), orig_bytes)
-            self.assertIn("- Status: planned", rel_file.read_text(encoding="utf-8"))
+            assert_field(rel_file, "status", "planned")
 
     def test_set_shipped_succeeds_when_successor_exists(self) -> None:
         """Case (g): aw set shipped succeeds when a successor planned release exists."""
@@ -366,8 +366,8 @@ class TestReleaseSentinelSuccession(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(res.returncode, 0)
-            self.assertIn("- Status: shipped", rel1.read_text(encoding="utf-8"))
-            self.assertIn("- Status: planned", rel2.read_text(encoding="utf-8"))
+            assert_field(rel1, "status", "shipped")
+            assert_field(rel2, "status", "planned")
 
     def test_override_flag_permits_write_records_history_refuses_empty(self) -> None:
         """Case (h): override flag permits write, records justification in history, and refuses empty/whitespace."""
@@ -460,8 +460,8 @@ class TestReleaseSentinelSuccession(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(res_valid.returncode, 0)
+            assert_field(rel_file, "status", "shipped")
             txt = rel_file.read_text(encoding="utf-8")
-            self.assertIn("- Status: shipped", txt)
             self.assertIn(justification, txt)
 
     def test_check_release_gates_agent_cli_exits_nonzero_in_bad_states(self) -> None:

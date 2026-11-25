@@ -51,7 +51,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import artifact_meta, runner_shared, worktree_lease
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 PLAN_NAME = "20260901-race-01-aaa111-a-plan.ipd.md"
 PENDING = f".aw/records/plans/pending/{PLAN_NAME}"
@@ -457,10 +457,9 @@ def test_rederivation_keeps_the_target_status_and_adds_both_keys(
     assert state.status == "executed"
     assert state.fields["work_kind"] == "bug"
     assert state.fields["priority"] == "medium"
-    assert "- Status: executed\n" in out
-    assert "- Status: approved\n" not in out
-    assert "- Work-Kind: bug\n" in out
-    assert "- Priority: medium\n" in out
+    assert_field(repo / EXECUTED, "status", "executed")
+    assert_field(repo / EXECUTED, "work_kind", "bug")
+    assert_field(repo / EXECUTED, "priority", "medium")
     # BOTH history lines survive: the lane's and the target's own.
     assert "status unchanged (no lifecycle transition)" in out
     assert "2026-09-21 executed (aw oc run): finalized." in out
@@ -489,10 +488,9 @@ def test_the_integration_reports_a_DISTINCT_recomputed_outcome(
     assert kind != "integrated"
     assert "RECOMPUTED rather than merged" in reason
 
-    landed = (repo / EXECUTED).read_text(encoding="utf-8")
-    assert "- Status: executed\n" in landed
-    assert "- Work-Kind: bug\n" in landed
-    assert "- Priority: medium\n" in landed
+    assert_field(repo / EXECUTED, "status", "executed")
+    assert_field(repo / EXECUTED, "work_kind", "bug")
+    assert_field(repo / EXECUTED, "priority", "medium")
     # NO plan changed lifecycle directory as a result of this step.
     assert not (repo / PENDING).exists()
     assert _git(repo, "status", "--short").stdout.strip() == ""
@@ -622,8 +620,7 @@ def test_the_anti_revert_control_holds_on_the_shipped_allow_list(
                 artifact_meta.read_text(out, record_type="ipd").status
                 == verdict.target_status
             )
-            assert f"- Status: {verdict.target_status}\n" in out
-            assert f"- Status: {verdict.incoming_status}\n" not in out
+            assert_field(repo / verdict.path, "status", verdict.target_status)
 
 
 def test_the_anti_revert_control_FAILS_when_rederivation_is_widened_to_status(
