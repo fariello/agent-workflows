@@ -5,7 +5,7 @@
 - Concern: Spec `4sd62s` C5 allows exactly one metadata reader and writer (`artifact_meta`), 4.3 requires deleting every parser listed in section 1 plus the smaller helpers, and 4.5 says the SQLite cache REPLACES the `INDEX.{json,md}` files, `plans/STATUS.md` and `artifact_audit._INDEX_CACHE`, with `aw index plans|research|prompts` kept only as informational aliases of `aw index rebuild` and `check.stale-index-*` deleted. Phases A and B (Orders 02 to 10) move every caller onto `artifact_meta` but deliberately leave the old code in place (handoffs from `1ajqaa`, `dcerjg`, `2xwb9b`, `xexn45`, `ffceq0`, `t4gl15`, `59aiyh`). Measured 2026-11-02 at `0cbfcc706`: `stale-index` occurs 36 times in 7 modules; 31 package modules name `INDEX.json`, `INDEX.md` or `STATUS.md`; three `run_index` functions write INDEX files and 11 production call sites regenerate them; 200 `^-` metadata regex call sites remain in 35 files; and at least 25 named parser or helper symbols outside `artifact_meta` exist (F-06). Until they are deleted, C5 is not met and AC-1 and AC-9 cannot pass.
 - Scope: Phase B, section 7 step 7 of `4sd62s`, FINISHING PART after the 2026-11-07 split. The deletions themselves now run in five earlier parts: aliases, regeneration calls, stale-index rules and the INDEX documents (`q6epwc`); INDEX writers, STATUS code and `_INDEX_CACHE` (`snin8q`); value writers, adapters, borrowed grammars and record text readers (`k6jd6l`); `check_engine`, runner, setter and release parsers (`e8420v`); every other metadata regex literal (`0xsx2n`). This plan keeps: (1) the residual audit F-20 after all five parts (E-01); (2) the AC-1 behavioral test (E-13); (3) the AC-1 audit F-21 with its exclusion file (E-14); (4) the final validation and commit (E-16). EXCLUDES: anything that needs the log format or the migrated tree (cutover, `cxxmyv`), and document rewrites for log-based commands (`90iqr1`).
 - Scope-Paths: tests/test_metadata_single_owner.py, .aw/records/plans/pending/20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md
-- Item-Dependencies: executed:0xsx2n, executed:1ajqaa, executed:clors0, executed:59aiyh, executed:dcerjg, executed:e8420v, executed:ffceq0, executed:g5hpbb, executed:k6jd6l, executed:q6epwc, executed:snin8q, executed:t4gl15
+- Item-Dependencies: executed:0xsx2n, executed:1ajqaa, executed:59aiyh, executed:75jciz, executed:clors0, executed:dcerjg, executed:e8420v, executed:ffceq0, executed:fkvrc7, executed:g5hpbb, executed:k6jd6l, executed:q6epwc, executed:snin8q, executed:t3t7za, executed:t4gl15, executed:wgn3bl
 - Status: approved
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -21,6 +21,7 @@
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-25 note (antigravity): added executed:wgn3bl, executed:t3t7za, executed:fkvrc7, executed:75jciz (Orders 301-304 split from superseded rgva3w) per maintainer decision on run-20261125T031842Z-2538031 so cleanup executes before 9o83cr V-14.
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006

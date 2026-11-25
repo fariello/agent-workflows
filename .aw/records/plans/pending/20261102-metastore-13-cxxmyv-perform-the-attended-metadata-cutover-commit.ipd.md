@@ -5,7 +5,7 @@
 - Concern: Spec `4sd62s` section 7 step 9 and section 5.2 require ONE attended commit that switches `artifact_meta` from the legacy bullet-block format to per-artifact event logs, runs migration `m0001` on this repository in the checkout that holds the gitignored history sidecar, applies the post-cutover documentation, and stamps `metadata_schema: 2`. Every earlier child deferred its log-format half here (re-measured 2026-11-06: deferral rows naming `Carrier: cxxmyv` in 11 of the 12 sibling plans; `7ehv8l` has none), because C10a forbids a second on-disk format on `main` before this commit.
 - Scope: Apply the two prepared cutover patches (documentation: `90iqr1` family; code switch to the log format: `2k5t16`, `g45vyv`, `x1mmdp`, `0zylig`), run the real migration on this repository with the invocation the `5qyba0` rehearsal proved, and make the ONE cutover commit; then run the prepared demonstration script (`33vxoi`) on the migrated repository, add the changelog and finalize. The post-cutover code that is dormant on `main` was built earlier by `clors0`, the setter-byte test conversion by `iog3cw` and `w13bkp` (split 2026-11-07), and the preparation, patch writing and rehearsal by the round-3 parts (split 2026-11-09). One commit, attended by the maintainer.
 - Scope-Paths: .aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md, agent_workflows/, tests/, .aw/records/, .aw/system/workflows/, .aw/system/cutover/, .aw/system/managed-sections.json, .aw/.gitignore, .aw/config/project.json, .aw/AGENT_QUICKSTART.md, .aw/QUICKSTART.md, docs/, AGENTS.md, CHANGELOG.md, .aw/records/plans/pending/20261102-metastore-13-cxxmyv-perform-the-attended-metadata-cutover-commit.ipd.md
-- Item-Dependencies: executed:0zylig, executed:1ajqaa, executed:2k5t16, executed:33vxoi, executed:5qyba0, executed:60mazt, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g45vyv, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:rgva3w, executed:tub3ir, executed:w13bkp, executed:x1mmdp, executed:ya4ee4, executed:zgyna1
+- Item-Dependencies: executed:0zylig, executed:1ajqaa, executed:2k5t16, executed:33vxoi, executed:5qyba0, executed:60mazt, executed:75jciz, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:fkvrc7, executed:g45vyv, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:t3t7za, executed:tub3ir, executed:w13bkp, executed:wgn3bl, executed:x1mmdp, executed:ya4ee4, executed:zgyna1
 - Status: approved
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -22,6 +22,7 @@
 - Review-Depth: complex
 
 ## Workflow history
+- 2026-11-25 note (antigravity): replaced executed:rgva3w with Orders 301-304 (executed:wgn3bl, executed:t3t7za, executed:fkvrc7, executed:75jciz) per maintainer decision on run-20261125T031842Z-2538031.
 - 2026-11-18 same-status (aw set): Add executed:60mazt per maintainer decision on g5hpbb-ac42-order08-circular-dependency
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review round 2 verified post-split scope (E-08, E-09, E-10, E-11, E-13), dependencies, and attended execution gate; findings PR-201..PR-203 fixed; marked reviewed and go-pending-approval.

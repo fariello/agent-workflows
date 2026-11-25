@@ -10,14 +10,14 @@
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Coverage: pass
-- Coverage-Fingerprint: 05de8ffbbfea675f5a29f093445d81ee1ada558e87cf99ca08614b1319fa83de
+- Coverage-Fingerprint: 6106283b926ccaa9aef2df02032d16bd14001e4479c2443897614537fc792327
 - Coverage-Checked: 2026-11-25 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: high
 - Blocks-Release: next
 - Set: metastore
 - Order: 0
-- Highest E allocated: 212
+- Highest E allocated: 216
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 63ib9r
 - Approval: 2026-11-16, recorded via aw ipd set: status set to approved
@@ -26,6 +26,7 @@
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-25 coverage pass (aw oc run): fingerprint 6106283b926c, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-25 coverage pass (aw oc run): fingerprint 05de8ffbbfea, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-13 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-004..PR-007 FIXED
@@ -107,7 +108,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 - [ ] E-11 CONFIRM 9o83cr REACHED executed
-  - Depends on: E-46, E-03, E-48, E-10, E-04, E-45, E-08, E-14, E-43, E-41, E-42, E-09
+  - Depends on: E-46, E-03, E-48, E-10, E-04, E-45, E-08, E-14, E-43, E-41, E-42, E-09, E-213, E-214, E-215, E-216
   - Expected outcome: `aw find plans 9o83cr` shows it under `executed/`.
   - Execution state: pending
 
@@ -122,7 +123,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 - [ ] E-13 CONFIRM cxxmyv REACHED executed
-  - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-176, E-177, E-178, E-179, E-180, E-181, E-182
+  - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-176, E-177, E-178, E-179, E-180, E-181, E-182, E-213, E-214, E-215, E-216
   - Expected outcome: `aw find plans cxxmyv` shows it under `executed/`.
   - Execution state: pending
 
@@ -1120,6 +1121,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `aw find plans vw88h0` shows it under `executed/`.
   - Execution state: pending
 
+- [ ] E-213 CONFIRM wgn3bl REACHED executed
+  - Depends on: E-41, E-42, E-43, E-45, E-46
+  - Expected outcome: `aw find plans wgn3bl` shows it under `executed/`.
+  - Execution state: pending
+
+- [ ] E-214 CONFIRM t3t7za REACHED executed
+  - Depends on: E-41, E-42, E-43, E-45, E-46
+  - Expected outcome: `aw find plans t3t7za` shows it under `executed/`.
+  - Execution state: pending
+
+- [ ] E-215 CONFIRM fkvrc7 REACHED executed
+  - Depends on: E-41, E-42, E-43, E-45, E-46
+  - Expected outcome: `aw find plans fkvrc7` shows it under `executed/`.
+  - Execution state: pending
+
+- [ ] E-216 CONFIRM 75jciz REACHED executed
+  - Depends on: E-41, E-42, E-43, E-45, E-46
+  - Expected outcome: `aw find plans 75jciz` shows it under `executed/`.
+  - Execution state: pending
+
 ## Child IPDs, sequence, and dependencies
 
 | Order | Id | File | What it does | Depends on |
@@ -1134,9 +1155,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 08 | `ffceq0` | `20261102-metastore-08-ffceq0-move-selectors-check-engine-attention-and-ipd-lint-reads-ont.ipd.md` | Move selectors, check_engine, attention and ipd_lint reads onto artifact_meta. | `executed:g5hpbb`, `executed:tve77h`, `executed:xexn45`, `executed:r81uvz`, `executed:dqutt8`, `executed:w1cs3p`, `executed:na188y`, `executed:i3b5zu`, `executed:ebrc4t`, `executed:a5ijjx` |
 | 09 | `t4gl15` | `20261102-metastore-09-t4gl15-move-runner-gate-hook-and-module-reads-onto-artifact-meta-an.ipd.md` | Move runner, gate, hook and module reads onto artifact_meta and read_at. | `executed:2zpw22`, `executed:jq82as`, `executed:ffceq0`, `executed:g5hpbb`, `executed:h58z9n`, `executed:jd7874`, `executed:tve77h`, `executed:xexn45`, `executed:y97k46` |
 | 10 | `59aiyh` | `20261102-metastore-10-59aiyh-move-test-data-to-one-shared-record-builder-over-artifact-me.ipd.md` | Move test data to one shared record builder over artifact_meta. | `executed:1upea0`, `executed:7qxey9`, `executed:9rgn2w`, `executed:g5hpbb`, `executed:nbfg7w`, `executed:tve77h`, `executed:x05v02`, `executed:xexn45`, `executed:653ndz`, `executed:j6o96i`, `executed:ijpay0`, `executed:y3uowx`, `executed:j2xjtt`, `executed:7fpc8v`, `executed:id2pdx`, `executed:2fn0vd`, `executed:isj48z`, `executed:dg43sc`, `executed:wirc2e`, `executed:872zd9`, `executed:zl2pki`, `executed:jutivt`, `executed:52rpc1`, `executed:2zo3g5`, `executed:qqaqw8`, `executed:xxiou0`, `executed:3k142n`, `executed:2etvye`, `executed:80p88l`, `executed:qb3n9s`, `executed:723ct1`, `executed:i29bd5`, `executed:v1t2ai`, `executed:hp6ydi`, `executed:lf0fe4`, `executed:jjvnhb`, `executed:f8jntm`, `executed:a1b70x`, `executed:j5mwpk`, `executed:abf6yk`, `executed:qjxcgf`, `executed:0punmn`, `executed:2ll84l`, `executed:9hk3rh`, `executed:5mg9g1`, `executed:1cgrgp`, `executed:z8hu7r`, `executed:tsonlq`, `executed:erulw3`, `executed:vaqtii`, `executed:30zur4`, `executed:9jmt3w`, `executed:z4x192`, `executed:9zcuyh`, `executed:1bshrb`, `executed:n0li9v`, `executed:b3eilr` |
-| 11 | `9o83cr` | `20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md` | Delete INDEX and STATUS code and every legacy parser outside artifact_meta. | `executed:0xsx2n`, `executed:1ajqaa`, `executed:clors0`, `executed:59aiyh`, `executed:dcerjg`, `executed:e8420v`, `executed:ffceq0`, `executed:g5hpbb`, `executed:k6jd6l`, `executed:q6epwc`, `executed:snin8q`, `executed:t4gl15` |
+| 11 | `9o83cr` | `20261102-metastore-11-9o83cr-delete-index-and-status-code-and-every-legacy-parser-outside.ipd.md` | Delete INDEX and STATUS code and every legacy parser outside artifact_meta. | `executed:0xsx2n`, `executed:1ajqaa`, `executed:59aiyh`, `executed:75jciz`, `executed:clors0`, `executed:dcerjg`, `executed:e8420v`, `executed:ffceq0`, `executed:fkvrc7`, `executed:g5hpbb`, `executed:k6jd6l`, `executed:q6epwc`, `executed:snin8q`, `executed:t3t7za`, `executed:t4gl15`, `executed:wgn3bl` |
 | 12 | `90iqr1` | `20261102-metastore-12-90iqr1-rewrite-documents-managed-block-templates-and-quickstarts-fo.ipd.md` | Rewrite documents, managed block, templates and quickstarts for the log format. | `executed:9o83cr`, `executed:qhay6a`, `executed:a49djh`, `executed:y1zihp`, `executed:ngc2a2` |
-| 13 | `cxxmyv` | `20261102-metastore-13-cxxmyv-perform-the-attended-metadata-cutover-commit.ipd.md` | Perform the attended metadata cutover commit. | `executed:1ajqaa`, `executed:87rvs2`, `executed:90iqr1`, `executed:aqc3m6`, `executed:clors0`, `executed:dcerjg`, `executed:g5hpbb`, `executed:iog3cw`, `executed:rdg0qv`, `executed:w13bkp`, `executed:ya4ee4`, `executed:zgyna1`, `executed:tub3ir`, `executed:2k5t16`, `executed:g45vyv`, `executed:x1mmdp`, `executed:0zylig`, `executed:33vxoi`, `executed:5qyba0` |
+| 13 | `cxxmyv` | `20261102-metastore-13-cxxmyv-perform-the-attended-metadata-cutover-commit.ipd.md` | Perform the attended metadata cutover commit. | `executed:1ajqaa`, `executed:75jciz`, `executed:87rvs2`, `executed:90iqr1`, `executed:aqc3m6`, `executed:clors0`, `executed:dcerjg`, `executed:fkvrc7`, `executed:g5hpbb`, `executed:iog3cw`, `executed:rdg0qv`, `executed:t3t7za`, `executed:w13bkp`, `executed:wgn3bl`, `executed:ya4ee4`, `executed:zgyna1`, `executed:tub3ir`, `executed:2k5t16`, `executed:g45vyv`, `executed:x1mmdp`, `executed:0zylig`, `executed:33vxoi`, `executed:5qyba0` |
 | 14 | `g5hpbb` | `20261107-metastore-14-g5hpbb-make-aw-migrate-metadata-migrate-any-repository-from-any-pri.ipd.md` | Make `aw migrate metadata` migrate any repository from any prior format (spec C12, 5.2a, AC-42), and make the phase-A cache read every shape. Runs AFTER 04 and BEFORE 08, 09, 10, 11 and 13, by dependency edge (the number is only the next free Order; added 2026-11-07). | `executed:dcerjg`, `executed:9vf2iv`, `executed:6oi2nu`, `executed:3g20ms`, `executed:bv4kkj` |
 | 15 | `vxevph` | `20261107-metastore-15-vxevph-build-the-migration-chain-metadata-schema-stamp-m0001-prefli.ipd.md` | Build the migration chain, metadata_schema stamp, m0001 preflight, migration journal and sidecar import. | `executed:tve77h`, `executed:g8na48` |
 | 16 | `1vfqdu` | `20261107-metastore-16-1vfqdu-add-the-aw-migrate-command-group-bare-aw-migrate-and-the-ins.ipd.md` | Add the aw migrate command group, bare aw migrate, and the install pending-migration prompt. | `executed:tve77h`, `executed:vxevph` |
@@ -1336,7 +1357,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 297 | `um2kvx` | `20261109-metastore-297-um2kvx-delete-the-specs-record-text-readers.ipd.md` | Delete the specs record text readers. | `executed:1ajqaa`, `executed:59aiyh`, `executed:dcerjg`, `executed:ffceq0`, `executed:g5hpbb`, `executed:hrbbhy`, `executed:t4gl15` |
 | 298 | `po3o1c` | `20261109-metastore-298-po3o1c-move-the-backlog-parse-item-metadata-callers-onto-artifact-m.ipd.md` | Move the backlog parse_item metadata callers onto artifact_meta. | `executed:1ajqaa`, `executed:59aiyh`, `executed:dcerjg`, `executed:ffceq0`, `executed:g5hpbb`, `executed:t4gl15`, `executed:um2kvx` |
 | 299 | `vw88h0` | `20261109-metastore-299-vw88h0-remove-the-metadata-part-of-backlog-parse-item-and-verify-th.ipd.md` | Remove the metadata part of backlog parse_item and verify the subset-2 deletions. | `executed:1ajqaa`, `executed:59aiyh`, `executed:dcerjg`, `executed:ffceq0`, `executed:g5hpbb`, `executed:po3o1c`, `executed:t4gl15` |
-| 300 | `rgva3w` | `20261124-metastore-300-rgva3w-delete-surviving-legacy-metadata-parsers-and-writers-found-b.ipd.md` | Delete surviving legacy metadata parsers and writers found by 9o83cr E-14 (ebbfmn, q4gwp9, hmtpj2, 1h5eqc, vwkbd9, a0o7t0) ahead of cxxmyv. | `executed:9o83cr` |
+| 301 | `wgn3bl` | `20261124-metastore-301-wgn3bl-migrate-surviving-workflow-history-section-readers-onto-arti.ipd.md` | Migrate surviving Workflow history section readers onto artifact_meta (rzxd1x, q4gwp9) ahead of 9o83cr. | `executed:0xsx2n`, `executed:e8420v`, `executed:k6jd6l`, `executed:q6epwc`, `executed:snin8q` |
+| 302 | `t3t7za` | `20261124-metastore-302-t3t7za-move-surviving-aw-prompt-and-managed-prompt-comment-helpers.ipd.md` | Move surviving aw-prompt and managed-prompt comment helpers into artifact_meta (iedbnn) ahead of 9o83cr. | `executed:0xsx2n`, `executed:e8420v`, `executed:k6jd6l`, `executed:q6epwc`, `executed:snin8q` |
+| 303 | `fkvrc7` | `20261124-metastore-303-fkvrc7-replace-surviving-specs-and-backlog-front-matter-regexes-via.ipd.md` | Replace surviving specs and backlog front-matter regexes via artifact_meta bullet helper (ebbfmn, vl7ybn) ahead of 9o83cr. | `executed:0xsx2n`, `executed:e8420v`, `executed:k6jd6l`, `executed:q6epwc`, `executed:snin8q` |
+| 304 | `75jciz` | `20261124-metastore-304-75jciz-replace-scope-paths-bullet-writer-and-widened-front-matter-r.ipd.md` | Replace Scope-Paths bullet writer and widened front-matter readers via artifact_meta (avze51, hmtpj2) ahead of 9o83cr. | `executed:0xsx2n`, `executed:e8420v`, `executed:k6jd6l`, `executed:q6epwc`, `executed:snin8q` |
 
 SPLIT 2026-11-07 and again 2026-11-09 (maintainer step-complexity rule, then research `nj8zdp` followability guidance: a modest agent must be able to execute each plan). Orders 15 to 299 are parts split out of Orders 04, 05, 07, 08, 09, 10, 11, 12, 13 and 14; each original keeps its id6 as its family's final capstone and depends on every part in its family, so an `executed:<original>` edge still means the whole family is done. Order numbers past 14 are only the next free numbers: the runner orders by the dependency edges in this table (`dependency_depth` first), not by `Order`.
 
@@ -2506,6 +2530,26 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-212 validates E-212
   - Required evidence: paste `aw find plans vw88h0` output showing the plan under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-213 validates E-213
+  - Required evidence: paste `aw find plans wgn3bl` output showing the plan under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-214 validates E-214
+  - Required evidence: paste `aw find plans t3t7za` output showing the plan under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-215 validates E-215
+  - Required evidence: paste `aw find plans fkvrc7` output showing the plan under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-216 validates E-216
+  - Required evidence: paste `aw find plans 75jciz` output showing the plan under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 

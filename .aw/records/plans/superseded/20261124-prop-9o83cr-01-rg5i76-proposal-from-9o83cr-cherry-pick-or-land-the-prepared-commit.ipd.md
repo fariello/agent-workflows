@@ -6,7 +6,7 @@
 - Scope: TODO.
 - Scope-Paths: TODO (comma-separated repo-relative paths or pathspecs)
 - Item-Dependencies: unresolved
-- Status: draft
+- Status: superseded
 - Blocks-Release: next
 - Work-Kind: feature
 - Priority: high
@@ -20,6 +20,7 @@
 
 ## Workflow history
 
+- 2026-11-25 superseded (aw set): Superseded by direct split of rgva3w into Orders 301-304 (wgn3bl, t3t7za, fkvrc7, 75jciz) ahead of 9o83cr
 - 2026-11-25 draft (aw agy run model=Gemini-4-Neon-High): created.
 
 ## Goal

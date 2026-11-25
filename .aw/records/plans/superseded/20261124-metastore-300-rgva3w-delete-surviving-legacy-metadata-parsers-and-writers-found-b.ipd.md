@@ -6,7 +6,7 @@
 - Scope: Consolidate and resolve all six surviving parser/writer cleanup backlog items (`ebbfmn`, `q4gwp9`, `hmtpj2`, `1h5eqc`, `vwkbd9`, `a0o7t0`) inside `Set: metastore`, wired directly ahead of `cxxmyv`. Retarget every surviving `^-` metadata regex, `Workflow history` section slicer, `aw-prompt` comment helper, and `Scope-Paths` bullet writer onto `artifact_meta`, then re-run both the `9o83cr` E-14 search audit and the widened multiline/flag-group search to confirm zero unexcluded parser or writer hits outside `artifact_meta.py` and `agent_workflows/migrations/m0001_*.py`. Excludes the attended log-format cutover itself (`cxxmyv`) and the unrelated pre-existing test budget/fixture items (`6o5aan`, `rryabb`, `vo0y6q`).
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/artifact_refs.py, agent_workflows/artifact_rename.py, agent_workflows/attention.py, agent_workflows/backlog.py, agent_workflows/check_engine.py, agent_workflows/coverage_record.py, agent_workflows/ipd_lifecycle.py, agent_workflows/ipd_lint.py, agent_workflows/ipd_schema.py, agent_workflows/partition.py, agent_workflows/prompts.py, agent_workflows/releases.py, agent_workflows/review_basis.py, agent_workflows/runner_shared.py, agent_workflows/specs.py, tests/test_metadata_single_owner.py, .aw/records/plans/pending/20261124-metastore-300-rgva3w-delete-surviving-legacy-metadata-parsers-and-writers-found-b.ipd.md
 - Item-Dependencies: executed:9o83cr
-- Status: to-review
+- Status: superseded
 - From-Spec: 4sd62s
 - Priority: high
 - Work-Kind: bug
@@ -21,6 +21,7 @@
 
 ## Workflow history
 
+- 2026-11-25 superseded (aw set): Split into Orders 301-304 (wgn3bl, t3t7za, fkvrc7, 75jciz) ahead of 9o83cr per maintainer decision
 - 2026-11-24 to-review (antigravity): authored consolidated corrective child plan for Set metastore (ahead of cxxmyv) covering 9o83cr E-14 survivors (ebbfmn, q4gwp9, hmtpj2, 1h5eqc, vwkbd9, a0o7t0).
 
 ## Goal
