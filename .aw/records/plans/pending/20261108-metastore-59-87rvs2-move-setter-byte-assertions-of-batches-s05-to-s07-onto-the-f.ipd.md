@@ -23,6 +23,7 @@
 This plan conforms to the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`.
 
 ## Workflow history
+- 2026-11-25 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): executed E-01..E-04 in lane run-20261125T103744Z-2547641; S05/S06/S07 converted, union diff empty, F-28 part table written.
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 
@@ -46,27 +47,27 @@ Batch rule, applied to every batch E-item of this plan:
 
 ### Task group 1: batches
 
-- [ ] E-01 Ensure directory `.aw/state/87rvs2` exists (`mkdir -p .aw/state/87rvs2`). Batch S05: convert the setter-byte assertions of `tests/test_backlog_set_adapter.py`, `tests/test_backlog_transition_authority.py`, `tests/test_backlog_transition_gate.py`, `tests/test_clean_target_zero_delta_e2e.py`, `tests/test_doctor.py` (13 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S05`.
+- [x] E-01 Ensure directory `.aw/state/87rvs2` exists (`mkdir -p .aw/state/87rvs2`). Batch S05: convert the setter-byte assertions of `tests/test_backlog_set_adapter.py`, `tests/test_backlog_transition_authority.py`, `tests/test_backlog_transition_gate.py`, `tests/test_clean_target_zero_delta_e2e.py`, `tests/test_doctor.py` (13 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S05`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S05 outcome lists; the remaining F-28 matches in the batch's modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Batch S06: convert the setter-byte assertions of `tests/test_gate_pair_validation_parity.py`, `tests/test_gradcover_end_to_end.py` (17 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S06`.
+- [x] E-02 Batch S06: convert the setter-byte assertions of `tests/test_gate_pair_validation_parity.py`, `tests/test_gradcover_end_to_end.py` (17 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S06`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S06 outcome lists; the remaining F-28 matches in the batch's modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Batch S07: convert the setter-byte assertions of `tests/test_group_verb_policy.py` (27 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S07`.
+- [x] E-03 Batch S07: convert the setter-byte assertions of `tests/test_group_verb_policy.py` (27 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S07`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S07 outcome lists; the remaining F-28 matches in the batch's modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-04 Finish this part: run the batch rule's command over every module of S05, S06, S07 once more and confirm the outcome multiset equals the union of the batches' `-before.txt` lists; write F-28's remaining-match table for this part (one row per remaining match with its class) so `cxxmyv` E-07 has the exact list of `setter-byte, exact spelling` rows it must still change; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit 87rvs2 -- <each changed path>`, one commit per batch allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-04 Finish this part: run the batch rule's command over every module of S05, S06, S07 once more and confirm the outcome multiset equals the union of the batches' `-before.txt` lists; write F-28's remaining-match table for this part (one row per remaining match with its class) so `cxxmyv` E-07 has the exact list of `setter-byte, exact spelling` rows it must still change; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit 87rvs2 -- <each changed path>`, one commit per batch allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: the union comparison is empty; F-28 for this part is written; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -80,6 +81,7 @@ Batch rule, applied to every batch E-item of this plan:
 | Id | Evidence | Finding |
 |---|---|---|
 | F-28 | Copied from `iog3cw` F-28 (measured at `ac76110f4`): 467 candidate setter-byte lines in 74 modules, split into 20 batches S01 to S20 of at most about 30 lines. This part: S05, S06, S07, 57 lines. Context baseline measured at HEAD `43b38f1ee`: 123 passed in 32.20s (128 collected across all 8 modules: `tests/test_backlog_set_adapter.py`: 8, `tests/test_backlog_transition_authority.py`: 8, `tests/test_backlog_transition_gate.py`: 14, `tests/test_clean_target_zero_delta_e2e.py`: 2, `tests/test_doctor.py`: 38, `tests/test_gate_pair_validation_parity.py`: 12, `tests/test_gradcover_end_to_end.py`: 5, `tests/test_group_verb_policy.py`: 41). | Each batch is at most about 30 one-line conversions in at most 10 modules. The final table (written by E-04) lists every remaining match with its class. |
+| F-28 (part table, written by E-04) | Post-conversion scan of the 8 modules with the F-28 pattern at HEAD `731e63368`: one remaining match. | (1) `tests/test_doctor.py::DoctorRemediationTests::test_remediation_blocks_release_dangling` (`self.assertIn("'- Blocks-Release:'", rem_r.detailed_fix)`): `displayed-output assertion` (the subject is the `detailed_fix` remediation message `doctor.build_remediation` returns, not a record file). No `legacy-format subject` and no `setter-byte, exact spelling` rows: the cutover (`x1mmdp`, carrying `cxxmyv` E-07) has nothing left to change in these 8 modules. Outside the single-line pattern (the gap backlog `i2u307` records), five multi-line `self.assertIn(\n "- Status: ...", <file>.read_text(...))` assertions in `tests/test_gradcover_end_to_end.py` were converted too. Left unconverted, outside the F-28 field list: `- Coverage:` and `- Coverage-Fingerprint:` assertions in `tests/test_gradcover_end_to_end.py` (`Coverage` is not an F-28 field, and the cutover inherits them under `i2u307`). |
 
 ## Proposed changes (ordered, validatable)
 
@@ -142,25 +144,40 @@ No spec change; prepares part of `4sd62s` section 6 and section 7 step 9 (the te
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the empty `diff .aw/state/87rvs2/S05-before.txt .aw/state/87rvs2/S05-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_backlog_set_adapter.py`, `tests/test_backlog_transition_authority.py`, `tests/test_backlog_transition_gate.py`, `tests/test_clean_target_zero_delta_e2e.py`, `tests/test_doctor.py` (one line per module or test class), and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/87rvs2/S05-before.txt .aw/state/87rvs2/S05-after.txt`: empty (printed `EMPTY-DIFF`; 70 lines in both files, all `PASSED`).
+    - F-28 `rg -c` counts (before -> after): `tests/test_backlog_set_adapter.py` 1 -> 0; `tests/test_backlog_transition_authority.py` 8 -> 0; `tests/test_backlog_transition_gate.py` 2 -> 0; `tests/test_clean_target_zero_delta_e2e.py` 1 -> 0; `tests/test_doctor.py` 1 -> 1.
+    - The one remaining match is `tests/test_doctor.py:766` `self.assertIn("'- Blocks-Release:'", rem_r.detailed_fix)` in `DoctorRemediationTests::test_remediation_blocks_release_dangling`: `displayed-output assertion` (subject is the remediation message, not a record file). The `tests/test_clean_target_zero_delta_e2e.py` match was a `re.search(r"^- Id:...")` id extraction guarded by `assertIsNotNone`; it now reads the id through `artifact_meta.read_text`, asserts its six-character shape, and calls `assert_field(plan_path, "id", id6)` (decision `03-87rvs2-D1`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the empty `diff .aw/state/87rvs2/S06-before.txt .aw/state/87rvs2/S06-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_gate_pair_validation_parity.py`, `tests/test_gradcover_end_to_end.py` (one line per module or test class), and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/87rvs2/S06-before.txt .aw/state/87rvs2/S06-after.txt`: empty (printed `EMPTY-DIFF`; 17 lines in both files, all `PASSED`; re-run after the multi-line conversions below, still empty).
+    - F-28 `rg -c` counts (before -> after): `tests/test_gate_pair_validation_parity.py` 16 -> 0; `tests/test_gradcover_end_to_end.py` 1 -> 0.
+    - No remaining matches. Five multi-line `- Status:` assertions over record files in `tests/test_gradcover_end_to_end.py` (outside the single-line pattern) were converted as well. `self.assertNotIn("- Gate-Kind:", content)` / `- Gate-Ref:` became `assert_no_field(..., "gate_kind"|"gate_ref")`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the empty `diff .aw/state/87rvs2/S07-before.txt .aw/state/87rvs2/S07-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_group_verb_policy.py` (one line per module or test class), and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/87rvs2/S07-before.txt .aw/state/87rvs2/S07-after.txt`: empty (printed `EMPTY-DIFF`; 41 lines in both files, all `PASSED`).
+    - F-28 `rg -c` counts (before -> after): `tests/test_group_verb_policy.py` 27 -> 0.
+    - No remaining matches. `- Kind:` maps to the helper field `plan_role` (`artifact_meta._LEGACY_BULLET_LABEL["plan_role"] == "Kind"`); `assert "- Kind:" not in content` became `assert_no_field(path, "plan_role")`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `diff` of the concatenated, sorted `-before.txt` lists of S05, S06, S07 against the combined after-run list (empty), F-28 for this part as written with one row per remaining match and its class, the per-module F-28 `rg -c` count for each of `tests/test_backlog_set_adapter.py`, `tests/test_backlog_transition_authority.py`, `tests/test_backlog_transition_gate.py`, `tests/test_clean_target_zero_delta_e2e.py`, `tests/test_doctor.py`, `tests/test_gate_pair_validation_parity.py`, `tests/test_gradcover_end_to_end.py`, `tests/test_group_verb_policy.py`, the bare `python3 -m pytest` summary line beside them and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit 87rvs2` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union check, `sort S05-before.txt S06-before.txt S07-before.txt > union-before.txt`; the batch-rule command over all 8 modules into `union-after.txt`; `diff union-before.txt union-after.txt`: empty (printed `EMPTY-DIFF`; 128 lines each, all `PASSED`).
+    - F-28 part table: written in `## Findings` (row `F-28 (part table, written by E-04)`): 1 remaining row, `displayed-output assertion`; 0 `legacy-format subject`; 0 `setter-byte, exact spelling`.
+    - Per-module F-28 `rg -c` after: `tests/test_backlog_set_adapter.py` 0; `tests/test_backlog_transition_authority.py` 0; `tests/test_backlog_transition_gate.py` 0; `tests/test_clean_target_zero_delta_e2e.py` 0; `tests/test_doctor.py` 1; `tests/test_gate_pair_validation_parity.py` 0; `tests/test_gradcover_end_to_end.py` 0; `tests/test_group_verb_policy.py` 0.
+    - Bare `python3 -m pytest`: `2952 passed, 1 skipped, 11 warnings in 86.74s (0:01:26)` (`wall 87.44s`), exit 1 SOLELY because `conftest.py` printed `Core tier wall time: 86.74s exceeded budget of 30.00s.` (host load average about 8 on 12 CPUs); no test failed. This is the pre-existing condition filed as backlog `6o5aan`, and the executed sibling `iog3cw` measured the same (107.65s). Bounded `aw suite`: `2952 passed, 1 skipped, 11 warnings in 64.92s (0:01:04)`, exit 0.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7230,"findings":0,...}`.
+    - Commits made with `aw commit 87rvs2 ... -- tests/test_backlog_set_adapter.py tests/test_backlog_transition_authority.py tests/test_backlog_transition_gate.py tests/test_clean_target_zero_delta_e2e.py`: `aw commit: committed 4 path(s): 0a2cd34a57324256373b7b6fa436195d00b2a167`; `... -- tests/test_gate_pair_validation_parity.py tests/test_gradcover_end_to_end.py`: `aw commit: committed 2 path(s): 22a098512f0362dbe64b65f3f4543b4023edb6dd`; `... -- tests/test_group_verb_policy.py`: `aw commit: committed 1 path(s): 731e63368892e1183b08953527fd2916808ab065`. All paths are in Scope-Paths; `tests/test_doctor.py` is declared but unmodified (its one match is a displayed-output assertion). This plan file is committed in a follow-up `aw commit 87rvs2` naming only this IPD path.
+  - Result: pass
 
 ## Approval and execution gate
 
