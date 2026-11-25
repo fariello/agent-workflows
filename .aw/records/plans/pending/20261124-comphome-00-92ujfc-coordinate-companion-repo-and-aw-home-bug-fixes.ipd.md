@@ -32,39 +32,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Confirm all child IPDs reach executed
 
-- [ ] E-01 Confirm child `ywl7uc` (Order 01) reached `executed/`.
+- [ ] E-01 CONFIRM ywl7uc REACHED executed
   - Depends on: none
   - Expected outcome: `aw find plans ywl7uc` reports `ywl7uc` under `.aw/records/plans/executed/`.
   - Execution state: pending
 
-- [ ] E-02 Confirm child `7gverp` (Order 02) reached `executed/`.
+- [ ] E-02 CONFIRM 7gverp REACHED executed
   - Depends on: E-01
   - Expected outcome: `aw find plans 7gverp` reports `7gverp` under `.aw/records/plans/executed/`.
   - Execution state: pending
 
-- [ ] E-03 Confirm child `mmuv3v` (Order 03) reached `executed/`.
+- [ ] E-03 CONFIRM mmuv3v REACHED executed
   - Depends on: E-01
   - Expected outcome: `aw find plans mmuv3v` reports `mmuv3v` under `.aw/records/plans/executed/`.
   - Execution state: pending
 
-- [ ] E-04 Confirm child `7eivm2` (Order 04) reached `executed/`.
+- [ ] E-04 CONFIRM 7eivm2 REACHED executed
   - Depends on: E-01
   - Expected outcome: `aw find plans 7eivm2` reports `7eivm2` under `.aw/records/plans/executed/`.
   - Execution state: pending
 
-- [ ] E-05 Confirm child `7hfx7r` (Order 05) reached `executed/`.
+- [ ] E-05 CONFIRM 7hfx7r REACHED executed
   - Depends on: E-01
   - Expected outcome: `aw find plans 7hfx7r` reports `7hfx7r` under `.aw/records/plans/executed/`.
   - Execution state: pending
 
-- [ ] E-06 Confirm child `4vnd36` (Order 06) reached `executed/`.
+- [ ] E-06 CONFIRM 4vnd36 REACHED executed
   - Depends on: E-03, E-05
   - Expected outcome: `aw find plans 4vnd36` reports `4vnd36` under `.aw/records/plans/executed/`.
   - Execution state: pending
 
 ## Child IPDs, sequence, and dependencies
 
-| Order | ID | Filename | Summary | Dependencies |
+| Order | ID | Filename | Summary | Depends on |
 |---:|---|---|---|---|
 | 01 | `ywl7uc` | `20261124-comphome-01-ywl7uc-fix-companion-and-aw-home-core-storage-context-placement-swi.ipd.md` | Fix core storage, `AW_HOME` unification, companion security/local.json sync, placement-switch rollback, `record_placement`, `artifact_core.git_mv`, and `project_layout`. | `none` |
 | 02 | `7gverp` | `20261124-comphome-02-7gverp-fix-installer-clean-delta-hijack-companion-project-policy-di.ipd.md` | Fix `engine._clean_delta_home_trees` hijack, `public-target-private-companion` policy/attachment gaps, `aw install --diff`, local-lane migration crash, and `leak_sanitizer` allowlist path. | `executed:ywl7uc` |
