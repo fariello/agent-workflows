@@ -15,7 +15,7 @@ from agent_workflows import artifact_meta
 from agent_workflows import attention_contract
 from agent_workflows import specs
 from agent_workflows import status_set
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 class SpecStatusDirectoriesTests(unittest.TestCase):
@@ -69,7 +69,7 @@ class SpecStatusDirectoriesTests(unittest.TestCase):
         self.assertEqual(len(created_files), 1)
         created = created_files[0]
         self.assertEqual(created.parent.name, "draft")
-        self.assertIn("- Status: draft", created.read_text(encoding="utf-8"))
+        assert_field(created, "status", "draft")
 
     def test_specs_run_set_relocates_file_on_transition(self) -> None:
         spec_path = (
@@ -130,7 +130,7 @@ class SpecStatusDirectoriesTests(unittest.TestCase):
             / "20260924-aa1111-01-aa1111-test.spec.md"
         )
         self.assertTrue(dest_path.exists())
-        self.assertIn("- Status: to-review", dest_path.read_text(encoding="utf-8"))
+        assert_field(dest_path, "status", "to-review")
 
     def test_status_set_run_set_command_relocates_spec(self) -> None:
         spec_path = (
@@ -194,7 +194,7 @@ class SpecStatusDirectoriesTests(unittest.TestCase):
             / "20260924-bb2222-01-bb2222-test.spec.md"
         )
         self.assertTrue(dest_path.exists())
-        self.assertIn("- Status: to-review", dest_path.read_text(encoding="utf-8"))
+        assert_field(dest_path, "status", "to-review")
 
     def test_specs_set_status_dry_run_leaves_file_and_tree_clean(self) -> None:
         from agent_workflows import cli

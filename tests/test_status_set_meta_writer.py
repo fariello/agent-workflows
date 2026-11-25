@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 from agent_workflows import artifact_core, cli
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 pytestmark = pytest.mark.core
 
@@ -335,10 +335,9 @@ def test_cache_state_does_not_change_setter_bytes_or_stdout(
         elif cache_state == "corrupt":
             db.write_bytes(os.urandom(4096))
     rc, out = _run(root, ["set", "approved", "cc0001", "--yes", "--no-commit"])
-    got = (
-        root / ".aw/records/plans/pending/20260101-cch-01-cc0001-c.ipd.md"
-    ).read_bytes()
+    got_path = root / ".aw/records/plans/pending/20260101-cch-01-cc0001-c.ipd.md"
+    got = got_path.read_bytes()
     assert rc == rc_ref == 0
     assert out == out_ref
     assert got == ref_bytes
-    assert b"- Status: approved\n" in got
+    assert_field(got_path, "status", "approved")

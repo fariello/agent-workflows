@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import specs, status_set
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 class SpecsFromBacklogTests(unittest.TestCase):
@@ -189,10 +189,9 @@ class SpecsFromBacklogTests(unittest.TestCase):
             / "20260925-sp0001-01-sp0001-spec-a.spec.md"
         )
         self.assertTrue(dest_path.exists())
-        content = dest_path.read_text(encoding="utf-8")
-        self.assertIn("- Status: to-review", content)
-        self.assertIn("- From-Backlog: bkl001", content)
-        self.assertIn("- Blocks-Release: relaaa", content)
+        assert_field(dest_path, "status", "to-review")
+        assert_field(dest_path, "from_backlog", "bkl001")
+        assert_field(dest_path, "blocks_release", "relaaa")
 
     def test_status_spelling_explicit_blocks_release_wins(self) -> None:
         spec_path = self._create_spec("sp0002", "spec-b")
@@ -229,11 +228,9 @@ class SpecsFromBacklogTests(unittest.TestCase):
             / "20260925-sp0002-01-sp0002-spec-b.spec.md"
         )
         self.assertTrue(dest_path.exists())
-        content = dest_path.read_text(encoding="utf-8")
-        self.assertIn("- Status: to-review", content)
-        self.assertIn("- From-Backlog: bkl001", content)
-        self.assertIn("- Blocks-Release: relbbb", content)
-        self.assertNotIn("- Blocks-Release: relaaa", content)
+        assert_field(dest_path, "status", "to-review")
+        assert_field(dest_path, "from_backlog", "bkl001")
+        assert_field(dest_path, "blocks_release", "relbbb")
 
     def test_status_spelling_existing_gate_not_overwritten(self) -> None:
         spec_path = self._create_spec("sp0003", "spec-c", blocks_release="relbbb")
@@ -270,11 +267,9 @@ class SpecsFromBacklogTests(unittest.TestCase):
             / "20260925-sp0003-01-sp0003-spec-c.spec.md"
         )
         self.assertTrue(dest_path.exists())
-        content = dest_path.read_text(encoding="utf-8")
-        self.assertIn("- Status: to-review", content)
-        self.assertIn("- From-Backlog: bkl001", content)
-        self.assertIn("- Blocks-Release: relbbb", content)
-        self.assertNotIn("- Blocks-Release: relaaa", content)
+        assert_field(dest_path, "status", "to-review")
+        assert_field(dest_path, "from_backlog", "bkl001")
+        assert_field(dest_path, "blocks_release", "relbbb")
 
     def test_status_spelling_from_backlog_dash_clears_field_and_inherits_nothing(
         self,
@@ -314,7 +309,7 @@ class SpecsFromBacklogTests(unittest.TestCase):
         )
         self.assertTrue(dest_path.exists())
         content = dest_path.read_text(encoding="utf-8")
-        self.assertIn("- Status: to-review", content)
+        assert_field(dest_path, "status", "to-review")
         self.assertNotIn("From-Backlog", content)
         self.assertNotIn("Blocks-Release", content)
 
@@ -359,10 +354,9 @@ class SpecsFromBacklogTests(unittest.TestCase):
             / "20260925-sp0005-01-sp0005-spec-e.spec.md"
         )
         self.assertTrue(dest_path.exists())
-        content = dest_path.read_text(encoding="utf-8")
-        self.assertIn("- Status: to-review", content)
-        self.assertIn("- From-Backlog: bkl001", content)
-        self.assertIn("- Blocks-Release: relaaa", content)
+        assert_field(dest_path, "status", "to-review")
+        assert_field(dest_path, "from_backlog", "bkl001")
+        assert_field(dest_path, "blocks_release", "relaaa")
 
     def test_bare_spelling_explicit_blocks_release_wins(self) -> None:
         self._create_spec("sp0006", "spec-f")
@@ -403,11 +397,9 @@ class SpecsFromBacklogTests(unittest.TestCase):
             / "20260925-sp0006-01-sp0006-spec-f.spec.md"
         )
         self.assertTrue(dest_path.exists())
-        content = dest_path.read_text(encoding="utf-8")
-        self.assertIn("- Status: to-review", content)
-        self.assertIn("- From-Backlog: bkl001", content)
-        self.assertIn("- Blocks-Release: relbbb", content)
-        self.assertNotIn("- Blocks-Release: relaaa", content)
+        assert_field(dest_path, "status", "to-review")
+        assert_field(dest_path, "from_backlog", "bkl001")
+        assert_field(dest_path, "blocks_release", "relbbb")
 
     def test_bare_spelling_existing_gate_not_overwritten(self) -> None:
         self._create_spec("sp0007", "spec-g", blocks_release="relbbb")
@@ -448,11 +440,9 @@ class SpecsFromBacklogTests(unittest.TestCase):
             / "20260925-sp0007-01-sp0007-spec-g.spec.md"
         )
         self.assertTrue(dest_path.exists())
-        content = dest_path.read_text(encoding="utf-8")
-        self.assertIn("- Status: to-review", content)
-        self.assertIn("- From-Backlog: bkl001", content)
-        self.assertIn("- Blocks-Release: relbbb", content)
-        self.assertNotIn("- Blocks-Release: relaaa", content)
+        assert_field(dest_path, "status", "to-review")
+        assert_field(dest_path, "from_backlog", "bkl001")
+        assert_field(dest_path, "blocks_release", "relbbb")
 
     def test_bare_spelling_from_backlog_dash_clears_field_and_inherits_nothing(
         self,
@@ -496,6 +486,6 @@ class SpecsFromBacklogTests(unittest.TestCase):
         )
         self.assertTrue(dest_path.exists())
         content = dest_path.read_text(encoding="utf-8")
-        self.assertIn("- Status: to-review", content)
+        assert_field(dest_path, "status", "to-review")
         self.assertNotIn("From-Backlog", content)
         self.assertNotIn("Blocks-Release", content)

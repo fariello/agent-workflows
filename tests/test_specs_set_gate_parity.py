@@ -39,7 +39,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import cli
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 def _setup_repo(root: Path) -> Path:
@@ -340,7 +340,7 @@ class TestSpecsSetGateParity(unittest.TestCase):
             self.assertIsNotNone(found)
             self.assertEqual(found.parent.name, "implemented")
             text = found.read_text(encoding="utf-8")
-            self.assertIn("- Status: implemented", text)
+            assert_field(found, "status", "implemented")
             self.assertIn("implemented", text)
             self.assertFalse(
                 (
@@ -385,7 +385,7 @@ class TestSpecsSetGateParity(unittest.TestCase):
             self.assertIsNotNone(found)
             self.assertEqual(found.parent.name, "implemented")
             text = found.read_text(encoding="utf-8")
-            self.assertIn("- Status: implemented", text)
+            assert_field(found, "status", "implemented")
             self.assertIn("implemented", text)
             self.assertFalse(
                 (

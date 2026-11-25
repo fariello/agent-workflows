@@ -25,7 +25,7 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import agent_schema, artifact_meta
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 from tests.test_ipd_lint import _conforming_child
 
 
@@ -264,8 +264,8 @@ class TestStatusSetPartialBatch(unittest.TestCase):
             self.assertEqual(orch.read_bytes(), b_orch)
 
             # Verify passing plans were applied
-            self.assertIn("- Status: to-review", p1.read_text(encoding="utf-8"))
-            self.assertIn("- Status: to-review", p2.read_text(encoding="utf-8"))
+            assert_field(p1, "status", "to-review")
+            assert_field(p2, "status", "to-review")
 
             lines = [line for line in proc.stdout.splitlines() if line.strip()]
             self.assertTrue(lines)
@@ -319,8 +319,8 @@ class TestStatusSetPartialBatch(unittest.TestCase):
             self.assertIn("Applied 2, skipped 1 (refused):", combined)
 
             self.assertEqual(orch.read_bytes(), b_orch)
-            self.assertIn("- Status: to-review", p1.read_text(encoding="utf-8"))
-            self.assertIn("- Status: to-review", p2.read_text(encoding="utf-8"))
+            assert_field(p1, "status", "to-review")
+            assert_field(p2, "status", "to-review")
 
     def test_case_04_interactive_answered_no_and_eof_writes_nothing(self):
         """Case 4: interactive with n\\n and empty stdin writes nothing."""
@@ -443,8 +443,8 @@ class TestStatusSetPartialBatch(unittest.TestCase):
                 repo, ["ipd", "set", "to-review", "pla001", "pla002", "--yes"]
             )
             self.assertEqual(proc.returncode, 0)
-            self.assertIn("- Status: to-review", p1.read_text(encoding="utf-8"))
-            self.assertIn("- Status: to-review", p2.read_text(encoding="utf-8"))
+            assert_field(p1, "status", "to-review")
+            assert_field(p2, "status", "to-review")
 
     def test_case_08_yes_alone_does_not_skip(self):
         """Case 8: --yes alone does not skip."""
@@ -554,7 +554,7 @@ class TestStatusSetPartialBatch(unittest.TestCase):
             )
             self.assertEqual(proc.returncode, 1)
 
-            self.assertIn("- Status: reviewed", p1.read_text(encoding="utf-8"))
+            assert_field(p1, "status", "reviewed")
             self.assertEqual(
                 artifact_meta.read(
                     "prm001", project_context=artifact_meta.legacy_context(repo)
@@ -622,10 +622,10 @@ class TestStatusSetPartialBatch(unittest.TestCase):
             self.assertEqual(proc.returncode, 1)
 
             # bkl001 skipped (still open), bkl002 applied (done)
-            self.assertIn("- Status: open", b1.read_text(encoding="utf-8"))
+            assert_field(b1, "status", "open")
             b2_done = repo / ".aw" / "records" / "backlog" / "done" / b2.name
             target_b2 = b2_done if b2_done.exists() else b2
-            self.assertIn("- Status: done", target_b2.read_text(encoding="utf-8"))
+            assert_field(target_b2, "status", "done")
 
             rec = json.loads(
                 [line for line in proc.stdout.splitlines() if line.strip()][-1]
@@ -691,10 +691,10 @@ class TestStatusSetPartialBatch(unittest.TestCase):
             )
             self.assertEqual(proc.returncode, 1)
 
-            self.assertIn("- Status: open", b1.read_text(encoding="utf-8"))
+            assert_field(b1, "status", "open")
             b2_grad = repo / ".aw" / "records" / "backlog" / "graduated" / b2.name
             target_b2 = b2_grad if b2_grad.exists() else b2
-            self.assertIn("- Status: graduated", target_b2.read_text(encoding="utf-8"))
+            assert_field(target_b2, "status", "graduated")
 
             rec = json.loads(
                 [line for line in proc.stdout.splitlines() if line.strip()][-1]
@@ -736,8 +736,8 @@ class TestStatusSetPartialBatch(unittest.TestCase):
             self.assertEqual(proc.returncode, 1)
 
             # ex0001 skipped (still executed), pla002 applied (to-review)
-            self.assertIn("- Status: executed", p1.read_text(encoding="utf-8"))
-            self.assertIn("- Status: to-review", p2.read_text(encoding="utf-8"))
+            assert_field(p1, "status", "executed")
+            assert_field(p2, "status", "to-review")
 
             rec = json.loads(
                 [line for line in proc.stdout.splitlines() if line.strip()][-1]
@@ -774,8 +774,8 @@ class TestStatusSetPartialBatch(unittest.TestCase):
             )
             self.assertEqual(proc.returncode, 1)
 
-            self.assertIn("- Status: reviewed", p1.read_text(encoding="utf-8"))
-            self.assertIn("- Status: to-review", p2.read_text(encoding="utf-8"))
+            assert_field(p1, "status", "reviewed")
+            assert_field(p2, "status", "to-review")
 
             rec = json.loads(
                 [line for line in proc.stdout.splitlines() if line.strip()][-1]

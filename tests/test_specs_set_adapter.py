@@ -22,7 +22,7 @@ from pathlib import Path
 
 from agent_workflows import artifact_core as core
 from agent_workflows import specs
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 def _sha256(path: Path) -> str:
@@ -101,7 +101,7 @@ class SpecsSetAdapterTests(unittest.TestCase):
             / "20261009-sh0001-01-sh0001-fixture.spec.md"
         )
         self.assertTrue(dest.exists(), f"Destination spec {dest} does not exist")
-        self.assertIn("- Status: to-review", dest.read_text(encoding="utf-8"))
+        assert_field(dest, "status", "to-review")
 
     def test_hand_built_namespace_shape_args_list(self) -> None:
         """Callers constructing Namespace(args=[...]) transition successfully."""
@@ -127,7 +127,7 @@ class SpecsSetAdapterTests(unittest.TestCase):
             / "20261009-sh0002-01-sh0002-fixture.spec.md"
         )
         self.assertTrue(dest.exists())
-        self.assertIn("- Status: to-review", dest.read_text(encoding="utf-8"))
+        assert_field(dest, "status", "to-review")
 
     def test_date_override_passthrough_on_specs(self) -> None:
         """Explicit --date override passes through to history, falling back to UTC history date."""
@@ -249,7 +249,7 @@ class SpecsSetAdapterTests(unittest.TestCase):
             / "20261009-cg0001-01-cg0001-fixture.spec.md"
         )
         self.assertTrue(dest.exists())
-        self.assertIn("- Status: to-review", dest.read_text(encoding="utf-8"))
+        assert_field(dest, "status", "to-review")
 
     def test_selector_widening_resolves_id6(self) -> None:
         """specs.run_set now accepts an id6 selector (widening per wy9aru Section 4.5)."""
@@ -276,7 +276,7 @@ class SpecsSetAdapterTests(unittest.TestCase):
             / "20261009-wd0001-01-wd0001-fixture.spec.md"
         )
         self.assertTrue(dest.exists())
-        self.assertIn("- Status: to-review", dest.read_text(encoding="utf-8"))
+        assert_field(dest, "status", "to-review")
 
 
 if __name__ == "__main__":

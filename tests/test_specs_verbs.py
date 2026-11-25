@@ -16,7 +16,7 @@ from pathlib import Path
 from unittest import mock
 
 from agent_workflows import specs
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field, assert_no_field
 
 FIX = Path(__file__).parent / "fixtures" / "attnview"
 
@@ -189,7 +189,7 @@ class SetTests(unittest.TestCase):
                 )
             self.assertEqual(rc, 0)
             t = p.read_text(encoding="utf-8")
-            self.assertIn("- Status: to-review", t)
+            assert_field(p, "status", "to-review")
             self.assertEqual(t.count("- 2026-08-09 to-review (aw specs):"), 1)
 
     def test_illegal_transition_refused_byte_identical(self):
@@ -278,7 +278,7 @@ class SetTests(unittest.TestCase):
                 )
             self.assertEqual(rc, 0, "interactive approval succeeds directly")
             t2 = p2.read_text(encoding="utf-8")
-            self.assertIn("- Status: approved", t2)
+            assert_field(p2, "status", "approved")
             self.assertIn(
                 "- 2026-08-09 approved (aw specs, --by-human): interactive signoff",
                 t2,
@@ -323,9 +323,8 @@ class SetTests(unittest.TestCase):
                     )
                 )
             self.assertEqual(rc, 0)
-            t = p.read_text(encoding="utf-8")
-            self.assertIn("- Gate-Kind: issue", t)
-            self.assertIn("- Gate-Ref: https://example.com/i/1", t)
+            assert_field(p, "gate_kind", "issue")
+            assert_field(p, "gate_ref", "https://example.com/i/1")
             # leaving deferred removes the gate fields
             with redirect_stdout(io.StringIO()):
                 rc = specs.run_set(
@@ -342,9 +341,8 @@ class SetTests(unittest.TestCase):
                     )
                 )
             self.assertEqual(rc, 0)
-            t = p.read_text(encoding="utf-8")
-            self.assertNotIn("- Gate-Kind:", t)
-            self.assertNotIn("- Gate-Ref:", t)
+            assert_no_field(p, "gate_kind")
+            assert_no_field(p, "gate_ref")
 
     def test_deferred_requires_valid_gate(self):
         with tempfile.TemporaryDirectory() as d:
@@ -464,7 +462,7 @@ class MigrateTests(unittest.TestCase):
                 )
             self.assertEqual(rc, 0)
             t = p.read_text(encoding="utf-8")
-            self.assertIn("- Status: implemented", t)
+            assert_field(p, "status", "implemented")
             self.assertIn("- Canonical: true", t)
             self.assertIn("## Workflow history", t)
             self.assertIn("was: canonical reference", t)
@@ -499,9 +497,9 @@ class MigrateTests(unittest.TestCase):
                 )
             self.assertEqual(rc, 0)
             t = p.read_text(encoding="utf-8")
-            self.assertIn("- Status: deferred", t)
-            self.assertIn("- Gate-Kind: artifact", t)
-            self.assertIn("- Gate-Ref: TODO.md", t)
+            assert_field(p, "status", "deferred")
+            assert_field(p, "gate_kind", "artifact")
+            assert_field(p, "gate_ref", "TODO.md")
             self.assertEqual(specs.validate_spec(p, t), [])
 
     def test_migrate_folds_implemented_line(self):
@@ -561,7 +559,7 @@ class NoteTests(unittest.TestCase):
                 )
             self.assertEqual(rc, 0)
             t = p.read_text(encoding="utf-8")
-            self.assertIn("- Status: draft", t)  # status unchanged
+            assert_field(p, "status", "draft")  # status unchanged
             self.assertEqual(t.count("- 2026-08-09 note (aw specs): a note"), 1)
 
     def test_note_deduplicates_identical_call(self):
