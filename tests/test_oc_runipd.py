@@ -33,7 +33,7 @@ from agent_workflows import orchestrate_isolation
 from tests import support
 from tests.repo_template import copy_template_repo
 from tests.support import REPO_ROOT
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 # Scrub AW_CONFIG_DIR so unittest without conftest does not leak ambient agent config
 os.environ.pop("AW_CONFIG_DIR", None)
@@ -3084,7 +3084,7 @@ class SelfFinalizeHelperTests(unittest.TestCase):
             self.assertFalse(plan.is_file(), "plan should have moved out of pending/")
             executed = repo / ".aw" / "records" / "plans" / "executed" / plan.name
             self.assertTrue(executed.is_file(), "plan must land in executed/")
-            self.assertIn("- Status: executed", executed.read_text(encoding="utf-8"))
+            assert_field(executed, "status", "executed")
 
     def test_compute_scope_reconciliation_handles_out_of_scope_and_unmodified(self):
         # A change OUTSIDE Scope-Paths yields unjustified_out_of_scope; when justified by agent,
@@ -5619,7 +5619,7 @@ class ActionLegalityTests(unittest.TestCase):
         self.assertIn("bbb222", msg)
         self.assertIn("2 selected item(s)", msg)
 
-    def _refusal_run(self, id6: str, *extra: str):
+    def _refusal_run(self, id6: str, *extra: str, expect_status: str | None = None):
         with tempfile.TemporaryDirectory() as td:
             repo = _repo_with_statuses(
                 Path(td),
@@ -5643,35 +5643,29 @@ class ActionLegalityTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
             )
-            plan_text = (repo / ".aw" / "records" / "plans" / "pending").glob(
-                f"*{id6}*.ipd.md"
+            plan_path = next(
+                (repo / ".aw" / "records" / "plans" / "pending").glob(f"*{id6}*.ipd.md")
             )
-            status = next(
-                line
-                for line in next(plan_text).read_text().splitlines()
-                if line.startswith("- Status:")
-            )
+            if expect_status is not None:
+                assert_field(plan_path, "status", expect_status)
             runs = repo / ".aw" / "records" / "runs"
             return (
                 res,
-                status,
                 sorted(p.name for p in runs.iterdir()) if runs.is_dir() else [],
             )
 
     def test_alias_refusal_and_acceptance(self):
-        res, status, runs = self._refusal_run("appr01")
+        res, runs = self._refusal_run("appr01", expect_status="approved")
         self.assertEqual(res.returncode, 2, res.stdout + res.stderr)
         self.assertIn("requires confirmation", res.stderr)
         self.assertEqual(runs, [])
-        self.assertEqual(status, "- Status: approved")
 
-        res, status, runs = self._refusal_run("revw01", "--full-auto")
+        res, runs = self._refusal_run("revw01", "--full-auto", expect_status="reviewed")
         self.assertEqual(res.returncode, 2, res.stdout + res.stderr)
         self.assertIn("requires confirmation", res.stderr)
         self.assertEqual(runs, [])
-        self.assertEqual(status, "- Status: reviewed")
 
-        res, _status, runs = self._refusal_run("torv01")
+        res, runs = self._refusal_run("torv01")
         self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
         self.assertEqual(len(runs), 1)
 

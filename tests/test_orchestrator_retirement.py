@@ -93,7 +93,7 @@ from pathlib import Path
 from agent_workflows import runner_shared as rs
 from tests import support
 from tests.support import REPO_ROOT
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 # ==================================================================================================
 # Synthetic-repo helpers
@@ -2193,7 +2193,7 @@ class RollupRetiresAnEligibleSet(RollupTransitionCase):
             dest.is_file(), "the retired orchestrator must land in executed/"
         )
         self.assertFalse(orch.is_file(), "it must not remain in pending/")
-        self.assertIn("- Status: executed", dest.read_text(encoding="utf-8"))
+        assert_field(dest, "status", "executed")
         assert res.commit is not None
 
         committed = _git(
@@ -2489,7 +2489,7 @@ class TheGateDoesNotOpenForOrdinaryPlans(RollupTransitionCase):
             ["git", "commit", "-q", "-m", "victim"], cwd=self.root, check=True
         )
         before = victim.read_text(encoding="utf-8")
-        self.assertIn("- Status: approved", before)
+        assert_field(victim, "status", "approved")
         self.assertIn("- Execution state: pending", before)
 
         res = self.retire(victim, "clean", apply=True)

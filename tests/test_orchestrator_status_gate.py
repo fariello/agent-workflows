@@ -21,7 +21,7 @@ import pytest
 
 from agent_workflows import agent_schema, coverage_record
 from tests.test_ipd_lint import _CONFORMING_CHILD_BODY
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field, assert_no_field
 
 
 def _init_repo(tmp_dir: Path) -> Path:
@@ -311,8 +311,8 @@ class TestOrchestratorStatusGate(unittest.TestCase):
                 0,
                 f"Expected exit 0 for valid Set-wide transition, got {proc.returncode}. Output:\n{proc.stdout + proc.stderr}",
             )
-            self.assertIn("- Status: to-review", child.read_text(encoding="utf-8"))
-            self.assertIn("- Status: to-review", orch.read_text(encoding="utf-8"))
+            assert_field(child, "status", "to-review")
+            assert_field(orch, "status", "to-review")
 
         # 2. Refuse form: child fails lint -> writes none
         with tempfile.TemporaryDirectory() as td:
@@ -347,7 +347,7 @@ class TestOrchestratorStatusGate(unittest.TestCase):
             # 1. Promote to to-review (succeeds)
             p1 = _run_cli(repo, ["ipd", "set", "to-review", "orc001", "--yes"])
             self.assertEqual(p1.returncode, 0)
-            self.assertIn("- Status: to-review", orch.read_text(encoding="utf-8"))
+            assert_field(orch, "status", "to-review")
 
             # 2. Review/demote finds uncovered obligation and writes fail verdict; demoted to draft
             coverage_record.write(
@@ -370,7 +370,7 @@ class TestOrchestratorStatusGate(unittest.TestCase):
                 ],
             )
             self.assertEqual(p2.returncode, 0)
-            self.assertIn("- Status: draft", orch.read_text(encoding="utf-8"))
+            assert_field(orch, "status", "draft")
 
             # 3. Second promotion on unchanged text: coverage verdict is fail!
             # Demotion loop is prevented by construction: promotion is refused.
@@ -401,7 +401,7 @@ class TestOrchestratorStatusGate(unittest.TestCase):
                 ],
             )
             self.assertEqual(p1.returncode, 0)
-            self.assertIn("- Status: to-review", orch.read_text(encoding="utf-8"))
+            assert_field(orch, "status", "to-review")
 
             # to-review -> draft is a legal move to draft with --message
             p2 = _run_cli(
@@ -417,7 +417,7 @@ class TestOrchestratorStatusGate(unittest.TestCase):
                 ],
             )
             self.assertEqual(p2.returncode, 0)
-            self.assertIn("- Status: draft", orch.read_text(encoding="utf-8"))
+            assert_field(orch, "status", "draft")
 
     # 9 backward pairs x (git init + 2 CLI subprocesses) routinely exceeds 240s on slow CI VMs.
     @pytest.mark.timeout(wall=600)
@@ -472,8 +472,8 @@ class TestOrchestratorStatusGate(unittest.TestCase):
                     0,
                     f"Expected exit 0 for {src} -> {dst} with --message",
                 )
+                assert_field(orch, "status", dst)
                 text = orch.read_text(encoding="utf-8")
-                self.assertIn(f"- Status: {dst}", text)
 
                 # 3. Warning emitted to stderr
                 self.assertIn(f"DEMOTED orc001: {src} -> {dst}:", p_msg.stderr)
@@ -488,7 +488,7 @@ class TestOrchestratorStatusGate(unittest.TestCase):
 
                 # 4. If target is draft or to-review, - Readiness: is stripped
                 if dst in ("draft", "to-review"):
-                    self.assertNotIn("- Readiness:", text)
+                    assert_no_field(orch, "readiness")
 
         # Terminal reopen still refused
         with tempfile.TemporaryDirectory() as td:
@@ -531,7 +531,7 @@ class TestOrchestratorStatusGate(unittest.TestCase):
             # Moves to to-review without needing coverage or child table
             proc = _run_cli(repo, ["ipd", "set", "to-review", "chd001", "--yes"])
             self.assertEqual(proc.returncode, 0)
-            self.assertIn("- Status: to-review", child.read_text(encoding="utf-8"))
+            assert_field(child, "status", "to-review")
 
     def test_generic_setter_and_auto_approved_refusal(self):
         """Case 10: aw set to-review and aw set auto-approved refuse unready orchestrator and name remedy."""
