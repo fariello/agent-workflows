@@ -6,7 +6,7 @@
 - Scope: `iog3cw` E-02 (batch S01: 8 modules, 28 candidate lines at `ac76110f4`), as S01a and S01b. EXCLUDES the `iog3cw` exclusions: switching `RECORD_FORMAT` to `log`, the log branch of the helper, displayed-output assertions, legacy-format subject tests, the `review-pilot` corpus, production code.
 - Scope-Paths: tests/test_agy_runipd_cli.py, tests/test_artifact_group.py, tests/test_artifact_rename.py, tests/test_attention_priority_blocker.py, tests/test_attention.py, tests/test_awcmdsurf_mutation_verbs.py, tests/test_backlog_already_complete.py, tests/test_backlog_close_evidence_plan_disposition.py, .aw/records/plans/pending/20261109-metastore-262-545ag7-move-setter-byte-assertions-of-batch-s01-onto-the-format-awa.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:ya4ee4, executed:j5fqax
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 545ag7
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Written to `.aw/system/workflows/technical-writing/technical-writing.md`. Every obligation, exact identifier, quotation, evidence record, and lifecycle status is preserved.
 
 ## Workflow history
+- 2026-11-25 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: 545ag7 verified (set metastore, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_attention.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_attention_priority_blocker.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED; review record .aw/records/reviews/20261109-metastore-262-545ag7-move-setter-byte-assertions-of-batch-s01-onto-the-format-awa.review.md
