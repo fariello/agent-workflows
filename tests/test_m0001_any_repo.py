@@ -271,10 +271,10 @@ def test_ac42_corpus_shapes_end_to_end_migration(
             scratch_note.read_bytes()
         ).hexdigest()
 
-    # AC-42 (1): dry-run census via real CLI (`aw migrate metadata --json`)
+    # AC-42 (1): dry-run census via real CLI (`aw migrate metadata --dry-run --json`)
     before_repo_tree = _tree_sha256(repo)
     rc_dry, out_dry, err_dry = _run_cli_inproc(
-        repo, ["migrate", "metadata", "--json"], aw_home=aw_home
+        repo, ["migrate", "metadata", "--dry-run", "--json"], aw_home=aw_home
     )
     assert rc_dry == 0, err_dry or out_dry
     dry = json.loads(out_dry)
@@ -628,13 +628,15 @@ def test_ac42_this_repository_clone_migration(
     # succeeds with --force on fresh clone and leaves clone tree untouched).
     head_before_dry = _git(clone, "rev-parse", "HEAD").stdout.strip()
     rc_dry_noforce, out_dry_noforce, _ = _run_cli_inproc(
-        clone, ["migrate", "metadata", "--json"], aw_home=aw_home
+        clone, ["migrate", "metadata", "--dry-run", "--json"], aw_home=aw_home
     )
     assert rc_dry_noforce == 1
     assert "SIDECAR:" in out_dry_noforce
 
     rc_dry, out_dry, err_dry = _run_cli_inproc(
-        clone, ["migrate", "metadata", "--json", "--force"], aw_home=aw_home
+        clone,
+        ["migrate", "metadata", "--dry-run", "--json", "--force"],
+        aw_home=aw_home,
     )
     assert rc_dry == 0, err_dry or out_dry
     dry = json.loads(out_dry)

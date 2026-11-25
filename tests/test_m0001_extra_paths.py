@@ -235,7 +235,14 @@ def test_include_paths_are_inert_without_apply_and_bad_paths_refuse_before_writi
 
     rc, out = _run_cli(
         repo,
-        ["migrate", "metadata", "--no-describe", "--include-paths", _CODE_REL],
+        [
+            "migrate",
+            "metadata",
+            "--dry-run",
+            "--no-describe",
+            "--include-paths",
+            _CODE_REL,
+        ],
     )
     assert rc == 0, out
     assert _git(repo, "diff", "--cached", "--name-only").stdout.strip() == ""

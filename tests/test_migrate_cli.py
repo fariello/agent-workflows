@@ -206,6 +206,7 @@ def test_migrate_help_lists_metadata_and_layout_and_group_flags(
     assert "metadata" in out
     assert "layout" in out
     assert "[<subcommand>]" in out
+    assert "--dry-run" in out
     assert "--apply" in out
     assert "--commit" in out
 
@@ -229,7 +230,7 @@ def test_migrate_layout_status_matches_migrate_layout_status(tmp_path: Path) -> 
 
 
 def test_migrate_metadata_explicit_leaf_runs_before_cutover(tmp_path: Path) -> None:
-    """`aw migrate metadata` is not gated on CURRENT_METADATA_SCHEMA."""
+    """`aw migrate metadata` executes by default and requires `--dry-run` to preview."""
     aw_home = tmp_path / "aw_home"
     aw_home.mkdir()
     repo = tmp_path / "repo"
@@ -237,12 +238,15 @@ def test_migrate_metadata_explicit_leaf_runs_before_cutover(tmp_path: Path) -> N
 
     assert chain.CURRENT_METADATA_SCHEMA == 1
     before_tree = _tree_sha256(repo)
-    rc_dry, out_dry, _ = _run_cli_inproc(repo, ["migrate", "metadata"], aw_home=aw_home)
+    rc_dry, out_dry, _ = _run_cli_inproc(
+        repo, ["migrate", "metadata", "--dry-run"], aw_home=aw_home
+    )
     assert rc_dry == 0, out_dry
     assert _tree_sha256(repo) == before_tree
+    assert "Dry run only" in out_dry
 
     rc_apply, out_apply, _ = _run_cli_inproc(
-        repo, ["migrate", "metadata", "--apply"], aw_home=aw_home
+        repo, ["migrate", "metadata"], aw_home=aw_home
     )
     assert rc_apply == 0, out_apply
     journal_file = (
@@ -325,28 +329,31 @@ def test_pending_migrations_returns_empty_for_empty_repo(
 def test_bare_migrate_case1_legacy_layout_and_records_dry_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Case 1: legacy .agents/ + legacy records lists layout then metadata with zero tracked changes."""
+    """Case 1: `--dry-run` on legacy .agents/ + legacy records lists layout then metadata with zero tracked changes and no interactive rename prompt."""
     aw_home = tmp_path / "aw_home"
     aw_home.mkdir()
     repo = tmp_path / "repo"
     _seed_legacy_agents_repo(repo)
 
     monkeypatch.setattr(chain, "CURRENT_METADATA_SCHEMA", 2)
+    monkeypatch.setattr("agent_workflows.term.is_interactive", lambda *a, **kw: True)
     before = _tree_sha256(repo)
-    rc, out, _ = _run_cli_inproc(repo, ["migrate"], aw_home=aw_home)
+    rc, out, _ = _run_cli_inproc(repo, ["migrate", "--dry-run"], aw_home=aw_home)
     after = _tree_sha256(repo)
 
     assert rc == 0, out
     assert before == after
+    assert "Also rename migrated records" not in out
+    assert "Dry run only" in out
     assert "layout" in out
     assert "metadata" in out
     assert out.index("layout") < out.index("metadata")
 
 
-def test_bare_migrate_case2_apply_commit_runs_layout_commits_then_metadata(
+def test_bare_migrate_case2_default_commit_runs_layout_commits_then_metadata(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Case 2: `--apply --commit` runs layout, commits its moves, then runs metadata."""
+    """Case 2: bare `aw migrate --commit` executes by default: runs layout, commits its moves, then runs metadata."""
     aw_home = tmp_path / "aw_home"
     aw_home.mkdir()
     repo = tmp_path / "repo"
@@ -355,7 +362,7 @@ def test_bare_migrate_case2_apply_commit_runs_layout_commits_then_metadata(
 
     monkeypatch.setattr(chain, "CURRENT_METADATA_SCHEMA", 2)
     rc, out, _ = _run_cli_inproc(
-        repo, ["migrate", "--apply", "--commit", "--json"], aw_home=aw_home
+        repo, ["migrate", "--commit", "--json"], aw_home=aw_home
     )
     assert rc == 0, out
     records = [json.loads(line) for line in out.strip().splitlines() if line.strip()]
@@ -379,10 +386,10 @@ def test_bare_migrate_case2_apply_commit_runs_layout_commits_then_metadata(
     assert json.loads(journal_file.read_text(encoding="utf-8"))["status"] == "applied"
 
 
-def test_bare_migrate_case3_apply_without_commit_leaves_uncommitted_and_skips_metadata(
+def test_bare_migrate_case3_without_commit_leaves_uncommitted_and_skips_metadata(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Case 3: `--apply` without `--commit` leaves layout moves uncommitted and skips metadata."""
+    """Case 3: bare `aw migrate` without `--commit` executes layout, leaves moves uncommitted, and skips metadata."""
     aw_home = tmp_path / "aw_home"
     aw_home.mkdir()
     repo = tmp_path / "repo"
@@ -390,10 +397,10 @@ def test_bare_migrate_case3_apply_without_commit_leaves_uncommitted_and_skips_me
     head_before = _git(repo, "rev-parse", "HEAD").stdout.strip()
 
     monkeypatch.setattr(chain, "CURRENT_METADATA_SCHEMA", 2)
-    rc, out, _ = _run_cli_inproc(repo, ["migrate", "--apply"], aw_home=aw_home)
+    rc, out, _ = _run_cli_inproc(repo, ["migrate"], aw_home=aw_home)
     assert rc == 1, out
     assert "layout" in out
-    assert "aw migrate --apply --commit" in out
+    assert "aw migrate --commit" in out
     assert "aw commit" in out
     assert _git(repo, "rev-parse", "HEAD").stdout.strip() == head_before
     status_out = _git(repo, "status", "--porcelain", "--", ".aw/records").stdout.strip()
@@ -406,17 +413,20 @@ def test_bare_migrate_case3_apply_without_commit_leaves_uncommitted_and_skips_me
 def test_bare_migrate_case4_aw_only_legacy_records_lists_only_metadata(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Case 4: repository with only `.aw/` legacy records lists only metadata."""
+    """Case 4: repository with only `.aw/` legacy records lists only metadata on `--dry-run`."""
     aw_home = tmp_path / "aw_home"
     aw_home.mkdir()
     repo = tmp_path / "repo"
     _seed_legacy_aw_repo(repo, with_sidecar=False)
 
     monkeypatch.setattr(chain, "CURRENT_METADATA_SCHEMA", 2)
-    rc, out, _ = _run_cli_inproc(repo, ["migrate", "--json"], aw_home=aw_home)
+    rc, out, _ = _run_cli_inproc(
+        repo, ["migrate", "--dry-run", "--json"], aw_home=aw_home
+    )
     assert rc == 0, out
     records = [json.loads(line) for line in out.strip().splitlines() if line.strip()]
     assert [r["step"] for r in records] == ["metadata"]
+    assert records[0]["applied"] is False
 
 
 def test_bare_migrate_case5_migrated_repo_prints_nothing_to_migrate(
@@ -439,7 +449,7 @@ def test_bare_migrate_case5_migrated_repo_prints_nothing_to_migrate(
 def test_bare_migrate_case6_refused_layout_step_does_not_start_metadata(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Case 6: when the layout step refuses under `--apply`, metadata does not start."""
+    """Case 6: when the layout step refuses under bare `aw migrate --commit`, metadata does not start."""
     aw_home = tmp_path / "aw_home"
     aw_home.mkdir()
     repo = tmp_path / "repo"
@@ -453,9 +463,7 @@ def test_bare_migrate_case6_refused_layout_step_does_not_start_metadata(
     _commit_all(repo, "add unknown owner under .agents")
 
     monkeypatch.setattr(chain, "CURRENT_METADATA_SCHEMA", 2)
-    rc, out, err = _run_cli_inproc(
-        repo, ["migrate", "--apply", "--commit"], aw_home=aw_home
-    )
+    rc, out, err = _run_cli_inproc(repo, ["migrate", "--commit"], aw_home=aw_home)
     assert rc != 0
     assert "layout" in (out + err).lower()
     assert not (

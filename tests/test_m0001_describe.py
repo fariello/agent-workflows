@@ -1183,7 +1183,13 @@ def test_e09_ac36_case3_journal_reuse_and_apply(
     # 1. Dry run fills descriptions.jsonl
     rc1, out1, err1 = _run_cli_inproc(
         repo,
-        ["migrate", "metadata", "--describe-model", "google/gemini-3.1-flash-lite"],
+        [
+            "migrate",
+            "metadata",
+            "--dry-run",
+            "--describe-model",
+            "google/gemini-3.1-flash-lite",
+        ],
         aw_home=aw_home,
     )
     assert rc1 == 0, err1 or out1
@@ -1200,7 +1206,13 @@ def test_e09_ac36_case3_journal_reuse_and_apply(
     # 2. Second dry run makes 0 new calls
     rc2, out2, err2 = _run_cli_inproc(
         repo,
-        ["migrate", "metadata", "--describe-model", "google/gemini-3.1-flash-lite"],
+        [
+            "migrate",
+            "metadata",
+            "--dry-run",
+            "--describe-model",
+            "google/gemini-3.1-flash-lite",
+        ],
         aw_home=aw_home,
     )
     assert rc2 == 0, err2 or out2
@@ -1259,7 +1271,7 @@ def test_e09_ac36_case3_edit_invalidation_and_crash_resume(
     )
     _install_fake_host_into_cli(monkeypatch, runner_crash, mode="v2")
     with pytest.raises(RuntimeError, match="simulated interruption on call N\\+1"):
-        _run_cli_inproc(repo2, ["migrate", "metadata"], aw_home=aw_home)
+        _run_cli_inproc(repo2, ["migrate", "metadata", "--dry-run"], aw_home=aw_home)
     assert len(_read_fake_host_calls(log2)) == 2
     j2 = m0001_describe.journal_path_for_repo(repo2)
     assert len(m0001_describe.read_journal(j2)) == 2
@@ -1276,7 +1288,7 @@ def test_e09_ac36_case3_edit_invalidation_and_crash_resume(
     )
     _install_fake_host_into_cli(monkeypatch, runner_ok2, mode="v2")
     rc_res, out_res, _ = _run_cli_inproc(
-        repo2, ["migrate", "metadata", "--json"], aw_home=aw_home
+        repo2, ["migrate", "metadata", "--dry-run", "--json"], aw_home=aw_home
     )
     assert rc_res == 0, out_res
     doc_res = json.loads(out_res)
@@ -1298,7 +1310,7 @@ def test_e09_ac36_case3_edit_invalidation_and_crash_resume(
     )
     _commit_all(repo2, "edit gamma spec")
     rc_edit, out_edit, _ = _run_cli_inproc(
-        repo2, ["migrate", "metadata", "--json"], aw_home=aw_home
+        repo2, ["migrate", "metadata", "--dry-run", "--json"], aw_home=aw_home
     )
     assert rc_edit == 0, out_edit
     doc_edit = json.loads(out_edit)
@@ -1403,7 +1415,7 @@ def test_e09_ac36_case5_prompt_forbids_type_and_this_plan_reply_accepted_oq03(
     _install_fake_host_into_cli(monkeypatch, runner, mode="v2")
 
     rc, out, err = _run_cli_inproc(
-        repo, ["migrate", "metadata", "--json"], aw_home=aw_home
+        repo, ["migrate", "metadata", "--dry-run", "--json"], aw_home=aw_home
     )
     assert rc == 0, err or out
     calls = _read_fake_host_calls(log_path)
@@ -1533,7 +1545,7 @@ def test_e09_c12_shapes_minted_path_keys_and_unclassifiable_untouched(
 
     # Dry run fills journal keyed by pre-rename path for minted records (and id6 for existing)
     rc_dry, out_dry, err_dry = _run_cli_inproc(
-        repo, ["migrate", "metadata", "--json"], aw_home=aw_home
+        repo, ["migrate", "metadata", "--dry-run", "--json"], aw_home=aw_home
     )
     assert rc_dry == 0, err_dry or out_dry
     dry_doc = json.loads(out_dry)
@@ -1550,7 +1562,7 @@ def test_e09_c12_shapes_minted_path_keys_and_unclassifiable_untouched(
 
     # Second dry run and --apply reuse journal with 0 new calls
     rc_dry2, out_dry2, err_dry2 = _run_cli_inproc(
-        repo, ["migrate", "metadata", "--json"], aw_home=aw_home
+        repo, ["migrate", "metadata", "--dry-run", "--json"], aw_home=aw_home
     )
     assert rc_dry2 == 0, err_dry2 or out_dry2
     dry2_doc = json.loads(out_dry2)
@@ -1658,7 +1670,9 @@ def test_e08_cli_help_options_agy_refusal_header_model_limit_and_no_describe(
 
     # --describe-limit 1 describes 1 record and leaves 2 lacking a description
     rc_lim, out_lim, err_lim = _run_cli_inproc(
-        repo, ["migrate", "metadata", "--describe-limit", "1"], aw_home=aw_home
+        repo,
+        ["migrate", "metadata", "--dry-run", "--describe-limit", "1"],
+        aw_home=aw_home,
     )
     assert rc_lim == 0, err_lim or out_lim
     assert "host=oc, model=google/gemini-3.1-flash-lite, prompt_version=v1" in out_lim
@@ -1674,7 +1688,7 @@ def test_e08_cli_help_options_agy_refusal_header_model_limit_and_no_describe(
     # Fallback to "host-default" when opencode.json is absent
     (opencode_cfg_dir / "opencode.json").unlink()
     rc_hd, out_hd, err_hd = _run_cli_inproc(
-        repo, ["migrate", "metadata", "--no-describe"], aw_home=aw_home
+        repo, ["migrate", "metadata", "--dry-run", "--no-describe"], aw_home=aw_home
     )
     assert rc_hd == 0, err_hd or out_hd
     assert "skipped (--no-describe; no record text is sent to any model)" in out_hd
@@ -1683,7 +1697,9 @@ def test_e08_cli_help_options_agy_refusal_header_model_limit_and_no_describe(
 
     # With no config and describing enabled, resolved model is "host-default"
     rc_def, out_def, err_def = _run_cli_inproc(
-        repo, ["migrate", "metadata", "--describe-limit", "1"], aw_home=aw_home
+        repo,
+        ["migrate", "metadata", "--dry-run", "--describe-limit", "1"],
+        aw_home=aw_home,
     )
     assert rc_def == 0, err_def or out_def
     assert "host=oc, model=host-default, prompt_version=v1" in out_def

@@ -638,12 +638,12 @@ _DESCRIPTIONS = {
     ),
     "migrate": (
         "Run pending AW migrations in order (layout first when a legacy .agents/ tree exists, "
-        "then metadata). Dry run by default; pass --apply to execute, --commit/--no-commit for "
-        "the layout step, and --force/--force-worktree for the metadata step."
+        "then metadata). Executes by default; pass --dry-run to preview, --commit/--no-commit "
+        "for the layout step, and --force/--force-worktree for the metadata step."
     ),
     "migrate metadata": (
-        "Migrate legacy metadata records to the v2 event-log format (dry run by default). "
-        "Pass --apply to execute, --force to override preflight conditions 2-4 and missing "
+        "Migrate legacy metadata records to the v2 event-log format. Executes by default; "
+        "pass --dry-run to preview, --force to override preflight conditions 2-4 and missing "
         "expected sidecar, and --force-worktree to override the linked-worktree refusal."
     ),
     "migrate layout": (
@@ -5994,15 +5994,22 @@ def _build_parser_impl(_only_cmd: Optional[str] = None) -> argparse.ArgumentPars
     p_migrate_group = sub.add_parser(
         "migrate",
         parents=[common],
-        help="Run pending AW migrations in order (layout then metadata; dry run by default), or invoke a subcommand (`metadata`, `layout`).",
+        help="Run pending AW migrations in order (layout then metadata; pass --dry-run to preview), or invoke a subcommand (`metadata`, `layout`).",
     )
-    # Use distinct dest names on the group so `layout`'s own `--apply` default never overwrites
-    # the group-level flag when argparse merges subparser namespaces.
-    p_migrate_group.add_argument(
+    # Use distinct dest names on the group so `layout`'s own `--dry-run`/`--apply` defaults never
+    # overwrite the group-level flags when argparse merges subparser namespaces.
+    p_migrate_mode = p_migrate_group.add_mutually_exclusive_group()
+    p_migrate_mode.add_argument(
+        "--dry-run",
+        dest="migrate_dry_run",
+        action="store_true",
+        help="Preview pending migration steps without modifying any files.",
+    )
+    p_migrate_mode.add_argument(
         "--apply",
         dest="migrate_apply",
         action="store_true",
-        help="Perform every pending migration step in order (default: dry run).",
+        help="Compatibility alias (migrations now execute by default; pass --dry-run to preview).",
     )
     p_migrate_group.add_argument(
         "--force",
@@ -6024,12 +6031,18 @@ def _build_parser_impl(_only_cmd: Optional[str] = None) -> argparse.ArgumentPars
     p_migrate_metadata = migrate_sub.add_parser(
         "metadata",
         parents=[common],
-        help="Migrate legacy metadata records to the v2 event-log format (dry run by default).",
+        help="Migrate legacy metadata records to the v2 event-log format (pass --dry-run to preview).",
     )
-    p_migrate_metadata.add_argument(
+    p_migrate_meta_mode = p_migrate_metadata.add_mutually_exclusive_group()
+    p_migrate_meta_mode.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview the metadata migration without modifying any files.",
+    )
+    p_migrate_meta_mode.add_argument(
         "--apply",
         action="store_true",
-        help="Apply the metadata migration (default: dry run).",
+        help="Compatibility alias (metadata migration now executes by default; pass --dry-run to preview).",
     )
     p_migrate_metadata.add_argument(
         "--force",
@@ -19020,9 +19033,14 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
         selected_rename = True
     elif config_rename is not None:
         selected_rename = bool(config_rename)
-    elif _term_mod.is_interactive() and action in (None, "wizard", "apply"):
+    elif (
+        _term_mod.is_interactive()
+        and action in (None, "wizard", "apply")
+        and not getattr(args, "dry_run", False)
+    ):
         # Default YES (maintainer ruling): the uniform grammar is where every record is headed, and
-        # asking only in the actions that move files keeps `status`/`plan`/`rollback` prompt-free.
+        # asking only in the actions that actually move files keeps `status`/`plan`/`rollback` and
+        # `--dry-run` previews prompt-free.
         selected_rename = _confirm(
             term,
             "Also rename migrated records to the uniform .type.md grammar?",
@@ -19164,6 +19182,10 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
             term.status(
                 "ok" if plan_doc["valid"] else "fail",
                 f"Plan Valid:     {plan_doc['valid']}",
+            )
+            term.status(
+                "info",
+                "Dry run only; no files changed. Re-run without --dry-run to execute.",
             )
         return 0 if plan_doc["valid"] else 2
 
@@ -19549,7 +19571,10 @@ def _print_metadata_migration_report(
             f"Applied {len(report.get('applied_files') or [])} file operation(s){commit_note}.",
         )
     else:
-        term.status("info", "Dry run only; pass --apply to execute.")
+        term.status(
+            "info",
+            "Dry run only; no files changed. Re-run without --dry-run to execute.",
+        )
 
 
 def _run_migrate_metadata(
@@ -19570,7 +19595,7 @@ def _run_migrate_metadata(
 
     repo_path = Path(os.getcwd())
     ctx = context if context is not None else select_output(args)
-    apply_mode = bool(getattr(args, "apply", False))
+    apply_mode = not bool(getattr(args, "dry_run", False))
     force_mode = bool(getattr(args, "force", False))
     force_wt = bool(getattr(args, "force_worktree", False))
     fault_inj = getattr(args, "fault_injection", None)
@@ -19784,9 +19809,7 @@ def _run_migrate_metadata(
             summary=summary,
             evidence=ev,
             next_actions=[
-                NextAction(
-                    command="aw status" if apply_mode else "aw migrate metadata --apply"
-                )
+                NextAction(command="aw status" if apply_mode else "aw migrate metadata")
             ],
             verified=True,
             complete=True,
@@ -19874,7 +19897,7 @@ def _run_migrate_bare(
 
     repo_path = Path(os.getcwd())
     ctx = context if context is not None else select_output(args)
-    apply_mode = bool(getattr(args, "migrate_apply", False))
+    apply_mode = not bool(getattr(args, "migrate_dry_run", False))
     force_mode = bool(getattr(args, "migrate_force", False))
     force_wt = bool(getattr(args, "migrate_force_worktree", False))
     commit_flag = bool(getattr(args, "commit", False))
@@ -20032,7 +20055,7 @@ def _run_migrate_bare(
                                 "committed": False,
                                 "status": "uncommitted",
                                 "stopped_after": "layout",
-                                "next": ["aw migrate --apply --commit", "aw commit"],
+                                "next": ["aw migrate --commit", "aw commit"],
                                 "report": parsed_layout,
                             }
                         )
@@ -20048,8 +20071,8 @@ def _run_migrate_bare(
                     )
                     return _finish_agent_error(
                         "layout",
-                        "Stopped after step 'layout': uncommitted records remain; commit with aw migrate --apply --commit or aw commit",
-                        next_cmd="aw migrate --apply --commit",
+                        "Stopped after step 'layout': uncommitted records remain; commit with aw migrate --commit or aw commit",
+                        next_cmd="aw migrate --commit",
                     )
 
             if ctx.is_json:
@@ -20088,7 +20111,7 @@ def _run_migrate_bare(
                         "Stopped after step 'layout': records tree has uncommitted layout moves; metadata step not started.",
                     )
                     term.line("  Commit the moved paths, then re-run:")
-                    term.line("    aw migrate --apply --commit")
+                    term.line("    aw migrate --commit")
                     term.line("  Or commit manually with:")
                     term.line(
                         '    aw commit --no-plan -m "chore(aw): commit layout migration" -- <paths>'
@@ -20178,7 +20201,7 @@ def _run_migrate_bare(
             exit_code=0,
             summary=f"migrate {'applied' if apply_mode else 'dry-run preview'}: {', '.join(step_names)}",
             next_actions=[
-                NextAction(command="aw status" if apply_mode else "aw migrate --apply")
+                NextAction(command="aw status" if apply_mode else "aw migrate")
             ],
             verified=True,
             complete=True,

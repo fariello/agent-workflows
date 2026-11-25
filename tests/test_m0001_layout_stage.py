@@ -292,7 +292,9 @@ def test_legacy_agents_two_stage_dry_run_id_stability_apply_and_skills_preserved
     _git(repo, "commit", "-q", "-m", "add preserved skill")
 
     before = _tree_sha256(repo)
-    rc_dry, out_dry, _ = _run_cli_inproc(repo, ["migrate", "metadata"], aw_home=aw_home)
+    rc_dry, out_dry, _ = _run_cli_inproc(
+        repo, ["migrate", "metadata", "--dry-run"], aw_home=aw_home
+    )
     assert rc_dry == 0, out_dry
     assert "Layout stage:" in out_dry
     assert "no sidecar (none expected)" in out_dry
@@ -300,7 +302,7 @@ def test_legacy_agents_two_stage_dry_run_id_stability_apply_and_skills_preserved
     assert _git(repo, "status", "--porcelain").stdout.strip() == ""
 
     rc_json, out_json, _ = _run_cli_inproc(
-        repo, ["migrate", "metadata", "--json"], aw_home=aw_home
+        repo, ["migrate", "metadata", "--dry-run", "--json"], aw_home=aw_home
     )
     assert rc_json == 0, out_json
     dry_json = json.loads(out_json)
@@ -308,7 +310,7 @@ def test_legacy_agents_two_stage_dry_run_id_stability_apply_and_skills_preserved
     assert len(dry_minted) == 3
 
     rc_agent, out_agent, _ = _run_cli_inproc(
-        repo, ["migrate", "metadata", "--agent"], aw_home=aw_home
+        repo, ["migrate", "metadata", "--dry-run", "--agent"], aw_home=aw_home
     )
     assert rc_agent == 0, out_agent
     agent_doc = json.loads(out_agent)
@@ -358,7 +360,7 @@ def test_mixed_layout_two_stage_dry_run_apply_and_cli_stage2_failure_rollback(
     before_rb = _tree_sha256(repo_rb)
 
     rc_dry, out_dry, _ = _run_cli_inproc(
-        repo_rb, ["migrate", "metadata"], aw_home=aw_home
+        repo_rb, ["migrate", "metadata", "--dry-run"], aw_home=aw_home
     )
     assert rc_dry == 0, out_dry
     _seed_journal_descriptions(repo_rb)
@@ -408,7 +410,9 @@ def test_legacy_agents_cli_fault_injection_stage2_failure_rollback(
     repo = migration_corpus.legacy_agents_layout(dest)
     before = _tree_sha256(repo)
 
-    rc_dry, out_dry, _ = _run_cli_inproc(repo, ["migrate", "metadata"], aw_home=aw_home)
+    rc_dry, out_dry, _ = _run_cli_inproc(
+        repo, ["migrate", "metadata", "--dry-run"], aw_home=aw_home
+    )
     assert rc_dry == 0, out_dry
     _seed_journal_descriptions(repo)
 
@@ -506,7 +510,9 @@ def test_no_sidecar_skip_notice_and_apply_without_force(
     dest.mkdir()
     repo = migration_corpus.no_sidecar(dest)
 
-    rc_dry, out_dry, _ = _run_cli_inproc(repo, ["migrate", "metadata"], aw_home=aw_home)
+    rc_dry, out_dry, _ = _run_cli_inproc(
+        repo, ["migrate", "metadata", "--dry-run"], aw_home=aw_home
+    )
     assert rc_dry == 0, out_dry
     assert "layout stage: skipped (already on .aw/)" in out_dry
     assert "no sidecar (none expected)" in out_dry
