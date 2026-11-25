@@ -32,7 +32,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import cli
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field, assert_no_field
 
 
 def _setup_repo(root: Path) -> Path:
@@ -204,9 +204,8 @@ class TestGatePairValidationParity(unittest.TestCase):
         self.assertEqual(
             len(dest_files), 1, f"Expected 1 file in {dest_dir}, found {dest_files}"
         )
-        dest_content = dest_files[0].read_text(encoding="utf-8")
-        self.assertIn(f"- Gate-Kind: {expected_kind}", dest_content)
-        self.assertIn(f"- Gate-Ref: {expected_ref}", dest_content)
+        assert_field(dest_files[0], "gate_kind", expected_kind)
+        assert_field(dest_files[0], "gate_ref", expected_ref)
 
     # -------------------------------------------------------------------------
     # Surface 1: aw specs set <path> --status deferred
@@ -1174,9 +1173,8 @@ class TestGatePairValidationParity(unittest.TestCase):
                 ]
             )
             self.assertEqual(rc, 0, f"specs set same-status failed: {err}")
-            content = spec.read_text(encoding="utf-8")
-            self.assertIn("- Gate-Kind: external", content)
-            self.assertIn("- Gate-Ref: ext-ref-001", content)
+            assert_field(spec, "gate_kind", "external")
+            assert_field(spec, "gate_ref", "ext-ref-001")
 
             # Positional 2: aw set deferred <id6> --blocks-release next
             rc, out, err = _run_cli(
@@ -1193,10 +1191,9 @@ class TestGatePairValidationParity(unittest.TestCase):
                 ]
             )
             self.assertEqual(rc, 0, f"set same-status failed: {err}")
-            content = spec.read_text(encoding="utf-8")
-            self.assertIn("- Gate-Kind: external", content)
-            self.assertIn("- Gate-Ref: ext-ref-001", content)
-            self.assertIn("- Blocks-Release: next", content)
+            assert_field(spec, "gate_kind", "external")
+            assert_field(spec, "gate_ref", "ext-ref-001")
+            assert_field(spec, "blocks_release", "next")
 
             # Positional 3: aw backlog set blocked <id6> --message note
             item = _create_backlog_item(
@@ -1221,9 +1218,8 @@ class TestGatePairValidationParity(unittest.TestCase):
                 ]
             )
             self.assertEqual(rc, 0, f"backlog set same-status failed: {err}")
-            content = item.read_text(encoding="utf-8")
-            self.assertIn("- Gate-Kind: external", content)
-            self.assertIn("- Gate-Ref: ext-ref-002", content)
+            assert_field(item, "gate_kind", "external")
+            assert_field(item, "gate_ref", "ext-ref-002")
 
     def test_fence_same_status_invalid_gate_refuses(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1324,10 +1320,9 @@ class TestGatePairValidationParity(unittest.TestCase):
                 / "20261002-sp0020-01-sp0020-test-spec.spec.md"
             )
             self.assertTrue(dest_spec.exists())
-            content = dest_spec.read_text(encoding="utf-8")
-            self.assertIn("- Status: approved", content)
-            self.assertNotIn("- Gate-Kind:", content)
-            self.assertNotIn("- Gate-Ref:", content)
+            assert_field(dest_spec, "status", "approved")
+            assert_no_field(dest_spec, "gate_kind")
+            assert_no_field(dest_spec, "gate_ref")
 
             # Backlog: blocked -> open strips gate
             item = _create_backlog_item(
@@ -1360,10 +1355,9 @@ class TestGatePairValidationParity(unittest.TestCase):
                 / "20261002-bk0020-01-bk0020-test-item.backlog.md"
             )
             self.assertTrue(dest_item.exists())
-            content = dest_item.read_text(encoding="utf-8")
-            self.assertIn("- Status: open", content)
-            self.assertNotIn("- Gate-Kind:", content)
-            self.assertNotIn("- Gate-Ref:", content)
+            assert_field(dest_item, "status", "open")
+            assert_no_field(dest_item, "gate_kind")
+            assert_no_field(dest_item, "gate_ref")
 
     # -------------------------------------------------------------------------
     # Fence 3: Unrelated transition fence (non-gated transition needs no gate)
@@ -1396,8 +1390,7 @@ class TestGatePairValidationParity(unittest.TestCase):
                 / "20261002-sp0030-01-sp0030-test-spec.spec.md"
             )
             self.assertTrue(dest_spec.exists())
-            content = dest_spec.read_text(encoding="utf-8")
-            self.assertIn("- Status: to-review", content)
+            assert_field(dest_spec, "status", "to-review")
 
 
 if __name__ == "__main__":

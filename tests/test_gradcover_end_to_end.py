@@ -39,7 +39,7 @@ from agent_workflows import (
     run_viewer,
     runner_shared as rs,
 )
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 UNOWNED_LINE = "the full suite passes after both children"
@@ -534,8 +534,7 @@ class TestGradcoverEndToEnd(unittest.TestCase):
                     )
                     self.assertEqual(len(bkl_files_a), 1)
                     self.assertIn("/graduated/", str(bkl_files_a[0]).replace("\\", "/"))
-                    bkl_txt_a = bkl_files_a[0].read_text(encoding="utf-8")
-                    self.assertIn("- Status: graduated", bkl_txt_a)
+                    assert_field(bkl_files_a[0], "status", "graduated")
 
                     # Orchestrator on main has current pass record
                     orch_files_a = list(
@@ -699,9 +698,7 @@ class TestGradcoverEndToEnd(unittest.TestCase):
                         p_file = list(
                             repo.glob(f".aw/records/plans/pending/*-{p_id}-*.ipd.md")
                         )[0]
-                        self.assertIn(
-                            "- Status: reviewed", p_file.read_text(encoding="utf-8")
-                        )
+                        assert_field(p_file, "status", "reviewed")
 
                     # -------------------------------------------------------------
                     # RUN C (E-07): Orchestrate run after children executed
@@ -826,10 +823,7 @@ class TestGradcoverEndToEnd(unittest.TestCase):
                         repo.glob(".aw/records/plans/executed/*-orc001-*.ipd.md")
                     )
                     self.assertEqual(len(orch_exec_files), 1)
-                    self.assertIn(
-                        "- Status: executed",
-                        orch_exec_files[0].read_text(encoding="utf-8"),
-                    )
+                    assert_field(orch_exec_files[0], "status", "executed")
 
     def test_e02_refusal_scenario_and_setter_refusals(self) -> None:
         """Task group 2: refusal scenario (Run A uncorrected), preserved lane, run_viewer, and in-lane setter refusals."""
@@ -970,9 +964,7 @@ class TestGradcoverEndToEnd(unittest.TestCase):
                         )
                     )[0]
                     self.assertIn("/open/", str(bkl_main).replace("\\", "/"))
-                    self.assertIn(
-                        "- Status: open", bkl_main.read_text(encoding="utf-8")
-                    )
+                    assert_field(bkl_main, "status", "open")
                     plans_main = list(repo.glob(".aw/records/plans/**/*.ipd.md"))
                     self.assertEqual(len(plans_main), 0)
 
@@ -1195,9 +1187,7 @@ class TestGradcoverEndToEnd(unittest.TestCase):
                         )
                     )[0]
                     self.assertIn("/open/", str(bkl_main_pre).replace("\\", "/"))
-                    self.assertIn(
-                        "- Status: open", bkl_main_pre.read_text(encoding="utf-8")
-                    )
+                    assert_field(bkl_main_pre, "status", "open")
 
                     # 3. Resume graduation in a new run
                     run_id_res = f"run-{host_label}-resumed"
@@ -1318,9 +1308,7 @@ class TestGradcoverEndToEnd(unittest.TestCase):
                         )
                     )[0]
                     self.assertIn("/graduated/", str(bkl_main_post).replace("\\", "/"))
-                    self.assertIn(
-                        "- Status: graduated", bkl_main_post.read_text(encoding="utf-8")
-                    )
+                    assert_field(bkl_main_post, "status", "graduated")
 
                     orch_main_post = list(
                         repo.glob(".aw/records/plans/pending/*-orc003-*.ipd.md")
