@@ -5,8 +5,9 @@
 - Concern: Spec `4sd62s` C10a requires `main` to read and write exactly one metadata format at every commit, so the cutover commit (Order 13, `cxxmyv`) must switch the format and every test that asserts on it at once. `cxxmyv` E-07 carried, as one item, "convert the setter-byte assertions to `artifact_meta.read` plus the in-file mirror" (`59aiyh` Deferred row). Measured 2026-11-07 at `ac76110f4`: `rg -n "assert.*['\"]- (Status|Priority|Blocks-Release|Work-Kind|From-Backlog|From-Spec|Readiness|Approval|Set|Order|Kind|Id|Gate-Kind|Gate-Ref|Item-Dependencies|Graduated-To|Close-Evidence|Release-Exempt-(Kind|Ref)):" tests`, minus lines over command output and minus the legacy-grammar test modules, prints 518 candidate lines in 81 test modules; the 7 modules that `k6jd6l` E-08 already retargets hold 51 of them, leaving 467 in 74 modules. Converting them inside the attended cutover would hide several hundred steps in one item of a plan that cannot be retried cheaply. This work CAN move earlier without changing `main`'s on-disk format: the helper asserts through the ACTIVE format, which is the legacy format until the cutover, so every converted test still checks the same bytes today and needs no edit when the cutover flips the builder. Part 1 of 2 of the preparation split from `cxxmyv`.
 - Scope: `cxxmyv` E-07 (setter-byte half), split: batches S02 and S03 convert named module subsets (4 modules, 34 candidate lines at the split); E-12 finishes and assembles this part's F-28 table. The helper (E-01) and batch S04 (E-05) moved to `j5fqax`, and batch S01 (E-02) to `545ag7`, on 2026-11-09 (round-3 split). Batches S05 to S10 moved to `87rvs2` (Order 59) and `rdg0qv` (Order 60) on 2026-11-08; S11 to S20 are in `w13bkp` (Order 47), `aqc3m6` (Order 61) and `zgyna1` (Order 62). EXCLUDES: switching `RECORD_FORMAT` to `log` and the log-format branch of the helper (`cxxmyv` E-07, the cutover commit); displayed-output assertions; legacy-format subject tests; the `review-pilot` corpus; production code.
 - Scope-Paths: tests/test_backlog_gate_follows_status.py, tests/test_backlog_new_gate_vocabulary.py, tests/test_backlog_positional_close_gate.py, tests/test_backlog_production.py, .aw/records/plans/pending/20261108-metastore-44-iog3cw-add-the-format-aware-field-assertion-helper-and-move-the-fir.ipd.md
+- Scope-Exceeded: .aw/records/backlog/open/20261125-i2u307-01-i2u307-f-28-setter-byte-pattern-is-single-line-only-multi.backlog.md (driver-mandated defect filing: backlog item i2u307 records the F-28 pattern-coverage gap multi-line and bare-label setter-byte assertions escape the single-line count found while executing S02/S03 a n...)
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:ya4ee4, executed:j5fqax, executed:545ag7
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 12
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: iog3cw
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-25 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: iog3cw verified (set metastore, attempt 3). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261125-i2u307-01-i2u307-f-28-setter-byte-pattern-is-single-line-only-multi.backlog.md: driver-mandated defect filing: backlog item i2u307 records the F-28 pattern-coverage gap (multi-line and bare-label setter-byte assertions escape the single-line count) found while executing S02/S03; a new backlog record cannot live inside this plan's test Scope-Paths]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): plan-review verified E/V bijection, Scope-Paths, batch rules, execution gate, and PIN rule; findings PR-001..PR-004 fixed; marked reviewed and go-pending-approval.
