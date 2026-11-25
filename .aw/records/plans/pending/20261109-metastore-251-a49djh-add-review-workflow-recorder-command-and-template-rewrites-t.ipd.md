@@ -396,7 +396,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
      36 files changed, 502 insertions(+), 446 deletions(-)
     ```
     `git worktree list` (repo root sanitized as `<repo>`): `<repo> fffe0e823 [main]`, `<repo>/.aw/worktrees/9o83cr 138f0c3c9 [aw/lane/9o83cr]`, `<repo>/.aw/worktrees/9o83cr_attempt2 3ef955292 [aw/lane/9o83cr_attempt2]`, `<repo>/.aw/worktrees/a49djh fffe0e823 [aw/lane/a49djh]`, `<repo>/.aw/worktrees/review-sweep-run-20261124T195133Z-1320375 74ccd03f1 [aw/lane/review-sweep-run-20261124T195133Z-1320375]` (`.aw/state/a49djh/scratch` removed).
-    `aw commit` output: recorded in follow-up commit immediately after committing patch + plan.
+    `aw commit` output: `aw commit: committed 2 path(s): 0ff5c681ce4bad112fd3180d98583519fcee7784` (via `aw commit a49djh -m "feat(metastore): add review workflow, recorder command, and template rewrites to cutover docs patch" -- .aw/records/plans/pending/20261109-metastore-251-a49djh-add-review-workflow-recorder-command-and-template-rewrites-t.ipd.md .aw/system/cutover/metastore-docs.cutover.patch`).
   - Result: pass
 
 ## Approval and execution gate
