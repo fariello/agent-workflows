@@ -1,5 +1,5 @@
 - Id: ebbfmn
-- Status: graduated
+- Status: done
 - Set: ebbfmn
 - Work-Kind: followup
 - Priority: medium
@@ -9,6 +9,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-25 done (aw backlog): closed by aw agy run: IPD fkvrc7 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261124-metastore-303-fkvrc7-replace-surviving-specs-and-backlog-front-matter-regexes-via.ipd.md); evidence .aw/records/plans/executed/20261124-metastore-303-fkvrc7-replace-surviving-specs-and-backlog-front-matter-regexes-via.ipd.md
 - 2026-11-25 graduated (aw set): Carried by metastore Order 303 (fkvrc7) ahead of 9o83cr
 - 2026-11-24 created (aw backlog): k6jd6l left five ^- metadata regex literals in specs.py and backlog.py; Order 249 n2cvf0 expected none and only records them as delete (follow-on), with no plan to edit them (found by 786w7r)
 
