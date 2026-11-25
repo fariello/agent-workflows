@@ -37,7 +37,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 from agent_workflows import artifact_meta as _meta
-from agent_workflows import attention as att
 from agent_workflows import backlog, cli, runner_shared, specs, status_set
 from tests import support
 from tests.record_builder import RecordBuilder
@@ -870,13 +869,9 @@ class TestBacklogSetDispatchParity(unittest.TestCase):
                         )
                 self.assertEqual(rc, 0)
                 moved = _find_backlog_item(repo, "bk0001")
-                after_lines = [
-                    ln
-                    for ln in att._history_section_lines(
-                        moved.read_text(encoding="utf-8")
-                    )
-                    if _meta.is_history_record(ln)
-                ]
+                after_lines = _meta.history_records(
+                    moved.read_text(encoding="utf-8")
+                ).records
                 self.assertEqual(len(after_lines), 4)
                 self.assertIn("fourth record", after_lines[0])
                 self.assertEqual(after_lines[1:], priors)
@@ -888,13 +883,7 @@ class TestBacklogSetDispatchParity(unittest.TestCase):
                 repo = _setup_repo(Path(tmp))
                 item = _create_backlog_item(repo, status="open", item_id="bk0001")
                 before_count = len(
-                    [
-                        ln
-                        for ln in att._history_section_lines(
-                            item.read_text(encoding="utf-8")
-                        )
-                        if _meta.is_history_record(ln)
-                    ]
+                    _meta.history_records(item.read_text(encoding="utf-8")).records
                 )
                 out, err = io.StringIO(), io.StringIO()
                 with redirect_stdout(out), redirect_stderr(err):
@@ -932,13 +921,7 @@ class TestBacklogSetDispatchParity(unittest.TestCase):
                 self.assertEqual(rc, 0)
                 moved = _find_backlog_item(repo, "bk0001")
                 after_count = len(
-                    [
-                        ln
-                        for ln in att._history_section_lines(
-                            moved.read_text(encoding="utf-8")
-                        )
-                        if _meta.is_history_record(ln)
-                    ]
+                    _meta.history_records(moved.read_text(encoding="utf-8")).records
                 )
                 self.assertEqual(after_count, before_count + 1)
 
@@ -1938,13 +1921,9 @@ class TestSpecsSetDispatchParity(unittest.TestCase):
                         )
                 self.assertEqual(rc, 0)
                 moved = _find_spec(repo, "sp0001")
-                after_lines = [
-                    ln
-                    for ln in att._history_section_lines(
-                        moved.read_text(encoding="utf-8")
-                    )
-                    if _meta.is_history_record(ln)
-                ]
+                after_lines = _meta.history_records(
+                    moved.read_text(encoding="utf-8")
+                ).records
                 self.assertEqual(len(after_lines), 3)
                 self.assertIn("third note", after_lines[0])
                 self.assertEqual(after_lines[1:], priors)

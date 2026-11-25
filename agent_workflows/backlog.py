@@ -100,7 +100,6 @@ GATE_DEFAULT_KINDS = _config.RELEASE_GATE_WORK_KINDS_DEFAULT
 # attention view hides it), so gating a release on one asserts an obligation nobody has taken on.
 _GATE_DEFAULT_SKIP_STATUSES = frozenset(("done", "parked"))
 
-_WORKFLOW_HISTORY_HEADING_RE = re.compile(r"(?m)^## Workflow history[ \t]*$")
 _TOP_KEY_RE = re.compile(r"^- ([A-Za-z0-9_-]+):(?:\s*(.*))?$")
 _TEMPLATE_OWNED_KEYS = frozenset(
     (
@@ -594,9 +593,9 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
 
     from agent_workflows import artifact_meta as _meta
 
-    hist_block = _meta.history_records(text)
+    _, hist_block, has_heading = _meta.split_history_section(text)
     if not hist_block.records:
-        if not _WORKFLOW_HISTORY_HEADING_RE.search(text):
+        if not has_heading:
             detail = (
                 "no ## Workflow history heading; restore the records from git history "
                 "(an indented line is not a record)"
@@ -871,7 +870,7 @@ def _render_item(
             ),
         )
     else:
-        pre_hist = _WORKFLOW_HISTORY_HEADING_RE.split(source_text, maxsplit=1)[0]
+        pre_hist = _meta.split_history_section(source_text).before_heading
         rendered = _meta.render_legacy_text(
             pre_hist,
             events,
@@ -1543,8 +1542,9 @@ def _reattach_history(
     """
     from agent_workflows import artifact_meta as _meta
 
-    head = _WORKFLOW_HISTORY_HEADING_RE.split(rendered, maxsplit=1)[0].rstrip()
-    body = _meta.history_records(rendered).body
+    hist_section = _meta.split_history_section(rendered)
+    head = hist_section.before_heading.rstrip()
+    body = hist_section.block.body
     prior = _prior_history_records(old_text)
     events: List[Dict[str, object]] = [
         {"op": "legacy", "source": "history", "line": line} for line in prior

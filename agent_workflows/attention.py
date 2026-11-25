@@ -533,28 +533,6 @@ def _classify_tree(rel_posix: str) -> Optional[A.TreePolicy]:
     return best
 
 
-def _history_section_lines(text: str) -> List[str]:
-    """Return the raw heading-bounded lines of the '## Workflow history' section.
-
-    This function returns raw, unvalidated lines between the history heading and the
-    next top-level/second-level heading. Readers that parse history records must use
-    `artifact_meta.history_records` to enforce canonical record bounding (column-zero
-    chronological records, omitting indented block quotes and prose).
-    """
-    if "## Workflow history" not in text:
-        return []
-    m = re.search(r"(?m)^## Workflow history[ \t]*$", text)
-    if not m:
-        return []
-    start_pos = m.end()
-    m_end = re.search(r"(?m)^## ", text[start_pos:])
-    section = text[start_pos : start_pos + m_end.start()] if m_end else text[start_pos:]
-    lines = section.splitlines()
-    if lines and not lines[0].strip():
-        lines = lines[1:]
-    return lines
-
-
 def _format_structured_dependency(entry: Any) -> Optional[str]:
     """Format one cached structured dependency entry into canonical token form."""
     if isinstance(entry, str):

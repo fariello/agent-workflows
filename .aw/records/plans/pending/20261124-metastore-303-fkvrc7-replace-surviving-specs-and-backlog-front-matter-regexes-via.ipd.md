@@ -136,6 +136,7 @@ flowchart LR
 
 - `Workflow history` section readers (including `agent_workflows/migrations/chain.py::_WORKFLOW_HISTORY_RE`) are owned by Order 301 (`wgn3bl`).
   - Carrier: wgn3bl
+  - Carrier-Evidence: .aw/records/plans/executed/20261124-metastore-301-wgn3bl-migrate-surviving-workflow-history-section-readers-onto-arti.ipd.md
 - Prompt comment helpers are owned by Order 302 (`t3t7za`).
   - Carrier: t3t7za
 - `Scope-Paths` writer and widened front-matter readers are owned by Order 304 (`75jciz`).

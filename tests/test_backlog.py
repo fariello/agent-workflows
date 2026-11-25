@@ -1315,7 +1315,6 @@ class BacklogPreservationTests(unittest.TestCase):
 
     def test_close_on_answer_preserves_prior_history_records(self):
         """(a) close_on_answer on a 3-record item yields 4 records, close-record first, originals byte-identical."""
-        from agent_workflows import attention as att
         from agent_workflows import set_records
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -1354,11 +1353,7 @@ class BacklogPreservationTests(unittest.TestCase):
             dest = set_records.close_on_answer(r, p)
             self.assertTrue(dest.exists())
             text = dest.read_text(encoding="utf-8")
-            history_lines = [
-                ln
-                for ln in att._history_section_lines(text)
-                if META.is_history_record(ln)
-            ]
+            history_lines = META.history_records(text).records
             self.assertEqual(len(history_lines), 4)
             self.assertIn("question answered; close-on-answer", history_lines[0])
             self.assertIn("done (aw backlog)", history_lines[0])
@@ -1406,7 +1401,6 @@ class BacklogPreservationTests(unittest.TestCase):
 
     def test_close_on_answer_does_not_promote_indented_prose_quoted_history_lines(self):
         """(c) indented prose-quoted history-shaped line in body is not promoted into history block."""
-        from agent_workflows import attention as att
         from agent_workflows import set_records
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -1440,11 +1434,7 @@ class BacklogPreservationTests(unittest.TestCase):
             dest = set_records.close_on_answer(r, p)
             self.assertTrue(dest.exists())
             text = dest.read_text(encoding="utf-8")
-            history_lines = [
-                ln
-                for ln in att._history_section_lines(text)
-                if META.is_history_record(ln)
-            ]
+            history_lines = META.history_records(text).records
             self.assertEqual(len(history_lines), 2)
             self.assertTrue(
                 any("question answered; close-on-answer" in ln for ln in history_lines)

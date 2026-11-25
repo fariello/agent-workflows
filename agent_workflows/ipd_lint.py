@@ -778,8 +778,10 @@ def parse(
     valid_leaves: List[Leaf] = []
     exec_task_groups = 0
     open_questions: List[Dict[str, str]] = []
+    from agent_workflows import artifact_meta as _meta
+
     size_assessment: Optional[str] = None
-    history_lines: List[Tuple[int, str]] = []
+    history_lines: List[Tuple[int, str]] = _meta.history_section_lines(text or "")
     gate_lines: List[Tuple[int, str]] = []
 
     current_h2 = ""
@@ -812,11 +814,6 @@ def parse(
             _flush_leaf()
             _flush_oq()
             current_h2 = mh.group(1).strip()
-            continue
-        # Workflow history line
-        if current_h2 == S.H_WORKFLOW_HISTORY:
-            if raw.lstrip().startswith("- "):
-                history_lines.append((lineno, raw))
             continue
         # Task-group H3 inside the execution section.
         mh3 = _H3_RE.match(raw)
