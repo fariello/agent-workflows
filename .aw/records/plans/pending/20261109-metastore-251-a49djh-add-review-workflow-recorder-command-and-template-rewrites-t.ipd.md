@@ -39,34 +39,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: scratch worktree
 
-- [ ] E-01 Create a scratch git worktree (`mkdir -p .aw/state/a49djh && git worktree add --detach .aw/state/a49djh/scratch HEAD`) and apply the committed cumulative patch in it (`git apply --index` of `.aw/system/cutover/metastore-docs.cutover.patch`, as written by `qhay6a`). If it does not apply, stop and report.
+- [x] E-01 Create a scratch git worktree (`mkdir -p .aw/state/a49djh && git worktree add --detach .aw/state/a49djh/scratch HEAD`) and apply the committed cumulative patch in it (`git apply --index` of `.aw/system/cutover/metastore-docs.cutover.patch`, as written by `qhay6a`). If it does not apply, stop and report.
   - Depends on: none
   - Expected outcome: the scratch worktree shows the `qhay6a` changes staged; the executing checkout is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: rewrites (scratch worktree only)
 
-- [ ] E-02 (was `90iqr1` E-03.) In the scratch worktree, rewrite the review workflows: `.aw/system/workflows/plan-review/steps/s7-finalize.md` and `s5-questions.md`, `s6-rereview.md`, `r2-executability.md`, `.aw/system/workflows/spec-review/spec-review.md` and its `README.md`, and every file under the `plan-review-long` workflow directory, replacing "write `- Readiness:` into the plan" with the review-round recorder command that `xexn45` hands here (aw reviews record, documented in E-03), and replacing every hand edit of status or history with the setter.
+- [x] E-02 (was `90iqr1` E-03.) In the scratch worktree, rewrite the review workflows: `.aw/system/workflows/plan-review/steps/s7-finalize.md` and `s5-questions.md`, `s6-rereview.md`, `r2-executability.md`, `.aw/system/workflows/spec-review/spec-review.md` and its `README.md`, and every file under the `plan-review-long` workflow directory, replacing "write `- Readiness:` into the plan" with the review-round recorder command that `xexn45` hands here (aw reviews record, documented in E-03), and replacing every hand edit of status or history with the setter.
   - Depends on: E-01
   - Expected outcome: no review workflow instructs an agent to hand-write a metadata bullet or a history line.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 (was `90iqr1` E-07.) In the scratch worktree, document the two commands handed by `xexn45`: the review-round recorder (aw reviews record <subject-id6> --round <n> --kind gate|refinement --verdict <v> [--readiness ...] [--review-depth ...], which appends one `review` event per spec 4.1a and replaces hand-written `- Readiness:`) and aw walkthrough new --set <set> --order <nn> --target <id6> --slug <slug> [--summary ...], in the review workflows of E-02 and in the walkthroughs README. Document them as Order 13 deliverables in the reference text; Order 13 builds them (Carrier `cxxmyv`).
+- [x] E-03 (was `90iqr1` E-07.) In the scratch worktree, document the two commands handed by `xexn45`: the review-round recorder (aw reviews record <subject-id6> --round <n> --kind gate|refinement --verdict <v> [--readiness ...] [--review-depth ...], which appends one `review` event per spec 4.1a and replaces hand-written `- Readiness:`) and aw walkthrough new --set <set> --order <nn> --target <id6> --slug <slug> [--summary ...], in the review workflows of E-02 and in the walkthroughs README. Document them as Order 13 deliverables in the reference text; Order 13 builds them (Carrier `cxxmyv`).
   - Depends on: E-02
   - Expected outcome: the review workflows and the walkthroughs README name both commands with their arguments.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 (was `90iqr1` E-04.) In the scratch worktree, rewrite the remaining workflow and template files from the `qhay6a` F-03 table owned by this part (`.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md`, `.aw/system/workflows/askme/askme.md`, the assess templates `.aw/system/workflows/assess/templates/ipd.md` and `.aw/system/workflows/assess/templates/orchestrator-ipd.md`, and every `*README.md` template under `.aw/system/workflows/templates/`) so templates carry the two-key front matter (`id`, `status`) and the banner of spec 4.1 instead of bullet blocks, and instructions name commands.
+- [x] E-04 (was `90iqr1` E-04.) In the scratch worktree, rewrite the remaining workflow and template files from the `qhay6a` F-03 table owned by this part (`.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md`, `.aw/system/workflows/askme/askme.md`, the assess templates `.aw/system/workflows/assess/templates/ipd.md` and `.aw/system/workflows/assess/templates/orchestrator-ipd.md`, and every `*README.md` template under `.aw/system/workflows/templates/`) so templates carry the two-key front matter (`id`, `status`) and the banner of spec 4.1 instead of bullet blocks, and instructions name commands.
   - Depends on: E-01
   - Expected outcome: `aw ipd scaffold --apply` run after the Order 13 code change produces a file whose head matches the 4.1 shape (verified in Order 13; here the template text is reviewed).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: package
 
-- [ ] E-05 In the scratch worktree run `git add -A`, write `git diff --cached --binary HEAD` over the patch file in the executing checkout (the new patch contains `qhay6a`'s changes plus this plan's), remove the scratch worktree with `git worktree remove --force .aw/state/a49djh/scratch`, and commit through `aw commit a49djh -- .aw/records/plans/pending/20261109-metastore-251-a49djh-add-review-workflow-recorder-command-and-template-rewrites-t.ipd.md .aw/system/cutover/metastore-docs.cutover.patch`. Never `git add -A`, a bare `git add`, or `git commit -a` in the executing checkout; never push.
+- [x] E-05 In the scratch worktree run `git add -A`, write `git diff --cached --binary HEAD` over the patch file in the executing checkout (the new patch contains `qhay6a`'s changes plus this plan's), remove the scratch worktree with `git worktree remove --force .aw/state/a49djh/scratch`, and commit through `aw commit a49djh -- .aw/records/plans/pending/20261109-metastore-251-a49djh-add-review-workflow-recorder-command-and-template-rewrites-t.ipd.md .aw/system/cutover/metastore-docs.cutover.patch`. Never `git add -A`, a bare `git add`, or `git commit -a` in the executing checkout; never push.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: the regenerated patch lists the `qhay6a` files plus every file edited by E-02 to E-04; one path-scoped commit.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -138,26 +138,266 @@ No spec change; cutover documentation patch implements spec `4sd62s` section 5.4
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition; as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git apply --index` command and its exit status, and `git -C .aw/state/a49djh/scratch diff --cached --stat` listing the `qhay6a` files.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    Command run at HEAD `fffe0e823`:
+    `mkdir -p .aw/state/a49djh && git worktree add --detach .aw/state/a49djh/scratch HEAD && git -C .aw/state/a49djh/scratch apply --index "$(pwd)/.aw/system/cutover/metastore-docs.cutover.patch"`
+    Output: `APPLY_EXIT=0`
+    `git -C .aw/state/a49djh/scratch diff --cached --stat`:
+    ```text
+     .aw/system/managed-sections.json |   2 +-
+     AGENTS.md                        | 128 +++++++++++++++++++++------------------
+     agent_workflows/engine.py        | 123 ++++++++++++++++++++++---------------
+     3 files changed, 145 insertions(+), 108 deletions(-)
+    ```
+    Executing checkout remained unchanged (`git status --short` empty before E-05).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n -e 'Readiness:' -e '## Workflow history' .aw/system/workflows/plan-review .aw/system/workflows/spec-review .aw/system/workflows/plan-review-long` in the scratch worktree with each remaining hit shown to be a quoted legacy example, and one diff hunk per named file (`s7-finalize.md`, `s5-questions.md`, `s6-rereview.md`, `r2-executability.md`, `spec-review.md`, the spec-review `README.md`, each `plan-review-long` file) or a line stating that file needed no change and why.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    `rg -n -e 'Readiness:' -e '## Workflow history' .aw/system/workflows/plan-review .aw/system/workflows/spec-review .aw/system/workflows/plan-review-long` in `.aw/state/a49djh/scratch` (exit 0; every remaining hit is a quoted legacy example or prohibition):
+    - `.aw/system/workflows/plan-review/README.md` (line 74): `| \`## Workflow history\` | \`steps/s7-finalize.md\` |` -- quoted historical baseline section map from commit `bb094ca8` (marked `unchanged` in `qhay6a` F-03 row 28).
+    - `.aw/system/workflows/spec-review/README.md` (line 27): `replacing the legacy \`- Readiness:\` front-matter write` -- marked legacy reference in comparison table.
+    - `.aw/system/workflows/spec-review/spec-review.md` (lines 66, 315, 321): `never hand-write a legacy \`- Readiness:\` bullet`, `records carry no \`## Workflow history\` section`, `or add a legacy \`## Workflow history\` heading` -- explicit prohibitions quoting legacy syntax.
+    - `.aw/system/workflows/plan-review-long/03-resolve-and-finalize.md` (lines 165, 195): `replaces the legacy hand-written \`- Readiness:\` front-matter bullet and \`## Workflow history\` review line`, `never add a legacy \`## Workflow history\` section` -- marked legacy references.
+    - `.aw/system/workflows/plan-review/steps/s6-rereview.md` (line 15): `NEVER hand-edit a \`## Workflow history\` section` -- explicit prohibition.
+    - `.aw/system/workflows/plan-review/steps/s7-finalize.md` (lines 67, 100): `replaces the legacy hand-written \`- Readiness:\` front-matter bullet and \`## Workflow history\` review line`, `Do NOT hand-edit a \`## Workflow history\` section (records carry no \`## Workflow history\` heading after the cutover...)` -- marked legacy references and prohibitions.
+
+    Per-file diff hunks and no-change statements:
+    - `s7-finalize.md`:
+      ```diff
+      -The verdict outputs (`- Readiness:`, the status move to `reviewed`, and the one verdict-bearing history entry) are written in this step only and exactly once per review (MD-15, Section 7.2).
+      +The verdict outputs (recording the gate review round with `aw reviews record`, which writes verdict, readiness, and review depth to the plan's metadata log, and transitioning status to `reviewed` with `aw ipd set reviewed`) are written in this step only and exactly once per review (MD-15, Section 7.2).
+      ```
+    - `s5-questions.md`: needed no change; only matches `- Status: open` / `- Status: resolved` inside `## Open questions` body sections (retained in Markdown body post-cutover per spec `4sd62s` N3; marked `unchanged` in `qhay6a` F-03 row 31) and contains zero instructions to hand-write artifact metadata bullets or history lines.
+    - `s6-rereview.md`:
+      ```diff
+      -4. Do NOT write any verdict output (`- Readiness:`, status change, or verdict-bearing history entry) in this step (MD-15). Verdicts are written in S7 only.
+      -5. If recording a progress note in the plan's `## Workflow history`, record it ONLY as:
+      +4. Do NOT write any verdict output (do not run `aw reviews record`, do not transition status with `aw ipd set reviewed`, and do not hand-edit metadata logs or front matter) in this step (MD-15). Verdicts are recorded in S7 only.
+      +5. If recording a progress note in the plan's metadata log, record it ONLY through the note command:
+      +   `aw ipd note <id6> --message "review progress (<agent/model>): <note>"`
+      ```
+    - `r2-executability.md` (preserving `- Kind:` orchestrator passages for `ngc2a2` E-02 per `qhay6a` F-03 row 30b):
+      ```diff
+      -   plan remains `- Status: to-review`, the findings are recorded in the review round, and `- Readiness:`
+      -   is left ABSENT. Do NOT write `- Readiness:` at all in this path (not `no-go` and not a pass);
+      +   plan remains at status `to-review`, the findings are recorded in the review round, and no gate
+      +   `review` event is recorded via `aw reviews record`. Do NOT record `readiness` at all in this path
+      ```
+    - `_findings.md` (also owned by `a49djh` E-02 per `qhay6a` F-03 row 29) and `plan-review.md` (Step 7 summary):
+      ```diff
+      -record the contradiction in a dated `## Workflow history` note where readers
+      -will find it.
+      +record the contradiction with a dated note in its metadata log (`aw ipd note <id6> --message "..."`,
+      +inspected with `aw show <id6> --history`) where readers will find it.
+      ```
+    - `spec-review/spec-review.md`:
+      ```diff
+      -5. NEVER hand-edit the spec's `- Status:` or its `## Workflow history`. `aw specs set` / `aw specs
+      -   note` own both.
+      -6. NEVER write `- Readiness:` onto a spec.
+      +5. NEVER hand-edit the spec's `status` front-matter mirror or its metadata log (`.aw/records/meta/<id6>.jsonl`). `aw specs set` / `aw specs note` own status transitions and notes, and `aw reviews record` owns review events.
+      +6. NEVER pass `--readiness` when recording a spec review (`aw reviews record` refuses `--readiness` on a spec).
+      ```
+    - `spec-review/README.md`:
+      ```diff
+      -| `plan-review/steps/s7-finalize.md`, "Write the structured Readiness field" | The REQUIRED `- Readiness:` front-matter write | `Readiness` is a plan field. ...
+      +| `plan-review/steps/s7-finalize.md`, "Record the review round" | The REQUIRED `aw reviews record --readiness` recording (replacing the legacy `- Readiness:` front-matter write) | `readiness` is a plan field. ...
+      ```
+    - `plan-review-long/01-discover-and-snapshot.md`: needed no change; zero metadata-bullet or `## Workflow history` hand-writing instructions (only general project-discovery prose).
+    - `plan-review-long/02-review-and-revise.md` (preserving `- Kind:` passages for `ngc2a2` E-02 per `qhay6a` F-03 row 24b):
+      ```diff
+      -4. **Honest exhaustion (R6):** If the 2-attempt budget is exhausted with findings unresolved, the plan remains `- Status: to-review`, the findings are recorded in the review round, and `- Readiness:` is left ABSENT.
+      +4. **Honest exhaustion (R6):** If the 2-attempt budget is exhausted with findings unresolved, the plan remains at status `to-review`, the findings are recorded in the review round, and no gate `review` event is recorded via `aw reviews record`.
+      ```
+    - `plan-review-long/03-resolve-and-finalize.md` (preserving `- Kind:` passages for `ngc2a2` E-02 per `qhay6a` F-03 row 25b):
+      ```diff
+      -### Write the structured `Readiness` field (REQUIRED output of the review)
+      +### Record the review round (REQUIRED output of the review)
+      +Record the review verdict, readiness, and review depth as a `gate` review event in the plan's metadata log (`.aw/records/meta/<id6>.jsonl`, per spec `4sd62s` 4.1a) using the review-round recorder command (delivered by Order 13 / `cxxmyv`; available after `aw migrate metadata`; replaces the legacy hand-written `- Readiness:` front-matter bullet and `## Workflow history` review line):
+      ```
+    - `plan-review-long/plan-review-long.md`:
+      ```diff
+      -- plan status and workflow history are updated;
+      -- the structured `- Readiness: <go | go-pending-approval | no-go>` front-matter field is written
+      +- plan status is updated through `aw ipd set reviewed`;
+      +- each reviewed plan's review round (verdict, readiness, and review depth) is recorded in its
+      +  metadata log via `aw reviews record`
+      ```
+    - `plan-review-long/review-rubric.md`:
+      ```diff
+      -- **Qualified spec citations (post-cutover spec trace convention):** When a plan carries `- From-Spec: <spec-id6>` for a post-cutover spec
+      +- **Qualified spec citations (post-cutover spec trace convention):** When a plan links a post-cutover spec via `from_spec` (set with `--from-spec <spec-id6>` and shown by `aw show <id6>`;
+      ```
+    - `plan-review-long/README.md`: needed no change; short workflow overview with no metadata field syntax or history instructions.
+    - `plan-review-long/report-template.md`: needed no change; final report output template only, no artifact metadata bullets or history instructions.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste the diff hunks in `s7-finalize.md` and the walkthroughs README that name `aw reviews record` and `aw walkthrough new` with their arguments, each marked as delivered by Order 13.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    Diff hunk in `.aw/system/workflows/plan-review/steps/s7-finalize.md`:
+    ```diff
+    +### Record the review round (REQUIRED output of the review)
+    +
+    +Record your review verdict, readiness, and review depth as a `gate` review event in the plan's metadata log (`.aw/records/meta/<id6>.jsonl`, per spec `4sd62s` 4.1a) using the review-round recorder command (delivered by Order 13 / `cxxmyv`; available after `aw migrate metadata`; replaces the legacy hand-written `- Readiness:` front-matter bullet and `## Workflow history` review line):
+    +
+    +```sh
+    +aw reviews record <subject-id6> --round <n> --kind gate --verdict "<verdict>" \
+    +    --readiness <go | go-pending-approval | no-go> \
+    +    --review-depth <simple | standard | complex | orchestrator> \
+    +    [--reviewer "<agent/model>"] [--review-ref <ref>] [--findings-summary "<summary>"]
+    +```
+    ```
+    (Matching `aw reviews record` documentation also added in `plan-review-long/03-resolve-and-finalize.md` and `spec-review/spec-review.md`.)
+
+    Diff hunk in `.aw/records/walkthroughs/README.md`:
+    ```diff
+    +## Creating a walkthrough
+    +
+    +Create a walkthrough with the tooled command rather than hand-authoring the file or its metadata log (delivered by Order 13 / `cxxmyv`; available after `aw migrate metadata`):
+    +
+    +```sh
+    +aw walkthrough new --set <set> --order <nn> --target <id6> --slug <slug> [--summary "<one-line summary>"]
+    +```
+    +
+    +- `--set <set>`: the Set id the walkthrough clusters under (at most 24 characters; 14 or fewer strongly preferred).
+    +- `--order <nn>`: the walkthrough's order within the Set.
+    +- `--target <id6>`: the `id6` of the existing record the walkthrough documents (recorded as `target_id` in the walkthrough's metadata log).
+    +- `--slug <slug>`: lowercase kebab-case filename slug.
+    +- `--summary "<text>"`: optional one-line short description (at most 300 characters).
+    ```
+    Verified CLI help parity on HEAD: `aw reviews record --help` exit 0 and `aw walkthrough new --help` exit 0 (both exist as dormant post-cutover verbs built by `724acb` that activate at the Order 13 cutover commit `cxxmyv`).
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste the diff hunks of `ipd-lifecycle.md`, `askme.md`, `assess/templates/ipd.md` and `orchestrator-ipd.md` showing the two-key front matter, banner and command wording, and `rg -c '^- (Status|Kind|Set):' .aw/system/workflows/assess/templates .aw/system/workflows/templates` in the scratch worktree returning 0 for every template file.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    Diff hunks:
+    - `.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md`:
+      ```diff
+      -2. The PLAN is `Status: approved` (a human sign-off recorded in its `Approval:` metadata) or, for a
+      +2. The PLAN has status `approved` (inspected with `aw show <id6>`; human sign-off recorded via
+      +   `aw ipd set approved <id6> --by-human`) or, for a low-complexity mechanical corrective,
+      ```
+      ```diff
+      -1. Append the required `## Workflow history` entry (`<date> executed (<agent/model>): ...`).
+      -2. Set the terminal `Status:` (`executed`, or `superseded`/`not-executed` with a `RETIRED ...`
+      -   header).
+      +1. Append the attributed `transition` (`-> executed`) and finalize scope events to `.aw/records/meta/<id6>.jsonl` (inspected with `aw show <id6> --history`).
+      +2. Update the two-key front-matter `status` mirror to `executed` (retirements to `superseded` or `not-executed` use `aw ipd set`, not finalize).
+      ```
+    - `.aw/system/workflows/askme/askme.md`:
+      ```diff
+       Confirm authorship before treating a record or question as yours (`git log`
+      -and the record's `- Author:` line settle it). Do not edit another agent's
+      +and `aw show <id6>` settle it). Do not edit another agent's
+      ```
+      ```diff
+      -create a blocked backlog item with the existing decision-gate convention.
+      -Use the repository's tools and required fields; do not guess the record shape.
+      +create a blocked backlog item with the existing decision-gate convention
+      +(for example, `aw backlog new ...` followed by `aw backlog set blocked <id6>
+      +--gate-kind decision --gate-ref <ref>`). Use the repository's tools; do not
+      +hand-edit metadata logs or guess the record shape.
+      ```
+    - `.aw/system/workflows/assess/templates/ipd.md`:
+      ```diff
+      +---
+      +id: tmp1d6
+      +status: draft
+      +---
+      +<!-- aw-managed: metadata lives in .aw/records/meta/tmp1d6.jsonl; use `aw show tmp1d6`; agents read .aw/AGENT_QUICKSTART.md -->
+       # IPD: <short title of the change>
+      -- Date: <YYYY-MM-DD>
+      -- Kind: child
+      ...
+      -- Id: tmp1d6
+      -## Workflow history
+      -- <YYYY-MM-DD> draft (<agent/model>): created.
+      +> Manage plan metadata and lifecycle status with commands (`aw ipd scaffold`, `aw ipd set`, `aw ipd dependencies set`, `aw ipd sync`) and inspect them with `aw show <id6>` and `aw show <id6> --history`; never hand-edit `.aw/records/meta/<id6>.jsonl` or the front-matter mirror.
+      ```
+    - `.aw/system/workflows/assess/templates/orchestrator-ipd.md`:
+      ```diff
+      +---
+      +id: tmp1d6
+      +status: draft
+      +---
+      +<!-- aw-managed: metadata lives in .aw/records/meta/tmp1d6.jsonl; use `aw show tmp1d6`; agents read .aw/AGENT_QUICKSTART.md -->
+       # IPD: <short title of the coordinated change>
+      -- Date: <YYYY-MM-DD>
+      -- Kind: orchestrator
+      ...
+      -- Id: tmp1d6
+      -## Workflow history
+      -- <YYYY-MM-DD> draft (<agent/model>): created.
+      +> Manage orchestrator metadata, coverage, and lifecycle status with commands (`aw ipd scaffold`, `aw ipd set`, `aw ipd dependencies set`, `aw ipd coverage`, `aw ipd sync`) and inspect them with `aw show <id6>` and `aw show <id6> --history`; never hand-edit `.aw/records/meta/<id6>.jsonl` or the front-matter mirror.
+      ```
+    Also rewrote all other `qhay6a` F-03 `a49djh E-04` workflows (`assess-all.md`, `assess.md`, `incident.md`, `migrate.md`, `spec.md`, `verify-execution/intent-audit.md`, `verify-execution/verify-execution.md`, `whatnext.md`) and `.aw/system/workflows/templates/*README.md` templates (`plans-README.md`, `plans-{not-executed,pending,reusable,superseded}-README.md`, `prompts-{not-executed,superseded}-README.md`, `agents-docs-walkthroughs-README.md`, `aw-inbox-README.md`; leaving `prompts-README.md` to `y1zihp` E-04).
+
+    Template bullet check (`rg -c '^- (Status|Kind|Set):' .aw/system/workflows/assess/templates .aw/system/workflows/templates` in scratch worktree):
+    ```text
+    .aw/system/workflows/assess/templates/ipd.md:1
+    .aw/system/workflows/assess/templates/orchestrator-ipd.md:1
+    ```
+    `rg -n '^- (Status|Kind|Set):' .aw/system/workflows/assess/templates .aw/system/workflows/templates`:
+    ```text
+    .aw/system/workflows/assess/templates/ipd.md
+    63:- Status: open
+
+    .aw/system/workflows/assess/templates/orchestrator-ipd.md
+    60:- Status: open
+    ```
+    Three-part explanation for the 2 body hits (per `verify-execution/intent-audit.md` Dimension 1): (1) A literal count of 0 across the whole file is unsatisfiable for `ipd.md` and `orchestrator-ipd.md` without violating the open-question schema, because `ipd_schema.open_question_error` mandates `- Status: open|resolved|deferred` inside `## Open questions` -> `### OQ-01` and spec `4sd62s` N3 explicitly retains open questions in Markdown body prose; (2) empirical measurement via `rg -n` above proves those 2 lines (both inside `### OQ-01`) are the ONLY hits across all template files, with 0 hits in every `.aw/system/workflows/templates/*.md` file; (3) the satisfiable counterpart (metadata region before `## Open questions` across all files in `assess/templates/` and `templates/`) returned 0 hits (`METADATA_REGION_CHECK: OK`).
+    Additional verification in scratch worktree: `python3 -m pytest -o addopts="" tests/test_askme_command_delivery.py tests/test_technical_writing_delivery.py` -> `9 passed in 7.65s`; em/en dash scan across `.aw/records/walkthroughs/README.md` and `.aw/system/workflows/templates/*README.md` -> exit 1 (0 hits); all 23 `qhay6a` F-03 `a49djh` files confirmed present (`ALL_23_F03_FILES_COVERED: OK`).
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste `git apply --stat .aw/system/cutover/metastore-docs.cutover.patch` (the `qhay6a` files plus each file from V-02 to V-04), `git worktree list` showing the scratch worktree removed, and the `aw commit` output naming the commit hash.
   - Observed evidence:
-  - Result: pending
+    `git apply --check .aw/system/cutover/metastore-docs.cutover.patch`: exit 0 (`APPLY_CHECK_EXIT=0`).
+    `git apply --stat .aw/system/cutover/metastore-docs.cutover.patch`:
+    ```text
+     .aw/records/walkthroughs/README.md                 |   20 +++
+     .aw/system/managed-sections.json                   |    2
+     .aw/system/workflows/askme/askme.md                |    8 +
+     .aw/system/workflows/assess-all/assess-all.md      |   13 +-
+     .aw/system/workflows/assess/assess.md              |   29 ++---
+     .aw/system/workflows/assess/templates/ipd.md       |   25 +---
+     .../workflows/assess/templates/orchestrator-ipd.md |   25 +---
+     .aw/system/workflows/incident/incident.md          |    9 +
+     .../workflows/ipd-lifecycle/ipd-lifecycle.md       |   96 ++++++++-------
+     .aw/system/workflows/migrate/migrate.md            |   10 +-
+     .../plan-review-long/02-review-and-revise.md       |   10 +-
+     .../plan-review-long/03-resolve-and-finalize.md    |   60 +++++----
+     .../workflows/plan-review-long/plan-review-long.md |   11 +-
+     .../workflows/plan-review-long/review-rubric.md    |    2
+     .aw/system/workflows/plan-review/plan-review.md    |    2
+     .../workflows/plan-review/steps/_findings.md       |    4 -
+     .../plan-review/steps/r2-executability.md          |   21 ++-
+     .../workflows/plan-review/steps/s6-rereview.md     |   12 +-
+     .../workflows/plan-review/steps/s7-finalize.md     |   73 ++++++-----
+     .aw/system/workflows/spec-review/README.md         |    4 -
+     .aw/system/workflows/spec-review/spec-review.md    |   83 +++++++------
+     .aw/system/workflows/spec/spec.md                  |   18 ++-
+     .../templates/agents-docs-walkthroughs-README.md   |    2
+     .aw/system/workflows/templates/aw-inbox-README.md  |   12 +-
+     .aw/system/workflows/templates/plans-README.md     |   70 ++++++-----
+     .../templates/plans-not-executed-README.md         |   11 +-
+     .../workflows/templates/plans-pending-README.md    |   10 +-
+     .../workflows/templates/plans-reusable-README.md   |    3
+     .../workflows/templates/plans-superseded-README.md |   10 +-
+     .../templates/prompts-not-executed-README.md       |    3
+     .../templates/prompts-superseded-README.md         |    5 -
+     .../workflows/verify-execution/intent-audit.md     |   10 +-
+     .../workflows/verify-execution/verify-execution.md |   20 ++-
+     .aw/system/workflows/whatnext/whatnext.md          |    4 -
+     AGENTS.md                                          |  128 +++++++++++---------
+     agent_workflows/engine.py                          |  123 ++++++++++++-------
+     36 files changed, 502 insertions(+), 446 deletions(-)
+    ```
+    `git worktree list` (repo root sanitized as `<repo>`): `<repo> fffe0e823 [main]`, `<repo>/.aw/worktrees/9o83cr 138f0c3c9 [aw/lane/9o83cr]`, `<repo>/.aw/worktrees/9o83cr_attempt2 3ef955292 [aw/lane/9o83cr_attempt2]`, `<repo>/.aw/worktrees/a49djh fffe0e823 [aw/lane/a49djh]`, `<repo>/.aw/worktrees/review-sweep-run-20261124T195133Z-1320375 74ccd03f1 [aw/lane/review-sweep-run-20261124T195133Z-1320375]` (`.aw/state/a49djh/scratch` removed).
+    `aw commit` output: recorded in follow-up commit immediately after committing patch + plan.
+  - Result: pass
 
 ## Approval and execution gate
 
