@@ -38,34 +38,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: scratch worktree
 
-- [ ] E-01 Create the scratch worktree and its base, per the procedure in Step 0: `git worktree add --detach .aw/state/2k5t16/scratch HEAD`; inside it, `git apply --index .aw/system/cutover/metastore-docs.cutover.patch`, then record the base tree with `git write-tree` in F-01. No code patch exists yet, so there is nothing else to apply.
+- [x] E-01 Create the scratch worktree and its base, per the procedure in Step 0: `git worktree add --detach .aw/state/2k5t16/scratch HEAD`; inside it, `git apply --index .aw/system/cutover/metastore-docs.cutover.patch`, then record the base tree with `git write-tree` in F-01. No code patch exists yet, so there is nothing else to apply.
   - Depends on: none
   - Expected outcome: the scratch worktree holds HEAD plus the documentation patch, staged; F-01 holds the base tree id.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the switch (scratch worktree only; was `cxxmyv` E-03, in three steps)
 
-- [ ] E-02 In `agent_workflows/artifact_meta.py`, switch the loader and writer to the log format: `artifact_meta.append` and `artifact_meta.create` write `meta/<id6>.jsonl` with the spec 4.3 write order (log, in-file mirror, disposition, cache), and the loader reads logs.
+- [x] E-02 In `agent_workflows/artifact_meta.py`, switch the loader and writer to the log format: `artifact_meta.append` and `artifact_meta.create` write `meta/<id6>.jsonl` with the spec 4.3 write order (log, in-file mirror, disposition, cache), and the loader reads logs.
   - Depends on: E-01
   - Expected outcome: a fixture setter run writes the log and then the mirror.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Move the legacy (bullet-block) loader unchanged out of `agent_workflows/artifact_meta.py` into the new module `agent_workflows/migrations/m0001_metadata_v2.py`, and point every legacy-loader caller inside the migration at it.
+- [x] E-03 Move the legacy (bullet-block) loader unchanged out of `agent_workflows/artifact_meta.py` into the new module `agent_workflows/migrations/m0001_metadata_v2.py`, and point every legacy-loader caller inside the migration at it.
   - Depends on: E-02
   - Expected outcome: the legacy loader exists only in `m0001_metadata_v2.py`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Delete the legacy write path: the legacy branch of `artifact_meta.append` with `artifact_meta.LegacyRender` and the path-keyed target (`2xwb9b`); switch `write_legacy` off and remove the value writers that `9o83cr` E-08 folded into it (`xexn45`, `9o83cr`); set `chain.CURRENT_METADATA_SCHEMA` to 2 (`dcerjg`).
+- [x] E-04 Delete the legacy write path: the legacy branch of `artifact_meta.append` with `artifact_meta.LegacyRender` and the path-keyed target (`2xwb9b`); switch `write_legacy` off and remove the value writers that `9o83cr` E-08 folded into it (`xexn45`, `9o83cr`); set `chain.CURRENT_METADATA_SCHEMA` to 2 (`dcerjg`).
   - Depends on: E-03
   - Expected outcome: no module outside `artifact_meta.py` (log format only) and `migrations/m0001_metadata_v2.py` can produce a bullet block or a `## Workflow history` line.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: package and guard
 
-- [ ] E-05 In the scratch worktree run `git add -A` and write `git diff --cached --binary <F-01 base tree>` to `.aw/system/cutover/metastore-code.cutover.patch` in the executing checkout; remove the scratch worktree (`git worktree remove --force .aw/state/2k5t16/scratch`). Add `tests/test_metastore_cutover_code_patch.py` (marked `core`): on a temporary `GIT_INDEX_FILE` filled by `git read-tree HEAD`, it runs `git apply --cached` of the docs patch and then `git apply --cached --check` of the code patch, and asserts both exit 0. It reads and applies the two patches; it does not read production source. Commit through `aw commit 2k5t16 -- <this plan> .aw/system/cutover/metastore-code.cutover.patch tests/test_metastore_cutover_code_patch.py`; never push.
+- [x] E-05 In the scratch worktree run `git add -A` and write `git diff --cached --binary <F-01 base tree>` to `.aw/system/cutover/metastore-code.cutover.patch` in the executing checkout; remove the scratch worktree (`git worktree remove --force .aw/state/2k5t16/scratch`). Add `tests/test_metastore_cutover_code_patch.py` (marked `core`): on a temporary `GIT_INDEX_FILE` filled by `git read-tree HEAD`, it runs `git apply --cached` of the docs patch and then `git apply --cached --check` of the code patch, and asserts both exit 0. It reads and applies the two patches; it does not read production source. Commit through `aw commit 2k5t16 -- <this plan> .aw/system/cutover/metastore-code.cutover.patch tests/test_metastore_cutover_code_patch.py`; never push.
   - Depends on: E-04
   - Expected outcome: the code patch exists and touches only the E-02 to E-04 files; the guard test passes on HEAD and fails if either patch stops applying.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -78,8 +78,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-01 | (written by E-01) | Base tree id of the scratch worktree (HEAD plus docs patch). |
-| F-02 | `rg -n "class LegacyRender\|def append\b\|def create\b" agent_workflows/artifact_meta.py` (2026-11-09) | `LegacyRender`, `append` and `create` exist in `artifact_meta.py`; `agent_workflows/migrations/` does not exist yet at this HEAD (it is created by `dcerjg` or by E-03 here, whichever is first; re-check at execution). |
+| F-01 | E-01, 2026-11-25: `git write-tree` in `.aw/state/2k5t16/scratch` after `git apply --index .aw/system/cutover/metastore-docs.cutover.patch` on HEAD `0370cfeb6a5be3437416c86cc47aaa16cbed6de1` | Base tree id of the scratch worktree (HEAD plus docs patch): `a55438c1a6dcc54fdfb2809f4bd98428d30a5445`. |
+| F-02 | `rg -n "class LegacyRender\|def append\b\|def create\b" agent_workflows/artifact_meta.py` (2026-11-09) | `LegacyRender`, `append` and `create` exist in `artifact_meta.py`; `agent_workflows/migrations/` does not exist yet at this HEAD (it is created by `dcerjg` or by E-03 here, whichever is first; re-check at execution). RE-CHECKED at execution 2026-11-25 (HEAD `0370cfeb6`): `agent_workflows/migrations/` ALREADY EXISTS (created by `dcerjg`), including `m0001_metadata_v2.py` (2593 lines before this work), `m0001_convert.py`, `m0001_verify.py` and `chain.py`; E-03 therefore moved the legacy loader INTO the existing `m0001_metadata_v2.py` (+576 lines) rather than creating it. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -133,26 +133,147 @@ No spec change. Spec 5.2 and C10a are kept: nothing here changes `main`'s format
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git worktree add` and `git apply --index` commands with exit status 0, and the base tree id recorded in F-01.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    ```
+    $ git worktree add --detach .aw/state/2k5t16/scratch HEAD
+    Preparing worktree (detached HEAD 0370cfeb6)
+    exit=0
+    # (first attempt with a relative ../../../ patch path: error: can't open patch ... No such file or directory, exit 128; re-run from inside the scratch worktree:)
+    $ git apply --index .aw/system/cutover/metastore-docs.cutover.patch
+    exit=0
+    $ git diff --cached --stat | tail -1
+     59 files changed, 1964 insertions(+), 1266 deletions(-)
+    $ git write-tree
+    a55438c1a6dcc54fdfb2809f4bd98428d30a5445
+    ```
+    F-01 records `a55438c1a6dcc54fdfb2809f4bd98428d30a5445`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste a behavioral fixture test run in the scratch worktree (pytest output with PASSED lines) showing `append` and `create` write `meta/<id6>.jsonl` and then the in-file mirror.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    Behavioral fixture run in the scratch worktree (PYTHONPATH = scratch tree; the repo's own conftest cannot import there until `x1mmdp` switches `tests/record_builder.py`, register D17). The fixture probes `artifact_core.atomic_write` and records, at the moment the `.md` is written, whether `meta/<id6>.jsonl` already exists:
+    ```
+    $ python3 -m pytest -o addopts="" -v -p no:randomly test_v02_v04_fixture.py
+    test_v02_v04_fixture.py::test_create_writes_log_then_mirror CREATED FILE TEXT:
+    ---
+    id: fix001
+    status: draft
+    ---
+    <!-- aw-managed: metadata lives in .aw/records/meta/fix001.jsonl; use `aw show fix001`; agents read .aw/AGENT_QUICKSTART.md -->
+    # Fixture plan
+
+    Body prose.
+
+    PASSED
+    test_v02_v04_fixture.py::test_append_writes_log_then_mirror APPENDED FILE TEXT:
+    ---
+    id: fix002
+    status: to-review
+    ---
+    <!-- aw-managed: metadata lives in .aw/records/meta/fix002.jsonl; use `aw show fix002`; agents read .aw/AGENT_QUICKSTART.md -->
+    # Fixture plan
+
+    PASSED
+    test_v02_v04_fixture.py::test_current_schema_is_2 PASSED
+    ============================== 3 passed in 7.03s ===============================
+    ```
+    Asserted in the fixture: `create` returns `committed: True`, the log exists, and the probe saw `[("mirror", True)]` (log present when the mirror was written); `append` adds exactly one log line, every mirror write saw the log present, and `read(...).status == "to-review"`. CLI smoke in a throwaway repo on the patched tree: `aw backlog new`, `aw backlog note`, `aw backlog set done --evidence` wrote create/note/transition events (transition carrying `path`) and moved the file to `done/`; `aw ipd scaffold --apply` and `aw ipd sync` succeeded.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff --cached --stat` in the scratch worktree showing the legacy loader removed from `artifact_meta.py` and added to `migrations/m0001_metadata_v2.py`, and `rg -n` of the legacy loader's function name over `agent_workflows/` showing its definition only in `m0001_metadata_v2.py`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    ```
+    $ git diff --cached --stat a55438c1a6dcc54fdfb2809f4bd98428d30a5445   # in .aw/state/2k5t16/scratch
+     agent_workflows/artifact_adopt.py                  |    8 +-
+     agent_workflows/artifact_core.py                   |    4 +-
+     agent_workflows/artifact_meta.py                   | 3205 ++------------------
+     agent_workflows/artifact_refs.py                   |   40 +-
+     agent_workflows/artifact_rename.py                 |   37 +-
+     agent_workflows/attention.py                       |    2 +-
+     agent_workflows/backlog.py                         |  165 +-
+     agent_workflows/check_engine.py                    |   25 +-
+     agent_workflows/cli.py                             |   30 +-
+     agent_workflows/coverage_record.py                 |   12 +-
+     .../hooks/backlog_blocking_close_gate.py           |    4 +-
+     agent_workflows/ipd_authoring.py                   |  113 +-
+     agent_workflows/ipd_schema.py                      |    2 +-
+     agent_workflows/migrations/chain.py                |    2 +-
+     agent_workflows/migrations/m0001_convert.py        |   15 +-
+     agent_workflows/migrations/m0001_metadata_v2.py    |  576 ++++
+     agent_workflows/migrations/m0001_verify.py         |   13 +-
+     agent_workflows/plan_readiness.py                  |   26 +-
+     agent_workflows/plans_refs.py                      |   74 +-
+     agent_workflows/production_checks.py               |   25 +-
+     agent_workflows/prompts.py                         |   12 +-
+     agent_workflows/releases.py                        |   10 +-
+     agent_workflows/research_archive.py                |   25 +-
+     agent_workflows/research_cmd.py                    |   33 +-
+     agent_workflows/research_refs.py                   |   60 +-
+     agent_workflows/review_sequence.py                 |   23 +-
+     agent_workflows/runner_shared.py                   |  177 +-
+     agent_workflows/set_records.py                     |   71 +-
+     agent_workflows/specs.py                           |  130 +-
+     agent_workflows/status_set.py                      |  146 +-
+     30 files changed, 1213 insertions(+), 3852 deletions(-)
+    $ rg -n 'def load_legacy|def parse_legacy' agent_workflows/
+    agent_workflows/artifact_naming.py:279:def parse_legacy_timestamp(name: str):
+    agent_workflows/migrations/m0001_metadata_v2.py:2771:def load_legacy_artifact(
+    ```
+    (`parse_legacy_timestamp` is the filename-date parser, not the bullet loader.) `LEGACY_LOADER_VERSION = "legacy_v10"` now sits at `m0001_metadata_v2.py:2650`; `artifact_meta.py:2223` carries the new `LOADER_VERSION = "log_v1"` (register D9). Every caller of the removed names was converted: a dangling-reference scan over `agent_workflows/` reports 0; `ruff check --select F,E9 agent_workflows/` prints `All checks passed!`; `import agent_workflows.cli, agent_workflows.oc_runipd, agent_workflows.agy_runipd` succeeds.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste `rg -n 'LegacyRender|write_legacy' agent_workflows/` in the scratch worktree (no definition left), the diff hunk setting `CURRENT_METADATA_SCHEMA = 2`, and a fixture test run showing no setter run on a log-format fixture leaves a bullet block or a `## Workflow history` line in the file. The repository-wide AC-1 audit is `cxxmyv`'s.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    ```
+    $ rg -n 'LegacyRender|write_legacy' agent_workflows/        # in the scratch worktree
+    (no output, exit 1)
+    $ rg -n 'LegacyRender|write_legacy|render_legacy_text|LegacyTarget|SidecarRecord|append_legacy|restore_legacy_snapshot' agent_workflows/
+    (no output, exit 1)
+    $ git diff --cached a55438c1a6dcc54fdfb2809f4bd98428d30a5445 -- agent_workflows/migrations/chain.py
+    @@ -67,7 +67,7 @@ class Migration:
+             )
+
+
+    -CURRENT_METADATA_SCHEMA = 1
+    +CURRENT_METADATA_SCHEMA = 2
+
+     _EXCLUDED_FILENAMES = frozenset({"README.md", "STATUS.md"})
+    ```
+    Fixture run (same run as V-02): after `create` and after an `append` transition on a log-format fixture, the file holds only the two-key YAML mirror, the `aw-managed` banner and the body; the fixture asserts `"## Workflow history" not in text` and no `- Status:`/`- Set:` line, and both PASSED (`3 passed in 7.03s`, texts pasted under V-02). Residual NOT in this plan's E-04 scope and filed as backlog `jycxw8` (register D16): `ipd_authoring.build_skeleton` still writes a bullet block and a `## Workflow history` H2 into a scaffolded plan's BODY, because `ipd_schema`/`ipd_lint` still require them (stripping them yields IPD-M101 Date/Concern/Scope, IPD-I304, IPD-H202). The repository-wide AC-1 audit is `cxxmyv`'s.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste `git apply --stat .aw/system/cutover/metastore-code.cutover.patch` (file list), `python3 -m pytest -o addopts="" -v tests/test_metastore_cutover_code_patch.py` with each test PASSED, the same run after corrupting one hunk of a scratch copy of the code patch showing FAILED, `git worktree list` showing the scratch worktree removed, and the `aw commit` output naming the commit hash.
   - Observed evidence:
-  - Result: pending
+    ```
+    $ git diff --cached --binary a55438c1a6dcc54fdfb2809f4bd98428d30a5445 > <lane>/.aw/system/cutover/metastore-code.cutover.patch   # in scratch
+    exit=0   (256227 bytes; 0 __pycache__ paths staged)
+    $ git worktree remove --force .aw/state/2k5t16/scratch
+    exit=0
+    $ git worktree list | grep -c scratch
+    0
+    $ git apply --stat .aw/system/cutover/metastore-code.cutover.patch | tail -3
+     agent_workflows/specs.py                           |  130 -
+     agent_workflows/status_set.py                      |  146 -
+     30 files changed, 1213 insertions(+), 3852 deletions(-)
+    (same 30-file list as V-03)
+    $ python3 -m pytest -o addopts="" -v tests/test_metastore_cutover_code_patch.py
+    tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_code_patch_applies_after_docs_patch PASSED [ 33%]
+    tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_code_patch_touches_files PASSED [ 66%]
+    tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_check_refuses_a_patch_that_no_longer_applies PASSED [100%]
+    ============================== 3 passed in 0.36s ===============================
+    # corrupted scratch copy: one context line of the first artifact_meta.py hunk prefixed with "CORRUPTED "
+    $ AW_CUTOVER_CODE_PATCH=$PWD/.aw/state/2k5t16/corrupt-code.patch python3 -m pytest -o addopts="" -v tests/test_metastore_cutover_code_patch.py
+    tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_code_patch_applies_after_docs_patch FAILED [100%]
+    E       error: patch failed: agent_workflows/artifact_meta.py:26
+    E       error: agent_workflows/artifact_meta.py: patch does not apply
+    ========================= 1 failed, 2 passed in 0.45s ==========================
+    $ python3 -m pytest        # bare core gate in the lane
+    2955 passed, 1 skipped, 11 warnings in 119.44s (0:01:59)
+    ```
+    The `aw commit` hash is reported in the run's execution report and outcome file (the commit that records this text cannot contain its own hash).
+  - Result: pass
 
 ## Approval and execution gate
 
