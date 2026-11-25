@@ -17,7 +17,7 @@ import tempfile
 import unittest
 
 from agent_workflows import cli
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 def _setup_repo(root: Path) -> Path:
@@ -194,7 +194,7 @@ class TestBacklogTransitionAuthority(unittest.TestCase):
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
             relocated = _find_item(repo, "bk0001")
             self.assertEqual(relocated.parent.name, "graduated")
-            self.assertIn("- Status: graduated", relocated.read_text(encoding="utf-8"))
+            assert_field(relocated, "status", "graduated")
 
     def test_graduated_target_positional_spelling_succeeds_without_attestation(
         self,
@@ -226,7 +226,7 @@ class TestBacklogTransitionAuthority(unittest.TestCase):
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
             relocated = _find_item(repo, "bk0001")
             self.assertEqual(relocated.parent.name, "graduated")
-            self.assertIn("- Status: graduated", relocated.read_text(encoding="utf-8"))
+            assert_field(relocated, "status", "graduated")
 
     # -------------------------------------------------------------------------
     # Target: open (containment rollback and corrective reopen)
@@ -261,7 +261,7 @@ class TestBacklogTransitionAuthority(unittest.TestCase):
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
             relocated = _find_item(repo, "bk0001")
             self.assertEqual(relocated.parent.name, "open")
-            self.assertIn("- Status: open", relocated.read_text(encoding="utf-8"))
+            assert_field(relocated, "status", "open")
 
     def test_open_target_rollback_positional_spelling_succeeds_without_attestation(
         self,
@@ -290,7 +290,7 @@ class TestBacklogTransitionAuthority(unittest.TestCase):
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
             relocated = _find_item(repo, "bk0001")
             self.assertEqual(relocated.parent.name, "open")
-            self.assertIn("- Status: open", relocated.read_text(encoding="utf-8"))
+            assert_field(relocated, "status", "open")
 
     def test_open_target_reopen_status_spelling_succeeds_without_attestation(
         self,
@@ -319,7 +319,7 @@ class TestBacklogTransitionAuthority(unittest.TestCase):
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
             relocated = _find_item(repo, "bk0001")
             self.assertEqual(relocated.parent.name, "open")
-            self.assertIn("- Status: open", relocated.read_text(encoding="utf-8"))
+            assert_field(relocated, "status", "open")
 
     def test_open_target_reopen_positional_spelling_succeeds_without_attestation(
         self,
@@ -348,7 +348,7 @@ class TestBacklogTransitionAuthority(unittest.TestCase):
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
             relocated = _find_item(repo, "bk0001")
             self.assertEqual(relocated.parent.name, "open")
-            self.assertIn("- Status: open", relocated.read_text(encoding="utf-8"))
+            assert_field(relocated, "status", "open")
 
     # -------------------------------------------------------------------------
     # Target: done (automated backlog close)
@@ -387,7 +387,7 @@ class TestBacklogTransitionAuthority(unittest.TestCase):
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
             relocated = _find_item(repo, "bk0001")
             self.assertEqual(relocated.parent.name, "done")
-            self.assertIn("- Status: done", relocated.read_text(encoding="utf-8"))
+            assert_field(relocated, "status", "done")
 
     def test_done_target_positional_spelling_succeeds_without_attestation(self) -> None:
         """Target done: automated close on positional spelling succeeds without attestation (runner_shared.close_backlog_item)."""
@@ -418,4 +418,4 @@ class TestBacklogTransitionAuthority(unittest.TestCase):
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
             relocated = _find_item(repo, "bk0001")
             self.assertEqual(relocated.parent.name, "done")
-            self.assertIn("- Status: done", relocated.read_text(encoding="utf-8"))
+            assert_field(relocated, "status", "done")

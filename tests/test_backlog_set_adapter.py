@@ -27,7 +27,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import backlog, runner_shared
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 class BacklogSetAdapterTests(unittest.TestCase):
@@ -146,8 +146,7 @@ class BacklogSetAdapterTests(unittest.TestCase):
             / "20261009-sh0001-fixture.md"
         )
         self.assertTrue(dest.is_file(), f"Destination not found: {dest}")
-        content = dest.read_text(encoding="utf-8")
-        self.assertIn("- Status: done", content)
+        assert_field(dest, "status", "done")
 
     def test_hand_built_namespace_shape_args_list(self) -> None:
         """Callers constructing Namespace(args=[...]) transition successfully."""

@@ -22,7 +22,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import cli
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 def _setup_repo(root: Path) -> Path:
@@ -317,7 +317,7 @@ class TestBacklogTransitionGate(unittest.TestCase):
                     self.assertEqual(rc, 0, f"Failed on {src}->{tgt}: {err.getvalue()}")
                     found = _find_item(repo, "bk0001")
                     self.assertEqual(found.parent.name, tgt)
-                    self.assertIn(f"- Status: {tgt}", found.read_text(encoding="utf-8"))
+                    assert_field(found, "status", tgt)
 
     def test_fence_required_transitions_positional_spelling(self) -> None:
         """Case (b): Fence-required edges succeed on positional spelling and relocate file."""
@@ -379,7 +379,7 @@ class TestBacklogTransitionGate(unittest.TestCase):
                     self.assertEqual(rc, 0, f"Failed on {src}->{tgt}: {err.getvalue()}")
                     found = _find_item(repo, "bk0001")
                     self.assertEqual(found.parent.name, tgt)
-                    self.assertIn(f"- Status: {tgt}", found.read_text(encoding="utf-8"))
+                    assert_field(found, "status", tgt)
 
     # =========================================================================
     # Case (c): Same-status call still succeeds (self-edge skip)

@@ -12,15 +12,15 @@ Demonstrates that for clean-delta presets (`completely-clean-target` and `local-
 from __future__ import annotations
 
 import os
-import re
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from agent_workflows import ipd_lifecycle, runner_shared
+from agent_workflows import artifact_meta, ipd_lifecycle, runner_shared
 from agent_workflows.project_context import resolve_project_context
+from tests.record_builder import assert_field
 
 
 class TestCleanTargetZeroDeltaE2E(unittest.TestCase):
@@ -246,10 +246,14 @@ class TestCleanTargetZeroDeltaE2E(unittest.TestCase):
             1,
             f"expected 1 pending plan under {records_root / 'plans' / 'pending'}, found {pending_plans}",
         )
-        plan_content = pending_plans[0].read_text(encoding="utf-8")
-        m = re.search(r"^- Id:\s*([a-z0-9]{6})", plan_content, re.MULTILINE)
-        self.assertIsNotNone(m, "scaffolded plan must have '- Id: <id6>'")
-        id6 = m.group(1)
+        plan_path = pending_plans[0]
+        id6 = artifact_meta.read_text(
+            plan_path.read_text(encoding="utf-8"), record_type="ipd"
+        ).id6
+        self.assertRegex(
+            id6 or "", r"^[a-z0-9]{6}$", "scaffolded plan must carry an id6"
+        )
+        assert_field(plan_path, "id", id6)
 
         # 9. ipd dependencies set <id6> none
         self._run_aw(
