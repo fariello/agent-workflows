@@ -131,8 +131,9 @@ flowchart TD
 - Moved to iog3cw (split 2026-11-07 per maintainer step-complexity rule): from E-07, the format-aware field assertion helper and the conversion of the setter-byte assertions of batches S01 to S10. The helper and S01 to S04 are done (`iog3cw` S02 and S03, `j5fqax` the helper and S04, `545ag7` S01, all executed); S05 to S07 moved to `87rvs2` and S08 to S10 to `rdg0qv`. S08 to S10 are done (`wdz2l9` S08, `rdg0qv` S09 and S10, both executed: `.aw/records/plans/executed/20261108-metastore-60-rdg0qv-move-setter-byte-assertions-of-batches-s08-to-s10-onto-the-f.ipd.md`, whose F-29 lists the 4 `setter-byte, exact spelling` rows this plan's E-07 must still change). S05 to S07 are now done (`87rvs2`, executed).
   - Carrier: 87rvs2
   - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-59-87rvs2-move-setter-byte-assertions-of-batches-s05-to-s07-onto-the-f.ipd.md
-- Moved to w13bkp (split 2026-11-07 per maintainer step-complexity rule): from E-07, the conversion of the setter-byte assertions of batches S11 to S20.
+- Moved to w13bkp (split 2026-11-07 per maintainer step-complexity rule): from E-07, the conversion of the setter-byte assertions of batches S11 to S20. All done: `w13bkp` S14; S11 to S13 by `qtvk2q`, `cxylsu` and `810kpy`; S15 to S20 by `aqc3m6` and `zgyna1`, all executed and cited with Carrier-Evidence in the executed `w13bkp` record, whose F-31 lists the 1 `setter-byte, exact spelling` row for S11 to S14 this plan's E-07 must still change.
   - Carrier: w13bkp
+  - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-47-w13bkp-move-the-remaining-setter-byte-test-assertions-onto-the-form.ipd.md
 - E-01 (description model) and E-02 (attended dry run, AC-13 before values). Moved to tub3ir (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: tub3ir
 - E-03 (loader and writer switch, legacy loader into `m0001`, legacy write path, schema 2), prepared as the inert code patch with its guard test. Moved to 2k5t16 (round-3 split 2026-11-09 per research nj8zdp guidance).
