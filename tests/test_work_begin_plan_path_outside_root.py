@@ -12,15 +12,15 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from agent_workflows import ipd_lifecycle
+from agent_workflows import artifact_meta, ipd_lifecycle
 from agent_workflows.project_context import resolve_project_context
+from tests.record_builder import assert_field
 
 
 class TestWorkBeginPlanPathOutsideRoot(unittest.TestCase):
@@ -129,13 +129,13 @@ class TestWorkBeginPlanPathOutsideRoot(unittest.TestCase):
         pending_plans = list((records_root / "plans" / "pending").glob("*.ipd.md"))
         self.assertEqual(len(pending_plans), 1)
         plan_file = pending_plans[0]
-        m = re.search(
-            r"^- Id:\s*([a-z0-9]{6})",
-            plan_file.read_text(encoding="utf-8"),
-            re.MULTILINE,
+        id6 = artifact_meta.read_text(
+            plan_file.read_text(encoding="utf-8"), record_type="ipd"
+        ).id6
+        self.assertRegex(
+            id6 or "", r"^[a-z0-9]{6}$", "scaffolded plan must carry an id6"
         )
-        self.assertIsNotNone(m, "scaffolded plan must have '- Id: <id6>'")
-        id6 = m.group(1)
+        assert_field(plan_file, "id", id6)
 
         # 4. set dependencies to none
         res = self._run_aw("ipd", "dependencies", "set", id6, "none")
@@ -227,13 +227,13 @@ class TestWorkBeginPlanPathOutsideRoot(unittest.TestCase):
         )
         self.assertEqual(len(pending_plans), 1)
         plan_file = pending_plans[0]
-        m = re.search(
-            r"^- Id:\s*([a-z0-9]{6})",
-            plan_file.read_text(encoding="utf-8"),
-            re.MULTILINE,
+        id6 = artifact_meta.read_text(
+            plan_file.read_text(encoding="utf-8"), record_type="ipd"
+        ).id6
+        self.assertRegex(
+            id6 or "", r"^[a-z0-9]{6}$", "scaffolded plan must carry an id6"
         )
-        self.assertIsNotNone(m, "scaffolded plan must have '- Id: <id6>'")
-        id6 = m.group(1)
+        assert_field(plan_file, "id", id6)
 
         # 3. set dependencies to none
         res = self._run_aw("ipd", "dependencies", "set", id6, "none")

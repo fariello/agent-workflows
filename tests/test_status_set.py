@@ -16,9 +16,15 @@ from agent_workflows import agent_schema, artifact_meta, check_engine, cli, plan
 from tests import support
 
 import pytest
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field, assert_no_field
 
 pytestmark = pytest.mark.core
+
+
+def _approval_value(path: Path) -> str | None:
+    """The `approval` field the setter wrote, read through the active metadata format."""
+    state = artifact_meta.read_text(path.read_text(encoding="utf-8"), record_type="ipd")
+    return state.fields.get("approval")
 
 
 class StatusSetTestBase(unittest.TestCase):
@@ -308,7 +314,7 @@ class TestStatusSetCommands(StatusSetTestBase):
         )
         self.assertEqual(rc, 0)
         text = plan.read_text(encoding="utf-8")
-        self.assertIn("- Status: approved", text)
+        assert_field(plan, "status", "approved")
         self.assertIn("approved (aw set)", text)
 
     def test_set_plan_executed_delegates_and_refuses_ungated(self):
@@ -394,8 +400,7 @@ class TestStatusSetCommands(StatusSetTestBase):
             / "20260822-testset-01-pl0020-test-plan.ipd.md"
         )
         self.assertTrue(pending_path.exists())
-        text = pending_path.read_text(encoding="utf-8")
-        self.assertIn("- Status: to-review", text)
+        assert_field(pending_path, "status", "to-review")
 
     def test_ipd_set_command(self):
         plan = self.create_plan(
@@ -405,8 +410,7 @@ class TestStatusSetCommands(StatusSetTestBase):
             ["ipd", "set", "approved", "pl0003", "--yes", "--dir", str(self.repo_root)]
         )
         self.assertEqual(rc, 0)
-        text = plan.read_text(encoding="utf-8")
-        self.assertIn("- Status: approved", text)
+        assert_field(plan, "status", "approved")
 
     def test_set_with_explicit_type_noun_syntax(self):
         plan = self.create_plan(
@@ -424,7 +428,7 @@ class TestStatusSetCommands(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc, 0)
-        self.assertIn("- Status: approved", plan.read_text(encoding="utf-8"))
+        assert_field(plan, "status", "approved")
 
         spec = self.create_spec(
             "20260822-0021-01-test-spec.spec.md", "sp0021", "specset", "draft"
@@ -444,7 +448,7 @@ class TestStatusSetCommands(StatusSetTestBase):
         dest_spec = (
             self.repo_root / ".aw" / "records" / "specs" / "to-review" / spec.name
         )
-        self.assertIn("- Status: to-review", dest_spec.read_text(encoding="utf-8"))
+        assert_field(dest_spec, "status", "to-review")
 
     def test_spec_set_by_filename_and_id6(self):
         spec = self.create_spec(
@@ -465,8 +469,7 @@ class TestStatusSetCommands(StatusSetTestBase):
         dest_spec = (
             self.repo_root / ".aw" / "records" / "specs" / "to-review" / spec.name
         )
-        text = dest_spec.read_text(encoding="utf-8")
-        self.assertIn("- Status: to-review", text)
+        assert_field(dest_spec, "status", "to-review")
 
     def test_specs_set_dual_compatibility(self):
         spec = self.create_spec(
@@ -490,7 +493,7 @@ class TestStatusSetCommands(StatusSetTestBase):
             self.repo_root / ".aw" / "records" / "specs" / "to-review" / spec.name
         )
         text = dest_spec.read_text(encoding="utf-8")
-        self.assertIn("- Status: to-review", text)
+        assert_field(dest_spec, "status", "to-review")
         self.assertIn("legacy test message", text)
 
     def test_prompt_set(self):
@@ -539,8 +542,7 @@ class TestStatusSetCommands(StatusSetTestBase):
             / "20260822-testset-01-bk0001-test-item.backlog.md"
         )
         self.assertTrue(done_path.exists())
-        text = done_path.read_text(encoding="utf-8")
-        self.assertIn("- Status: done", text)
+        assert_field(done_path, "status", "done")
 
     def test_set_multiple_mixed_types(self):
         plan = self.create_plan(
@@ -610,8 +612,8 @@ class TestStatusSetCommands(StatusSetTestBase):
         out = buf.getvalue()
         self.assertIn("Status 'reviewed' is not valid for prompts", out)
         self.assertIn("Refusing before making changes", out)
-        self.assertIn("- Status: to-review", plan.read_text(encoding="utf-8"))
-        self.assertIn("- Status: to-review", spec.read_text(encoding="utf-8"))
+        assert_field(plan, "status", "to-review")
+        assert_field(spec, "status", "to-review")
         self.assertEqual(
             artifact_meta.read(
                 "pr0002", project_context=artifact_meta.legacy_context(self.repo_root)
@@ -633,11 +635,11 @@ class TestStatusSetCommands(StatusSetTestBase):
         )
         self.assertEqual(rc, 0)
 
-        self.assertIn("- Status: reviewed", plan.read_text(encoding="utf-8"))
+        assert_field(plan, "status", "reviewed")
         dest_spec = (
             self.repo_root / ".aw" / "records" / "specs" / "reviewed" / spec.name
         )
-        self.assertIn("- Status: reviewed", dest_spec.read_text(encoding="utf-8"))
+        assert_field(dest_spec, "status", "reviewed")
 
     def test_mixed_batch_refuses_ALL_when_the_spec_member_is_unattested(self):
         """revsweep `5slbpi`: the attestation composes with the ATOMIC pre-flight, so a batch
@@ -669,8 +671,8 @@ class TestStatusSetCommands(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc, 1)
-        self.assertIn("- Status: to-review", spec.read_text(encoding="utf-8"))
-        self.assertIn("- Status: to-review", plan.read_text(encoding="utf-8"))
+        assert_field(spec, "status", "to-review")
+        assert_field(plan, "status", "to-review")
 
     def test_set_by_setid_all_members_updated(self):
         plan1 = self.create_plan(
@@ -685,8 +687,8 @@ class TestStatusSetCommands(StatusSetTestBase):
         )
         self.assertEqual(rc, 0)
 
-        self.assertIn("- Status: to-review", plan1.read_text(encoding="utf-8"))
-        self.assertIn("- Status: to-review", plan2.read_text(encoding="utf-8"))
+        assert_field(plan1, "status", "to-review")
+        assert_field(plan2, "status", "to-review")
 
     def test_type_mismatch_refuses_execution_before_changes(self):
         plan = self.create_plan(
@@ -706,8 +708,8 @@ class TestStatusSetCommands(StatusSetTestBase):
         self.assertNotEqual(rc, 0)
 
         # Assert NO files changed
-        self.assertIn("- Status: draft", plan.read_text(encoding="utf-8"))
-        self.assertIn("- Status: draft", spec.read_text(encoding="utf-8"))
+        assert_field(plan, "status", "draft")
+        assert_field(spec, "status", "draft")
 
     def test_set_with_mixed_types_scoped_command_limits_to_scoped_type(self):
         plan = self.create_plan(
@@ -731,8 +733,8 @@ class TestStatusSetCommands(StatusSetTestBase):
         )
         self.assertEqual(rc, 0)
 
-        self.assertIn("- Status: approved", plan.read_text(encoding="utf-8"))
-        self.assertIn("- Status: draft", spec.read_text(encoding="utf-8"))
+        assert_field(plan, "status", "approved")
+        assert_field(spec, "status", "draft")
 
     def test_target_not_found_refuses_execution_before_changes(self):
         plan = self.create_plan(
@@ -754,7 +756,7 @@ class TestStatusSetCommands(StatusSetTestBase):
         self.assertNotEqual(rc, 0)
 
         # First plan MUST NOT be modified
-        self.assertIn("- Status: draft", plan.read_text(encoding="utf-8"))
+        assert_field(plan, "status", "draft")
 
     def test_invalid_status_for_artifact_type_refuses(self):
         bk = self.create_backlog(
@@ -767,7 +769,7 @@ class TestStatusSetCommands(StatusSetTestBase):
         )
         self.assertNotEqual(rc, 0)
 
-        self.assertIn("- Status: open", bk.read_text(encoding="utf-8"))
+        assert_field(bk, "status", "open")
 
     def test_custom_message_and_by_human_attestation(self):
         plan = self.create_plan(
@@ -788,7 +790,7 @@ class TestStatusSetCommands(StatusSetTestBase):
         )
         self.assertEqual(rc, 0)
         text = plan.read_text(encoding="utf-8")
-        self.assertIn("- Status: approved", text)
+        assert_field(plan, "status", "approved")
         self.assertIn("explicit maintainer signoff", text)
         self.assertIn("--by-human", text)
 
@@ -820,7 +822,7 @@ class TestStatusSetCommands(StatusSetTestBase):
             self.repo_root / ".aw" / "records" / "specs" / "approved" / spec.name
         )
         text = dest_spec.read_text(encoding="utf-8")
-        self.assertIn("- Status: approved", text)
+        assert_field(dest_spec, "status", "approved")
         self.assertIn("interactive human signoff", text)
         self.assertIn("--by-human", text)
 
@@ -843,8 +845,7 @@ class TestStatusSetCommands(StatusSetTestBase):
                 ]
             )
         self.assertEqual(rc, 1)
-        text = spec.read_text(encoding="utf-8")
-        self.assertIn("- Status: reviewed", text)
+        assert_field(spec, "status", "reviewed")
 
     def test_other_artifact_status_transition(self):
         other_dir = self.repo_root / ".aw" / "records" / "notes"
@@ -858,14 +859,14 @@ class TestStatusSetCommands(StatusSetTestBase):
         # Unscoped aw set
         rc = cli.main(["set", "done", "nt0005", "--yes", "--dir", str(self.repo_root)])
         self.assertEqual(rc, 0)
-        self.assertIn("- Status: done", note.read_text(encoding="utf-8"))
+        assert_field(note, "status", "done")
 
         # Explicitly scoped aw set other
         rc2 = cli.main(
             ["set", "other", "active", "nt0005", "--yes", "--dir", str(self.repo_root)]
         )
         self.assertEqual(rc2, 0)
-        self.assertIn("- Status: active", note.read_text(encoding="utf-8"))
+        assert_field(note, "status", "active")
 
     def test_dry_run_mode(self):
         plan = self.create_plan(
@@ -876,7 +877,7 @@ class TestStatusSetCommands(StatusSetTestBase):
         )
         self.assertEqual(rc, 0)
         # File unchanged
-        self.assertIn("- Status: draft", plan.read_text(encoding="utf-8"))
+        assert_field(plan, "status", "draft")
 
     def test_json_output_mode(self):
         self.create_plan(
@@ -961,15 +962,13 @@ class TestApprovedWritesApprovalField(StatusSetTestBase):
         )
         self.assertEqual(rc, 0)
         text = plan.read_text(encoding="utf-8")
-        self.assertIn("- Status: approved", text)
-        # The required Approval field is present and non-empty (IPD-M104 satisfied).
-        approval = [ln for ln in text.splitlines() if ln.startswith("- Approval:")]
-        self.assertEqual(len(approval), 1, "exactly one Approval field expected")
-        self.assertTrue(approval[0][len("- Approval:") :].strip(), "Approval non-empty")
-        # It sits in the front matter (before the first H2), right after Id.
+        assert_field(plan, "status", "approved")
+        # The required Approval field is present and non-empty (IPD-M104 satisfied), exactly once,
+        # in the front matter (before the first H2): `assert_field` checks all three.
         self.assertIn("\n## ", text)
-        head = text.split("\n## ", 1)[0].splitlines()
-        self.assertIn("- Approval:", "\n".join(head))
+        approval = _approval_value(plan)
+        self.assertTrue(approval, "Approval non-empty")
+        assert_field(plan, "approval", approval)
 
     def test_approval_field_stripped_when_leaving_approved(self):
         plan = self.create_plan(
@@ -986,7 +985,7 @@ class TestApprovedWritesApprovalField(StatusSetTestBase):
                 str(self.repo_root),
             ]
         )
-        self.assertIn("- Approval:", plan.read_text(encoding="utf-8"))
+        assert_field(plan, "approval", _approval_value(plan))
         rc = cli.main(
             [
                 "set",
@@ -1000,7 +999,7 @@ class TestApprovedWritesApprovalField(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc, 0)
-        self.assertNotIn("- Approval:", plan.read_text(encoding="utf-8"))
+        assert_no_field(plan, "approval")
 
     def test_auto_approved_does_not_get_approval_field(self):
         plan = self.create_plan(
@@ -1010,9 +1009,8 @@ class TestApprovedWritesApprovalField(StatusSetTestBase):
             ["set", "auto-approved", "ap0003", "--yes", "--dir", str(self.repo_root)]
         )
         self.assertEqual(rc, 0)
-        text = plan.read_text(encoding="utf-8")
-        self.assertIn("- Status: auto-approved", text)
-        self.assertNotIn("- Approval:", text)
+        assert_field(plan, "status", "auto-approved")
+        assert_no_field(plan, "approval")
 
     def test_scaffolded_ipd_set_approved_lints_conforming(self):
         """End-to-end: a real scaffolded IPD set to approved must lint conforming
@@ -1108,7 +1106,7 @@ class TestApprovedWritesApprovalField(StatusSetTestBase):
                 ]
             )
             self.assertEqual(rc_appr, 0)
-            self.assertIn("- Approval:", plan.read_text(encoding="utf-8"))
+            assert_field(plan, "approval", _approval_value(plan))
             buf = io.StringIO()
             with patch("sys.stdout", buf):
                 rc_lint = cli.main(["ipd", "lint", "--agent", str(plan)])
@@ -1117,9 +1115,8 @@ class TestApprovedWritesApprovalField(StatusSetTestBase):
             os.chdir(old_cwd)
         self.assertNotIn("IPD-M104", out)
         self.assertEqual(rc_lint, 0, out)
-        final = plan.read_text(encoding="utf-8")
-        self.assertIn("- Priority: medium", final)
-        self.assertIn("- Work-Kind: chore", final)
+        assert_field(plan, "priority", "medium")
+        assert_field(plan, "work_kind", "chore")
 
 
 class BlocksReleaseSetterTests(StatusSetTestBase):
@@ -1147,7 +1144,7 @@ class BlocksReleaseSetterTests(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc, 0)
-        self.assertIn("- Blocks-Release: next", bk.read_text(encoding="utf-8"))
+        assert_field(bk, "blocks_release", "next")
 
     def test_plans_set_writes_and_clears_blocks_release(self):
         plan = self.create_plan(
@@ -1167,7 +1164,7 @@ class BlocksReleaseSetterTests(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc, 0)
-        self.assertIn("- Blocks-Release: next", plan.read_text(encoding="utf-8"))
+        assert_field(plan, "blocks_release", "next")
         # A workflow-history line is appended by the setter.
         self.assertIn("## Workflow history", plan.read_text(encoding="utf-8"))
         # Clear with '-'.
@@ -1207,7 +1204,7 @@ class BlocksReleaseSetterTests(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc, 0)
-        self.assertIn("- Blocks-Release: next", spec.read_text(encoding="utf-8"))
+        assert_field(spec, "blocks_release", "next")
 
     def test_ipd_set_with_shared_setid_across_types(self):
         # A setid shared across plans, backlog, and specs
@@ -1240,12 +1237,12 @@ class BlocksReleaseSetterTests(StatusSetTestBase):
         self.assertEqual(rc, 0)
 
         # Plans are approved
-        self.assertIn("- Status: approved", plan1.read_text(encoding="utf-8"))
-        self.assertIn("- Status: approved", plan2.read_text(encoding="utf-8"))
+        assert_field(plan1, "status", "approved")
+        assert_field(plan2, "status", "approved")
 
         # Spec and backlog are untouched
-        self.assertIn("- Status: draft", spec.read_text(encoding="utf-8"))
-        self.assertIn("- Status: open", backlog.read_text(encoding="utf-8"))
+        assert_field(spec, "status", "draft")
+        assert_field(backlog, "status", "open")
 
     def test_status_set_att_style_output_format(self):
         plan = self.create_plan(
@@ -1275,7 +1272,7 @@ class BlocksReleaseSetterTests(StatusSetTestBase):
         self.assertIn("[blocking]", out)
         self.assertIn("reviewed", out)
         self.assertIn("approved", out)
-        self.assertIn("- Status: approved", plan.read_text(encoding="utf-8"))
+        assert_field(plan, "status", "approved")
 
     def test_status_set_unchanged_idempotent_no_rewrite(self):
         plan = self.create_plan(
@@ -1382,8 +1379,9 @@ class TestGateFieldClearingOnStatusChange(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc, 0)
-        text = self._moved_path("bk0001", "open").read_text(encoding="utf-8")
-        self.assertIn("- Status: open", text)
+        moved = self._moved_path("bk0001", "open")
+        text = moved.read_text(encoding="utf-8")
+        assert_field(moved, "status", "open")
         self.assertNotIn("Gate-Kind", text)
         self.assertNotIn("Gate-Ref", text)
 
@@ -1436,9 +1434,9 @@ class TestGateFieldClearingOnStatusChange(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc, 0)
-        text = self._moved_path("bk0003", "blocked").read_text(encoding="utf-8")
-        self.assertIn("- Gate-Kind: decision", text)
-        self.assertIn("- Gate-Ref: D42", text)
+        moved = self._moved_path("bk0003", "blocked")
+        assert_field(moved, "gate_kind", "decision")
+        assert_field(moved, "gate_ref", "D42")
 
     def test_spec_leaving_deferred_still_clears_gate(self):
         """The pre-existing specs behaviour must survive being generalized."""
@@ -1456,7 +1454,7 @@ class TestGateFieldClearingOnStatusChange(StatusSetTestBase):
         self.assertEqual(rc, 0)
         dest_spec = self.repo_root / ".aw" / "records" / "specs" / "draft" / spec.name
         text = dest_spec.read_text(encoding="utf-8")
-        self.assertIn("- Status: draft", text)
+        assert_field(dest_spec, "status", "draft")
         self.assertNotIn("Gate-Kind", text)
         self.assertNotIn("Gate-Ref", text)
 
@@ -1474,7 +1472,7 @@ class TestGateFieldClearingOnStatusChange(StatusSetTestBase):
         )
         self.assertEqual(rc, 0)
         after = plan.read_text(encoding="utf-8")
-        self.assertIn("- Status: to-review", after)
+        assert_field(plan, "status", "to-review")
 
         # Every metadata bullet other than Status is byte-identical.
         def bullets(t):
@@ -1536,7 +1534,7 @@ class ApprovalGateTests(StatusSetTestBase):
         # UNCHANGED on disk: not merely still `reviewed`, but byte-identical, so no history record
         # and no `- Approval:` line were written either.
         self.assertEqual(plan.read_text(encoding="utf-8"), before)
-        self.assertNotIn("- Approval:", before)
+        assert_no_field(plan, "approval")
 
     def test_refusal_is_not_defeated_by_by_human(self):
         """A human attesting approval cannot overrule the review's own verdict."""
@@ -1654,7 +1652,7 @@ class ApprovalGateTests(StatusSetTestBase):
         )
         self.assertEqual(rc_override, 0)
         text = plan.read_text(encoding="utf-8")
-        self.assertIn("- Status: approved", text)
+        assert_field(plan, "status", "approved")
         # The override is auditable in the ARTIFACT, not only in a shell history.
         self.assertIn("--allow-open-questions", text)
 
@@ -1694,9 +1692,8 @@ class ApprovalGateTests(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc, 0)
-        text = plan.read_text(encoding="utf-8")
-        self.assertIn("- Status: approved", text)
-        self.assertIn("- Approval:", text)
+        assert_field(plan, "status", "approved")
+        assert_field(plan, "approval", _approval_value(plan))
 
     def test_plan_with_no_review_at_all_still_approves(self):
         """Absent review is SILENT by design: gating on absence would block author-then-approve."""
@@ -1707,7 +1704,7 @@ class ApprovalGateTests(StatusSetTestBase):
             ["set", "approved", "nr0001", "--yes", "--dir", str(self.repo_root)]
         )
         self.assertEqual(rc, 0)
-        self.assertIn("- Status: approved", plan.read_text(encoding="utf-8"))
+        assert_field(plan, "status", "approved")
 
     def test_successor_narrating_a_predecessors_reject_still_approves(self):
         """The measured false-refusal case (F-5): the newest record is `to-review` QUOTING a REJECT."""
@@ -1721,7 +1718,7 @@ class ApprovalGateTests(StatusSetTestBase):
             ["set", "approved", "sc0001", "--yes", "--dir", str(self.repo_root)]
         )
         self.assertEqual(rc, 0)
-        self.assertIn("- Status: approved", plan.read_text(encoding="utf-8"))
+        assert_field(plan, "status", "approved")
 
     def test_spec_blocking_open_question_refuses_on_the_positional_spelling(self):
         """E-07: the POSITIONAL spec spelling routes HERE, so it must be gated here too or the
@@ -1769,7 +1766,7 @@ class ApprovalGateTests(StatusSetTestBase):
             self.repo_root / ".aw" / "records" / "specs" / "approved" / spec.name
         )
         text = dest_spec.read_text(encoding="utf-8")
-        self.assertIn("- Status: approved", text)
+        assert_field(dest_spec, "status", "approved")
         self.assertIn("--allow-open-questions", text)
 
     def test_refusal_message_names_its_cause(self):
@@ -2151,9 +2148,9 @@ class SharedSetidCrossTypeResolutionTests(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc, 0)
-        self.assertIn("- Status: approved", plan1.read_text(encoding="utf-8"))
-        self.assertIn("- Status: approved", plan2.read_text(encoding="utf-8"))
-        self.assertIn("- Status: open", item.read_text(encoding="utf-8"))
+        assert_field(plan1, "status", "approved")
+        assert_field(plan2, "status", "approved")
+        assert_field(item, "status", "open")
         self.assertIn("status: active", report.read_text(encoding="utf-8"))
 
     # ---------------------------------------------------------------------------------- E-04
@@ -2193,8 +2190,8 @@ class SharedSetidCrossTypeResolutionTests(StatusSetTestBase):
         )
         self.assertIn("aw set plans to-review bothok", out)
         self.assertIn("aw set specs to-review bothok", out)
-        self.assertIn("- Status: draft", plan.read_text(encoding="utf-8"))
-        self.assertIn("- Status: draft", spec.read_text(encoding="utf-8"))
+        assert_field(plan, "status", "draft")
+        assert_field(spec, "status", "draft")
 
     def test_within_type_setid_fanout_still_acts_on_the_whole_set(self):
         """E-04 boundary: only CROSS-type fan-out is refused; within-type fan-out is deliberate.
@@ -2212,8 +2209,8 @@ class SharedSetidCrossTypeResolutionTests(StatusSetTestBase):
             ["set", "to-review", "onlyplans", "--yes", "--dir", str(self.repo_root)]
         )
         self.assertEqual(rc, 0)
-        self.assertIn("- Status: to-review", plan1.read_text(encoding="utf-8"))
-        self.assertIn("- Status: to-review", plan2.read_text(encoding="utf-8"))
+        assert_field(plan1, "status", "to-review")
+        assert_field(plan2, "status", "to-review")
 
 
 class MatchSelectorNarrowingGuardsTests(StatusSetTestBase):
@@ -2465,8 +2462,8 @@ class FlaglessConfirmationRefusalTests(StatusSetTestBase):
             ["ipd", "set", "approved", "guardset", "--dir", str(self.repo_root)]
         )
         self.assertEqual(rc, 0)
-        self.assertIn("- Status: approved", a.read_text(encoding="utf-8"))
-        self.assertIn("- Status: approved", b.read_text(encoding="utf-8"))
+        assert_field(a, "status", "approved")
+        assert_field(b, "status", "approved")
 
     def test_flagless_dry_run_previews_without_writing(self):
         a, b = self._two_plan_set()
@@ -2503,8 +2500,8 @@ class FlaglessConfirmationRefusalTests(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc_yes, 0)
-        self.assertIn("- Status: approved", a.read_text(encoding="utf-8"))
-        self.assertIn("- Status: approved", b.read_text(encoding="utf-8"))
+        assert_field(a, "status", "approved")
+        assert_field(b, "status", "approved")
 
     def test_agent_and_json_modes_require_yes_confirmation(self):
         a, b = self._two_plan_set()
@@ -2664,7 +2661,7 @@ class TerminalReopenRefusalTests(StatusSetTestBase):
         self.assertEqual(rc, 0)
         moved = self.repo_root / ".aw" / "records" / "plans" / "pending" / plan.name
         text = moved.read_text(encoding="utf-8")
-        self.assertIn("- Status: approved", text)
+        assert_field(moved, "status", "approved")
         self.assertIn("--allow-terminal-reopen", text)
 
     # ---------------------------------------------------------------------------------
@@ -2691,7 +2688,7 @@ class TerminalReopenRefusalTests(StatusSetTestBase):
             ),
             0,
         )
-        self.assertIn("- Status: reviewed", plan.read_text(encoding="utf-8"))
+        assert_field(plan, "status", "reviewed")
         self.assertEqual(
             cli.main(
                 [
@@ -2706,7 +2703,7 @@ class TerminalReopenRefusalTests(StatusSetTestBase):
             ),
             0,
         )
-        self.assertIn("- Status: approved", plan.read_text(encoding="utf-8"))
+        assert_field(plan, "status", "approved")
 
     def test_retirement_into_a_terminal_state_still_works(self):
         """`reviewed -> superseded` is terminal but FORWARD, so it must remain allowed."""
@@ -2734,7 +2731,7 @@ class TerminalReopenRefusalTests(StatusSetTestBase):
             / "20260910-fwd-02-fw0002-retire.ipd.md"
         )
         self.assertTrue(retired.is_file())
-        self.assertIn("- Status: superseded", retired.read_text(encoding="utf-8"))
+        assert_field(retired, "status", "superseded")
 
     def test_a_spec_transition_the_spec_table_permits_is_untouched(self):
         """SPECS ARE OUT OF SCOPE BY CONSTRUCTION, and that is required rather than incidental.
@@ -2751,7 +2748,7 @@ class TerminalReopenRefusalTests(StatusSetTestBase):
         )
         self.assertEqual(rc, 0, "a permitted spec transition must not be refused")
         dest_spec = self.repo_root / ".aw" / "records" / "specs" / "draft" / spec.name
-        self.assertIn("- Status: draft", dest_spec.read_text(encoding="utf-8"))
+        assert_field(dest_spec, "status", "draft")
 
     def test_a_non_plan_artifact_transition_is_unaffected(self):
         """A PROMPT shares the `executed` token with plans and must NOT inherit the plan guard.
@@ -3380,7 +3377,7 @@ class SetterRefusalRetryCommandTests(StatusSetTestBase):
 
         # Inspect resulting file
         text = plan.read_text(encoding="utf-8")
-        self.assertIn("- Status: reviewed", text)
+        assert_field(plan, "status", "reviewed")
         self.assertIn("worker model=y", text)
         self.assertIn("reviewed for release", text)
 
@@ -3469,7 +3466,7 @@ class SetterRefusalRetryCommandTests(StatusSetTestBase):
         moved = self.repo_root / ".aw" / "records" / "plans" / "pending" / plan.name
         self.assertTrue(moved.is_file())
         text = moved.read_text(encoding="utf-8")
-        self.assertIn("- Status: approved", text)
+        assert_field(moved, "status", "approved")
         self.assertIn("maintainer model=z", text)
         self.assertIn("reopen for hotfix", text)
 
@@ -3763,7 +3760,7 @@ class SetterRefusalRetryCommandTests(StatusSetTestBase):
             self.repo_root / ".aw" / "records" / "specs" / "to-review" / spec_path.name
         )
         self.assertTrue(to_review_file.is_file())
-        self.assertIn("- Status: to-review", to_review_file.read_text(encoding="utf-8"))
+        assert_field(to_review_file, "status", "to-review")
 
         # 2. backlog set
         bk_path = (
@@ -3824,7 +3821,7 @@ class SetterRefusalRetryCommandTests(StatusSetTestBase):
             / "20260930-bk0010-test.md"
         )
         self.assertTrue(done_file.is_file())
-        self.assertIn("- Status: done", done_file.read_text(encoding="utf-8"))
+        assert_field(done_file, "status", "done")
 
 
 class TestDryRunMachineDisposition(StatusSetTestBase):

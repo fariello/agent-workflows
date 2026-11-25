@@ -11,7 +11,7 @@ from pathlib import Path
 
 from agent_workflows import check_engine as ce
 from agent_workflows import set_records
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 class _RepoTestCase(unittest.TestCase):
@@ -62,9 +62,8 @@ class TestWalkthroughOutcome(_RepoTestCase):
         id6 = m.group(2)
         self.assertNotEqual(id6, "pl1abc")
 
-        content = dest.read_text(encoding="utf-8")
-        self.assertIn(f"- Id: {id6}", content)
-        self.assertIn("- Target-Id: pl1abc", content)
+        assert_field(dest, "id", id6)
+        assert_field(dest, "target_id", "pl1abc")
 
         drifts = ce.check_collisions(self.tmp, include_retired=True)
         slot_drifts = [d for d in drifts if d.rule == "check.id6-identity-slot"]
