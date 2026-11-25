@@ -6,7 +6,7 @@
 - Scope: Inventory the documentation surface with one disposition per file; in a scratch worktree only, rewrite the `engine.agents_pointer_prose` managed block and the repo-local `AGENTS.md` text; write the result as the first version of the cumulative patch `.aw/system/cutover/metastore-docs.cutover.patch`. No live document changes.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-250-qhay6a-inventory-the-docs-surface-and-start-the-cutover-docs-patch.ipd.md, .aw/system/cutover/metastore-docs.cutover.patch
 - Item-Dependencies: executed:9o83cr
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,9 +18,9 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: qhay6a
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-25 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: qhay6a verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 confirmed FIXED; scaffold removed
 - 2026-11-14 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
