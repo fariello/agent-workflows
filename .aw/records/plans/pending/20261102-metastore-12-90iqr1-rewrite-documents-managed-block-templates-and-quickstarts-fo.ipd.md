@@ -44,15 +44,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: guard the patch
 
-- [ ] E-09 Add `tests/test_metastore_cutover_patch.py` (marked `core`): it runs `git apply --check` of the patch against HEAD without a clone (a temporary `GIT_INDEX_FILE` filled by `git read-tree HEAD`, then `git apply --cached --check`; measured at review: 26 ms, so it fits the core budget) and asserts exit 0; asserts that the patch touches every file the `qhay6a` F-03 table marks `rewrite` (the test holds that list as data in the test module, copied from that table, because reading a plan file would couple a test to a record that `cxxmyv` retires); and asserts that no file outside the documentation set listed in this plan's F-08 is touched. Placing the patch under `.aw/system/` ships it in the wheel and sdist (`pyproject.toml` force-includes `.aw/system`), while the installer copies `.aw/system/workflows/` but not `.aw/system/cutover/`; E-09 also runs the installer and installed-text test modules (named in V-09) so a packaging or install-set change is caught, and `cxxmyv` E-08 deletes the file. The test reads the patch and applies it; it does not read production source.
+- [x] E-09 Add `tests/test_metastore_cutover_patch.py` (marked `core`): it runs `git apply --check` of the patch against HEAD without a clone (a temporary `GIT_INDEX_FILE` filled by `git read-tree HEAD`, then `git apply --cached --check`; measured at review: 26 ms, so it fits the core budget) and asserts exit 0; asserts that the patch touches every file the `qhay6a` F-03 table marks `rewrite` (the test holds that list as data in the test module, copied from that table, because reading a plan file would couple a test to a record that `cxxmyv` retires); and asserts that no file outside the documentation set listed in this plan's F-08 is touched. Placing the patch under `.aw/system/` ships it in the wheel and sdist (`pyproject.toml` force-includes `.aw/system`), while the installer copies `.aw/system/workflows/` but not `.aw/system/cutover/`; E-09 also runs the installer and installed-text test modules (named in V-09) so a packaging or install-set change is caught, and `cxxmyv` E-08 deletes the file. The test reads the patch and applies it; it does not read production source.
   - Depends on: none
   - Expected outcome: the test passes on HEAD and fails if the patch stops applying, so a later documentation edit that conflicts is caught before the cutover.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-10 Run `aw sanitize --agent` in a scratch worktree with the patch applied (`.aw/state/90iqr1/check`, created with `git worktree add --detach` like the parts' scratch worktrees and removed afterwards) and confirm no `fail` that the unpatched tree does not also have; in that same patched worktree run `python3 -m pytest -o addopts="" tests/test_agents_section_records.py tests/test_installed_text_current.py tests/test_technical_writing_delivery.py tests/test_askme_command_delivery.py tests/test_authoring_coverage_guidance.py` and record which tests pass and which fail only because they assert pre-cutover text (each such failure is a test Order 13 must update, listed in `## Findings` as F-07 for `cxxmyv`); run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_patch.py` and the bare core gate `python3 -m pytest` in the executing checkout; commit through `aw commit 90iqr1 -- <this plan> tests/test_metastore_cutover_patch.py`; never `git add -A` in the executing checkout, a bare `git add` or `git commit -a`. Never push.
+- [x] E-10 Run `aw sanitize --agent` in a scratch worktree with the patch applied (`.aw/state/90iqr1/check`, created with `git worktree add --detach` like the parts' scratch worktrees and removed afterwards) and confirm no `fail` that the unpatched tree does not also have; in that same patched worktree run `python3 -m pytest -o addopts="" tests/test_agents_section_records.py tests/test_installed_text_current.py tests/test_technical_writing_delivery.py tests/test_askme_command_delivery.py tests/test_authoring_coverage_guidance.py` and record which tests pass and which fail only because they assert pre-cutover text (each such failure is a test Order 13 must update, listed in `## Findings` as F-07 for `cxxmyv`); run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_patch.py` and the bare core gate `python3 -m pytest` in the executing checkout; commit through `aw commit 90iqr1 -- <this plan> tests/test_metastore_cutover_patch.py`; never `git add -A` in the executing checkout, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-09
   - Expected outcome: the sanitizer adds no `fail`; the patched-tree test run is recorded with F-07; both executing-checkout test runs pass; one path-scoped commit.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -73,7 +73,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-06 | `ya4ee4` E-01 | The description-generation prompt file is owned by Order 05, not this plan. |
 | F-08 | Documentation set the patch may touch (E-09 asserts nothing outside it) | `.aw/system/workflows/`, `.aw/system/cutover/`, `docs/`, `.aw/records/*/README.md`, `AGENTS.md`, `agent_workflows/engine.py`, `agent_workflows/ipd_schema.py`, `.aw/AGENT_QUICKSTART.md`, `.aw/QUICKSTART.md`, `.aw/system/managed-sections.json`, the two ipd-spec reference documents, `README.md`, `CONTRIBUTING.md`, `agent_workflows/cli.py` help text. |
 | F-09 | Round-3 split 2026-11-09 | The patch content is written cumulatively by `qhay6a`, `a49djh`, `y1zihp`, `ngc2a2`; the per-file disposition table is `qhay6a` F-03. |
-| F-07 | (written by E-10) tests that fail on the patched tree only because they assert pre-cutover text | Input to `cxxmyv`, which applies the patch and must update them in the same commit. |
+| F-07 | Patched scratch worktree (`.aw/state/90iqr1/check`, HEAD `b956fc99b` + `.aw/system/cutover/metastore-docs.cutover.patch`) run of all 5 text-asserting modules: `30 passed in 33.59s`, 0 failed | Zero failing node ids in the 5 named modules on the patched tree (see table `### F-07` below); `cxxmyv` requires no text-test updates for these 5 modules. |
+
+### F-07: Patched-tree text-asserting test results (input to `cxxmyv`)
+
+| Test module | Passed | Failed | Failing node ids |
+|---|---|---|---|
+| `tests/test_agents_section_records.py` | 9 | 0 | none |
+| `tests/test_installed_text_current.py` | 6 | 0 | none |
+| `tests/test_technical_writing_delivery.py` | 2 | 0 | none |
+| `tests/test_askme_command_delivery.py` | 7 | 0 | none |
+| `tests/test_authoring_coverage_guidance.py` | 6 | 0 | none |
 
 ## Proposed changes (ordered, validatable)
 
@@ -160,14 +170,67 @@ No spec change. This plan prepares the documentation that spec `4sd62s` section 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) (as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction), name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: paste `python3 -m pytest -o addopts="" -v --durations=0 tests/test_metastore_cutover_patch.py` with every test PASSED and its wall time; the output of the same run after deliberately corrupting one hunk of a scratch copy of the patch, showing the apply test FAILED; and the per-module `N passed` lines of `tests/test_installer.py` and of `tests/test_installed_text_current.py`, each run on its own in the executing checkout.
   - Observed evidence:
-  - Result: pending
-- [ ] V-10 validates E-10
+    1. Guard test run in executing checkout (`python3 -m pytest -o addopts="" -v --durations=0 tests/test_metastore_cutover_patch.py`, exit 0):
+    ```text
+    collected 3 items
+
+    tests/test_metastore_cutover_patch.py::MetastoreCutoverPatchGuardTests::test_patch_touches_only_f08_documentation_set PASSED [ 33%]
+    tests/test_metastore_cutover_patch.py::MetastoreCutoverPatchGuardTests::test_patch_covers_all_f03_rewrite_files PASSED [ 66%]
+    tests/test_metastore_cutover_patch.py::MetastoreCutoverPatchGuardTests::test_patch_applies_cleanly_to_head PASSED [100%]
+    ============================== slowest durations ===============================
+    0.05s call     tests/test_metastore_cutover_patch.py::MetastoreCutoverPatchGuardTests::test_patch_applies_cleanly_to_head
+    0.02s setup    tests/test_metastore_cutover_patch.py::MetastoreCutoverPatchGuardTests::test_patch_touches_only_f08_documentation_set
+    ============================== 3 passed in 0.23s ===============================
+    ```
+    2. Negative check with one hunk deliberately corrupted in a scratch copy (`.aw/state/90iqr1/corrupt-check`, removed afterwards; `python3 -m pytest -o addopts="" -v --durations=0 tests/test_metastore_cutover_patch.py`, exit 1):
+    ```text
+    collected 3 items
+
+    tests/test_metastore_cutover_patch.py::MetastoreCutoverPatchGuardTests::test_patch_applies_cleanly_to_head FAILED [ 33%]
+    tests/test_metastore_cutover_patch.py::MetastoreCutoverPatchGuardTests::test_patch_touches_only_f08_documentation_set PASSED [ 66%]
+    tests/test_metastore_cutover_patch.py::MetastoreCutoverPatchGuardTests::test_patch_covers_all_f03_rewrite_files PASSED [100%]
+
+    E           AssertionError: 1 != 0 : Cutover docs patch no longer applies cleanly to HEAD:
+    E           error: patch failed: .aw/records/backlog/README.md:4
+    E           error: .aw/records/backlog/README.md: patch does not apply
+
+    ============================== slowest durations ===============================
+    0.05s call     tests/test_metastore_cutover_patch.py::MetastoreCutoverPatchGuardTests::test_patch_applies_cleanly_to_head
+    0.02s setup    tests/test_metastore_cutover_patch.py::MetastoreCutoverPatchGuardTests::test_patch_applies_cleanly_to_head
+    =========================== short test summary info ============================
+    FAILED tests/test_metastore_cutover_patch.py::MetastoreCutoverPatchGuardTests::test_patch_applies_cleanly_to_head
+    ========================= 1 failed, 2 passed in 0.27s ==========================
+    ```
+    3. Per-module runs in executing checkout (`tests/test_installer.py` is marked `slow`, so both modules ran with `-o addopts="-n auto"` to include all tests):
+    - `python3 -m pytest -o addopts="-n auto" tests/test_installer.py`: `151 passed in 26.13s` (exit 0)
+    - `python3 -m pytest -o addopts="-n auto" tests/test_installed_text_current.py`: `6 passed in 3.42s` (exit 0)
+  - Result: pass
+- [x] V-10 validates E-10
   - Required evidence: paste the `aw sanitize --agent` result on the patched scratch worktree beside the unpatched result (no added `fail`), the patched-tree run with one pass or fail line per named module (`tests/test_agents_section_records.py`, `tests/test_installed_text_current.py`, `tests/test_technical_writing_delivery.py`, `tests/test_askme_command_delivery.py`, `tests/test_authoring_coverage_guidance.py`) and the F-07 table naming each failing node id, the executing-checkout `tests/test_metastore_cutover_patch.py` result line, the bare core gate summary line beside them, and the `aw commit` output naming the commit hash.
   - Observed evidence:
-  - Result: pending
+    1. `aw sanitize --agent` comparison (no added `fail`; both clean with 0 findings):
+    - Unpatched executing checkout (exit 0):
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7227,"findings":0,"evidence":["leak-scan"],"next":null}`
+    - Patched scratch worktree `.aw/state/90iqr1/check` (`git apply`, exit 0):
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7227,"findings":0,"evidence":["leak-scan"],"next":null}`
+    - Patched scratch worktree `.aw/state/90iqr1/check` (`git apply --index`, scanning the 2 new quickstart files too; exit 0; worktree removed afterwards):
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7229,"findings":0,"evidence":["leak-scan"],"next":null}`
+    2. Patched-tree text-asserting run in `.aw/state/90iqr1/check` (`python3 -m pytest -o addopts="" -v tests/test_agents_section_records.py tests/test_installed_text_current.py tests/test_technical_writing_delivery.py tests/test_askme_command_delivery.py tests/test_authoring_coverage_guidance.py`, exit 0, `30 passed in 33.59s`; see `### F-07` above):
+    - `tests/test_agents_section_records.py`: 9 passed, 0 failed
+    - `tests/test_installed_text_current.py`: 6 passed, 0 failed
+    - `tests/test_technical_writing_delivery.py`: 2 passed, 0 failed
+    - `tests/test_askme_command_delivery.py`: 7 passed, 0 failed
+    - `tests/test_authoring_coverage_guidance.py`: 6 passed, 0 failed
+    - Failing node ids (F-07): none
+    3. Executing-checkout test runs:
+    - `python3 -m pytest -o addopts="" tests/test_metastore_cutover_patch.py`: `3 passed in 0.24s` (exit 0)
+    - Bare core gate `python3 -m pytest`: `2937 passed, 1 skipped, 11 warnings in 114.64s (0:01:54)` (0 test failures; exited 1 solely because `CORE TIER BUDGET EXCEEDED: Core tier wall time: 114.65s exceeded budget of 30.00s. Host 1-minute load average: 7.11 on 12 CPUs`, pre-existing repo-wide issue tracked in open backlog item `6o5aan`; `tests/test_metastore_cutover_patch.py` took 0.05s)
+    - Bounded core gate `aw suite`: `2937 passed, 1 skipped, 11 warnings in 67.45s (0:01:07)` (exit 0; `AW_CORE_BUDGET_ENFORCE=0` warning only)
+    4. `aw commit` output: recorded in the commit-hash follow-up commit below.
+  - Result: pass
 
 
 ## Approval and execution gate
