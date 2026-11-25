@@ -582,7 +582,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
      59 files changed, 1955 insertions(+), 1265 deletions(-)
     ```
     `git worktree list` (repo root sanitized as `<repo>`): `<repo> 95320c524 [main]`, `<repo>/.aw/worktrees/9o83cr 138f0c3c9 [aw/lane/9o83cr]`, `<repo>/.aw/worktrees/9o83cr_attempt2 3ef955292 [aw/lane/9o83cr_attempt2]`, `<repo>/.aw/worktrees/ngc2a2 95320c524 [aw/lane/ngc2a2]`, `<repo>/.aw/worktrees/review-sweep-run-20261124T195133Z-1320375 74ccd03f1 [aw/lane/review-sweep-run-20261124T195133Z-1320375]` (`.aw/state/ngc2a2/scratch` removed).
-    `aw commit` output: (recorded in follow-up commit immediately after `aw commit ngc2a2`).
+    `aw commit` output: `aw commit: committed 2 path(s): 3a18d7b06bb87887ed8f57ac53ea67f2746a6217` (via `aw commit ngc2a2 -m "feat(metastore): add Kind renames, cli help updates, and quickstarts to cutover docs patch" -- .aw/records/plans/pending/20261109-metastore-253-ngc2a2-add-kind-rename-and-quickstart-rewrites-to-the-cutover-docs.ipd.md .aw/system/cutover/metastore-docs.cutover.patch`).
   - Result: pass
 
 ## Approval and execution gate
