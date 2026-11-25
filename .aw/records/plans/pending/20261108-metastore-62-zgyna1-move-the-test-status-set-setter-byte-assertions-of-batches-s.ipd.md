@@ -98,8 +98,9 @@ flowchart TD
 
 - Switching the builder to `RECORD_FORMAT = "log"`, adding the helper's log-format branch, and changing the `setter-byte, exact spelling` rows F-28 lists: they change the on-disk format and so belong to the cutover commit (C10a).
   - Carrier: cxxmyv
-- The helper and batches S01 to S04.
+- The helper and batches S01 to S04 (S02 and S03 by `iog3cw`; the helper and S04 by `j5fqax`, S01 by `545ag7`, both executed and cited with Carrier-Evidence in the executed `iog3cw` record).
   - Carrier: iog3cw
+  - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-44-iog3cw-add-the-format-aware-field-assertion-helper-and-move-the-fir.ipd.md
 - The value-writer test modules retargeted by `k6jd6l` E-08.
   - Carrier: k6jd6l
   - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-43-k6jd6l-fold-the-value-writers-into-artifact-meta-delete-the-writer.ipd.md

@@ -128,8 +128,8 @@ flowchart TD
 - Moved to clors0 (split 2026-11-07 per maintainer step-complexity rule): E-05 (post-cutover gates), E-06 (`aw reviews record`, `aw walkthrough new`), E-14 (event `overrides`, `--date` refusal), E-15 (post-cutover readers), each made dormant on `main` until the migration; the path-bearing `rename` events of E-04 (as `clors0` E-18); the one-commit extra-path mechanism of E-17 with the spec 5.2 step 7 amendment (as `clors0` E-19).
   - Carrier: clors0
   - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-48-clors0-build-the-dormant-log-format-gates-readers-event-overrides-c.ipd.md
-- Moved to iog3cw (split 2026-11-07 per maintainer step-complexity rule): from E-07, the format-aware field assertion helper and the conversion of the setter-byte assertions of batches S01 to S10.
-  - Carrier: iog3cw
+- Moved to iog3cw (split 2026-11-07 per maintainer step-complexity rule): from E-07, the format-aware field assertion helper and the conversion of the setter-byte assertions of batches S01 to S10. The helper and S01 to S04 are done (`iog3cw` S02 and S03, `j5fqax` the helper and S04, `545ag7` S01, all executed); S05 to S07 moved to `87rvs2` and S08 to S10 to `rdg0qv`, both still pending, so the row is re-pointed to them.
+  - Carrier: 87rvs2, rdg0qv
 - Moved to w13bkp (split 2026-11-07 per maintainer step-complexity rule): from E-07, the conversion of the setter-byte assertions of batches S11 to S20.
   - Carrier: w13bkp
 - E-01 (description model) and E-02 (attended dry run, AC-13 before values). Moved to tub3ir (round-3 split 2026-11-09 per research nj8zdp guidance).

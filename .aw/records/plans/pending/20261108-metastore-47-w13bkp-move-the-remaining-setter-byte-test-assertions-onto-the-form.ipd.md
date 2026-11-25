@@ -99,8 +99,9 @@ flowchart TD
   - Carrier: zgyna1
 - Switching the builder to `RECORD_FORMAT = "log"`, adding the helper's log-format branch, and changing the `setter-byte, exact spelling` rows F-28 lists: they change the on-disk format and so belong to the cutover commit (C10a).
   - Carrier: cxxmyv
-- The helper and batches S01 to S04.
+- The helper and batches S01 to S04 (S02 and S03 by `iog3cw`; the helper and S04 by `j5fqax`, S01 by `545ag7`, both executed and cited with Carrier-Evidence in the executed `iog3cw` record).
   - Carrier: iog3cw
+  - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-44-iog3cw-add-the-format-aware-field-assertion-helper-and-move-the-fir.ipd.md
 - Batches S05 to S10.
   - Carrier: 87rvs2
 - The value-writer test modules (`tests/test_releases_line_writers.py`, `tests/test_releases_sibling_line_writers_bounding.py`, `tests/test_blocks_release_reader_bounding.py`, `tests/test_backlog_metadata_duplicate_and_gate_summary.py`, `tests/test_from_backlog_cardinality.py`, `tests/test_check_engine_from_spec_missing.py`, `tests/test_backlog_handoff_close.py`): retargeted by `k6jd6l` E-08.
