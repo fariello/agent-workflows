@@ -98,6 +98,7 @@ E-01 and E-02 touch disjoint test files and are independent; E-03 consolidates t
 
 - The helper and batch S04.
   - Carrier: j5fqax
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-261-j5fqax-add-the-format-aware-field-assertion-helper-and-move-batch-s.ipd.md
 - Batches S02, S03 and the assembly of the part F-28 table.
   - Carrier: iog3cw
 - Switching the builder to `RECORD_FORMAT = "log"`, the helper's log-format branch, and the `setter-byte, exact spelling` rows: cutover commit (C10a).

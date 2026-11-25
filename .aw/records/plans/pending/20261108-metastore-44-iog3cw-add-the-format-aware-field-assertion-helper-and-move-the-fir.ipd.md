@@ -96,6 +96,7 @@ flowchart TD
 
 - The helper (E-01) and batch S04 (E-05). Moved to j5fqax (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: j5fqax
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-261-j5fqax-add-the-format-aware-field-assertion-helper-and-move-batch-s.ipd.md
 - Batch S01 (E-02), as S01a and S01b. Moved to 545ag7 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 545ag7
 - Batches S05, S06, S07: Moved to 87rvs2 (split 2026-11-08 per maintainer step-complexity rule; at most 4 batch items per plan).
