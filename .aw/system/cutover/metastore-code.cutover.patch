@@ -1,3 +1,25 @@
+diff --git a/agent_workflows/agy_run.py b/agent_workflows/agy_run.py
+index e27581fec..35d9d9b13 100755
+--- a/agent_workflows/agy_run.py
++++ b/agent_workflows/agy_run.py
+@@ -332,7 +332,7 @@ def _candidate_plans(root: Path, states: Iterable[str]) -> list[Path]:
+     # than re-implementing a recursive walk. Non-recursion in the previous glob masked
+     # the lack of an ignored-path filter; plans_index.plan_files couples the recursive walk,
+     # the mandatory ignored-path filter (artifact_core.is_ignored_path), the exclusion
+-    # of non-plan files (README.md, INDEX.md, STATUS.md), and legacy root compatibility.
++    # of non-plan files (README.md), and legacy root compatibility.
+     # We import locally to avoid introducing top-level package imports in agy_run.
+     from agent_workflows import plans_index
+     from agent_workflows.project_context import project_records_dir
+@@ -435,7 +435,7 @@ def resolve_spec(root: Path, value: str) -> Path:
+     # than re-implementing a recursive walk. Non-recursion in the previous glob masked
+     # the lack of an ignored-path filter; specs._spec_files couples the recursive walk,
+     # the mandatory ignored-path filter (artifact_core.is_ignored_path), the exclusion
+-    # of non-spec files (README.md, INDEX.md, STATUS.md), and legacy root compatibility.
++    # of non-spec files (README.md), and legacy root compatibility.
+     # We import locally to avoid introducing top-level package imports in agy_run.
+     from agent_workflows import specs
+ 
 diff --git a/agent_workflows/artifact_adopt.py b/agent_workflows/artifact_adopt.py
 index a85d35a70..3e3f29ac5 100644
 --- a/agent_workflows/artifact_adopt.py
@@ -33,7 +55,7 @@ index 6b9a5999d..e3e50887d 100644
  
      THE MARKDOWN HARD-LINE-BREAK TRADEOFF IS DELIBERATE AND OWNED HERE. A per-line rstrip destroys
 diff --git a/agent_workflows/artifact_meta.py b/agent_workflows/artifact_meta.py
-index 4d8b2b01b..26c2dd770 100644
+index 4d8b2b01b..8805728bc 100644
 --- a/agent_workflows/artifact_meta.py
 +++ b/agent_workflows/artifact_meta.py
 @@ -26,12 +26,10 @@ import subprocess
@@ -945,7 +967,34 @@ index 4d8b2b01b..26c2dd770 100644
  
  
  def _require_schema(project_context: Any, records_root: Path) -> None:
-@@ -5875,24 +5111,17 @@ def history(id6: str, *, project_context: Any = None) -> List[Dict[str, Any]]:
+@@ -5129,11 +4365,7 @@ def check_freshness(
+                     ):
+                         subdirs.append((entry.path, f"{rel_prefix}{fname}"))
+                     continue
+-                if (
+-                    fname.startswith(".")
+-                    or fname.startswith("INDEX.")
+-                    or fname == "STATUS.md"
+-                ):
++                if fname.startswith("."):
+                     continue
+                 rel_f = f"{rel_prefix}{fname}"
+                 current_files_set.add(rel_f)
+@@ -5196,12 +4428,7 @@ def check_freshness(
+                     dirty_dirs.append((dir_stored, current_mtime))
+ 
+                 for fname in files:
+-                    if (
+-                        fname.startswith(".")
+-                        or fname.startswith("INDEX.")
+-                        or fname == "STATUS.md"
+-                        or not fname.endswith(".md")
+-                    ):
++                    if fname.startswith(".") or not fname.endswith(".md"):
+                         continue
+                     fpath = root_p / fname
+                     try:
+@@ -5875,24 +5102,17 @@ def history(id6: str, *, project_context: Any = None) -> List[Dict[str, Any]]:
                      )
              return res
  
@@ -973,7 +1022,7 @@ index 4d8b2b01b..26c2dd770 100644
          # (4.1a), appended after the history lines in file order, with no inferred ordering.
          for rv in conn.execute(
              """SELECT r.seq, r.round, r.review_kind, r.verdict, r.legacy_verdict, r.observed_day,
-@@ -6413,65 +5642,35 @@ def resolve_id_at(
+@@ -6413,65 +5633,35 @@ def resolve_id_at(
      return declared
  
  
@@ -1059,7 +1108,7 @@ index 4d8b2b01b..26c2dd770 100644
  
  
  def read_path_at(
-@@ -6505,27 +5704,18 @@ def read_path_at(
+@@ -6505,27 +5695,18 @@ def read_path_at(
                  kind="invalid-revision", error=f"invalid revision {rev!r}"
              )
  
@@ -1093,7 +1142,7 @@ index 4d8b2b01b..26c2dd770 100644
  
  
  def read_at(
-@@ -6627,121 +5817,8 @@ def read_at(
+@@ -6627,121 +5808,8 @@ def read_at(
              except Exception as exc:
                  return ReadAtResult(kind="corrupt", error=str(exc))
  
@@ -1217,7 +1266,7 @@ index 4d8b2b01b..26c2dd770 100644
          return ReadAtResult(
              kind="absent", error=f"record {id6} not found in revision {rev}"
          )
-@@ -6994,58 +6071,6 @@ def _journal_dir(state_root: Path) -> Path:
+@@ -6994,58 +6062,6 @@ def _journal_dir(state_root: Path) -> Path:
      return d
  
  
@@ -1276,7 +1325,7 @@ index 4d8b2b01b..26c2dd770 100644
  @dataclasses.dataclass
  class WritePreview:
      """What a write WOULD do: the rendered text, its destination and whether anything changes."""
-@@ -7055,25 +6080,9 @@ class WritePreview:
+@@ -7055,25 +6071,9 @@ class WritePreview:
      source: Path
      changed: bool
      events: List[Dict[str, Any]]
@@ -1305,7 +1354,7 @@ index 4d8b2b01b..26c2dd770 100644
  
  
  #: `status_set` plural record types -> registry types (walkthroughs/roadmaps/other have no registry
-@@ -7090,86 +6099,10 @@ _LEGACY_PLURAL_TO_TYPE: Dict[str, str] = {
+@@ -7090,86 +6090,10 @@ _LEGACY_PLURAL_TO_TYPE: Dict[str, str] = {
  
  _TYPE_TO_PLURAL: Dict[str, str] = {v: k for k, v in _LEGACY_PLURAL_TO_TYPE.items()}
  
@@ -1392,7 +1441,7 @@ index 4d8b2b01b..26c2dd770 100644
  def metadata_region(text: str) -> str:
      """Return the leading METADATA REGION of a record: where it DECLARES its own identity."""
  
-@@ -7230,20 +6163,6 @@ def _normalize_legacy_types(
+@@ -7230,20 +6154,6 @@ def _normalize_legacy_types(
      return "ipd", "plans"
  
  
@@ -1413,7 +1462,7 @@ index 4d8b2b01b..26c2dd770 100644
  def legacy_context(repo_root: Union[str, Path]) -> Any:
      """The `project_context` a phase-B setter passes for ``repo_root``: the records root every record
      verb reads (`project_context.project_records_dir`) and the repository's own `.aw/state`.
-@@ -7286,10 +6205,6 @@ def _storage_format(records_root: Path, target: Any) -> str:
+@@ -7286,10 +6196,6 @@ def _storage_format(records_root: Path, target: Any) -> str:
      return "legacy"
  
  
@@ -1424,7 +1473,7 @@ index 4d8b2b01b..26c2dd770 100644
  def _check_owned_fields(
      record_type: str, events: List[Dict[str, Any]], from_status: Optional[str]
  ) -> None:
-@@ -7364,504 +6279,6 @@ def _check_owned_fields(
+@@ -7364,504 +6270,6 @@ def _check_owned_fields(
          )
  
  
@@ -1929,7 +1978,7 @@ index 4d8b2b01b..26c2dd770 100644
  def _split_prompt_comment(first_line: str) -> Optional[Tuple[str, str, str, str]]:
      """Return `(prefix, fields_part, trailer_part, suffix)` for an `<!-- aw-prompt: ... -->` line."""
      m = re.match(r"^(<!--\s*aw-prompt:\s*)(.*?)(\s*-->)\s*$", first_line)
-@@ -7883,871 +6300,6 @@ def _split_prompt_comment(first_line: str) -> Optional[Tuple[str, str, str, str]
+@@ -7883,871 +6291,6 @@ def _split_prompt_comment(first_line: str) -> Optional[Tuple[str, str, str, str]
      return prefix, inner, "", suffix
  
  
@@ -2801,7 +2850,7 @@ index 4d8b2b01b..26c2dd770 100644
  def validate_actor_string(
      field_name: str,
      value: str,
-@@ -8763,143 +6315,6 @@ def validate_actor_string(
+@@ -8763,143 +6306,6 @@ def validate_actor_string(
      return resolved_ruleset
  
  
@@ -2945,7 +2994,7 @@ index 4d8b2b01b..26c2dd770 100644
  def _git_target_root(path: Path, repo_root: Path) -> Path:
      """The git root a move is staged in: the companion records repository when it owns the record."""
      owner = _proj_ctx.record_owner_root(path)
-@@ -8913,202 +6328,28 @@ def _git_target_root(path: Path, repo_root: Path) -> Path:
+@@ -8913,202 +6319,28 @@ def _git_target_root(path: Path, repo_root: Path) -> Path:
      return repo_root
  
  
@@ -3013,7 +3062,7 @@ index 4d8b2b01b..26c2dd770 100644
 -        migration_import=migration_import,
 -    )
 -    _check_owned_fields(reg_type or plural, prepared, from_status)
--
+ 
 -    src = Path(ltarget.path)
 -    if ltarget.source_digest is not None:
 -        if src.is_file():
@@ -3103,7 +3152,7 @@ index 4d8b2b01b..26c2dd770 100644
 -        # on this repository) in a fresh checkout or lane, where most setter calls run.
 -    return preview
 -
- 
+-
 -def append_legacy(
 -    target: LegacyTarget,
 -    events: List[Dict[str, Any]],
@@ -3165,7 +3214,7 @@ index 4d8b2b01b..26c2dd770 100644
      events: List[Dict[str, Any]],
      *,
      expect_seq: Optional[int] = None,
-@@ -9120,64 +6361,14 @@ def append(
+@@ -9120,64 +6352,14 @@ def append(
      overrides: Optional[List[str]] = None,
      migration_import: bool = False,
      _from_create: bool = False,
@@ -3238,7 +3287,7 @@ index 4d8b2b01b..26c2dd770 100644
      validate_id6(id6)
      ctx = project_context or _proj_ctx.resolve_project_context()
      records_root = Path(ctx.logical_roots["records"])
-@@ -9205,6 +6396,11 @@ def append(
+@@ -9205,6 +6387,11 @@ def append(
              if existing_lines:
                  last_ev = decode_line(existing_lines[-1])
                  current_seq = last_ev["seq"]
@@ -3250,7 +3299,7 @@ index 4d8b2b01b..26c2dd770 100644
  
          if expect_seq is not None and current_seq != expect_seq:
              raise ValueError(
-@@ -9261,10 +6457,45 @@ def append(
+@@ -9261,10 +6448,45 @@ def append(
              records_root=records_root,
              migration_import=migration_import,
          )
@@ -3297,7 +3346,7 @@ index 4d8b2b01b..26c2dd770 100644
  
          # Step 1: Write log via temp file, fsync, os.replace (THE COMMIT POINT)
          log_content = "".join(all_lines)
-@@ -9275,17 +6506,30 @@ def append(
+@@ -9275,17 +6497,30 @@ def append(
  
          # After step 1: Change is recorded. Subsequent steps are best effort/recovery
          try:
@@ -3338,7 +3387,7 @@ index 4d8b2b01b..26c2dd770 100644
  
              # Step 4: Cache update
              conn = open_cache(records_root, state_root)
-@@ -9306,7 +6550,12 @@ def append(
+@@ -9306,7 +6541,12 @@ def append(
              finally:
                  conn.close()
  
@@ -3352,7 +3401,7 @@ index 4d8b2b01b..26c2dd770 100644
  
          except Exception as step_exc:
              return {
-@@ -9325,70 +6574,17 @@ def create(
+@@ -9325,70 +6565,17 @@ def create(
      dry_run: bool = False,
      project_context: Any = None,
      actor: Optional[Dict[str, Any]] = None,
@@ -3432,7 +3481,7 @@ index 4d8b2b01b..26c2dd770 100644
      ctx = project_context or _proj_ctx.resolve_project_context()
      records_root = Path(ctx.logical_roots["records"])
      state_root = Path(ctx.logical_roots["state"])
-@@ -9406,6 +6602,35 @@ def create(
+@@ -9406,6 +6593,35 @@ def create(
              )
          except (OSError, ValueError):
              pass
@@ -3468,7 +3517,7 @@ index 4d8b2b01b..26c2dd770 100644
  
      # Retain operation journal before step 1
      j_dir = _journal_dir(state_root)
-@@ -9420,35 +6645,29 @@ def create(
+@@ -9420,35 +6636,29 @@ def create(
      j_file.write_text(json.dumps(journal_data, indent=2), encoding="utf-8")
  
      try:
@@ -3510,10 +3559,39 @@ index 4d8b2b01b..26c2dd770 100644
      except Exception:
          # Journal remains on failure
 diff --git a/agent_workflows/artifact_refs.py b/agent_workflows/artifact_refs.py
-index f93dfb555..ae6ee865e 100644
+index f93dfb555..77357b561 100644
 --- a/agent_workflows/artifact_refs.py
 +++ b/agent_workflows/artifact_refs.py
-@@ -967,11 +967,13 @@ def plan_scope_path_reference_rewrites(
+@@ -61,7 +61,6 @@ facet (F-09).
+ """
+ 
+ _SKIP_NAMES = layout.RECORD_SCAN_SKIP_NAMES
+-_GENERATED_MANIFEST_NAMES = {"INDEX.md", "STATUS.md"}
+ 
+ 
+ class RefEdit(NamedTuple):
+@@ -419,18 +418,8 @@ def plan_reference_rewrites_with_warnings(
+ 
+     edits: List[RefEdit] = []
+     for f in _core.iter_scan_files(repo_root, scan_roots, suffixes=suffixes):
+-        # NEVER rewrite a GENERATED manifest (INDEX.md or STATUS.md). Doing so is both
+-        # pointless and harmful: the caller REGENERATES the manifest from the renamed corpus
+-        # immediately after this rewrite, so the edit is overwritten anyway, and meanwhile the
+-        # manifest lands in the caller's `touched_paths`, which is its COMMIT path-set. That put a
+-        # generated (now gitignored) file into a commit, which is what idxuntrack `4r0qp1` E-05
+-        # exists to eliminate. `INDEX.md` is gitignored and regenerated by the caller; `STATUS.md`
+-        # is written only by `aw plans --write-index` and must not be hand- or rename-edited.
+-        # `README.md` is scanned as a citing document (0u0ako), while `_SKIP_NAMES` remains
+-        # {"README.md", "INDEX.md", "STATUS.md"} for `artifact_refs.dead_filename_citations`'s
+-        # target-record enumeration loop (excluding non-record filenames).
+-        if f.name in _GENERATED_MANIFEST_NAMES:
+-            continue
++        # `README.md` is scanned as a citing document (0u0ako), while `_SKIP_NAMES` excludes it
++        # from `artifact_refs.dead_filename_citations`'s target-record enumeration loop.
+         try:
+             raw_text = f.read_text(encoding="utf-8")
+         except (OSError, UnicodeDecodeError):
+@@ -967,11 +956,13 @@ def plan_scope_path_reference_rewrites(
  
      for plan_file, file_edits in pending_edits.items():
          try:
@@ -3531,7 +3609,7 @@ index f93dfb555..ae6ee865e 100644
          if raw_sp is None:
              continue
  
-@@ -1018,7 +1020,7 @@ def apply_scope_path_reference_rewrites(
+@@ -1018,7 +1009,7 @@ def apply_scope_path_reference_rewrites(
  ) -> List[Path]:
      """Apply planned Scope-Paths reference rewrites to pending plans.
  
@@ -3540,7 +3618,7 @@ index f93dfb555..ae6ee865e 100644
      and `ipd_schema.parse_scope_paths`, leaving prose mentions and fenced blocks elsewhere in
      the file byte-identical and appending no workflow history entry.
      """
-@@ -1032,11 +1034,13 @@ def apply_scope_path_reference_rewrites(
+@@ -1032,11 +1023,13 @@ def apply_scope_path_reference_rewrites(
      modified_files: List[Path] = []
      for plan_file, file_edits in by_file.items():
          try:
@@ -3558,7 +3636,7 @@ index f93dfb555..ae6ee865e 100644
          if raw_sp is None:
              continue
  
-@@ -1054,20 +1058,16 @@ def apply_scope_path_reference_rewrites(
+@@ -1054,20 +1047,16 @@ def apply_scope_path_reference_rewrites(
          if new_declared == declared_paths:
              continue
  
@@ -3587,10 +3665,18 @@ index f93dfb555..ae6ee865e 100644
  
      return modified_files
 diff --git a/agent_workflows/artifact_rename.py b/agent_workflows/artifact_rename.py
-index 5624badf2..9274714d2 100644
+index 5624badf2..b8d44152a 100644
 --- a/agent_workflows/artifact_rename.py
 +++ b/agent_workflows/artifact_rename.py
-@@ -281,8 +281,8 @@ def _meta_target_for_file(
+@@ -22,7 +22,6 @@ from agent_workflows.plans_refs import (
+ from agent_workflows import artifact_naming as _naming
+ from agent_workflows import artifact_refs as _refs
+ from agent_workflows import project_context as _proj_ctx
+-from agent_workflows import record_history as _rh
+ from agent_workflows import selectors
+ from agent_workflows.project_context import resolve_verb_repo_root
+ 
+@@ -281,8 +280,8 @@ def _meta_target_for_file(
      *,
      repo_root: Optional[Path] = None,
      fallback_id6: Optional[str] = None,
@@ -3601,7 +3687,7 @@ index 5624badf2..9274714d2 100644
      rroot = (
          repo_root
          if repo_root is not None
-@@ -306,7 +306,7 @@ def _meta_target_for_file(
+@@ -306,7 +305,7 @@ def _meta_target_for_file(
          rroot,
          ctx,
          plural,
@@ -3610,7 +3696,7 @@ index 5624badf2..9274714d2 100644
          rel_path,
      )
  
-@@ -613,16 +613,6 @@ def _group_set_fields(set_id: str, order: Optional[int]) -> dict:
+@@ -613,16 +612,6 @@ def _group_set_fields(set_id: str, order: Optional[int]) -> dict:
      return fields
  
  
@@ -3627,7 +3713,23 @@ index 5624badf2..9274714d2 100644
  def _mutation_ref_edits(repo_root: Path, edits: List[RefEdit]) -> Tuple:
      return tuple(
          MutationRefEdit(
-@@ -1127,17 +1117,10 @@ def run_rename_generic(
+@@ -1091,15 +1080,6 @@ def run_rename_generic(
+         _core.git_mv(repo_root, src_rel, dst_rel)
+         if emit_human:
+             print(f"renamed {src_rel} -> {dst_rel}")
+-        # IPD 52zgqr: additive, failure-isolated rename ledger record (never breaks the rename).
+-        _rh.record_rename(
+-            repo_root,
+-            tree=artifact_type,
+-            verb="rename",
+-            actor="aw",
+-            from_name=src.name,
+-            to_name=dst.name,
+-        )
+         touched.append(src_rel)
+         touched.append(dst_rel)
+     else:
+@@ -1127,17 +1107,10 @@ def run_rename_generic(
              )
              if m_events:
                  _meta.append(
@@ -3647,7 +3749,15 @@ index 5624badf2..9274714d2 100644
                  )
          if inject_id6 is not None:
              # Read `dst` (post-write) rather than `src` (already moved away): for a prompt WITH a
-@@ -1464,11 +1447,10 @@ def run_group_generic(
+@@ -1457,18 +1430,17 @@ def run_group_generic(
+             notes=tuple(group_notes),
+         )
+ 
+-    # Pre-flight validate every target on disk before any git_mv, record_rename, or file write.
++    # Pre-flight validate every target on disk before any git_mv or file write.
+     for src, _dst, order_val in targets:
+         try:
+             g_rroot, g_ctx, g_type, g_target, _g_rel = _meta_target_for_file(
                  src, artifact_type, repo_root=repo_root
              )
              _meta.append(
@@ -3661,7 +3771,23 @@ index 5624badf2..9274714d2 100644
                  dry_run=True,
              )
          except ValueError as exc:
-@@ -1560,11 +1542,10 @@ def run_group_generic(
+@@ -1536,15 +1508,6 @@ def run_group_generic(
+             _core.git_mv(repo_root, src_rel, dst_rel)
+             if emit_human:
+                 print(f"renamed {src_rel} -> {dst_rel}")
+-            # IPD 52zgqr: additive, failure-isolated rename ledger record.
+-            _rh.record_rename(
+-                repo_root,
+-                tree=artifact_type,
+-                verb="group",
+-                actor="aw",
+-                from_name=src.name,
+-                to_name=dst.name,
+-            )
+             touched.append(src_rel)
+             touched.append(dst_rel)
+             applied_targets.append(
+@@ -1560,11 +1523,10 @@ def run_group_generic(
              dst, artifact_type, repo_root=repo_root
          )
          _meta.append(
@@ -3688,8 +3814,21 @@ index 811b1f959..6ffbc8425 100644
          # tree carry `Blocks-Release: -`, so only a hand-edit produces the condition. It is a
          # consistency fix, not an observed outage.
          blk = it.blocks_release
+diff --git a/agent_workflows/attention_contract.py b/agent_workflows/attention_contract.py
+index faea97ac4..23295873c 100644
+--- a/agent_workflows/attention_contract.py
++++ b/agent_workflows/attention_contract.py
+@@ -273,7 +273,7 @@ def is_nonartifact_name(name: str) -> bool:
+     than flagged. Kept deliberately narrow and name-based so it is predictable."""
+ 
+     lower = name.lower()
+-    if name in ("README.md", "INDEX.md", "INDEX.json", "STATUS.md"):
++    if name == "README.md":
+         return True
+     if lower.endswith("-template.md") or lower.endswith("-index.md"):
+         return True
 diff --git a/agent_workflows/backlog.py b/agent_workflows/backlog.py
-index 5395ccb00..309e3584e 100644
+index 5395ccb00..d44f32213 100644
 --- a/agent_workflows/backlog.py
 +++ b/agent_workflows/backlog.py
 @@ -805,83 +805,6 @@ def _refuse_unsafe_descriptive(
@@ -3805,7 +3944,19 @@ index 5395ccb00..309e3584e 100644
  
      # IPD fwgq2u E-02 / OQ-01: near-duplicate advisory guard. Reuses the existing_items_data walk
      # performed above rather than doing a second corpus pass (which would be 59t9x5 double-read in
-@@ -1449,7 +1356,6 @@ def run_note(args) -> int:
+@@ -1299,9 +1206,8 @@ def run_new(args) -> int:
+         sys.stdout.write(f"--- would write {dest} ---\n{rendered}")
+         return 0
+ 
+-    # plan `vhbvwz` E-04 and spec `4sd62s` C6: inline history is rendered and durably written by
+-    # `artifact_meta.create` BEFORE the advisory sidecar append runs, so the sidecar never precedes
+-    # the durable write and never gates it.
++    # Spec `4sd62s` C6: history is durably written by `artifact_meta.create`; the advisory sidecar
++    # append that used to follow it is retired (5.2 step 2, plan `g45vyv`).
+     if ctx.is_agent or ctx.is_json:
+         res = CommandResult(
+             command="backlog new",
+@@ -1449,7 +1355,6 @@ def run_note(args) -> int:
      src = res.paths[0]
      text = src.read_text(encoding="utf-8")
      item = item_from_text(text)
@@ -3813,7 +3964,7 @@ index 5395ccb00..309e3584e 100644
  
      from agent_workflows import artifact_meta as _meta
  
-@@ -1466,25 +1372,16 @@ def run_note(args) -> int:
+@@ -1466,25 +1371,16 @@ def run_note(args) -> int:
              "repo_root": Path(repo_root).resolve(),
          },
      )()
@@ -3846,7 +3997,7 @@ index 5395ccb00..309e3584e 100644
      return 0
  
  
-@@ -1519,50 +1416,6 @@ def _prior_history_records(text: str) -> List[str]:
+@@ -1519,50 +1415,6 @@ def _prior_history_records(text: str) -> List[str]:
      return _meta.history_records(text).record_lines
  
  
@@ -3934,9 +4085,42 @@ index c46e7b4e2..10c0df173 100644
          m = _naming.parse_clustered(path.name)
          if m and not _re.fullmatch(r"\d{4}", m.group("set")):
 diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
-index f7a03b5cf..53435584e 100644
+index f7a03b5cf..eaae8e240 100644
 --- a/agent_workflows/cli.py
 +++ b/agent_workflows/cli.py
+@@ -600,9 +600,9 @@ _DESCRIPTIONS = {
+         "Use --dir to point the records lookup at a specific repo."
+     ),
+     "record-history": (
+-        "Print workflow history from the machine-local .aw/records/history.jsonl activity log by "
+-        "6-char id6. The sidecar is gitignored, does not survive a clone, and covers only the "
+-        "writers that feed it; durable history lives in the record's own inline ## Workflow history."
++        "Print workflow history by 6-char id6 from a leftover .aw/records/history.jsonl, the "
++        "retired machine-local activity log. No aw command writes it since the metadata cutover; "
++        "durable history lives in the record's own metadata log (`aw show <id6> --history`)."
+     ),
+     "graduation": (
+         "Pre-graduation view: report every PLAN and SPEC that already carries a `- From-Spec:` or "
+@@ -5497,15 +5497,15 @@ def _build_parser_impl(_only_cmd: Optional[str] = None) -> argparse.ArgumentPars
+     # setupmarker Order 01: the operational-action ledger was removed (redundant with backlog);
+     # the complete/dismiss/reopen/history action verbs are gone. The post-install "run setup"
+     # reminder is now the `.aw/setup-repo-needed.md` marker, cleared by `aw setup` / the /setup-repo
+-    # workflow / deleting the file. `aw record-history` (the records sidecar) is unrelated and stays.
++    # workflow / deleting the file. `aw record-history` (a reader of the retired records sidecar) is unrelated and stays.
+ 
+     p_record_history = sub.add_parser(
+         "record-history",
+         parents=[common],
+         help=(
+-            "Print workflow history from the machine-local activity log (by id6). The sidecar is "
+-            "gitignored, does not survive a clone, and covers only writers that feed it; durable "
+-            "history lives in the record's own inline ## Workflow history."
++            "Print workflow history from the retired machine-local activity log (by id6). No aw "
++            "command writes the sidecar since the metadata cutover; durable history lives in the "
++            "record's own metadata log (`aw show <id6> --history`)."
+         ),
+     )
+     p_record_history.add_argument(
 @@ -14552,7 +14552,6 @@ def _run_describe(
      args: argparse.Namespace, term: Term, context: Optional[Any] = None
  ) -> int:
@@ -4032,6 +4216,102 @@ index 9f69cef67..deaa68e3c 100644
              project_context=_meta.legacy_context(resolved_repo),
          )
      except Exception as exc:
+diff --git a/agent_workflows/engine.py b/agent_workflows/engine.py
+index 2129ed795..32ec823cf 100755
+--- a/agent_workflows/engine.py
++++ b/agent_workflows/engine.py
+@@ -6679,9 +6679,6 @@ _AW_GITIGNORE_TEMPLATE = """\
+ records/*/untracked/
+ # The per-machine post-install setup reminder (setupmarker Order 01): never committed.
+ setup-repo-needed.md
+-# The per-repo append-only workflow-history sidecar (record_history): a local activity log
+-# appended on every `aw` status write; local-only, never committed (awhistignore).
+-records/history.jsonl
+ # The ipdrunner IPD-driver per-run durable state (queue state.json, session JSONL logs, prompts,
+ # outcomes, driver.lock): box-local, ephemeral working material; never committed (awrunsignore).
+ records/runs/
+@@ -6708,22 +6705,6 @@ records/runs/
+ # tracking generated output is exactly the git drift install-time emission exists to avoid.
+ system/layout.json
+ system/layout.schema.json
+-# The generated plans/research manifest indexes (idxuntrack, backlog ila6vl): GENERATED
+-# byte-deterministically from the artifact files themselves by `aw index <type>`, so every diff is
+-# derived and tracking them is the same git drift the layout.json lines above exist to avoid. They
+-# are also actively harmful when tracked: an auto-regenerated file conflicts on any concurrent lane
+-# BY CONSTRUCTION, and on 2026-09-06 a conflict in records/plans/INDEX.json was the SOLE cause of
+-# lane `ueg5cf`'s aborted merge-back, stranding 2477 lines of correct, tested code (`git merge-tree`
+-# confirmed the real code auto-merged cleanly). Regenerate a local view with `aw index plans` /
+-# `aw index research`; a fresh clone has none until then, which `check.stale-index-missing` reports
+-# at `info` rather than failing. Written as four ANCHORED specific paths, never a bare `INDEX.json`
+-# that would match at any depth (the same trap the `/inbox/` comment above warns about).
+-records/plans/INDEX.json
+-records/plans/INDEX.md
+-records/research/INDEX.json
+-records/research/INDEX.md
+-records/prompts/INDEX.json
+-records/prompts/INDEX.md
+ # The per-machine state tree and the machine-local config binding. NEVER committed, and this is a
+ # LEAK-CONTAINMENT rule rather than a tidiness one: `state/durable/install.json` records the
+ # resolved policy INCLUDING absolute paths (`aw_home`), and `state/*/history/installs.jsonl` appends
+@@ -8289,10 +8270,6 @@ def _ensure_aw_gitignore(
+     # awrunsignore (s2ufeo): back-fill the ipdrunner per-run state lane on an already-installed repo.
+     if "records/runs/" not in text:
+         additions.append("records/runs/")
+-    # Co-located pre-existing gap (F-02): `records/history.jsonl` is in the template but was missing
+-    # from this back-fill list, so a repo installed before that lane existed never gained it. Add it.
+-    if "records/history.jsonl" not in text:
+-        additions.append("records/history.jsonl")
+     # awinbox (xzlu9b E-04): back-fill the `.aw/inbox/` raw-drop lane on an already-installed repo.
+     # The pattern MUST be `/inbox/*` followed by `!/inbox/README.md`: a directory pattern like
+     # `/inbox/` cannot be negated to re-include a file. An existing `/inbox/` or bare `inbox/` line
+@@ -8315,27 +8292,10 @@ def _ensure_aw_gitignore(
+     # wslayout Order 04 (hauwqh): back-fill the install-time-emitted layout artifacts on a repo
+     # installed BEFORE emission existed. The template above covers a FRESH install only, so without
+     # this the generated `.aw/system/layout.json` would show up as an untracked file in every
+-    # already-installed repo - the exact pre-existing gap the `records/history.jsonl` note above
+-    # records having been hit once already.
++    # already-installed repo.
+     for _layout_pattern in ("system/layout.json", "system/layout.schema.json"):
+         if not re.search(r"(?m)^{0}[ \t]*$".format(re.escape(_layout_pattern)), text):
+             additions.append(_layout_pattern)
+-    # idxuntrack Order 02 (yvvf98 E-06), backlog ila6vl: back-fill the four generated manifest
+-    # indexes. The template above reaches a FRESH install only, so this is the ONLY path that reaches
+-    # an ALREADY-INSTALLED repo; without it every managed repo keeps TRACKING an auto-regenerated file
+-    # and keeps the `ueg5cf` conflict-on-every-concurrent-lane failure class live everywhere but here.
+-    # Four ANCHORED specific paths, matched (and written) line-anchored for the `/inbox/` reason: a
+-    # bare `INDEX.json` would match at any depth in any tree.
+-    for _index_pattern in (
+-        "records/plans/INDEX.json",
+-        "records/plans/INDEX.md",
+-        "records/research/INDEX.json",
+-        "records/research/INDEX.md",
+-        "records/prompts/INDEX.json",
+-        "records/prompts/INDEX.md",
+-    ):
+-        if not re.search(r"(?m)^{0}[ \t]*$".format(re.escape(_index_pattern)), text):
+-            additions.append(_index_pattern)
+     # awstateignore (2026-09-12, maintainer report): back-fill the per-machine state tree and the
+     # machine-local config binding. Reported as six files left "uncommitted, untracked, and not
+     # ignored" after `aw install`; five of them MUST stay untracked, because
+@@ -8343,15 +8303,15 @@ def _ensure_aw_gitignore(
+     # INCLUDING `aw_home`, an absolute home path (D92). Measured: the shipped sanitizer reports
+     # `home-path` + `handle` on a real one. Only `config/project.json` is portable, and it is
+     # deliberately absent from this list so it stays tracked.
+-    # This is the ONLY path that reaches an ALREADY-INSTALLED repo, the same reason the layout and
+-    # INDEX back-fills above exist; without it every repo installed before today keeps offering these
++    # This is the ONLY path that reaches an ALREADY-INSTALLED repo, the same reason the layout
++    # back-fill above exists; without it every repo installed before today keeps offering these
+     # files to `git add -A`.
+     for _local_pattern in ("/state/", "/config/local.json"):
+         if not re.search(r"(?m)^{0}[ \t]*$".format(re.escape(_local_pattern)), text):
+             additions.append(_local_pattern)
+     # wfartifacts Order 02 (vh14ku): back-fill the run-scratch home `.aw/workflow-artifacts/`, the
+     # ONE untracked home Order 07 (spec `20260817-2124-01`) gave run scratch. This is the ONLY path
+-    # that reaches an ALREADY-INSTALLED repo, the same reason the layout, INDEX and state back-fills
++    # that reaches an ALREADY-INSTALLED repo, the same reason the layout and state back-fills
+     # above exist: such a repo already HAS a `.aw/.gitignore` and never re-reads the template, so a
+     # template-only edit would leave every managed repo writing run scratch to an UNIGNORED path.
+     # LEAK CONTAINMENT, not tidiness (D92): a run record carries local context, absolute home paths
 diff --git a/agent_workflows/hooks/backlog_blocking_close_gate.py b/agent_workflows/hooks/backlog_blocking_close_gate.py
 index a57e03db6..a2eae8fd8 100644
 --- a/agent_workflows/hooks/backlog_blocking_close_gate.py
@@ -4047,8 +4327,28 @@ index a57e03db6..a2eae8fd8 100644
  honored from persisted state.
  
  Honest limits (never oversold): git hooks are LOCAL, not cloned by default, and skippable with
+diff --git a/agent_workflows/install_wizard.py b/agent_workflows/install_wizard.py
+index 248703373..270a517ec 100644
+--- a/agent_workflows/install_wizard.py
++++ b/agent_workflows/install_wizard.py
+@@ -703,12 +703,9 @@ def config_placement_switch(
+     return None
+ 
+ 
+-# Files the installer scaffolds (.gitkeep, README.md) or that `aw index` /
+-# `aw ipd board --write-index` regenerate (INDEX.json, INDEX.md, STATUS.md).
+-# They carry no record content, so leaving them behind orphans nothing.
+-_RECORDS_SCAFFOLD_NAMES = frozenset(
+-    (".gitkeep", "README.md", "INDEX.json", "INDEX.md", "STATUS.md")
+-)
++# Files the installer scaffolds (.gitkeep, README.md). They carry no record content, so leaving
++# them behind orphans nothing.
++_RECORDS_SCAFFOLD_NAMES = frozenset((".gitkeep", "README.md"))
+ 
+ 
+ def _count_record_files(root: Path) -> int:
 diff --git a/agent_workflows/ipd_authoring.py b/agent_workflows/ipd_authoring.py
-index 6b02552f7..122a9c6be 100644
+index 6b02552f7..badac51d8 100644
 --- a/agent_workflows/ipd_authoring.py
 +++ b/agent_workflows/ipd_authoring.py
 @@ -21,7 +21,7 @@ import re
@@ -4144,6 +4444,15 @@ index 6b02552f7..122a9c6be 100644
  
      if not apply:
          if ctx.is_agent or ctx.is_json:
+@@ -1054,7 +1032,7 @@ def _run_bulk_id_backfill(args: argparse.Namespace, targets: List[str]) -> int:
+         paths = sorted(
+             p
+             for p in plans_root.rglob("*.md")
+-            if p.name not in ("README.md", "INDEX.md", "STATUS.md")
++            if p.name != "README.md"
+         )
+     for t in targets:
+         p = Path(t)
 @@ -1161,6 +1139,9 @@ def run_sync(args: argparse.Namespace) -> int:
          print(f"error: not a file: {target}")
          return 2
@@ -4219,6 +4528,40 @@ index fdec178d7..dd0715f8c 100644
  META_ITEM_DEPENDENCIES = "Item-Dependencies"
  # The reserved scaffold sentinel: a freshly scaffolded plan carries `Item-Dependencies: unresolved`
  # (never blank, never `none`) so a not-yet-triaged plan is an HONEST not-ready draft. `unresolved`
+diff --git a/agent_workflows/lane_containment.py b/agent_workflows/lane_containment.py
+index cf7c12910..81ca5324b 100644
+--- a/agent_workflows/lane_containment.py
++++ b/agent_workflows/lane_containment.py
+@@ -4026,6 +4026,10 @@ def inventory_lane(
+             # SCOPED NARROWLY AND ON PURPOSE: exactly this one relative path, taken from
+             # `record_history.SIDECAR_RELPATH` rather than pattern-matched, so no other `.jsonl` and no
+             # other file under the records tree is swept in by accident.
++            #
++            # The metadata cutover (spec `4sd62s` 5.2 step 2, plan `g45vyv`) retired every sidecar
++            # writer, so no lane writes this file any more; the rule stays so a lane that still holds
++            # a leftover copy is not preserved for it.
+             discardable.append(path)
+         elif status == PORCELAIN_UNTRACKED:
+             unknown_untracked.append(path)
+diff --git a/agent_workflows/layout.py b/agent_workflows/layout.py
+index 1d675982e..d86c85765 100644
+--- a/agent_workflows/layout.py
++++ b/agent_workflows/layout.py
+@@ -119,11 +119,9 @@ TRAVERSAL_EXCLUSIONS: Tuple[str, ...] = (
+ 
+ # Non-record markdown filenames skipped by record walkers (spec `4sd62s` 4.4, D-3).
+ # Citation scans via `artifact_core.iter_scan_files` intentionally keep scanning `README.md`.
+-RECORD_SCAN_SKIP_NAMES = (
+-    "README.md",
+-    "INDEX.md",
+-    "STATUS.md",
+-)
++# The INDEX and STATUS entries were removed by the metadata cutover (plan `g45vyv`): migration
++# step 5 deletes those files, so no scan meets one.
++RECORD_SCAN_SKIP_NAMES = ("README.md",)
+ 
+ # Record-tree subdirectories excluded from record and citation scans (e.g. `.aw/records/meta/`).
+ RECORD_SCAN_EXCLUDED_DIRS = ("meta",)
 diff --git a/agent_workflows/migrations/chain.py b/agent_workflows/migrations/chain.py
 index d4be00e56..293ffaa54 100644
 --- a/agent_workflows/migrations/chain.py
@@ -4863,6 +5206,40 @@ index e0466c6db..3eac131ed 100644
 +        )
 +
 +    return artifact_row, hist_rows
+diff --git a/agent_workflows/migrations/m0001_renames.py b/agent_workflows/migrations/m0001_renames.py
+index 41d041361..24ca79209 100644
+--- a/agent_workflows/migrations/m0001_renames.py
++++ b/agent_workflows/migrations/m0001_renames.py
+@@ -57,6 +57,10 @@ OQ02_EXCLUDED_DIRNAMES: frozenset[str] = m0001_discover.EXCLUDED_DIRNAMES
+ 
+ OQ02_EXCLUDED_FILENAMES: frozenset[str] = frozenset({"README.md", "STATUS.md"})
+ 
++# The generated manifests a legacy repository can still hold when this step runs; step 5 deletes
++# them. Owned here because the live scan code no longer knows these names (plan `g45vyv`).
++_GENERATED_MANIFEST_NAMES: frozenset[str] = frozenset({"INDEX.md", "STATUS.md"})
++
+ _PROMPT_COMMENT_RE = re.compile(
+     r"\A<!--\s*(?:aw-prompt|aw-managed-prompt):\s*(.*?)\s*-->", re.DOTALL
+ )
+@@ -1106,6 +1110,9 @@ def plan_citation_rewrites(
+     edits, warnings = artifact_refs.plan_reference_rewrites_with_warnings(
+         scratch_path, name_map, scan_roots=M0001_SCAN_ROOTS
+     )
++    # The live planner no longer skips the generated manifests (plan `g45vyv`), but this step runs
++    # before step 5 deletes them, so they are dropped here and never rewritten.
++    edits = [e for e in edits if e.file.name not in _GENERATED_MANIFEST_NAMES]
+     if warnings:
+         raise RenameRefusalError(
+             "Refused: citation planner returned ambiguity warning(s):\n"
+@@ -1155,7 +1162,7 @@ def plan_citation_rewrites(
+         suffixes=artifact_core._REFERENCE_TEXT_SUFFIXES,
+     )
+     for fpath in scan_files:
+-        if fpath.name in artifact_refs._GENERATED_MANIFEST_NAMES:
++        if fpath.name in _GENERATED_MANIFEST_NAMES:
+             continue
+         f_res = fpath.resolve()
+         if f_res == sidecar_resolved:
 diff --git a/agent_workflows/migrations/m0001_verify.py b/agent_workflows/migrations/m0001_verify.py
 index ca1b89bb7..303c4694e 100644
 --- a/agent_workflows/migrations/m0001_verify.py
@@ -4901,6 +5278,38 @@ index ca1b89bb7..303c4694e 100644
              rec_path, legacy_root, text=text
          )
          art_type = str(art_row["type"])
+diff --git a/agent_workflows/orchestrator_readiness.py b/agent_workflows/orchestrator_readiness.py
+index b5bf7a6bb..d32f41122 100644
+--- a/agent_workflows/orchestrator_readiness.py
++++ b/agent_workflows/orchestrator_readiness.py
+@@ -240,7 +240,7 @@ def resolve_all_set_memberships(repo: Path | str) -> dict[str, Any]:
+             path = _am.source_path(st.path, records_root, scan_repo)
+         except ValueError:
+             continue
+-        if path.name in ("README.md", "INDEX.md", "STATUS.md"):
++        if path.name == "README.md":
+             continue
+         resolved_entries.append((path, st))
+ 
+diff --git a/agent_workflows/placement_switch.py b/agent_workflows/placement_switch.py
+index 1a49a542a..014ebca73 100644
+--- a/agent_workflows/placement_switch.py
++++ b/agent_workflows/placement_switch.py
+@@ -62,14 +62,7 @@ __all__ = [
+ 
+ COMPANION_RECORD_IGNORE_PATTERNS = [
+     "records/*/untracked/",
+-    "records/history.jsonl",
+     "records/runs/",
+-    "records/plans/INDEX.json",
+-    "records/plans/INDEX.md",
+-    "records/research/INDEX.json",
+-    "records/research/INDEX.md",
+-    "records/prompts/INDEX.json",
+-    "records/prompts/INDEX.md",
+ ]
+ 
+ 
 diff --git a/agent_workflows/plan_readiness.py b/agent_workflows/plan_readiness.py
 index e9a9d9829..5ee7b9297 100644
 --- a/agent_workflows/plan_readiness.py
@@ -4944,11 +5353,41 @@ index e9a9d9829..5ee7b9297 100644
      assert (
          written == target_readiness
      ), "the re-check may write ONLY {0}; refusing to write {1!r}".format(
+diff --git a/agent_workflows/plans_index.py b/agent_workflows/plans_index.py
+index 94067ebe9..eb8d3b79e 100644
+--- a/agent_workflows/plans_index.py
++++ b/agent_workflows/plans_index.py
+@@ -27,7 +27,7 @@ from agent_workflows import plans as _plans
+ 
+ # (The former module-level `PLANS_DIR = ".agents/plans"` was dead - resolution is via `_dirs()` /
+ # `resolve_record_path` - and was removed in Order 05, S5-DC01.)
+-_EXCLUDE_NAMES = {"INDEX.json", "INDEX.md", "STATUS.md", "README.md"}
++_EXCLUDE_NAMES = {"README.md"}
+ 
+ 
+ class PlanEntry(NamedTuple):
+@@ -264,7 +264,7 @@ def plan_files(
+     the ignored-path filter returns box-local `untracked/` plans that are never committed.
+     (See backlog item `mlcbk9` and `specs._spec_files` docstring recording the same lesson.)
+ 
+-    Skips `_EXCLUDE_NAMES` (`INDEX.json`, `INDEX.md`, `STATUS.md`, `README.md`) and any path
++    Skips `_EXCLUDE_NAMES` (`README.md`) and any path
+     matching `_core.is_ignored_path(p, plans_dir, ignored_dirs)`.
+     For any returned plan `p`, its top-level lifecycle disposition is `p.relative_to(plans_dir).parts[0]`.
+     """
 diff --git a/agent_workflows/plans_refs.py b/agent_workflows/plans_refs.py
-index d19c789b3..858476577 100644
+index d19c789b3..3b5861d3b 100644
 --- a/agent_workflows/plans_refs.py
 +++ b/agent_workflows/plans_refs.py
-@@ -93,33 +93,6 @@ def _set_value(set_id: str, descriptive: Optional[str]) -> str:
+@@ -28,7 +28,6 @@ from agent_workflows import artifact_naming as _naming
+ from agent_workflows import artifact_refs as _refs
+ from agent_workflows import artifact_types as _types
+ from agent_workflows import plans_index as _idx
+-from agent_workflows import record_history as _rh
+ from agent_workflows import selectors as _selectors
+ 
+ PLANS_DIR = ".agents/plans"
+@@ -93,33 +92,6 @@ def _set_value(set_id: str, descriptive: Optional[str]) -> str:
      return f"{set_id} ({descriptive})" if descriptive else set_id
  
  
@@ -4982,7 +5421,7 @@ index d19c789b3..858476577 100644
  def _set_order_events(set_val: str, order: int) -> List[dict]:
      """Build the single `op: 'set'` event updating `Set` and integer `Order`."""
      return [{"op": "set", "fields": {"set": set_val, "order": int(order)}}]
-@@ -672,48 +645,55 @@ def apply_renames(
+@@ -672,59 +644,57 @@ def apply_renames(
      targets_applied: List[MutationTarget] = []
  
      meta_ctx = _meta.legacy_context(repo_root)
@@ -5057,7 +5496,18 @@ index d19c789b3..858476577 100644
 -            _core.git_mv(repo_root, src_rel, dst_rel)
              if emit_human:
                  print(f"renamed {src_rel} -> {dst_rel}")
-             # IPD 52zgqr: additive, failure-isolated rename ledger record (never breaks the rename).
+-            # IPD 52zgqr: additive, failure-isolated rename ledger record (never breaks the rename).
+-            _rh.record_rename(
+-                repo_root,
+-                tree="plans",
+-                verb=verb,
+-                actor="aw",
+-                from_name=p.old_path.name,
+-                to_name=p.new_path.name,
+-            )
+             # The tracked change is at the destination (rename records both delete+add).
+             touched.append(src_rel)
+             touched.append(dst_rel)
 diff --git a/agent_workflows/production_checks.py b/agent_workflows/production_checks.py
 index 5f2610b9b..970c56aca 100644
 --- a/agent_workflows/production_checks.py
@@ -5133,8 +5583,347 @@ index 113c66d30..d0411673a 100644
  
      data = {
          "path": str(dest),
+diff --git a/agent_workflows/prompts_index.py b/agent_workflows/prompts_index.py
+index 7fde59be4..bf67de1ef 100644
+--- a/agent_workflows/prompts_index.py
++++ b/agent_workflows/prompts_index.py
+@@ -18,7 +18,7 @@ from agent_workflows import artifact_core as _core
+ from agent_workflows import artifact_meta as _am
+ from agent_workflows import artifact_naming as _naming
+ 
+-_EXCLUDE_NAMES = {"INDEX.json", "INDEX.md", "README.md"}
++_EXCLUDE_NAMES = {"README.md"}
+ 
+ # The legacy staged staging name: YYYYMMDD-HHMM-NN-<slug>.prompt.md
+ # The legacy staged name YYYYMMDD-HHMM-NN-<slug>.prompt.md is read by THE ONE file-name library.
+diff --git a/agent_workflows/record_history.py b/agent_workflows/record_history.py
+index 42ae51951..090fb934e 100644
+--- a/agent_workflows/record_history.py
++++ b/agent_workflows/record_history.py
+@@ -1,33 +1,24 @@
+-"""Global append-only workflow-history sidecar (spec 20260818-1525-02, Section 3).
++"""Read side of the retired global workflow-history sidecar (spec 20260818-1525-02, Section 3).
+ 
+-ONE file per repo: `.aw/records/history.jsonl`, keyed by id6. Each line is a JSON object
+-`{id6, date, tree, workflow, actor, message}`. Note that the original design rationale claiming
+-concurrent-append git merges rarely conflict was measured false in spec 4sd62s P3 (which cites that
+-measured evidence) and C3 and 4.7 (per-artifact logs so different artifacts never share a file; two
+-branches each appending one line to the same JSONL produce an ordinary content conflict, making a
+-shared file a conflict magnet under the isolated worktrees aw oc run uses by default), and the claim is
+-moot for a gitignored file that is never committed. Pure (no CLI, no argparse). Consumed by the
+-status writers (Order 02) and the read verb (Order 03).
++The sidecar was ONE file per repo, `.aw/records/history.jsonl`, keyed by id6, each line a JSON object
++`{id6, date, tree, workflow, actor, message}`; rename/regroup records added `verb`, `from_name`,
++`to_name` and `key_kind` (the rename ledger of IPD 52zgqr). The metadata cutover (spec `4sd62s` 5.2
++step 2, plan `g45vyv`) retired every writer: `append`, `append_advisory`, `append_rename` and
++`record_rename`. Status and history now live in each record's own `meta/<id6>.jsonl` log, and a
++`rename` event (4.2 PATH HISTORY) replaces the rename ledger. Migration step 2 imports each sidecar
++record as a `legacy` event and moves the file into the gitignored export.
+ 
+-The sidecar ALSO carries an additive, non-authoritative RENAME/regroup ledger (IPD 52zgqr,
+-unifyfileio Order 04): every applied `aw rename`/`aw group` that changes a name appends ONE record
+-via `record_rename`/`append_rename`. A rename record is a SUPERSET of a status record - it reuses the
+-same key order/shape and adds `verb` (rename|group), `from_name`/`to_name` (basenames), and
+-`key_kind` (id6|synthetic). Status readers key only on id6/date/message and ignore the
+-extra keys, so the addition is backward-compatible. The ledger is NON-AUTHORITATIVE: no aw command's
+-correctness depends on it (deleting the sidecar changes only what an audit query can report), and the
+-emit is failure-isolated so a ledger problem never breaks a rename. Endpoint cases (OQ-01): id6->id6
+-and id6-less->id6 key on the (new) id6; both-id6-less uses a deterministic synthetic key tagged
+-`key_kind:"synthetic"` for a future id6-rollout to reconcile."""
++What remains: `history_path`/`SIDECAR_RELPATH` (the migration and lane containment locate a
++leftover file with them), `read_for`/`read_all` (the `aw record-history` reader of a leftover or
++exported file), and the inline-history parsing helpers shared with `ipd_lifecycle`."""
+ 
+ from __future__ import annotations
+ 
+ import json
+ import re as _re
+ from pathlib import Path
+-from typing import List, Optional, Tuple as _Tuple
++from typing import List, Tuple as _Tuple
+ 
+-from agent_workflows import artifact_core as _core
+ from agent_workflows import artifact_meta as _meta
+ 
+ SIDECAR_RELPATH = ".aw/records/history.jsonl"
+@@ -43,94 +34,6 @@ def history_path(repo_root) -> Path:
+     return project_records_dir(repo_root) / "history.jsonl"
+ 
+ 
+-def append(
+-    repo_root,
+-    *,
+-    id6: str,
+-    tree: str,
+-    workflow: str,
+-    actor: str,
+-    message: str,
+-    date: Optional[str] = None,
+-) -> None:
+-    """Append ONE history record line to the global sidecar (creating file + parent dir if absent).
+-
+-    `id6` MUST match `artifact_core.ID6_RE` (else ValueError). `date` defaults to today as YYYYMMDD.
+-    Fixed key order; utf-8; one JSON object per line followed by `\\n`. Note that concurrent-append
+-    merges were measured to conflict (spec 4sd62s P3, C3, 4.7), though moot as this sidecar is gitignored."""
+-    if not _core.ID6_RE.match(id6 or ""):
+-        raise ValueError(f"record_history.append: {id6!r} is not a valid id6")
+-    if date is None:
+-        date = _core.utc_history_date().replace("-", "")
+-    rec = {
+-        "id6": id6,
+-        "date": date,
+-        "tree": tree,
+-        "workflow": workflow,
+-        "actor": actor,
+-        "message": message,
+-    }
+-    p = history_path(repo_root)
+-    p.parent.mkdir(parents=True, exist_ok=True)
+-    with open(p, "a", encoding="utf-8") as f:
+-        f.write(json.dumps(rec, ensure_ascii=True) + "\n")
+-
+-
+-def append_advisory(
+-    repo_root,
+-    *,
+-    id6: str,
+-    tree: str,
+-    workflow: str,
+-    actor: str,
+-    message: str,
+-    date: Optional[str] = None,
+-    artifact: str = "",
+-) -> bool:
+-    """:func:`append`, but a FAILURE IS REPORTED ON STDERR AND RETURNED, never raised and never silent.
+-
+-    Returns True when the record was written, False when it was not. The caller MUST NOT make its own
+-    inline history write conditional on this result.
+-
+-    WHY THIS EXISTS (plan ``vhbvwz`` E-04, finding F-5). The three sidecar call sites each wrapped
+-    :func:`append` in a bare ``except Exception: pass``, so a failed sidecar write was completely
+-    invisible: nothing on stderr, nothing in the exit code, nothing in the record. Combined with the
+-    inline slimming that shipped at the same time, a swallowed sidecar write plus a successful slim
+-    LOST the record entirely and still exited 0. E-08 removed the slimming half, so the remaining
+-    defect is the silence, and this helper is the fix for it: one shared decision, so the three sites
+-    cannot drift into three different answers.
+-
+-    WHY IT WARNS RATHER THAN RAISING, and why the inline write must not depend on it. The maintainer
+-    ruled on 2026-09-10 (``vhbvwz`` OQ-01) that INLINE history is the durable home and the sidecar is a
+-    machine-local ACTIVITY LOG - it is gitignored, so it does not survive a clone. Letting an advisory
+-    log failure abort or gate a durable provenance write would invert exactly the durability model
+-    that ruling chose. So: say so loudly, write the record that matters anyway.
+-    """
+-
+-    import sys as _sys
+-
+-    try:
+-        append(
+-            repo_root,
+-            id6=id6,
+-            tree=tree,
+-            workflow=workflow,
+-            actor=actor,
+-            message=message,
+-            date=date,
+-        )
+-        return True
+-    except Exception as exc:  # noqa: BLE001 - deliberately broad; the point is to REPORT, not select
+-        where = artifact or id6
+-        _sys.stderr.write(
+-            f"{workflow}: warning: could not append to the history sidecar "
+-            f"({SIDECAR_RELPATH}) for {where}: {type(exc).__name__}: {exc}. The inline "
+-            "`## Workflow history` record is the durable one and was written; the sidecar is a "
+-            "machine-local activity log, so this does not lose provenance.\n"
+-        )
+-        return False
+-
+-
+ def read_for(repo_root, id6: str) -> List[dict]:
+     """Every history record for `id6`, in file (chronological append) order. `[]` if the sidecar is
+     missing; skips any line that is not valid JSON."""
+@@ -155,180 +58,6 @@ def read_all(repo_root) -> List[dict]:
+     return out
+ 
+ 
+-# --------------------------------------------------------------------------------------
+-# Additive rename/regroup ledger (IPD 52zgqr, unifyfileio Order 04).
+-#
+-# A RENAME record is a SUPERSET of a status record: it reuses the exact {id6,date,tree,workflow,
+-# actor,message} key order/shape and adds optional `verb` (rename|group), `from_name`/`to_name`
+-# (basenames), and `key_kind` (id6|synthetic). Status records carry none of the extra keys, so
+-# `read_all`/`read_for`/`migrate_inline_history` (which key only on id6/date/message and ignore
+-# unknown keys) are unaffected. The ledger is strictly ADDITIVE and NON-AUTHORITATIVE: no aw
+-# command's correctness depends on it (deleting the sidecar changes only what an audit query can
+-# report, never whether a rename/citation-rewrite/check succeeds), so every writer here is
+-# failure-isolated by its callers.
+-#
+-# Endpoint cases (OQ-01, human-resolved): Case 1 (id6->id6) and Case 2 (id6-less->id6) key on the
+-# real (new) id6 via append_rename's id6 path; Case 3 (id6-less->id6-less) uses a deterministic
+-# SYNTHETIC key (a normalized earliest-known-name token) tagged `key_kind:"synthetic"` so a future
+-# id6-rollout can reconcile it.
+-# --------------------------------------------------------------------------------------
+-
+-# A synthetic key normalizes an id6-less name to a stable token: strip a trailing `.md`/facet and any
+-# leading date, lowercase-kebab the remainder. Deterministic for the same artifact's earliest name.
+-_SYNTH_STRIP_RE = _re.compile(r"[^a-z0-9]+")
+-
+-
+-def _synthetic_key(name: str) -> str:
+-    """A deterministic synthetic key for an id6-less artifact, derived from a filename basename.
+-
+-    Drops a trailing `.md` and any `.<facet>`, drops a leading `YYYYMMDD-` (or `YYYYMMDD-HHMM-NN-`)
+-    date/order prefix, then lowercase-kebabs the slug remainder. Prefixed `synthetic:` so it can
+-    never collide with a real 6-char id6 key. Stable for the same slug across re-slugs is NOT
+-    guaranteed (a re-slug changes the slug); the key is stable for a GIVEN name, which is what
+-    ``read_renames_for`` needs to retrieve a specific synthetic record."""
+-
+-    base = name[:-3] if name.endswith(".md") else name
+-    base = base.split(".")[0]  # drop any dotted facet(s)
+-    # Drop a leading date (YYYYMMDD) and an optional -HHMM-NN.
+-    base = _re.sub(r"\A\d{8}(?:-\d{4}-\d{2})?-", "", base)
+-    slug = _SYNTH_STRIP_RE.sub("-", base.lower()).strip("-")
+-    return "synthetic:" + (slug or "unknown")
+-
+-
+-def append_rename(
+-    repo_root,
+-    *,
+-    id6: str,
+-    tree: str,
+-    verb: str,
+-    actor: str,
+-    from_name: str,
+-    to_name: str,
+-    message: Optional[str] = None,
+-    date: Optional[str] = None,
+-    key_kind: str = "id6",
+-) -> None:
+-    """Append ONE rename/regroup record to the global sidecar (additive, non-authoritative).
+-
+-    `id6` is the record key. For the default ``key_kind="id6"`` it MUST match ``artifact_core.ID6_RE``
+-    (else ValueError - identical to ``append``'s contract; never silently write a malformed record).
+-    ``key_kind="synthetic"`` (Case 3 ONLY) accepts a synthetic key token (produced by
+-    :func:`_synthetic_key`) and skips the id6 validation, tagging the record so it is distinguishable
+-    from real-id6 records. `verb` is ``rename`` or ``group``; `from_name`/`to_name` are basenames.
+-    """
+-
+-    if key_kind == "id6":
+-        if not _core.ID6_RE.match(id6 or ""):
+-            raise ValueError(
+-                f"record_history.append_rename: {id6!r} is not a valid id6"
+-            )
+-    elif key_kind != "synthetic":
+-        raise ValueError(f"record_history.append_rename: bad key_kind {key_kind!r}")
+-    if date is None:
+-        date = _core.utc_history_date().replace("-", "")
+-    # Preserve the status-record key order, then append the rename-only keys (superset).
+-    rec = {
+-        "id6": id6,
+-        "date": date,
+-        "tree": tree,
+-        "workflow": f"aw {verb}",
+-        "actor": actor,
+-        "message": message or f"{verb} {from_name} -> {to_name}",
+-        "verb": verb,
+-        "from_name": from_name,
+-        "to_name": to_name,
+-    }
+-    if key_kind != "id6":
+-        rec["key_kind"] = key_kind
+-    p = history_path(repo_root)
+-    p.parent.mkdir(parents=True, exist_ok=True)
+-    with open(p, "a", encoding="utf-8") as f:
+-        f.write(json.dumps(rec, ensure_ascii=True) + "\n")
+-
+-
+-def read_renames_for(repo_root, key: str) -> List[dict]:
+-    """Every RENAME record (has a `from_name`) for `key` (a real id6 OR a synthetic key), in file
+-    order. Status records (no `from_name`) are excluded."""
+-    return [r for r in read_all(repo_root) if r.get("id6") == key and "from_name" in r]
+-
+-
+-def _endpoint_id6(name: str) -> Optional[str]:
+-    """The id6 of an artifact filename endpoint via the Order 01 naming authority (clustered slot)
+-    or research grammar, else None (an id6-less legacy name)."""
+-
+-    from agent_workflows import artifact_naming as _naming
+-
+-    m = _naming.parse_clustered(name)
+-    if m is not None:
+-        return m.group("id6")
+-    # Research names carry the id6 in the same core position but with `.<model>.<kind>` facets.
+-    try:
+-        from agent_workflows import research_contract as _rc
+-
+-        parsed, _err = _rc.parse_name(name)
+-        if parsed is not None:
+-            return parsed.id6
+-    except Exception:
+-        pass
+-    return None
+-
+-
+-def record_rename(
+-    repo_root,
+-    *,
+-    tree: str,
+-    verb: str,
+-    actor: str,
+-    from_name: str,
+-    to_name: str,
+-    message: Optional[str] = None,
+-    date: Optional[str] = None,
+-) -> None:
+-    """Record a rename/regroup by endpoint case (OQ-01), FAILURE-ISOLATED (never raises to the
+-    caller, so a ledger problem can never fail or roll back the rename).
+-
+-    Case 1 (id6 -> id6) and Case 2 (id6-less -> id6): key on the NEW id6 (Case 2 preserves the old
+-    id6-less name in `from_name` - the highest-value migration record). Case 3 (both id6-less): a
+-    deterministic synthetic key tagged `key_kind:"synthetic"`. A no-op (from==to) records nothing.
+-    """
+-
+-    try:
+-        if from_name == to_name:
+-            return
+-        new_id6 = _endpoint_id6(to_name)
+-        if new_id6 is not None:
+-            # Case 1 or 2: the new name has an id6 -> key on it.
+-            append_rename(
+-                repo_root,
+-                id6=new_id6,
+-                tree=tree,
+-                verb=verb,
+-                actor=actor,
+-                from_name=from_name,
+-                to_name=to_name,
+-                message=message,
+-                date=date,
+-                key_kind="id6",
+-            )
+-            return
+-        # Case 3: both endpoints id6-less -> synthetic key from the EARLIEST known name (from_name).
+-        append_rename(
+-            repo_root,
+-            id6=_synthetic_key(from_name),
+-            tree=tree,
+-            verb=verb,
+-            actor=actor,
+-            from_name=from_name,
+-            to_name=to_name,
+-            message=message,
+-            date=date,
+-            key_kind="synthetic",
+-        )
+-    except Exception:
+-        # Additive, non-authoritative: a ledger failure must NEVER break the rename.
+-        pass
+-
+-
+ # --------------------------------------------------------------------------------------
+ # Inline history parsing helpers (shared with ipd_lifecycle)
+ # --------------------------------------------------------------------------------------
 diff --git a/agent_workflows/releases.py b/agent_workflows/releases.py
-index 4651ab385..b01865560 100644
+index 4651ab385..8060ae5a2 100644
 --- a/agent_workflows/releases.py
 +++ b/agent_workflows/releases.py
 @@ -126,16 +126,10 @@ def _create_release_via_meta(
@@ -5156,8 +5945,26 @@ index 4651ab385..b01865560 100644
  
  
  def plan_release(
+@@ -827,7 +821,7 @@ def check_graduated_to(
+ 
+     setidhard Order bwgyum E-03: the DIRECT MIRROR of `check_from_backlog` directly above, in the same
+     module, with the same traversal (`rglob` over `plans`/`specs`/`backlog` under BOTH the `.aw/records/`
+-    and legacy `.agents/` roots), the same skip list (`README.md`/`INDEX.md`/`STATUS.md` plus ignored
++    and legacy `.agents/` roots), the same skip list (`README.md` plus ignored
+     paths), and registered at the same once-per-full-sweep seam. Only the RESOLUTION TARGET differs: the
+     back-link resolves an id6 against `backlog.existing_backlog_ids`, and this resolves a SETID against
+     the set of setids that name a real plan Set.
+@@ -856,7 +850,7 @@ def check_graduated_to(
+ 
+     WHAT `_iter_plan_ipds` MISSES, stated because it decides whether a VALID link can be called dangling:
+     it globs `*.ipd.md` ONLY. Measured on this repository, every plan file matches and the non-matching
+-    `.md` files are exactly the `README.md`/`INDEX.md`/`STATUS.md` files the skip list drops anyway, so
++    `.md` files are exactly the `README.md` files the skip list drops anyway, so
+     nothing real is lost today. A bare-`.md` plan (a form the naming grammar still permits) would be
+     invisible to this scan and its Set would read as nonexistent.
+ 
 diff --git a/agent_workflows/research_archive.py b/agent_workflows/research_archive.py
-index 2aa9e1960..9175a6fbb 100644
+index 2aa9e1960..f18bf5622 100644
 --- a/agent_workflows/research_archive.py
 +++ b/agent_workflows/research_archive.py
 @@ -26,7 +26,7 @@ from datetime import date, datetime
@@ -5169,6 +5976,15 @@ index 2aa9e1960..9175a6fbb 100644
  from agent_workflows import research_contract as R
  from agent_workflows import research_index as RI
  from agent_workflows import research_refs as RF
+@@ -68,7 +68,7 @@ def _all_docs(
+         return out
+     states = RI._cached_research_states(research_root, include_fields=True)
+     for p in sorted(research_root.rglob("*.md")):
+-        if p.name in (RI.INDEX_MD,) or p.name == "README.md":
++        if p.name == "README.md":
+             continue
+         if R.companion_owner_stem(p, research_root) is not None:
+             continue
 @@ -357,21 +357,22 @@ def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> List
          event: Dict[str, object] = {"op": "transition", "to": m.new_status}
          if current_status:
@@ -5266,11 +6082,43 @@ index 072b9a342..7167a2641 100644
  
  
  def _outcome_update_fields(
+diff --git a/agent_workflows/research_index.py b/agent_workflows/research_index.py
+index ba28c013d..763bafaa9 100644
+--- a/agent_workflows/research_index.py
++++ b/agent_workflows/research_index.py
+@@ -23,9 +23,6 @@ from agent_workflows import attention_contract as A
+ from agent_workflows import research_contract as R
+ from agent_workflows import research_refs as RF
+ 
+-# No INDEX file is written (spec 4sd62s 4.5); the name is kept because `research_archive` and
+-# `_doc_entry` still skip a leftover `INDEX.md` in an unmigrated repository (cutover, `cxxmyv`).
+-INDEX_MD = "INDEX.md"
+ 
+ 
+ class DocEntry(NamedTuple):
+@@ -349,8 +346,7 @@ def _doc_entry(
+     """
+ 
+     if (
+-        p.name in (INDEX_MD,)
+-        or p.name == "README.md"
++        p.name == "README.md"
+         or _core.is_ignored_path(p, research_root, ignored_dirs)
+         or R.companion_owner_stem(p, research_root) is not None
+     ):
 diff --git a/agent_workflows/research_refs.py b/agent_workflows/research_refs.py
-index ebb9bb13f..90ae56c27 100644
+index ebb9bb13f..25e4416c3 100644
 --- a/agent_workflows/research_refs.py
 +++ b/agent_workflows/research_refs.py
-@@ -363,21 +363,6 @@ def _planned_frontmatter_updates(parsed: R.ResearchName) -> Dict[str, str]:
+@@ -25,7 +25,6 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
+ from agent_workflows import artifact_core as _core
+ from agent_workflows import artifact_meta
+ from agent_workflows import artifact_refs as _refs
+-from agent_workflows import record_history as _rh
+ from agent_workflows import research_cmd as _rcmd
+ from agent_workflows import research_contract as R
+ from agent_workflows.plans_refs import (
+@@ -363,21 +362,6 @@ def _planned_frontmatter_updates(parsed: R.ResearchName) -> Dict[str, str]:
      return updates
  
  
@@ -5292,7 +6140,7 @@ index ebb9bb13f..90ae56c27 100644
  def _refuse_uncontained_destination(
      repo_root: Path, plans: List[RenamePlan]
  ) -> Optional[str]:
-@@ -597,31 +582,34 @@ def _apply_renames(
+@@ -597,31 +581,34 @@ def _apply_renames(
          else:
              updates = _planned_frontmatter_updates(parsed)
              try:
@@ -5348,6 +6196,44 @@ index ebb9bb13f..90ae56c27 100644
                  if emit_human:
                      print(f"set metadata {'/'.join(updates.keys())} in {dst_rel}")
                  targets_applied.append(
+@@ -638,15 +625,6 @@ def _apply_renames(
+                 if emit_human:
+                     print(msg)
+                 notes_list.append(msg)
+-        # IPD 52zgqr: additive, failure-isolated rename ledger record (never breaks the rename).
+-        _rh.record_rename(
+-            repo_root,
+-            tree="research",
+-            verb=verb,
+-            actor="aw",
+-            from_name=p.old_path.name,
+-            to_name=p.new_path.name,
+-        )
+         touched.append(src_rel)
+         touched.append(dst_rel)
+         if has_comp:
+diff --git a/agent_workflows/review_findings.py b/agent_workflows/review_findings.py
+index 5bb71e34c..31278f54c 100644
+--- a/agent_workflows/review_findings.py
++++ b/agent_workflows/review_findings.py
+@@ -768,7 +768,7 @@ def iter_review_files(repo_root):
+     seen = set()
+     for base in review_dirs(repo_root):
+         for p in sorted(base.rglob("*.review.md")):
+-            if p.name in ("README.md", "INDEX.md", "STATUS.md"):
++            if p.name == "README.md":
+                 continue
+             try:
+                 key = str(p.resolve())
+@@ -948,7 +948,7 @@ def _cached_subject_review_files(
+             ):
+                 continue
+             for p in sorted(base.rglob("*.review.md")):
+-                if p.name in ("README.md", "INDEX.md", "STATUS.md"):
++                if p.name == "README.md":
+                     continue
+                 if (parse_review_file(p).subject_id or "").strip() != wanted:
+                     continue
 diff --git a/agent_workflows/review_sequence.py b/agent_workflows/review_sequence.py
 index 743de8176..8a3a3f5e5 100644
 --- a/agent_workflows/review_sequence.py
@@ -5385,7 +6271,7 @@ index 743de8176..8a3a3f5e5 100644
  
  def check_S6(
 diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
-index 16601cd33..49bf4aab6 100644
+index 8b040b136..9ec8b7eda 100644
 --- a/agent_workflows/runner_shared.py
 +++ b/agent_workflows/runner_shared.py
 @@ -6290,7 +6290,7 @@ def apply_records_only_rederivation(
@@ -5433,7 +6319,45 @@ index 16601cd33..49bf4aab6 100644
  
      for path, text in prepared:
          dest = repo / path
-@@ -33707,21 +33700,14 @@ def run_review_sequence(
+@@ -8960,7 +8953,7 @@ def _filter_lifecycle_record_paths(paths: Iterable[str]) -> list[str]:
+     out non-record furniture is THIS CALLER'S OBLIGATION.
+ 
+     Applies the same exclusions as :func:`check_engine._iter_type_files`:
+-    1. Skips non-record filenames in :data:`check_engine._SKIP_NAMES` ({'README.md', 'INDEX.md', 'STATUS.md'}).
++    1. Skips non-record filenames in :data:`check_engine._SKIP_NAMES` ({'README.md'}).
+     2. Requires the file to sit under a recognized lifecycle bucket of a supported type
+        (:data:`lifecycle_dirs.LIFECYCLE_SUBDIRS`).
+     3. Requires the type's own facet suffix (:data:`artifact_naming.TYPE_FACET`, e.g. ``.ipd.md`` for
+@@ -17433,7 +17426,7 @@ def discover_plans(
+                 root == resolved or root in resolved.parents for root in plans_roots
+             ):
+                 continue
+-            if resolved.name in {"README.md", "INDEX.md", "STATUS.md"}:
++            if resolved.name == "README.md":
+                 continue
+             if resolved in seen or not resolved.is_file():
+                 continue
+@@ -17542,7 +17535,7 @@ def discover_specs(repo: Path) -> dict[str, SpecRecord]:
+                     sr == resolved or sr in resolved.parents for sr in spec_roots
+                 ):
+                     continue
+-                if resolved.name in {"README.md", "INDEX.md", "STATUS.md"}:
++                if resolved.name == "README.md":
+                     continue
+                 if not resolved.is_file():
+                     continue
+@@ -17932,8 +17925,8 @@ def resolve_plan_path(repo: Path, configured: str, id6: str) -> Path:
+                 raise DriverError(
+                     f"Refusing {configured!r} for IPD {id6}: it is {what}, not an IPD plan"
+                 )
+-            if direct.name in {"README.md", "INDEX.md", "STATUS.md"}:
+-                what = "a plans index file"
++            if direct.name == "README.md":
++                what = "a plans README"
+                 raise DriverError(
+                     f"Refusing {configured!r} for IPD {id6}: it is {what}, not an IPD plan"
+                 )
+@@ -33872,21 +33865,14 @@ def run_review_sequence(
              from agent_workflows import artifact_core as _core
              from agent_workflows import artifact_meta as _am
  
@@ -5463,7 +6387,7 @@ index 16601cd33..49bf4aab6 100644
              )
          save_state(run_dir, state)
          return 1, s_id, last_log, last_argv
-@@ -55274,35 +55260,40 @@ def _collect_lane_added_open_backlogs(
+@@ -55627,35 +55613,40 @@ def _collect_lane_added_open_backlogs(
      return candidates, skipped
  
  
@@ -5519,7 +6443,7 @@ index 16601cd33..49bf4aab6 100644
  
  
  _PROPOSAL_SUMMARY_STRIP_CHARS = " .,;:!?-_/([{'\""
-@@ -55472,7 +55463,6 @@ def perform_coordinator_proposal_file(
+@@ -55825,7 +55816,6 @@ def perform_coordinator_proposal_file(
          skipped_backlog_reasons: tuple[tuple[str, str], ...] = (),
      ) -> ProposalFilingResult:
          from agent_workflows import artifact_core as _core
@@ -5527,7 +6451,7 @@ index 16601cd33..49bf4aab6 100644
  
          proposals_dir = run_dir / "proposals"
          proposals_dir.mkdir(parents=True, exist_ok=True)
-@@ -55491,23 +55481,16 @@ def perform_coordinator_proposal_file(
+@@ -55844,23 +55834,16 @@ def perform_coordinator_proposal_file(
                  f"- Id: {item_id6}\n\n"
                  f"{body_text}\n"
              )
@@ -5561,7 +6485,7 @@ index 16601cd33..49bf4aab6 100644
              )
          else:
              base_content = (
-@@ -55517,26 +55500,14 @@ def perform_coordinator_proposal_file(
+@@ -55870,26 +55853,14 @@ def perform_coordinator_proposal_file(
                  f"- Summary: Proposal from {item_id6}: {clean_summary}\n\n"
                  f"{body_text}\n"
              )
@@ -5596,19 +6520,17 @@ index 16601cd33..49bf4aab6 100644
              )
          _core.atomic_write(fallback_file, fallback_content)
          rel_path = str(fallback_file)
-@@ -55706,19 +55677,17 @@ def perform_coordinator_proposal_file(
+@@ -56091,17 +56062,15 @@ def perform_coordinator_proposal_file(
                              f"needs-attended: the proposing plan could not be resolved: {exc}",
                              skipped_backlog_reasons=tuple(lane_pre_skipped),
                          )
 -                    target_text = target.read_text(encoding="utf-8")
 -                    marked = mark_plan_attended(target_text, why=why or blocked_by)
 +                    marked = mark_plan_attended(
-+                        target, coord.path, why=why or blocked_by, id6=item_id6
++                        target, repo, why=why or blocked_by, id6=item_id6
 +                    )
                      record_id6 = item_id6
-                     new_record_rel = str(target.relative_to(coord.path)).replace(
-                         "\\", "/"
-                     )
+                     created_path = target.resolve()
 -                    if marked == target_text:
 +                    if not marked:
                          needs_attended_unchanged = True
@@ -5620,12 +6542,24 @@ index 16601cd33..49bf4aab6 100644
                          commit_msg = f"plan({item_id6}): mark Attended: required (agent proposal)"
                  elif size == "small":
                      setid = f"prop-{item_id6}"
-@@ -55785,18 +55754,16 @@ def perform_coordinator_proposal_file(
+@@ -56174,25 +56143,27 @@ def perform_coordinator_proposal_file(
+                     created_path = created_plan
+                     created_is_new = True
+                     plan_content = created_plan.read_text(encoding="utf-8")
+-                    record_id6 = _meta_reader.read_loose_id(plan_content) or item_id6
++                    record_id6 = (
++                        _meta_reader.read_mirror_id6(plan_content)
++                        or _meta_reader.read_loose_id(plan_content)
++                        or item_id6
++                    )
+ 
+                     from agent_workflows import artifact_core as _core
+                     from agent_workflows import artifact_meta as _am
  
                      plan_content = plan_content.rstrip() + "\n\n" + body_text
                      _core.atomic_write(created_plan, plan_content)
 -                    if gate_to_pass and "- Blocks-Release:" not in plan_content:
-+                    _plan_ctx = _am.legacy_context(coord.path)
++                    _plan_ctx = _am.legacy_context(repo)
 +                    _plan_state = _am.read(record_id6, project_context=_plan_ctx)
 +                    if gate_to_pass and not (
 +                        getattr(_plan_state, "fields", None) or {}
@@ -5640,32 +6574,116 @@ index 16601cd33..49bf4aab6 100644
 -                                actor_label="aw run",
 -                                history=False,
 -                            ),
--                            repo_root=coord.path,
--                            project_context=_am.legacy_context(coord.path),
+-                            repo_root=repo,
+-                            project_context=_am.legacy_context(repo),
 +                            project_context=_plan_ctx,
 +                            actor={"tool": "aw run"},
                          )
-                     new_record_rel = str(created_plan.relative_to(coord.path)).replace(
-                         "\\", "/"
-@@ -55890,6 +55857,18 @@ def perform_coordinator_proposal_file(
+                     commit_msg = (
+                         f"Scaffold draft plan for agent proposal from {item_id6}"
+@@ -56311,6 +56282,14 @@ def perform_coordinator_proposal_file(
                      if needs_attended_unchanged
                      else [new_record_rel, *recovered_paths]
                  )
 +                # The record's `meta/<id6>.jsonl` log is part of the record (spec 4.2).
 +                if not needs_attended_unchanged and record_id6:
-+                    from agent_workflows.project_context import (
-+                        project_records_dir as _prd,
-+                    )
-+
-+                    _log_abs = _prd(coord.path) / "meta" / f"{record_id6}.jsonl"
++                    _log_abs = resolved_records_dir / "meta" / f"{record_id6}.jsonl"
 +                    if _log_abs.is_file():
 +                        with contextlib.suppress(ValueError):
 +                            commit_paths.append(
-+                                str(_log_abs.relative_to(coord.path)).replace("\\", "/")
++                                _log_abs.resolve().relative_to(git_root_res).as_posix()
 +                            )
-                 commit_sha: str | None = None
-                 commit_exc: Exception | None = None
+                 commit_sha = None
+                 commit_exc = None
                  try:
+@@ -56427,19 +56406,17 @@ def perform_coordinator_proposal_file(
+                                 f"needs-attended: the proposing plan could not be resolved: {exc}",
+                                 skipped_backlog_reasons=tuple(lane_pre_skipped),
+                             )
+-                        target_text = target.read_text(encoding="utf-8")
+-                        marked = mark_plan_attended(target_text, why=why or blocked_by)
++                        marked = mark_plan_attended(
++                            target, coord.path, why=why or blocked_by, id6=item_id6
++                        )
+                         record_id6 = item_id6
+                         new_record_rel = str(target.relative_to(coord.path)).replace(
+                             "\\", "/"
+                         )
+-                        if marked == target_text:
++                        if not marked:
+                             needs_attended_unchanged = True
+                             commit_msg = f"Recover lane defect backlog items for {item_id6} (agent proposal)"
+                         else:
+-                            from agent_workflows import artifact_core as _core
+-
+-                            _core.atomic_write(target, marked)
+                             commit_msg = f"plan({item_id6}): mark Attended: required (agent proposal)"
+                     elif size == "small":
+                         setid = f"prop-{item_id6}"
+@@ -56502,7 +56479,9 @@ def perform_coordinator_proposal_file(
+                         created_plan = matching[0]
+                         plan_content = created_plan.read_text(encoding="utf-8")
+                         record_id6 = (
+-                            _meta_reader.read_loose_id(plan_content) or item_id6
++                            _meta_reader.read_mirror_id6(plan_content)
++                            or _meta_reader.read_loose_id(plan_content)
++                            or item_id6
+                         )
+ 
+                         from agent_workflows import artifact_core as _core
+@@ -56510,23 +56489,21 @@ def perform_coordinator_proposal_file(
+ 
+                         plan_content = plan_content.rstrip() + "\n\n" + body_text
+                         _core.atomic_write(created_plan, plan_content)
+-                        if gate_to_pass and "- Blocks-Release:" not in plan_content:
++                        _plan_ctx = _am.legacy_context(coord.path)
++                        _plan_state = _am.read(record_id6, project_context=_plan_ctx)
++                        if gate_to_pass and not (
++                            getattr(_plan_state, "fields", None) or {}
++                        ).get("blocks_release"):
+                             _am.append(
+-                                _am.LegacyTarget(created_plan, "plans", record_id6),
++                                record_id6,
+                                 [
+                                     {
+                                         "op": "set",
+                                         "fields": {"blocks_release": gate_to_pass},
+                                     }
+                                 ],
+-                                legacy_render=_am.LegacyRender(
+-                                    tag="same-status",
+-                                    day=_core.utc_history_date(),
+-                                    actor_label="aw run",
+-                                    history=False,
+-                                ),
+-                                repo_root=coord.path,
+-                                project_context=_am.legacy_context(coord.path),
++                                project_context=_plan_ctx,
++                                actor={"tool": "aw run"},
+                             )
+                         new_record_rel = str(
+                             created_plan.relative_to(coord.path)
+@@ -56624,6 +56601,20 @@ def perform_coordinator_proposal_file(
+                         if needs_attended_unchanged
+                         else [new_record_rel, *recovered_paths]
+                     )
++                    # The record's `meta/<id6>.jsonl` log is part of the record (spec 4.2).
++                    if not needs_attended_unchanged and record_id6:
++                        from agent_workflows.project_context import (
++                            project_records_dir as _prd,
++                        )
++
++                        _log_abs = _prd(coord.path) / "meta" / f"{record_id6}.jsonl"
++                        if _log_abs.is_file():
++                            with contextlib.suppress(ValueError):
++                                commit_paths.append(
++                                    str(_log_abs.relative_to(coord.path)).replace(
++                                        "\\", "/"
++                                    )
++                                )
+                     commit_sha = None
+                     commit_exc = None
+                     try:
 diff --git a/agent_workflows/set_records.py b/agent_workflows/set_records.py
 index 3d9f3bc0f..2b73f820a 100644
 --- a/agent_workflows/set_records.py
@@ -5817,9 +6835,36 @@ index 3d9f3bc0f..2b73f820a 100644
  
  
 diff --git a/agent_workflows/specs.py b/agent_workflows/specs.py
-index 7943ab597..f44f7e5ca 100644
+index 7943ab597..b7f06d61a 100644
 --- a/agent_workflows/specs.py
 +++ b/agent_workflows/specs.py
+@@ -103,7 +103,7 @@ def _spec_files(repo_root: Path) -> List[Path]:
+     recursive without this filter would cause gitignored specs to be returned
+     and validated, potentially refusing on box-local files that are never committed.
+ 
+-    Skips `README.md`, `INDEX.md`, and `STATUS.md`, using `layout.RECORD_SCAN_SKIP_NAMES`.
++    Skips `README.md`, using `layout.RECORD_SCAN_SKIP_NAMES`.
+     De-duplicates by resolved path while returning Path instances.
+     """
+     from agent_workflows.record_producers import resolve_record_read_paths
+@@ -132,7 +132,7 @@ def _spec_files(repo_root: Path) -> List[Path]:
+     if legacy not in roots:
+         roots.append(legacy)
+ 
+-    # Skip names from layout.RECORD_SCAN_SKIP_NAMES (README.md, INDEX.md, STATUS.md)
++    # Skip names from layout.RECORD_SCAN_SKIP_NAMES (README.md)
+     ignored_dirs = core.get_ignored_dirs(repo_root)
+     files: List[Path] = []
+     seen_resolved: set = set()
+@@ -175,7 +175,7 @@ SPEC_MULTI_VALUED_KEYS: frozenset[str] = frozenset(
+ 
+ def _repo_root_of(spec_path: Path) -> Path:
+     """Walk up from a spec file to the repo root (a dir containing `.aw` or `.agents` or `.git`),
+-    falling back to spec_path parent. Used to locate the repo root and global history sidecar.
++    falling back to spec_path parent. Used to locate the repo root.
+     Routes through project_context.record_owner_root first to map records under AW_HOME to their owning repository (backlog 4uw2a6)."""
+     p = (Path.cwd() / spec_path).resolve()
+     from agent_workflows import project_context
 @@ -879,23 +879,21 @@ def run_migrate(args) -> int:
  
      raw_id = _meta.read_text(text, record_type="spec").id6
@@ -6232,3 +7277,885 @@ index cc01ca369..5c4a755c8 100644
              project_context=_am.legacy_context(repo_root),
          )
          command_modified_orch_paths.add(orch.path.resolve())
+diff --git a/tests/test_artifact_refs_rewrite.py b/tests/test_artifact_refs_rewrite.py
+index 4d7401242..0134d0099 100644
+--- a/tests/test_artifact_refs_rewrite.py
++++ b/tests/test_artifact_refs_rewrite.py
+@@ -699,71 +699,6 @@ class TestArtifactRefsRewrite(_RepoTestCase):
+         self.assertIn(f"`{expected_short}`", content)
+         self.assertNotIn("20260701-1200-01", content)
+ 
+-    def test_readme_5_generated_manifests_index_and_status_skipped_by_plan_and_untouched_on_disk(
+-        self,
+-    ):
+-        from agent_workflows import artifact_refs
+-
+-        plan = self.plans / "20260701-testset-01-p10005-plan-five.ipd.md"
+-        plan.write_text(
+-            RecordBuilder().plan(
+-                when="2026-07-01",
+-                id6="p10005",
+-                set="testset",
+-                status="draft",
+-                text_only=True,
+-            ),
+-            encoding="utf-8",
+-        )
+-        plans_dir = self.tmp / ".aw" / "records" / "plans"
+-        plans_dir.mkdir(parents=True, exist_ok=True)
+-        index_file = plans_dir / "INDEX.md"
+-        status_file = plans_dir / "STATUS.md"
+-        orig_index = "Index citing 20260701-testset-01-p10005-plan-five.ipd.md and 20260701-testset-01-p10005-plan-five\n"
+-        orig_status = "Status citing 20260701-testset-01-p10005-plan-five.ipd.md and 20260701-testset-01-p10005-plan-five\n"
+-        index_file.write_text(orig_index, encoding="utf-8")
+-        status_file.write_text(orig_status, encoding="utf-8")
+-
+-        # 1. Probe artifact_refs.plan_reference_rewrites_with_warnings directly
+-        edits, warnings = artifact_refs.plan_reference_rewrites_with_warnings(
+-            self.tmp,
+-            {
+-                "20260701-testset-01-p10005-plan-five.ipd.md": "20260701-testset-01-p10005-new-five.ipd.md"
+-            },
+-        )
+-        planned_edit_files = [e.file.name for e in edits]
+-        self.assertNotIn("INDEX.md", planned_edit_files)
+-        self.assertNotIn("STATUS.md", planned_edit_files)
+-
+-        # 2. Rename preview output does not list INDEX.md or STATUS.md
+-        rc_prev, out_prev = self._run(
+-            ["rename", "plans", "p10005", "--slug", "new-five", "--no-commit"]
+-        )
+-        self.assertEqual(rc_prev, 0, f"preview failed with rc={rc_prev}:\n{out_prev}")
+-        self.assertNotIn("INDEX.md", out_prev)
+-        self.assertNotIn("STATUS.md", out_prev)
+-
+-        # 3. Rename apply leaves status_file untouched
+-        rc_app, out_app = self._run(
+-            [
+-                "rename",
+-                "plans",
+-                "p10005",
+-                "--slug",
+-                "new-five",
+-                "--apply",
+-                "--no-commit",
+-            ]
+-        )
+-        self.assertEqual(rc_app, 0, f"apply failed with rc={rc_app}:\n{out_app}")
+-        self.assertNotIn("INDEX.md", out_app)
+-        self.assertNotIn("STATUS.md", out_app)
+-        self.assertEqual(status_file.read_text(encoding="utf-8"), orig_status)
+-        # 4. Rename regenerates no manifest (spec 4sd62s 4.5): a leftover INDEX.md keeps its bytes
+-        # and no INDEX.json appears.
+-        self.assertEqual(index_file.read_text(encoding="utf-8"), orig_index)
+-        self.assertFalse((plans_dir / "INDEX.json").exists())
+-
+ 
+ class TestScopePathCitationRewriteHelper(_RepoTestCase):
+     """Behavior tests for Scope-Paths citation rewrite helper and in-flight guard (IPD 5h3qyy E-07)."""
+diff --git a/tests/test_attention_contract.py b/tests/test_attention_contract.py
+index f70fbffa5..cd0f80e37 100644
+--- a/tests/test_attention_contract.py
++++ b/tests/test_attention_contract.py
+@@ -53,8 +53,6 @@ class EnumAndPolicyTests(unittest.TestCase):
+     def test_nonartifact_names(self):
+         for n in (
+             "README.md",
+-            "INDEX.md",
+-            "STATUS.md",
+             "conformance-results-template.md",
+             "00-README-index.md",
+             "some-index.md",
+diff --git a/tests/test_history_date_clock_sidecar.py b/tests/test_history_date_clock_sidecar.py
+index f046ad08e..99b89945a 100644
+--- a/tests/test_history_date_clock_sidecar.py
++++ b/tests/test_history_date_clock_sidecar.py
+@@ -21,7 +21,6 @@ import tempfile
+ import time
+ import unittest
+ 
+-from agent_workflows import record_history
+ from tests.record_builder import RecordBuilder
+ 
+ SKEW_ZONES = [
+@@ -227,92 +226,6 @@ class HistoryDateClockSidecarTests(unittest.TestCase):
+             "Neither east nor west zone entered a skew window; test proved nothing",
+         )
+ 
+-    def test_explicit_date_precedence_in_append_and_record_rename(self) -> None:
+-        """Explicit date parameter takes precedence over the default in append and record_rename."""
+-        explicit_date = "20200101"
+-
+-        # Direct call to append with explicit date
+-        record_history.append(
+-            self.root,
+-            id6="ex0001",
+-            tree="backlog",
+-            workflow="aw test",
+-            actor="test-actor",
+-            message="explicit date append test",
+-            date=explicit_date,
+-        )
+-
+-        # Direct call to record_rename with explicit date
+-        record_history.record_rename(
+-            self.root,
+-            tree="specs",
+-            verb="rename",
+-            actor="test-actor",
+-            from_name="old-spec",
+-            to_name="20261001-ex0002-01-ex0002-new-spec.spec.md",
+-            message="explicit date rename test",
+-            date=explicit_date,
+-        )
+-
+-        records = record_history.read_all(self.root)
+-        append_rec = [r for r in records if r.get("id6") == "ex0001"][0]
+-        rename_rec = [r for r in records if r.get("id6") == "ex0002"][0]
+-
+-        self.assertEqual(append_rec["date"], explicit_date)
+-        self.assertEqual(rename_rec["date"], explicit_date)
+-
+-    def test_sidecar_schema_and_key_order(self) -> None:
+-        """Sidecar records preserve schema and exact key order."""
+-        # Append status record
+-        record_history.append(
+-            self.root,
+-            id6="sc0001",
+-            tree="backlog",
+-            workflow="aw test",
+-            actor="test-actor",
+-            message="schema test",
+-        )
+-        # Append rename record
+-        record_history.record_rename(
+-            self.root,
+-            tree="specs",
+-            verb="rename",
+-            actor="test-actor",
+-            from_name="old-name",
+-            to_name="20261001-sc0002-01-sc0002-new-name.spec.md",
+-            message="rename test",
+-        )
+-
+-        sidecar_file = self.root / ".aw" / "records" / "history.jsonl"
+-        lines = [
+-            line.strip()
+-            for line in sidecar_file.read_text(encoding="utf-8").splitlines()
+-            if line.strip()
+-        ]
+-        self.assertEqual(len(lines), 2)
+-
+-        raw_rec1 = json.loads(lines[0])
+-        self.assertEqual(
+-            list(raw_rec1.keys()),
+-            ["id6", "date", "tree", "workflow", "actor", "message"],
+-        )
+-
+-        raw_rec2 = json.loads(lines[1])
+-        self.assertEqual(
+-            list(raw_rec2.keys()),
+-            [
+-                "id6",
+-                "date",
+-                "tree",
+-                "workflow",
+-                "actor",
+-                "message",
+-                "verb",
+-                "from_name",
+-                "to_name",
+-            ],
+-        )
+-
+     def test_in_process_temporary_timezone_restoration(self) -> None:
+         """temporary_timezone cleanly restores original ambient timezone without leaking."""
+         original_tz = os.environ.get("TZ")
+diff --git a/tests/test_history_provenance.py b/tests/test_history_provenance.py
+index 0f33d8acf..f1c6dd0fb 100644
+--- a/tests/test_history_provenance.py
++++ b/tests/test_history_provenance.py
+@@ -3,8 +3,7 @@
+ Fences the durability and provenance behaviors restored after being trimmed in 19313eed:
+ - Prior inline history preservation through backlog transitions (E-03(d))
+ - Prior inline history preservation through specs note (E-03(e))
+-- Sidecar failure reporting and non-blocking inline write (E-03(f))
+-- Spec 20260818-1525-02 AC1 pin: sidecar append + inline prepend preservation (E-03(g))
++- Spec 20260818-1525-02 AC1 pin, amended by spec 4sd62s AC-31: no sidecar write + inline prepend preservation (E-03(g))
+ """
+ 
+ from __future__ import annotations
+@@ -134,8 +133,8 @@ class HistoryProvenanceRoutingTests(unittest.TestCase):
+             ],
+         )
+ 
+-    def test_backlog_set_appends_sidecar_and_preserves_inline(self) -> None:
+-        """(g) Spec AC1 pin: aw backlog set --status appends exactly one sidecar line and prepends exactly one inline record leaving priors in place."""
++    def test_backlog_set_writes_no_sidecar_and_preserves_inline(self) -> None:
++        """(g) aw backlog set --status writes no sidecar line and prepends exactly one inline record leaving priors in place."""
+         item = self.dir / "20260101-demo-01-aaa111-x.backlog.md"
+         item.write_text(
+             RecordBuilder().backlog(
+@@ -179,155 +178,6 @@ class HistoryProvenanceRoutingTests(unittest.TestCase):
+         self.assertIn("newer", inline[1])
+         self.assertIn("created", inline[2])
+ 
+-        recs = record_history.read_for(self.root, "aaa111")
+-        self.assertEqual(len(recs), 1)
+-        self.assertIn("finished", recs[0]["message"])
+-
+-
+-class SidecarFailureIsReportedTests(unittest.TestCase):
+-    """A failed sidecar write is REPORTED and never costs the inline record (plan `vhbvwz` E-04)."""
+-
+-    def setUp(self) -> None:
+-        self._tmp = tempfile.TemporaryDirectory()
+-        self.root = Path(self._tmp.name)
+-        self._orig_append = record_history.append
+-
+-    def tearDown(self) -> None:
+-        record_history.append = self._orig_append
+-        self._tmp.cleanup()
+-
+-    def _break_the_sidecar(self) -> None:
+-        def boom(*_a, **_k):
+-            raise OSError(28, "No space left on device")
+-
+-        record_history.append = boom
+-
+-    def test_backlog_new_reports_and_still_writes_the_inline_record(self) -> None:
+-        (self.root / ".aw" / "records" / "backlog" / "open").mkdir(parents=True)
+-        self._break_the_sidecar()
+-        err = io.StringIO()
+-        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+-            rc = cli.main(
+-                [
+-                    "backlog",
+-                    "new",
+-                    "--dir",
+-                    str(self.root),
+-                    "--summary",
+-                    "a summary",
+-                    "--set",
+-                    "demo",
+-                    "--priority",
+-                    "medium",
+-                    "--work-kind",
+-                    "chore",
+-                    "--message",
+-                    "the recorded reason",
+-                    "--apply",
+-                ]
+-            )
+-        self.assertEqual(rc, 0)
+-        self.assertIn("could not append to the history sidecar", err.getvalue())
+-        item = next((self.root / ".aw" / "records" / "backlog" / "open").glob("*.md"))
+-        self.assertIn("the recorded reason", item.read_text(encoding="utf-8"))
+-
+-    def test_backlog_set_reports_and_still_writes_the_inline_record(self) -> None:
+-        d = self.root / ".aw" / "records" / "backlog" / "open"
+-        d.mkdir(parents=True)
+-        item = d / "20260101-demo-01-aaa222-x.backlog.md"
+-        item.write_text(
+-            RecordBuilder().backlog(
+-                id6="aaa222",
+-                status="open",
+-                priority="medium",
+-                work_kind="chore",
+-                set="demo",
+-                summary="x",
+-                history=["- 2026-01-01 created (aw backlog): x"],
+-                text_only=True,
+-            ),
+-            encoding="utf-8",
+-        )
+-        self._break_the_sidecar()
+-        err = io.StringIO()
+-        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+-            rc = cli.main(
+-                [
+-                    "backlog",
+-                    "set",
+-                    str(item),
+-                    "--dir",
+-                    str(self.root),
+-                    "--status",
+-                    "done",
+-                    "--message",
+-                    "why it is done",
+-                    "--no-commit",
+-                ]
+-            )
+-        self.assertEqual(rc, 0)
+-        self.assertIn("could not append to the history sidecar", err.getvalue())
+-        moved = (
+-            self.root / ".aw" / "records" / "backlog" / "done" / item.name
+-        ).read_text(encoding="utf-8")
+-        self.assertIn("why it is done", moved)
+-        self.assertIn("- 2026-01-01 created", moved)
+-
+-    def test_specs_note_reports_and_still_writes_the_inline_record(self) -> None:
+-        d = self.root / ".aw" / "records" / "specs"
+-        d.mkdir(parents=True)
+-        spec = d / "20260101-aaa333-01-aaa333-demo.spec.md"
+-        spec.write_text(
+-            RecordBuilder().spec(
+-                title="demo",
+-                when="2026-01-01",
+-                status="draft",
+-                id6="aaa333",
+-                history=["- 2026-01-01 draft (aw specs): created."],
+-                text_only=True,
+-            ),
+-            encoding="utf-8",
+-        )
+-        self._break_the_sidecar()
+-        err = io.StringIO()
+-        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+-            rc = cli.main(
+-                [
+-                    "specs",
+-                    "note",
+-                    str(spec),
+-                    "--message",
+-                    "the note that matters",
+-                    "--date",
+-                    "2026-02-02",
+-                ]
+-            )
+-        self.assertEqual(rc, 0)
+-        self.assertIn("could not append to the history sidecar", err.getvalue())
+-        self.assertIn("the note that matters", spec.read_text(encoding="utf-8"))
+-
+-    def test_the_advisory_helper_returns_false_rather_than_raising(self) -> None:
+-        self._break_the_sidecar()
+-        err = io.StringIO()
+-        with contextlib.redirect_stderr(err):
+-            ok = record_history.append_advisory(
+-                self.root,
+-                id6="aaa555",
+-                tree="backlog",
+-                workflow="aw backlog set",
+-                actor="aw backlog",
+-                message="m",
+-            )
+-        self.assertFalse(ok)
+-        self.assertIn("could not append to the history sidecar", err.getvalue())
+-        record_history.append = self._orig_append
+-        self.assertTrue(
+-            record_history.append_advisory(
+-                self.root,
+-                id6="aaa555",
+-                tree="backlog",
+-                workflow="aw backlog set",
+-                actor="aw backlog",
+-                message="m",
+-            )
+-        )
++        # The sidecar writer is retired (spec 4sd62s 5.2 step 2, AC-31): no line, no file.
++        self.assertEqual(record_history.read_for(self.root, "aaa111"), [])
++        self.assertFalse(record_history.history_path(self.root).exists())
+diff --git a/tests/test_install_migrate_prompt.py b/tests/test_install_migrate_prompt.py
+index 1a8dfa68b..7d77f8e63 100644
+--- a/tests/test_install_migrate_prompt.py
++++ b/tests/test_install_migrate_prompt.py
+@@ -164,6 +164,13 @@ def _seed_installed_legacy_repo(repo: Path, *, aw_home: Path) -> None:
+     status = _git(repo, "status", "--porcelain").stdout.strip()
+     if status:
+         _commit_all(repo, "commit install leftovers")
++    # A pre-cutover install wrote this ignore line; the installer no longer does (plan `g45vyv`), so
++    # the legacy fixture carries it itself and the migration's step 5 still has a line to clean.
++    gi = repo / ".aw" / ".gitignore"
++    gi_text = gi.read_text(encoding="utf-8") if gi.is_file() else ""
++    if "records/history.jsonl" not in gi_text.splitlines():
++        gi.write_text(gi_text + "records/history.jsonl\n", encoding="utf-8")
++        _commit_all(repo, "legacy sidecar ignore line")
+     (repo / ".aw" / "records" / "history.jsonl").write_text(
+         json.dumps(
+             {
+diff --git a/tests/test_installer.py b/tests/test_installer.py
+index fca7a471c..abd5f69e4 100644
+--- a/tests/test_installer.py
++++ b/tests/test_installer.py
+@@ -5388,16 +5388,6 @@ class AwGitignoreLaneTests(unittest.TestCase):
+             "a top-level directory name, so it is the row that shows anchoring is a per-pattern "
+             "judgement and not a blanket rule",
+         ),
+-        (
+-            "the append-only workflow-history sidecar",
+-            "records/history.jsonl",
+-            False,
+-            "records/*/untracked/\nsetup-repo-needed.md\n",
+-            "appended on EVERY `aw` status write, so a tracked copy is a diff on nearly every command "
+-            "and a conflict on every concurrent lane. Its back-fill body predates BOTH it and the "
+-            "runs lane, which is what proves the back-fill adds each missing pattern independently "
+-            "rather than all-or-nothing",
+-        ),
+         (
+             "the raw-drop inbox",
+             "/inbox/*",
+diff --git a/tests/test_legacy_finalize.py b/tests/test_legacy_finalize.py
+index 12a41a59c..596f0c1af 100644
+--- a/tests/test_legacy_finalize.py
++++ b/tests/test_legacy_finalize.py
+@@ -398,7 +398,7 @@ class MigrationSkipsTerminalPlansTests(_Repo):
+         self.assertEqual(code, 0, out + err)
+         self.assertIn("- Id: ", p.read_text(encoding="utf-8"))
+ 
+-    def test_pre_existing_aw_gitignore_updated_with_index_ignores(self) -> None:
++    def test_pre_existing_aw_gitignore_gains_no_index_ignores(self) -> None:
+         aw_dir = self.root / ".aw"
+         aw_dir.mkdir(parents=True)
+         gi = aw_dir / ".gitignore"
+@@ -409,8 +409,10 @@ class MigrationSkipsTerminalPlansTests(_Repo):
+         code, out, err = self.run_cli("migrate-layout", "--yes")
+         self.assertEqual(code, 0, out + err)
+         text = gi.read_text(encoding="utf-8")
+-        self.assertIn("records/plans/INDEX.json", text)
+-        self.assertIn("records/plans/INDEX.md", text)
++        self.assertIn("records/*/untracked/", text)
++        # No INDEX manifest exists after the cutover, so no ignore line is added (plan `g45vyv`).
++        self.assertNotIn("INDEX.json", text)
++        self.assertNotIn("INDEX.md", text)
+ 
+ 
+ class BareSyncRefusalTests(_Repo):
+diff --git a/tests/test_log_rename_events.py b/tests/test_log_rename_events.py
+index daadd37f9..a78721bd0 100644
+--- a/tests/test_log_rename_events.py
++++ b/tests/test_log_rename_events.py
+@@ -4,7 +4,8 @@ IPD `v45j1n` (spec `4sd62s` 4.2 PATH HISTORY, AC-31, AC-34, C10a). Each log-form
+ `git init` repository under `tmp_path` whose `project.json` carries `metadata_schema: 2` and whose
+ record has a `.aw/records/meta/<id6>.jsonl` log; each legacy fixture has no log, which is the state
+ of every record before the cutover. The tests drive the real CLI through `cli.main` and assert on
+-exit codes, the bytes of the log, the files on disk, the rename ledger and `aw show --history`.
++exit codes, the bytes of the log, the files on disk, the absence of the retired rename ledger
++(plan `g45vyv`) and `aw show --history`.
+ 
+ Node names carry `rename`, `group` or `archive` so the plan's `-k` selections pick them.
+ """
+@@ -207,7 +208,7 @@ def test_rename_with_set_on_log_format_pairs_rename_and_set_in_one_append(
+     assert len({e["append"] for e in added}) == 1
+ 
+ 
+-def test_rename_on_legacy_format_keeps_bytes_and_ledger(legacy_spec: Path) -> None:
++def test_rename_on_legacy_format_keeps_bytes_and_writes_no_ledger(legacy_spec: Path) -> None:
+     repo = legacy_spec
+     src = _records(repo) / _SPEC_PATH
+     original = src.read_bytes()
+@@ -228,10 +229,8 @@ def test_rename_on_legacy_format_keeps_bytes_and_ledger(legacy_spec: Path) -> No
+     assert not src.exists()
+     assert dst.read_bytes() == original
+     assert not (_records(repo) / "meta").exists()
+-    [line] = _ledger(repo)
+-    assert line["verb"] == "rename"
+-    assert line["from_name"] == "20261109-sp34ef-01-sp34ef-sample.spec.md"
+-    assert line["to_name"] == dst.name
++    # The rename ledger is retired (spec 4sd62s 5.2 step 2, AC-31): nothing writes the sidecar.
++    assert _ledger(repo) == []
+ 
+ 
+ def test_rename_refused_by_the_log_leaves_the_file_in_place(
+@@ -304,7 +303,7 @@ def test_group_on_log_format_appends_rename_and_set_in_one_append(
+     assert st.set_id == "newset" and st.path == new_rel
+ 
+ 
+-def test_group_on_legacy_format_keeps_ledger_and_bullet(legacy_spec: Path) -> None:
++def test_group_on_legacy_format_keeps_bullet_and_writes_no_ledger(legacy_spec: Path) -> None:
+     repo = legacy_spec
+     rc = _run(
+         [
+@@ -323,9 +322,8 @@ def test_group_on_legacy_format_keeps_ledger_and_bullet(legacy_spec: Path) -> No
+     dst = _records(repo) / "specs/draft/20261109-newset-01-sp34ef-sample.spec.md"
+     assert "- Set: newset" in dst.read_text(encoding="utf-8")
+     assert not (_records(repo) / "meta").exists()
+-    [line] = _ledger(repo)
+-    assert line["verb"] == "group"
+-    assert line["to_name"] == dst.name
++    # The rename ledger is retired (spec 4sd62s 5.2 step 2, AC-31): nothing writes the sidecar.
++    assert _ledger(repo) == []
+ 
+ 
+ # --------------------------------------------------------------------------------------
+diff --git a/tests/test_readers_runner.py b/tests/test_readers_runner.py
+index 9237d2d04..f2f07a857 100644
+--- a/tests/test_readers_runner.py
++++ b/tests/test_readers_runner.py
+@@ -337,12 +337,10 @@ def test_hold_attended_plan_pins_attended_field(tmp_path: Path) -> None:
+ 
+ 
+ def test_discover_plans_returns_all_plan_records(tmp_path: Path) -> None:
+-    """Pins runner_shared.discover_plans across pending/ and executed/ while ignoring index files."""
++    """Pins runner_shared.discover_plans across pending/ and executed/ while ignoring the README."""
+     repo = _make_repo(tmp_path)
+     plans_root = repo / ".aw" / "records" / "plans"
+     (plans_root / "README.md").write_text("# Plans README\n", encoding="utf-8")
+-    (plans_root / "INDEX.md").write_text("# Index\n", encoding="utf-8")
+-    (plans_root / "STATUS.md").write_text("# Status\n", encoding="utf-8")
+ 
+     (plans_root / "pending" / "20261101-s1-01-dp0001-first.ipd.md").write_text(
+         _valid_ipd_text(id6="dp0001", status="approved", setid="s1", order=1),
+diff --git a/tests/test_rename_ledger.py b/tests/test_rename_ledger.py
+deleted file mode 100644
+index 915d2d079..000000000
+--- a/tests/test_rename_ledger.py
++++ /dev/null
+@@ -1,311 +0,0 @@
+-"""
+-Restored for backlog q86fxm (findings b1mx2w) from 19313eed^. All tests restored.
+-Additive rename/regroup ledger on the workflow sidecar (IPD 52zgqr, E-06/V-01..V-06).
+-
+-Proves the ledger:
+-  * writes/reads a rename record via append_rename/read_renames_for; raises on a malformed id6 key;
+-    accepts a synthetic key only via the Case-3 path (V-01);
+-  * emits exactly one record on an applied plan/research rename, nothing on dry-run/no-op, and does
+-    not disturb the inline->sidecar migration dedup (V-02);
+-  * records Case 2 (id6-less -> id6) under the NEW id6 with the old name in from_name (V-03);
+-  * records Case 3 (both id6-less) under a deterministic synthetic key tagged key_kind:synthetic
+-    (V-05);
+-  * is ADDITIVE/non-authoritative: a rename with the ledger unwritable yields an identical result
+-    and does not raise, and read_renames_for returns multi-rename history (V-06).
+-"""
+-
+-from __future__ import annotations
+-
+-import json
+-import os
+-import subprocess
+-import sys
+-import tempfile
+-import unittest
+-import pytest
+-from pathlib import Path
+-
+-from agent_workflows import record_history as RH
+-from tests.record_builder import RecordBuilder
+-
+-
+-class AppendRenameUnitTests(unittest.TestCase):
+-    def setUp(self) -> None:
+-        self._tmp = tempfile.TemporaryDirectory()
+-        self.root = Path(self._tmp.name)
+-
+-    def tearDown(self) -> None:
+-        self._tmp.cleanup()
+-
+-    def test_write_and_read_back(self) -> None:
+-        RH.append_rename(
+-            self.root,
+-            id6="aaa111",
+-            tree="plans",
+-            verb="rename",
+-            actor="t",
+-            from_name="20260101-demo-01-aaa111-a.ipd.md",
+-            to_name="20260101-demo-01-aaa111-b.ipd.md",
+-        )
+-        recs = RH.read_renames_for(self.root, "aaa111")
+-        self.assertEqual(len(recs), 1)
+-        self.assertEqual(recs[0]["verb"], "rename")
+-        self.assertEqual(recs[0]["from_name"], "20260101-demo-01-aaa111-a.ipd.md")
+-        self.assertEqual(recs[0]["to_name"], "20260101-demo-01-aaa111-b.ipd.md")
+-
+-    def test_status_reader_and_migration_ignore_rename_keys(self) -> None:
+-        # A status record + a rename record for the same id6.
+-        RH.append(
+-            self.root,
+-            id6="aaa111",
+-            tree="specs",
+-            workflow="aw spec set",
+-            actor="t",
+-            message="created.",
+-            date="20260101",
+-        )
+-        RH.append_rename(
+-            self.root,
+-            id6="aaa111",
+-            tree="specs",
+-            verb="rename",
+-            actor="t",
+-            from_name="a.spec.md",
+-            to_name="b.spec.md",
+-            date="20260101",
+-        )
+-        # read_for returns BOTH (it keys only on id6, tolerating the extra keys).
+-        self.assertEqual(len(RH.read_for(self.root, "aaa111")), 2)
+-        # The migration dedup keys on (id6,date,message); the rename record's distinct message does
+-        # not collide with the status record, and migrate does not choke on the extra keys.
+-        existing = {
+-            (r.get("id6"), r.get("date"), r.get("message"))
+-            for r in RH.read_all(self.root)
+-        }
+-        self.assertIn(("aaa111", "20260101", "created."), existing)
+-
+-    def test_malformed_id6_raises(self) -> None:
+-        with self.assertRaises(ValueError):
+-            RH.append_rename(
+-                self.root,
+-                id6="BAD",
+-                tree="plans",
+-                verb="rename",
+-                actor="t",
+-                from_name="a",
+-                to_name="b",
+-            )
+-
+-    @pytest.mark.core
+-    def test_synthetic_key_only_via_case3_path(self) -> None:
+-        RH.append_rename(
+-            self.root,
+-            id6="synthetic:old-roadmap",
+-            tree="roadmaps",
+-            verb="rename",
+-            actor="t",
+-            from_name="20260101-old-roadmap.roadmap.md",
+-            to_name="20260101-new-roadmap.roadmap.md",
+-            key_kind="synthetic",
+-        )
+-        recs = RH.read_renames_for(self.root, "synthetic:old-roadmap")
+-        self.assertEqual(len(recs), 1)
+-        self.assertEqual(recs[0]["key_kind"], "synthetic")
+-
+-
+-class RecordRenameCaseTests(unittest.TestCase):
+-    def setUp(self) -> None:
+-        self._tmp = tempfile.TemporaryDirectory()
+-        self.root = Path(self._tmp.name)
+-
+-    def tearDown(self) -> None:
+-        self._tmp.cleanup()
+-
+-    @pytest.mark.core
+-    def test_case1_id6_to_id6(self) -> None:
+-        RH.record_rename(
+-            self.root,
+-            tree="plans",
+-            verb="rename",
+-            actor="t",
+-            from_name="20260101-demo-01-aaa111-a.ipd.md",
+-            to_name="20260101-demo-01-aaa111-b.ipd.md",
+-        )
+-        recs = RH.read_renames_for(self.root, "aaa111")
+-        self.assertEqual(len(recs), 1)
+-        self.assertEqual(recs[0].get("key_kind", "id6"), "id6")
+-
+-    @pytest.mark.core
+-    def test_case2_id6less_to_id6_keys_on_new_id6(self) -> None:
+-        # V-03: a legacy id6-less name migrated INTO the grammar records under the NEW id6.
+-        RH.record_rename(
+-            self.root,
+-            tree="walkthroughs",
+-            verb="rename",
+-            actor="t",
+-            from_name="20260101-legacy-thing-walkthrough.md",
+-            to_name="20260101-demo-01-bbb222-thing.walkthrough.md",
+-        )
+-        recs = RH.read_renames_for(self.root, "bbb222")
+-        self.assertEqual(len(recs), 1)
+-        self.assertEqual(recs[0]["from_name"], "20260101-legacy-thing-walkthrough.md")
+-        self.assertEqual(recs[0].get("key_kind", "id6"), "id6")
+-
+-    def test_case3_both_id6less_synthetic_key(self) -> None:
+-        # V-05: both endpoints id6-less -> deterministic synthetic key, tagged synthetic.
+-        RH.record_rename(
+-            self.root,
+-            tree="roadmaps",
+-            verb="rename",
+-            actor="t",
+-            from_name="20260101-old-roadmap.roadmap.md",
+-            to_name="20260101-new-roadmap.roadmap.md",
+-        )
+-        key = RH._synthetic_key("20260101-old-roadmap.roadmap.md")
+-        recs = RH.read_renames_for(self.root, key)
+-        self.assertEqual(len(recs), 1)
+-        self.assertEqual(recs[0]["key_kind"], "synthetic")
+-
+-    def test_noop_records_nothing(self) -> None:
+-        RH.record_rename(
+-            self.root,
+-            tree="plans",
+-            verb="rename",
+-            actor="t",
+-            from_name="x.ipd.md",
+-            to_name="x.ipd.md",
+-        )
+-        self.assertEqual(RH.read_all(self.root), [])
+-
+-    def test_multi_rename_history_accumulates(self) -> None:
+-        RH.record_rename(
+-            self.root,
+-            tree="plans",
+-            verb="rename",
+-            actor="t",
+-            from_name="20260101-demo-01-aaa111-a.ipd.md",
+-            to_name="20260101-demo-01-aaa111-b.ipd.md",
+-        )
+-        RH.record_rename(
+-            self.root,
+-            tree="plans",
+-            verb="group",
+-            actor="t",
+-            from_name="20260101-demo-01-aaa111-b.ipd.md",
+-            to_name="20260101-other-02-aaa111-b.ipd.md",
+-        )
+-        recs = RH.read_renames_for(self.root, "aaa111")
+-        self.assertEqual(len(recs), 2)
+-        self.assertEqual([r["verb"] for r in recs], ["rename", "group"])
+-
+-    def test_additivity_unwritable_ledger_does_not_raise(self) -> None:
+-        # record_rename is failure-isolated: even if the sidecar cannot be written, it must not
+-        # raise (the rename that called it must not fail).
+-        sidecar = RH.history_path(self.root)
+-        sidecar.parent.mkdir(parents=True, exist_ok=True)
+-        # Make the parent a file so the write path fails.
+-        sidecar.write_text('{"id6":"aaa111"}\n', encoding="utf-8")
+-        os.chmod(sidecar, 0o400)
+-        try:
+-            RH.record_rename(  # must swallow the write error
+-                self.root,
+-                tree="plans",
+-                verb="rename",
+-                actor="t",
+-                from_name="20260101-demo-01-aaa111-a.ipd.md",
+-                to_name="20260101-demo-01-aaa111-b.ipd.md",
+-            )
+-        finally:
+-            os.chmod(sidecar, 0o600)
+-
+-
+-class CliEmissionTests(unittest.TestCase):
+-    """V-02: an applied plan rename appends exactly one record; dry-run appends nothing."""
+-
+-    def setUp(self) -> None:
+-        self._tmp = tempfile.TemporaryDirectory()
+-        self.root = Path(self._tmp.name)
+-        subprocess.run(["git", "init", "-q"], cwd=str(self.root), check=True)
+-        pend = self.root / ".aw/records/plans/pending"
+-        pend.mkdir(parents=True)
+-        self.plan = pend / "20260101-demo-01-aaa111-old-slug.ipd.md"
+-        self.plan.write_text(
+-            RecordBuilder().plan(
+-                title="x",
+-                plan_role="child",
+-                status="approved",
+-                set="demo (demo)",
+-                order=1,
+-                id6="aaa111",
+-                body="## Goal\n\nx",
+-                raw_fields={"Date": "20260101"},
+-                text_only=True,
+-            ),
+-            encoding="utf-8",
+-        )
+-        subprocess.run(["git", "add", "-A"], cwd=str(self.root), check=True)
+-        subprocess.run(
+-            [
+-                "git",
+-                "-c",
+-                "user.email=t@t",
+-                "-c",
+-                "user.name=t",
+-                "commit",
+-                "-qm",
+-                "seed",
+-            ],
+-            cwd=str(self.root),
+-            check=True,
+-        )
+-
+-    def tearDown(self) -> None:
+-        self._tmp.cleanup()
+-
+-    def _run(self, args):
+-        env = dict(os.environ)
+-        env["AW_IPD_AUTHOR"] = "t"
+-        return subprocess.run(
+-            [sys.executable, "-m", "agent_workflows", *args, "--dir", str(self.root)],
+-            cwd=str(self.root),
+-            env=env,
+-            capture_output=True,
+-            text=True,
+-        )
+-
+-    def _ledger(self):
+-        p = self.root / ".aw/records/history.jsonl"
+-        if not p.is_file():
+-            return []
+-        return [json.loads(ln) for ln in p.read_text().splitlines() if ln.strip()]
+-
+-    def test_applied_plan_rename_appends_one_record(self) -> None:
+-        r = self._run(["rename", "plans", "aaa111", "--slug", "new-slug", "--apply"])
+-        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+-        renames = [x for x in self._ledger() if x.get("verb")]
+-        self.assertEqual(len(renames), 1, renames)
+-        self.assertEqual(renames[0]["id6"], "aaa111")
+-        self.assertEqual(renames[0]["tree"], "plans")
+-        self.assertTrue(renames[0]["to_name"].endswith("-new-slug.ipd.md"))
+-
+-    def test_dry_run_appends_nothing(self) -> None:
+-        self._run(["rename", "plans", "aaa111", "--slug", "dry", "--apply"])  # one real
+-        before = len(self._ledger())
+-        self._run(["rename", "plans", "aaa111", "--slug", "dry2"])  # no --apply
+-        self.assertEqual(len(self._ledger()), before)
+-
+-
+-class SyntheticKeyTests(unittest.TestCase):
+-    @pytest.mark.core
+-    def test_synthetic_key_deterministic_derivation(self) -> None:
+-        self.assertEqual(RH._synthetic_key("20260101-foo.bar.md"), "synthetic:foo")
+-        self.assertEqual(RH._synthetic_key("abc.md"), "synthetic:abc")
+-        self.assertEqual(
+-            RH._synthetic_key("20260101-1200-01-My Plan!.ipd.md"),
+-            "synthetic:my-plan",
+-        )
+-        self.assertEqual(RH._synthetic_key("20260101-.md"), "synthetic:unknown")
+-
+-
+-if __name__ == "__main__":
+-    unittest.main()
+diff --git a/tests/test_resolve_plan_path_typed.py b/tests/test_resolve_plan_path_typed.py
+index 4ba226d7f..6b179e344 100644
+--- a/tests/test_resolve_plan_path_typed.py
++++ b/tests/test_resolve_plan_path_typed.py
+@@ -70,7 +70,7 @@ class ResolvePlanPathTypedTests(unittest.TestCase):
+                     repo, ".aw/records/plans/README.md", "zzzzzz"
+                 )
+             msg = str(cm.exception)
+-            self.assertIn("a plans index file", msg)
++            self.assertIn("a plans README", msg)
+             self.assertIn("not an IPD plan", msg)
+ 
+     def test_02_configured_spec_path_raises_spec_type(self):
+diff --git a/tests/test_specs_recursive_read.py b/tests/test_specs_recursive_read.py
+index 896d5862f..e8515cb1f 100644
+--- a/tests/test_specs_recursive_read.py
++++ b/tests/test_specs_recursive_read.py
+@@ -3,7 +3,7 @@
+ Verifies that specs placed in subdirectories (such as lifecycle status directories)
+ are discovered by `specs._spec_files` and `aw specs check`, while gitignored
+ directories (such as `records/*/untracked/`) and standard skip names (README.md,
+-INDEX.md, STATUS.md) are excluded.
++the INDEX.md and STATUS.md entries were retired by plan g45vyv) are excluded.
+ """
+ 
+ from __future__ import annotations
+@@ -179,7 +179,7 @@ class SpecsRecursiveReadTests(unittest.TestCase):
+             self.assertEqual(len(found), 1)
+ 
+     def test_skip_names_excluded(self):
+-        """E-03: README.md, INDEX.md, and STATUS.md are skipped in root and subdirectories."""
++        """E-03: README.md is skipped in root and subdirectories (INDEX/STATUS retired, plan g45vyv)."""
+         with tempfile.TemporaryDirectory() as td:
+             repo = Path(td)
+             subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
+@@ -189,11 +189,7 @@ class SpecsRecursiveReadTests(unittest.TestCase):
+             sub_dir.mkdir(parents=True)
+ 
+             (specs_root / "README.md").write_text("# Specs README", encoding="utf-8")
+-            (specs_root / "INDEX.md").write_text("# Specs INDEX", encoding="utf-8")
+-            (specs_root / "STATUS.md").write_text("# Specs STATUS", encoding="utf-8")
+             (sub_dir / "README.md").write_text("# Approved README", encoding="utf-8")
+-            (sub_dir / "INDEX.md").write_text("# Approved INDEX", encoding="utf-8")
+-            (sub_dir / "STATUS.md").write_text("# Approved STATUS", encoding="utf-8")
+ 
+             real_spec = sub_dir / "20260908-test01-01-test.spec.md"
+             real_spec.write_text(_spec_content("approved", "test01"), encoding="utf-8")
