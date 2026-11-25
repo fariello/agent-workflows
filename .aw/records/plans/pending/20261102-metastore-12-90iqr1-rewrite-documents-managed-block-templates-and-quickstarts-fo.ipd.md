@@ -109,6 +109,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-250-qhay6a-inventory-the-docs-surface-and-start-the-cutover-docs-patch.ipd.md
 - Review workflows (old E-03), templates (old E-04), the two `xexn45` commands' documentation (old E-07), and regenerating the patch. Moved to a49djh (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: a49djh
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-251-a49djh-add-review-workflow-recorder-command-and-template-rewrites-t.ipd.md
 - READMEs, docs, `ipd_schema.py` text, reference and `aw-prompt` documents (old E-05 except its `Kind` renames), and regenerating the patch. Moved to y1zihp (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: y1zihp
 - The `Kind` renames in documents and `cli.py` help strings (rest of old E-05), the quickstarts (old E-06), and the final patch regeneration (rest of old E-08). Moved to ngc2a2 (round-3 split 2026-11-09 per research nj8zdp guidance).
