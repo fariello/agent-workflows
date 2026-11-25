@@ -19,7 +19,7 @@ import pytest
 
 from agent_workflows import plan_readiness, readiness_recheck
 from agent_workflows import review_findings as RF
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -416,8 +416,8 @@ class TestTerminalDispositionRefusal(unittest.TestCase):
             )
             rc = readiness_recheck.run_recheck_readiness(args)
             self.assertEqual(rc, 0)
+            assert_field(p, "readiness", "go-pending-approval")
             text = p.read_text(encoding="utf-8")
-            self.assertIn("- Readiness: go-pending-approval", text)
             self.assertIn("readiness re-check", text)
 
     def test_case_3_terminal_plan_stale_escalation_review_amended_plan_unchanged(

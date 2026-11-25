@@ -30,7 +30,7 @@ from agent_workflows import (
     oc_runipd,
     run_selection_policy,
 )
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field, assert_no_field
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -508,12 +508,14 @@ class TestRereviewExecutionTurn(unittest.TestCase):
             }
 
             seen_plan_text = {}
+            seen_snapshot = Path(td) / "seen-by-turn.ipd.md"
 
             def fake_run(st, rd, it, p_rec, prompt_file, att_no, *a, **kw):
                 # Check what plan fake_run sees
                 curr_plan = Path(st["repo"]) / it["configured_file"]
                 text = curr_plan.read_text(encoding="utf-8")
                 seen_plan_text["text"] = text
+                seen_snapshot.write_text(text, encoding="utf-8")
 
                 # Turn updates the plan to reviewed with fresh Readiness in front matter
                 artifact_meta.append(
@@ -550,8 +552,8 @@ class TestRereviewExecutionTurn(unittest.TestCase):
 
             # Assert what the turn saw
             self.assertIn("text", seen_plan_text)
-            self.assertIn("- Status: to-review", seen_plan_text["text"])
-            self.assertNotIn("- Approval:", seen_plan_text["text"])
+            assert_field(seen_snapshot, "status", "to-review")
+            assert_no_field(seen_snapshot, "approval")
             self.assertIn("APPROVAL WITHDRAWN", seen_plan_text["text"])
             self.assertIn("re-review requested via oc review", seen_plan_text["text"])
 
@@ -666,10 +668,7 @@ class TestRereviewExecutionTurn(unittest.TestCase):
             self.assertEqual(item["status"], "reviewed")
             self.assertFalse(item.get("auto_approved", False))
             curr_plan = repo / item["configured_file"]
-            self.assertIn("- Status: reviewed", curr_plan.read_text(encoding="utf-8"))
-            self.assertNotIn(
-                "- Status: auto-approved", curr_plan.read_text(encoding="utf-8")
-            )
+            assert_field(curr_plan, "status", "reviewed")
 
 
 class TestReviewArgvExpansion(unittest.TestCase):
