@@ -356,7 +356,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
      53 files changed, 1550 insertions(+), 1223 deletions(-)
     ```
     `git worktree list` (repo root sanitized as `<repo>`): `<repo> 67caa52d1 [main]`, `<repo>/.aw/worktrees/9o83cr 138f0c3c9 [aw/lane/9o83cr]`, `<repo>/.aw/worktrees/9o83cr_attempt2 3ef955292 [aw/lane/9o83cr_attempt2]`, `<repo>/.aw/worktrees/review-sweep-run-20261124T195133Z-1320375 74ccd03f1 [aw/lane/review-sweep-run-20261124T195133Z-1320375]`, `<repo>/.aw/worktrees/y1zihp 67caa52d1 [aw/lane/y1zihp]` (`.aw/state/y1zihp/scratch` removed).
-    `aw commit` output: COMMIT_HASH_PLACEHOLDER
+    `aw commit` output: `aw commit: committed 2 path(s): fb3bfeaa4cb3f60d9f95ca51f9c142c12ee91d28` (via `aw commit y1zihp -m "feat(metastore): add README, docs, ipd_schema, and reference rewrites to cutover docs patch" -- .aw/records/plans/pending/20261109-metastore-252-y1zihp-add-readme-docs-and-reference-document-rewrites-to-the-cutov.ipd.md .aw/system/cutover/metastore-docs.cutover.patch`).
   - Result: pass
 
 ## Approval and execution gate
