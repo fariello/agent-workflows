@@ -20,7 +20,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import cli
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field, assert_no_field
 
 
 def _setup_repo(root: Path) -> Path:
@@ -326,7 +326,7 @@ class TestBacklogPositionalCloseGate(unittest.TestCase):
             self.assertEqual(rc, 0)
             found = _find_item(repo, "bk0001")
             self.assertEqual(found.parent.name, "done")
-            self.assertNotIn("- Blocks-Release:", found.read_text(encoding="utf-8"))
+            assert_no_field(found, "blocks_release")
 
     def test_same_call_degate_to_done_positional_spelling(self) -> None:
         """Positional spelling closes done with same-call --blocks-release - (DE-GATED path)."""
@@ -353,7 +353,7 @@ class TestBacklogPositionalCloseGate(unittest.TestCase):
             self.assertEqual(rc, 0)
             found = _find_item(repo, "bk0001")
             self.assertEqual(found.parent.name, "done")
-            self.assertNotIn("- Blocks-Release:", found.read_text(encoding="utf-8"))
+            assert_no_field(found, "blocks_release")
 
     # =========================================================================
     # V-02 / E-02: Negative fence: ungated chore closes done at exit 0
@@ -385,7 +385,7 @@ class TestBacklogPositionalCloseGate(unittest.TestCase):
             self.assertEqual(rc, 0)
             found = _find_item(repo, "bk0001")
             self.assertEqual(found.parent.name, "done")
-            self.assertNotIn("- Blocks-Release:", found.read_text(encoding="utf-8"))
+            assert_no_field(found, "blocks_release")
 
     def test_ungated_chore_closes_done_positional_spelling(self) -> None:
         """Positional spelling closes ungated chore item without gate interaction."""
@@ -410,7 +410,7 @@ class TestBacklogPositionalCloseGate(unittest.TestCase):
             self.assertEqual(rc, 0)
             found = _find_item(repo, "bk0001")
             self.assertEqual(found.parent.name, "done")
-            self.assertNotIn("- Blocks-Release:", found.read_text(encoding="utf-8"))
+            assert_no_field(found, "blocks_release")
 
     # =========================================================================
     # V-02 / E-02: Gate-default interaction on live transition
@@ -447,8 +447,7 @@ class TestBacklogPositionalCloseGate(unittest.TestCase):
                 )
             self.assertEqual(rc, 0)
             found = _find_item(repo, "bk0001")
-            content = found.read_text(encoding="utf-8")
-            self.assertIn("- Blocks-Release: next", content)
+            assert_field(found, "blocks_release", "next")
             self.assertIn("demoting the priority", err.getvalue())
 
     def test_gate_default_interaction_positional_spelling(self) -> None:
@@ -481,8 +480,7 @@ class TestBacklogPositionalCloseGate(unittest.TestCase):
                 )
             self.assertEqual(rc, 0)
             found = _find_item(repo, "bk0001")
-            content = found.read_text(encoding="utf-8")
-            self.assertIn("- Blocks-Release: next", content)
+            assert_field(found, "blocks_release", "next")
             self.assertIn("demoting the priority", err.getvalue())
 
     # =========================================================================
@@ -520,7 +518,7 @@ class TestBacklogPositionalCloseGate(unittest.TestCase):
             self.assertEqual(rc, 0)
             found = _find_item(repo, "bk0001")
             self.assertEqual(found.parent.name, "done")
-            self.assertIn("- Blocks-Release: next", found.read_text(encoding="utf-8"))
+            assert_field(found, "blocks_release", "next")
 
     def test_evidence_satisfied_success_positional_spelling(self) -> None:
         """Positional spelling closes done with valid in-tree evidence, preserving gate."""
@@ -550,11 +548,11 @@ class TestBacklogPositionalCloseGate(unittest.TestCase):
             self.assertEqual(rc, 0)
             found = _find_item(repo, "bk0001")
             self.assertEqual(found.parent.name, "done")
-            content = found.read_text(encoding="utf-8")
-            self.assertIn("- Blocks-Release: next", content)
-            self.assertIn(
-                "- Close-Evidence: .aw/records/reviews/20260901-test.review.md",
-                content,
+            assert_field(found, "blocks_release", "next")
+            assert_field(
+                found,
+                "close_evidence",
+                ".aw/records/reviews/20260901-test.review.md",
             )
 
     # =========================================================================
@@ -769,8 +767,7 @@ class TestBacklogPositionalCloseGate(unittest.TestCase):
                 )
             self.assertEqual(rc1, 0)
             item1 = _find_item(repo1, "bk0001")
-            content1 = item1.read_text(encoding="utf-8")
-            self.assertIn(f"- Close-Evidence: {rel_ev}", content1)
+            assert_field(item1, "close_evidence", rel_ev)
 
             # 2. positional spelling
             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
@@ -790,8 +787,7 @@ class TestBacklogPositionalCloseGate(unittest.TestCase):
                 )
             self.assertEqual(rc2, 0)
             item2 = _find_item(repo2, "bk0001")
-            content2 = item2.read_text(encoding="utf-8")
-            self.assertIn(f"- Close-Evidence: {rel_ev}", content2)
+            assert_field(item2, "close_evidence", rel_ev)
 
     def test_positional_handoff_and_degated_closes_leave_no_close_evidence(
         self,
@@ -849,9 +845,8 @@ class TestBacklogPositionalCloseGate(unittest.TestCase):
             self.assertEqual(rc1, 0)
             found1 = _find_item(repo, "bk0001")
             self.assertEqual(found1.parent.name, "done")
-            content1 = found1.read_text(encoding="utf-8")
-            self.assertIn("- Blocks-Release: next", content1)
-            self.assertNotIn("- Close-Evidence:", content1)
+            assert_field(found1, "blocks_release", "next")
+            assert_no_field(found1, "close_evidence")
 
             # 2. DE-GATED close via positional
             _create_item(
@@ -881,9 +876,8 @@ class TestBacklogPositionalCloseGate(unittest.TestCase):
             self.assertEqual(rc2, 0)
             found2 = _find_item(repo, "bk0002")
             self.assertEqual(found2.parent.name, "done")
-            content2 = found2.read_text(encoding="utf-8")
-            self.assertNotIn("- Blocks-Release:", content2)
-            self.assertNotIn("- Close-Evidence:", content2)
+            assert_no_field(found2, "blocks_release")
+            assert_no_field(found2, "close_evidence")
 
     def test_evidence_satisfied_positional_close_clean_at_rest(self) -> None:
         """Positional close with evidence yields zero at-rest release gate consistency findings."""

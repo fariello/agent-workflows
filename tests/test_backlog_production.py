@@ -25,7 +25,7 @@ from agent_workflows import (
     production_checks,
     runner_shared,
 )
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -831,9 +831,8 @@ class TestBacklogProductionE07(unittest.TestCase):
                     self.assertEqual(len(bkl_files), 1)
                     bkl_p = bkl_files[0]
                     self.assertIn("/graduated/", str(bkl_p).replace("\\", "/"))
+                    assert_field(bkl_p, "status", "graduated")
                     bkl_txt = bkl_p.read_text(encoding="utf-8")
-                    self.assertIn("- Status: graduated", bkl_txt)
-                    self.assertNotIn("- Status: done", bkl_txt)
                     self.assertIn("graduated by run run-", bkl_txt)
 
                     # Assert generated_next_actions recorded
@@ -1346,9 +1345,7 @@ class TestBacklogProductionE08(unittest.TestCase):
                         repo.glob(".aw/records/backlog/graduated/*bkl202*.backlog.md")
                     )
                     self.assertEqual(len(grad_items), 1)
-                    self.assertIn(
-                        "- Status: graduated", grad_items[0].read_text(encoding="utf-8")
-                    )
+                    assert_field(grad_items[0], "status", "graduated")
 
     def test_case5c_rollback_lands_on_disk(self):
         """Case (5c): after a post-transition failure the rollback actually lands:

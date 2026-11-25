@@ -19,6 +19,7 @@ from pathlib import Path
 
 from agent_workflows import attention_contract as A
 from agent_workflows import cli
+from tests.record_builder import assert_field, assert_no_field
 
 
 def _setup_repo(root: Path) -> Path:
@@ -142,9 +143,8 @@ class BacklogNewGateVocabularyTests(unittest.TestCase):
                     self.assertTrue(
                         written_file.is_file(), f"File does not exist: {written_file}"
                     )
-                    content = written_file.read_text(encoding="utf-8")
-                    self.assertIn(f"- Gate-Kind: {kind}\n", content)
-                    self.assertIn(f"- Gate-Ref: {ref}\n", content)
+                    assert_field(written_file, "gate_kind", kind)
+                    assert_field(written_file, "gate_ref", ref)
 
     def test_created_valid_blocked_item_passes_check(self):
         """(d) a created valid blocked item passes aw backlog check (rc 0)."""
@@ -214,9 +214,8 @@ class BacklogNewGateVocabularyTests(unittest.TestCase):
             self.assertTrue(
                 written_file.is_file(), f"File does not exist: {written_file}"
             )
-            content = written_file.read_text(encoding="utf-8")
-            self.assertNotIn("- Gate-Kind:", content)
-            self.assertNotIn("- Gate-Ref:", content)
+            assert_no_field(written_file, "gate_kind")
+            assert_no_field(written_file, "gate_ref")
 
 
 if __name__ == "__main__":

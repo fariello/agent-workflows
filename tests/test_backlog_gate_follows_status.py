@@ -22,7 +22,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import check_engine, cli
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 def _setup_repo(root: Path) -> Path:
@@ -202,8 +202,7 @@ class TestBacklogGateFollowsStatus(unittest.TestCase):
                     ]
                 )
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
-            updated = _find_item(repo, "bk0001").read_text(encoding="utf-8")
-            self.assertIn("- Blocks-Release: next", updated)
+            assert_field(_find_item(repo, "bk0001"), "blocks_release", "next")
             findings = check_engine.check_live_bug_gate(repo)
             self.assertEqual(findings, [])
 
@@ -230,8 +229,7 @@ class TestBacklogGateFollowsStatus(unittest.TestCase):
                     ]
                 )
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
-            updated = _find_item(repo, "bk0001").read_text(encoding="utf-8")
-            self.assertIn("- Blocks-Release: next", updated)
+            assert_field(_find_item(repo, "bk0001"), "blocks_release", "next")
             findings = check_engine.check_live_bug_gate(repo)
             self.assertEqual(findings, [])
 
@@ -263,8 +261,7 @@ class TestBacklogGateFollowsStatus(unittest.TestCase):
                     ]
                 )
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
-            updated = _find_item(repo, "bk0002").read_text(encoding="utf-8")
-            self.assertIn("- Blocks-Release: next", updated)
+            assert_field(_find_item(repo, "bk0002"), "blocks_release", "next")
             findings = check_engine.check_live_bug_gate(repo)
             self.assertEqual(findings, [])
 
@@ -290,8 +287,7 @@ class TestBacklogGateFollowsStatus(unittest.TestCase):
                     ]
                 )
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
-            updated = _find_item(repo, "bk0002").read_text(encoding="utf-8")
-            self.assertIn("- Blocks-Release: next", updated)
+            assert_field(_find_item(repo, "bk0002"), "blocks_release", "next")
             findings = check_engine.check_live_bug_gate(repo)
             self.assertEqual(findings, [])
 
@@ -322,8 +318,7 @@ class TestBacklogGateFollowsStatus(unittest.TestCase):
                     ]
                 )
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
-            updated = _find_item(repo, "bk0003").read_text(encoding="utf-8")
-            self.assertIn("- Blocks-Release: next", updated)
+            assert_field(_find_item(repo, "bk0003"), "blocks_release", "next")
             findings = check_engine.check_live_bug_gate(repo)
             self.assertEqual(findings, [])
 
@@ -348,8 +343,7 @@ class TestBacklogGateFollowsStatus(unittest.TestCase):
                     ]
                 )
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
-            updated = _find_item(repo, "bk0003").read_text(encoding="utf-8")
-            self.assertIn("- Blocks-Release: next", updated)
+            assert_field(_find_item(repo, "bk0003"), "blocks_release", "next")
             findings = check_engine.check_live_bug_gate(repo)
             self.assertEqual(findings, [])
 
@@ -380,8 +374,7 @@ class TestBacklogGateFollowsStatus(unittest.TestCase):
                     ]
                 )
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
-            updated = _find_item(repo, "bk0004").read_text(encoding="utf-8")
-            self.assertIn("- Blocks-Release: next", updated)
+            assert_field(_find_item(repo, "bk0004"), "blocks_release", "next")
             findings = check_engine.check_live_bug_gate(repo)
             self.assertEqual(findings, [])
 
@@ -406,8 +399,7 @@ class TestBacklogGateFollowsStatus(unittest.TestCase):
                     ]
                 )
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
-            updated = _find_item(repo, "bk0004").read_text(encoding="utf-8")
-            self.assertIn("- Blocks-Release: next", updated)
+            assert_field(_find_item(repo, "bk0004"), "blocks_release", "next")
             findings = check_engine.check_live_bug_gate(repo)
             self.assertEqual(findings, [])
 
@@ -442,8 +434,7 @@ class TestBacklogGateFollowsStatus(unittest.TestCase):
                     ]
                 )
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
-            updated = _find_item(repo, "bk0005").read_text(encoding="utf-8")
-            self.assertIn("- Blocks-Release: next", updated)
+            assert_field(_find_item(repo, "bk0005"), "blocks_release", "next")
             findings = check_engine.check_live_bug_gate(repo)
             self.assertEqual(findings, [])
 
@@ -472,8 +463,7 @@ class TestBacklogGateFollowsStatus(unittest.TestCase):
                     ]
                 )
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
-            updated = _find_item(repo, "bk0005").read_text(encoding="utf-8")
-            self.assertIn("- Blocks-Release: next", updated)
+            assert_field(_find_item(repo, "bk0005"), "blocks_release", "next")
             findings = check_engine.check_live_bug_gate(repo)
             self.assertEqual(findings, [])
 
@@ -575,9 +565,7 @@ class TestBacklogGateFollowsStatus(unittest.TestCase):
                     ]
                 )
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
-            updated = _find_item(repo, "bk0007").read_text(encoding="utf-8")
-            self.assertIn("- Blocks-Release: rel001", updated)
-            self.assertNotIn("- Blocks-Release: next", updated)
+            assert_field(_find_item(repo, "bk0007"), "blocks_release", "rel001")
 
     def test_negative_existing_gate_preserved_positional_spelling(self) -> None:
         """FENCE: Existing gate is preserved when transitioned (positional spelling).
@@ -609,9 +597,7 @@ class TestBacklogGateFollowsStatus(unittest.TestCase):
                     ]
                 )
             self.assertEqual(rc, 0, f"Command failed: {err.getvalue()}")
-            updated = _find_item(repo, "bk0007").read_text(encoding="utf-8")
-            self.assertIn("- Blocks-Release: rel001", updated)
-            self.assertNotIn("- Blocks-Release: next", updated)
+            assert_field(_find_item(repo, "bk0007"), "blocks_release", "rel001")
 
     def test_negative_transition_to_done_writes_no_gate_status_spelling(self) -> None:
         """FENCE: Transition to done writes no gate (--status spelling).
