@@ -1,3 +1,168 @@
+diff --git a/.aw/AGENT_QUICKSTART.md b/.aw/AGENT_QUICKSTART.md
+new file mode 100644
+index 000000000..802dd0d5c
+--- /dev/null
++++ b/.aw/AGENT_QUICKSTART.md
+@@ -0,0 +1,85 @@
++# Agent Quickstart (`.aw/`)
++
++This guide tells agents how to read and update tracked records under `.aw/records/`. The `aw-managed` HTML comment banner at the top of each managed record points here.
++
++## Where metadata lives
++
++Every tracked artifact (Implementation Plan Document or IPD, specification, backlog item, research document, release record, or staged prompt) and every walkthrough has a stable six-character identifier (`id6`) and a tracked, append-only JSON Lines (JSONL) event log at `.aw/records/meta/<id6>.jsonl`.
++
++- **Single authority:** `.aw/records/meta/<id6>.jsonl` is the only source of truth for `aw`-owned metadata and event history.
++- **Compact in-file mirror:** Each Markdown file keeps only a minimal mirror so people can identify the file and its status in raw views and diffs:
++  - Standard artifacts (plans, specs, backlog items, releases, status-bearing research) start with two-key YAML front matter (`id` and `status`) followed by the `<!-- aw-managed: ... -->` banner.
++  - Walkthroughs, roadmaps, and status-less research records start with one-key YAML front matter (`id` only) followed by the `<!-- aw-managed: ... -->` banner.
++  - Staged prompts under `.aw/records/prompts/` have no `---` YAML front matter; line 1 is a single leading HTML comment (`<!-- aw-managed-prompt: id: <id6> | status: <status> . Pipeline metadata only; not part of the prompt. Metadata: .aw/records/meta/<id6>.jsonl -->`).
++  - Review records under `.aw/records/reviews/` have no log of their own; their front matter carries `subject`, `subject_type`, and optional `ref`, and each review round is recorded as a `review` event in the subject's log.
++- **No workflow history section:** Managed records do not carry a `## Workflow history` section. Read history with `aw show <id6> --history`.
++- **Disposable cache:** `aw` serves metadata queries from the gitignored SQLite database `.aw/state/index.db`, built solely from `.aw/records/meta/*.jsonl`. Deleting `.aw/state/index.db` loses no data; `aw` rebuilds it automatically on the next read.
++
++```mermaid
++flowchart LR
++    CMD["aw command"] --> LOG[".aw/records/meta/<id6>.jsonl (authority)"]
++    LOG --> MIRROR["Markdown mirror and disposition directory"]
++    LOG --> CACHE[".aw/state/index.db (disposable SQLite cache)"]
++    CACHE --> READ["aw show / aw find / aw attention / aw check meta"]
++```
++
++## Hard rules
++
++1. **Never hand-edit `.aw/records/meta/<id6>.jsonl`.** Append events only through `aw` commands.
++2. **Never hand-edit in-file mirrors or banners.** Do not edit the `id`, `status`, `subject`, `subject_type`, or `ref` lines in front matter, the `<!-- aw-managed: ... -->` banner, or the `<!-- aw-managed-prompt: ... -->` comment.
++3. **Never hand-name or hand-move managed records.** Do not rename files or move them across disposition directories (`pending/`, `executed/`, `done/`, `superseded/`, `not-executed/`) with `mv` or `git mv`. Use the owner command so the log, mirror, filename, and directory stay aligned.
++4. **Never fabricate protected attestations.** Only `aw reviews record` writes `readiness` and `review_depth`, only `aw ipd set approved <id6> --by-human` or `aw specs set <path> --status approved --by-human` writes `approval`, only `aw ipd coverage <id6>` writes `coverage`, and only `aw ipd finalize` writes `scope_result` and the `executed` transition.
++5. **Commit through `aw commit`.** Always commit path-scoped changes with `aw commit <plan-id6> -- <paths>` (or `aw commit --no-plan -m "<message>" -- <paths>`). Never use `git add -A` or `git commit -a`.
++
++## Inspecting metadata and verifying drift
++
++| Task | Command |
++|---|---|
++| Read current replayed metadata for one record | `aw show <id6>` (add `--json` or `--agent` for machine output) |
++| Read sequence-ordered event history | `aw show <id6> --history` |
++| Query records by type, Set, or status | `aw find [plans|specs|backlog|research|prompts|walkthroughs|releases]` |
++| View cross-tree work needing attention | `aw attention` (add `--format json` or `--agent`) |
++| Check mirrors, filenames, directories, and review rounds against logs | `aw check meta` |
++| Preview or repair deterministic mirror drift | `aw meta repair <id6>` (dry-run; add `--apply` to write) |
++| Force a cache rebuild | `aw index rebuild` |
++
++## Which command writes which field
++
++Creation verbs preview by default; pass `--apply` to write files and initialize `.aw/records/meta/<id6>.jsonl`.
++
++| Record or field | Owner command | Notes |
++|---|---|---|
++| Create a plan (IPD): `plan_role`, `set`, `order`, `priority`, `work_kind`, `from_backlog`, `blocks_release`, `short_description` | `aw ipd scaffold --kind <child|orchestrator> --title "..." --priority <low|medium|high> --work-kind <kind> --apply` | Use `--from-backlog <id6>` to inherit `priority`, `work_kind`, and `blocks_release`. |
++| Plan status, `from_spec`, `from_backlog`, `blocks_release`, `priority`, `work_kind`, notes | `aw ipd set <status> <id6>` | Human approval requires `aw ipd set approved <id6> --by-human --message "<why>"`. |
++| Plan dependencies (`item_dependencies`) | `aw ipd dependencies set <id6> ...` | Replaces hand-edited dependency bullets. |
++| Plan E/V ids and `highest_e_allocated` | `aw ipd sync <plan> --apply` | Assigns `E-NN`/`V-NN` ids and updates the allocation watermark. |
++| Orchestrator coverage (`coverage`, `coverage_fingerprint`, `coverage_checked`) | `aw ipd coverage <id6>` | Only this command writes coverage attestations. |
++| Terminal plan execution (`status: executed`, `scope_result`) | `aw ipd finalize <plan> --actor <actor> --message "<summary>" --apply` | Under `aw oc run` or `aw agy run`, the runner owns `begin` and `finalize`. |
++| Review round, verdict, `readiness`, `review_depth` | `aw reviews record <subject-id6> --round <n> --kind <gate|refinement> --verdict "<verdict>"` | Pass `--readiness` and `--review-depth` on `gate` rounds for plans. |
++| Create or update a spec: `status`, `approval`, `gate_kind`, `gate_ref`, notes | `aw specs new`, `aw specs set <path> --status <status>`, `aw specs note` | Deferred specs require `--gate-kind` and `--gate-ref`; approval requires `--by-human`. |
++| Create or update a backlog item: `priority`, `work_kind`, `blocks_release`, `gate_kind`, `gate_ref`, `release_exempt_kind`, `release_exempt_ref` | `aw backlog new`, `aw backlog set <status> <id6>` | Both `--priority` and `--work-kind` are required at creation. |
++| Create, rename, promote, or score research: `research_kind`, `model`, `status`, `outcome`, `consumed_by` | `aw research new`, `aw research mv`, `aw research promote`, `aw research set-outcome` | Use `aw adopt .aw/inbox/<file>` to adopt raw external drops after human confirmation. |
++| Create or transition a staged prompt: `prompt_kind`, `status` | `aw prompts new`, `aw prompts set <status> <id6>` | `prompt_kind` is `run-once`, `research`, or `session-handoff`. |
++| Create a walkthrough or release record | `aw walkthrough new`, `aw releases new` | Inspect releases with `aw releases list`, `aw releases show next`, and `aw releases readiness`. |
++| Generic status transition | `aw set <type> <status> <selector>` | Delegates to the type's lifecycle rules. |
++| One-line description (`short_description`) | `aw describe <id6> --summary "<text>" --apply` | Shown by `aw find` and `aw attention --details`. |
++| Regroup, rename, or archive records (`set`, `order`, `slug`) | `aw group`, `aw rename`, `aw archive` | Dry-run by default; pass `--apply` to execute. |
++
++## Field naming rule
++
++Logs, cache columns, and JSON output never use a bare `kind` field. Every kind or role name states what it classifies:
++
++- `plan_role`: `child` or `orchestrator` (replaces the legacy plan `Kind` bullet)
++- `research_kind`: research document variant such as `survey`, `findings`, or `research-report`
++- `prompt_kind`: `run-once`, `research`, or `session-handoff`
++- `work_kind`: `bug`, `feature`, `chore`, `security`, or `followup`
++- `gate_kind`: blocking gate category (`artifact`, `decision`, `todo`, `issue`, `date`, `external`)
++- `review_kind`: `gate` or `refinement`
++- `release_exempt_kind`: release-gate exemption category
++
++## Further reading
++
++- `.aw/QUICKSTART.md`: human overview of the `.aw/` directory and daily workflow.
++- `AGENTS.md`: repository-wide agent execution contract and rules.
++- `.aw/system/workflows/index.md`: installed workflow catalog.
++- `docs/artifact-lifecycles.md`: full lifecycle diagrams and status tables for every record type.
+diff --git a/.aw/QUICKSTART.md b/.aw/QUICKSTART.md
+new file mode 100644
+index 000000000..0f88b60f1
+--- /dev/null
++++ b/.aw/QUICKSTART.md
+@@ -0,0 +1,68 @@
++# Quickstart (`.aw/`)
++
++This repository uses `agent-workflows` (`aw`) to manage specifications, Implementation Plan Documents (IPDs), backlog items, research notes, staged prompts, reviews, walkthroughs, and releases under `.aw/`.
++
++## What lives in `.aw/`
++
++| Path | Purpose | Committed to git? |
++|---|---|---|
++| `.aw/records/` | Tracked project records (`plans/`, `specs/`, `backlog/`, `research/`, `prompts/`, `reviews/`, `walkthroughs/`, `releases/`) | Yes (except `untracked/` lanes and `runs/`) |
++| `.aw/records/meta/<id6>.jsonl` | Append-only event log holding all `aw`-owned metadata and history for each record | Yes |
++| `.aw/system/` | Installed workflow bodies (`.aw/system/workflows/index.md`) and framework version metadata | Yes |
++| `.aw/config/project.json` | Shared repository policy and schema version | Yes |
++| `.aw/config/local.json` | Machine-local configuration overrides | No (gitignored) |
++| `.aw/inbox/` | Drop zone for raw external files (such as outside LLM research reports) before human review and `aw adopt` | No (gitignored; only `README.md` is tracked) |
++| `.aw/state/` | Local SQLite metadata cache (`index.db`) and runner scratch; safe to delete anytime | No (gitignored) |
++
++## Why records have a short header and a banner
++
++Each managed `.md` file opens with a compact front-matter mirror (`id` and `status`, or `id` alone on status-less records) and an HTML comment banner (`<!-- aw-managed: ... -->`). Staged prompts use a single leading `<!-- aw-managed-prompt: ... -->` comment so they stay upload-ready.
++
++Full metadata and event history live in `.aw/records/meta/<id6>.jsonl` rather than inside the Markdown body. Keeping metadata in per-record logs prevents merge conflicts across branches, keeps diffs focused on content, and ensures `aw` commands enforce lifecycle rules and attestations.
++
++## Common daily commands
++
++Inspect what is in flight or read a specific record:
++
++```sh
++aw attention                  # summary of ready, active, blocked, and done work
++aw ipd board                  # plan board grouped by Set and status
++aw find plans                 # list active plans (also: specs, backlog, research, prompts)
++aw show <id6>                 # show current metadata for one record
++aw show <id6> --history       # show full sequence-ordered event history
++aw releases show next         # show the planned release and every item gating it
++```
++
++Create records (all creation verbs preview by default; add `--apply` to write):
++
++```sh
++aw backlog new --summary "..." --priority medium --work-kind feature --apply
++aw specs new --title "..." --slug my-spec --apply
++aw ipd scaffold --kind child --title "..." --set my-set --order 1 \
++  --priority medium --work-kind feature --apply
++aw research new --kind survey --slug my-topic --set my-topic --apply
++aw prompts new --kind research --slug my-question --set my-topic --apply
++```
++
++Record human approval for a reviewed plan or spec:
++
++```sh
++aw ipd set approved <id6> --by-human --message "approved for execution"
++aw specs set <spec-path> --status approved --by-human --message "approved"
++```
++
++## Keeping metadata healthy
++
++- **Use `aw` commands instead of hand-editing** `.aw/records/meta/<id6>.jsonl`, front-matter mirrors, or lifecycle directories.
++- **Check integrity** with `aw check meta` (verifies mirrors, filenames, directories, and review rounds against the logs) and `aw check` (runs full record validation).
++- **Repair mirror drift** with `aw meta repair <id6>` (dry-run preview; pass `--apply` to repair deterministic drift).
++- **Rebuild the local cache** with `aw index rebuild` if needed (normally automatic; deleting `.aw/state/index.db` is always safe).
++- **Commit changes** with `aw commit <plan-id6> -- <paths>` (or `aw commit --no-plan -m "<message>" -- <paths>`) to keep commits path-scoped in shared checkouts.
++- **Upgrade an older repository** with `aw migrate metadata` (dry-run by default; pass `--apply` to convert pre-cutover bullet-block records to the log format).
++
++## Where to read more
++
++- `.aw/AGENT_QUICKSTART.md`: command-to-field reference for AI agents.
++- `.aw/system/workflows/index.md`: full list of installed workflows and slash commands.
++- `AGENTS.md`: repository agent instructions and execution contract.
++- `docs/artifact-lifecycles.md`: complete lifecycle guide for every record type.
 diff --git a/.aw/records/backlog/README.md b/.aw/records/backlog/README.md
 index f9c879c0b..dd87219f6 100644
 --- a/.aw/records/backlog/README.md
@@ -807,7 +972,7 @@ index fcc4610a8..b560451c0 100644
 +in `AGENTS.md` and `CONTRIBUTING.md`); `/plan-review` and `/plan-review-long` verify it is present
 +and add it if missing.
 diff --git a/.aw/records/prompts/README.md b/.aw/records/prompts/README.md
-index 5c478d5d3..91b21e90e 100644
+index 5c478d5d3..009818b50 100644
 --- a/.aw/records/prompts/README.md
 +++ b/.aw/records/prompts/README.md
 @@ -1,42 +1,52 @@
@@ -867,7 +1032,7 @@ index 5c478d5d3..91b21e90e 100644
 +An HTML comment is invisible when the file is pasted into a chat, and this comment intentionally
 +contains no instruction addressed to an agent (an uploaded prompt exposes the raw comment to an
 +outside model). YAML front matter is NOT permitted because it renders as visible text or a stray
-+table in many chat UIs. Recognized prompt kinds (recorded as `Kind` in the prompt's metadata log,
++table in many chat UIs. Recognized prompt kinds (recorded as `prompt_kind` in the prompt's metadata log,
 +set via `aw prompts new --kind ...`): `run-once` and `research` prompts QUEUED to be executed (the
  original staging use), and `session-handoff` resume prompts produced by `/handoff` (a prompt for the
 -NEXT session rather than a task to run now). Handoff drafts are written to the gitignored `untracked/`
@@ -1530,7 +1695,7 @@ index f769f36c3..61b8bbcff 100644
 +`aw attention` surfaces every spec's attention class across the repo. See `aw specs --help`,
 +`aw show --help`, and `aw attention --help`.
 diff --git a/.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md b/.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
-index 31fa2f7e1..89b3fcd16 100644
+index 31fa2f7e1..5d5018350 100644
 --- a/.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
 +++ b/.aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
 @@ -9,18 +9,18 @@ This is the single entry point for how to author and execute an IPD in this tool
@@ -1552,9 +1717,10 @@ index 31fa2f7e1..89b3fcd16 100644
 +Author from the template (`.aw/system/workflows/assess/templates/ipd.md`), or generate a conformant skeleton with `aw ipd scaffold` and assign ids with `aw ipd sync`. `aw ipd scaffold` enforces `Set`/`Order` metadata and the clustering filename grammar by default. The EXACT structural contract is machine-checkable and owned by the canonical schema (`agent_workflows/ipd_schema.py`) and the structure specification `.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md`; `aw ipd lint` enforces it. Do not restate or fork that contract here. In brief:
  
 -- Metadata block (a bullet `- Field: value` list after the H1 title, NOT YAML front matter; "YAML front matter" means only actual `---` YAML, which the parser ignores): required `Date`, `Kind` (`child` or `orchestrator`), `Concern`, `Scope`, `Status`, `Author`; `Set` and `Order` together when in an ordered Set (`Order: 0` for an orchestrator, `>= 1` for a child); `Approval` when and only when `Status: approved`; `Highest E allocated` once any `E-*` exists (the allocation watermark); the `Quarantine`/`Quarantine owner`/`Quarantine follow-up` trio only on a quarantined nonterminal plan.
-+- Front-matter mirror and metadata log (spec `4sd62s` 4.1-4.2; replaces the legacy bullet metadata block): each `.ipd.md` file opens with a two-key YAML front-matter mirror (`id` and `status`) followed by the `<!-- aw-managed: ... -->` banner pointing to `.aw/records/meta/<id6>.jsonl`. All `aw`-owned metadata lives in `.aw/records/meta/<id6>.jsonl` and is managed by `aw` commands (`aw ipd scaffold`, `aw ipd set`, `aw ipd dependencies set`, `aw ipd coverage`, `aw reviews record`, `aw ipd finalize`, `aw describe`) and inspected with `aw show <id6>` and `aw show <id6> --history` (check/repair mirror drift with `aw check meta` and `aw meta repair <id6>`). Logical fields include required `Date`, `Kind` (`child` or `orchestrator`), `Status`, `Author`, and `Id` (with prose `Concern` and `Scope` in body sections); `Set` and `Order` together when in an ordered Set (`Order` 0 for an orchestrator, `>= 1` for a child); `approval` written only by the `->approved` transition (`aw ipd set approved <id6> --by-human`) and cleared on leaving `approved`; `readiness` and `review_depth` written only by a gate `review` event via `aw reviews record`; `coverage` written only by `aw ipd coverage <id6>`; `Highest E allocated` maintained by `aw ipd sync` once any `E-*` exists; and the `Quarantine` trio only on a quarantined nonterminal plan.
- - The H2 SECTION ORDER is exact and per-kind (child and orchestrator differ), enumerated in the schema. In BOTH kinds `## Detailed Implementation Checklist (TODO)` is the H2 IMMEDIATELY AFTER `## Goal` and `## Validation and cross-check ...` is the H2 IMMEDIATELY BEFORE `## Approval and execution gate`. (There is no "near the top/end"; placement is exact.)
+-- The H2 SECTION ORDER is exact and per-kind (child and orchestrator differ), enumerated in the schema. In BOTH kinds `## Detailed Implementation Checklist (TODO)` is the H2 IMMEDIATELY AFTER `## Goal` and `## Validation and cross-check ...` is the H2 IMMEDIATELY BEFORE `## Approval and execution gate`. (There is no "near the top/end"; placement is exact.)
 -- `## Workflow history` (append one dated line per workflow touch; never rewrite prior lines). Line direction in the file is NOT normative (writers prepend, authors append); readers derive order from record dates plus per-block direction and treat an unresolvable same-date tie as unordered. The durable fix is the `seq` journal of spec `2vev8j` 4.3. Every BACKWARD move between the non-terminal plan statuses is legal (`approved` or `auto-approved` to `reviewed`, `to-review` or `draft`; `reviewed` to `to-review` or `draft`; `to-review` to `draft`), because a plan whose spec, scope, dependencies or cited code changed after it was approved in a way that affects how it would be implemented, or that would undo work implemented since, is unsafe to execute and MUST be demoted. Added 2026-10-04 by plan `hm1h3l`; this supersedes the earlier three-edge enumeration (spec `2vev8j` 4.8 asked for the legal edges to be enumerated here, and this sentence is that enumeration). A backward move into a terminal status, and any move out of a terminal status, stays illegal (that is the separate terminal-reopen guard). EVERY BACKWARD MOVE IS LOUD: it requires a reason (`--message`), the setter prints a warning naming the plan, the old and new status and the reason, and the workflow-history line records `demoted <from> -> <to>: <reason>`; a move out of `approved` or `auto-approved` additionally records `APPROVAL WITHDRAWN`. An AUTOMATED demotion can never start a loop. For an orchestrator, promotion (to `to-review`, `reviewed`, `approved` or `auto-approved`) and automated demotion are decided by the same check (spec `25kzda` 2.5d) over the same recorded verdict for the same text: for unchanged text the check cannot both pass (allowing promotion) and fail (requiring demotion), so it can only move again after someone edits it. For any other plan no tool demotes automatically (with the sole exception of an operator-confirmed re-review demotion at runner dispatch, per spec `25kzda` 2.6), so every demotion is a deliberate, reasoned act. No runner ever writes `approved` (`25kzda` 4.5), and a runner's `auto-approved` of an orchestrator passes the same check, so an automated demotion is never followed by an automated re-approval of unchanged text.
++- Front-matter mirror and metadata log (spec `4sd62s` 4.1-4.2; replaces the legacy bullet metadata block): each `.ipd.md` file opens with a two-key YAML front-matter mirror (`id` and `status`) followed by the `<!-- aw-managed: ... -->` banner pointing to `.aw/records/meta/<id6>.jsonl`. All `aw`-owned metadata lives in `.aw/records/meta/<id6>.jsonl` and is managed by `aw` commands (`aw ipd scaffold`, `aw ipd set`, `aw ipd dependencies set`, `aw ipd coverage`, `aw reviews record`, `aw ipd finalize`, `aw describe`) and inspected with `aw show <id6>` and `aw show <id6> --history` (check/repair mirror drift with `aw check meta` and `aw meta repair <id6>`). Logical fields include required `Date`, `plan_role` (`child` or `orchestrator`, replacing the quoted legacy `Kind` bullet), `Status`, `Author`, and `Id` (with prose `Concern` and `Scope` in body sections); `Set` and `Order` together when in an ordered Set (`Order` 0 for an orchestrator, `>= 1` for a child); `approval` written only by the `->approved` transition (`aw ipd set approved <id6> --by-human`) and cleared on leaving `approved`; `readiness` and `review_depth` written only by a gate `review` event via `aw reviews record`; `coverage` written only by `aw ipd coverage <id6>`; `Highest E allocated` maintained by `aw ipd sync` once any `E-*` exists; and the `Quarantine` trio only on a quarantined nonterminal plan.
++- The H2 SECTION ORDER is exact and per plan role (child and orchestrator differ), enumerated in the schema. In BOTH plan roles `## Detailed Implementation Checklist (TODO)` is the H2 IMMEDIATELY AFTER `## Goal` and `## Validation and cross-check ...` is the H2 IMMEDIATELY BEFORE `## Approval and execution gate`. (There is no "near the top/end"; placement is exact.)
 +- Metadata event history (`.aw/records/meta/<id6>.jsonl`, inspected with `aw show <id6> --history`; records carry no `## Workflow history` section after the metadata cutover of spec `4sd62s`). Event ordering is set solely by `seq` (spec `4sd62s` 4.2, C4). Never hand-edit `.aw/records/meta/<id6>.jsonl`. Every BACKWARD move between the non-terminal plan statuses is legal (`approved` or `auto-approved` to `reviewed`, `to-review` or `draft`; `reviewed` to `to-review` or `draft`; `to-review` to `draft`), because a plan whose spec, scope, dependencies or cited code changed after it was approved in a way that affects how it would be implemented, or that would undo work implemented since, is unsafe to execute and MUST be demoted. Added 2026-10-04 by plan `hm1h3l`; this supersedes the earlier three-edge enumeration (spec `2vev8j` 4.8 asked for the legal edges to be enumerated here, and this sentence is that enumeration). A backward move into a terminal status, and any move out of a terminal status, stays illegal (that is the separate terminal-reopen guard). EVERY BACKWARD MOVE IS LOUD: it requires a reason (`--message`), `aw ipd set` prints a warning naming the plan, the old and new status and the reason, and appends a `transition` event recording `demoted <from> -> <to>: <reason>` (a move out of `approved` or `auto-approved` additionally unsets `approval` in the same append and records `APPROVAL WITHDRAWN`; a move back to `draft` or `to-review` unsets `readiness` in the same append). An AUTOMATED demotion can never start a loop. For an orchestrator, promotion (to `to-review`, `reviewed`, `approved` or `auto-approved`) and automated demotion are decided by the same check (spec `25kzda` 2.5d) over the same recorded verdict for the same text: for unchanged text the check cannot both pass (allowing promotion) and fail (requiring demotion), so it can only move again after someone edits it. For any other plan no tool demotes automatically (with the sole exception of an operator-confirmed re-review demotion at runner dispatch, per spec `25kzda` 2.6), so every demotion is a deliberate, reasoned act. No runner ever writes `approved` (`25kzda` 4.5), and a runner's `auto-approved` of an orchestrator passes the same check, so an automated demotion is never followed by an automated re-approval of unchanged text.
  - `## Detailed Implementation Checklist (TODO)` (mandatory): the EXECUTION checklist. Only executable leaves are checkboxes; each carries a unique `E-NN` id, `Depends on:` (`none` or comma-separated `E-*`), `Expected outcome:`, and `Execution state:` (`pending`|`performed`|`blocked`|`failed`). `E-* checked` means the action was PERFORMED, not that it was verified (F-07). The terminal lifecycle transition is NOT an `E-*` item (F-08); it is a post-gate transaction (see the lifecycle line). An `Expected outcome` counting live artifacts must state a property rather than an authored count; see `.aw/system/workflows/plan-review/plan-review.md` Rubric G for the re-derivation convention and code-facts exemptions.
  - `## Validation and cross-check` (mandatory): a SEPARATE evidence pass. Exactly one `V-NN validates E-NN` row per `E-NN` (a 1:1 bijection), each with `Required evidence:`, `Observed evidence:`, and `Result:` (`pending`|`pass`|`blocked`|`failed`). `V-* pass` means the evidence was INSPECTED and supports the expected outcome. Both the CREATOR (authors both checklists) and the REVIEWER (assesses both) are responsible for it (DECISIONS D115).
@@ -1572,7 +1738,7 @@ index 31fa2f7e1..89b3fcd16 100644
  ## Workflow history
  
 diff --git a/.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md b/.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
-index 49ca562c0..5ff935026 100644
+index 49ca562c0..8aeee43e3 100644
 --- a/.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
 +++ b/.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
 @@ -83,7 +83,7 @@ Required section headings are top-level H2 nodes outside those constructs. “Im
@@ -1580,7 +1746,7 @@ index 49ca562c0..5ff935026 100644
  ### 4.2 Plan-kind selection
  
 -A canonical metadata-block field (`- Kind:`, see Section 4.4) MUST identify the IPD kind. At minimum, the schema MUST distinguish ordinary child IPDs from orchestrator IPDs. The linter MUST select the heading schema from this field and MUST reject a missing or unknown kind for new IPDs.
-+A canonical metadata field (`Kind`, stored in `.aw/records/meta/<id6>.jsonl` and set via `aw ipd scaffold --kind <child|orchestrator>`, see Section 4.4) MUST identify the IPD kind. At minimum, the schema MUST distinguish ordinary child IPDs from orchestrator IPDs. The linter MUST select the heading schema from this field and MUST reject a missing or unknown kind for new IPDs.
++A canonical metadata field (`plan_role`, stored in `.aw/records/meta/<id6>.jsonl` and set via `aw ipd scaffold --kind <child|orchestrator>`, replacing the quoted legacy `Kind` field; see Section 4.4) MUST identify the plan role. At minimum, the schema MUST distinguish ordinary child IPDs from orchestrator IPDs. The linter MUST select the heading schema from `plan_role` and MUST reject a missing or unknown plan role for new IPDs.
  
  The ordinary and orchestrator templates have different complete H2 sequences (both fully enumerated in Section 4.3), but both MUST satisfy these invariants:
  
@@ -1664,21 +1830,22 @@ index 49ca562c0..5ff935026 100644
 +Write and update plan metadata ONLY through `aw` commands (`aw ipd scaffold`, `aw ipd set`, `aw ipd dependencies set`, `aw ipd coverage`, `aw reviews record`, `aw ipd finalize`, `aw describe`, `aw group plans`, `aw rename plans`, `aw archive plans`); inspect metadata and history with `aw show <id6>` and `aw show <id6> --history`; check and repair mirror drift with `aw check meta` and `aw meta repair <id6>`. Never hand-edit `.aw/records/meta/<id6>.jsonl` or the front-matter mirror. The closed field registry in `artifact_meta` rejects unknown fields.
  
 -Field syntax: one field per line, `- <Field>: <value>`, `<Field>` in the exact case shown below. A field appearing more than once is a duplicate-field error. A `- <Field>:` line whose `<Field>` is not a recognized field is an unknown-field error for new IPDs unless the schema explicitly permits extension fields.
-+Required logical fields (all IPDs): `Date` (filename date / creation timestamp), `Kind` (`child` or `orchestrator`), `Status`, `Author`, `Id` (prose `Concern` and `Scope` live in body sections).
++Required logical fields (all IPDs): `Date` (filename date / creation timestamp), `plan_role` (`child` or `orchestrator`, replacing the quoted legacy `Kind` bullet), `Status`, `Author`, `Id` (prose `Concern` and `Scope` live in body sections).
  
 -Required fields (all IPDs): `Date`, `Kind`, `Concern`, `Scope`, `Status`, `Author`.
--
--Optional field (all IPDs): `Highest E allocated` (the allocation watermark, Section 5.6; REQUIRED once any `E-*` has been assigned).
 +Optional field (all IPDs): `Highest E allocated` (the allocation watermark, Section 5.6; REQUIRED once any `E-*` has been assigned, maintained by `aw ipd sync`).
  
- Recognized-but-optional fields (all IPDs): `Scope-Paths` (Section 4.5), `Priority`, and `Work-Kind` are recognized fields that are NOT in the always-required set; their requirement is CONDITIONAL at the ready-to-execute lint gate (Section 9.2), not at the always-on `author` metadata check. The reserved sentinel `grandfathered` provides audit-tracked exemption for pre-cutoff records.
+-Optional field (all IPDs): `Highest E allocated` (the allocation watermark, Section 5.6; REQUIRED once any `E-*` has been assigned).
++Recognized-but-optional fields (all IPDs): `Scope-Paths` (Section 4.5), `Priority`, and `Work-Kind` (log field `work_kind`) are recognized fields that are NOT in the always-required set; their requirement is CONDITIONAL at the ready-to-execute lint gate (Section 9.2), not at the always-on `author` metadata check. The reserved sentinel `grandfathered` provides audit-tracked exemption for pre-cutoff records.
  
--Optional field: `Attended` (amended 2026-10-17, direct fix, no plan). `- Attended: required` declares that the plan needs a human present while it runs (for example it asks the maintainer live questions). It is the only accepted value; any other value is a metadata error (`IPD-M104`) and absence means the plan may run unattended. `aw oc run` / `aw agy run` never dispatch such a plan as a HEADLESS turn. At a terminal (and not `--unattended`) the entry stays queued, marked `attended`, and at its turn the runner opens an interactive agent session for it in the item's worktree and continues the queue when that session exits; otherwise the entry is frozen `not-run` with `needs_input` and refusal code `attended-session-required`, re-checked at dispatch. `aw work begin <id6>` opens the same interactive session at a terminal (amended 2026-10-18, backlog `rfofos`, DECISIONS D176; interim until runner turns can ask questions, Set `qchan`). A runner turn that discovers the need records a `proposal` of kind `needs-attended`, and the runner adds the field to the plan instead of filing a new record. Validated as a recognized metadata field (`META_RECOGNIZED`).
+-Recognized-but-optional fields (all IPDs): `Scope-Paths` (Section 4.5), `Priority`, and `Work-Kind` are recognized fields that are NOT in the always-required set; their requirement is CONDITIONAL at the ready-to-execute lint gate (Section 9.2), not at the always-on `author` metadata check. The reserved sentinel `grandfathered` provides audit-tracked exemption for pre-cutoff records.
 +Optional field: `Attended` (amended 2026-10-17, direct fix, no plan). `attended: required` in `.aw/records/meta/<id6>.jsonl` (replacing the quoted legacy `- Attended: required` bullet) declares that the plan needs a human present while it runs (for example it asks the maintainer live questions). It is the only accepted value; any other value is a metadata error (`IPD-M104`) and absence means the plan may run unattended. `aw oc run` / `aw agy run` never dispatch such a plan as a HEADLESS turn. At a terminal (and not `--unattended`) the entry stays queued, marked `attended`, and at its turn the runner opens an interactive agent session for it in the item's worktree and continues the queue when that session exits; otherwise the entry is frozen `not-run` with `needs_input` and refusal code `attended-session-required`, re-checked at dispatch. `aw work begin <id6>` opens the same interactive session at a terminal (amended 2026-10-18, backlog `rfofos`, DECISIONS D176; interim until runner turns can ask questions, Set `qchan`). A runner turn that discovers the need records a `proposal` of kind `needs-attended`, and the runner records the field in the plan's metadata log instead of filing a new record.
  
--Optional field: `Review-Depth` (amended 2026-10-25, plan `gv3smb`, Set `revsteps`, Order 02; source spec `k3yx72` Section 7.2). Closed enum `simple`, `standard`, `complex`, or `orchestrator`. Written once per review by the review's finalize step; not part of the reviewed contract. Validated as a recognized metadata field (`META_RECOGNIZED`), where any value outside the closed enum is a metadata error (`IPD-M104`). Absence is silent.
+-Optional field: `Attended` (amended 2026-10-17, direct fix, no plan). `- Attended: required` declares that the plan needs a human present while it runs (for example it asks the maintainer live questions). It is the only accepted value; any other value is a metadata error (`IPD-M104`) and absence means the plan may run unattended. `aw oc run` / `aw agy run` never dispatch such a plan as a HEADLESS turn. At a terminal (and not `--unattended`) the entry stays queued, marked `attended`, and at its turn the runner opens an interactive agent session for it in the item's worktree and continues the queue when that session exits; otherwise the entry is frozen `not-run` with `needs_input` and refusal code `attended-session-required`, re-checked at dispatch. `aw work begin <id6>` opens the same interactive session at a terminal (amended 2026-10-18, backlog `rfofos`, DECISIONS D176; interim until runner turns can ask questions, Set `qchan`). A runner turn that discovers the need records a `proposal` of kind `needs-attended`, and the runner adds the field to the plan instead of filing a new record. Validated as a recognized metadata field (`META_RECOGNIZED`).
 +Optional field: `Review-Depth` (amended 2026-10-25, plan `gv3smb`, Set `revsteps`, Order 02; source spec `k3yx72` Section 7.2; spec `4sd62s` 4.2c). Closed enum `simple`, `standard`, `complex`, or `orchestrator`. Recorded in `.aw/records/meta/<id6>.jsonl` by `aw reviews record --review-depth ...` during review finalization; not part of the reviewed contract. Any value outside the closed enum is a metadata error (`IPD-M104`). Absence is silent.
  
+-Optional field: `Review-Depth` (amended 2026-10-25, plan `gv3smb`, Set `revsteps`, Order 02; source spec `k3yx72` Section 7.2). Closed enum `simple`, `standard`, `complex`, or `orchestrator`. Written once per review by the review's finalize step; not part of the reviewed contract. Validated as a recognized metadata field (`META_RECOGNIZED`), where any value outside the closed enum is a metadata error (`IPD-M104`). Absence is silent.
+-
 -Optional post-execution field: `Scope-Exceeded` (amended 2026-10-09, plan `psgyzw`, Set `fixfirst`, Order 06). Recorded automatically by `aw ipd finalize` when out-of-scope changed paths are reconciled with scope reasons. Syntax: `- Scope-Exceeded: <path> (<reason>); ...`. Multiple entries are separated by semicolons. Validated as a recognized metadata field (`META_RECOGNIZED`).
 +Post-execution scope fields (amended 2026-10-09, plan `psgyzw`; updated by spec `4sd62s` 4.2c, 4.4): `aw ipd finalize` writes `scope_result`, `out_of_scope_paths`, and `widened_paths` in the same append as the `transition` to `executed` in `.aw/records/meta/<id6>.jsonl` (replacing the quoted legacy `- Scope-Exceeded: <path> (<reason>); ...` bullet; migrated checkpoints preserve legacy values in `scope_exceeded_raw`). Generic `set` of these fields outside finalize is refused.
  
@@ -1700,21 +1867,25 @@ index 49ca562c0..5ff935026 100644
  Field rules:
  
 -- `Date`: an ISO calendar date (`YYYY-MM-DD`, a real calendar date). The literal `<YYYY-MM-DD>` template placeholder is reserved and exempt because both byte-pinned templates carry it and are asserted conforming at authoring time. A present-but-unparseable `Date` value is an `IPD-M104` metadata error, while an absent field remains `IPD-M101`.
-+- `Date`: an ISO calendar date (`YYYY-MM-DD`, a real calendar date; in `.aw/records/meta/<id6>.jsonl`, new creations record a full UTC `create.at` timestamp alongside the local-clock `filename_date`, per spec `4sd62s` 4.2b). A present-but-unparseable date value is an `IPD-M104` metadata error, while an absent field remains `IPD-M101`.
- - `Kind`: one of `child` or `orchestrator`. Missing or unknown kind is an error for new IPDs.
+-- `Kind`: one of `child` or `orchestrator`. Missing or unknown kind is an error for new IPDs.
 -- `Status`: one of the recognized readiness values (Section 9.1); it is the single source of truth for readiness. Directories carry disposition; `Status` carries readiness.
++- `Date`: an ISO calendar date (`YYYY-MM-DD`, a real calendar date; in `.aw/records/meta/<id6>.jsonl`, new creations record a full UTC `create.at` timestamp alongside the local-clock `filename_date`, per spec `4sd62s` 4.2b). A present-but-unparseable date value is an `IPD-M104` metadata error, while an absent field remains `IPD-M101`.
++- `plan_role` (replacing the quoted legacy `Kind` bullet): one of `child` or `orchestrator`. Missing or unknown plan role is an error for new IPDs.
 +- `Status`: one of the recognized readiness values (Section 9.1), authoritative in `.aw/records/meta/<id6>.jsonl` and mirrored in the front-matter `status` key. Directories carry disposition; `status` carries lifecycle state.
  - `Set`: a lowercase-kebab identifier shared by the ordered Set.
- - `Order`: an integer. For `Kind: orchestrator`, `Order` MUST be `0` (the orchestrator exception to the otherwise 1-based child rule). For `Kind: child`, `Order` MUST be an integer `>= 1`. An orchestrator with `Order` other than `0`, or a child with `Order: 0` or a non-positive `Order`, is an error.
+-- `Order`: an integer. For `Kind: orchestrator`, `Order` MUST be `0` (the orchestrator exception to the otherwise 1-based child rule). For `Kind: child`, `Order` MUST be an integer `>= 1`. An orchestrator with `Order` other than `0`, or a child with `Order: 0` or a non-positive `Order`, is an error.
++- `Order`: an integer. For `plan_role: orchestrator`, `Order` MUST be `0` (the orchestrator exception to the otherwise 1-based child rule). For `plan_role: child`, `Order` MUST be an integer `>= 1`. An orchestrator with `Order` other than `0`, or a child with `Order: 0` or a non-positive `Order`, is an error.
  
- Permitted path/status/kind/order combinations:
+-Permitted path/status/kind/order combinations:
++Permitted path/status/plan-role/order combinations:
  
 -- A pre-terminal `Status` (Section 9.1) requires the file to live under `.agents/plans/pending/` (or the standing `reusable/` directory for `Status: reusable`).
 -- A terminal `Status` (`executed`, `superseded`, `not-executed`) requires the file to live in the matching terminal directory; `Status` mirrors the directory.
+-- `Kind: orchestrator` requires `Order: 0`; `Kind: child` requires `Order >= 1`.
+-- Any combination of persisted `Status`, directory, kind, and requested lint checkpoint that the schema does not permit MUST be an error (Section 9.1).
 +- A pre-terminal `status` (Section 9.1) requires the file to live under `.aw/records/plans/pending/` (or the standing `reusable/` directory for status `reusable`).
 +- A terminal `status` (`executed`, `superseded`, `not-executed`) requires the file to live in the matching terminal directory; `status` mirrors the directory.
- - `Kind: orchestrator` requires `Order: 0`; `Kind: child` requires `Order >= 1`.
--- Any combination of persisted `Status`, directory, kind, and requested lint checkpoint that the schema does not permit MUST be an error (Section 9.1).
++- `plan_role: orchestrator` requires `Order: 0`; `plan_role: child` requires `Order >= 1`.
 +- Any combination of persisted `status`, directory, kind, and requested lint checkpoint that the schema does not permit MUST be an error (Section 9.1).
  
 -The metadata block is validated separately from the H2 order. A metadata-block error and an H2-order error are distinct diagnostics.
@@ -1777,11 +1948,11 @@ index 49ca562c0..5ff935026 100644
  - standing: `reusable`.
  
 -`auto-approved` is a real, supported value (D65): a sibling of `approved` at the ready-to-execute tier that records an automated checker (not a human) clearing a low-complexity mechanical corrective; it is NOT human approval. The schema and linter MUST recognize it. The metadata block (Section 4.4) carries these values in the `- Status:` field, which is the single source of truth for readiness; the orchestrator exception is that `Kind: orchestrator` uses `Order: 0` while children use `Order >= 1`.
-+`auto-approved` is a real, supported value (D65): a sibling of `approved` at the ready-to-execute tier that records an automated checker (not a human) clearing a low-complexity mechanical corrective; it is NOT human approval. The schema and linter MUST recognize it. The metadata log (`.aw/records/meta/<id6>.jsonl`, mirrored in front matter, Section 4.4) carries these values in `status`, which is the single source of truth for readiness; the orchestrator exception is that `Kind: orchestrator` uses `Order: 0` while children use `Order >= 1`.
++`auto-approved` is a real, supported value (D65): a sibling of `approved` at the ready-to-execute tier that records an automated checker (not a human) clearing a low-complexity mechanical corrective; it is NOT human approval. The schema and linter MUST recognize it. The metadata log (`.aw/records/meta/<id6>.jsonl`, mirrored in front matter, Section 4.4) carries these values in `status`, which is the single source of truth for readiness; the orchestrator exception is that `plan_role: orchestrator` uses `Order: 0` while children use `Order >= 1`.
  
  The required lint checkpoints are:
  
-@@ -510,12 +502,12 @@ For a new or migrated IPD, it MUST check at least:
+@@ -510,14 +502,14 @@ For a new or migrated IPD, it MUST check at least:
  13. declared question fields and states are structurally consistent for the requested checkpoint;
  14. size thresholds and exception fields are consistent, and per-E-item density advisories (`IPD-Z602`) are surfaced advisory-only;
  15. persisted status, directory, plan kind, requested checkpoint, and legacy applicability are compatible;
@@ -1796,7 +1967,10 @@ index 49ca562c0..5ff935026 100644
 +20. that coverage fields (`coverage`, `coverage_fingerprint`) are either wholly absent or written by an `op: coverage` event (`aw ipd coverage <id6>`) in `.aw/records/meta/<id6>.jsonl` (`IPD-M112`), at every checkpoint, as an error (replacing the quoted legacy `- Coverage:` bullet plus `## Workflow history` attestation; an incomplete or unattested record is a defect at any stage, unlike a missing child).
 +21. that a plan at `reviewed` or ready-to-execute status (`approved`/`auto-approved`) carries a non-empty `readiness` value written by a gate `review` event via `aw reviews record` (`IPD-M113`), at every checkpoint, as an error (a plan claiming review cleared it or ready to execute must carry the review's readiness output; absences must be resolved by running `/plan-review`).
  
- Rule 19 is the one orchestrator-specific REFUSAL this command applies beyond `IPD-S407`. It does not change what `pre-transition` requires of an orchestrator (spec `77tr3o` R-5 and R-12 point 3): Kind-parity at `pre-transition` is unchanged. The check is the shared function, not a second implementation, so `aw ipd lint`, `aw check plans` and `aw ipd set` report identical findings for the same plan.
+-Rule 19 is the one orchestrator-specific REFUSAL this command applies beyond `IPD-S407`. It does not change what `pre-transition` requires of an orchestrator (spec `77tr3o` R-5 and R-12 point 3): Kind-parity at `pre-transition` is unchanged. The check is the shared function, not a second implementation, so `aw ipd lint`, `aw check plans` and `aw ipd set` report identical findings for the same plan.
++Rule 19 is the one orchestrator-specific REFUSAL this command applies beyond `IPD-S407`. It does not change what `pre-transition` requires of an orchestrator (spec `77tr3o` R-5 and R-12 point 3): `plan_role`-parity (quoted legacy `Kind`-parity) at `pre-transition` is unchanged. The check is the shared function, not a second implementation, so `aw ipd lint`, `aw check plans` and `aw ipd set` report identical findings for the same plan.
+ 
+ The linter MAY detect exact prohibited lifecycle commands or reserved markers inside the execution checklist, but it MUST NOT claim semantic certainty that arbitrary prose does or does not describe a lifecycle transition. The template excludes terminal transition from the execution list; semantic review enforces the general prohibition.
  
 @@ -562,7 +554,7 @@ Therefore an IPD citing a location in code MUST anchor it durably, in this order
  
@@ -1930,7 +2104,7 @@ index 0710b845e..4aa78a449 100644
  The fourth criterion (an exhaustive mapping) fails as a direct consequence of having no closed native status contract to map over.
  
 diff --git a/.aw/system/managed-sections.json b/.aw/system/managed-sections.json
-index 4a2fc91a6..445ae04d3 100644
+index 4a2fc91a6..e2703dc4a 100644
 --- a/.aw/system/managed-sections.json
 +++ b/.aw/system/managed-sections.json
 @@ -1210,7 +1210,7 @@
@@ -1938,7 +2112,7 @@ index 4a2fc91a6..445ae04d3 100644
        "kind": "section",
        "logical_id": "pointer",
 -      "sha256": "c59a6c7358470e9fc7392d6a51f31cb25e17eb690ed0b00ae93822a1be22da74"
-+      "sha256": "54ca0edb1418ab5019b6c25465d34c813d3b9125ec423de3e7714090b15edeca"
++      "sha256": "d24b102d1ed81d0d42dc83da470cd305e88cbe84171345bc94f8f9d397b4f6b0"
      },
      "AGENTS.md#aw:reporting": {
        "host": "",
@@ -2044,7 +2218,7 @@ index 3209cba3c..6a3e7678b 100644
     next section) so the report and evidence are durable, not just shown in chat.
  7. **Commit ONLY the IPD**, and NEVER push (commit-only; no remote changes). In
 diff --git a/.aw/system/workflows/assess/templates/ipd.md b/.aw/system/workflows/assess/templates/ipd.md
-index 7d3ae6800..30638e621 100644
+index 7d3ae6800..fcd07eb08 100644
 --- a/.aw/system/workflows/assess/templates/ipd.md
 +++ b/.aw/system/workflows/assess/templates/ipd.md
 @@ -1,25 +1,12 @@
@@ -2075,12 +2249,12 @@ index 7d3ae6800..30638e621 100644
 -## Workflow history
 -
 -- <YYYY-MM-DD> draft (<agent/model>): created.
-+> Manage plan metadata and lifecycle status with commands (`aw ipd scaffold`, `aw ipd set`, `aw ipd dependencies set`, `aw ipd sync`) and inspect them with `aw show <id6>` and `aw show <id6> --history`; never hand-edit `.aw/records/meta/<id6>.jsonl` or the front-matter mirror.
++> Manage plan metadata (including `plan_role: child`) and lifecycle status with commands (`aw ipd scaffold`, `aw ipd set`, `aw ipd dependencies set`, `aw ipd sync`) and inspect them with `aw show <id6>` and `aw show <id6> --history`; never hand-edit `.aw/records/meta/<id6>.jsonl` or the front-matter mirror.
  
  ## Goal
  
 diff --git a/.aw/system/workflows/assess/templates/orchestrator-ipd.md b/.aw/system/workflows/assess/templates/orchestrator-ipd.md
-index 44255149e..458955556 100644
+index 44255149e..94616d2cd 100644
 --- a/.aw/system/workflows/assess/templates/orchestrator-ipd.md
 +++ b/.aw/system/workflows/assess/templates/orchestrator-ipd.md
 @@ -1,25 +1,12 @@
@@ -2111,10 +2285,49 @@ index 44255149e..458955556 100644
 -## Workflow history
 -
 -- <YYYY-MM-DD> draft (<agent/model>): created.
-+> Manage orchestrator metadata, coverage, and lifecycle status with commands (`aw ipd scaffold`, `aw ipd set`, `aw ipd dependencies set`, `aw ipd coverage`, `aw ipd sync`) and inspect them with `aw show <id6>` and `aw show <id6> --history`; never hand-edit `.aw/records/meta/<id6>.jsonl` or the front-matter mirror.
++> Manage orchestrator metadata (including `plan_role: orchestrator`), coverage, and lifecycle status with commands (`aw ipd scaffold`, `aw ipd set`, `aw ipd dependencies set`, `aw ipd coverage`, `aw ipd sync`) and inspect them with `aw show <id6>` and `aw show <id6> --history`; never hand-edit `.aw/records/meta/<id6>.jsonl` or the front-matter mirror.
  
  ## Goal
  
+diff --git a/.aw/system/workflows/handoff/README.md b/.aw/system/workflows/handoff/README.md
+index 2a132b9e3..8a8df716b 100644
+--- a/.aw/system/workflows/handoff/README.md
++++ b/.aw/system/workflows/handoff/README.md
+@@ -3,7 +3,7 @@
+ Session-continuity generator: capture this session's EPHEMERAL context (discussion, decisions and
+ their why, abandoned approaches, tacit preferences) into a resume document so a fresh session picks up
+ where this one left off. Session context is the core; the on-disk record is a thin supporting frame.
+-It writes a `Kind: session-handoff` draft to the gitignored `.aw/records/prompts/untracked/` lane, applies a
++It writes a `prompt_kind: session-handoff` draft to the gitignored `.aw/records/prompts/untracked/` lane, applies a
+ sensitivity/privacy gate + `aw check-local-leaks`, and NEVER auto-commits - the human promotes it. Run
+ `/handoff [focus]`, or from any agent: "read and execute `.aw/system/workflows/handoff/handoff.md`". See
+ `.aw/system/workflows/index.md` for the catalog and `/whatnext` for the short next-action ordering.
+diff --git a/.aw/system/workflows/handoff/handoff.md b/.aw/system/workflows/handoff/handoff.md
+index c7a39bbdc..bf1a4dbb2 100644
+--- a/.aw/system/workflows/handoff/handoff.md
++++ b/.aw/system/workflows/handoff/handoff.md
+@@ -108,10 +108,10 @@ durable, pushable file. While drafting:
+ Write ONE document to `.aw/records/prompts/untracked/YYYYMMDD-HHMM-NN-session-handoff-<slug>.md` (slug is a
+ short focus, or `resume`). Create the `untracked/` dir if absent (`mkdir -p .aw/records/prompts/untracked`);
+ it is gitignored (by `records/*/untracked/` in `.aw/.gitignore`) so nothing there can be committed.
+-Front-matter: `Kind: session-handoff`, `Status: draft`,
++Front-matter: `prompt_kind: session-handoff`, `status: draft`,
+ date, purpose, and a "read this first" line. Order the body so the session-context core leads:
+ 
+-1. Header (`Kind: session-handoff`, date, purpose, read-this-first).
++1. Header (`prompt_kind: session-handoff`, date, purpose, read-this-first).
+ 2. Session context (Step 1) - the main body.
+ 3. Working style, preferences, and nuance (Step 2).
+ 4. How to use this / recommended first moves (an ordered short list).
+@@ -132,7 +132,7 @@ is a hand-authored example of the sections and the nuance layer. Copy its struct
+ - [ ] Every required section is present or explicitly "N/A because ...".
+ - [ ] The Sensitivity and privacy contract was applied: sensitive items omitted, or reframed WITH
+       the human's approval of the wording; no raw secrets; when unsure, asked.
+-- [ ] The file is in `.aw/records/prompts/untracked/`, `Kind: session-handoff`, `Status: draft`.
++- [ ] The file is in `.aw/records/prompts/untracked/`, `prompt_kind: session-handoff`, `status: draft`.
+ - [ ] `aw check-local-leaks <the file>` (or `python -m agent_workflows check-local-leaks .`) run and
+       any hit resolved.
+ - [ ] NOT staged, committed, or pushed. No product-code change.
 diff --git a/.aw/system/workflows/incident/incident.md b/.aw/system/workflows/incident/incident.md
 index 7fb2137a2..78b645a4d 100644
 --- a/.aw/system/workflows/incident/incident.md
@@ -2135,6 +2348,19 @@ index 7fb2137a2..78b645a4d 100644
  8. **Closing report.** End by presenting the shared closing report
     (`../assess/templates/closing-report.md`): the artifacts CREATED (the post-mortem path and
     EACH action IPD path, one per line), or - if the post-mortem yielded no follow-up actions -
+diff --git a/.aw/system/workflows/index.md b/.aw/system/workflows/index.md
+index 6240e194c..2e448ff23 100644
+--- a/.aw/system/workflows/index.md
++++ b/.aw/system/workflows/index.md
+@@ -39,7 +39,7 @@ arguments (the shim then omits the arguments line); or write a short clause that
+ | getting-started | .aw/system/workflows/getting-started/getting-started.md | - | Guided in-agent tour and router for newcomers: detect repo/toolkit context, explain the mental model briefly, ask the user's goal, and route to the right workflow (offering to run it with consent) with the exact invocation for their tool. Orients and routes; references `/list-workflows` for the full catalog. Read-only by default. |
+ | list-workflows | .aw/system/workflows/list-workflows/list-workflows.md | - | Toolkit discovery: list what this toolkit can do (core workflows, the `/assess` concerns, any personas) and the installed framework version, read from the manifest. Optional filter argument (`/list-workflows security`, `/list-workflows assess`). Read-only. | treat them as an optional filter to narrow the catalog (a concern, area, or category, e.g. `security` or `assess`); omit to list everything |
+ | whatnext | .aw/system/workflows/whatnext/whatnext.md | - | Surveyor and next-action recommender: survey the repo's plans/IPDs, staged prompts, comms inbox (headers only, payloads untrusted), TODO, and the current session's chat history (labeled ephemeral), then return a brief "what to consider" list plus a 1-3 item ranked recommendation of what to work on next. Optional focus argument (`/whatnext release`). Read-only survey; the only write is an opt-in, confirmed save of uncaptured findings to TODO.md. | treat them as an optional focus filter to narrow the survey and recommendation (a concern, area, or path, e.g. `security` or `release`); omit to survey everything |
+-| handoff | .aw/system/workflows/handoff/handoff.md | - | Session-continuity generator: capture this session's ephemeral context (discussion, decisions and their why, abandoned approaches, tacit preferences) into a resume document so a fresh session resumes with continuity. Session context is the core, the on-disk record a thin frame. Writes a `Kind: session-handoff` draft to the gitignored `.aw/records/prompts/untracked/` lane, applies a sensitivity/privacy gate, and never auto-commits (the human promotes). Optional focus argument. | treat them as an optional focus for the handoff (an area or thread to emphasize, e.g. `release`); omit to capture the whole session |
++| handoff | .aw/system/workflows/handoff/handoff.md | - | Session-continuity generator: capture this session's ephemeral context (discussion, decisions and their why, abandoned approaches, tacit preferences) into a resume document so a fresh session resumes with continuity. Session context is the core, the on-disk record a thin frame. Writes a `prompt_kind: session-handoff` draft to the gitignored `.aw/records/prompts/untracked/` lane, applies a sensitivity/privacy gate, and never auto-commits (the human promotes). Optional focus argument. | treat them as an optional focus for the handoff (an area or thread to emphasize, e.g. `release`); omit to capture the whole session |
+ | askme | .aw/system/workflows/askme/askme.md | - | Ask or rewrite one decision question at a time with plain language and all context needed to answer. Accept a current question, conversational instructions such as "that question again", or project records to examine. Wait for answers and record project decisions. Explicitly noninteractive runs preserve unanswered decisions without guessing. | interpret them as a question, instructions to rewrite the previous question, or a file/record/set to examine; without arguments use the outstanding question in the current conversation, otherwise this session's unanswered project questions |
+ | plain | .aw/system/workflows/plain/plain.md | - | Rewrite your previous message for a capable engineer who has not seen this work: explain each term, tell a failure as the steps that happened, mark an unverified cause as unverified, keep every fact, and send only the rewrite. Use when the user says the message was unclear or asks for the plain version. | treat them as which part of the previous message to rewrite or what was unclear; omit to rewrite the whole previous message |
+ | research | .aw/system/workflows/research-prompt/research-prompt.md | - | Research prompt producer: turns a research topic into a house-conformant, upload-ready research handoff prompt (a `.prompt.md`) staged in `.aw/records/prompts/pending/`. | treat them as the research topic and optional scope; omit to be prompted for the topic |
 diff --git a/.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md b/.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md
 index c6ab81b35..3d3f4c521 100644
 --- a/.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md
@@ -2314,10 +2540,24 @@ index 37bcee9b0..1a794173d 100644
     (`../assess/templates/closing-report.md`): the artifact CREATED (the IPD path), or - if you
     concluded the migration should not proceed and wrote no IPD - that none was created and why,
 diff --git a/.aw/system/workflows/plan-review-long/02-review-and-revise.md b/.aw/system/workflows/plan-review-long/02-review-and-revise.md
-index 8b6ad6db6..e0cf22d07 100755
+index 8b6ad6db6..d5eb33472 100755
 --- a/.aw/system/workflows/plan-review-long/02-review-and-revise.md
 +++ b/.aw/system/workflows/plan-review-long/02-review-and-revise.md
-@@ -107,7 +107,7 @@ For a plan whose own first `- Kind:` bullet reads `orchestrator` (read from the
+@@ -93,9 +93,10 @@ Make surgical, well-anchored edits:
+ 
+ ### Orchestrator checklist row repair loop (`IPD-S407`)
+ 
+-For a plan whose own first `- Kind:` bullet reads `orchestrator` (read from the plan's own first
+-`- Kind:` bullet in front matter; never use a whole-file containment scan like
+-`grep -l 'Kind: orchestrator'`, which misclassifies child plans quoting the bullet such as `m7gvuz`):
++For a plan whose `plan_role` in `.aw/records/meta/<id6>.jsonl` (inspected with `aw show <id6>`;
++replacing the quoted legacy `- Kind: orchestrator` bullet) reads `orchestrator` (never use a
++whole-file containment scan like `grep -l 'Kind: orchestrator'`, which misclassifies child plans
++quoting the legacy bullet such as `m7gvuz`):
+ 
+ 1. **Verify conformance (`IPD-S407`):** Every checklist item must be a typed child-tracking row
+    matching `- [ ] E-NN CONFIRM <child-id6> REACHED <status>`.
+@@ -107,20 +108,21 @@ For a plan whose own first `- Kind:` bullet reads `orchestrator` (read from the
     (which states the invariant, forbids satisfying it by deletion, and names both remedies: moving the
     step to a child with dependencies, or removing it if redundant).
  4. **Attempt logging:** Log every attempt into the current `## Round <n>` of the typed review record
@@ -2326,7 +2566,15 @@ index 8b6ad6db6..e0cf22d07 100755
     what the check reported, what changed, and the row count before and after (`rows: N -> M`) to
     distinguish relocation from deletion.
  
-@@ -119,8 +119,8 @@ For a plan whose own first `- Kind:` bullet reads `orchestrator` (read from the
+ ### Orchestrator review readiness (`IPD-S408`)
+ 
+-For a plan whose own first `- Kind:` bullet reads `orchestrator` (read from the plan's own first
+-`- Kind:` bullet in front matter; never use a whole-file containment scan like
+-`grep -l 'Kind: orchestrator'`, which misclassifies child plans quoting the bullet such as `m7gvuz`):
++For a plan whose `plan_role` in `.aw/records/meta/<id6>.jsonl` (inspected with `aw show <id6>`;
++replacing the quoted legacy `- Kind: orchestrator` bullet) reads `orchestrator` (never use a
++whole-file containment scan like `grep -l 'Kind: orchestrator'`, which misclassifies child plans
++quoting the legacy bullet such as `m7gvuz`):
  
  1. **Verify review readiness (`IPD-S408`):** Run `aw ipd coverage <id6>` on the orchestrator under review.
  2. **Bounded repair loop:** If coverage findings are reported, resolve each quoted finding by assigning it by id6 to a child in the `## Child IPDs` table or by adding a child plan and its row (never by deleting the checklist), up to an attempt budget of 2.
@@ -2337,7 +2585,7 @@ index 8b6ad6db6..e0cf22d07 100755
  
  For cross-plan findings, fix the owning plan and cross-reference dependent
  plans. Do not duplicate requirements.
-@@ -134,8 +134,11 @@ as it now reads, not merely your own diff. Grep for distinctive tokens of the
+@@ -134,8 +136,11 @@ as it now reads, not merely your own diff. Grep for distinctive tokens of the
  superseded wording (e.g. `PHASE_COMMITTED_INCOMPLETE` in `u23gbn`, where round 3
  corrected E-06 and V-06 but left V-02 demanding an impossible state). If a stale
  sibling belongs to an already executed plan and cannot be edited in place,
@@ -2352,11 +2600,22 @@ index 8b6ad6db6..e0cf22d07 100755
  If the approach is not safely patchable, mark `REPLAN`, explain why, and state
  the minimum shape of a sound replacement. Do not invent human product choices.
 diff --git a/.aw/system/workflows/plan-review-long/03-resolve-and-finalize.md b/.aw/system/workflows/plan-review-long/03-resolve-and-finalize.md
-index 70e2c9fe3..9b3da8ea3 100755
+index 70e2c9fe3..94578a717 100755
 --- a/.aw/system/workflows/plan-review-long/03-resolve-and-finalize.md
 +++ b/.aw/system/workflows/plan-review-long/03-resolve-and-finalize.md
-@@ -151,54 +151,54 @@ For a plan whose own first `- Kind:` bullet reads `orchestrator` (read from the
- `review-finalize` enforces typed child-tracking row conformance (`IPD-S407`).
+@@ -145,60 +145,61 @@ repair; exit `2` is a hard stop. INVOKE the linter; do not paraphrase it. It pro
+ only; it does not establish semantic adequacy. (The `machine preflight unavailable: bootstrap`
+ label applies only while the linter does not yet exist.)
+ 
+-For a plan whose own first `- Kind:` bullet reads `orchestrator` (read from the plan's own first
+-`- Kind:` bullet in front matter; never use a whole-file containment scan like
+-`grep -l 'Kind: orchestrator'`, which misclassifies child plans quoting the bullet such as `m7gvuz`),
+-`review-finalize` enforces typed child-tracking row conformance (`IPD-S407`).
++For a plan whose `plan_role` in `.aw/records/meta/<id6>.jsonl` (inspected with `aw show <id6>`;
++replacing the quoted legacy `- Kind: orchestrator` bullet) reads `orchestrator` (never use a
++whole-file containment scan like `grep -l 'Kind: orchestrator'`, which misclassifies child plans
++quoting the legacy bullet such as `m7gvuz`), `review-finalize` enforces typed child-tracking row
++conformance (`IPD-S407`).
  
  **Honest exhaustion (R6):** If the orchestrator repair loop (budget of 2 attempts) exhausts with
 -`IPD-S407` violations unresolved, the plan remains `- Status: to-review`, the findings are recorded
@@ -2438,7 +2697,7 @@ index 70e2c9fe3..9b3da8ea3 100755
  
  ## 3. Hardened-result commit
  
-@@ -225,7 +225,7 @@ clean plan is `GO - PENDING HUMAN APPROVAL`, never a bare `NO-GO`; reserve `NO-G
+@@ -225,7 +226,7 @@ clean plan is `GO - PENDING HUMAN APPROVAL`, never a bare `NO-GO`; reserve `NO-G
  for genuine not-ready conditions):
  
  - `GO` requires APPROVE or APPROVE WITH REVISIONS APPLIED, no open questions, no
@@ -2447,7 +2706,7 @@ index 70e2c9fe3..9b3da8ea3 100755
  - `GO - PENDING HUMAN APPROVAL` - same clean bar as GO, but the human sign-off has
    not happened yet. The correct, positive readiness for a plan that passed review
    and only awaits approval. NOT a failure state.
-@@ -248,7 +248,7 @@ Step 1 scope ledger and MUST be the literal last output.
+@@ -248,7 +249,7 @@ Step 1 scope ledger and MUST be the literal last output.
  The run is complete only when:
  
  - [ ] All resolvable questions are answered and applied.
@@ -2520,10 +2779,10 @@ index 3bf773e8e..36a83bbe7 100644
  If the approach is fundamentally unsound and cannot be repaired with bounded
  edits, mark `REPLAN`, explain why, and describe the minimum shape of a sound
 diff --git a/.aw/system/workflows/plan-review/steps/r2-executability.md b/.aw/system/workflows/plan-review/steps/r2-executability.md
-index 58fd5150e..3b74d7cd8 100644
+index 58fd5150e..dcf988161 100644
 --- a/.aw/system/workflows/plan-review/steps/r2-executability.md
 +++ b/.aw/system/workflows/plan-review/steps/r2-executability.md
-@@ -2,8 +2,8 @@
+@@ -2,18 +2,19 @@
  
  Verify the plan's structural and semantic executability:
  - The E/V bijection: each `E-*` item maps 1:1 to a `V-*` item with concrete evidence.
@@ -2534,7 +2793,22 @@ index 58fd5150e..3b74d7cd8 100644
  - Concrete evidence in every `V-*`: every validation item demands verifiable, non-tautological evidence.
  - No hardcoded counts of mutable record trees.
  
-@@ -23,14 +23,15 @@ If `IPD-S407` violations are reported:
+ ## Orchestrator checks
+ 
+ #### Orchestrator checklist row check and bounded repair loop (`IPD-S407`)
+-Beside `review-finalize`, for any plan whose own first `- Kind:` bullet reads `orchestrator`
+-(read from the plan's own first `- Kind:` bullet in front matter; never use a whole-file containment
+-scan like `grep -l 'Kind: orchestrator'`, which misclassifies child plans quoting the bullet such as
+-`m7gvuz`), the linter validates typed child-tracking row conformance (`IPD-S407`).
++Beside `review-finalize`, for any plan whose `plan_role` in `.aw/records/meta/<id6>.jsonl`
++(inspected with `aw show <id6>`; replacing the quoted legacy `- Kind: orchestrator` bullet) reads
++`orchestrator` (never use a whole-file containment scan like `grep -l 'Kind: orchestrator'`, which
++misclassifies child plans quoting the legacy bullet such as `m7gvuz`), the linter validates typed
++child-tracking row conformance (`IPD-S407`).
+ 
+ If `IPD-S407` violations are reported:
+ 1. **Bounded repair loop:** Ask the agent to repair the checklist rows and re-run the check, up to
+@@ -23,25 +24,26 @@ If `IPD-S407` violations are reported:
     (which states the invariant, forbids satisfying it by deletion, and names both remedies: moving the
     step to a child with dependencies, or removing it if redundant).
  3. **Attempt logging:** Log every attempt into the current `## Round <n>` of the typed review record
@@ -2555,7 +2829,10 @@ index 58fd5150e..3b74d7cd8 100644
  
  (Only while the linter does not yet exist may a run record say `machine preflight unavailable:
  bootstrap`; once `aw ipd lint` is available that exception no longer applies.)
-@@ -40,8 +41,8 @@ Beside `review-finalize`, for any plan whose own first `- Kind:` bullet reads `o
+ 
+ #### Orchestrator review readiness (`IPD-S408`)
+-Beside `review-finalize`, for any plan whose own first `- Kind:` bullet reads `orchestrator`, check review readiness with `aw ipd coverage <id6>`.
++Beside `review-finalize`, for any plan whose `plan_role` (inspected with `aw show <id6>`) reads `orchestrator`, check review readiness with `aw ipd coverage <id6>`.
  
  If coverage findings are reported:
  1. **Bounded repair loop:** Resolve each quoted finding by assigning it by id6 to a child in the `## Child IPDs` table or by adding a child plan and its row (never by deleting the checklist), up to an attempt budget of 2.
@@ -2566,7 +2843,7 @@ index 58fd5150e..3b74d7cd8 100644
  
  `aw ipd set reviewed` refuses an orchestrator with unresolved coverage findings (Order 05), so the reviewer resolves the findings before setting the status.
  
-@@ -61,7 +62,7 @@ Verify the plan states:
+@@ -61,7 +63,7 @@ Verify the plan states:
  - For an agent-executable plan: BOTH a top execution checklist AND an end verification/cross-check
    checklist that maps 1:1 with concrete per-item evidence. A weak or absent verification checklist
    (one that could let an agent claim completion without doing every step) is an UNDER-SCOPE finding.
@@ -2759,7 +3036,7 @@ index a7f846414..8d2890529 100644
  Guidance in the step file, not a rule: a "yes" to question 1, 2, or 5 usually means `standard` or `complex`; `simple` fits a change where every answer is "no" and the change is small.
  
 diff --git a/.aw/system/workflows/research-prompt/research-prompt.md b/.aw/system/workflows/research-prompt/research-prompt.md
-index 2bfb5b929..343f10441 100644
+index 2bfb5b929..6deba09a4 100644
 --- a/.aw/system/workflows/research-prompt/research-prompt.md
 +++ b/.aw/system/workflows/research-prompt/research-prompt.md
 @@ -8,7 +8,7 @@ This workflow is a PRODUCER: it drafts a prompt for another AI to execute. It do
@@ -2805,7 +3082,7 @@ index 2bfb5b929..343f10441 100644
     ```
  
 -   Pass `--set <setid>` when this prompt belongs to a group of related prompts; omit it for a lone prompt and the slug becomes its own singleton Set.
-+   Pass `--set <setid>` when this prompt belongs to a group of related prompts; omit it for a lone prompt and the slug becomes its own singleton Set. Pass `--summary '<one-line summary>'` to record `short_description` at creation.
++   Pass `--set <setid>` when this prompt belongs to a group of related prompts; omit it for a lone prompt and the slug becomes its own singleton Set. `--kind research` records `prompt_kind: research` in `.aw/records/meta/<id6>.jsonl`. Pass `--summary '<one-line summary>'` to record `short_description` at creation.
  
 -   Omit `--apply` first if you want to preview the path it will use. The verb prints the path it wrote; use that path for the remaining steps. Do NOT compute an id6, a Set id, or an order number, and do NOT hand-write the `<!-- aw-prompt: ... -->` comment: all of them are the verb's job, and hand-writing them is what drifted the existing corpus. NOTE the minted `<id6>` appears in both the filename and that comment; report it to the user, because it is the handle the eventual research report cites.
 +   Omit `--apply` first if you want to preview the path it will use. The verb prints the path it wrote; use that path for the remaining steps. Do NOT compute an `id6`, a Set id, or an order number, and do NOT hand-write the `<!-- aw-managed-prompt: ... -->` comment or `.aw/records/meta/<id6>.jsonl`: all of them are the verb's job, and hand-writing them is what drifted the existing corpus. NOTE the minted `<id6>` appears in both the filename and the leading comment; report it to the user, because it is the handle the eventual research report cites.
@@ -3075,7 +3352,7 @@ index 396d8928e..220f5bc70 100644
     (`../assess/templates/closing-report.md`): the artifact CREATED (the spec file path), or -
     if the user declined the write - that none was created and why, plus the next steps:
 diff --git a/.aw/system/workflows/templates/agents-docs-research-README.md b/.aw/system/workflows/templates/agents-docs-research-README.md
-index 6271c1e8a..fbee5206a 100644
+index 6271c1e8a..007f95c44 100644
 --- a/.aw/system/workflows/templates/agents-docs-research-README.md
 +++ b/.aw/system/workflows/templates/agents-docs-research-README.md
 @@ -12,7 +12,8 @@ YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<model>].<kind>.md
@@ -3093,8 +3370,9 @@ index 6271c1e8a..fbee5206a 100644
    (word-boundary greppable as `\b<id6>\b`), resolved via the metadata cache.
  - `<slug>`: a short descriptive kebab.
 -- `[.<model>]`: an OPTIONAL authorship facet (also recorded in frontmatter); drawn from an open, data-driven vocabulary (packaged defaults + `.aw/config/research-models.toml`). An unrecognized model is recorded with an advisory warning; bless one via `aw research add-model <token>`.
+-- `<kind>`: MANDATORY, drawn from the enumerated vocabulary.
 +- `[.<model>]`: an OPTIONAL authorship facet (also recorded in the metadata log, inspected with `aw show <id6>`); drawn from an open, data-driven vocabulary (packaged defaults + `.aw/config/research-models.toml`). An unrecognized model is recorded with an advisory warning; bless one via `aw research add-model <token>`.
- - `<kind>`: MANDATORY, drawn from the enumerated vocabulary.
++- `<kind>`: MANDATORY filename facet mirroring the logged `research_kind` field in `.aw/records/meta/<id6>.jsonl`, drawn from the enumerated vocabulary.
  
 -Do NOT hand-name or hand-maintain research files or the index. Use the `aw research` and
 -`aw archive` verbs (see `aw research --help`); the tool owns naming, the frontmatter, and the
@@ -3367,7 +3645,7 @@ index 1e717a58d..a8f8a5ef1 100644
 +plan - the record of what we tried and why we changed course is valuable. Use `not-executed/`
 +instead if the plan was dropped with no replacement.
 diff --git a/.aw/system/workflows/templates/prompts-README.md b/.aw/system/workflows/templates/prompts-README.md
-index 89eeec701..fe3a87580 100644
+index 89eeec701..4a1ff3a25 100644
 --- a/.aw/system/workflows/templates/prompts-README.md
 +++ b/.aw/system/workflows/templates/prompts-README.md
 @@ -1,37 +1,41 @@
@@ -3414,7 +3692,7 @@ index 89eeec701..fe3a87580 100644
 -executed (the original staging use), and `session-handoff` resume prompts produced by `/handoff` (a
 -prompt for the NEXT session rather than a task to run now). Handoff drafts are written to the
 -gitignored `untracked/` lane (below) and promoted only after review.
-+Recognized prompt kinds (recorded as `Kind` in the prompt's metadata log, set via
++Recognized prompt kinds (recorded as `prompt_kind` in the prompt's metadata log, set via
 +`aw prompts new --kind ...`): `run-once` and `research` prompts QUEUED to be executed (the original
 +staging use), and `session-handoff` resume prompts produced by `/handoff` (a prompt for the NEXT
 +session rather than a task to run now). Handoff drafts are written to the gitignored `untracked/`
@@ -3630,7 +3908,7 @@ index 887d9350f..db8ab34d7 100644
  ## Step 3: Recommend (the output)
  
 diff --git a/AGENTS.md b/AGENTS.md
-index 0537f93aa..fc2c8b92b 100644
+index 0537f93aa..ddb32d6e2 100644
 --- a/AGENTS.md
 +++ b/AGENTS.md
 @@ -23,31 +23,31 @@ When asked to write a prompt to give to another AI (e.g. a research prompt for a
@@ -3681,15 +3959,18 @@ index 0537f93aa..fc2c8b92b 100644
  
  HOW TO RUN THE TEST SUITE: run the project's own test command (discovered by `/setup-repo` or the project's docs), and paste the actual runner output (never claim success you did not run).
  
-@@ -97,7 +97,7 @@ When you ask a human a decision through an interactive prompt, put the ENTIRE qu
+@@ -97,9 +97,9 @@ When you ask a human a decision through an interactive prompt, put the ENTIRE qu
  ### Authoring and executing IPDs
  When you author or execute an Implementation Plan Document (IPD), do NOT hand-number ids or hand-place checklists: use the tools and follow the canonical spec. `aw ipd scaffold` writes a conformant skeleton, `aw ipd sync` assigns `E-*`/`V-*` ids + validation skeletons, and `aw ipd lint` deterministically checks structure/state. The EXACT structural contract (section order, the execution + validation checklists, the E/V bijection, states, metadata, and the lifecycle transaction) is described in `.aw/system/workflows/ipd-lifecycle/ipd-lifecycle.md`, `.aw/records/plans/README.md`, and `aw ipd --help`; the `ipd-lifecycle` workflow gates execution and the terminal transition. Completion rule: do NOT claim done or move a plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` conforms and every validation item is verified with concrete evidence (tests run, actual output pasted).
  
 -NEVER WRITE ANOTHER ROLE'S ATTESTATION FIELD. Some fields are OUTPUTS of a step you are not performing, and writing one forges the evidence that a gate reads. The canonical case is `- Readiness:` (`go`/`go-pending-approval`/`no-go`), which is an output of `/plan-review`: the auto-approve predicate reads that FIELD FIRST and only falls back to parsing the workflow history when it is ABSENT, so a hand-written value asserts that a review cleared the plan, and under `--full-auto` that assertion is what promotes a plan to approved and its queue action to `execute`. Measured 2026-09-06: an agent authoring a four-plan Set wrote `Readiness: go-pending-approval` into all four having run no review, and the predicate returned True for every one. So when AUTHORING, OMIT the field: absence is the correct state, it is silent, and it makes the gate fail closed. `aw ipd scaffold` already omits it; do not add it. `aw ipd lint` refuses an unattested value (`IPD-M107`), which also blocks `aw ipd begin`. The same rule generalizes: never hand-write an `- Approval:` attestation, a `V-*` `Observed evidence` block you did not observe, or an `Execution state: performed` for work you did not do.
 +NEVER WRITE ANOTHER ROLE'S ATTESTATION. Some metadata fields are OUTPUTS of a step you are not performing, and hand-editing a metadata log or front-matter mirror forges the evidence that a gate reads. The canonical case is review readiness (`go`/`go-pending-approval`/`no-go`), which is an output of `/plan-review` recorded as a `review` event in the plan's metadata log by `aw reviews record` (never by hand). Under the legacy bullet format (measured 2026-09-06), an agent authoring a four-plan Set wrote `Readiness: go-pending-approval` into all four having run no review, and the auto-approve predicate returned True for every one. When AUTHORING, never write readiness or hand-edit `.aw/records/meta/<id6>.jsonl`: absence of a review event is the correct state, it is silent, and it makes the gate fail closed. `aw ipd scaffold` creates a conformant skeleton and metadata log with no review event; `aw check meta` and `aw ipd lint` fail closed on unattested or tampered metadata (repair drift only with `aw meta repair <id6>`). The same rule generalizes: never forge an approval attestation (recorded only via `aw ipd set approved <id6> --by-human`), a `V-*` `Observed evidence` block you did not observe, or an `Execution state: performed` for work you did not do.
  
- AN ORCHESTRATOR HOLDS ORCHESTRATION, NOT WORK OF ITS OWN, AND THE DISTINCTION IS NOT 'has no checklist'. An Order-0 orchestrator SHOULD carry a checklist of its children: that checklist is what makes a Set execute completely and in order when a human simply tells an agent 'execute <setid>' with no runner involved, which is how most Sets are run. DELETING it causes exactly the lost or partial work it exists to prevent. What must NOT be there is work that exists ONLY on the parent and is covered by no child: producing a deliverable, establishing a baseline before any child runs, reconciling records afterwards. The reason is mechanical: the runner RETIRES an orchestrator once every child is `executed` and deliberately SKIPS the pre-transition E/V checkpoint, on the premise that the parent's items are performed by nobody. Work parked on the parent is therefore marked complete having never been performed OR verified. So if you are authoring a Set and find yourself writing a STEP on the Order-0 plan that no child covers, do NOT delete it: ADD A CHILD for it. EVERY plan carrying `- Kind: orchestrator` carries checklist items, without exception, and most of those items are legitimate orchestration, which is why the distinction matters and why a blunt 'no items on a parent' rule is wrong. That is stated as a PROPERTY rather than as a fraction because the fraction rotted three times: it read '46 of 130', whose denominator was the filename `-00-` population, most of which are pre-`Kind` legacy plans carrying ZERO E-items and so diluting a ratio they are not members of; measured on the plans that actually declare the kind it has been 100 percent at every single measurement. AND A RUN NOW CHECKS THIS RATHER THAN TRUSTING YOU TO: see the ORCHESTRATOR COVERAGE GATE described under 'The runners own ordering, isolation, and orchestrators' above, which refuses before spending anything and tells you to add a child.
+-AN ORCHESTRATOR HOLDS ORCHESTRATION, NOT WORK OF ITS OWN, AND THE DISTINCTION IS NOT 'has no checklist'. An Order-0 orchestrator SHOULD carry a checklist of its children: that checklist is what makes a Set execute completely and in order when a human simply tells an agent 'execute <setid>' with no runner involved, which is how most Sets are run. DELETING it causes exactly the lost or partial work it exists to prevent. What must NOT be there is work that exists ONLY on the parent and is covered by no child: producing a deliverable, establishing a baseline before any child runs, reconciling records afterwards. The reason is mechanical: the runner RETIRES an orchestrator once every child is `executed` and deliberately SKIPS the pre-transition E/V checkpoint, on the premise that the parent's items are performed by nobody. Work parked on the parent is therefore marked complete having never been performed OR verified. So if you are authoring a Set and find yourself writing a STEP on the Order-0 plan that no child covers, do NOT delete it: ADD A CHILD for it. EVERY plan carrying `- Kind: orchestrator` carries checklist items, without exception, and most of those items are legitimate orchestration, which is why the distinction matters and why a blunt 'no items on a parent' rule is wrong. That is stated as a PROPERTY rather than as a fraction because the fraction rotted three times: it read '46 of 130', whose denominator was the filename `-00-` population, most of which are pre-`Kind` legacy plans carrying ZERO E-items and so diluting a ratio they are not members of; measured on the plans that actually declare the kind it has been 100 percent at every single measurement. AND A RUN NOW CHECKS THIS RATHER THAN TRUSTING YOU TO: see the ORCHESTRATOR COVERAGE GATE described under 'The runners own ordering, isolation, and orchestrators' above, which refuses before spending anything and tells you to add a child.
++AN ORCHESTRATOR HOLDS ORCHESTRATION, NOT WORK OF ITS OWN, AND THE DISTINCTION IS NOT 'has no checklist'. An Order-0 orchestrator SHOULD carry a checklist of its children: that checklist is what makes a Set execute completely and in order when a human simply tells an agent 'execute <setid>' with no runner involved, which is how most Sets are run. DELETING it causes exactly the lost or partial work it exists to prevent. What must NOT be there is work that exists ONLY on the parent and is covered by no child: producing a deliverable, establishing a baseline before any child runs, reconciling records afterwards. The reason is mechanical: the runner RETIRES an orchestrator once every child is `executed` and deliberately SKIPS the pre-transition E/V checkpoint, on the premise that the parent's items are performed by nobody. Work parked on the parent is therefore marked complete having never been performed OR verified. So if you are authoring a Set and find yourself writing a STEP on the Order-0 plan that no child covers, do NOT delete it: ADD A CHILD for it. EVERY plan with `plan_role: orchestrator` (recorded in `.aw/records/meta/<id6>.jsonl`, replacing the quoted legacy `- Kind: orchestrator` bullet) carries checklist items, without exception, and most of those items are legitimate orchestration, which is why the distinction matters and why a blunt 'no items on a parent' rule is wrong. That is stated as a PROPERTY rather than as a fraction because the fraction rotted three times: it read '46 of 130', whose denominator was the filename `-00-` population, most of which are legacy plans predating `plan_role` (quoted legacy `Kind`) that carry ZERO E-items and so dilute a ratio they are not members of; measured on the plans that actually declare the plan role it has been 100 percent at every single measurement. AND A RUN NOW CHECKS THIS RATHER THAN TRUSTING YOU TO: see the ORCHESTRATOR COVERAGE GATE described under 'The runners own ordering, isolation, and orchestrators' above, which refuses before spending anything and tells you to add a child.
  
+ A PLAN MAY AMEND A SPEC, AND MUST DECLARE IT. Specs are living contracts, not immutable history: a plan that changes behavior a spec describes SHOULD carry the spec amendment in the same change, so the two never drift apart. The alternative was measured and is a dead end (plan `51vw4y` had to extend a spec-governed flag table with no spec-edit authority, leaving no route that did not either edit an approved spec or weaken a shipped contract test). Two obligations follow. FIRST, list every `.spec.md` file you will touch in `- Scope-Paths:`, because that is what makes the amendment visible: `aw oc run` / `aw agy run` announce declared spec edits BEFORE the run starts, and the finalize scope gate reconciles what you actually changed against what you declared. BOTH RUNNERS ALSO REPORT AT RUN END, beside the run summary, which specs the run declared and which it actually changed, INCLUDING a spec that was modified WITHOUT being declared; that end report names any item whose reconciliation refused or that never finalized rather than counting it clean, and a run whose spec-edit computation FAILS says so in one line instead of printing nothing, so silence means 'no declared spec edits' and never 'the announcer broke'. SECOND, say WHY in the plan's spec-sync section, since a spec edit changes the contract every other plan is reviewed against and is the highest-leverage change a run can make.
+ <!-- aw:reporting -->
 @@ -146,49 +146,56 @@ less, to verify less, or to omit something a human needs in order to understand
  
  This repository follows a structured Implementation Plan Document (IPD) lifecycle:
@@ -3837,8 +4118,30 @@ index 0537f93aa..fc2c8b92b 100644
  and the advisory `check.orphaned-live-blocker`), and the opt-in pre-commit hook, so they cannot diverge.
  
  An OPT-IN local pre-commit hook (`backlog-blocking-close-gate`) catches the hand-edit bypass (staging a
+diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
+index 4a1c3fe81..f7a03b5cf 100644
+--- a/agent_workflows/cli.py
++++ b/agent_workflows/cli.py
+@@ -2262,7 +2262,7 @@ def _build_parser_impl(_only_cmd: Optional[str] = None) -> argparse.ArgumentPars
+         default=None,
+         help="Target repository root (default: discovered project root or CWD).",
+     )
+-    p_ipd_scaffold.add_argument("--kind", required=True, help="child or orchestrator.")
++    p_ipd_scaffold.add_argument("--kind", required=True, help="Plan role (plan_role): child or orchestrator.")
+     p_ipd_scaffold.add_argument(
+         "--title", required=True, help="IPD title (after the H1 'IPD: ')."
+     )
+@@ -4338,7 +4338,7 @@ def _build_parser_impl(_only_cmd: Optional[str] = None) -> argparse.ArgumentPars
+     )
+     p_research_mv.add_argument("id", help="The <id6> of the doc to rename.")
+     p_research_mv.add_argument("--slug", default=None, help="New slug.")
+-    p_research_mv.add_argument("--kind", default=None, help="New kind.")
++    p_research_mv.add_argument("--kind", default=None, help="New research kind (research_kind).")
+     p_research_mv.add_argument("--model", default=None, help="New model facet.")
+     p_research_mv.add_argument(
+         "--dir", default=None, help="Repo root (default: current directory)."
 diff --git a/agent_workflows/engine.py b/agent_workflows/engine.py
-index 4b5e93bd4..fdfef690e 100755
+index 4b5e93bd4..42d4ca1a4 100755
 --- a/agent_workflows/engine.py
 +++ b/agent_workflows/engine.py
 @@ -1476,13 +1476,15 @@ def agents_pointer_prose(
@@ -4028,7 +4331,202 @@ index 4b5e93bd4..fdfef690e 100755
          "`Observed evidence` block you did not observe, or an `Execution state: performed` for work you "
          "did not do."
          "\n\nAN ORCHESTRATOR HOLDS ORCHESTRATION, NOT WORK OF ITS OWN, AND THE DISTINCTION IS NOT "
-@@ -6841,8 +6866,8 @@ repos:
+@@ -1832,14 +1857,16 @@ def agents_pointer_prose(
+         "SKIPS the pre-transition E/V checkpoint, on the premise that the parent's items are performed "
+         "by nobody. Work parked on the parent is therefore marked complete having never been performed "
+         "OR verified. So if you are authoring a Set and find yourself writing a STEP on the Order-0 "
+-        "plan that no child covers, do NOT delete it: ADD A CHILD for it. EVERY plan carrying "
+-        "`- Kind: orchestrator` carries checklist items, without exception, and most of those items "
+-        "are legitimate orchestration, which is why the distinction matters and why a blunt 'no items "
+-        "on a parent' rule is wrong. That is stated as a PROPERTY rather than as a fraction because "
+-        "the fraction rotted three times: it read '46 of 130', whose denominator was the filename "
+-        "`-00-` population, most of which are pre-`Kind` legacy plans carrying ZERO E-items and so "
+-        "diluting a ratio they are not members of; measured on the plans that actually declare the "
+-        "kind it has been 100 percent at every single measurement. AND A RUN NOW CHECKS THIS RATHER "
++        "plan that no child covers, do NOT delete it: ADD A CHILD for it. EVERY plan with "
++        "`plan_role: orchestrator` (recorded in `.aw/records/meta/<id6>.jsonl`, replacing the "
++        "quoted legacy `- Kind: orchestrator` bullet) carries checklist items, without exception, "
++        "and most of those items are legitimate orchestration, which is why the distinction matters "
++        "and why a blunt 'no items on a parent' rule is wrong. That is stated as a PROPERTY rather "
++        "than as a fraction because the fraction rotted three times: it read '46 of 130', whose "
++        "denominator was the filename `-00-` population, most of which are legacy plans predating "
++        "`plan_role` (quoted legacy `Kind`) that carry ZERO E-items and so dilute a ratio they are "
++        "not members of; measured on the plans that actually declare the plan role it has been 100 "
++        "percent at every single measurement. AND A RUN NOW CHECKS THIS RATHER "
+         "THAN TRUSTING YOU TO: see the ORCHESTRATOR COVERAGE GATE described under 'The runners own "
+         "ordering, isolation, and orchestrators' above, which refuses before spending anything and "
+         "tells you to add a child."
+@@ -6470,6 +6497,169 @@ _PROMPTS_GITIGNORE_TEMPLATE = """\
+ untracked/
+ """
+ 
++# Spec 4sd62s section 4.1: installer-emitted quickstarts for agents and people.
++AGENT_QUICKSTART_PATH = ".aw/AGENT_QUICKSTART.md"
++QUICKSTART_PATH = ".aw/QUICKSTART.md"
++
++_AGENT_QUICKSTART_TEMPLATE = """\
++# Agent Quickstart (`.aw/`)
++
++This guide tells agents how to read and update tracked records under `.aw/records/`. The `aw-managed` HTML comment banner at the top of each managed record points here.
++
++## Where metadata lives
++
++Every tracked artifact (Implementation Plan Document or IPD, specification, backlog item, research document, release record, or staged prompt) and every walkthrough has a stable six-character identifier (`id6`) and a tracked, append-only JSON Lines (JSONL) event log at `.aw/records/meta/<id6>.jsonl`.
++
++- **Single authority:** `.aw/records/meta/<id6>.jsonl` is the only source of truth for `aw`-owned metadata and event history.
++- **Compact in-file mirror:** Each Markdown file keeps only a minimal mirror so people can identify the file and its status in raw views and diffs:
++  - Standard artifacts (plans, specs, backlog items, releases, status-bearing research) start with two-key YAML front matter (`id` and `status`) followed by the `<!-- aw-managed: ... -->` banner.
++  - Walkthroughs, roadmaps, and status-less research records start with one-key YAML front matter (`id` only) followed by the `<!-- aw-managed: ... -->` banner.
++  - Staged prompts under `.aw/records/prompts/` have no `---` YAML front matter; line 1 is a single leading HTML comment (`<!-- aw-managed-prompt: id: <id6> | status: <status> . Pipeline metadata only; not part of the prompt. Metadata: .aw/records/meta/<id6>.jsonl -->`).
++  - Review records under `.aw/records/reviews/` have no log of their own; their front matter carries `subject`, `subject_type`, and optional `ref`, and each review round is recorded as a `review` event in the subject's log.
++- **No workflow history section:** Managed records do not carry a `## Workflow history` section. Read history with `aw show <id6> --history`.
++- **Disposable cache:** `aw` serves metadata queries from the gitignored SQLite database `.aw/state/index.db`, built solely from `.aw/records/meta/*.jsonl`. Deleting `.aw/state/index.db` loses no data; `aw` rebuilds it automatically on the next read.
++
++```mermaid
++flowchart LR
++    CMD["aw command"] --> LOG[".aw/records/meta/<id6>.jsonl (authority)"]
++    LOG --> MIRROR["Markdown mirror and disposition directory"]
++    LOG --> CACHE[".aw/state/index.db (disposable SQLite cache)"]
++    CACHE --> READ["aw show / aw find / aw attention / aw check meta"]
++```
++
++## Hard rules
++
++1. **Never hand-edit `.aw/records/meta/<id6>.jsonl`.** Append events only through `aw` commands.
++2. **Never hand-edit in-file mirrors or banners.** Do not edit the `id`, `status`, `subject`, `subject_type`, or `ref` lines in front matter, the `<!-- aw-managed: ... -->` banner, or the `<!-- aw-managed-prompt: ... -->` comment.
++3. **Never hand-name or hand-move managed records.** Do not rename files or move them across disposition directories (`pending/`, `executed/`, `done/`, `superseded/`, `not-executed/`) with `mv` or `git mv`. Use the owner command so the log, mirror, filename, and directory stay aligned.
++4. **Never fabricate protected attestations.** Only `aw reviews record` writes `readiness` and `review_depth`, only `aw ipd set approved <id6> --by-human` or `aw specs set <path> --status approved --by-human` writes `approval`, only `aw ipd coverage <id6>` writes `coverage`, and only `aw ipd finalize` writes `scope_result` and the `executed` transition.
++5. **Commit through `aw commit`.** Always commit path-scoped changes with `aw commit <plan-id6> -- <paths>` (or `aw commit --no-plan -m "<message>" -- <paths>`). Never use `git add -A` or `git commit -a`.
++
++## Inspecting metadata and verifying drift
++
++| Task | Command |
++|---|---|
++| Read current replayed metadata for one record | `aw show <id6>` (add `--json` or `--agent` for machine output) |
++| Read sequence-ordered event history | `aw show <id6> --history` |
++| Query records by type, Set, or status | `aw find [plans|specs|backlog|research|prompts|walkthroughs|releases]` |
++| View cross-tree work needing attention | `aw attention` (add `--format json` or `--agent`) |
++| Check mirrors, filenames, directories, and review rounds against logs | `aw check meta` |
++| Preview or repair deterministic mirror drift | `aw meta repair <id6>` (dry-run; add `--apply` to write) |
++| Force a cache rebuild | `aw index rebuild` |
++
++## Which command writes which field
++
++Creation verbs preview by default; pass `--apply` to write files and initialize `.aw/records/meta/<id6>.jsonl`.
++
++| Record or field | Owner command | Notes |
++|---|---|---|
++| Create a plan (IPD): `plan_role`, `set`, `order`, `priority`, `work_kind`, `from_backlog`, `blocks_release`, `short_description` | `aw ipd scaffold --kind <child|orchestrator> --title "..." --priority <low|medium|high> --work-kind <kind> --apply` | Use `--from-backlog <id6>` to inherit `priority`, `work_kind`, and `blocks_release`. |
++| Plan status, `from_spec`, `from_backlog`, `blocks_release`, `priority`, `work_kind`, notes | `aw ipd set <status> <id6>` | Human approval requires `aw ipd set approved <id6> --by-human --message "<why>"`. |
++| Plan dependencies (`item_dependencies`) | `aw ipd dependencies set <id6> ...` | Replaces hand-edited dependency bullets. |
++| Plan E/V ids and `highest_e_allocated` | `aw ipd sync <plan> --apply` | Assigns `E-NN`/`V-NN` ids and updates the allocation watermark. |
++| Orchestrator coverage (`coverage`, `coverage_fingerprint`, `coverage_checked`) | `aw ipd coverage <id6>` | Only this command writes coverage attestations. |
++| Terminal plan execution (`status: executed`, `scope_result`) | `aw ipd finalize <plan> --actor <actor> --message "<summary>" --apply` | Under `aw oc run` or `aw agy run`, the runner owns `begin` and `finalize`. |
++| Review round, verdict, `readiness`, `review_depth` | `aw reviews record <subject-id6> --round <n> --kind <gate|refinement> --verdict "<verdict>"` | Pass `--readiness` and `--review-depth` on `gate` rounds for plans. |
++| Create or update a spec: `status`, `approval`, `gate_kind`, `gate_ref`, notes | `aw specs new`, `aw specs set <path> --status <status>`, `aw specs note` | Deferred specs require `--gate-kind` and `--gate-ref`; approval requires `--by-human`. |
++| Create or update a backlog item: `priority`, `work_kind`, `blocks_release`, `gate_kind`, `gate_ref`, `release_exempt_kind`, `release_exempt_ref` | `aw backlog new`, `aw backlog set <status> <id6>` | Both `--priority` and `--work-kind` are required at creation. |
++| Create, rename, promote, or score research: `research_kind`, `model`, `status`, `outcome`, `consumed_by` | `aw research new`, `aw research mv`, `aw research promote`, `aw research set-outcome` | Use `aw adopt .aw/inbox/<file>` to adopt raw external drops after human confirmation. |
++| Create or transition a staged prompt: `prompt_kind`, `status` | `aw prompts new`, `aw prompts set <status> <id6>` | `prompt_kind` is `run-once`, `research`, or `session-handoff`. |
++| Create a walkthrough or release record | `aw walkthrough new`, `aw releases new` | Inspect releases with `aw releases list`, `aw releases show next`, and `aw releases readiness`. |
++| Generic status transition | `aw set <type> <status> <selector>` | Delegates to the type's lifecycle rules. |
++| One-line description (`short_description`) | `aw describe <id6> --summary "<text>" --apply` | Shown by `aw find` and `aw attention --details`. |
++| Regroup, rename, or archive records (`set`, `order`, `slug`) | `aw group`, `aw rename`, `aw archive` | Dry-run by default; pass `--apply` to execute. |
++
++## Field naming rule
++
++Logs, cache columns, and JSON output never use a bare `kind` field. Every kind or role name states what it classifies:
++
++- `plan_role`: `child` or `orchestrator` (replaces the legacy plan `Kind` bullet)
++- `research_kind`: research document variant such as `survey`, `findings`, or `research-report`
++- `prompt_kind`: `run-once`, `research`, or `session-handoff`
++- `work_kind`: `bug`, `feature`, `chore`, `security`, or `followup`
++- `gate_kind`: blocking gate category (`artifact`, `decision`, `todo`, `issue`, `date`, `external`)
++- `review_kind`: `gate` or `refinement`
++- `release_exempt_kind`: release-gate exemption category
++
++## Further reading
++
++- `.aw/QUICKSTART.md`: human overview of the `.aw/` directory and daily workflow.
++- `AGENTS.md`: repository-wide agent execution contract and rules.
++- `.aw/system/workflows/index.md`: installed workflow catalog.
++- `docs/artifact-lifecycles.md`: full lifecycle diagrams and status tables for every record type.
++"""
++
++_QUICKSTART_TEMPLATE = """\
++# Quickstart (`.aw/`)
++
++This repository uses `agent-workflows` (`aw`) to manage specifications, Implementation Plan Documents (IPDs), backlog items, research notes, staged prompts, reviews, walkthroughs, and releases under `.aw/`.
++
++## What lives in `.aw/`
++
++| Path | Purpose | Committed to git? |
++|---|---|---|
++| `.aw/records/` | Tracked project records (`plans/`, `specs/`, `backlog/`, `research/`, `prompts/`, `reviews/`, `walkthroughs/`, `releases/`) | Yes (except `untracked/` lanes and `runs/`) |
++| `.aw/records/meta/<id6>.jsonl` | Append-only event log holding all `aw`-owned metadata and history for each record | Yes |
++| `.aw/system/` | Installed workflow bodies (`.aw/system/workflows/index.md`) and framework version metadata | Yes |
++| `.aw/config/project.json` | Shared repository policy and schema version | Yes |
++| `.aw/config/local.json` | Machine-local configuration overrides | No (gitignored) |
++| `.aw/inbox/` | Drop zone for raw external files (such as outside LLM research reports) before human review and `aw adopt` | No (gitignored; only `README.md` is tracked) |
++| `.aw/state/` | Local SQLite metadata cache (`index.db`) and runner scratch; safe to delete anytime | No (gitignored) |
++
++## Why records have a short header and a banner
++
++Each managed `.md` file opens with a compact front-matter mirror (`id` and `status`, or `id` alone on status-less records) and an HTML comment banner (`<!-- aw-managed: ... -->`). Staged prompts use a single leading `<!-- aw-managed-prompt: ... -->` comment so they stay upload-ready.
++
++Full metadata and event history live in `.aw/records/meta/<id6>.jsonl` rather than inside the Markdown body. Keeping metadata in per-record logs prevents merge conflicts across branches, keeps diffs focused on content, and ensures `aw` commands enforce lifecycle rules and attestations.
++
++## Common daily commands
++
++Inspect what is in flight or read a specific record:
++
++```sh
++aw attention                  # summary of ready, active, blocked, and done work
++aw ipd board                  # plan board grouped by Set and status
++aw find plans                 # list active plans (also: specs, backlog, research, prompts)
++aw show <id6>                 # show current metadata for one record
++aw show <id6> --history       # show full sequence-ordered event history
++aw releases show next         # show the planned release and every item gating it
++```
++
++Create records (all creation verbs preview by default; add `--apply` to write):
++
++```sh
++aw backlog new --summary "..." --priority medium --work-kind feature --apply
++aw specs new --title "..." --slug my-spec --apply
++aw ipd scaffold --kind child --title "..." --set my-set --order 1 \\
++  --priority medium --work-kind feature --apply
++aw research new --kind survey --slug my-topic --set my-topic --apply
++aw prompts new --kind research --slug my-question --set my-topic --apply
++```
++
++Record human approval for a reviewed plan or spec:
++
++```sh
++aw ipd set approved <id6> --by-human --message "approved for execution"
++aw specs set <spec-path> --status approved --by-human --message "approved"
++```
++
++## Keeping metadata healthy
++
++- **Use `aw` commands instead of hand-editing** `.aw/records/meta/<id6>.jsonl`, front-matter mirrors, or lifecycle directories.
++- **Check integrity** with `aw check meta` (verifies mirrors, filenames, directories, and review rounds against the logs) and `aw check` (runs full record validation).
++- **Repair mirror drift** with `aw meta repair <id6>` (dry-run preview; pass `--apply` to repair deterministic drift).
++- **Rebuild the local cache** with `aw index rebuild` if needed (normally automatic; deleting `.aw/state/index.db` is always safe).
++- **Commit changes** with `aw commit <plan-id6> -- <paths>` (or `aw commit --no-plan -m "<message>" -- <paths>`) to keep commits path-scoped in shared checkouts.
++- **Upgrade an older repository** with `aw migrate metadata` (dry-run by default; pass `--apply` to convert pre-cutover bullet-block records to the log format).
++
++## Where to read more
++
++- `.aw/AGENT_QUICKSTART.md`: command-to-field reference for AI agents.
++- `.aw/system/workflows/index.md`: full list of installed workflows and slash commands.
++- `AGENTS.md`: repository agent instructions and execution contract.
++- `docs/artifact-lifecycles.md`: complete lifecycle guide for every record type.
++"""
++
+ # awgitignore Order 01: the CANONICAL `.aw/` layout ignores every records `untracked/` quarantine
+ # lane via ONE framework-owned `.aw/.gitignore` (`.aw/` is exclusively ours, unlike the shared
+ # `.agents/`, so this is not a user-root-.gitignore edit). Legacy `.agents/` keeps per-lane files.
+@@ -6841,8 +7031,8 @@ repos:
          pass_filenames: false
          always_run: true
  
@@ -4039,7 +4537,7 @@ index 4b5e93bd4..fdfef690e 100755
        # Best-effort/local only (--no-verify bypasses it); the backstop is `aw check`/`aw doctor`. No CI.
        - id: ipd-status-untooled-gate
          name: no untooled plan status change (use aw set)
-@@ -6963,7 +6988,7 @@ _BACKLOG_CLOSE_GATE_PRECOMMIT_TEMPLATE = """\
+@@ -6963,7 +7153,7 @@ _BACKLOG_CLOSE_GATE_PRECOMMIT_TEMPLATE = """\
  # hook below into your existing .pre-commit-config.yaml instead of this file.
  repos:
    # OPT-IN local guard (bklggrad f1dhht): refuse committing a release-blocking backlog item closed to
@@ -4048,7 +4546,7 @@ index 4b5e93bd4..fdfef690e 100755
    # must be executed or implemented, DE-GATED, or a persisted evidence citation). Delegates to the shared close-legitimacy
    # predicate. LOCAL best-effort only (--no-verify bypasses it); the portable authority is the `aw check` rule + CI.
    - repo: local
-@@ -6979,7 +7004,7 @@ repos:
+@@ -6979,7 +7169,7 @@ repos:
  # The hook block to hand a user (or append) when a .pre-commit-config.yaml already exists.
  _BACKLOG_CLOSE_GATE_PRECOMMIT_BLOCK = """\
    # OPT-IN local guard (bklggrad f1dhht): refuse committing a release-blocking backlog item closed to
@@ -4057,6 +4555,66 @@ index 4b5e93bd4..fdfef690e 100755
    # must be executed or implemented, DE-GATED, or a persisted evidence citation). Delegates to the shared close-legitimacy
    # predicate. LOCAL best-effort only (--no-verify bypasses it); the portable authority is the `aw check` rule + CI.
    - repo: local
+@@ -7535,6 +7725,12 @@ def collect_scaffold_members(
+             except OSError:
+                 pass
+ 
++    # 7. Metadata quickstarts (spec 4sd62s 4.1)
++    if category is None or category == "quickstarts":
++        if layout == "aw":
++            members[AGENT_QUICKSTART_PATH] = _AGENT_QUICKSTART_TEMPLATE.encode("utf-8")
++            members[QUICKSTART_PATH] = _QUICKSTART_TEMPLATE.encode("utf-8")
++
+     return members
+ 
+ 
+@@ -7837,6 +8033,38 @@ def ensure_inbox_readme(
+         installed.append(f"{rel_path} [install]")
+ 
+ 
++def ensure_quickstarts(
++    plan: InstallPlan,
++    use_git: bool,
++    installed: list[str],
++    skipped: list[str],
++) -> None:
++    """Create `.aw/AGENT_QUICKSTART.md` and `.aw/QUICKSTART.md` if absent (spec 4sd62s 4.1).
++
++    No-clobber (existing user edits are preserved), staged, dry-run aware. Targets the
++    canonical `.aw/` layout only.
++    """
++    targets = collect_scaffold_members(
++        plan.repo_root, plan.source_root, category="quickstarts"
++    )
++    deferred_add: list[str] = []
++    for rel_path, content_bytes in targets.items():
++        dest_path = plan.repo_root / rel_path
++        if dest_path.is_file():
++            skipped.append(f"{rel_path} [already current]")
++            continue
++        if plan.dry_run:
++            installed.append(f"{rel_path} [install, dry-run]")
++            continue
++        dest_path.parent.mkdir(parents=True, exist_ok=True)
++        dest_path.write_bytes(content_bytes)
++        if use_git:
++            deferred_add.append(rel_path)
++        installed.append(f"{rel_path} [install]")
++    if deferred_add:
++        _git_add_optional_batch(plan.repo_root, deferred_add)
++
++
+ def create_setup_artifacts(
+     repo_root: Path,
+     use_git: bool,
+@@ -8555,6 +8783,7 @@ def install_into_repo(
+             git_add_optional(repo_root, AW_GITIGNORE_PATH)
+     if not clean:
+         ensure_inbox_readme(plan, use_git, installed, skipped)
++        ensure_quickstarts(plan, use_git, installed, skipped)
+     artifacts = create_setup_artifacts(
+         repo_root,
+         use_git,
 diff --git a/agent_workflows/ipd_schema.py b/agent_workflows/ipd_schema.py
 index 4c2f32f7d..fdec178d7 100644
 --- a/agent_workflows/ipd_schema.py
@@ -4263,7 +4821,7 @@ index 4c2f32f7d..fdec178d7 100644
  #     implicit generated-file exception beyond the lifecycle artifacts above).
  #
 diff --git a/docs/artifact-lifecycles.md b/docs/artifact-lifecycles.md
-index 915c07003..69fd23ef1 100644
+index 915c07003..6cbedaaf8 100644
 --- a/docs/artifact-lifecycles.md
 +++ b/docs/artifact-lifecycles.md
 @@ -34,20 +34,26 @@ Solid arrows show work flowing forward. Dotted arrows show a gate or link rather
@@ -4303,14 +4861,19 @@ index 915c07003..69fd23ef1 100644
  5. **The generic setter** `aw set [type] <status> <id6|setid|filename>...` works across plans, specs,
     prompts, backlog items, and releases. It checks every target before changing any of them, and
     `--dry-run` shows what would happen. Each type also has its own verb (`aw ipd set`, `aw specs set`,
-@@ -84,19 +90,22 @@ aw ipd lint --phase author <plan>   # check the structure
+@@ -82,21 +88,25 @@ aw ipd sync <plan> --apply          # assign E-*/V-* ids and validation skeleton
+ aw ipd lint --phase author <plan>   # check the structure
+ ```
  
- - `--kind orchestrator --order 0` creates the parent plan of a multi-plan Set. Children use
-   order 1 and up.
+-- `--kind orchestrator --order 0` creates the parent plan of a multi-plan Set. Children use
+-  order 1 and up.
 -- `--from-backlog <id6>` records `- From-Backlog:` and copies the item's Priority, Work-Kind, and
 -  Blocks-Release. A plan that comes from a spec records `- From-Spec: <id6>` by hand, since there is
 -  no setter flag for it yet.
 -- A new plan lands in `plans/pending/` with `Status: to-review`. Use `draft` only for a stub you mean
++- `--kind orchestrator --order 0` creates the parent plan of a multi-plan Set (recording
++  `plan_role: orchestrator` in `.aw/records/meta/<id6>.jsonl`). Children use `--kind child`
++  (`plan_role: child`) and order 1 and up.
 +- `--from-backlog <id6>` records `from_backlog` in `.aw/records/meta/<id6>.jsonl` and inherits the
 +  item's `priority`, `work_kind`, and `blocks_release`. Link a plan to a spec with
 +  `aw ipd set <status> <id6> --from-spec <spec-id6>`.
@@ -4335,7 +4898,7 @@ index 915c07003..69fd23ef1 100644
  
  | Status | Directory | Meaning | Attention | Legend stage |
  |---|---|---|---|---|
-@@ -150,17 +159,20 @@ while the plan still reads `approved`.
+@@ -150,17 +160,20 @@ while the plan still reads `approved`.
  ### Each step in detail
  
  1. **Review** (`to-review` -> `reviewed`). Run `/plan-review` (or `/plan-review-long`). It writes a
@@ -4365,7 +4928,7 @@ index 915c07003..69fd23ef1 100644
     `.aw/state/ipd-lifecycle/<id6>.receipt.json`. It refuses when uncommitted changes already sit
     inside the plan's own declared paths.
  4. **Execute.** Perform each `E-*` step, marking it `performed`. Then verify each `V-*` step, pasting
-@@ -169,13 +181,16 @@ while the plan still reads `approved`.
+@@ -169,13 +182,16 @@ while the plan still reads `approved`.
  5. **Finalize** (`approved` -> `executed`).
     `aw ipd finalize <plan> --actor <agent/model> -m "<summary>" --apply` checks the receipt, runs
     the `pre-transition` lint, and reconciles scope in both directions. Every changed path outside
@@ -4389,7 +4952,7 @@ index 915c07003..69fd23ef1 100644
  
  **Moving backwards.** A plan may step back only along enumerated legal backward edges (`reviewed` -> `to-review` to re-review after revision; `approved` -> `reviewed` to recover an approval). An operator may also re-review a `reviewed` or `approved` plan with `aw oc review <id6> --yes` (or `aw agy review <id6> --yes`), which withdraws approval, demotes the plan to `to-review` at runner dispatch, and leaves it at `reviewed` awaiting fresh human approval. Any other backward move is refused by `aw check`. Leaving a terminal directory is refused unless `--allow-terminal-reopen` is given. Do not use it to patch finished work; write a new corrective plan instead.
  
-@@ -253,7 +268,7 @@ stateDiagram-v2
+@@ -253,7 +269,7 @@ stateDiagram-v2
  
  | Move | Who | What is required |
  |---|---|---|
@@ -4398,7 +4961,7 @@ index 915c07003..69fd23ef1 100644
  | `-> approved` | human | `--by-human`. It is also refused over a negative review verdict or an unresolved blocking open question. |
  | `-> implementing` | executor | Nothing extra. Record which Set is doing the work with `--graduated-to <setid>`. |
  | `-> implemented` | executor | `--evidence <path>` that resolves to a real artifact, such as the executed plan. An agent may not set this without evidence. |
-@@ -263,11 +278,11 @@ stateDiagram-v2
+@@ -263,11 +279,11 @@ stateDiagram-v2
  aw spec set approved <id6> --by-human -m "maintainer approved in chat"
  aw spec set implementing <id6> --graduated-to <setid>
  aw specs set <path> --status implemented --evidence .aw/records/plans/executed/<plan>.ipd.md
@@ -4413,7 +4976,7 @@ index 915c07003..69fd23ef1 100644
  
  ---
  
-@@ -286,8 +301,9 @@ aw backlog new --summary "..." --priority medium --work-kind bug \
+@@ -286,8 +302,9 @@ aw backlog new --summary "..." --priority medium --work-kind bug \
  ```
  
  `--work-kind` (`bug`, `feature`, `chore`, `security`, `followup`) and `--priority` are required. A
@@ -4425,7 +4988,7 @@ index 915c07003..69fd23ef1 100644
  
  ### Statuses
  
-@@ -295,7 +311,7 @@ slowness a user can actually notice, backed by a recorded measurement.
+@@ -295,7 +312,7 @@ slowness a user can actually notice, backed by a recorded measurement.
  |---|---|---|---|
  | `open` | Committed and actionable now | ready | ready `◕` |
  | `graduated` | Design handed off to a plan or spec; code not written yet | active | active `●` |
@@ -4434,7 +4997,7 @@ index 915c07003..69fd23ef1 100644
  | `parked` | An uncommitted "maybe", hidden unless you pass `--all` | parked | parked `◇` |
  | `done` | Completed | done | done `✓` |
  
-@@ -306,7 +322,7 @@ stateDiagram-v2
+@@ -306,7 +323,7 @@ stateDiagram-v2
      direction LR
      [*] --> open: aw backlog new
      [*] --> parked: aw backlog new --status parked
@@ -4443,7 +5006,7 @@ index 915c07003..69fd23ef1 100644
      open --> blocked: --gate-kind + --gate-ref
      open --> parked
      open --> done: small fix, with --evidence
-@@ -330,17 +346,18 @@ The exact table is `BACKLOG_TRANSITIONS` in `agent_workflows.attention_contract`
+@@ -330,17 +347,18 @@ The exact table is `BACKLOG_TRANSITIONS` in `agent_workflows.attention_contract`
  
  When you graduate an item, do the whole hand-off in one pass:
  
@@ -4466,7 +5029,17 @@ index 915c07003..69fd23ef1 100644
  - **Satisfied:** you cite resolvable in-tree evidence with `--evidence <path>`.
  - **De-gated:** you clear the gate in the same call with `--blocks-release -`.
  
-@@ -378,7 +395,9 @@ Research documents carry two axes: per-document shelf status and set-level pipel
+@@ -367,7 +385,8 @@ aw research new-comparison ...      # one prompt, a report per model, plus a rec
+ aw adopt .aw/inbox/<file> --apply   # file ONE raw external drop (preview first)
+ ```
+ 
+-`--kind` is required and drawn from a fixed list (for example `research-prompt`, `research-report`,
++`--kind` is required, records `research_kind` in `.aw/records/meta/<id6>.jsonl` (and supplies the
++filename facet), and is drawn from a fixed list (for example `research-prompt`, `research-report`,
+ `findings`, `survey`, `reconciliation-report`). The originating prompt of a Set takes `NN=00`.
+ Material an external AI produced usually arrives in the gitignored `.aw/inbox/`. It is untrusted and
+ not yet a record until a human confirms it and `aw adopt` files it.
+@@ -378,7 +397,9 @@ Research documents carry two axes: per-document shelf status and set-level pipel
  
  #### Shelf status
  
@@ -4477,7 +5050,7 @@ index 915c07003..69fd23ef1 100644
  
  | Status | Meaning | On disk | Attention | Legend stage |
  |---|---|---|---|---|
-@@ -397,9 +416,9 @@ A derived set-level position based on member body presence:
+@@ -397,9 +418,9 @@ A derived set-level position based on member body presence:
  | `partial` | One or more response reports have landed | active | active `●` |
  | `synthesized` | Reconciliation report or findings landed | done | done `✓` |
  
@@ -4490,7 +5063,7 @@ index 915c07003..69fd23ef1 100644
  
  ### Flow
  
-@@ -443,10 +462,18 @@ lifecycle.
+@@ -443,10 +464,18 @@ lifecycle.
  aw prompts new --kind research --slug my-question --set mytopic --apply
  ```
  
@@ -4498,7 +5071,7 @@ index 915c07003..69fd23ef1 100644
 -comment (`<!-- aw-prompt: Kind: ... | Id: ... | Status: pending | ... -->`) so the prompt stays ready
 -to paste. A prompt meant for an external AI must be self-contained, must ask for a downloadable `.md`
 -answer, and, when it asks about this toolkit, must include the repository's public URL.
-+The kind is `run-once`, `research`, or `session-handoff`. All prompt metadata and history live in
++The prompt kind (recorded as `prompt_kind` in `.aw/records/meta/<id6>.jsonl`, set via `--kind`) is `run-once`, `research`, or `session-handoff`. All prompt metadata and history live in
 +`.aw/records/meta/<id6>.jsonl` (inspected with `aw show <id6>` and `aw show <id6> --history`). To
 +keep the prompt upload-ready with zero visible non-prompt lines, the `.prompt.md` file has NO `---`
 +YAML front matter; instead it carries its `id` and `status` mirror plus pointer notice in a single
@@ -4513,7 +5086,7 @@ index 915c07003..69fd23ef1 100644
  
  ### Buckets
  
-@@ -469,8 +496,8 @@ stateDiagram-v2
+@@ -469,8 +498,8 @@ stateDiagram-v2
      [*] --> pending: aw prompts new
      pending --> executed: run, results filed under research/
      pending --> reusable
@@ -4524,7 +5097,7 @@ index 915c07003..69fd23ef1 100644
      executed --> [*]
  
      state "not-executed" as not_executed
-@@ -486,7 +513,8 @@ Moving a prompt out of `untracked/` is always a deliberate human step. Scrub it
+@@ -486,7 +515,8 @@ Moving a prompt out of `untracked/` is always a deliberate human step. Scrub it
  Home: `.aw/records/releases/`. Details: `.aw/records/releases/README.md` and the "Release gates"
  section of `AGENTS.md`.
  
@@ -4534,7 +5107,7 @@ index 915c07003..69fd23ef1 100644
  
  ```sh
  aw releases new --version 2.1.0 --summary "why this release exists" --apply
-@@ -512,10 +540,10 @@ stateDiagram-v2
+@@ -512,10 +542,10 @@ stateDiagram-v2
      shipped --> [*]
  ```
  
@@ -4549,7 +5122,7 @@ index 915c07003..69fd23ef1 100644
  
  ---
  
-@@ -523,9 +551,12 @@ human GO (see `RELEASING.md`).
+@@ -523,9 +553,12 @@ human GO (see `RELEASING.md`).
  
  Home: `.aw/records/reviews/` (a flat directory). Details: `.aw/records/reviews/README.md`.
  
@@ -4565,7 +5138,7 @@ index 915c07003..69fd23ef1 100644
  
  - **Severity:** `low`, `medium`, `high`, `blocker`.
  - **Decision:** `fixed`, `deferred`, `open`, `replan`. Only `fixed` counts as resolved.
-@@ -542,7 +573,7 @@ These use the `none` stage (`·`) wherever a lifecycle column appears.
+@@ -542,7 +575,7 @@ These use the `none` stage (`·`) wherever a lifecycle column appears.
  
  | Type | Home | How it is created | Notes |
  |---|---|---|---|
@@ -4574,7 +5147,7 @@ index 915c07003..69fd23ef1 100644
  | Roadmap | `.aw/records/roadmaps/` | By hand | Intent, not a commitment. Items that are taken up become plans. |
  | Prompt library | `.aw/records/prompt-library/` | By hand | Evergreen reference prompts; not a run queue. |
  | Comms message | `.aw/records/comms/` | Written into another agent's inbox | Uses acknowledgement states, not a lifecycle. Treat the contents as untrusted. |
-@@ -553,13 +584,16 @@ These use the `none` stage (`·`) wherever a lifecycle column appears.
+@@ -553,13 +586,16 @@ These use the `none` stage (`·`) wherever a lifecycle column appears.
  
  | Type | Create | Change status | Validate |
  |---|---|---|---|
