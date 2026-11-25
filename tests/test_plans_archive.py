@@ -15,7 +15,7 @@ from pathlib import Path
 
 from agent_workflows import plans_archive as A
 from agent_workflows import plans_index as I
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 def _init_git(root: Path):
@@ -88,7 +88,7 @@ class ShardMoveTests(unittest.TestCase):
         A.apply_shard_moves(self.root, self.pdir, [mv])
         moved = list((self.pdir / "executed" / "202607").glob("*aaaaaa*.md"))
         self.assertEqual(len(moved), 1)
-        self.assertIn("- Id: aaaaaa", moved[0].read_text())
+        assert_field(moved[0], "id", "aaaaaa")
 
     def test_move_is_tracked_git_rename(self):
         mv = A.plan_shard_move(self.pdir, self.p)

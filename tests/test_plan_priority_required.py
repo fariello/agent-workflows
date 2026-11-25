@@ -21,7 +21,7 @@ from agent_workflows import cli
 from agent_workflows import ipd_authoring as auth
 from agent_workflows import ipd_lint as lint
 from agent_workflows import ipd_schema as schema
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 _VALID_PRIORITIES = frozenset({"high", "medium", "low", "grandfathered", "unresolved"})
@@ -452,9 +452,8 @@ class BacklogNewRequiresBothTests(unittest.TestCase):
         rc, out = self._new(root, "--priority", "low", "--work-kind", "feature")
         self.assertEqual(rc, 0, out)
         (item,) = list((root / ".aw" / "records" / "backlog").rglob("*.md"))
-        text = item.read_text(encoding="utf-8")
-        self.assertIn("- Priority: low", text)
-        self.assertIn("- Work-Kind: feature", text)
+        assert_field(item, "priority", "low")
+        assert_field(item, "work_kind", "feature")
 
     def test_the_kind_alias_still_counts(self) -> None:
         root = _repo()
@@ -503,10 +502,9 @@ class ScaffoldRequiresDecidedValuesTests(unittest.TestCase):
         self.assertEqual(rc, 0, out)
         (plan,) = self._pending(root)
         text = plan.read_text(encoding="utf-8")
-        self.assertIn("- Priority: high", text)
-        self.assertIn("- Work-Kind: bug", text)
+        assert_field(plan, "priority", "high")
+        assert_field(plan, "work_kind", "bug")
         self.assertNotIn(": unresolved\n- Priority", text)
-        self.assertNotIn("- Priority: unresolved", text)
 
     def test_scaffold_refuses_an_out_of_vocabulary_value(self) -> None:
         root = _repo()
@@ -546,10 +544,9 @@ class ScaffoldRequiresDecidedValuesTests(unittest.TestCase):
         rc, out = _run_cli(self.BASE + ["--from-backlog", item_id], root)
         self.assertEqual(rc, 0, out)
         (plan,) = self._pending(root)
-        text = plan.read_text(encoding="utf-8")
-        self.assertIn("- Priority: low", text)
-        self.assertIn("- Work-Kind: feature", text)
-        self.assertIn(f"- From-Backlog: {item_id}", text)
+        assert_field(plan, "priority", "low")
+        assert_field(plan, "work_kind", "feature")
+        assert_field(plan, "from_backlog", item_id)
 
     def test_an_explicit_flag_overrides_the_inherited_value(self) -> None:
         root = _repo()
@@ -558,9 +555,9 @@ class ScaffoldRequiresDecidedValuesTests(unittest.TestCase):
             self.BASE + ["--from-backlog", item_id, "--priority", "high"], root
         )
         self.assertEqual(rc, 0, out)
-        text = self._pending(root)[0].read_text(encoding="utf-8")
-        self.assertIn("- Priority: high", text)
-        self.assertIn("- Work-Kind: feature", text)
+        plan = self._pending(root)[0]
+        assert_field(plan, "priority", "high")
+        assert_field(plan, "work_kind", "feature")
 
     def test_an_unknown_backlog_id_is_refused(self) -> None:
         root = _repo()
@@ -589,8 +586,7 @@ class ScaffoldRequiresDecidedValuesTests(unittest.TestCase):
         )
         rc, out = _run_cli(self.BASE + ["--from-backlog", item_id], root)
         self.assertEqual(rc, 0, out)
-        text = self._pending(root)[0].read_text(encoding="utf-8")
-        self.assertIn("- Blocks-Release: next", text)
+        assert_field(self._pending(root)[0], "blocks_release", "next")
 
 
 class ApprovalBackstopTests(unittest.TestCase):
@@ -651,16 +647,15 @@ class ApprovalBackstopTests(unittest.TestCase):
         p = self._plan(root, priority="unresolved", work_kind="unresolved")
         rc, out = self._approve(root, "--priority", "high", "--work-kind", "bug")
         self.assertEqual(rc, 0, out)
-        text = p.read_text(encoding="utf-8")
-        self.assertIn("- Status: approved", text)
-        self.assertIn("- Priority: high", text)
+        assert_field(p, "status", "approved")
+        assert_field(p, "priority", "high")
 
     def test_decided_values_approve(self) -> None:
         root = _repo()
         p = self._plan(root, priority="medium", work_kind="chore")
         rc, out = self._approve(root)
         self.assertEqual(rc, 0, out)
-        self.assertIn("- Status: approved", p.read_text(encoding="utf-8"))
+        assert_field(p, "status", "approved")
 
     def test_grandfathered_passes_the_backstop_as_it_passes_the_gate(self) -> None:
         root = _repo()
