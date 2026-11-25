@@ -44,20 +44,20 @@ Batch rule, applied to every batch E-item of this plan:
 
 ### Task group 1: work
 
-- [ ] E-01 (was `iog3cw` E-01, verbatim.) Add to `tests/record_builder.py` (the shared builder of `9rgn2w`/`59aiyh`) two helpers that assert a record's field through the active record format, so a test written against them passes unchanged when the cutover switches the builder to `RECORD_FORMAT = "log"`: `assert_field(path, field, value)` passes when the record at `path` (accepting `Path` or `str`) has `field` equal to `value`, and `assert_no_field(path, field)` passes when the field is absent or unset. In the legacy format (`RECORD_FORMAT = "legacy"`, today's only format) each helper reads the value through `artifact_meta.read_text(Path(path).read_text(encoding="utf-8"), record_type=...)` and ALSO asserts the exact bullet line (`f"- {label}: {value}"`) is present (or absent for `assert_no_field`) in the file, so it is never weaker than the `assertIn("- Status: x", text)` it replaces; in the log format it reads `artifact_meta.read` and the in-file mirror (the cutover, `cxxmyv` E-07, adds that branch). Field names use the registry names (`status`, `priority`, `blocks_release`, ...) and the helper maps them to bullet labels with `artifact_meta`'s label mapping (`_LEGACY_BULLET_LABEL` and `_render_field` value-writer mappings; no second table). Add `tests/test_record_builder_assert_field.py` (core): for each record type, a builder-made record with and without a field, asserting pass and fail (a failing helper raises `AssertionError` naming the field, the expected and the observed value), including a record whose bullet uses a loose spelling (`-  Status:`), which must fail the exact-line half so the helper is not weaker than the old assertion.
+- [x] E-01 (was `iog3cw` E-01, verbatim.) Add to `tests/record_builder.py` (the shared builder of `9rgn2w`/`59aiyh`) two helpers that assert a record's field through the active record format, so a test written against them passes unchanged when the cutover switches the builder to `RECORD_FORMAT = "log"`: `assert_field(path, field, value)` passes when the record at `path` (accepting `Path` or `str`) has `field` equal to `value`, and `assert_no_field(path, field)` passes when the field is absent or unset. In the legacy format (`RECORD_FORMAT = "legacy"`, today's only format) each helper reads the value through `artifact_meta.read_text(Path(path).read_text(encoding="utf-8"), record_type=...)` and ALSO asserts the exact bullet line (`f"- {label}: {value}"`) is present (or absent for `assert_no_field`) in the file, so it is never weaker than the `assertIn("- Status: x", text)` it replaces; in the log format it reads `artifact_meta.read` and the in-file mirror (the cutover, `cxxmyv` E-07, adds that branch). Field names use the registry names (`status`, `priority`, `blocks_release`, ...) and the helper maps them to bullet labels with `artifact_meta`'s label mapping (`_LEGACY_BULLET_LABEL` and `_render_field` value-writer mappings; no second table). Add `tests/test_record_builder_assert_field.py` (core): for each record type, a builder-made record with and without a field, asserting pass and fail (a failing helper raises `AssertionError` naming the field, the expected and the observed value), including a record whose bullet uses a loose spelling (`-  Status:`), which must fail the exact-line half so the helper is not weaker than the old assertion.
   - Depends on: none
   - Expected outcome: `python3 -m pytest -o addopts="" -v tests/test_record_builder_assert_field.py` passes; the helpers read no production source.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (was `iog3cw` E-05.) Batch S04: convert the setter-byte assertions of `tests/test_backlog.py` (30 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S04`.
+- [x] E-02 (was `iog3cw` E-05.) Batch S04: convert the setter-byte assertions of `tests/test_backlog.py` (30 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S04`.
   - Depends on: E-01
   - Expected outcome: an empty before/after `diff` for the S04 outcome lists; the remaining F-28 matches in the batch's module pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Finish this part: run the batch rule's command over `tests/test_backlog.py` once more and confirm the outcome multiset equals the union of this part's `-before.txt` lists (S04); write this plan's F-28 rows (one row per remaining match in those modules with its class) so `iog3cw` E-12 can assemble the part table; record per module the PASSED, FAILED, SKIPPED and XFAIL counts of the after run in F-29; run `aw sanitize --agent`; commit through `aw commit j5fqax -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-03 Finish this part: run the batch rule's command over `tests/test_backlog.py` once more and confirm the outcome multiset equals the union of this part's `-before.txt` lists (S04); write this plan's F-28 rows (one row per remaining match in those modules with its class) so `iog3cw` E-12 can assemble the part table; record per module the PASSED, FAILED, SKIPPED and XFAIL counts of the after run in F-29; run `aw sanitize --agent`; commit through `aw commit j5fqax -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; F-28 and F-29 for this part are written; every commit is path-scoped to Scope-Paths.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -70,8 +70,8 @@ Batch rule, applied to every batch E-item of this plan:
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-28 | `iog3cw` F-28 (measurement at `ac76110f4`) | This part: S04, 30 lines in `tests/test_backlog.py`. Rows for remaining matches are written by E-03. |
-| F-29 | (written by E-03) | Per-module after-run outcome counts; `iog3cw` E-12 compares against them. |
+| F-28 | `iog3cw` F-28 (measurement at `ac76110f4`) and S04 post-conversion scan on `tests/test_backlog.py` (`rg -c`: 30 before, 7 after; 23 converted) | Remaining matches in `tests/test_backlog.py` (7 rows, all classified): (1) `tests/test_backlog.py::BacklogPreservationTests::test_duplicate_work_kind_deduped` (`self.assertEqual(wk_direct[0], "- Work-Kind: bug")`) — `legacy-format subject` (direct in-memory `backlog._render_item` legacy bullet deduplication); (2) `tests/test_backlog.py::BacklogPreservationTests::test_duplicate_work_kind_deduped` (`self.assertEqual(wk_lines[0], "- Work-Kind: bug")`) — `setter-byte, exact spelling` (checks single deduplicated `- Work-Kind: bug` line count and exact spelling after `aw backlog set`); (3) `tests/test_backlog.py::BacklogPreservationTests::test_duplicate_work_kind_deduped` (`self.assertFalse(any(ln.startswith("- Kind:") for ln in text.splitlines()))`) — `setter-byte, exact spelling` (checks legacy `- Kind:` bullet alias removed after `aw backlog set`); (4) `tests/test_backlog.py::BacklogPreservationTests::test_render_item_preserves_release_exempt_with_source_text` (`self.assertIn("- Release-Exempt-Kind: decision\n", rendered)`) — `legacy-format subject` (direct in-memory `backlog._render_item` bullet preservation and order); (5) `tests/test_backlog.py::BacklogPreservationTests::test_render_item_preserves_release_exempt_with_source_text` (`self.assertIn("- Release-Exempt-Ref: D42\n", rendered)`) — `legacy-format subject` (direct in-memory `backlog._render_item` bullet preservation and order); (6) `tests/test_backlog.py::BacklogPreservationTests::test_render_item_drops_unknown_without_source_text_and_creation_emits_pair` (`self.assertNotIn("- Release-Exempt-Kind:", rendered_no_source)`) — `legacy-format subject` (direct in-memory `backlog._render_item` without `source_text`); (7) `tests/test_backlog.py::BacklogPreservationTests::test_render_item_drops_unknown_without_source_text_and_creation_emits_pair` (`self.assertNotIn("- Release-Exempt-Ref:", rendered_no_source)`) — `legacy-format subject` (direct in-memory `backlog._render_item` without `source_text`). |
+| F-29 | `.aw/state/j5fqax/S04-after.txt` (47 tests) | Per-module after-run counts: `tests/test_backlog.py` — PASSED: 47, FAILED: 0, SKIPPED: 0, XFAIL: 0. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -120,20 +120,56 @@ No spec change; prepares part of `4sd62s` section 6 and section 7 step 9 (the te
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -m pytest -o addopts="" -v tests/test_record_builder_assert_field.py` with every case PASSED (pass and fail per record type, the loose-spelling failure, the `AssertionError` message), and `rg -n "inspect\.|import ast|getsource" tests/record_builder.py tests/test_record_builder_assert_field.py` empty.
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest -o addopts="" -v tests/test_record_builder_assert_field.py`:
+      - `collected 15 items`
+      - `tests/test_record_builder_assert_field.py::AssertFieldStrictnessAndEdgeCaseTests::test_loose_bullet_fails_assert_no_field PASSED [  6%]`
+      - `tests/test_record_builder_assert_field.py::AssertFieldStrictnessAndEdgeCaseTests::test_legacy_agents_backlog_md_filename_infers_backlog_type PASSED [ 13%]`
+      - `tests/test_record_builder_assert_field.py::AssertFieldStrictnessAndEdgeCaseTests::test_loose_bullet_double_space_after_dash_fails_assert_field PASSED [ 20%]`
+      - `tests/test_record_builder_assert_field.py::AssertFieldStrictnessAndEdgeCaseTests::test_unknown_record_format_raises_value_error PASSED [ 26%]`
+      - `tests/test_record_builder_assert_field.py::AssertFieldStrictnessAndEdgeCaseTests::test_unknown_field_raises_value_error PASSED [ 33%]`
+      - `tests/test_record_builder_assert_field.py::AssertFieldStrictnessAndEdgeCaseTests::test_duplicate_bullet_fails_assert_field PASSED [ 40%]`
+      - `tests/test_record_builder_assert_field.py::AssertFieldStrictnessAndEdgeCaseTests::test_loose_bullet_double_space_after_colon_fails_exact_line_half PASSED [ 46%]`
+      - `tests/test_record_builder_assert_field.py::AssertFieldByRecordTypeTests::test_ipd_with_and_without_field PASSED [ 53%]`
+      - `tests/test_record_builder_assert_field.py::AssertFieldByRecordTypeTests::test_backlog_with_and_without_field PASSED [ 60%]`
+      - `tests/test_record_builder_assert_field.py::AssertFieldByRecordTypeTests::test_spec_with_and_without_field PASSED [ 66%]`
+      - `tests/test_record_builder_assert_field.py::AssertFieldByRecordTypeTests::test_research_with_and_without_field PASSED [ 73%]`
+      - `tests/test_record_builder_assert_field.py::AssertFieldByRecordTypeTests::test_prompt_with_and_without_field PASSED [ 80%]`
+      - `tests/test_record_builder_assert_field.py::AssertFieldByRecordTypeTests::test_release_with_and_without_field PASSED [ 86%]`
+      - `tests/test_record_builder_assert_field.py::AssertFieldByRecordTypeTests::test_walkthrough_with_and_without_field PASSED [ 93%]`
+      - `tests/test_record_builder_assert_field.py::AssertFieldByRecordTypeTests::test_review_with_and_without_field PASSED [100%]`
+      - `15 passed in 0.58s`
+    - `python3 -m pytest -o addopts="" -v tests/test_record_builder.py`: `14 passed in 1.57s`.
+    - `rg -n "inspect\.|import ast|getsource" tests/record_builder.py tests/test_record_builder_assert_field.py`: empty (exit 1, 0 matches).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the empty `diff .aw/state/j5fqax/S04-before.txt .aw/state/j5fqax/S04-after.txt`, the before and after F-28 `rg -c` count for `tests/test_backlog.py`, and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/j5fqax/S04-before.txt .aw/state/j5fqax/S04-after.txt`: empty (exit 0; 47 lines in both files, identical outcomes).
+    - F-28 `rg -c` count on `tests/test_backlog.py`: `30` before, `7` after (23 setter-byte assertion lines converted to `assert_field`/`assert_no_field`, plus `gate_summary` in `test_stale_gate_summary_dropped`).
+    - Remaining 7 matches classified (see F-28):
+      - `1558: self.assertEqual(wk_direct[0], "- Work-Kind: bug")` (`test_duplicate_work_kind_deduped`): `legacy-format subject`
+      - `1593: self.assertEqual(wk_lines[0], "- Work-Kind: bug")` (`test_duplicate_work_kind_deduped`): `setter-byte, exact spelling`
+      - `1594: self.assertFalse(any(ln.startswith("- Kind:") for ln in text.splitlines()))` (`test_duplicate_work_kind_deduped`): `setter-byte, exact spelling`
+      - `1828: self.assertIn("- Release-Exempt-Kind: decision\n", rendered)` (`test_render_item_preserves_release_exempt_with_source_text`): `legacy-format subject`
+      - `1829: self.assertIn("- Release-Exempt-Ref: D42\n", rendered)` (`test_render_item_preserves_release_exempt_with_source_text`): `legacy-format subject`
+      - `1851: self.assertNotIn("- Release-Exempt-Kind:", rendered_no_source)` (`test_render_item_drops_unknown_without_source_text_and_creation_emits_pair`): `legacy-format subject`
+      - `1852: self.assertNotIn("- Release-Exempt-Ref:", rendered_no_source)` (`test_render_item_drops_unknown_without_source_text_and_creation_emits_pair`): `legacy-format subject`
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the empty union `diff` for S04, this plan's F-28 rows, the F-29 per-module counts for `tests/test_backlog.py`, the `aw sanitize --agent` result with zero `fail`, and every `aw commit j5fqax` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Union comparison `diff .aw/state/j5fqax/S04-before.txt .aw/state/j5fqax/union-after.txt`: empty (exit 0).
+    - F-28 rows written in `## Findings` (7 remaining rows: 5 `legacy-format subject`, 2 `setter-byte, exact spelling` with node id `tests/test_backlog.py::BacklogPreservationTests::test_duplicate_work_kind_deduped`).
+    - F-29 per-module counts for `tests/test_backlog.py`: `47 PASSED`, `0 FAILED`, `0 SKIPPED`, `0 XFAIL`.
+    - Full core suite (`aw suite`): `2952 passed, 1 skipped, 11 warnings in 132.56s (0:02:12)`.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7228,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit j5fqax -- tests/record_builder.py tests/test_record_builder_assert_field.py tests/test_backlog.py`: `aw commit: committed 3 path(s): 42a40560bb228b6552b4e0733260676fe3000895` (all 3 paths in Scope-Paths; plan update committed in the follow-up path-scoped `aw commit j5fqax` naming only this IPD path).
+  - Result: pass
 
 ## Approval and execution gate
 
