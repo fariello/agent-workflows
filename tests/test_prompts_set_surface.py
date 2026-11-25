@@ -19,7 +19,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from agent_workflows import artifact_meta, check_engine, cli, prompts
+import pytest
+
+from agent_workflows import artifact_meta, artifact_rename, check_engine, cli
 
 
 class TestPromptsSetSurface(unittest.TestCase):
@@ -244,7 +246,7 @@ class TestPromptsSetSurface(unittest.TestCase):
         self.assertFalse(prompt.exists())
 
         dest_text = dest_path.read_text(encoding="utf-8")
-        self.assertFalse(prompts.has_metadata_comment(dest_text))
+        self.assertFalse(artifact_meta.has_prompt_metadata_comment(dest_text))
         self.assertNotIn("- Status:", dest_text)
         # Check original body is preserved in dest (before workflow history)
         hist_idx = dest_text.find("## Workflow history")
@@ -277,6 +279,332 @@ class TestPromptsSetSurface(unittest.TestCase):
         text_after = prompt.read_text(encoding="utf-8")
         sha_after = hashlib.sha256(text_after.encode("utf-8")).hexdigest()
         self.assertEqual(sha_before, sha_after)
+
+
+@pytest.mark.core
+class TestPromptCommentMetaOwnership(unittest.TestCase):
+    """Behavioral tests for prompt comment and mirror helpers owned by artifact_meta (t3t7za)."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp(prefix="aw_test_prompt_meta_")
+        self.repo_root = Path(self.temp_dir)
+        for bucket in ("pending", "executed", "superseded", "not-executed", "reusable"):
+            (self.repo_root / ".aw" / "records" / "prompts" / bucket).mkdir(
+                parents=True, exist_ok=True
+            )
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_has_prompt_metadata_comment_cases(self):
+        """Detect conforming and minimal aw-prompt comments; ignore commentless and body comments."""
+        conforming = (
+            f"<!-- aw-prompt: Kind: research | Id: ab12cd | Set: demo | Status: pending "
+            f". {artifact_meta.PROMPT_METADATA_TRAILER} -->\n\nBody.\n"
+        )
+        minimal = "<!-- aw-prompt: Kind: research -->\n\nBody.\n"
+        commentless = "# Prompt title\n\nBody.\n"
+        non_leading = "# Prompt title\n\n<!-- aw-prompt: Kind: research -->\n"
+        managed = "<!-- aw-managed-prompt: id: ab12cd | status: pending -->\n\nBody.\n"
+
+        self.assertTrue(artifact_meta.has_prompt_metadata_comment(conforming))
+        self.assertTrue(artifact_meta.has_prompt_metadata_comment(minimal))
+        self.assertFalse(artifact_meta.has_prompt_metadata_comment(commentless))
+        self.assertFalse(artifact_meta.has_prompt_metadata_comment(""))
+        self.assertFalse(artifact_meta.has_prompt_metadata_comment(non_leading))
+        self.assertFalse(artifact_meta.has_prompt_metadata_comment(managed))
+
+    def test_inject_prompt_metadata_id6_and_purity(self):
+        """Inject Id:/Set: idempotently while leaving commentless prompts unchanged."""
+        src = (
+            f"<!-- aw-prompt: Kind: research | Status: pending "
+            f". {artifact_meta.PROMPT_METADATA_TRAILER} -->\n\nPrompt body.\n"
+        )
+        injected = artifact_meta.inject_prompt_metadata_id6(
+            src, id6="ab12cd", set_id="demoset"
+        )
+        state = artifact_meta.read_text(injected, record_type="prompt")
+        self.assertEqual(state.id6, "ab12cd")
+        self.assertEqual(state.set_id, "demoset")
+        self.assertTrue(injected.endswith("\n\nPrompt body.\n"))
+
+        # Idempotent: an existing Id: is never overwritten.
+        again = artifact_meta.inject_prompt_metadata_id6(
+            injected, id6="zz9999", set_id="otherset"
+        )
+        self.assertEqual(again, injected)
+
+        # Existing Set: is preserved without duplication.
+        with_set = "<!-- aw-prompt: Kind: research | Set: keepset | Status: pending -->\nBody.\n"
+        injected_set = artifact_meta.inject_prompt_metadata_id6(
+            with_set, id6="cd34ef", set_id="ignoredset"
+        )
+        first_line = injected_set.splitlines()[0]
+        self.assertEqual(first_line.count("Set:"), 1)
+        self.assertIn("Set: keepset", first_line)
+        self.assertIn("Id: cd34ef", first_line)
+
+        # Refusal-to-mint purity on commentless and non-leading comment prompts.
+        plain = "# Plain prompt\n\nNo comment here.\n"
+        self.assertEqual(
+            artifact_meta.inject_prompt_metadata_id6(plain, id6="ab12cd", set_id="s1"),
+            plain,
+        )
+        body_comment = "# Plain prompt\n\n<!-- aw-prompt: Kind: research -->\n"
+        self.assertEqual(
+            artifact_meta.inject_prompt_metadata_id6(
+                body_comment, id6="ab12cd", set_id="s1"
+            ),
+            body_comment,
+        )
+
+    def test_update_prompt_metadata_status_and_purity(self):
+        """Update or insert Status: idempotently while leaving commentless prompts unchanged."""
+        src = (
+            "<!-- aw-prompt: Kind: research | Id: ab12cd | Set: demo | Status: pending -->\n"
+            "\nPrompt body.\n"
+        )
+        updated = artifact_meta.update_prompt_metadata_status(src, "executed")
+        self.assertEqual(
+            artifact_meta.read_text(updated, record_type="prompt").status, "executed"
+        )
+        self.assertTrue(updated.endswith("\n\nPrompt body.\n"))
+
+        # Idempotent when status already matches.
+        self.assertEqual(
+            artifact_meta.update_prompt_metadata_status(updated, "executed"), updated
+        )
+
+        # Insert Status: when missing from comment.
+        no_status = (
+            "<!-- aw-prompt: Kind: research | Id: ab12cd | Set: demo -->\nBody.\n"
+        )
+        inserted = artifact_meta.update_prompt_metadata_status(no_status, "reusable")
+        self.assertEqual(
+            artifact_meta.read_text(inserted, record_type="prompt").status, "reusable"
+        )
+        self.assertTrue(inserted.endswith("\nBody.\n"))
+
+        # Refusal-to-mint purity on commentless and non-leading comment prompts.
+        plain = "# Plain prompt\n\nBody.\n"
+        self.assertEqual(
+            artifact_meta.update_prompt_metadata_status(plain, "executed"), plain
+        )
+        body_comment = "# Plain prompt\n\n<!-- aw-prompt: Kind: research -->\n"
+        self.assertEqual(
+            artifact_meta.update_prompt_metadata_status(body_comment, "executed"),
+            body_comment,
+        )
+
+    def test_validate_prompt_content_cases(self):
+        """validate_prompt_content checks missing comments, minimal comments, and id/status drift."""
+        prompts_dir = self.repo_root / ".aw" / "records" / "prompts"
+
+        # 1. Missing comment on post-cutover prompt
+        missing = prompts_dir / "pending" / "20261015-demo-01-ab12cd-missing.prompt.md"
+        missing.write_text("# Body only\n", encoding="utf-8")
+        missing_rules = [
+            d.rule
+            for d in check_engine.validate_prompt_content(
+                missing, repo_root=self.repo_root
+            )
+        ]
+        self.assertIn("check.prompt-metadata-missing", missing_rules)
+
+        # 2. Minimal Kind-only comment (no Id:/Status:): recognized as having a comment
+        minimal = prompts_dir / "pending" / "20261015-demo-02-ef34gh-minimal.prompt.md"
+        minimal.write_text(
+            "<!-- aw-prompt: Kind: research -->\n\nBody.\n", encoding="utf-8"
+        )
+        minimal_rules = [
+            d.rule
+            for d in check_engine.validate_prompt_content(
+                minimal, repo_root=self.repo_root
+            )
+        ]
+        self.assertEqual(minimal_rules, [])
+
+        # 3. Mismatched Id: and Status:
+        bad = prompts_dir / "executed" / "20261015-demo-03-ij56kl-mismatch.prompt.md"
+        bad.write_text(
+            "<!-- aw-prompt: Kind: research | Id: zz9999 | Set: demo | Status: pending -->\n\nBody.\n",
+            encoding="utf-8",
+        )
+        bad_rules = [
+            d.rule
+            for d in check_engine.validate_prompt_content(bad, repo_root=self.repo_root)
+        ]
+        self.assertIn("check.prompt-id-mismatch", bad_rules)
+        self.assertIn("check.prompt-status-mismatch", bad_rules)
+
+        # 4. Conforming prompt
+        good = prompts_dir / "pending" / "20261015-demo-04-mn78op-good.prompt.md"
+        good.write_text(
+            "<!-- aw-prompt: Kind: research | Id: mn78op | Set: demo | Status: pending -->\n\nBody.\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            check_engine.validate_prompt_content(good, repo_root=self.repo_root), []
+        )
+
+    def test_artifact_rename_prompt_set_and_to_id6_with_and_without_comment(self):
+        """Prompt --to-id6 and --set renames preserve purity and update comment metadata."""
+        pending = self.repo_root / ".aw" / "records" / "prompts" / "pending"
+
+        # A. Legacy prompt WITH metadata comment
+        with_comment = pending / "20260901-1200-01-legacy-comment.prompt.md"
+        with_comment.write_text(
+            "<!-- aw-prompt: Kind: research | Status: pending -->\n\nCommented body.\n",
+            encoding="utf-8",
+        )
+        buf = io.StringIO()
+        with patch("sys.stdout", buf), patch("sys.stderr", io.StringIO()):
+            rc = cli.main(
+                [
+                    "rename",
+                    "prompts",
+                    str(with_comment),
+                    "--to-id6",
+                    "--set",
+                    "firstset",
+                    "--apply",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc, 0, buf.getvalue())
+        self.assertIn("into the aw-prompt metadata comment", buf.getvalue())
+        self.assertFalse(with_comment.exists())
+        matches = sorted(pending.glob("20260901-*-01-*-legacy-comment.prompt.md"))
+        self.assertEqual(len(matches), 1, matches)
+        renamed = matches[0]
+        renamed_text = renamed.read_text(encoding="utf-8")
+        state1 = artifact_meta.read_text(renamed_text, record_type="prompt")
+        self.assertTrue(state1.id6)
+        self.assertEqual(state1.fields.get("set"), "firstset")
+        self.assertTrue(renamed_text.endswith("\n\nCommented body.\n"))
+
+        # Follow-up Set: rename updates Set: in the metadata comment
+        buf2 = io.StringIO()
+        with patch("sys.stdout", buf2), patch("sys.stderr", io.StringIO()):
+            rc2 = cli.main(
+                [
+                    "rename",
+                    "prompts",
+                    state1.id6,
+                    "--set",
+                    "secondset",
+                    "--apply",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc2, 0, buf2.getvalue())
+        matches2 = sorted(
+            pending.glob(f"20260901-secondset-01-{state1.id6}-legacy-comment.prompt.md")
+        )
+        self.assertEqual(len(matches2), 1, matches2)
+        state2 = artifact_meta.read_text(
+            matches2[0].read_text(encoding="utf-8"), record_type="prompt"
+        )
+        self.assertEqual(state2.fields.get("set"), "secondset")
+
+        # B. Legacy prompt WITHOUT metadata comment (refusal-to-mint purity)
+        without_comment = pending / "20260901-1201-01-legacy-plain.prompt.md"
+        plain_bytes = b"# Plain legacy prompt\n\nKeep body pure.\n"
+        without_comment.write_bytes(plain_bytes)
+        buf3 = io.StringIO()
+        with patch("sys.stdout", buf3), patch("sys.stderr", io.StringIO()):
+            rc3 = cli.main(
+                [
+                    "rename",
+                    "prompts",
+                    str(without_comment),
+                    "--to-id6",
+                    "--set",
+                    "plainset",
+                    "--apply",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc3, 0, buf3.getvalue())
+        self.assertIn("FILENAME ONLY", buf3.getvalue())
+        self.assertFalse(without_comment.exists())
+        plain_matches = sorted(pending.glob("20260901-*-01-*-legacy-plain.prompt.md"))
+        self.assertEqual(len(plain_matches), 1, plain_matches)
+        self.assertEqual(plain_matches[0].read_bytes(), plain_bytes)
+        self.assertFalse(
+            artifact_meta.has_prompt_metadata_comment(
+                plain_matches[0].read_text(encoding="utf-8")
+            )
+        )
+
+    def test_log_format_id6_mirror_extraction_with_and_without_bom(self):
+        """log_format_id6 extracts mirror ids from YAML and aw-managed-prompt headers (with BOM)."""
+        records_root = self.repo_root / ".aw" / "records"
+        meta_dir = records_root / "meta"
+        meta_dir.mkdir(parents=True, exist_ok=True)
+        for id6 in ("ab12cd", "ef34gh", "ij56kl", "mn78op"):
+            (meta_dir / f"{id6}.jsonl").write_text(
+                f'{{"op":"create","id":"{id6}"}}\n', encoding="utf-8"
+            )
+
+        specs_dir = records_root / "specs" / "draft"
+        specs_dir.mkdir(parents=True, exist_ok=True)
+        yaml_no_bom = specs_dir / "yaml-no-bom.spec.md"
+        yaml_no_bom.write_text(
+            "---\nid: ab12cd\nstatus: draft\n---\n# Spec\n", encoding="utf-8"
+        )
+        yaml_with_bom = specs_dir / "yaml-with-bom.spec.md"
+        yaml_with_bom.write_text(
+            "\ufeff---\nid: ef34gh\nstatus: draft\n---\n# Spec\n", encoding="utf-8"
+        )
+        yaml_no_log = specs_dir / "yaml-no-log.spec.md"
+        yaml_no_log.write_text(
+            "---\nid: zz9999\nstatus: draft\n---\n# Spec\n", encoding="utf-8"
+        )
+
+        prompts_dir = records_root / "prompts" / "pending"
+        prompt_no_bom = prompts_dir / "managed-no-bom.prompt.md"
+        prompt_no_bom.write_text(
+            "<!-- aw-managed-prompt: id: ij56kl | status: pending . Pipeline metadata only. -->\n"
+            "\nPrompt body.\n",
+            encoding="utf-8",
+        )
+        prompt_with_bom = prompts_dir / "managed-with-bom.prompt.md"
+        prompt_with_bom.write_text(
+            "\ufeff<!-- aw-managed-prompt: id: mn78op | status: pending . Pipeline metadata only. -->\n"
+            "\nPrompt body.\n",
+            encoding="utf-8",
+        )
+
+        self.assertEqual(
+            artifact_rename.log_format_id6(yaml_no_bom, self.repo_root, "specs"),
+            "ab12cd",
+        )
+        self.assertEqual(
+            artifact_rename.log_format_id6(yaml_with_bom, self.repo_root, "specs"),
+            "ef34gh",
+        )
+        self.assertIsNone(
+            artifact_rename.log_format_id6(yaml_no_log, self.repo_root, "specs")
+        )
+        self.assertEqual(
+            artifact_rename.log_format_id6(prompt_no_bom, self.repo_root, "prompts"),
+            "ij56kl",
+        )
+        self.assertEqual(
+            artifact_rename.log_format_id6(prompt_with_bom, self.repo_root, "prompts"),
+            "mn78op",
+        )
+        self.assertEqual(
+            artifact_meta.read_mirror_id6(
+                "\ufeff---\nid: qr90st\n---\n# Walkthrough\n"
+            ),
+            "qr90st",
+        )
+        self.assertIsNone(artifact_meta.read_mirror_id6("# Plain markdown\n"))
 
 
 if __name__ == "__main__":

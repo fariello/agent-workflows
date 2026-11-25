@@ -2177,6 +2177,41 @@ def parse_staged_prompt_mirror(text: str) -> Dict[str, Any]:
     return result
 
 
+def read_mirror_id6(text: str) -> Optional[str]:
+    """Read the declared ``id`` from a post-cutover in-file mirror, or ``None``.
+
+    Handles an optional leading UTF-8 BOM (``\\ufeff``), a YAML front-matter mirror
+    (``---\\nid: <id6>...``), and a staged-prompt mirror
+    (``<!-- aw-managed-prompt: id: <id6> ... -->``).
+    """
+    if not text:
+        return None
+    stripped = text.lstrip("\ufeff")
+    if stripped.startswith("---"):
+        try:
+            parsed = parse_artifact_mirror(stripped, allow_statusless=True)
+            return str(parsed["id"])
+        except ValueError:
+            pass
+        m = re.match(r"\A---\r?\nid:\s*([0-9a-z]{6})\s*(?:\r?\n|\Z)", stripped)
+        if m:
+            return m.group(1)
+        return None
+    if stripped.startswith("<!--"):
+        try:
+            parsed_prompt = parse_staged_prompt_mirror(stripped)
+            return str(parsed_prompt["id"])
+        except ValueError:
+            pass
+        first_line = stripped.splitlines()[0] if stripped.splitlines() else ""
+        if _MANAGED_PROMPT_COMMENT_RE.match(first_line):
+            cand = _first_token(_parse_metadata_comment(first_line).get("id"))
+            if cand and _core.ID6_RE.fullmatch(cand):
+                return cand
+        return None
+    return None
+
+
 # --------------------------------------------------------------------------------------
 # 8. Cache Schema & SQLite Storage (E-08, E-09, 4.5, 4.5a)
 # --------------------------------------------------------------------------------------
@@ -2737,6 +2772,118 @@ def parse_metadata_block(
     return _parse_metadata_block(lines)
 
 
+PROMPT_METADATA_TRAILER: str = (
+    "This HTML comment is pipeline metadata only; it is invisible when pasted "
+    "into a chat and is not part of the prompt."
+)
+
+_AW_PROMPT_OPEN_RE = re.compile(r"\A<!--\s*aw-prompt:")
+
+
+def has_prompt_metadata_comment(text: str) -> bool:
+    """Return True iff ``text`` opens with a leading ``<!-- aw-prompt: ... -->`` comment."""
+    if not text:
+        return False
+    return bool(_AW_PROMPT_OPEN_RE.match(text.split("\n", 1)[0]))
+
+
+def inject_prompt_metadata_id6(
+    text: str, *, id6: str, set_id: Optional[str] = None
+) -> str:
+    """Return ``text`` with ``Id:`` (and optionally ``Set:``) written into its metadata comment.
+
+    Idempotent: a comment that already declares a valid ``Id:`` is returned unchanged.
+    Commentless prompts (and prompts whose only ``aw-prompt`` comment appears after line 1)
+    are returned unchanged to preserve prompt purity (no comment is ever minted).
+    """
+    if not has_prompt_metadata_comment(text):
+        return text
+    lines = text.split("\n")
+    first = lines[0]
+    parsed_fields = _parse_metadata_comment(first)
+    existing_id = _first_token(parsed_fields.get("Id"))
+    if existing_id and _core.ID6_RE.fullmatch(existing_id):
+        return text
+
+    additions = [f"Id: {id6}"]
+    set_text = (set_id or "").strip()
+    has_set = bool(parsed_fields.get("Set") or parsed_fields.get("set"))
+    if set_text and not has_set:
+        additions.append(f"Set: {set_text}")
+    insert = " | ".join(additions)
+
+    m_kind = re.search(r"(Kind:\s*[^|]+?)(\s*\|)", first)
+    if m_kind:
+        updated = first[: m_kind.end(1)] + f" | {insert}" + first[m_kind.end(1) :]
+    else:
+        updated = first.replace(
+            f" . {PROMPT_METADATA_TRAILER}",
+            f" | {insert} . {PROMPT_METADATA_TRAILER}",
+            1,
+        )
+        if updated == first:
+            updated = re.sub(r"\s*-->\s*\Z", f" | {insert} -->", first)
+    lines[0] = " ".join(updated.split())
+    return "\n".join(lines)
+
+
+def update_prompt_metadata_status(text: str, status: str) -> str:
+    """Return ``text`` with ``Status: <status>`` updated or inserted in its metadata comment.
+
+    Idempotent: if the comment already declares ``status``, returns ``text`` unchanged.
+    Commentless prompts (and prompts whose only ``aw-prompt`` comment appears after line 1)
+    are returned unchanged to preserve prompt purity (no comment is ever minted).
+    """
+    if not has_prompt_metadata_comment(text):
+        return text
+    lines = text.split("\n")
+    first = lines[0]
+    current = read_text(first, record_type="prompt").legacy_raw_status
+    if current == status:
+        return text
+
+    if current is not None:
+        updated = re.sub(
+            r"((?:\A|<!--\s*aw-prompt:|\|)\s*Status:\s*)(?:(?!-->)[^|.\s])+",
+            rf"\g<1>{status}",
+            first,
+            count=1,
+        )
+    else:
+        m_set = re.search(r"(Set:\s*[^|]+?)(\s*\|)", first)
+        if m_set:
+            updated = (
+                first[: m_set.end(1)] + f" | Status: {status}" + first[m_set.end(1) :]
+            )
+        else:
+            m_id = re.search(r"(Id:\s*[^|]+?)(\s*\|)", first)
+            if m_id:
+                updated = (
+                    first[: m_id.end(1)] + f" | Status: {status}" + first[m_id.end(1) :]
+                )
+            else:
+                m_kind = re.search(r"(Kind:\s*[^|]+?)(\s*\|)", first)
+                if m_kind:
+                    updated = (
+                        first[: m_kind.end(1)]
+                        + f" | Status: {status}"
+                        + first[m_kind.end(1) :]
+                    )
+                else:
+                    updated = first.replace(
+                        f" . {PROMPT_METADATA_TRAILER}",
+                        f" | Status: {status} . {PROMPT_METADATA_TRAILER}",
+                        1,
+                    )
+                    if updated == first:
+                        updated = re.sub(
+                            r"\s*-->\s*\Z", f" | Status: {status} -->", first
+                        )
+
+    lines[0] = " ".join(updated.split())
+    return "\n".join(lines)
+
+
 def _parse_metadata_comment(first_line: str) -> Dict[str, str]:
     """Key/value pairs of a prompt's leading ``<!-- aw-managed-prompt: ... -->`` or
     ``<!-- aw-prompt: ... -->`` metadata comment, or ``{}`` when ``first_line`` carries neither.
@@ -2759,12 +2906,10 @@ def _parse_metadata_comment(first_line: str) -> Dict[str, str]:
     if split_aw is not None and split_aw[2]:
         inner = split_aw[1]
     else:
-        from agent_workflows import prompts as _prompts
-
         for marker in (
-            f" . {_prompts._METADATA_TRAILER}",
+            f" . {PROMPT_METADATA_TRAILER}",
             " . This HTML comment is",
-            _prompts._METADATA_TRAILER,
+            PROMPT_METADATA_TRAILER,
         ):
             if marker in inner:
                 inner = inner.split(marker, 1)[0].strip()
@@ -7391,10 +7536,8 @@ def _render_status(
     notes: List[str] = []
     lines = text.splitlines()
     if plural == "prompts":
-        from agent_workflows import prompts as _prompts
-
-        if _prompts.has_metadata_comment(text):
-            return _prompts.update_metadata_status(text, status), notes
+        if has_prompt_metadata_comment(text):
+            return update_prompt_metadata_status(text, status), notes
         notes.append(
             f"aw set: note: prompt {label} has no metadata comment; status lives in directory only\n"
         )
@@ -7591,9 +7734,7 @@ def _split_prompt_comment(first_line: str) -> Optional[Tuple[str, str, str, str]
     if not m:
         return None
     prefix, inner, suffix = m.group(1), m.group(2), m.group(3)
-    from agent_workflows import prompts as _prompts
-
-    trailer_marker = f" . {_prompts._METADATA_TRAILER}"
+    trailer_marker = f" . {PROMPT_METADATA_TRAILER}"
     if trailer_marker in inner:
         fields_part, tail = inner.split(trailer_marker, 1)
         return prefix, fields_part, trailer_marker + tail, suffix
@@ -7611,7 +7752,7 @@ def _split_prompt_comment(first_line: str) -> Optional[Tuple[str, str, str, str]
 def _render_prompt_field(text: str, key_label: str, value: Optional[Any]) -> str:
     """Edit, insert, or remove one key in a leading `<!-- aw-prompt: ... -->` comment.
 
-    Leaves comment-less legacy prompts unchanged (`prompts.inject_metadata_id6` parity)."""
+    Leaves comment-less legacy prompts unchanged (`inject_prompt_metadata_id6` parity)."""
     lines = text.split("\n")
     if not lines or "<!-- aw-prompt:" not in lines[0]:
         return text
@@ -7685,7 +7826,6 @@ def _render_create_fields(
                 if label is not None and fv is not None:
                     out = _render_prompt_field(out, label, fv)
             return out
-        from agent_workflows import prompts as _prompts
 
         ordered_keys = (
             "prompt_kind",
@@ -7719,9 +7859,7 @@ def _render_create_fields(
             clean_val = " ".join(_format_legacy_value(fk, val).split())
             if clean_val:
                 segs.append(f"{label}: {clean_val}")
-        comment = (
-            f"<!-- aw-prompt: {' | '.join(segs)} . {_prompts._METADATA_TRAILER} -->"
-        )
+        comment = f"<!-- aw-prompt: {' | '.join(segs)} . {PROMPT_METADATA_TRAILER} -->"
         comment = " ".join(comment.split())
         if not text:
             return comment
@@ -7933,9 +8071,7 @@ def _render_field(
 ) -> str:
     """One field edit across bullet, research `---` YAML, or `aw-prompt` comment forms."""
     if plural == "prompts":
-        from agent_workflows import prompts as _prompts
-
-        if _prompts.has_metadata_comment(text):
+        if has_prompt_metadata_comment(text):
             key_label = _PROMPT_COMMENT_KEY.get(field)
             if key_label is None:
                 if field == "order":
@@ -8033,7 +8169,7 @@ def _render_field(
 def _render_checkpoint(text: str, plural: str, fields: Dict[str, Any]) -> str:
     """Render an idempotent `checkpoint` `"id"` (and prompt `"set"`) into legacy metadata.
 
-    On `prompts`, delegates to `prompts.inject_metadata_id6` (leaving comment-less prompts
+    On `prompts`, delegates to `inject_prompt_metadata_id6` (leaving comment-less prompts
     untouched). On non-prompts, inserts `- Id:` after `- Status:` else `- Date:` inside the
     metadata region with zero H1/body fallback (`a88210`).
     """
@@ -8041,9 +8177,7 @@ def _render_checkpoint(text: str, plural: str, fields: Dict[str, Any]) -> str:
     set_val = fields.get("set")
     if plural == "prompts":
         if id_val is not None:
-            from agent_workflows import prompts as _prompts
-
-            return _prompts.inject_metadata_id6(
+            return inject_prompt_metadata_id6(
                 text,
                 id6=str(id_val),
                 set_id=str(set_val) if set_val is not None else None,

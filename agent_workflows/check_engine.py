@@ -1942,8 +1942,9 @@ def validate_prompt_content(
     else:
         rel = path.name
 
-    first_line = text.split("\n", 1)[0] if text else ""
-    has_comment = bool(first_line.startswith("<!--") and "aw-prompt:" in first_line)
+    from agent_workflows import artifact_meta as _meta
+
+    has_comment = _meta.has_prompt_metadata_comment(text)
     requires_id6 = _prompt_requires_id6(path.name, repo_root)
 
     if requires_id6 and not has_comment:
@@ -1958,7 +1959,6 @@ def validate_prompt_content(
         )
 
     if has_comment:
-        from agent_workflows import artifact_meta as _meta
         from agent_workflows import project_context as _proj_ctx
 
         owner = (

@@ -14558,7 +14558,6 @@ def _run_describe(
     from agent_workflows import artifact_core as _core
     from agent_workflows import artifact_meta as _meta
     from agent_workflows import attention_contract as _att
-    from agent_workflows import prompts as _prompts
     from agent_workflows import research_contract as _rc
     from agent_workflows import selectors
     from agent_workflows.agent_schema import redact_home_paths
@@ -14684,7 +14683,7 @@ def _run_describe(
     source_digest = hashlib.sha256(raw_bytes).hexdigest()
 
     id6: Optional[str] = None
-    if record_type == "prompts" and _prompts.has_metadata_comment(text):
+    if record_type == "prompts" and _meta.has_prompt_metadata_comment(text):
         id6 = _meta.read_text(text.split("\n", 1)[0], record_type="prompt").id6 or None
         if id6 and not _core.ID6_RE.fullmatch(id6):
             id6 = None

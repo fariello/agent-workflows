@@ -330,13 +330,11 @@ def _rename_metadata_events(
     events: List[dict] = []
     set_fields: dict = {}
     if rec_type == "prompts":
-        from agent_workflows import prompts as _prompts
-
-        if _prompts.has_metadata_comment(text):
+        if _meta.has_prompt_metadata_comment(text):
             first_line = text.split("\n", 1)[0]
-            if set_id is not None and re.search(
-                r"(?:\A|\|)\s*Set:\s*[^|]+", first_line
-            ):
+            if set_id is not None and _meta.read_text(
+                first_line, record_type="prompt"
+            ).fields.get("set"):
                 set_fields["set"] = str(set_id)
         else:
             if set_id is not None and _has_set_bullet(text):
@@ -356,7 +354,7 @@ def _rename_metadata_events(
         cp_fields: dict = {"id": id6}
         if rec_type == "prompts" and set_id is not None:
             first_line = text.split("\n", 1)[0]
-            if not re.search(r"(?:\A|\|)\s*Set:\s*[^|]+", first_line):
+            if not _meta.read_text(first_line, record_type="prompt").fields.get("set"):
                 cp_fields["set"] = str(set_id)
         events.append({"op": "checkpoint", "path": rel_path, "fields": cp_fields})
     return events
@@ -379,17 +377,16 @@ def _id6_write_message(
     text, and this plan must not change specs' behavior at all.
 
     A PROMPT WITH NO METADATA COMMENT IS REPORTED HONESTLY rather than claimed as a write. 6 of the 17
-    measured prompts have no leading comment, and `prompts.inject_metadata_id6` deliberately refuses
-    to mint one (adding a line above the body is the very purity violation this repair removes), so
-    such a file keeps its id6 in the FILENAME only and the message says exactly that.
+    measured prompts have no leading comment, and `artifact_meta.inject_prompt_metadata_id6`
+    deliberately refuses to mint one (adding a line above the body is the very purity violation this
+    repair removes), so such a file keeps its id6 in the FILENAME only and the message says exactly
+    that.
     """
     if artifact_type == "prompts":
-        from agent_workflows import prompts as _prompts
-
         has_comment = True
         if src is not None:
             try:
-                has_comment = _prompts.has_metadata_comment(
+                has_comment = _meta.has_prompt_metadata_comment(
                     src.read_text(encoding="utf-8")
                 )
             except OSError:
@@ -438,20 +435,12 @@ def _read_existing_id6(
     except OSError:
         return None
     if artifact_type == "prompts":
-        from agent_workflows import prompts as _prompts
-
-        if not _prompts.has_metadata_comment(text):
+        if not _meta.has_prompt_metadata_comment(text):
             return None
         # Only line 1 holds the comment; a body `- Id:` bullet is not a declaration.
         declared = _meta.read_text(text.split("\n", 1)[0], record_type="prompt").id6
         return declared if _core.ID6_RE.fullmatch(declared or "") else None
     return _bullet_id6(text)
-
-
-_MIRROR_ID_RE = re.compile(r"\A\ufeff?---\r?\nid:\s*([0-9a-z]{6})\s*\r?\n")
-_MANAGED_PROMPT_ID_RE = re.compile(
-    r"\A\ufeff?<!-- aw-managed-prompt: id:\s*([0-9a-z]{6})\b"
-)
 
 
 def log_format_id6(
@@ -472,10 +461,9 @@ def log_format_id6(
         head = file_path.read_text(encoding="utf-8")[:4096]
     except OSError:
         head = ""
-    for rx in (_MIRROR_ID_RE, _MANAGED_PROMPT_ID_RE):
-        m = rx.match(head)
-        if m:
-            candidates.append(m.group(1))
+    mirror_id = _meta.read_mirror_id6(head)
+    if mirror_id:
+        candidates.append(mirror_id)
     existing = _read_existing_id6(file_path, artifact_type)
     if existing:
         candidates.append(existing)

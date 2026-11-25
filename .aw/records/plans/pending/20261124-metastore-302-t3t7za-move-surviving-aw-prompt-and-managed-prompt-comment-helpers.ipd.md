@@ -40,27 +40,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Move prompt comment helpers into `artifact_meta.py` (`4sd62s` C5)
 
-- [ ] E-01 Move prompt metadata comment ownership into `agent_workflows/artifact_meta.py` and retarget `artifact_meta.py`, `prompts.py`, `cli.py`, and `status_set.py`:
+- [x] E-01 Move prompt metadata comment ownership into `agent_workflows/artifact_meta.py` and retarget `artifact_meta.py`, `prompts.py`, `cli.py`, and `status_set.py`:
   1. Add `PROMPT_METADATA_TRAILER`, `has_prompt_metadata_comment(text: str) -> bool`, `inject_prompt_metadata_id6(text: str, *, id6: str, set_id: Optional[str] = None) -> str`, `update_prompt_metadata_status(text: str, status: str) -> str`, and `read_mirror_id6(text: str) -> Optional[str]` (handling optional UTF-8 BOM `\ufeff`, `---\nid: <id6>`, and `<!-- aw-managed-prompt: id: <id6> ... -->` via `artifact_meta`'s own mirror parsers) to `agent_workflows/artifact_meta.py`. Preserve refusal-to-mint purity on commentless prompts (returning `text` unchanged) and idempotency when `Id:` or the target `Status:` already exists.
   2. Update `agent_workflows/artifact_meta.py`'s own six reverse-delegation sites (`_parse_metadata_comment`, `_render_status`, `_split_prompt_comment`, `_render_prompt_create_comment`, `_render_field`, `_render_checkpoint`) to call `artifact_meta`'s own helpers and `PROMPT_METADATA_TRAILER` directly instead of importing `prompts`.
   3. In `agent_workflows/prompts.py`: delete `_METADATA_ID_RE`, `has_metadata_comment`, `inject_metadata_id6`, `update_metadata_status`, and `inject_metadata_status`; retarget `prompts._existing_id6s` onto `artifact_meta.read_text(first, record_type="prompt").id6`; keep `_METADATA_TRAILER = _meta.PROMPT_METADATA_TRAILER` as a plain-text constant alias so `tests/test_writers_create_summary.py` remains unchanged.
   4. Update `agent_workflows/cli.py` (describe handler, `_prompts.has_metadata_comment`) and `agent_workflows/status_set.py` (`_prompts.has_metadata_comment`) to call `artifact_meta.has_prompt_metadata_comment(text)`.
   - Depends on: none
   - Expected outcome: `artifact_meta.py` owns all prompt metadata comment helpers with zero reverse imports of `prompts`, `prompts.py` contains zero `aw-prompt` regexes or comment writers, and prompt creation, describe, and status-transition tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Retarget `check_engine.py` and `artifact_rename.py` (`4sd62s` C5)
 
-- [ ] E-02 Replace all surviving prompt comment and mirror-id parsers in `agent_workflows/check_engine.py` and `agent_workflows/artifact_rename.py` with `artifact_meta` readers:
+- [x] E-02 Replace all surviving prompt comment and mirror-id parsers in `agent_workflows/check_engine.py` and `agent_workflows/artifact_rename.py` with `artifact_meta` readers:
   1. In `agent_workflows/check_engine.py::validate_prompt_content`, replace the inline first-line check (`first_line.startswith("<!--") and "aw-prompt:" in first_line`) with `artifact_meta.has_prompt_metadata_comment(text)` (not `read_text`, which would misclassify minimal comments lacking `id`/`status` or body bullets).
   2. In `agent_workflows/artifact_rename.py`: replace all three `_prompts.has_metadata_comment` calls (`_build_rename_events`, `_id6_write_message`, `_read_existing_id6`) with `artifact_meta.has_prompt_metadata_comment(text)`; replace both inline `Set:` regexes in `_build_rename_events` (`r"(?:\A|\|)\s*Set:\s*[^|]+"`) with `artifact_meta.read_text(text.split("\n", 1)[0], record_type="prompt").fields.get("set")`; delete `_MIRROR_ID_RE` and `_MANAGED_PROMPT_ID_RE` and replace their `log_format_id6` match loop with `artifact_meta.read_mirror_id6(head)`.
   - Depends on: E-01
   - Expected outcome: zero `aw-prompt`, `aw-managed-prompt`, `Set:`, or mirror-id regexes or inline comment parsers remain in `check_engine.py` and `artifact_rename.py`, while prompt content validation, `--to-id6` / `Set:` renames, and `log_format_id6` preserve existing contracts.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Behavioral tests and validation (`4sd62s` AC-1, C10a)
 
-- [ ] E-03 Update `tests/test_prompts_set_surface.py` (retargeting `prompts.has_metadata_comment` to `artifact_meta.has_prompt_metadata_comment`) and add a `@pytest.mark.core` behavioral test class exercising:
+- [x] E-03 Update `tests/test_prompts_set_surface.py` (retargeting `prompts.has_metadata_comment` to `artifact_meta.has_prompt_metadata_comment`) and add a `@pytest.mark.core` behavioral test class exercising:
   1. `artifact_meta.has_prompt_metadata_comment` (conforming `aw-prompt`, minimal `Kind`-only comment, commentless prompt, non-leading body comment ignored).
   2. `artifact_meta.inject_prompt_metadata_id6` and `update_prompt_metadata_status` (inject `Id:`/`Set:`, idempotency, status update and insertion, commentless refusal-to-mint purity).
   3. `check_engine.validate_prompt_content` (missing comment, minimal comment without `Id:`, mismatched `Id:`/`Status:`, conforming prompt).
@@ -68,12 +68,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Assert observable outputs, diagnostics, exit codes, and file bytes only; zero code-pinning source reads.
   - Depends on: E-02
   - Expected outcome: all existing and new `@pytest.mark.core` behavioral tests in `tests/test_prompts_set_surface.py` pass under `python3 -m pytest`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Run targeted pytest suites across all affected prompt, rename, check-engine, and `artifact_meta` test modules, bare core-tier `python3 -m pytest`, `python3 -m mypy` on all 6 modified production files, `rg` over `prompts.py`, `check_engine.py`, `artifact_rename.py`, `cli.py`, and `status_set.py` confirming zero surviving prompt-comment parsers/writers/regexes (only docstrings, comments, and user-facing messages), and `aw sanitize --agent`.
+- [x] E-04 Run targeted pytest suites across all affected prompt, rename, check-engine, and `artifact_meta` test modules, bare core-tier `python3 -m pytest`, `python3 -m mypy` on all 6 modified production files, `rg` over `prompts.py`, `check_engine.py`, `artifact_rename.py`, `cli.py`, and `status_set.py` confirming zero surviving prompt-comment parsers/writers/regexes (only docstrings, comments, and user-facing messages), and `aw sanitize --agent`.
   - Depends on: E-03
   - Expected outcome: all targeted tests and the bare core gate pass, `mypy` reports zero errors across all 6 production files, `rg` confirms zero parser/writer/regex hits remain outside `artifact_meta.py` and `migrations/m0001_*.py`, and `aw sanitize --agent` reports clean (`pass`).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -170,25 +170,43 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "aw-prompt|aw-managed-prompt|_METADATA_ID_RE|has_metadata_comment|inject_metadata_id6|update_metadata_status|inject_metadata_status" agent_workflows/prompts.py agent_workflows/cli.py agent_workflows/status_set.py` confirming zero parser/writer/regex hits (only docstrings, comments, or `cli.py` help strings), `rg -n "from agent_workflows import prompts" agent_workflows/artifact_meta.py` empty, and `python3 -m pytest tests/test_prompts_new.py tests/test_prompts_set_surface.py tests/test_writers_create_summary.py tests/test_artifact_meta_legacy.py tests/test_artifact_meta_legacy_writer.py tests/test_artifact_meta_legacy_write.py` passing summary.
   - Observed evidence:
-  - Result: pending
+    - `rg -n "aw-prompt|aw-managed-prompt|_METADATA_ID_RE|has_metadata_comment|inject_metadata_id6|update_metadata_status|inject_metadata_status" agent_workflows/prompts.py agent_workflows/cli.py agent_workflows/status_set.py`:
+      - `agent_workflows/prompts.py:27`: `* the single leading <!-- aw-prompt: ... --> metadata comment, emitted as exactly ONE line and as` (module docstring)
+      - `agent_workflows/prompts.py:329`: `# or pipe-delimiter tokens that could break out of <!-- aw-prompt: ... --> (D-2, D-3).` (comment)
+      - `agent_workflows/cli.py:756, 8108, 8122`: CLI help strings only (owned by `90iqr1`); `agent_workflows/status_set.py`: zero hits.
+    - `rg -n "from agent_workflows import prompts" agent_workflows/artifact_meta.py`: empty (zero hits).
+    - `python3 -m pytest tests/test_prompts_new.py tests/test_prompts_set_surface.py tests/test_writers_create_summary.py tests/test_artifact_meta_legacy.py tests/test_artifact_meta_legacy_writer.py tests/test_artifact_meta_legacy_write.py`: `185 passed in 6.93s` (`0 unlisted slow tests`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "aw-prompt|aw-managed-prompt|_MIRROR_ID_RE|_MANAGED_PROMPT_ID_RE|has_metadata_comment|\\\\|\\\\)\\\\s\\*Set:" agent_workflows/check_engine.py agent_workflows/artifact_rename.py` (or `rg -n "aw-prompt|aw-managed-prompt|_MIRROR_ID_RE|_MANAGED_PROMPT_ID_RE|has_metadata_comment" agent_workflows/check_engine.py agent_workflows/artifact_rename.py` plus checking `_build_rename_events`) confirming zero parser/writer/regex hits (only docstrings and user-facing Drift/CLI message strings), and `python3 -m pytest tests/test_prompts_index.py tests/test_readers_check_engine.py tests/test_readers_record_modules.py tests/test_artifact_rename.py tests/test_log_rename_events.py` passing summary.
   - Observed evidence:
-  - Result: pending
+    - `rg -n "aw-prompt|aw-managed-prompt|_MIRROR_ID_RE|_MANAGED_PROMPT_ID_RE|has_metadata_comment" agent_workflows/check_engine.py agent_workflows/artifact_rename.py`:
+      - `agent_workflows/artifact_rename.py:327, 374, 430` (docstrings); `398, 403, 979` (user-facing CLI output messages).
+      - `agent_workflows/check_engine.py:1956` (user-facing `check.prompt-metadata-missing` Drift detail message).
+    - `rg -n "\\|\\)\\s\\*Set:|Set:\\\\s\\*\\[\\^\\|\\]" agent_workflows/artifact_rename.py`: `(empty)` (both inline `Set:` regexes in `_rename_metadata_events` replaced with `artifact_meta.read_text(first_line, record_type="prompt").fields.get("set")`).
+    - `python3 -m pytest tests/test_prompts_index.py tests/test_prompts_attention.py tests/test_readers_check_engine.py tests/test_readers_record_modules.py tests/test_artifact_rename.py tests/test_log_rename_events.py`: `92 passed in 5.15s` (`0 unlisted slow tests`).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `python3 -m pytest -v tests/test_prompts_set_surface.py` showing all existing and new `@pytest.mark.core` behavioral tests passing (covering `has_prompt_metadata_comment`, `inject_prompt_metadata_id6`, `update_prompt_metadata_status`, `validate_prompt_content`, prompt `Set:`/`--to-id6` renames, and `log_format_id6` mirror id extraction with BOM), and `rg -n "inspect\.|import ast|getsource|read_text\(.*agent_workflows" tests/test_prompts_set_surface.py` empty.
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest -v tests/test_prompts_set_surface.py`: `12 passed in 1.81s` (`0 unlisted slow tests`).
+    - `python3 -m pytest -vv tests/test_prompts_set_surface.py`: all 12 tests `PASSED` (`test_has_prompt_metadata_comment_cases`, `test_inject_prompt_metadata_id6_and_purity`, `test_update_prompt_metadata_status_and_purity`, `test_validate_prompt_content_cases`, `test_artifact_rename_prompt_set_and_to_id6_with_and_without_comment`, `test_log_format_id6_mirror_extraction_with_and_without_bom`, plus all 6 existing `TestPromptsSetSurface` tests) — `12 passed in 2.03s`.
+    - `rg -n "inspect\.|import ast|getsource|read_text\(.*agent_workflows" tests/test_prompts_set_surface.py`: empty (zero hits).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the bare `python3 -m pytest` summary line (`N passed`), `python3 -m mypy agent_workflows/artifact_meta.py agent_workflows/prompts.py agent_workflows/check_engine.py agent_workflows/artifact_rename.py agent_workflows/cli.py agent_workflows/status_set.py` zero-error output, the full `rg` survivor-search output over `prompts.py`, `check_engine.py`, `artifact_rename.py`, `cli.py`, and `status_set.py` confirming zero parser/writer/regex hits, and `aw sanitize --agent` clean (`pass`) output.
   - Observed evidence:
-  - Result: pending
+    - Bare `python3 -m pytest`: `2912 passed, 1 skipped, 11 warnings in 131.05s (0:02:11)` (zero test failures; core-tier wall-time budget warning under host load 7.45 on 12 CPUs); `aw suite` (core tier, bounded workers): exited 0, `2912 passed, 1 skipped, 11 warnings in 86.87s (0:01:26)`.
+    - `python3 -m mypy agent_workflows/artifact_meta.py agent_workflows/prompts.py agent_workflows/check_engine.py agent_workflows/artifact_rename.py agent_workflows/cli.py agent_workflows/status_set.py`: `Success: no issues found in 6 source files`.
+    - Full `rg -n "aw-prompt|aw-managed-prompt|_METADATA_ID_RE|has_metadata_comment|inject_metadata_id6|update_metadata_status|inject_metadata_status|_MIRROR_ID_RE|_MANAGED_PROMPT_ID_RE" agent_workflows/prompts.py agent_workflows/check_engine.py agent_workflows/artifact_rename.py agent_workflows/cli.py agent_workflows/status_set.py`: zero parser, writer, or regex hits (only docstrings/comments in `prompts.py` lines 27/329, docstrings/CLI messages in `artifact_rename.py` lines 327/374/398/403/430/979, Drift detail string in `check_engine.py` line 1956, and CLI help text in `cli.py` lines 756/8108/8122; zero hits in `status_set.py`).
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7223,"findings":0,"evidence":["leak-scan"],"next":null}`.
+  - Result: pass
 
 ## Approval and execution gate
 
