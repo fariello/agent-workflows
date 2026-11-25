@@ -31,7 +31,7 @@ from agent_workflows import (
     production_checks,
     runner_shared as rs,
 )
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -763,8 +763,7 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
                     )
                     self.assertEqual(len(bkl_files), 1)
                     self.assertIn("/open/", str(bkl_files[0]).replace("\\", "/"))
-                    bkl_txt = bkl_files[0].read_text(encoding="utf-8")
-                    self.assertIn("- Status: open", bkl_txt)
+                    assert_field(bkl_files[0], "status", "open")
 
     def test_backlog_production_ready_set_graduated(self) -> None:
         for host_label, mod in _HOSTS:
@@ -876,8 +875,7 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
                     )
                     self.assertEqual(len(bkl_files), 1)
                     self.assertIn("/graduated/", str(bkl_files[0]).replace("\\", "/"))
-                    bkl_txt = bkl_files[0].read_text(encoding="utf-8")
-                    self.assertIn("- Status: graduated", bkl_txt)
+                    assert_field(bkl_files[0], "status", "graduated")
 
                     # Orchestrator plan carries Coverage: pass
                     orch_files = list(
@@ -1015,8 +1013,7 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
                     )
                     self.assertEqual(len(spec_files), 1)
                     self.assertIn("/approved/", str(spec_files[0]).replace("\\", "/"))
-                    spec_txt = spec_files[0].read_text(encoding="utf-8")
-                    self.assertIn("- Status: approved", spec_txt)
+                    assert_field(spec_files[0], "status", "approved")
 
     def test_spec_production_ready_set_implementing(self) -> None:
         for host_label, mod in _HOSTS:
@@ -1127,8 +1124,7 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
                     self.assertIn(
                         "/implementing/", str(spec_files[0]).replace("\\", "/")
                     )
-                    spec_txt = spec_files[0].read_text(encoding="utf-8")
-                    self.assertIn("- Status: implementing", spec_txt)
+                    assert_field(spec_files[0], "status", "implementing")
 
     def test_backlog_production_could_not_ask(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -1227,8 +1223,7 @@ class TestProductionSetCheckIntegration(unittest.TestCase):
             )
             self.assertEqual(len(bkl_files), 1)
             self.assertIn("/open/", str(bkl_files[0]).replace("\\", "/"))
-            bkl_txt = bkl_files[0].read_text(encoding="utf-8")
-            self.assertIn("- Status: open", bkl_txt)
+            assert_field(bkl_files[0], "status", "open")
 
     def test_single_finding_deduplication(self) -> None:
         with tempfile.TemporaryDirectory() as td:

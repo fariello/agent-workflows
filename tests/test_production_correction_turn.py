@@ -26,7 +26,7 @@ from agent_workflows import (
     oc_runipd,
     runner_shared as rs,
 )
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field, assert_no_field
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -1158,9 +1158,8 @@ class TestProductionCorrectionTurn(unittest.TestCase):
                             ".aw/records/plans/**/20261004-setex-00-orce01*.ipd.md"
                         )
                     )[0]
-                    plan_txt = plan_p.read_text(encoding="utf-8")
-                    self.assertIn("- Status: to-review", plan_txt)
-                    self.assertNotIn("- Readiness:", plan_txt)
+                    assert_field(plan_p, "status", "to-review")
+                    assert_no_field(plan_p, "readiness")
 
                     refusal = item.get("refusal") or {}
                     self.assertEqual(

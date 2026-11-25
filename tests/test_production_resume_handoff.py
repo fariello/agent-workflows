@@ -50,7 +50,7 @@ from agent_workflows import (
     production_checks,
     runner_shared as rs,
 )
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -933,14 +933,14 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
                     self.assertEqual(len(bkl_files), 1)
                     self.assertIn("/graduated/", str(bkl_files[0]).replace("\\", "/"))
                     bkl_txt = bkl_files[0].read_text(encoding="utf-8")
-                    self.assertIn("- Status: graduated", bkl_txt)
+                    assert_field(bkl_files[0], "status", "graduated")
 
                     # Transition message names existing and new ids
                     self.assertIn("chd401", bkl_txt)
                     self.assertIn("orc401", bkl_txt)
 
                     # - Graduated-To: set401
-                    self.assertIn("- Graduated-To: set401", bkl_txt)
+                    assert_field(bkl_files[0], "graduated_to", "set401")
 
                     # Sets linked to item = 1
                     active_plans = production_checks.existing_handoff_plans(
@@ -1151,7 +1151,7 @@ class TestProductionResumeHandoffIntegration(unittest.TestCase):
                         "/implementing/", str(spec_files[0]).replace("\\", "/")
                     )
                     spec_txt = spec_files[0].read_text(encoding="utf-8")
-                    self.assertIn("- Status: implementing", spec_txt)
+                    assert_field(spec_files[0], "status", "implementing")
                     self.assertIn("chd403", spec_txt)
                     self.assertIn("orc403", spec_txt)
 

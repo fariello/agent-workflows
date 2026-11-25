@@ -24,6 +24,7 @@ from agent_workflows import (
     oc_runipd,
     runner_shared,
 )
+from tests.record_builder import assert_field
 from tests.test_backlog_production import (
     _make_test_repo,
     _patch_host_agent,
@@ -134,8 +135,7 @@ class TestProductionBaselineSameCommit(unittest.TestCase):
                     self.assertEqual(len(bkl_files), 1)
                     bkl_p = bkl_files[0]
                     self.assertIn("/graduated/", str(bkl_p).replace("\\", "/"))
-                    bkl_txt = bkl_p.read_text(encoding="utf-8")
-                    self.assertIn("- Status: graduated", bkl_txt)
+                    assert_field(bkl_p, "status", "graduated")
 
                     # Assert no BACKLOG-GRADUATE-COUNT in events
                     events_file = run_dir / "events.jsonl"
@@ -256,8 +256,7 @@ class TestProductionBaselineSameCommit(unittest.TestCase):
                     self.assertEqual(len(spec_files), 1)
                     spec_p = spec_files[0]
                     self.assertIn("/implementing/", str(spec_p).replace("\\", "/"))
-                    spec_txt = spec_p.read_text(encoding="utf-8")
-                    self.assertIn("- Status: implementing", spec_txt)
+                    assert_field(spec_p, "status", "implementing")
 
                     # Assert no SPEC-PLAN-COUNT in events
                     events_file = run_dir / "events.jsonl"
