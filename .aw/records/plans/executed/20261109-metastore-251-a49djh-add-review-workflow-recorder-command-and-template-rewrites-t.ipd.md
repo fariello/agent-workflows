@@ -6,7 +6,7 @@
 - Scope: In a scratch worktree with the committed patch applied, rewrite the review workflows (replacing hand-written `- Readiness:` with the review-round recorder), document the two commands handed by `xexn45`, and rewrite the lifecycle workflows and templates; regenerate `.aw/system/cutover/metastore-docs.cutover.patch`. No live document changes.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-251-a49djh-add-review-workflow-recorder-command-and-template-rewrites-t.ipd.md, .aw/system/cutover/metastore-docs.cutover.patch
 - Item-Dependencies: executed:9o83cr, executed:qhay6a
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: a49djh
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-25 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: a49djh verified (set metastore, attempt 1).
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
