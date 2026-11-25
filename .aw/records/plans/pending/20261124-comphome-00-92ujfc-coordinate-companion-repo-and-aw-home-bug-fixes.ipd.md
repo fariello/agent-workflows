@@ -6,9 +6,11 @@
 - Scope: Coordinate six right-sized child IPDs (`ywl7uc`, `7gverp`, `mmuv3v`, `7eivm2`, `7hfx7r`, `4vnd36`) that remediate every confirmed companion and `~/.aw/` bug with behavioral regression coverage. This orchestrator performs no code edits of its own and retires once all six children reach `executed/`.
 - Scope-Paths: .aw/records/plans/pending/20261124-comphome-00-92ujfc-coordinate-companion-repo-and-aw-home-bug-fixes.ipd.md
 - Item-Dependencies: executed:4vnd36, executed:7eivm2, executed:7gverp, executed:7hfx7r, executed:mmuv3v, executed:ywl7uc
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
+- Review-Depth: orchestrator
 - Coverage: pass
-- Coverage-Fingerprint: 78bb57faef4d8c1e8d6c60277233bbde672b663615997fb00d04e80e74bdcca6
+- Coverage-Fingerprint: 1be5a065843f436113fd840724350dcd9b0ec5dd1b8399baedd168d66657659f
 - Coverage-Checked: 2026-11-25 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Priority: high
 - Work-Kind: bug
@@ -23,6 +25,9 @@
 
 ## Workflow history
 
+- 2026-11-25 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
+- 2026-11-25 coverage pass (aw oc run): fingerprint 1be5a065843f, model uri/its_direct/pt3-claude-opus-5.5-1m-us
+- 2026-11-25 /plan-review (antigravity/Gemini 4 Neon (High)): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 - 2026-11-25 coverage pass (aw oc run): fingerprint 78bb57faef4d, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-24 to-review (antigravity): authored orchestrator for `/assess-bugs` (companion repos and `~/.aw/` scope), coordinating six child IPDs (`ywl7uc`, `7gverp`, `mmuv3v`, `7eivm2`, `7hfx7r`, `4vnd36`).
 
@@ -62,7 +67,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 - [ ] E-06 CONFIRM 4vnd36 REACHED executed
-  - Depends on: E-03, E-05
+  - Depends on: E-01, E-03, E-05
   - Expected outcome: `aw find plans 4vnd36` reports `4vnd36` under `.aw/records/plans/executed/`.
   - Execution state: pending
 
@@ -71,10 +76,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | Order | ID | Filename | Summary | Depends on |
 |---:|---|---|---|---|
 | 01 | `ywl7uc` | `20261124-comphome-01-ywl7uc-fix-companion-and-aw-home-core-storage-context-placement-swi.ipd.md` | Fix core storage, `AW_HOME` unification, companion security/local.json sync, placement-switch rollback, `record_placement`, `artifact_core.git_mv`, and `project_layout`. | `none` |
-| 02 | `7gverp` | `20261124-comphome-02-7gverp-fix-installer-clean-delta-hijack-companion-project-policy-di.ipd.md` | Fix `engine._clean_delta_home_trees` hijack, `public-target-private-companion` policy/attachment gaps, `aw install --diff`, local-lane migration crash, and `leak_sanitizer` allowlist path. | `executed:ywl7uc` |
+| 02 | `7gverp` | `20261124-comphome-02-7gverp-fix-installer-clean-delta-hijack-companion-project-policy-di.ipd.md` | Fix `engine._clean_delta_home_trees` hijack, `public-target-private-companion` policy/attachment gaps (`install_wizard`, `project_context`, `project_schema`, `placement_switch`), `aw install --diff`, local-lane migration crash, and `leak_sanitizer` allowlist path. | `executed:ywl7uc` |
 | 03 | `mmuv3v` | `20261124-comphome-03-mmuv3v-fix-metadata-selectors-self-commit-routing-companion-locking.ipd.md` | Fix `status_set` self-commit routing, `commit_lock` vs `ipd_lifecycle` companion locking, finalize staged-lane/worktree/runs fixes, `selectors` records-relative paths, and `artifact_meta` companion lookup bugs. | `executed:ywl7uc` |
-| 04 | `7eivm2` | `20261124-comphome-04-7eivm2-fix-rename-archive-partition-attention-board-search-and-chec.ipd.md` | Fix `aw rename`, `aw group`, `aw archive`, `aw partition`, `aw ipd board`, `aw search`, `attention.scan` `.data/` and path-join bugs, `plan_readiness`, `artifact_refs`, and `check_engine` logical-path rules. | `executed:ywl7uc` |
-| 05 | `7hfx7r` | `20261124-comphome-05-7hfx7r-fix-pre-commit-hooks-staged-gates-runners-monitor-run-viewer.ipd.md` | Fix companion pre-commit hooks (`executed_transition_gate`, `meta_log_append_gate`, `ipd_dependency_statement_gate`, staged `check_engine` gates), `runners_monitor`, `run_viewer`, `checkup`, and clean-delta `aw adopt` inbox. | `executed:ywl7uc` |
+| 04 | `7eivm2` | `20261124-comphome-04-7eivm2-fix-rename-archive-partition-attention-board-search-and-chec.ipd.md` | Fix `aw rename`, `aw group`, `aw archive`, `aw partition`, `aw ipd board`, `aw search`, `attention.scan` `.data/` and path-join bugs, `plan_readiness`, `artifact_refs`, `ipd_authoring`, and `check_engine` logical-path rules. | `executed:ywl7uc` |
+| 05 | `7hfx7r` | `20261124-comphome-05-7hfx7r-fix-pre-commit-hooks-staged-gates-runners-monitor-run-viewer.ipd.md` | Fix companion pre-commit hooks (`executed_transition_gate`, `meta_log_append_gate`, `ipd_dependency_statement_gate`, staged `check_engine` gates), `runners_monitor`, `run_viewer`, `checkup`, `attention.inbox_waiting`, `set_records`, and clean-delta `aw adopt` inbox. | `executed:ywl7uc` |
 | 06 | `4vnd36` | `20261124-comphome-06-4vnd36-fix-runner-question-inbox-untooled-finalize-gate-backlog-clo.ipd.md` | Fix `consume_answers` companion/home commit rollback, untooled `executed/` move gate bypass, `process_backlog_close`, `read_zero_work_evidence`, companion review/carrier helpers, and `~/.aw/` (`home`) lane staging/routing/merge guard. | `executed:ywl7uc`, `executed:mmuv3v`, `executed:7hfx7r` |
 
 ```mermaid
@@ -109,18 +114,18 @@ flowchart LR
 ## Project conventions discovered (Step 0)
 
 - Run record lives locally (gitignored) under `.aw/workflow-artifacts/assess-bugs/20261124-213000/`.
-- Every child IPD is right-sized per `IPD-Z603` and tests observable behavior only (no code-pinning source inspection tests).
+- Each child IPD is reviewed at `complex` depth with behavioral regression tests only (no code-pinning source-inspection tests): Order 03 (`mmuv3v`) carries `- Size assessment: standard`, while Orders 01 (`ywl7uc`), 02 (`7gverp`), 04 (`7eivm2`), 05 (`7hfx7r`), and 06 (`4vnd36`) carry `- Size assessment: exception` with documented cohesion rationales under `IPD-Z603`.
 - Runner retirement retires this orchestrator automatically once all six children in `## Child IPDs, sequence, and dependencies` are `executed` on disk.
 
 ## Findings
 
 Summary of the 55 confirmed companion and `~/.aw/` bugs by child owner (full catalog in `.aw/workflow-artifacts/assess-bugs/20261124-213000/findings.csv`):
-- `ywl7uc` (Order 01): 14 bugs in core storage, `AW_HOME` resolution, companion `.gitignore`/`local.json`, placement switch, `record_placement`, `artifact_core`, `config`, and `project_layout`.
-- `7gverp` (Order 02): 6 bugs in `engine`, `install_wizard`, `cli` install flow, and `leak_sanitizer`.
-- `mmuv3v` (Order 03): 9 bugs in `status_set`, `git_commit_helper`, `commit_lock`, `ipd_lifecycle`, `selectors`, and `artifact_meta`.
-- `7eivm2` (Order 04): 9 bugs in `artifact_rename`, `research_refs`, `plans_archive`, `research_archive`, `partition`, `attention`, `plan_readiness`, `artifact_refs`, `check_engine`, and `cli`.
-- `7hfx7r` (Order 05): 8 bugs in companion pre-commit hooks, staged `check_engine` rules, `runners_monitor`, `run_viewer`, `checkup`, `artifact_adopt`, and `set_records`.
-- `4vnd36` (Order 06): 9 bugs in `runner_shared`, `question_inbox`, `review_findings`, `lane_containment`, and `ipd_lifecycle`.
+- `ywl7uc` (Order 01): 14 bugs in `agent_workflows/project_context.py`, `agent_workflows/config.py`, `agent_workflows/project_registry.py`, `agent_workflows/storage.py`, `agent_workflows/placement_switch.py`, `agent_workflows/record_placement.py`, `agent_workflows/artifact_core.py`, and `agent_workflows/project_layout.py`.
+- `7gverp` (Order 02): 6 bugs in `agent_workflows/engine.py`, `agent_workflows/install_wizard.py`, `agent_workflows/cli.py`, `agent_workflows/project_context.py`, `agent_workflows/project_schema.py`, `agent_workflows/placement_switch.py`, and `agent_workflows/leak_sanitizer.py`.
+- `mmuv3v` (Order 03): 9 bugs in `agent_workflows/status_set.py`, `agent_workflows/git_commit_helper.py`, `agent_workflows/commit_lock.py`, `agent_workflows/ipd_lifecycle.py`, `agent_workflows/selectors.py`, and `agent_workflows/artifact_meta.py`.
+- `7eivm2` (Order 04): 9 bugs in `agent_workflows/artifact_rename.py`, `agent_workflows/research_refs.py`, `agent_workflows/plans_archive.py`, `agent_workflows/research_archive.py`, `agent_workflows/partition.py`, `agent_workflows/attention.py`, `agent_workflows/plan_readiness.py`, `agent_workflows/artifact_refs.py`, `agent_workflows/check_engine.py`, `agent_workflows/ipd_authoring.py`, and `agent_workflows/cli.py`.
+- `7hfx7r` (Order 05): 8 bugs in `agent_workflows/hooks/executed_transition_gate.py`, `agent_workflows/hooks/meta_log_append_gate.py`, `agent_workflows/hooks/ipd_dependency_statement_gate.py`, `agent_workflows/check_engine.py`, `agent_workflows/runners_monitor.py`, `agent_workflows/run_viewer.py`, `agent_workflows/checkup.py`, `agent_workflows/artifact_adopt.py`, `agent_workflows/attention.py`, and `agent_workflows/set_records.py`.
+- `4vnd36` (Order 06): 9 bugs in `agent_workflows/runner_shared.py`, `agent_workflows/question_inbox.py`, `agent_workflows/review_findings.py`, `agent_workflows/lane_containment.py`, and `agent_workflows/ipd_lifecycle.py`.
 
 *(Note: 5 overlapping bugs reported across subagents were deduplicated; 5 companion lane production/staging bugs were already fixed in commit `c8a130148`; 1 deleted function `emit_index_write_result` was removed by `snin8q`.)*
 
@@ -135,8 +140,8 @@ Summary of the 55 confirmed companion and `~/.aw/` bugs by child owner (full cat
 
 - Backlog `vo0y6q` (`aw backlog new --apply` state lock in `tracked`+`home` fixture) is already carried by existing plan `rntx9a`.
   - Carrier: rntx9a
-- Backend-agnostic `artifact_meta.check_freshness` `ReleaseResolution` attribute mismatch (`status`/`candidates` vs `outcome`/`paths`) is outside the companion/`~/.aw/` scope of this assessment.
-  - Carrier: ywl7uc
+- Backend-agnostic `agent_workflows/artifact_meta.py::check_freshness` `ReleaseResolution` attribute mismatch (`rel_outcome.status`/`rel_outcome.candidates` at lines 4976-4984 vs `agent_workflows/releases.py::ReleaseResolution` fields `outcome`/`paths`) is outside the companion/`~/.aw/` scope of this assessment (and `ywl7uc` explicitly declined carrying it); tracked by open backlog item `f3qdqh`.
+  - Carrier: f3qdqh
 
 ## Scope check
 
@@ -149,7 +154,7 @@ Each child IPD (`ywl7uc`, `7gverp`, `mmuv3v`, `7eivm2`, `7hfx7r`, `4vnd36`) runs
 
 ## Spec / documentation sync
 
-N/A for this orchestrator; each child updates only the docs/help strings directly affected by its fix (for example, `7gverp` aligns `public-target-private-companion` config policy docs if needed).
+No spec or user-doc edit is required for this orchestrator or its six reviewed children. During `/plan-review`, all six children (`ywl7uc`, `7gverp`, `mmuv3v`, `7eivm2`, `7hfx7r`, `4vnd36`) checked the governing specs and user docs (including `ARCHITECTURE.md:91` and `README.md:138` for `7gverp`'s resolved `OQ-02`, plus `docs/cli-output-contract.md` and specs `11037v`, `yfz5u9`, `4sd62s`, `25kzda`, `6kwd2e`, and `7ckptx`) and confirmed that the fixes restore documented behavior without changing public contracts.
 
 ## Open questions
 
@@ -206,4 +211,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This orchestrator retires only after human approval and after all six children (`ywl7uc`, `7gverp`, `mmuv3v`, `7eivm2`, `7hfx7r`, `4vnd36`) reach `executed/`.
+Execution contract:
+1. **Approval & prerequisite gate:** This orchestrator retires only after human approval (`Status: approved`) and after all six children (`ywl7uc`, `7gverp`, `mmuv3v`, `7eivm2`, `7hfx7r`, `4vnd36`) reach `.aw/records/plans/executed/` with `Status: executed` and passing validation. Both `OQ-01` and `OQ-02` are resolved by the maintainer (`2026-11-24`).
+2. **Scope fence:** `- Scope-Paths:` declares only `.aw/records/plans/pending/20261124-comphome-00-92ujfc-coordinate-companion-repo-and-aw-home-bug-fixes.ipd.md`; this orchestrator performs no source-code edits of its own. Any unexpected out-of-scope edit or omitted declared path in a standalone retirement must be justified via `--scope-reason` / `--scope-ack` at finalize time.
+3. **Validation honesty (hard MUST):** In any standalone retirement, every `V-01..V-06` entry MUST paste the actual command output of `aw find plans <id6>` showing the child under `.aw/records/plans/executed/`. Never mark a `V-*` item `pass` from memory or without real output.
+4. **Commit & push hygiene:** Any standalone commit MUST be path-scoped via `aw commit 92ujfc -- <paths>` (never `git add -A` or `-a`), and MUST NEVER push, tag, or release.
+5. **Lifecycle transition (conditional ownership):** When run under a runner (`aw oc run` / `aw agy run`), the runner retires this orchestrator automatically to `.aw/records/plans/executed/` once all six children are `executed` on disk, spending no agent turn; do NOT hand-run `git mv` into `executed/`. In a standalone (non-runner) retirement after all six children are `executed`, run `aw ipd finalize 92ujfc` rather than hand-moving files.
