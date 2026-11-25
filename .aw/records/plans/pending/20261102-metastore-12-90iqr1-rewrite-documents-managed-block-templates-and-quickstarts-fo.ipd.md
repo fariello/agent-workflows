@@ -106,6 +106,7 @@ flowchart TD
   - Carrier: nq1src
 - Inventory (old E-01), managed block and AGENTS.md (old E-02), and writing the first version of the patch (part of old E-08). Moved to qhay6a (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: qhay6a
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-250-qhay6a-inventory-the-docs-surface-and-start-the-cutover-docs-patch.ipd.md
 - Review workflows (old E-03), templates (old E-04), the two `xexn45` commands' documentation (old E-07), and regenerating the patch. Moved to a49djh (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: a49djh
 - READMEs, docs, `ipd_schema.py` text, reference and `aw-prompt` documents (old E-05 except its `Kind` renames), and regenerating the patch. Moved to y1zihp (round-3 split 2026-11-09 per research nj8zdp guidance).
