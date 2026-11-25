@@ -3502,15 +3502,18 @@ def _merge_orchestrator_readiness(
             repo_root, path, ask=False, membership=active_membership
         )
         if not ready_res.ready:
-            s408_diags = [
-                Diagnostic(
-                    0,
-                    0,
-                    C_ORCH_NOT_READY,
-                    f"{f.code} ({f.subject}): {f.detail}; remedy: {f.remedy}",
+            s408_diags = []
+            for f in ready_res.findings:
+                concrete_remedy = (
+                    f.remedy.replace("<id6>", f.subject) if f.subject else f.remedy
                 )
-                for f in ready_res.findings
-            ]
+                if concrete_remedy and concrete_remedy in f.detail:
+                    diag_msg = f"{f.code} ({f.subject}): {f.detail}"
+                else:
+                    diag_msg = (
+                        f"{f.code} ({f.subject}): {f.detail}; remedy: {concrete_remedy}"
+                    )
+                s408_diags.append(Diagnostic(0, 0, C_ORCH_NOT_READY, diag_msg))
             if checkpoint in ("review-finalize", "pre-execution"):
                 return LintResult(
                     S.DISPOSITION_ERROR,

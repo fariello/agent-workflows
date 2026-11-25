@@ -863,6 +863,103 @@ class TestFreezeRefusalColorStyling(unittest.TestCase):
             self.assertIn("run aw check all \033[1;33mnotfnd\033[0m", msg)
             self.assertIn("then: aw oc run \033[1;33mnotfnd\033[0m", msg)
 
+    def test_structure_preflight_highlights_id6_inside_s408_and_omits_duplicate_remedy(
+        self,
+    ):
+        from agent_workflows import ipd_lint, orchestrator_readiness
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = _init_repo(Path(td))
+            plan = _write_plan(repo, "orc63i", status="approved", order=1)
+            fake_readiness = orchestrator_readiness.ReviewReadiness(
+                applies=True,
+                ready=False,
+                findings=(
+                    orchestrator_readiness.Finding(
+                        code=orchestrator_readiness.CODE_COVERAGE_STALE,
+                        subject="orc63i",
+                        detail="plan changed since the check on 2026-11-13 (fingerprint mismatch); run `aw ipd coverage orc63i`",
+                        remedy=orchestrator_readiness.REMEDY_COVERAGE_RECORD,
+                    ),
+                ),
+                id6="orc63i",
+                setid="demo",
+            )
+            raw = plan.read_text(encoding="utf-8")
+            if "- Kind: child" in raw:
+                raw = raw.replace("- Kind: child", "- Kind: orchestrator")
+            else:
+                raw = raw.replace("- Date:", "- Kind: orchestrator\n- Date:")
+            plan.write_text(raw, encoding="utf-8")
+            with mock.patch(
+                "agent_workflows.orchestrator_readiness.review_readiness",
+                return_value=fake_readiness,
+            ):
+                merged = ipd_lint.lint_file(plan, checkpoint="pre-execution")
+            s408_diags = [d for d in merged.diagnostics if d.code == "IPD-S408"]
+            self.assertEqual(len(s408_diags), 1)
+            self.assertNotIn(
+                "remedy: run `aw ipd coverage <id6>`", s408_diags[0].message
+            )
+            self.assertIn("run `aw ipd coverage orc63i`", s408_diags[0].message)
+
+            queue = [
+                {
+                    "id6": "orc63i",
+                    "artifact_type": "ipd",
+                    "status": "approved",
+                    "action": "orchestrate",
+                    "configured_file": str(plan.relative_to(repo)),
+                }
+            ]
+            with mock.patch(
+                "agent_workflows.orchestrator_readiness.review_readiness",
+                return_value=fake_readiness,
+            ):
+                with self.assertRaises(runner_shared.DriverError) as cm:
+                    runner_shared.enforce_freeze_time_refusal(
+                        queue, repo=repo, host="agy", color=True
+                    )
+            msg = str(cm.exception)
+            self.assertIn("[RUN-STRUCTURE-PREFLIGHT]", msg)
+            self.assertIn("ipd \033[1;33morc63i\033[0m", msg)
+            self.assertIn("coverage-record-stale (\033[1;33morc63i\033[0m)", msg)
+            self.assertIn("aw ipd coverage \033[1;33morc63i\033[0m", msg)
+            self.assertNotIn("remedy: run `aw ipd coverage <id6>`", msg)
+            self.assertIn("run aw check plans \033[1;33morc63i\033[0m", msg)
+            self.assertIn("then: aw agy run \033[1;33morc63i\033[0m", msg)
+
+    def test_initialize_run_uses_color_override_not_raw_false_default(self):
+        """Regression: default args.color=False must not disable TTY color on freeze-time refusal."""
+        with tempfile.TemporaryDirectory() as td:
+            repo = _init_repo(Path(td))
+            bad_content = RecordBuilder().plan(
+                title="Bad plan",
+                when="2026-09-27",
+                status="approved",
+                id6="clr001",
+                text_only=True,
+            )
+            _write_plan(repo, "clr001", raw_content=bad_content)
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "add bad plan"], cwd=repo, check=True
+            )
+
+            parser = agy_runipd.build_parser()
+            args = parser.parse_args(
+                ["start", "clr001", "--prepare-only", "--repo", str(repo)]
+            )
+            # Mirror cli.py's --color / --no-color store_true defaults (both False when omitted).
+            args.color = False
+            args.no_color = False
+            with mock.patch(
+                "agent_workflows.runner_shared.should_color", return_value=True
+            ):
+                with self.assertRaises(runner_shared.DriverError) as cm:
+                    agy_runipd.initialize_run(args)
+            self.assertIn("ipd \033[1;33mclr001\033[0m", str(cm.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

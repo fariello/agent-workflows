@@ -7965,11 +7965,38 @@ class StartupAttentionIntegrityReportTests(unittest.TestCase):
                 "agent_workflows.attention.stranded_lane_drift",
                 return_value=[],
             ):
-                runner_shared.report_invalid_board_at_run_start(root, stream=stream)
+                runner_shared.report_invalid_board_at_run_start(
+                    root, stream=stream, color=False
+                )
             out = stream.getvalue()
-            self.assertIn("warning: cross-tree attention view is INVALID", out)
+            self.assertIn("1 repository issue(s) need repair", out)
             self.assertIn("attention.duplicate-id", out)
-            self.assertIn("1 finding(s)", out)
+            self.assertIn(".aw/records/backlog/open/a.md", out)
+            self.assertIn("dup", out)
+
+            # 1b. Stranded lane prints concrete recovery detail and highlights id6 when color=True
+            stream_color = io.StringIO()
+            with mock.patch(
+                "agent_workflows.attention.scan",
+                return_value=([], []),
+            ), mock.patch(
+                "agent_workflows.attention.stranded_lane_drift",
+                return_value=[
+                    core.Drift(
+                        "aw/lane/9o83cr",
+                        "attention.lane-stranded",
+                        "STRANDED lane; plan 9o83cr; 1 commit(s) beyond base. Recover it with `aw oc integrate 9o83cr`.",
+                    )
+                ],
+            ):
+                runner_shared.report_invalid_board_at_run_start(
+                    root, stream=stream_color, color=True
+                )
+            out_color = stream_color.getvalue()
+            self.assertIn("attention.lane-stranded", out_color)
+            self.assertIn("aw/lane/\033[1;33m9o83cr\033[0m", out_color)
+            self.assertIn("plan \033[1;33m9o83cr\033[0m", out_color)
+            self.assertIn("aw oc integrate \033[1;33m9o83cr\033[0m", out_color)
 
         # 2. Info-only findings are silent at run start
         with tempfile.TemporaryDirectory() as tmp:

@@ -21021,10 +21021,38 @@ def report_untracked_dirt_at_run_start(
     return report
 
 
+_BOARD_ID6_CTX_RE = re.compile(
+    r"(?P<prefix>\b(?:aw/lane/|plan\s+|spec\s+|backlog\s+|ipd\s+|integrate\s+|run\s+|check\s+(?:all|plans|specs|backlog)\s+))"
+    r"(?P<id6>[a-z0-9]{6})\b"
+)
+
+
+def _highlight_id6_token(text: str, id6: str, styled_id6: str) -> str:
+    """Style standalone occurrences of ``id6`` inside prose or command strings."""
+    if not text or not id6 or styled_id6 == id6:
+        return text
+    return re.sub(
+        rf"(?<![A-Za-z0-9_-]){re.escape(id6)}(?![A-Za-z0-9_-])",
+        lambda _m: styled_id6,
+        text,
+    )
+
+
+def _highlight_known_id6_contexts(text: str, pal: Palette) -> str:
+    """Style id6 tokens appearing in recognized artifact/lane/command contexts."""
+    if not text or not pal.enabled:
+        return text
+    return _BOARD_ID6_CTX_RE.sub(
+        lambda m: f"{m.group('prefix')}{pal(m.group('id6'), 'bold', 'yellow')}",
+        text,
+    )
+
+
 def report_invalid_board_at_run_start(
     repo: Path,
     *,
     stream: Any = None,
+    color: bool | None = None,
 ) -> list[str]:
     """Emit the cross-tree attention view validity report at run start (E-03).
 
@@ -21041,6 +21069,8 @@ def report_invalid_board_at_run_start(
 
     repo_path = Path(repo)
     out_stream = stream if stream is not None else sys.stderr
+    enabled_color = should_color(out_stream) if color is None else bool(color)
+    pal = Palette(enabled_color)
     try:
         items, drift = _attention.scan(repo_path)
         drift = drift + _attention.stranded_lane_drift(repo_path)
@@ -21050,11 +21080,27 @@ def report_invalid_board_at_run_start(
             rule_summary = ", ".join(
                 f"{rule} ({cnt})" for rule, cnt in sorted(counts.items())
             )
+            hdr = pal("warning:", "bold", "yellow")
             print(
-                f"warning: cross-tree attention view is INVALID ({len(violating)} finding(s): {rule_summary}); "
-                "`aw attention` board is not authoritative until repaired",
+                f"{hdr} {len(violating)} repository issue(s) need repair before trusting `aw attention` "
+                f"({rule_summary}):",
                 file=out_stream,
             )
+            max_shown = 5
+            for d in violating[:max_shown]:
+                loc = _highlight_known_id6_contexts(str(d.location or ""), pal)
+                detail = _highlight_known_id6_contexts(str(d.detail or ""), pal)
+                loc_part = f" {loc}:" if loc else ""
+                print(
+                    f"  - [{d.rule}]{loc_part} {detail}",
+                    file=out_stream,
+                )
+            remaining = len(violating) - max_shown
+            if remaining > 0:
+                print(
+                    f"  ... and {remaining} more; run `aw attention` for the full list.",
+                    file=out_stream,
+                )
             return [d.rule for d in violating]
     except Exception as exc:
         print(
@@ -25220,15 +25266,15 @@ def enforce_freeze_time_refusal(
         # -------------------------------------------------------------------------
         if abs_path is None or not abs_path.is_file():
             findings.append(
-                f"[RUN-STRUCTURE-PREFLIGHT] {atype} {styled_id6} ({rel_path}) in status {status} "
-                f"violates RUN-NOT-FOUND: artifact file '{rel_path}' does not exist on disk. "
-                f"Repair it, run aw check all {styled_id6}, then: aw {host} run {styled_id6}"
+                f"[RUN-STRUCTURE-PREFLIGHT] {atype} {styled_id6} ({rel_path}) in status {status} violates RUN-NOT-FOUND:\n"
+                f"  Problem: artifact file '{rel_path}' does not exist on disk.\n"
+                f"  Next:    repair it, run aw check all {styled_id6}, then: aw {host} run {styled_id6}"
             )
         elif atype not in ("ipd", "spec", "backlog"):
             findings.append(
-                f"[RUN-STRUCTURE-PREFLIGHT] {atype} {styled_id6} ({rel_path}) in status {status} "
-                f"violates RUN-TYPE-UNKNOWN: unrecognized artifact type '{atype}'. "
-                f"Repair it, run aw check all {styled_id6}, then: aw {host} run {styled_id6}"
+                f"[RUN-STRUCTURE-PREFLIGHT] {atype} {styled_id6} ({rel_path}) in status {status} violates RUN-TYPE-UNKNOWN:\n"
+                f"  Problem: unrecognized artifact type '{atype}'.\n"
+                f"  Next:    repair it, run aw check all {styled_id6}, then: aw {host} run {styled_id6}"
             )
         elif atype == "ipd":
             if not _policy.is_in_terminal_directory(str(abs_path)):
@@ -25252,19 +25298,25 @@ def enforce_freeze_time_refusal(
                         if lint_res.disposition == "error":
                             if lint_res.diagnostics:
                                 for d in lint_res.diagnostics:
+                                    styled_detail = _highlight_id6_token(
+                                        d.message, id6, styled_id6
+                                    )
                                     findings.append(
-                                        f"[RUN-STRUCTURE-PREFLIGHT] ipd {styled_id6} ({rel_path}) in status {status} "
-                                        f"violates {d.code}: {d.message}. Repair it, run aw check plans {styled_id6}, then: aw {host} run {styled_id6}"
+                                        f"[RUN-STRUCTURE-PREFLIGHT] ipd {styled_id6} ({rel_path}) in status {status} violates {d.code}:\n"
+                                        f"  Problem: {styled_detail}\n"
+                                        f"  Next:    fix the issue above, run aw check plans {styled_id6}, then: aw {host} run {styled_id6}"
                                     )
                             else:
                                 findings.append(
-                                    f"[RUN-STRUCTURE-PREFLIGHT] ipd {styled_id6} ({rel_path}) in status {status} "
-                                    f"violates IPD-ERROR: structural checker error. Repair it, run aw check plans {styled_id6}, then: aw {host} run {styled_id6}"
+                                    f"[RUN-STRUCTURE-PREFLIGHT] ipd {styled_id6} ({rel_path}) in status {status} violates IPD-ERROR:\n"
+                                    f"  Problem: structural checker error.\n"
+                                    f"  Next:    repair it, run aw check plans {styled_id6}, then: aw {host} run {styled_id6}"
                                 )
                     except Exception as exc:
                         findings.append(
-                            f"[RUN-STRUCTURE-PREFLIGHT] ipd {styled_id6} ({rel_path}) in status {status} "
-                            f"violates IPD-READ-ERROR: {exc}. Repair it, run aw check plans {styled_id6}, then: aw {host} run {styled_id6}"
+                            f"[RUN-STRUCTURE-PREFLIGHT] ipd {styled_id6} ({rel_path}) in status {status} violates IPD-READ-ERROR:\n"
+                            f"  Problem: {exc}\n"
+                            f"  Next:    repair it, run aw check plans {styled_id6}, then: aw {host} run {styled_id6}"
                         )
         elif atype == "spec":
             try:
@@ -25281,14 +25333,17 @@ def enforce_freeze_time_refusal(
                     _FREEZE_GATE_CACHE[cache_key] = drifts
                 for d in drifts:
                     if getattr(d, "severity", "") != "info":
+                        styled_detail = _highlight_id6_token(d.detail, id6, styled_id6)
                         findings.append(
-                            f"[RUN-STRUCTURE-PREFLIGHT] spec {styled_id6} ({rel_path}) in status {status} "
-                            f"violates {d.rule}: {d.detail}. Repair it, run aw check specs {styled_id6}, then: aw {host} run {styled_id6}"
+                            f"[RUN-STRUCTURE-PREFLIGHT] spec {styled_id6} ({rel_path}) in status {status} violates {d.rule}:\n"
+                            f"  Problem: {styled_detail}\n"
+                            f"  Next:    fix the issue above, run aw check specs {styled_id6}, then: aw {host} run {styled_id6}"
                         )
             except Exception as exc:
                 findings.append(
-                    f"[RUN-STRUCTURE-PREFLIGHT] spec {styled_id6} ({rel_path}) in status {status} "
-                    f"violates SPEC-READ-ERROR: {exc}. Repair it, run aw check specs {styled_id6}, then: aw {host} run {styled_id6}"
+                    f"[RUN-STRUCTURE-PREFLIGHT] spec {styled_id6} ({rel_path}) in status {status} violates SPEC-READ-ERROR:\n"
+                    f"  Problem: {exc}\n"
+                    f"  Next:    repair it, run aw check specs {styled_id6}, then: aw {host} run {styled_id6}"
                 )
         elif atype == "backlog":
             try:
@@ -25305,14 +25360,17 @@ def enforce_freeze_time_refusal(
                     _FREEZE_GATE_CACHE[cache_key] = drifts
                 for d in drifts:
                     if getattr(d, "severity", "") != "info":
+                        styled_detail = _highlight_id6_token(d.detail, id6, styled_id6)
                         findings.append(
-                            f"[RUN-STRUCTURE-PREFLIGHT] backlog {styled_id6} ({rel_path}) in status {status} "
-                            f"violates {d.rule}: {d.detail}. Repair it, run aw check backlog {styled_id6}, then: aw {host} run {styled_id6}"
+                            f"[RUN-STRUCTURE-PREFLIGHT] backlog {styled_id6} ({rel_path}) in status {status} violates {d.rule}:\n"
+                            f"  Problem: {styled_detail}\n"
+                            f"  Next:    fix the issue above, run aw check backlog {styled_id6}, then: aw {host} run {styled_id6}"
                         )
             except Exception as exc:
                 findings.append(
-                    f"[RUN-STRUCTURE-PREFLIGHT] backlog {styled_id6} ({rel_path}) in status {status} "
-                    f"violates BACKLOG-READ-ERROR: {exc}. Repair it, run aw check backlog {styled_id6}, then: aw {host} run {styled_id6}"
+                    f"[RUN-STRUCTURE-PREFLIGHT] backlog {styled_id6} ({rel_path}) in status {status} violates BACKLOG-READ-ERROR:\n"
+                    f"  Problem: {exc}\n"
+                    f"  Next:    repair it, run aw check backlog {styled_id6}, then: aw {host} run {styled_id6}"
                 )
 
         # -------------------------------------------------------------------------
@@ -40590,10 +40648,13 @@ def _initialize_run_core_once(
     # write in this region (`set_plan_approved_fn`) calls `drop_scan()` right after it, so a later
     # lookup sees the updated record.
     from agent_workflows import selectors as _scan_selectors
+    from agent_workflows import term as _init_term
+
+    _init_color_override = _init_term.color_override(args)
 
     with _scan_selectors.scan_once():
         if report_start_notices:
-            report_invalid_board_at_run_start(repo)
+            report_invalid_board_at_run_start(repo, color=_init_color_override)
 
         queue_ids = expand_selectors_fn(
             manifest, args.selectors, repo=repo, types=run_types
@@ -40946,7 +41007,7 @@ def _initialize_run_core_once(
             repo=repo,
             full_auto=full_auto,
             host=host,
-            color=getattr(args, "color", None),
+            color=_init_color_override,
             review_unreviewed_deps=bool(getattr(args, "review_unreviewed_deps", False)),
             allow_waitable_external_deps=allow_waitable_external_deps,
         )
