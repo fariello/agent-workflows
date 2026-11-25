@@ -54147,10 +54147,14 @@ def execute_item_core(
                 )
             )
         print()
+        completed_at = utc_now()
+        attempt["completed_at"] = completed_at
+        item["completed_at"] = completed_at
+        save_state(run_dir, state)
         append_jsonl(
             run_dir / "events.jsonl",
             {
-                "at": utc_now(),
+                "at": completed_at,
                 "event": "ipd-finished",
                 "id6": item["id6"],
                 "action": action,

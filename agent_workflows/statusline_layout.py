@@ -175,6 +175,7 @@ def compute_queue_telemetry(
     current_matched_in_queue = False
 
     completed_item_durs: list[float] = []
+    has_explicit_item_completion = False
     step_durs: list[float] = []
     val_errors = 0
     retries = 0
@@ -209,16 +210,31 @@ def compute_queue_telemetry(
 
         item_dur_sum = 0.0
         item_has_dur = False
-        for att in att_list:
+        item_has_completed_ts = False
+        entry_completed_ts = _parse_iso_ts(entry.get("completed_at"))
+        last_att_idx = len(att_list) - 1
+        for att_idx, att in enumerate(att_list):
             if not isinstance(att, Mapping):
                 continue
             s_ts = _parse_iso_ts(att.get("started_at"))
             e_ts = _parse_iso_ts(att.get("ended_at"))
+            c_ts = _parse_iso_ts(att.get("completed_at"))
+            if (
+                c_ts is None
+                and att_idx == last_att_idx
+                and entry_completed_ts is not None
+            ):
+                c_ts = entry_completed_ts
             if s_ts is not None and e_ts is not None and e_ts >= s_ts:
-                dur = e_ts - s_ts
-                step_durs.append(dur)
-                item_dur_sum += dur
+                step_durs.append(e_ts - s_ts)
+            wall_end_ts = (
+                c_ts if (c_ts is not None and (e_ts is None or c_ts >= e_ts)) else e_ts
+            )
+            if s_ts is not None and wall_end_ts is not None and wall_end_ts >= s_ts:
+                item_dur_sum += wall_end_ts - s_ts
                 item_has_dur = True
+                if c_ts is not None and wall_end_ts == c_ts:
+                    item_has_completed_ts = True
 
             # Validation errors: failed suite checks, failed verifier verdicts, or fail-verify
             suite_chk = att.get("suite_check")
@@ -260,6 +276,8 @@ def compute_queue_telemetry(
             completed_count += 1
             if item_has_dur:
                 completed_item_durs.append(item_dur_sum)
+                if item_has_completed_ts:
+                    has_explicit_item_completion = True
 
     if current_item is not None and not current_matched_in_queue:
         remaining_count += 1
@@ -273,9 +291,36 @@ def compute_queue_telemetry(
 
     avg_item_s: Optional[float] = None
     if completed_item_durs:
-        avg_item_s = sum(completed_item_durs) / len(completed_item_durs)
+        attempt_avg_s = sum(completed_item_durs) / len(completed_item_durs)
+        avg_item_s = attempt_avg_s
+        # Legacy/in-flight state without per-attempt `completed_at` only timed the LLM subprocess
+        # turn (`ended_at - started_at`), omitting post-turn validation, integration, and finalize
+        # overhead. Use session wall-clock elapsed across completed items when it is larger.
+        if (
+            not has_explicit_item_completion
+            and completed_count > 0
+            and now_ts is not None
+            and run_start_ts is not None
+        ):
+            cur_elapsed = (
+                max(0.0, float(item_elapsed_seconds))
+                if item_elapsed_seconds is not None
+                else 0.0
+            )
+            prior_elapsed = max(
+                0.0, (float(now_ts) - float(run_start_ts)) - cur_elapsed
+            )
+            if prior_elapsed > 0:
+                wall_avg_s = prior_elapsed / completed_count
+                if wall_avg_s > avg_item_s:
+                    avg_item_s = wall_avg_s
     elif completed_count > 0 and now_ts is not None and run_start_ts is not None:
-        elapsed = max(0.0, float(now_ts) - float(run_start_ts))
+        cur_elapsed = (
+            max(0.0, float(item_elapsed_seconds))
+            if item_elapsed_seconds is not None
+            else 0.0
+        )
+        elapsed = max(0.0, (float(now_ts) - float(run_start_ts)) - cur_elapsed)
         if elapsed > 0:
             avg_item_s = elapsed / completed_count
 

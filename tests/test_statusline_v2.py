@@ -864,6 +864,85 @@ def test_eta_tracks_active_last_item_even_with_provisional_status() -> None:
     assert "ETA:    --:--" in lines_none[3]
 
 
+def test_avg_item_and_eta_include_post_turn_validation_and_integration_wall_clock() -> (
+    None
+):
+    """Avg/it and ETA track full end-to-end item duration (completed_at or session wall-clock), while Avg/st stays turn duration."""
+    cur_item = {
+        "id6": "lv41re",
+        "action": "execute",
+        "status": "running",
+        "attempts": [],
+    }
+
+    # Case 1: completed_at stamped after post-turn validation/integration (e.g. 5m47s turn + 4m25s validation = 10m12s/item)
+    state_with_completed = {
+        "queue": [
+            {
+                "id6": f"done0{i}",
+                "action": "execute",
+                "status": "executed",
+                "attempts": [
+                    {
+                        "started_at": "2026-11-25T04:54:00Z",
+                        "ended_at": "2026-11-25T04:59:47Z",  # 347s LLM turn
+                        "completed_at": "2026-11-25T05:04:12Z",  # 612s full end-to-end
+                    }
+                ],
+            }
+            for i in range(1, 4)
+        ]
+        + [
+            cur_item,
+            {"id6": "rem001", "action": "execute", "status": "queued", "attempts": []},
+            {"id6": "rem002", "action": "execute", "status": "queued", "attempts": []},
+        ]
+    }
+    tel_explicit = _sl.compute_queue_telemetry(
+        state_with_completed,
+        current_item=cur_item,
+        item_elapsed_seconds=487.0,  # 8m07s into lv41re
+    )
+    assert tel_explicit["avg_item_seconds"] == pytest.approx(612.0)  # 10m12s/it
+    assert tel_explicit["avg_step_seconds"] == pytest.approx(347.0)  # 5m47s/st
+    # ETA = 2 * 612 + (612 - 487) = 1349s (~22m29s), not 2 * 347 + 0 = 694s (~11m34s)
+    assert tel_explicit["eta_seconds"] == pytest.approx(1349.0)
+
+    # Case 2: legacy state without completed_at falls back to session wall-clock (Elapsed - Current) / completed_count
+    state_legacy = {
+        "queue": [
+            {
+                "id6": f"done0{i}",
+                "action": "execute",
+                "status": "executed",
+                "attempts": [
+                    {
+                        "started_at": "2026-11-25T04:54:00Z",
+                        "ended_at": "2026-11-25T04:59:47Z",  # 347s LLM turn only
+                    }
+                ],
+            }
+            for i in range(1, 4)
+        ]
+        + [
+            cur_item,
+            {"id6": "rem001", "action": "execute", "status": "queued", "attempts": []},
+            {"id6": "rem002", "action": "execute", "status": "queued", "attempts": []},
+        ]
+    }
+    tel_fallback = _sl.compute_queue_telemetry(
+        state_legacy,
+        current_item=cur_item,
+        run_start_ts=1000.0,
+        now_ts=1000.0 + 2323.0,  # 38m43s elapsed
+        item_elapsed_seconds=487.0,  # 8m07s current
+    )
+    # (2323 - 487) / 3 = 612s/it (10m12s/it)
+    assert tel_fallback["avg_item_seconds"] == pytest.approx(612.0)
+    assert tel_fallback["avg_step_seconds"] == pytest.approx(347.0)
+    assert tel_fallback["eta_seconds"] == pytest.approx(1349.0)
+
+
 def test_phase_timeout_and_source_tags_during_integration_and_suite_check() -> None:
     """Phase timeouts render real limits during integration/suite checks and ignore background threads."""
     import threading
