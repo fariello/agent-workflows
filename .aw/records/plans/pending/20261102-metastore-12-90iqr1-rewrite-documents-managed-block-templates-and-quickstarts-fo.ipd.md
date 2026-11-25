@@ -229,7 +229,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     - `python3 -m pytest -o addopts="" tests/test_metastore_cutover_patch.py`: `3 passed in 0.24s` (exit 0)
     - Bare core gate `python3 -m pytest`: `2937 passed, 1 skipped, 11 warnings in 114.64s (0:01:54)` (0 test failures; exited 1 solely because `CORE TIER BUDGET EXCEEDED: Core tier wall time: 114.65s exceeded budget of 30.00s. Host 1-minute load average: 7.11 on 12 CPUs`, pre-existing repo-wide issue tracked in open backlog item `6o5aan`; `tests/test_metastore_cutover_patch.py` took 0.05s)
     - Bounded core gate `aw suite`: `2937 passed, 1 skipped, 11 warnings in 67.45s (0:01:07)` (exit 0; `AW_CORE_BUDGET_ENFORCE=0` warning only)
-    4. `aw commit` output: recorded in the commit-hash follow-up commit below.
+    4. `aw commit` output: `aw commit: committed 2 path(s): dbdac58f2127cd7216eb3eb57138b6f96f8ffc06` (via `aw commit 90iqr1 -m "test(metastore): add cutover docs patch guard test and record 90iqr1 checks" -- .aw/records/plans/pending/20261102-metastore-12-90iqr1-rewrite-documents-managed-block-templates-and-quickstarts-fo.ipd.md tests/test_metastore_cutover_patch.py`).
   - Result: pass
 
 
