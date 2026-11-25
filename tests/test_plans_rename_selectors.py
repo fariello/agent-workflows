@@ -15,7 +15,7 @@ import subprocess
 import pytest
 
 from agent_workflows import artifact_naming, cli
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 @pytest.fixture
@@ -292,9 +292,8 @@ def test_guard_order_preservation_e3hzyc(repo_with_plans: tuple[Path, dict[str, 
     ), f"Expected NN slot '06' preserved, got '{parsed.group('nn')}' in {renamed.name}"
     assert parsed.group("set") == "newgrp"
     assert parsed.group("id6") == "7qx7ys"
-    text = renamed.read_text(encoding="utf-8")
-    assert "- Order: 6" in text
-    assert "- Set: newgrp" in text
+    assert_field(renamed, "order", 6)
+    assert_field(renamed, "set", "newgrp")
 
 
 def test_guard_no_clobber_order_and_date_vf03z3(
@@ -319,8 +318,7 @@ def test_guard_no_clobber_order_and_date_vf03z3(
         parsed.group("nn") == "06"
     ), f"Order was clobbered to 0! Expected '06', got '{parsed.group('nn')}'"
     assert parsed.group("id6") == "7qx7ys"
-    text = renamed.read_text(encoding="utf-8")
-    assert "- Order: 6" in text
+    assert_field(renamed, "order", 6)
 
 
 def test_guard_slug_derivation_5rzupk(repo_with_plans: tuple[Path, dict[str, Path]]):

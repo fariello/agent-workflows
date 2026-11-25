@@ -17,7 +17,7 @@ import pytest
 
 from agent_workflows import artifact_meta, cli
 from agent_workflows import plans_refs as refs
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field, assert_no_field
 
 
 @pytest.fixture
@@ -165,8 +165,7 @@ def test_bare_rename_regroup_preserves_a_child_order(seeded_plans_repo: Path) ->
     )
     assert rc == 0, f"stdout: {out}, stderr: {err}"
     moved = _only(seeded_plans_repo, "bbb222")
-    text = moved.read_text(encoding="utf-8")
-    assert "- Order: 1" in text
+    assert_field(moved, "order", 1)
     m = refs._CLUSTERED_RE.match(moved.name)
     assert m is not None, moved.name
     assert m.group("nn") == "01", moved.name
@@ -184,8 +183,8 @@ def test_bare_metadata_only_regroup_preserves_a_child_order(
     kept = _only(seeded_plans_repo, "bbb222")
     assert kept.name == "20260908-probeset-01-bbb222-probe-child-one.ipd.md"
     text = kept.read_text(encoding="utf-8")
-    assert "- Set: metaset" in text
-    assert "- Order: 1" in text
+    assert_field(kept, "set", "metaset")
+    assert_field(kept, "order", 1)
     m = refs._CLUSTERED_RE.match(kept.name)
     assert m is not None, kept.name
     order_val = artifact_meta.read_text(text, record_type="ipd").fields.get("order")
@@ -209,22 +208,22 @@ def test_explicit_order_still_renumbers_sequentially(seeded_plans_repo: Path) ->
     first = _only(seeded_plans_repo, "bbb222")
     second = _only(seeded_plans_repo, "ccc333")
     assert first.name.startswith("20260908-asmset-01-bbb222-"), first.name
-    assert "- Order: 1" in first.read_text(encoding="utf-8")
+    assert_field(first, "order", 1)
     assert second.name.startswith("20260908-asmset-02-ccc333-"), second.name
-    assert "- Order: 2" in second.read_text(encoding="utf-8")
+    assert_field(second, "order", 2)
 
 
 def test_bare_regroup_falls_back_to_the_filename_slot(seeded_plans_repo: Path) -> None:
     """E-03(d): a bare `--rename` regroup of ddd444 (no `- Order:` line) falls back to filename slot and writes `- Order: 4`."""
     seeded = _only(seeded_plans_repo, "ddd444")
-    assert "- Order:" not in seeded.read_text(encoding="utf-8")
+    assert_no_field(seeded, "order")
     rc, out, err = _run_group_plans(
         ["ddd444"], "fbset", seeded_plans_repo, rename=True, apply=True
     )
     assert rc == 0, f"stdout: {out}, stderr: {err}"
     moved = _only(seeded_plans_repo, "ddd444")
     assert moved.name.startswith("20260908-fbset-04-ddd444-"), moved.name
-    assert "- Order: 4" in moved.read_text(encoding="utf-8")
+    assert_field(moved, "order", 4)
 
 
 def test_bare_regroup_keeps_an_orchestrator_at_zero(seeded_plans_repo: Path) -> None:
@@ -235,7 +234,7 @@ def test_bare_regroup_keeps_an_orchestrator_at_zero(seeded_plans_repo: Path) -> 
     assert rc == 0, f"stdout: {out}, stderr: {err}"
     moved = _only(seeded_plans_repo, "aaa000")
     assert moved.name.startswith("20260908-orchset-00-aaa000-"), moved.name
-    assert "- Order: 0" in moved.read_text(encoding="utf-8")
+    assert_field(moved, "order", 0)
 
 
 def test_explicit_order_zero_is_still_reachable(seeded_plans_repo: Path) -> None:
@@ -252,7 +251,7 @@ def test_explicit_order_zero_is_still_reachable(seeded_plans_repo: Path) -> None
     assert rc == 0, f"stdout: {out}, stderr: {err}"
     moved = _only(seeded_plans_repo, "ccc333")
     assert moved.name.startswith("20260908-zeroset-00-ccc333-"), moved.name
-    assert "- Order: 0" in moved.read_text(encoding="utf-8")
+    assert_field(moved, "order", 0)
 
 
 # --- E-04: rename verb case ---
@@ -292,7 +291,7 @@ def test_mv_preserves_order_date_and_adds_facet(seeded_plans_repo: Path) -> None
     assert name.startswith("20260810-demo-03-zzz111-"), name
     assert name.endswith(".ipd.md"), name
     text = renamed.read_text(encoding="utf-8")
-    assert "- Order: 3" in text
+    assert_field(renamed, "order", 3)
     assert "- Date: 20260810" in text
 
 

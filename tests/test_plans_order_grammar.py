@@ -20,7 +20,7 @@ import pytest
 
 from agent_workflows import artifact_meta
 from agent_workflows.plans_refs import run_set_assign
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 def _repo_env() -> dict[str, str]:
@@ -278,7 +278,7 @@ def test_order_999_allowed_and_1000_refused_rename(order_repo: Path) -> None:
         / "20261002-testset-100-bnd001-test-plan.ipd.md"
     )
     assert p_100.exists()
-    assert "- Order: 100" in p_100.read_text(encoding="utf-8")
+    assert_field(p_100, "order", 100)
     assert "IPD-N001" not in _run_ipd_lint(order_repo, p_100).stdout
 
     # 999 is accepted
@@ -296,7 +296,7 @@ def test_order_999_allowed_and_1000_refused_rename(order_repo: Path) -> None:
         / "20261002-testset-999-bnd001-test-plan.ipd.md"
     )
     assert p_999.exists()
-    assert "- Order: 999" in p_999.read_text(encoding="utf-8")
+    assert_field(p_999, "order", 999)
 
 
 def test_order_multi_plan_boundary_batch(order_repo: Path) -> None:
@@ -365,8 +365,8 @@ def test_order_multi_plan_boundary_batch(order_repo: Path) -> None:
     )
     assert p1_new.exists()
     assert p2_new.exists()
-    assert "- Order: 998" in p1_new.read_text(encoding="utf-8")
-    assert "- Order: 999" in p2_new.read_text(encoding="utf-8")
+    assert_field(p1_new, "order", 998)
+    assert_field(p2_new, "order", 999)
 
 
 # ------------------------------------------------------------------------------
@@ -401,9 +401,7 @@ def test_bmhoxe_repair_sequence_leaves_well_formed_name(order_repo: Path) -> Non
         / "20261002-testset-00-rep001-test-plan.ipd.md"
     )
     assert repaired.exists()
-    text = repaired.read_text(encoding="utf-8")
-    order_lines = [line for line in text.splitlines() if line.startswith("- Order:")]
-    assert order_lines == ["- Order: 0"]
+    assert_field(repaired, "order", 0)
 
     # Verify no duplicate field lint error
     lint = _run_ipd_lint(order_repo, repaired)
@@ -426,10 +424,8 @@ def test_group_plans_substitutes_negative_order_in_place(order_repo: Path) -> No
         ["group", "plans", "sst001", "--set", "newset", "--order", "5", "--apply"],
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
-    updated = p.read_text(encoding="utf-8")
-    order_lines = [line for line in updated.splitlines() if line.startswith("- Order:")]
-    assert order_lines == ["- Order: 5"]
-    assert "- Set: newset" in updated
+    assert_field(p, "order", 5)
+    assert_field(p, "set", "newset")
     state = artifact_meta.read(
         "sst001", project_context=artifact_meta.legacy_context(order_repo)
     )

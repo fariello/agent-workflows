@@ -13,7 +13,7 @@ import json
 from unittest.mock import patch
 
 from agent_workflows import cli
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 from tests.test_status_set import StatusSetTestBase
 
 
@@ -76,7 +76,7 @@ class TestPlanTransitionGate(StatusSetTestBase):
                 0,
                 f"Expected rc=0 for backward edge with message {src} -> {dst}",
             )
-            self.assertIn(f"- Status: {dst}", plan.read_text(encoding="utf-8"))
+            assert_field(plan, "status", dst)
 
     def test_case_b_refusal_across_both_real_spellings(self):
         # Spelling 1: aw set <status> <selector>
@@ -130,7 +130,7 @@ class TestPlanTransitionGate(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc1, 0)
-        self.assertIn("- Status: reviewed", plan1.read_text(encoding="utf-8"))
+        assert_field(plan1, "status", "reviewed")
 
         # 2. auto-approved -> reviewed (prescribed by spec 25kzda IPD-AUTO-APPROVAL)
         plan2 = self.create_plan(
@@ -153,7 +153,7 @@ class TestPlanTransitionGate(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc2, 0)
-        self.assertIn("- Status: reviewed", plan2.read_text(encoding="utf-8"))
+        assert_field(plan2, "status", "reviewed")
 
         # 3. reviewed -> to-review
         plan3 = self.create_plan(
@@ -176,7 +176,7 @@ class TestPlanTransitionGate(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc3, 0)
-        self.assertIn("- Status: to-review", plan3.read_text(encoding="utf-8"))
+        assert_field(plan3, "status", "to-review")
 
     def test_case_d_ordinary_forward_edges_succeed(self):
         # draft -> to-review
@@ -190,21 +190,21 @@ class TestPlanTransitionGate(StatusSetTestBase):
             ["ipd", "set", "to-review", "fw0001", "--yes", "--dir", str(self.repo_root)]
         )
         self.assertEqual(rc1, 0)
-        self.assertIn("- Status: to-review", plan1.read_text(encoding="utf-8"))
+        assert_field(plan1, "status", "to-review")
 
         # to-review -> reviewed
         rc2 = cli.main(
             ["ipd", "set", "reviewed", "fw0001", "--yes", "--dir", str(self.repo_root)]
         )
         self.assertEqual(rc2, 0)
-        self.assertIn("- Status: reviewed", plan1.read_text(encoding="utf-8"))
+        assert_field(plan1, "status", "reviewed")
 
         # reviewed -> approved
         rc3 = cli.main(
             ["ipd", "set", "approved", "fw0001", "--yes", "--dir", str(self.repo_root)]
         )
         self.assertEqual(rc3, 0)
-        self.assertIn("- Status: approved", plan1.read_text(encoding="utf-8"))
+        assert_field(plan1, "status", "approved")
 
     def test_case_e_retirement_into_superseded_and_not_executed_succeeds(self):
         # reviewed -> superseded
@@ -293,7 +293,7 @@ class TestPlanTransitionGate(StatusSetTestBase):
         self.assertEqual(rc_spec, 0)
         found_specs = list(self.repo_root.rglob(spec.name))
         self.assertTrue(found_specs, f"Expected {spec.name} to exist in repo")
-        self.assertIn("- Status: to-review", found_specs[0].read_text(encoding="utf-8"))
+        assert_field(found_specs[0], "status", "to-review")
 
         # Backlog transition (open -> graduated) succeeds
         backlog = self.create_backlog(
@@ -437,7 +437,7 @@ class TestPlanTransitionGate(StatusSetTestBase):
         combined = buf.getvalue() + err_buf.getvalue()
         self.assertNotIn("dry-run", combined.lower().split("refusing")[0])
         self.assertIn("refusing before making changes", combined.lower())
-        self.assertIn("- Status: approved", plan.read_text(encoding="utf-8"))
+        assert_field(plan, "status", "approved")
 
     def test_case_i_target_executed_path_is_undisturbed(self):
         # Naive gate was measured to break this (PR-801, F-06b), returning exit 1 transition error
