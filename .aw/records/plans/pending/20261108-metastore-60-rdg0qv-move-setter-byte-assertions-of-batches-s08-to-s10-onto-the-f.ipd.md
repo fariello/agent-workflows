@@ -46,22 +46,22 @@ Batch rule, applied to every batch E-item of this plan:
 
 ### Task group 1: batches
 
-- [ ] E-02 Batch S09: ensure directory `.aw/state/rdg0qv/` exists (`mkdir -p .aw/state/rdg0qv/`) and convert the setter-byte assertions of `tests/test_plan_priority_required.py`, `tests/test_plans_archive.py` (19 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S09`.
+- [x] E-02 Batch S09: ensure directory `.aw/state/rdg0qv/` exists (`mkdir -p .aw/state/rdg0qv/`) and convert the setter-byte assertions of `tests/test_plan_priority_required.py`, `tests/test_plans_archive.py` (19 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S09`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S09 outcome lists; the remaining F-28 matches in the batch's modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Batch S10: convert the setter-byte assertions of `tests/test_plans_group_order_preservation.py`, `tests/test_plans_order_grammar.py`, `tests/test_plans_rename_selectors.py`, `tests/test_plan_transition_gate.py` (28 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S10`.
+- [x] E-03 Batch S10: convert the setter-byte assertions of `tests/test_plans_group_order_preservation.py`, `tests/test_plans_order_grammar.py`, `tests/test_plans_rename_selectors.py`, `tests/test_plan_transition_gate.py` (28 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S10`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S10 outcome lists; the remaining F-28 matches in the batch's modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-04 Finish this part: run the batch rule's command over every module of S09 and S10 once more and confirm the outcome multiset equals the union of the batches' `-before.txt` lists; write F-28's remaining-match table for S08 to S10 (one row per remaining match with its class; the S08 rows copied from `wdz2l9` F-28 with the source named) so `cxxmyv` E-07 has the exact list of `setter-byte, exact spelling` rows it must still change; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit rdg0qv -- <each changed path>`, one commit per batch allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-04 Finish this part: run the batch rule's command over every module of S09 and S10 once more and confirm the outcome multiset equals the union of the batches' `-before.txt` lists; write F-28's remaining-match table for S08 to S10 (one row per remaining match with its class; the S08 rows copied from `wdz2l9` F-28 with the source named) so `cxxmyv` E-07 has the exact list of `setter-byte, exact spelling` rows it must still change; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit rdg0qv -- <each changed path>`, one commit per batch allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-02, E-03
   - Expected outcome: the union comparison is empty; F-28 for this part is written; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -75,6 +75,7 @@ Batch rule, applied to every batch E-item of this plan:
 | Id | Evidence | Finding |
 |---|---|---|
 | F-28 | Copied from `iog3cw` F-28 (measured at `ac76110f4`): 467 candidate setter-byte lines in 74 modules, split into 20 batches S01 to S20 of at most about 30 lines. This part: S08, S09, S10, 71 lines. | Each batch is at most about 30 one-line conversions in at most 10 modules. The final table (written by E-04) lists every remaining match with its class. |
+| F-29 | Post-conversion scan with the F-28 pattern, `rg -c` at `58ed588fd` (before) -> `38b766220` (after): S09 `tests/test_plan_priority_required.py` 18 -> 4, `tests/test_plans_archive.py` 1 -> 0; S10 `tests/test_plans_group_order_preservation.py` 10 -> 0, `tests/test_plans_order_grammar.py` 8 -> 1, `tests/test_plans_rename_selectors.py` 3 -> 0, `tests/test_plan_transition_gate.py` 9 -> 0. S08 rows from `wdz2l9` F-28 (`.aw/records/plans/executed/20261109-metastore-270-wdz2l9-move-setter-byte-assertions-of-batch-s08-onto-the-format-awa.ipd.md`). | Remaining-match table for S08 to S10 (6 rows: 2 `displayed-output assertion`, 4 `setter-byte, exact spelling`, 0 `legacy-format subject`). S08 (copied from `wdz2l9` F-28): (1) `tests/test_orchestrator_status_gate.py::TestOrchestratorStatusGate::test_scaffold_orchestrator_dry_run_emits_draft` `self.assertIn("- Status: draft", proc.stdout)` - `displayed-output assertion`. S09: (2) `tests/test_plan_priority_required.py::ScaffoldEmissionTests::test_scaffold_emits_unresolved_sentinels_after_status` `self.assertEqual(lines[status_idx + 1], "- Work-Kind: unresolved")` and (3) the same test's `self.assertEqual(lines[status_idx + 2], "- Priority: unresolved")` - `setter-byte, exact spelling` (they pin the exact bullet spelling AND the line position right after `- Status: draft` in the text `ipd_authoring.build_skeleton` returns; `assert_field` takes a file path and checks neither position, decision `09-rdg0qv-D1`); (4) `tests/test_plan_priority_required.py::SetterPositionStabilityTests::test_setter_leaves_fields_adjacent_after_status` `self.assertEqual(lines[status_idx + 1], "- Work-Kind: bug")` and (5) the same test's `self.assertEqual(lines[status_idx + 2], "- Priority: high")` - `setter-byte, exact spelling` (the test's subject is line position after `aw ipd set`, decision `09-rdg0qv-D1`). S10: (6) `tests/test_plans_order_grammar.py::test_group_plans_refuses_unmatchable_order_line` `assert "expected exactly one '- Order:' line" in proc.stdout + proc.stderr` - `displayed-output assertion` (the refusal message, not a record file). So `cxxmyv` E-07 must still change rows (2) to (5). Conversion notes: `self.assertNotIn("- Priority: unresolved", text)` and the two whole-file `order_lines == ["- Order: N"]` exactly-one checks in `tests/test_plans_order_grammar.py` are subsumed by `assert_field`'s exactly-one-bullet check (decision `09-rdg0qv-D2`, same reasoning as `05-cxylsu-D1` and `08-zgyna1-D1`); `assert "- Order:" not in seeded...` became `assert_no_field(seeded, "order")` (same as `07-wdz2l9-D3`). Lines outside the F-28 pattern were kept as written: `self.assertNotIn(": unresolved\n- Priority", text)` and `assert "- Date: 20260810" in text`. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -136,20 +137,36 @@ No spec change; prepares part of `4sd62s` section 6 and section 7 step 9 (the te
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the empty `diff .aw/state/rdg0qv/S09-before.txt .aw/state/rdg0qv/S09-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_plan_priority_required.py`, `tests/test_plans_archive.py` (one line per module or test class), and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - Baseline `.aw/state/rdg0qv/S09-before.txt`: 42 lines, all `PASSED`.
+    - `diff .aw/state/rdg0qv/S09-before.txt .aw/state/rdg0qv/S09-after.txt`: no output, `diff rc=0` (after: 42 lines).
+    - F-28 `rg -c` before (`58ed588fd`) -> after: `tests/test_plan_priority_required.py` 18 -> 4; `tests/test_plans_archive.py` 1 -> 0.
+    - Remaining matches and class: `tests/test_plan_priority_required.py:253` and `:254` (`ScaffoldEmissionTests::test_scaffold_emits_unresolved_sentinels_after_status`), `:377` and `:378` (`SetterPositionStabilityTests::test_setter_leaves_fields_adjacent_after_status`): `setter-byte, exact spelling` (position-pinning, decision `09-rdg0qv-D1`). None unconverted otherwise.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the empty `diff .aw/state/rdg0qv/S10-before.txt .aw/state/rdg0qv/S10-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_plans_group_order_preservation.py`, `tests/test_plans_order_grammar.py`, `tests/test_plans_rename_selectors.py`, `tests/test_plan_transition_gate.py` (one line per module or test class), and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - Baseline `.aw/state/rdg0qv/S10-before.txt`: 45 lines, all `PASSED`.
+    - `diff .aw/state/rdg0qv/S10-before.txt .aw/state/rdg0qv/S10-after.txt`: no output, `diff rc=0` (after: 45 lines).
+    - F-28 `rg -c` before (`58ed588fd`) -> after: `tests/test_plans_group_order_preservation.py` 10 -> 0; `tests/test_plans_order_grammar.py` 8 -> 1; `tests/test_plans_rename_selectors.py` 3 -> 0; `tests/test_plan_transition_gate.py` 9 -> 0.
+    - Remaining match and class: `tests/test_plans_order_grammar.py:448` (`test_group_plans_refuses_unmatchable_order_line`, `assert "expected exactly one '- Order:' line" in proc.stdout + proc.stderr`): `displayed-output assertion`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `diff` of the concatenated, sorted `-before.txt` lists of S09 and S10 against the combined after-run list (empty), F-28 for this part as written with one row per remaining match and its class, the per-module F-28 `rg -c` count for each of `tests/test_plan_priority_required.py`, `tests/test_plans_archive.py`, `tests/test_plans_group_order_preservation.py`, `tests/test_plans_order_grammar.py`, `tests/test_plans_rename_selectors.py`, `tests/test_plan_transition_gate.py`, the bare `python3 -m pytest` summary line beside them and wall time, the `aw sanitize --agent` result with zero `fail`, and every `aw commit rdg0qv` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - `sort S09-before.txt S10-before.txt > union-before.txt`; `diff .aw/state/rdg0qv/union-before.txt .aw/state/rdg0qv/union-after.txt`: no output, `diff rc=0`; 87 lines each. Per-module PASSED after: `tests/test_plan_priority_required.py` 27, `tests/test_plans_archive.py` 15, `tests/test_plans_group_order_preservation.py` 8, `tests/test_plans_order_grammar.py` 12, `tests/test_plans_rename_selectors.py` 15, `tests/test_plan_transition_gate.py` 10.
+    - F-28 for this part written in `## Findings` row F-29 (6 rows S08 to S10: 2 `displayed-output assertion`, 4 `setter-byte, exact spelling`).
+    - Per-module F-28 `rg -c` after: `tests/test_plan_priority_required.py` 4, `tests/test_plans_archive.py` 0, `tests/test_plans_group_order_preservation.py` 0, `tests/test_plans_order_grammar.py` 1, `tests/test_plans_rename_selectors.py` 0, `tests/test_plan_transition_gate.py` 0.
+    - Bare core gate `python3 -m pytest`: `2952 passed, 1 skipped, 11 warnings in 122.48s (0:02:02)`, `wall 123.19s`; exit 1 only because `conftest.py` reported `CORE TIER BUDGET EXCEEDED` (`Core tier wall time: 66.49s exceeded budget of 30.00s`, host load average 7.19); 0 failed, 0 errors. Pre-existing open backlog `6o5aan` (decision `09-rdg0qv-D3`). Bounded `aw suite`: `2952 passed, 1 skipped, 11 warnings in 66.25s (0:01:06)`, exit 0.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7230,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit rdg0qv -m "test(rdg0qv): move S09 setter-byte assertions onto assert_field" -- tests/test_plan_priority_required.py tests/test_plans_archive.py`: `aw commit: committed 2 path(s): f7381dba2e29ade589cc08fdbfaaca6b04a1156d`.
+    - `aw commit rdg0qv -m "test(rdg0qv): move S10 setter-byte assertions onto assert_field/assert_no_field" -- tests/test_plans_group_order_preservation.py tests/test_plans_order_grammar.py tests/test_plans_rename_selectors.py tests/test_plan_transition_gate.py`: `aw commit: committed 4 path(s): 38b766220a95c9d289e6670f8ec5b4e12acf0037`.
+    - This plan update is committed in a follow-up `aw commit rdg0qv` naming only this IPD path. All 7 Scope-Paths are modified.
+  - Result: pass
 
 ## Approval and execution gate
 
