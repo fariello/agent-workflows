@@ -98,6 +98,7 @@ flowchart TD
   - Carrier: aqc3m6
 - Batches S18, S19, S20: Moved to zgyna1 (split 2026-11-08 per maintainer step-complexity rule; at most 4 batch items per plan).
   - Carrier: zgyna1
+  - Carrier-Evidence: .aw/records/plans/executed/20261108-metastore-62-zgyna1-move-the-test-status-set-setter-byte-assertions-of-batches-s.ipd.md
 - Switching the builder to `RECORD_FORMAT = "log"`, adding the helper's log-format branch, and changing the `setter-byte, exact spelling` rows F-28 lists: they change the on-disk format and so belong to the cutover commit (C10a).
   - Carrier: cxxmyv
 - The helper and batches S01 to S04 (S02 and S03 by `iog3cw`; the helper and S04 by `j5fqax`, S01 by `545ag7`, both executed and cited with Carrier-Evidence in the executed `iog3cw` record).
