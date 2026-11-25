@@ -6,7 +6,7 @@
 - Scope: Add four pure helpers in `agent_workflows/artifact_meta.py` (`extract_detail_fields`, `read_multiline_bullets`, `read_review_subject_id`, `neutralize_front_matter_bullets`); rewrite `artifact_refs.plan_scope_path_reference_rewrites` and `apply_scope_path_reference_rewrites` to read and write `Scope-Paths` through `artifact_meta` (deleting `_SCOPE_PATHS_LINE_RE`); replace `partition._ORCHESTRATOR_KIND_RE`, `review_basis._is_orchestrator_text`, `check_engine._TARGET_BULLET_RE`, `check_engine._REVIEW_SUBJECT_ID_RE`, `coverage_record._FINGERPRINT_LINE_RE`, `coverage_record._CHECKED_LINE_RE`, `attention._FIELD_PATTERNS`, and `runner_shared._PROPOSAL_BULLET_RE` with `artifact_meta` calls; and verify with `@pytest.mark.core` behavioral tests and the explicit widened `rg -U` audit. Excludes `Workflow history` readers (`wgn3bl`), prompt comment helpers (`t3t7za`), specs/backlog `^-` regexes (`fkvrc7`), N3 body-prose / history-line regexes (`check_engine._GRADUATED_LINE_RE`, `_IMPLEMENTING_LINE_RE`, `attention._OQ_STATUS_RE`, `_EV_LEAF_RE`, `runner_shared.record_oq_answer` OQ body rewrites, `ipd_lint._HISTORY_ATTRIB_RE`, `_COVERAGE_HIST_RE`, `plan_readiness._HISTORY_RECORD_PARTS_RE`, `review_findings._OQ_FINDING_REF_RE`), and the `9o83cr` final AC-1 audit.
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/artifact_refs.py, agent_workflows/partition.py, agent_workflows/review_basis.py, agent_workflows/check_engine.py, agent_workflows/coverage_record.py, agent_workflows/attention.py, agent_workflows/runner_shared.py, tests/test_partition.py, .aw/records/plans/pending/20261124-metastore-304-75jciz-replace-scope-paths-bullet-writer-and-widened-front-matter-r.ipd.md
 - Item-Dependencies: executed:0xsx2n, executed:e8420v, executed:k6jd6l, executed:q6epwc, executed:snin8q
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,12 +18,14 @@
 - Order: 304
 - Highest E allocated: 4
 - Id: 75jciz
+- Approval: 2026-11-25, recorded via aw ipd set: status set to approved
 - Author: antigravity
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-25 approved (aw set): status set to approved
 - 2026-11-25 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 FIXED
 - 2026-11-25 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007; review record .aw/records/reviews/20261124-metastore-304-75jciz-replace-scope-paths-bullet-writer-and-widened-front-matter-r.review.md
 - 2026-11-24 to-review (antigravity): authored Order 304 child plan (split from superseded `rgva3w` per maintainer decision 2026-11-25, ahead of `9o83cr`) covering `avze51` and `hmtpj2`.
