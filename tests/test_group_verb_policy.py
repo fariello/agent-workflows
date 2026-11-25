@@ -23,7 +23,7 @@ from agent_workflows import artifact_types, cli, command_surface as cs, config, 
 from agent_workflows import research_contract as R
 
 
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field, assert_no_field
 from tests.repo_template import copy_template_repo
 
 GROUP_TYPES = sorted(
@@ -742,10 +742,9 @@ def test_group_plans_orchestrator_at_order_zero_permitted(temp_git_repo: Path):
     files = sorted(pdir.glob("*.md"))
     assert len(files) == 1
     assert files[0].name == "20260920-newset-00-orc001-probe-orch.ipd.md"
-    content = files[0].read_text(encoding="utf-8")
-    assert "- Set: newset" in content
-    assert "- Order: 0" in content
-    assert "- Kind: orchestrator" in content
+    assert_field(files[0], "set", "newset")
+    assert_field(files[0], "order", "0")
+    assert_field(files[0], "plan_role", "orchestrator")
 
 
 def test_group_plans_kindless_plan_at_order_zero_permitted(temp_git_repo: Path):
@@ -766,10 +765,9 @@ def test_group_plans_kindless_plan_at_order_zero_permitted(temp_git_repo: Path):
     files = sorted(pdir.glob("*.md"))
     assert len(files) == 1
     assert files[0].name == "20260920-newset-00-knd001-probe-kindless.ipd.md"
-    content = files[0].read_text(encoding="utf-8")
-    assert "- Set: newset" in content
-    assert "- Order: 0" in content
-    assert "- Kind:" not in content
+    assert_field(files[0], "set", "newset")
+    assert_field(files[0], "order", "0")
+    assert_no_field(files[0], "plan_role")
 
 
 def test_group_plans_multi_plan_order_zero_with_orchestrator_first(temp_git_repo: Path):
@@ -813,12 +811,9 @@ def test_group_plans_multi_plan_order_zero_with_orchestrator_first(temp_git_repo
     assert files[0].name == "20260920-asmset-00-ggg777-orch.ipd.md"
     assert files[1].name == "20260920-asmset-01-eee555-child-one.ipd.md"
     assert files[2].name == "20260920-asmset-02-fff666-child-two.ipd.md"
-    f0 = files[0].read_text(encoding="utf-8")
-    f1 = files[1].read_text(encoding="utf-8")
-    f2 = files[2].read_text(encoding="utf-8")
-    assert "- Order: 0" in f0
-    assert "- Order: 1" in f1
-    assert "- Order: 2" in f2
+    assert_field(files[0], "order", "0")
+    assert_field(files[1], "order", "1")
+    assert_field(files[2], "order", "2")
 
 
 def test_group_plans_bare_regroup_preserves_each_plan_order(temp_git_repo: Path):
@@ -854,8 +849,8 @@ def test_group_plans_bare_regroup_preserves_each_plan_order(temp_git_repo: Path)
     f_999 = pdir / "20260920-bareset-07-jjj999-child-seven.ipd.md"
     assert f_888.exists()
     assert f_999.exists()
-    assert "- Order: 4" in f_888.read_text(encoding="utf-8")
-    assert "- Order: 7" in f_999.read_text(encoding="utf-8")
+    assert_field(f_888, "order", "4")
+    assert_field(f_999, "order", "7")
 
     # Branch 2: metadata-only (no --rename)
     _seed_plan_record(
@@ -872,9 +867,8 @@ def test_group_plans_bare_regroup_preserves_each_plan_order(temp_git_repo: Path)
     assert rc2 == 0, f"Expected rc 0, got {rc2}. Output:\n{out2}\n{err2}"
     f_000 = pdir / "20260920-oldset-05-kkk000-child-five.ipd.md"
     assert f_000.exists()
-    content_000 = f_000.read_text(encoding="utf-8")
-    assert "- Set: metaset" in content_000
-    assert "- Order: 5" in content_000
+    assert_field(f_000, "set", "metaset")
+    assert_field(f_000, "order", "5")
 
 
 def test_group_plans_metadata_only_refuses_child_at_order_zero(temp_git_repo: Path):
@@ -972,8 +966,7 @@ def test_group_plans_allow_invalid_order_permits_write(temp_git_repo: Path):
     assert len(files) == 1
     written_file = files[0]
     assert written_file.name == "20260920-newset-00-chd005-probe-override.ipd.md"
-    content = written_file.read_text(encoding="utf-8")
-    assert "- Order: 0" in content
+    assert_field(written_file, "order", "0")
 
     # Assert IPD-M104 diagnostic is emitted on lint
     lint_res = ipd_lint.lint_file(written_file)
@@ -1006,8 +999,7 @@ def test_rename_plans_allow_invalid_order_permits_write(temp_git_repo: Path):
     assert len(files) == 1
     written_file = files[0]
     assert written_file.name == "20260920-oldset-00-chd006-probe-rename-override.ipd.md"
-    content = written_file.read_text(encoding="utf-8")
-    assert "- Order: 0" in content
+    assert_field(written_file, "order", "0")
 
 
 def test_group_and_rename_command_surface_declarations():
@@ -1114,10 +1106,9 @@ def test_group_plans_kindless_plan_at_nonzero_order_permitted(temp_git_repo: Pat
     files = sorted(pdir.glob("*.md"))
     assert len(files) == 1
     assert files[0].name == "20260920-newset-05-knd002-probe-kindless-nonzero.ipd.md"
-    content = files[0].read_text(encoding="utf-8")
-    assert "- Set: newset" in content
-    assert "- Order: 5" in content
-    assert "- Kind:" not in content
+    assert_field(files[0], "set", "newset")
+    assert_field(files[0], "order", "5")
+    assert_no_field(files[0], "plan_role")
 
 
 def test_group_plans_bare_regroup_preserves_orchestrator_order_zero(
@@ -1145,8 +1136,8 @@ def test_group_plans_bare_regroup_preserves_orchestrator_order_zero(
     pdir = temp_git_repo / ".aw" / "records" / "plans" / "pending"
     f_003 = pdir / "20260920-bareset-00-orc003-orch-bare.ipd.md"
     assert f_003.exists()
-    assert "- Order: 0" in f_003.read_text(encoding="utf-8")
-    assert "- Kind: orchestrator" in f_003.read_text(encoding="utf-8")
+    assert_field(f_003, "order", "0")
+    assert_field(f_003, "plan_role", "orchestrator")
 
     # Branch 2: metadata-only (no --rename)
     _seed_plan_record(
@@ -1163,10 +1154,9 @@ def test_group_plans_bare_regroup_preserves_orchestrator_order_zero(
     assert rc2 == 0, f"Expected rc 0, got {rc2}. Output:\n{out2}\n{err2}"
     f_004 = pdir / "20260920-oldset-00-orc004-orch-meta.ipd.md"
     assert f_004.exists()
-    content_004 = f_004.read_text(encoding="utf-8")
-    assert "- Set: metaset" in content_004
-    assert "- Order: 0" in content_004
-    assert "- Kind: orchestrator" in content_004
+    assert_field(f_004, "set", "metaset")
+    assert_field(f_004, "order", "0")
+    assert_field(f_004, "plan_role", "orchestrator")
 
 
 def test_rename_plans_repair_direction_orchestrator_to_order_zero_permitted(
@@ -1188,9 +1178,8 @@ def test_rename_plans_repair_direction_orchestrator_to_order_zero_permitted(
     assert len(files) == 1
     repaired_file = files[0]
     assert repaired_file.name == "20260920-oldset-00-orc005-probe-repair.ipd.md"
-    content = repaired_file.read_text(encoding="utf-8")
-    assert "- Order: 0" in content
-    assert "- Kind: orchestrator" in content
+    assert_field(repaired_file, "order", "0")
+    assert_field(repaired_file, "plan_role", "orchestrator")
 
 
 def test_group_plans_multi_plan_positional_refuses_orchestrator_at_nonzero_order(
@@ -1327,8 +1316,7 @@ def test_group_plans_allow_invalid_order_permits_orchestrator_write(
     assert len(files) == 1
     written_file = files[0]
     assert written_file.name == "20260920-newset-05-orc009-probe-override.ipd.md"
-    content = written_file.read_text(encoding="utf-8")
-    assert "- Order: 5" in content
+    assert_field(written_file, "order", "5")
 
     # Assert IPD-M104 diagnostic is emitted on lint
     lint_res = ipd_lint.lint_file(written_file)
@@ -1363,5 +1351,4 @@ def test_rename_plans_allow_invalid_order_permits_orchestrator_write(
     assert len(files) == 1
     written_file = files[0]
     assert written_file.name == "20260920-oldset-07-orc011-probe-rename-override.ipd.md"
-    content = written_file.read_text(encoding="utf-8")
-    assert "- Order: 7" in content
+    assert_field(written_file, "order", "7")
