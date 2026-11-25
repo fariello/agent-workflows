@@ -50,6 +50,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from agent_workflows import artifact_core as core
+from agent_workflows import artifact_meta as _meta
 from agent_workflows import artifact_naming as _naming
 
 # The recognized prompt kinds. DERIVED from the measured corpus (`run-once`, `research`, and
@@ -64,13 +65,8 @@ PROMPT_KINDS = ("run-once", "research", "session-handoff")
 DEFAULT_STATUS = "pending"
 PENDING_BUCKET = "pending"
 
-# The sentence every conforming prompt in the corpus ends its metadata comment with (measured: 7 of
-# 7). Emitted so a minted file matches the corpus and so a reader who DOES see the comment (e.g. in
-# an editor) understands it is not part of the prompt.
-_METADATA_TRAILER = (
-    "This HTML comment is pipeline metadata only; it is invisible when pasted "
-    "into a chat and is not part of the prompt."
-)
+# Plain-text constant alias of the metadata trailer owned by `artifact_meta.py`.
+_METADATA_TRAILER = _meta.PROMPT_METADATA_TRAILER
 
 # The legacy faceted staging name: YYYYMMDD-HHMM-NN-<slug>.prompt.md. KEPT as a READER only: the
 # grandfathered corpus still uses it (17 files at the 20260920 measurement) and `_existing_id6s`
@@ -78,13 +74,6 @@ _METADATA_TRAILER = (
 # `artifact_naming.build_clustered_name` is the only assembler (IPD ubac5n E-01).
 # The legacy staged name YYYYMMDD-HHMM-NN-<slug>.prompt.md is read by THE ONE file-name library.
 _STAGED_NAME_RE = _naming._LEGACY_TIMESTAMP_RE
-
-# The `Id: <id6>` pair INSIDE the one `<!-- aw-prompt: ... -->` comment. This is where a prompt's id6
-# lives in-file (IPD ubac5n E-02/E-04); there is deliberately no `- Id:` bullet form for a prompt,
-# because a bullet renders as visible text above the prompt body (purity spec R1/P4). Anchored to the
-# `Key: value` shape of that comment, so a bare `Id:` elsewhere in a prompt BODY is not read as a
-# declaration.
-_METADATA_ID_RE = re.compile(r"(?:\A|\|)\s*Id:\s*([0-9a-z]{6})\s*(?=\||$)")
 
 
 def _now() -> _dt.datetime:
@@ -177,9 +166,10 @@ def _existing_id6s(root: Path) -> set:
             first = p.read_text(encoding="utf-8").split("\n", 1)[0]
         except (OSError, UnicodeDecodeError):
             continue
-        m_id = _METADATA_ID_RE.search(first)
-        if m_id:
-            ids.add(m_id.group(1))
+        if _meta.has_prompt_metadata_comment(first):
+            declared = _meta.read_text(first, record_type="prompt").id6
+            if declared and core.ID6_RE.fullmatch(declared):
+                ids.add(declared)
     return ids
 
 
@@ -259,134 +249,6 @@ def build_prompt_name(
         slug=slug,
         artifact_type="prompt",
     )
-
-
-def has_metadata_comment(text: str) -> bool:
-    """True iff ``text`` opens with the single `<!-- aw-prompt: ... -->` metadata comment.
-
-    The precondition for writing an id6 INTO that comment. Measured 2026-09-20: 11 of the 17 tracked
-    prompts have one and 6 do not (the oldest, authored before the comment convention), so a caller
-    must be able to ask rather than assume, and `aw rename prompts --to-id6` uses this to report
-    truthfully that such a file keeps its id6 in the FILENAME ONLY.
-    """
-
-    return "<!-- aw-prompt:" in text.split("\n", 1)[0]
-
-
-def inject_metadata_id6(text: str, *, id6: str, set_id: Optional[str] = None) -> str:
-    """Return ``text`` with ``Id:`` (and optionally ``Set:``) written INTO its one metadata comment.
-
-    IPD `ubac5n` E-04, and the whole reason this function exists rather than a second writer: this is
-    the ONE place a prompt's id6 is written in-file, shared by `aw prompts new` (which renders the
-    comment from scratch) and by `aw rename prompts --to-id6` (which must add the key to a comment
-    that already exists). A `- Id:` BULLET is never produced, because for a prompt that is visible
-    text above the prompt body and an approved-spec violation (`prompt-purity-lint` R1/P4).
-
-    IDEMPOTENT: a comment that already declares an `Id:` is returned UNCHANGED, so a re-run never
-    rewrites an established identity. A file with NO leading `aw-prompt` comment is also returned
-    unchanged: minting one here would ADD a line above the body of a file whose purity this function
-    exists to protect, and 6 of the 17 measured prompts legitimately have no comment at all. The
-    caller sees "unchanged" and the rename still happens; the id6 then lives in the FILENAME only,
-    which is stated plainly rather than silently repaired.
-    """
-
-    lines = text.split("\n")
-    if not lines or "<!-- aw-prompt:" not in lines[0]:
-        return text
-    if _METADATA_ID_RE.search(lines[0]):
-        return text
-
-    first = lines[0]
-    additions = [f"Id: {id6}"]
-    set_text = (set_id or "").strip()
-    if set_text and not re.search(r"(?:\A|\|)\s*Set:\s*[^|]+", first):
-        additions.append(f"Set: {set_text}")
-    insert = " | ".join(additions)
-
-    # Position the new pair(s) directly after `Kind: <kind>` when there is one, which is the shape
-    # the existing conforming corpus and `aw prompts new` both use; otherwise append them at
-    # the end of the field run, just before the trailer sentence.
-    m_kind = re.search(r"(Kind:\s*[^|]+?)(\s*\|)", first)
-    if m_kind:
-        updated = first[: m_kind.end(1)] + f" | {insert}" + first[m_kind.end(1) :]
-    else:
-        updated = first.replace(
-            f" . {_METADATA_TRAILER}", f" | {insert} . {_METADATA_TRAILER}", 1
-        )
-        if updated == first:
-            # No recognizable trailer: append before the closing comment marker.
-            updated = re.sub(r"\s*-->\s*\Z", f" | {insert} -->", first)
-    lines[0] = " ".join(updated.split())
-    return "\n".join(lines)
-
-
-def update_metadata_status(text: str, status: str) -> str:
-    """Return ``text`` with ``Status: <status>`` updated in its one metadata comment.
-
-    IPD `7z3ovv` E-02: the single status writer for prompt metadata comments, mirroring
-    `inject_metadata_id6`. Prompts record status in their leading HTML metadata comment,
-    never as a `- Status:` bullet (which would corrupt the prompt body).
-
-    IDEMPOTENT: if the comment already declares this status, ``text`` is returned unchanged.
-    A file with NO leading `aw-prompt` comment is also returned UNCHANGED: minting one here
-    would add a line above the body of a file whose purity this function exists to protect
-    (OQ-02 refusal-to-mint posture).
-    """
-    lines = text.split("\n")
-    if not lines or "<!-- aw-prompt:" not in lines[0]:
-        return text
-
-    first = lines[0]
-    from agent_workflows import artifact_meta as _meta
-
-    current = _meta.read_text(first, record_type="prompt").legacy_raw_status
-    if current == status:
-        return text
-
-    if current is not None:
-        updated = re.sub(
-            r"((?:\A|\|)\s*Status:\s*)[^|.\s]+",
-            rf"\g<1>{status}",
-            first,
-            count=1,
-        )
-    else:
-        m_set = re.search(r"(Set:\s*[^|]+?)(\s*\|)", first)
-        if m_set:
-            updated = (
-                first[: m_set.end(1)] + f" | Status: {status}" + first[m_set.end(1) :]
-            )
-        else:
-            m_id = re.search(r"(Id:\s*[^|]+?)(\s*\|)", first)
-            if m_id:
-                updated = (
-                    first[: m_id.end(1)] + f" | Status: {status}" + first[m_id.end(1) :]
-                )
-            else:
-                m_kind = re.search(r"(Kind:\s*[^|]+?)(\s*\|)", first)
-                if m_kind:
-                    updated = (
-                        first[: m_kind.end(1)]
-                        + f" | Status: {status}"
-                        + first[m_kind.end(1) :]
-                    )
-                else:
-                    updated = first.replace(
-                        f" . {_METADATA_TRAILER}",
-                        f" | Status: {status} . {_METADATA_TRAILER}",
-                        1,
-                    )
-                    if updated == first:
-                        updated = re.sub(
-                            r"\s*-->\s*\Z", f" | Status: {status} -->", first
-                        )
-
-    lines[0] = " ".join(updated.split())
-    return "\n".join(lines)
-
-
-# Shared alias matching module naming conventions
-inject_metadata_status = update_metadata_status
 
 
 def _today_iso() -> str:
@@ -506,8 +368,6 @@ def run_new(args) -> int:
         slug=slug,
     )
     dest = root / PENDING_BUCKET / filename
-
-    from agent_workflows import artifact_meta as _meta
 
     apply = bool(getattr(args, "apply", False))
     fields = {

@@ -139,6 +139,7 @@ flowchart LR
   - Carrier-Evidence: .aw/records/plans/executed/20261124-metastore-301-wgn3bl-migrate-surviving-workflow-history-section-readers-onto-arti.ipd.md
 - Prompt comment helpers are owned by Order 302 (`t3t7za`).
   - Carrier: t3t7za
+  - Carrier-Evidence: .aw/records/plans/executed/20261124-metastore-302-t3t7za-move-surviving-aw-prompt-and-managed-prompt-comment-helpers.ipd.md
 - `Scope-Paths` writer and widened front-matter readers are owned by Order 304 (`75jciz`).
   - Carrier: 75jciz
 - Optional follow-up simplification of `agent_workflows/runner_shared.py::_region_bullet_keys` and `agent_workflows/plans_refs.py::_check_order_lines` to call the new `artifact_meta.list_metadata_bullets` helper (neither contains a `^-` regex) remains tracked in backlog `vl7ybn`.

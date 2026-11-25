@@ -1602,9 +1602,8 @@ def _prepare_status_change(
     curr_rec_status = rec.status
     if curr_rec_status is None and rec.record_type == "prompts":
         from agent_workflows import artifact_meta as _meta
-        from agent_workflows import prompts as _prompts
 
-        if _prompts.has_metadata_comment(rec.raw_text):
+        if _meta.has_prompt_metadata_comment(rec.raw_text):
             curr_rec_status = _meta.read_text(
                 rec.raw_text.split("\n", 1)[0], record_type="prompt"
             ).legacy_raw_status
