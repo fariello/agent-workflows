@@ -55,6 +55,7 @@ STATE_PAUSED = "paused"
 
 ATTENTION_BADGE = "\u26a0\ufe0f"  # ⚠️
 FAILURE_BADGE = ATTENTION_BADGE
+QUESTION_BADGE = "❓"
 
 STATE_GLYPHS: dict[str, str] = {
     STATE_EXECUTING: "\u25b6\ufe0f",  # ▶️
@@ -65,7 +66,7 @@ STATE_GLYPHS: dict[str, str] = {
     STATE_WAITING_DEPS: "⏳",
     STATE_WAITING_LOCK: "🔒",
     STATE_INTEGRATING: "🧩",
-    STATE_ASKING: "❓",
+    STATE_ASKING: QUESTION_BADGE,
     STATE_PAUSED: "\u23f8\ufe0f",  # ⏸️
     STATE_FINISHED: "✅",
     STATE_KILLED: "❌",
@@ -108,7 +109,8 @@ TITLE_STYLE_VALUES: tuple[str, ...] = (
 )
 DEFAULT_TITLE_STYLE = TITLE_STYLE_MEDIUM
 
-#: Queue item statuses that trigger the combining ``⚠️`` attention badge.
+#: Queue item statuses that trigger the combining ``⚠️`` failure/block badge.
+#: ``awaiting-human`` is handled separately by :func:`queue_has_pending_question` (``❓``).
 FAILURE_QUEUE_STATUSES: frozenset[str] = frozenset(
     {
         "fail-gate",
@@ -128,10 +130,11 @@ FAILURE_QUEUE_STATUSES: frozenset[str] = frozenset(
         "merge-needs-human",
         "merge-refused",
         "merge-unchecked",
-        "awaiting-human",
     }
 )
-ATTENTION_QUEUE_STATUSES: frozenset[str] = FAILURE_QUEUE_STATUSES
+ATTENTION_QUEUE_STATUSES: frozenset[str] = FAILURE_QUEUE_STATUSES | frozenset(
+    {"awaiting-human"}
+)
 
 _TITLE_STYLE_OVERRIDE: Optional[str] = None
 _ACTIVE_LOCK = threading.RLock()
@@ -246,17 +249,35 @@ def strip_runner_glyphs(tab_name: str) -> str:
     return tab_name[i:]
 
 
-def format_glyph_prefix(state: str, *, has_failure: bool = False) -> str:
-    """Build the glyph prefix for ``state``, appending ``🚨`` when ``has_failure`` is True."""
+def format_glyph_prefix(
+    state: str,
+    *,
+    has_failure: bool = False,
+    has_question: bool = False,
+) -> str:
+    """Build the glyph prefix for ``state``, combining ``❓`` (pending question) and ``⚠️`` (failure)."""
     glyph = STATE_GLYPHS.get(state, "")
-    if not glyph:
-        return FAILURE_BADGE if has_failure else ""
-    return f"{glyph}{FAILURE_BADGE}" if has_failure else glyph
+    parts: list[str] = []
+    if glyph:
+        parts.append(glyph)
+    if has_question and glyph != QUESTION_BADGE:
+        parts.append(QUESTION_BADGE)
+    if has_failure:
+        parts.append(FAILURE_BADGE)
+    return "".join(parts)
 
 
-def format_tab_name(base_name: str, state: str, *, has_failure: bool = False) -> str:
+def format_tab_name(
+    base_name: str,
+    state: str,
+    *,
+    has_failure: bool = False,
+    has_question: bool = False,
+) -> str:
     """Format a Zellij tab name with leading runner glyph(s), a single space, and cleaned base name."""
-    prefix = format_glyph_prefix(state, has_failure=has_failure)
+    prefix = format_glyph_prefix(
+        state, has_failure=has_failure, has_question=has_question
+    )
     clean_base = strip_runner_glyphs(base_name)
     if not prefix:
         return clean_base
@@ -272,12 +293,15 @@ def format_window_title(
     host: str,
     repo_name: str,
     has_failure: bool = False,
+    has_question: bool = False,
 ) -> Optional[str]:
     """Build the non-Zellij OSC 2 terminal window title for ``style`` (None when style=='none')."""
     norm_style = str(style or DEFAULT_TITLE_STYLE).strip().lower()
     if norm_style == TITLE_STYLE_NONE:
         return None
-    prefix = format_glyph_prefix(state, has_failure=has_failure)
+    prefix = format_glyph_prefix(
+        state, has_failure=has_failure, has_question=has_question
+    )
     clean_repo = (repo_name or "").strip()
     clean_host = (host or "").strip() or "oc"
     if norm_style == TITLE_STYLE_SHORT:
@@ -291,6 +315,9 @@ def format_window_title(
 
 def _item_has_actionable_unresolved_question(item: Mapping[str, Any]) -> bool:
     """Return True if ``item`` carries an unresolved question that requires follow-up action."""
+    status = str(item.get("status") or "").strip()
+    if status in ("running", "queued") and not bool(item.get("needs_input")):
+        return False
     questions = item.get("questions")
     if not isinstance(questions, list):
         return False
@@ -298,6 +325,9 @@ def _item_has_actionable_unresolved_question(item: Mapping[str, Any]) -> bool:
         if not isinstance(q, Mapping):
             continue
         if q.get("answered") or q.get("resolved"):
+            continue
+        q_status = str(q.get("status") or "").strip().lower()
+        if q_status in ("answered", "resolved", "consumed"):
             continue
         if (
             q.get("blocking")
@@ -310,11 +340,7 @@ def _item_has_actionable_unresolved_question(item: Mapping[str, Any]) -> bool:
 
 
 def queue_has_failure(run_state: Optional[Mapping[str, Any]]) -> bool:
-    """Return True if any queue item in ``run_state`` needs follow-up attention.
-
-    Triggers on failure, blocked, partial, or ``awaiting-human`` statuses, items flagged
-    with ``needs_input``, or unresolved questions that require action.
-    """
+    """Return True if any queue item in ``run_state`` has a failure or block status."""
     if not isinstance(run_state, Mapping):
         return False
     queue = run_state.get("queue")
@@ -326,6 +352,22 @@ def queue_has_failure(run_state: Optional[Mapping[str, Any]]) -> bool:
         status = str(item.get("status") or "").strip()
         if status in FAILURE_QUEUE_STATUSES:
             return True
+    return False
+
+
+def queue_has_pending_question(run_state: Optional[Mapping[str, Any]]) -> bool:
+    """Return True if any queue item in ``run_state`` is awaiting a human question answer."""
+    if not isinstance(run_state, Mapping):
+        return False
+    queue = run_state.get("queue")
+    if not isinstance(queue, list):
+        return False
+    for item in queue:
+        if not isinstance(item, Mapping):
+            continue
+        status = str(item.get("status") or "").strip()
+        if status == "awaiting-human":
+            return True
         if bool(item.get("needs_input")):
             return True
         if _item_has_actionable_unresolved_question(item):
@@ -333,7 +375,9 @@ def queue_has_failure(run_state: Optional[Mapping[str, Any]]) -> bool:
     return False
 
 
-queue_needs_attention = queue_has_failure
+def queue_needs_attention(run_state: Optional[Mapping[str, Any]]) -> bool:
+    """Return True if any queue item needs follow-up attention (failure/block or pending question)."""
+    return queue_has_failure(run_state) or queue_has_pending_question(run_state)
 
 
 def item_active_state(
@@ -494,6 +538,7 @@ class RunnerTabStatus:
         self._base_tab_name: Optional[str] = None
         self.current_state: Optional[str] = None
         self.has_failure: bool = False
+        self.has_question: bool = False
         self._last_rendered: Optional[str] = None
         self._activated: bool = False
         self._finalized: bool = False
@@ -538,6 +583,7 @@ class RunnerTabStatus:
                 self._base_tab_name or "",
                 self.current_state,
                 has_failure=self.has_failure,
+                has_question=self.has_question,
             )
             if desired == self._last_rendered:
                 return False
@@ -553,6 +599,7 @@ class RunnerTabStatus:
             host=self.host,
             repo_name=self.repo_name,
             has_failure=self.has_failure,
+            has_question=self.has_question,
         )
         if title is None or title == self._last_rendered:
             return False
@@ -570,6 +617,7 @@ class RunnerTabStatus:
         state: str,
         *,
         has_failure: Optional[bool] = None,
+        has_question: Optional[bool] = None,
         run_state: Optional[Mapping[str, Any]] = None,
     ) -> bool:
         """Update the current runner status glyph and re-render if changed."""
@@ -580,18 +628,24 @@ class RunnerTabStatus:
             if has_failure is not None:
                 self.has_failure = bool(has_failure)
             elif run_state is not None:
-                self.has_failure = self.has_failure or queue_has_failure(run_state)
+                self.has_failure = queue_has_failure(run_state)
+            if has_question is not None:
+                self.has_question = bool(has_question)
+            elif run_state is not None:
+                self.has_question = queue_has_pending_question(run_state)
             return self._render()
 
     def refresh_failure(self, run_state: Optional[Mapping[str, Any]]) -> bool:
-        """Refresh the ``🚨`` badge from ``run_state`` without changing the primary state."""
+        """Refresh the ``⚠️`` and ``❓`` badges from ``run_state`` without changing the primary state."""
         if run_state is None:
             return False
         with self._lock:
             failed = queue_has_failure(run_state)
-            if failed == self.has_failure:
+            questioned = queue_has_pending_question(run_state)
+            if failed == self.has_failure and questioned == self.has_question:
                 return False
             self.has_failure = failed
+            self.has_question = questioned
             return self._render()
 
     @contextlib.contextmanager
@@ -600,12 +654,14 @@ class RunnerTabStatus:
         state: str,
         *,
         has_failure: Optional[bool] = None,
+        has_question: Optional[bool] = None,
     ) -> Iterator[None]:
         """Temporarily switch to ``state`` and restore the previous state on exit."""
         with self._lock:
             prev_state = self.current_state
             prev_failure = self.has_failure
-        self.set_state(state, has_failure=has_failure)
+            prev_question = self.has_question
+        self.set_state(state, has_failure=has_failure, has_question=has_question)
         try:
             yield
         finally:
@@ -613,8 +669,10 @@ class RunnerTabStatus:
                 if not self._finalized:
                     if prev_state is not None:
                         self.current_state = prev_state
-                        if has_failure is None:
-                            self.has_failure = self.has_failure or prev_failure
+                        if has_failure is not None:
+                            self.has_failure = prev_failure
+                        if has_question is not None:
+                            self.has_question = prev_question
                         self._render()
 
     def mark_finished(
@@ -623,11 +681,12 @@ class RunnerTabStatus:
         *,
         paused: bool = False,
     ) -> bool:
-        """Mark the run as cleanly finished (``⏹``) or parked/paused at drain (``⏸``)."""
+        """Mark the run as cleanly finished (``✅``) or parked/paused at drain (``⏸️``)."""
         with self._lock:
             self._finalized = True
             if run_state is not None:
                 self.has_failure = queue_has_failure(run_state)
+                self.has_question = queue_has_pending_question(run_state)
             target_state = STATE_PAUSED if paused else STATE_FINISHED
             self.current_state = target_state
             return self._render()
@@ -638,13 +697,14 @@ class RunnerTabStatus:
         *,
         only_if_activated: bool = True,
     ) -> bool:
-        """Mark the run as killed / died uncleanly (``⛒``)."""
+        """Mark the run as killed / died uncleanly (``❌``)."""
         with self._lock:
             if only_if_activated and not self._activated:
                 return False
             self._finalized = True
             if run_state is not None:
                 self.has_failure = self.has_failure or queue_has_failure(run_state)
+                self.has_question = queue_has_pending_question(run_state)
             self.current_state = STATE_KILLED
             return self._render()
 
@@ -690,12 +750,18 @@ def set_active_state(
     state: str,
     *,
     has_failure: Optional[bool] = None,
+    has_question: Optional[bool] = None,
     run_state: Optional[Mapping[str, Any]] = None,
 ) -> bool:
     ctrl = get_active_controller()
     if ctrl is None:
         return False
-    return ctrl.set_state(state, has_failure=has_failure, run_state=run_state)
+    return ctrl.set_state(
+        state,
+        has_failure=has_failure,
+        has_question=has_question,
+        run_state=run_state,
+    )
 
 
 def refresh_active_failure(run_state: Optional[Mapping[str, Any]]) -> bool:
@@ -710,12 +776,13 @@ def temporary_active_state(
     state: str,
     *,
     has_failure: Optional[bool] = None,
+    has_question: Optional[bool] = None,
 ) -> Iterator[None]:
     ctrl = get_active_controller()
     if ctrl is None:
         yield
         return
-    with ctrl.temporary(state, has_failure=has_failure):
+    with ctrl.temporary(state, has_failure=has_failure, has_question=has_question):
         yield
 
 

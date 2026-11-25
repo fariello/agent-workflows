@@ -28721,6 +28721,9 @@ def consume_answers(
             item["status"] = "queued"
             item["preflight_parked"] = False
             item[NEEDS_INPUT_KEY] = False
+            for q_obj in item.get("questions") or []:
+                if isinstance(q_obj, dict):
+                    q_obj["answered"] = True
             item.pop("resume_with_answers", None)
             item.pop("answers_pending", None)
             requeued_id6s.append(item["id6"])
@@ -28762,7 +28765,15 @@ def consume_answers(
         item["resume_with_answers"] = True
         item["answers_pending"] = applied_answers
         item[NEEDS_INPUT_KEY] = False
+        for q_obj in item.get("questions") or []:
+            if isinstance(q_obj, dict):
+                q_obj["answered"] = True
         requeued_id6s.append(item["id6"])
+
+    if requeued_id6s:
+        from agent_workflows import tab_status as _tab_status
+
+        _tab_status.refresh_active_failure(state)
 
     return requeued_id6s
 

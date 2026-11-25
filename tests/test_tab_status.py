@@ -229,12 +229,32 @@ def test_needs_attention_predicate_covers_failures_blocked_partial_and_questions
         )
         is False
     )
-    # Multiple attention items append the badge only once
+    # Multiple attention items: failure badge vs pending-question badge stay distinct
+    assert (
+        tab_status.queue_has_failure(
+            {"queue": [{"id6": "d4e5f6", "status": "awaiting-human"}]}
+        )
+        is False
+    )
+    assert (
+        tab_status.queue_has_pending_question(
+            {"queue": [{"id6": "d4e5f6", "status": "awaiting-human"}]}
+        )
+        is True
+    )
     assert (
         tab_status.format_tab_name(
             "agy1",
             tab_status.STATE_FINISHED,
-            has_failure=tab_status.queue_needs_attention(
+            has_failure=tab_status.queue_has_failure(
+                {
+                    "queue": [
+                        {"id6": "a1b2c3", "status": "failed"},
+                        {"id6": "d4e5f6", "status": "awaiting-human"},
+                    ]
+                }
+            ),
+            has_question=tab_status.queue_has_pending_question(
                 {
                     "queue": [
                         {"id6": "a1b2c3", "status": "failed"},
@@ -243,8 +263,94 @@ def test_needs_attention_predicate_covers_failures_blocked_partial_and_questions
                 }
             ),
         )
-        == "✅\u26a0\ufe0f agy1"
+        == "✅❓\u26a0\ufe0f agy1"
     )
+    # Requeued/running item with needs_input=False and prior questions does NOT keep ❓ or ⚠️
+    assert (
+        tab_status.queue_has_pending_question(
+            {
+                "queue": [
+                    {
+                        "id6": "9o83cr",
+                        "status": "running",
+                        "needs_input": False,
+                        "questions": [{"question_id": "Q1", "gates_verdict": True}],
+                    }
+                ]
+            }
+        )
+        is False
+    )
+
+
+def test_question_badge_uses_question_mark_and_clears_after_answers() -> None:
+    """Parked questions combine ❓ (not ⚠️), prompting shows ❓ (not ❓❓ or ❓⚠️), and answering clears to 🔄."""
+    panes = [
+        {
+            "id": 0,
+            "is_plugin": False,
+            "tab_id": 4,
+            "tab_name": "oc1",
+            "is_focused": True,
+        },
+    ]
+    mock_run, _calls, tab_list = _make_zellij_mock(panes)
+    tty = _FakeTTY()
+    env = {"ZELLIJ_SESSION_NAME": "aw", "ZELLIJ_PANE_ID": "0"}
+    ctrl = tab_status.RunnerTabStatus(
+        host="oc",
+        repo=Path("/tmp/demo"),
+        title_style="medium",
+        stream=tty,
+        env=env,
+        zellij_runner=mock_run,
+    )
+
+    # 1. Start executing attempt 1
+    ctrl.set_state(
+        tab_status.STATE_EXECUTING,
+        run_state={"queue": [{"id6": "9o83cr", "status": "running"}]},
+    )
+    assert tab_list[0]["name"] == "\u25b6\ufe0f oc1"
+
+    # 2. Item parks awaiting-human -> combines ❓ (not ⚠️)
+    parked_state = {
+        "queue": [
+            {
+                "id6": "9o83cr",
+                "status": "awaiting-human",
+                "needs_input": True,
+                "questions": [{"question_id": "Q1", "gates_verdict": True}],
+            }
+        ]
+    }
+    ctrl.refresh_failure(parked_state)
+    assert tab_list[0]["name"] == "\u25b6\ufe0f❓ oc1"
+
+    # 3. Actively prompting human -> just ❓ (no duplicate ❓❓, no false ⚠️)
+    with ctrl.temporary(tab_status.STATE_ASKING):
+        assert tab_list[0]["name"] == "❓ oc1"
+    assert tab_list[0]["name"] == "\u25b6\ufe0f❓ oc1"
+
+    # 4. All questions answered, item reruns attempt 2 -> clears to 🔄 oc1 (no ⚠️ or ❓)
+    resumed_state = {
+        "queue": [
+            {
+                "id6": "9o83cr",
+                "status": "running",
+                "needs_input": False,
+                "questions": [
+                    {"question_id": "Q1", "gates_verdict": True, "answered": True}
+                ],
+            }
+        ]
+    }
+    ctrl.set_state(tab_status.STATE_RERUNNING, run_state=resumed_state)
+    assert tab_list[0]["name"] == "🔄 oc1"
+
+    # 5. strip_runner_glyphs strips combined ❓ and ⚠️ cleanly
+    assert tab_status.strip_runner_glyphs("🔄❓ oc1") == "oc1"
+    assert tab_status.strip_runner_glyphs("✅❓\u26a0\ufe0f oc1") == "oc1"
 
 
 def test_zellij_targets_only_own_tab_strips_prior_glyphs_and_combines_failure() -> None:
