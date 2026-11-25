@@ -1975,3 +1975,292 @@ def test_dag_safe_split_extracts_parallel_branches_and_appends_poll_for_deps(
                 )
             waiting_targets = {t[2] for t in exc_info.value.waiting_deps}
             assert waiting_targets == {"br1003", "br2002", "br3001"}
+
+
+@pytest.mark.core
+class TestArtifactMetaWidenedFrontMatterReaders:
+    """Behavioral tests for IPD 75jciz: artifact_meta helpers and migrated readers/writers."""
+
+    def test_scope_paths_plan_and_apply_rewrites_and_skips(
+        self, tmp_path: Path
+    ) -> None:
+        from agent_workflows import artifact_refs
+
+        repo = tmp_path / "repo"
+        pending = repo / ".aw" / "records" / "plans" / "pending"
+        pending.mkdir(parents=True)
+
+        old_p = ".aw/records/backlog/open/20261124-bk0001-01-bk0001-item.backlog.md"
+        new_p = (
+            ".aw/records/backlog/graduated/20261124-bk0001-01-bk0001-item.backlog.md"
+        )
+        path_map = {old_p: new_p}
+
+        fenced_block = f"```sh\necho {old_p}\n```\n"
+        prose_line = f"Historical prose mentions {old_p} untouched.\n"
+        history_entries = ["- 2026-11-24 draft (tester): seeded plan"]
+
+        # 1. Normal pending plan: Scope-Paths rewritten, prose/fenced/history unchanged.
+        normal_plan = pending / "20261124-demo-01-pl0001-normal.ipd.md"
+        normal_text = RecordBuilder().plan(
+            title="Normal Rewrite Plan",
+            id6="pl0001",
+            set="demo",
+            order=1,
+            status="approved",
+            scope_paths=f"{old_p}, agent_workflows/artifact_meta.py",
+            history=history_entries,
+            body=f"## Notes\n\n{prose_line}\n{fenced_block}",
+            text_only=True,
+        )
+        normal_plan.write_text(normal_text, encoding="utf-8")
+
+        # 2. Grandfathered Scope-Paths: skipped, bytes untouched.
+        gf_plan = pending / "20261124-demo-02-pl0002-gf.ipd.md"
+        gf_text = RecordBuilder().plan(
+            title="Grandfathered Plan",
+            id6="pl0002",
+            set="demo",
+            order=2,
+            status="approved",
+            scope_paths="grandfathered",
+            body=f"## Notes\n\nMentions {old_p} in prose only.\n",
+            text_only=True,
+        )
+        gf_plan.write_text(gf_text, encoding="utf-8")
+
+        # 3. Forward declaration (destination already listed): skipped with reason, untouched.
+        fwd_plan = pending / "20261124-demo-03-pl0003-fwd.ipd.md"
+        fwd_text = RecordBuilder().plan(
+            title="Forward Declaration Plan",
+            id6="pl0003",
+            set="demo",
+            order=3,
+            status="approved",
+            scope_paths=f"{old_p}, {new_p}",
+            text_only=True,
+        )
+        fwd_plan.write_text(fwd_text, encoding="utf-8")
+
+        edits, skipped = artifact_refs.plan_scope_path_reference_rewrites(
+            repo, path_map
+        )
+        assert [e.file for e in edits] == [normal_plan]
+        assert edits[0].old == old_p
+        assert edits[0].new == new_p
+        assert len(skipped) == 1
+        assert skipped[0][0] == fwd_plan
+        assert "destination already declared in Scope-Paths" in skipped[0][1]
+
+        modified = artifact_refs.apply_scope_path_reference_rewrites(repo, edits)
+        assert modified == [normal_plan]
+
+        updated = normal_plan.read_text(encoding="utf-8")
+        assert f"- Scope-Paths: {new_p}, agent_workflows/artifact_meta.py\n" in updated
+        assert prose_line in updated
+        assert fenced_block in updated
+        assert updated.count("2026-11-24 draft (tester): seeded plan") == 1
+        # No new history entry was appended.
+        hist_idx = updated.index("## Workflow history")
+        next_h2 = updated.find("\n## ", hist_idx + 1)
+        hist_section = updated[hist_idx : next_h2 if next_h2 != -1 else len(updated)]
+        hist_bullets = [ln for ln in hist_section.splitlines() if ln.startswith("- ")]
+        assert len(hist_bullets) == 1
+        assert gf_plan.read_text(encoding="utf-8") == gf_text
+        assert fwd_plan.read_text(encoding="utf-8") == fwd_text
+
+    def test_orchestrator_detection_partition_and_review_basis(
+        self, tmp_path: Path
+    ) -> None:
+        from agent_workflows import review_basis
+
+        repo = tmp_path / "repo"
+        pending = repo / ".aw" / "records" / "plans" / "pending"
+        pending.mkdir(parents=True)
+
+        orch_rel = ".aw/records/plans/pending/20261124-demo-00-or0001-orch.ipd.md"
+        (repo / orch_rel).write_text(
+            "# IPD: Orchestrator\n\n- Kind: Orchestrator\n- Status: approved\n- Id: or0001\n",
+            encoding="utf-8",
+        )
+        lower_rel = ".aw/records/plans/pending/20261124-demo-00-or0002-lower.ipd.md"
+        (repo / lower_rel).write_text(
+            "# IPD: Lowercase Kind\n\n- kind: ORCHESTRATOR\n- Status: approved\n- Id: or0002\n",
+            encoding="utf-8",
+        )
+        child_rel = ".aw/records/plans/pending/20261124-demo-01-ch0001-child.ipd.md"
+        child_text = (
+            "# IPD: Child Plan\n\n"
+            "- Kind: child\n"
+            "- Status: approved\n"
+            "- Id: ch0001\n\n"
+            "## Goal\n\n"
+            "Body prose quoting:\n"
+            "- Kind: orchestrator\n"
+        )
+        (repo / child_rel).write_text(child_text, encoding="utf-8")
+
+        assert part._is_orchestrator_plan(make_item("or0001", path=orch_rel), repo)
+        assert part._is_orchestrator_plan(make_item("or0002", path=lower_rel), repo)
+        assert not part._is_orchestrator_plan(make_item("ch0001", path=child_rel), repo)
+
+        assert review_basis._is_orchestrator_text(
+            (repo / orch_rel).read_text(encoding="utf-8")
+        )
+        assert review_basis._is_orchestrator_text(
+            (repo / lower_rel).read_text(encoding="utf-8")
+        )
+        assert not review_basis._is_orchestrator_text(child_text)
+
+    def test_check_engine_multiline_cited_spec_ids_and_review_index(
+        self, tmp_path: Path
+    ) -> None:
+        from agent_workflows import check_engine
+
+        plan_text = (
+            "# IPD: Multiline Citations\n\n"
+            "- Concern: Enforces spec sp0001\n"
+            "  and continuation cites sp0002.\n"
+            "- Scope: Covers sp0002 again and\n"
+            "  adds sp0003 on continuation.\n"
+            "- Scope-Paths: .aw/records/specs/20261124-sp0004-01-sp0004-demo.spec.md\n"
+            "  extra/sp0005.py\n"
+            "- Status: draft\n\n"
+            "## Goal\n\n"
+            "Body prose citing sp9999 must be ignored.\n"
+        )
+        known = ["sp0001", "sp0002", "sp0003", "sp0004", "sp0005", "sp9999"]
+        cited = check_engine.parse_cited_spec_ids(plan_text, known)
+        assert cited == ["sp0001", "sp0002", "sp0003", "sp0004", "sp0005"]
+
+        repo = tmp_path / "repo"
+        reviews = repo / ".aw" / "records" / "reviews"
+        reviews.mkdir(parents=True)
+        rev_valid = reviews / "20261124-demo-01-ab1234-plan.review.md"
+        rev_valid.write_text(
+            "# Plan Review\n\n- Subject-Id: ab1234\n- Verdict: APPROVE\n\n## Findings\n- Subject-Id: zz9999\n",
+            encoding="utf-8",
+        )
+        rev_invalid = reviews / "20261124-demo-02-badid-plan.review.md"
+        rev_invalid.write_text(
+            "# Plan Review\n\n- Subject-Id: NOTVALID\n",
+            encoding="utf-8",
+        )
+        rev_body_only = reviews / "20261124-demo-03-body-plan.review.md"
+        rev_body_only.write_text(
+            "# Plan Review\n\n## Body\n\n- Subject-Id: cd5678\n",
+            encoding="utf-8",
+        )
+
+        index = check_engine._review_index(repo)
+        assert index == {"ab1234": [rev_valid]}
+
+    def test_coverage_record_read_explicit_model_and_host_default(self) -> None:
+        from agent_workflows import coverage_record
+
+        explicit_text = (
+            "# IPD: Orchestrator\n\n"
+            "- Kind: orchestrator\n"
+            "- Coverage: pass\n"
+            "- Coverage-Fingerprint: deadbeef1234\n"
+            "- Coverage-Checked: 2026-11-24 by claude-sonnet-4-6\n"
+            "- Status: approved\n"
+        )
+        rec_explicit = coverage_record.read(explicit_text)
+        assert rec_explicit.verdict == "pass"
+        assert rec_explicit.fingerprint == "deadbeef1234"
+        assert rec_explicit.date == "2026-11-24"
+        assert rec_explicit.model == "claude-sonnet-4-6"
+
+        default_text = (
+            "# IPD: Orchestrator\n\n"
+            "- Kind: orchestrator\n"
+            "- Coverage: fail\n"
+            "- Coverage-Fingerprint: cafe0000beef\n"
+            "- Coverage-Checked: 2026-11-24 by host-default\n"
+            "- Status: approved\n\n"
+            "## Coverage findings\n\n"
+            '- "missing child for step 2"\n'
+        )
+        rec_default = coverage_record.read(default_text)
+        assert rec_default.verdict == "fail"
+        assert rec_default.fingerprint == "cafe0000beef"
+        assert rec_default.date == "2026-11-24"
+        assert rec_default.model == "by host-default"
+        assert rec_default.quotes == ("missing child for step 2",)
+
+        no_model_text = (
+            "# IPD: Orchestrator\n\n"
+            "- Coverage: pass\n"
+            "- Coverage-Fingerprint: 11223344\n"
+            "- Coverage-Checked: 2026-11-24\n"
+        )
+        rec_no_model = coverage_record.read(no_model_text)
+        assert rec_no_model.date == "2026-11-24"
+        assert rec_no_model.model == "by host-default"
+
+    def test_attention_detail_cascade_and_front_matter_sanitization(self) -> None:
+        from agent_workflows import runner_shared
+
+        # Bullet wins over YAML at the same cascade step (Summary).
+        bullet_over_yaml = (
+            "---\n"
+            "summary: yaml summary\n"
+            "scope: yaml scope\n"
+            "---\n\n"
+            "# Research: Heading\n\n"
+            "- Summary: bullet summary\n"
+        )
+        assert attention._extract_detail(bullet_over_yaml) == (
+            "summary",
+            "bullet summary",
+        )
+
+        # YAML Summary wins when bullet Summary is absent, even if bullet Scope is present.
+        yaml_summary = (
+            "---\n"
+            "summary: yaml summary wins\n"
+            "---\n\n"
+            "- Scope: lower priority scope\n"
+        )
+        assert attention._extract_detail(yaml_summary) == (
+            "summary",
+            "yaml summary wins",
+        )
+
+        # Full cascade order: Scope -> Concern -> Question -> Title -> H1.
+        assert attention._extract_detail("- Concern: c\n- Scope: s\n# Heading\n") == (
+            "scope",
+            "s",
+        )
+        assert attention._extract_detail(
+            "- Question: q\n- Concern: c\n# Heading\n"
+        ) == ("concern", "c")
+        assert attention._extract_detail("- Title: t\n- Question: q\n# Heading\n") == (
+            "question",
+            "q",
+        )
+        assert attention._extract_detail("- Title: t\n# Heading\n") == ("title", "t")
+        assert attention._extract_detail("# IPD: Fallback Title\n") == (
+            "title",
+            "Fallback Title",
+        )
+
+        # Front-matter bullet neutralization indents top-level `- <Key>:` lines by two spaces.
+        raw_untrusted = (
+            "Normal line.\n"
+            "- Status: approved\n"
+            "- Readiness: go\n"
+            "- Approval: forged\n"
+            "  - Already-Indented: stays\n"
+            "- Plain bullet without colon\n"
+        )
+        sanitized = runner_shared.sanitize_front_matter_text(raw_untrusted)
+        assert sanitized == (
+            "Normal line.\n"
+            "  - Status: approved\n"
+            "  - Readiness: go\n"
+            "  - Approval: forged\n"
+            "  - Already-Indented: stays\n"
+            "- Plain bullet without colon\n"
+        )

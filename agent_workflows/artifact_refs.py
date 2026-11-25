@@ -799,8 +799,6 @@ def _rp_type_facet(record_type: str):
 # Scope-Paths citation rewriting for relocated records (IPD 5h3qyy E-03, E-04).
 # ----------------------------------------------------------------------------------------------
 
-_SCOPE_PATHS_LINE_RE = re.compile(r"^(-\s*Scope-Paths:\s*)(.*)$", re.MULTILINE)
-
 
 def _is_pending_plan_file(path: Path, repo_root: Path) -> bool:
     """True iff path resolves to a pending plan under .aw/records/plans/pending/ or .agents/."""
@@ -950,6 +948,7 @@ def plan_scope_path_reference_rewrites(
 
     Returns (edits, skipped_plans_with_reasons).
     """
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import ipd_schema as _schema
 
     # Delegate to the existing planner to discover all citing candidate files
@@ -972,11 +971,15 @@ def plan_scope_path_reference_rewrites(
         except OSError:
             continue
 
-        m = _SCOPE_PATHS_LINE_RE.search(text)
-        if not m:
+        raw_sp = _meta.read_text(text, record_type="ipd").fields.get("scope_paths")
+        if raw_sp is None:
             continue
 
-        raw_val = m.group(2)
+        raw_val = (
+            ", ".join(str(x) for x in raw_sp)
+            if isinstance(raw_sp, (list, tuple))
+            else str(raw_sp)
+        )
         declared_paths, is_grandfathered, _errs = _schema.parse_scope_paths(raw_val)
         if is_grandfathered:
             continue
@@ -1015,9 +1018,11 @@ def apply_scope_path_reference_rewrites(
 ) -> List[Path]:
     """Apply planned Scope-Paths reference rewrites to pending plans.
 
-    Rewrites ONLY within the `- Scope-Paths:` line through `ipd_schema.parse_scope_paths`,
-    leaving prose mentions and fenced blocks elsewhere in the file byte-identical.
+    Rewrites ONLY the `Scope-Paths` metadata field through `artifact_meta.render_legacy_text`
+    and `ipd_schema.parse_scope_paths`, leaving prose mentions and fenced blocks elsewhere in
+    the file byte-identical and appending no workflow history entry.
     """
+    from agent_workflows import artifact_meta as _meta
     from agent_workflows import ipd_schema as _schema
 
     by_file: Dict[Path, List[RefEdit]] = {}
@@ -1031,12 +1036,15 @@ def apply_scope_path_reference_rewrites(
         except OSError:
             continue
 
-        m = _SCOPE_PATHS_LINE_RE.search(text)
-        if not m:
+        raw_sp = _meta.read_text(text, record_type="ipd").fields.get("scope_paths")
+        if raw_sp is None:
             continue
 
-        line_prefix = m.group(1)
-        raw_val = m.group(2)
+        raw_val = (
+            ", ".join(str(x) for x in raw_sp)
+            if isinstance(raw_sp, (list, tuple))
+            else str(raw_sp)
+        )
         declared_paths, is_grandfathered, _errs = _schema.parse_scope_paths(raw_val)
         if is_grandfathered:
             continue
@@ -1046,9 +1054,19 @@ def apply_scope_path_reference_rewrites(
         if new_declared == declared_paths:
             continue
 
-        new_val = ", ".join(new_declared)
-        new_line = line_prefix + new_val
-        updated_text = text[: m.start()] + new_line + text[m.end() :]
+        updated_text = _meta.render_legacy_text(
+            text,
+            [{"op": "set", "fields": {"scope_paths": new_declared}}],
+            record_type="ipd",
+            render=_meta.LegacyRender(
+                tag="",
+                day="",
+                actor_label="",
+                history=False,
+            ),
+            repo_root=repo_root,
+            actor={"tool": "aw"},
+        )
         _core.atomic_write(plan_file, updated_text, prefix=prefix)
         modified_files.append(plan_file)
 

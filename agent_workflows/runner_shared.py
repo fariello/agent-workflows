@@ -30260,21 +30260,19 @@ def validate_defect_report(outcome: Any) -> DefectReportVerdict:
     )
 
 
-_PROPOSAL_BULLET_RE: re.Pattern[str] = re.compile(
-    r"^(-\s*[A-Za-z0-9_-]+:.*)$", re.MULTILINE
-)
-
-
 def sanitize_front_matter_text(text: str) -> str:
     """Neutralize lines that would parse as front-matter bullets.
 
-    Any line starting with `- ` followed by `<Key>:` (e.g. `- Status:`,
+    Delegates to :func:`agent_workflows.artifact_meta.neutralize_front_matter_bullets`
+    so any line starting with `-` followed by `<Key>:` (e.g. `- Status:`,
     `- Readiness:`, `- Id:`, `- Blocks-Release:`) is indented by two spaces
-    so it cannot be parsed as a top-level front-matter field when appended to a record.
+    and cannot be parsed as a top-level front-matter field when appended to a record.
     """
     if not text:
         return text
-    return _PROPOSAL_BULLET_RE.sub(r"  \1", text)
+    from agent_workflows import artifact_meta as _meta
+
+    return _meta.neutralize_front_matter_bullets(text)
 
 
 class ProposalVerdict(NamedTuple):

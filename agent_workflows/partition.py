@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import math
-import re
 import shlex
 import sys
 from dataclasses import dataclass
@@ -295,7 +294,6 @@ _REVIEW_SETTLED_STATUSES = frozenset({"reviewed", "approved", "auto-approved"})
 
 #: Statuses eligible for explicit non-orchestrator re-review under `--action review`.
 _REREVIEW_ADMISSIBLE_STATUSES = frozenset({"reviewed", "approved", "auto-approved"})
-_ORCHESTRATOR_KIND_RE = re.compile(r"(?mi)^-\s*Kind:\s*orchestrator\b")
 
 
 def _is_orchestrator_plan(it: _att.Item, repo_root: Path) -> bool:
@@ -309,7 +307,12 @@ def _is_orchestrator_plan(it: _att.Item, repo_root: Path) -> bool:
         head = p.read_text(encoding="utf-8")[:4096]
     except OSError:
         return False
-    return bool(_ORCHESTRATOR_KIND_RE.search(head))
+    from agent_workflows import artifact_meta as _meta
+
+    role = _meta.read_text(_meta.metadata_region(head), record_type="ipd").fields.get(
+        "plan_role"
+    )
+    return str(role or "").strip().lower() == "orchestrator"
 
 
 def classify_sets(

@@ -153,9 +153,12 @@ MAX_TARGET_DETAIL_LINES = 12
 
 def _is_orchestrator_text(text: str) -> bool:
     """Return True when plan text declares ``- Kind: orchestrator``."""
-    import re
+    from agent_workflows import artifact_meta as _meta
 
-    return bool(re.search(r"(?mi)^-\s*Kind:\s*orchestrator\b", text[:4096]))
+    role = _meta.read_text(
+        _meta.metadata_region(text[:4096]), record_type="ipd"
+    ).fields.get("plan_role")
+    return str(role or "").strip().lower() == "orchestrator"
 
 
 def stale_bases(repo: Path, *, prune: bool = True) -> List[StaleBasis]:

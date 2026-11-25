@@ -40,7 +40,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Shared `artifact_meta` helpers and `Scope-Paths` bullet writer (`avze51`, `4sd62s` C5)
 
-- [ ] E-01 Add the four pure helpers needed by `E-02` in `agent_workflows/artifact_meta.py`, and migrate `agent_workflows/artifact_refs.py` off `_SCOPE_PATHS_LINE_RE`:
+- [x] E-01 Add the four pure helpers needed by `E-02` in `agent_workflows/artifact_meta.py`, and migrate `agent_workflows/artifact_refs.py` off `_SCOPE_PATHS_LINE_RE`:
   1. In `agent_workflows/artifact_meta.py`, add four pure, typed helpers:
      - `extract_detail_fields(text: str) -> Tuple[Optional[str], Optional[str]]`: implements the `Summary -> Scope -> Concern -> Question -> Title` fallback cascade case-insensitively, checking bulleted `- <Key>: <val>` before leading YAML front-matter `key: <val>` at each step (preserving exact `attention._extract_detail` semantics).
      - `read_multiline_bullets(text: str, keys: Sequence[str]) -> List[str]`: extracts each requested top-level `- <Key>:` bullet header value plus all immediately following continuation lines until the next `- ` bullet, `#` heading, or blank line (for `check_engine.parse_cited_spec_ids`).
@@ -52,11 +52,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
      - Update `apply_scope_path_reference_rewrites` to read existing `Scope-Paths` through `artifact_meta.read_text` and write the updated `scope_paths` list through `artifact_meta.render_legacy_text` (`[{"op": "set", "fields": {"scope_paths": new_declared}}]`, `record_type="ipd"`, `LegacyRender(..., history=False)`) + `_core.atomic_write(plan_file, updated_text, prefix=prefix)` (using `artifact_meta`'s existing `_LEGACY_BULLET_LABEL["scope_paths"]` and `_format_legacy_value`), preserving `prefix=prefix`, leaving prose and fenced blocks byte-identical, and appending no workflow history line.
   - Depends on: none
   - Expected outcome: `artifact_refs.py` performs zero direct `Scope-Paths` bullet regex reads or writes, `artifact_meta.py` exposes the four pure helpers, and `tests/test_artifact_refs_rewrite.py` and `tests/test_scope_path_target_stale.py` pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Widened front-matter metadata readers and bullet sanitizer (`avze51`, `hmtpj2`, `4sd62s` C5)
 
-- [ ] E-02 Replace all surviving widened-search front-matter metadata regexes across six modules with `artifact_meta` calls:
+- [x] E-02 Replace all surviving widened-search front-matter metadata regexes across six modules with `artifact_meta` calls:
   1. `agent_workflows/partition.py`: delete `_ORCHESTRATOR_KIND_RE` and update `_is_orchestrator_plan` to check `str(artifact_meta.read_text(artifact_meta.metadata_region(head), record_type="ipd").fields.get("plan_role") or "").strip().lower() == "orchestrator"`.
   2. `agent_workflows/review_basis.py`: replace the inline `re.search(r"(?mi)^-\s*Kind:\s*orchestrator\b", text[:4096])` in `_is_orchestrator_text` with the same `artifact_meta.read_text(artifact_meta.metadata_region(text[:4096]), record_type="ipd").fields.get("plan_role")` check.
   3. `agent_workflows/check_engine.py`:
@@ -67,11 +67,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   6. `agent_workflows/runner_shared.py`: delete `_PROPOSAL_BULLET_RE` and delegate `sanitize_front_matter_text(text)` to `artifact_meta.neutralize_front_matter_bullets(text)` (preserving identical two-space indentation of forged top-level `- <Key>:` lines).
   - Depends on: E-01
   - Expected outcome: zero unexcluded front-matter metadata regex readers or front-matter bullet sanitizers survive in `partition.py`, `review_basis.py`, `check_engine.py`, `coverage_record.py`, `attention.py`, and `runner_shared.py`; all existing tests for these six modules pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Behavioral tests and widened-search validation (`4sd62s` AC-1, C10a)
 
-- [ ] E-03 Add a `@pytest.mark.core` behavioral test class in `tests/test_partition.py` exercising:
+- [x] E-03 Add a `@pytest.mark.core` behavioral test class in `tests/test_partition.py` exercising:
   1. `artifact_refs.plan_scope_path_reference_rewrites` and `apply_scope_path_reference_rewrites` (rewriting `Scope-Paths`, skipping `grandfathered` and forward declarations, leaving prose and fenced blocks byte-identical, appending no history line).
   2. `partition._is_orchestrator_plan` and `review_basis._is_orchestrator_text` (case-insensitive `- Kind: orchestrator` vs. child plans and body prose mentions).
   3. `check_engine.parse_cited_spec_ids` (multiline continuation lines under `- Concern:`, `- Scope:`, `- Scope-Paths:`) and review-index subject lookup (`check_engine._build_review_index`).
@@ -80,12 +80,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Assert observable return values, diagnostics, and file bytes only; zero source-reading assertions.
   - Depends on: E-02
   - Expected outcome: all existing and new `@pytest.mark.core` behavioral tests in `tests/test_partition.py` pass under `python3 -m pytest`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Run targeted pytest suites across all affected modules, bare core-tier `python3 -m pytest`, `python3 -m mypy` on all 8 modified production files, the explicit widened multiline/flag `rg -U` search over the 7 owned non-`artifact_meta` modules confirming every remaining hit is a classified N3 body-prose, history-record, or Markdown table-separator pattern (zero front-matter metadata parsers or writers), and `aw sanitize --agent`.
+- [x] E-04 Run targeted pytest suites across all affected modules, bare core-tier `python3 -m pytest`, `python3 -m mypy` on all 8 modified production files, the explicit widened multiline/flag `rg -U` search over the 7 owned non-`artifact_meta` modules confirming every remaining hit is a classified N3 body-prose, history-record, or Markdown table-separator pattern (zero front-matter metadata parsers or writers), and `aw sanitize --agent`.
   - Depends on: E-03
   - Expected outcome: all targeted tests and the bare core gate pass, `mypy` reports zero errors across all 8 production files, widened `rg -U` shows zero unexcluded front-matter metadata parser/writer hits in the 7 owned non-`artifact_meta` files, and `aw sanitize --agent` reports clean (`pass`).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -194,25 +194,25 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `rg -n "_SCOPE_PATHS_LINE_RE" agent_workflows/artifact_refs.py` showing zero hits, plus `python3 -m pytest tests/test_artifact_refs_rewrite.py tests/test_scope_path_target_stale.py tests/test_scope_paths_status_agnostic.py` passing summary.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "_SCOPE_PATHS_LINE_RE" agent_workflows/artifact_refs.py` returned exit 1 (0 hits). `python3 -m pytest tests/test_artifact_refs_rewrite.py tests/test_scope_path_target_stale.py tests/test_scope_paths_status_agnostic.py` -> `59 passed in 9.18s`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n -U "re\.(compile|search|match|finditer|findall|sub|fullmatch)\(\s*r?[\"'](\(\?[a-zA-Z]+\))?\^-" agent_workflows/partition.py agent_workflows/review_basis.py agent_workflows/check_engine.py agent_workflows/coverage_record.py agent_workflows/attention.py agent_workflows/runner_shared.py` confirming zero front-matter metadata parser/sanitizer hits (only the classified N3 body-prose, history-record, and Markdown table-separator hits listed in `## Findings`), `rg -n "_ORCHESTRATOR_KIND_RE|_TARGET_BULLET_RE|_REVIEW_SUBJECT_ID_RE|_FINGERPRINT_LINE_RE|_CHECKED_LINE_RE|_FIELD_PATTERNS|_PROPOSAL_BULLET_RE" agent_workflows/partition.py agent_workflows/review_basis.py agent_workflows/check_engine.py agent_workflows/coverage_record.py agent_workflows/attention.py agent_workflows/runner_shared.py` empty, and `python3 -m pytest tests/test_partition.py tests/test_partition_set_cohesion.py tests/test_review_unreviewed_deps.py tests/test_coverage_record.py tests/test_orchestrator_readiness.py tests/test_readers_attention.py tests/test_attention.py tests/test_check_engine_from_spec_missing.py tests/test_readers_check_engine.py` passing summary.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `rg -n "_ORCHESTRATOR_KIND_RE|_TARGET_BULLET_RE|_REVIEW_SUBJECT_ID_RE|_FINGERPRINT_LINE_RE|_CHECKED_LINE_RE|_FIELD_PATTERNS|_PROPOSAL_BULLET_RE" ...` returned exit 1 (0 hits). Widened `rg -n -U` across the 6 modules returned only classified N3/history/table-separator hits: `attention.py` lines 156 (`_OQ_STATUS_RE`), 231 (`Blocking:.*(resolved)`), 233-234 (`Resolution...: RESOLVED`), 374 (`_EV_LEAF_RE`); `check_engine.py` lines 7612-7613 (`_GRADUATED_LINE_RE`), 7674-7675 (`_IMPLEMENTING_LINE_RE`), 10116 (`r"^-+$"`); `runner_shared.py` lines 22634, 22638, 22639, 22641-22642, 22650-22651, 22667, 22681, 22682 (`record_oq_answer`). Zero hits in `partition.py`, `review_basis.py`, and `coverage_record.py`. `python3 -m pytest tests/test_partition.py tests/test_partition_set_cohesion.py tests/test_review_unreviewed_deps.py tests/test_coverage_record.py tests/test_orchestrator_readiness.py tests/test_readers_attention.py tests/test_attention.py tests/test_check_engine_from_spec_missing.py tests/test_readers_check_engine.py` -> `274 passed in 23.56s`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `python3 -m pytest -v tests/test_partition.py` showing all existing and new `@pytest.mark.core` behavioral tests passing (covering `Scope-Paths` rewriting, orchestrator detection, multiline spec-id citation parsing, review subject lookup, coverage record parsing, attention detail extraction, and front-matter bullet neutralization), and `rg -n "inspect\.|import ast|getsource|read_text\(.*agent_workflows" tests/test_partition.py` empty.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest -v tests/test_partition.py` -> `36 passed in 4.34s` (including all 5 new `@pytest.mark.core` tests in `TestArtifactMetaWidenedFrontMatterReaders` covering `Scope-Paths` rewriting, orchestrator detection, multiline spec-id citations and `check_engine._review_index`, `coverage_record.read`, `attention._extract_detail`, and `runner_shared.sanitize_front_matter_text`). `rg -n "inspect\.|import ast|getsource|read_text\(.*agent_workflows" tests/test_partition.py` returned exit 1 (0 hits).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the bare `python3 -m pytest` summary line (`N passed`), `python3 -m mypy agent_workflows/artifact_meta.py agent_workflows/artifact_refs.py agent_workflows/partition.py agent_workflows/review_basis.py agent_workflows/check_engine.py agent_workflows/coverage_record.py agent_workflows/attention.py agent_workflows/runner_shared.py` zero-error output, the full widened `rg -U` output over all 7 owned non-`artifact_meta` files confirming zero unexcluded front-matter parser/writer hits, and `aw sanitize --agent` clean (`pass`) output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest` -> `2922 passed, 1 skipped, 11 warnings in 137.75s (0:02:17)` (zero test failures; wall-time budget check exceeded 30s on busy 12-CPU host at load 7.93); `aw suite` (core tier, exit 0) -> `2922 passed, 1 skipped, 11 warnings in 68.08s (0:01:08)`. `python3 -m mypy agent_workflows/artifact_meta.py agent_workflows/artifact_refs.py agent_workflows/partition.py agent_workflows/review_basis.py agent_workflows/check_engine.py agent_workflows/coverage_record.py agent_workflows/attention.py agent_workflows/runner_shared.py` -> `Success: no issues found in 8 source files` (exit 0). Widened `rg -n -U` across all 7 owned non-`artifact_meta` files returned zero hits in `artifact_refs.py`, `partition.py`, `review_basis.py`, and `coverage_record.py`, and only classified N3/history/table-separator hits in `attention.py` (156, 231, 233-234, 374), `check_engine.py` (7612-7613, 7674-7675, 10116), and `runner_shared.py` (22634, 22638, 22639, 22641-22642, 22650-22651, 22667, 22681, 22682). `aw sanitize --agent` -> `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7225,"findings":0,"evidence":["leak-scan"],"next":null}`.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -410,65 +410,21 @@ def count_resolved_questions(text: str) -> int:
     return rqs
 
 
-_FIELD_PATTERNS = (
-    ("summary", re.compile(r"(?mi)^-\s*Summary:\s*(.+)$")),
-    ("scope", re.compile(r"(?mi)^-\s*Scope:\s*(.+)$")),
-    ("concern", re.compile(r"(?mi)^-\s*Concern:\s*(.+)$")),
-    ("question", re.compile(r"(?mi)^-\s*Question:\s*(.+)$")),
-    ("title", re.compile(r"(?mi)^-\s*Title:\s*(.+)$")),
-)
 _H1_RX = re.compile(r"(?m)^#\s+(?:[A-Za-z0-9_-]+:\s*)?(.+)$")
-
-# The UNBULLETED (plain YAML) spelling of the same keys is read too, for a doc whose front matter is
-# real YAML rather than the `- Key: value` bullet list the plan/spec/backlog trees use (attcor
-# `rkn8ya` E-10).
-#
-# THE RESEARCH CORPUS IS WHY: every pattern above requires the `-\s*` bullet, but research front
-# matter is plain YAML. Measured on this tree, 110 research files carry an unbulleted `summary:` and
-# ZERO carry `- Summary:`, so the field was NEVER read for that whole tree and `--details` fell through
-# to the H1. The H1 fallback is usually adequate but NOT equivalent: `_H1_RX` strips a leading
-# `Word:` prefix, turning `# Research: the design prompts...` into a mid-sentence fragment, and 4
-# files have no H1 at all and so showed NO detail despite carrying a summary.
-#
-# FRONT-MATTER SCOPED, deliberately. 55 files under `.aw/records/` carry an unbulleted `summary:`-like
-# key in their BODY PROSE (a quoted example, a table cell, an instruction). Matching the whole document
-# would surface that prose as the artifact's own summary, so the unbulleted form is read ONLY from the
-# leading `---` YAML front matter, through `artifact_meta.read_text`. A document with no front matter
-# is unaffected.
 
 
 def _extract_detail(text: str) -> Tuple[Optional[str], Optional[str]]:
     """Extract (detail_kind, detail_text) using the fallback cascade:
     Summary -> Scope -> Concern -> Question -> Title -> H1 header.
 
-    Each key is accepted in the `- Key: value` BULLET form anywhere in the document (the plan/spec/
-    backlog shape) and, additionally, in the plain `key: value` UNBULLETED form inside a leading YAML
-    front-matter block (the research shape). The CASCADE ORDER is unchanged, and the bulleted form
-    WINS at each step, so no artifact that already reported a detail reports a different one.
+    Delegates metadata field extraction (bulleted `- Key: value` over leading YAML front-matter
+    `key: value`) to `artifact_meta.extract_detail_fields`, then falls back to the first H1 heading.
     """
-    yaml_fields: Optional[Dict[str, Any]] = None
-    for tag, rx in _FIELD_PATTERNS:
-        cap = tag.capitalize() + ":"
-        low = tag + ":"
-        up = tag.upper() + ":"
-        if cap in text or low in text or up in text:
-            m = rx.search(text)
-            if m:
-                val = m.group(1).strip()
-                if val:
-                    return tag, val
-            # The bulleted form is absent (or empty): try the unbulleted front-matter spelling.
-            if yaml_fields is None:
-                from agent_workflows import artifact_meta as _meta
+    from agent_workflows import artifact_meta as _meta
 
-                yaml_fields = (
-                    _meta.read_text(text, record_type="research").fields
-                    if text.startswith("---")
-                    else {}
-                )
-            uval = str(yaml_fields.get(tag) or "").strip()
-            if uval:
-                return tag, uval
+    kind, val = _meta.extract_detail_fields(text)
+    if kind is not None and val:
+        return kind, val
     if "# " in text:
         m = _H1_RX.search(text)
         if m:

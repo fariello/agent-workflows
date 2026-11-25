@@ -26,12 +26,6 @@ COVERAGE_PASS = "pass"
 COVERAGE_FAIL = "fail"
 COVERAGE_ABSENT = "absent"
 
-_FINGERPRINT_LINE_RE = re.compile(
-    r"^-\s*Coverage-Fingerprint:\s*(\S+)\s*$", re.MULTILINE
-)
-_CHECKED_LINE_RE = re.compile(
-    r"^-\s*Coverage-Checked:\s*(\S+)(?:\s+by\s+(.*))?$", re.MULTILINE
-)
 _VALIDATION_HDR_RE = re.compile(r"^##\s*Validation and cross-check\b.*$", re.MULTILINE)
 _FINDINGS_HDR_RE = re.compile(r"^##\s*Coverage findings\s*$", re.MULTILINE)
 
@@ -67,12 +61,20 @@ def read(plan_text: str) -> CoverageRecord:
     if verdict not in (COVERAGE_PASS, COVERAGE_FAIL):
         return CoverageRecord(verdict=COVERAGE_ABSENT)
 
-    fp_match = _FINGERPRINT_LINE_RE.search(plan_text)
-    fingerprint = fp_match.group(1).strip() if fp_match else ""
+    raw_fp = str(state.fields.get("coverage_fingerprint") or "").strip()
+    fingerprint = raw_fp if (raw_fp and len(raw_fp.split()) == 1) else ""
 
-    chk_match = _CHECKED_LINE_RE.search(plan_text)
-    date = chk_match.group(1).strip() if chk_match else ""
-    raw_model = (chk_match.group(2) or "").strip() if chk_match else ""
+    raw_checked = str(state.fields.get("coverage_checked") or "").strip()
+    if " by " in raw_checked:
+        date_part, model_part = raw_checked.split(" by ", 1)
+        date = date_part.strip()
+        raw_model = model_part.strip()
+    elif raw_checked.endswith(" by"):
+        date = raw_checked[:-3].strip()
+        raw_model = ""
+    else:
+        date = raw_checked
+        raw_model = ""
     if not raw_model or raw_model == "host-default":
         model = "by host-default"
     else:

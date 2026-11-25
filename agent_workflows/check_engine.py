@@ -9225,9 +9225,6 @@ def check_plan_priority_required(
 
 
 _REVIEW_DANGLING_RULE = "check.review-dangling"
-_REVIEW_SUBJECT_ID_RE = _re.compile(
-    r"(?m)^-[ \t]*Subject-Id:[ \t]*([0-9a-z]{6})[ \t]*$"
-)
 
 
 def _review_subject_id_sets(repo_root: Path) -> Dict[str, set]:
@@ -9916,7 +9913,6 @@ def check_from_spec_dangling(repo_root: Path) -> List[_core.Drift]:
 # IPD 0ykozn (backlog 1zknu7): flag a pending plan citing a known spec without carrying
 # - From-Spec: and provide the --from-spec setter.
 
-_TARGET_BULLET_RE = _re.compile(r"^-\s*(?:Concern|Scope|Scope-Paths):[ \t]*(.*)$")
 _CITED_SPEC_TOKEN_RE = _re.compile(r"\b([0-9a-z]{6})\b")
 _PLAN_SPEC_LINK_MISSING_RULE = "check.plan-spec-link-missing"
 
@@ -9932,30 +9928,19 @@ def parse_cited_spec_ids(plan_text: str, known_spec_ids: Iterable[str]) -> List[
 
     Pure function (IPD 0ykozn E-03 / PR-502).
     Consumes each target bullet as its header line plus all following continuation lines
-    until the next `- ` bullet, the next heading, or a blank line.
+    until the next `- ` bullet, the next heading, or a blank line via
+    `artifact_meta.read_multiline_bullets`.
     Filters candidate 6-character [0-9a-z]{6} tokens on word boundaries against `known_spec_ids`.
     """
     known = set(known_spec_ids)
     if not known:
         return []
 
-    lines = plan_text.splitlines()
-    in_target = False
-    chunks: List[str] = []
+    from agent_workflows import artifact_meta as _meta
 
-    for line in lines:
-        m = _TARGET_BULLET_RE.match(line)
-        if m:
-            in_target = True
-            chunks.append(m.group(1))
-            continue
-        if in_target:
-            if line.startswith("- ") or line.startswith("#") or not line.strip():
-                in_target = False
-            else:
-                chunks.append(line)
-
-    joined = "\n".join(chunks)
+    joined = "\n".join(
+        _meta.read_multiline_bullets(plan_text, ("Concern", "Scope", "Scope-Paths"))
+    )
     cited: List[str] = []
     for m in _CITED_SPEC_TOKEN_RE.finditer(joined):
         tok = m.group(1)
@@ -10760,6 +10745,8 @@ def _review_index(repo_root: Path) -> Dict[str, List[Path]]:
         from agent_workflows import review_findings as _rf
     except Exception:
         return index
+    from agent_workflows import artifact_meta as _meta
+
     ignored_dirs = _core.get_ignored_dirs(repo_root)
     for path in _rf.iter_review_files(repo_root):
         if _core.is_ignored_path(path, repo_root, ignored_dirs):
@@ -10771,10 +10758,10 @@ def _review_index(repo_root: Path) -> Dict[str, List[Path]]:
             # plan. `check.review-dangling` already owns the untidy-review surface; a file we cannot
             # read at all has no Subject-Id to key on.
             continue
-        m = _REVIEW_SUBJECT_ID_RE.search(text)
-        if m is None:
+        subject_id = _meta.read_review_subject_id(text)
+        if subject_id is None:
             continue
-        index.setdefault(m.group(1), []).append(path)
+        index.setdefault(subject_id, []).append(path)
     if scan_cache is not None and cache_key is not None:
         scan_cache[cache_key] = index
     return index

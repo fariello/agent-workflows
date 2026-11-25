@@ -5558,6 +5558,8 @@ def read_text(text: str, *, record_type: Optional[str] = None) -> State:
                     fields_out["work_kind"] = bv
             else:
                 fields_out["plan_role"] = bv
+        elif bk.lower() == "kind" and art_type == "ipd":
+            fields_out.setdefault("plan_role", bv)
         else:
             fields_out[bk.lower().replace("-", "_")] = bv
     for loose_key in (
@@ -5615,6 +5617,104 @@ def read_loose_blocks_release(text: str) -> Optional[str]:
     QUOTED `- Blocks-Release:` in a body is not read as a declaration.
     """
     return read_text(metadata_region(text)).loose_blocks_release
+
+
+_DETAIL_FIELD_PATTERNS: Tuple[Tuple[str, re.Pattern[str]], ...] = (
+    ("summary", re.compile(r"(?mi)^-\s*Summary:\s*(.+)$")),
+    ("scope", re.compile(r"(?mi)^-\s*Scope:\s*(.+)$")),
+    ("concern", re.compile(r"(?mi)^-\s*Concern:\s*(.+)$")),
+    ("question", re.compile(r"(?mi)^-\s*Question:\s*(.+)$")),
+    ("title", re.compile(r"(?mi)^-\s*Title:\s*(.+)$")),
+)
+
+_FRONT_MATTER_BULLET_FORGE_RE: re.Pattern[str] = re.compile(
+    r"^(-\s*[A-Za-z0-9_-]+:.*)$", re.MULTILINE
+)
+
+
+def extract_detail_fields(text: str) -> Tuple[Optional[str], Optional[str]]:
+    """Extract ``(detail_kind, detail_text)`` using the metadata detail cascade.
+
+    Checks ``Summary -> Scope -> Concern -> Question -> Title`` case-insensitively. At each
+    step, a bulleted ``- <Key>: <value>`` entry wins over an unbulleted leading YAML
+    front-matter ``<key>: <value>`` entry. Returns ``(None, None)`` when none of the five
+    fields has a non-empty value.
+    """
+    if not text:
+        return None, None
+    yaml_fields: Optional[Dict[str, Any]] = None
+    text_lower = text.lower()
+    for tag, rx in _DETAIL_FIELD_PATTERNS:
+        if f"{tag}:" not in text_lower:
+            continue
+        m = rx.search(text)
+        if m:
+            val = m.group(1).strip()
+            if val:
+                return tag, val
+        if yaml_fields is None:
+            yaml_fields = (
+                read_text(metadata_region(text), record_type="research").fields
+                if text.startswith("---")
+                else {}
+            )
+        uval = str(yaml_fields.get(tag) or "").strip()
+        if uval:
+            return tag, uval
+    return None, None
+
+
+def read_multiline_bullets(text: str, keys: Sequence[str]) -> List[str]:
+    """Extract each top-level ``- <Key>:`` bullet value plus its continuation lines.
+
+    Captures the text after ``:`` on each matching header line and all immediately following
+    continuation lines until the next ``- `` bullet, ``#`` heading, or blank line. Returns one
+    ``"\\n"``-joined string per matched bullet in document order.
+    """
+    cleaned_keys = [k for k in keys if k]
+    if not text or not cleaned_keys:
+        return []
+    pat = re.compile(
+        r"^-\s*(?:" + "|".join(re.escape(k) for k in cleaned_keys) + r"):[ \t]*(.*)$"
+    )
+    blocks: List[str] = []
+    current: Optional[List[str]] = None
+    for line in text.splitlines():
+        m = pat.match(line)
+        if m:
+            if current is not None:
+                blocks.append("\n".join(current))
+            current = [m.group(1)]
+            continue
+        if current is not None:
+            if line.startswith("- ") or line.startswith("#") or not line.strip():
+                blocks.append("\n".join(current))
+                current = None
+            else:
+                current.append(line)
+    if current is not None:
+        blocks.append("\n".join(current))
+    return blocks
+
+
+def read_review_subject_id(text: str) -> Optional[str]:
+    """Return the 6-character ``Subject-Id`` declared in a review record's front matter, or None."""
+    if not text:
+        return None
+    raw = str(read_text(metadata_region(text)).fields.get("subject_id") or "").strip()
+    return raw if _core.ID6_RE.fullmatch(raw) else None
+
+
+def neutralize_front_matter_bullets(text: str) -> str:
+    """Indent any top-level ``- <Key>:`` line by two spaces to prevent front-matter forgery.
+
+    Any line starting with ``-`` and optional whitespace followed by ``<Key>:`` (for example
+    ``- Status:``, ``- Readiness:``, ``- Id:``, or ``- Blocks-Release:``) is indented by two
+    spaces so untrusted text cannot be parsed as a front-matter field when appended to a record.
+    """
+    if not text:
+        return text
+    return _FRONT_MATTER_BULLET_FORGE_RE.sub(r"  \1", text)
 
 
 def read(id6: str, *, project_context: Any = None) -> State:
