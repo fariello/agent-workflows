@@ -333,8 +333,6 @@ def record_rename(
 # Inline history parsing helpers (shared with ipd_lifecycle)
 # --------------------------------------------------------------------------------------
 
-_HIST_HEADING = "## Workflow history"
-
 # Parse "workflow" + "actor" out of the free tail when it matches "<workflow> (<actor>): <message>".
 #
 # LAZY ACTOR CAPTURE, for the reason spelled out at `ipd_lint._HISTORY_ATTRIB_RE` (plan fn2l1u E-08b).
@@ -355,18 +353,7 @@ _TAIL_RE = _re.compile(r"^(?P<workflow>\S+)\s*\((?P<actor>.*?)\):\s*(?P<message>
 
 def _inline_history_records(text: str) -> List[str]:
     """Return the raw '- YYYY-MM-DD ...' record lines inside the file's ## Workflow history block."""
-    out: List[str] = []
-    in_hist = False
-    for line in text.split("\n"):
-        if line.strip() == _HIST_HEADING:
-            in_hist = True
-            continue
-        if in_hist:
-            if line.startswith("## "):
-                break
-            if _meta.is_history_record(line):
-                out.append(line)
-    return out
+    return _meta.history_records(text).records
 
 
 def _parse_record_line(line: str) -> _Tuple[str, str, str, str]:

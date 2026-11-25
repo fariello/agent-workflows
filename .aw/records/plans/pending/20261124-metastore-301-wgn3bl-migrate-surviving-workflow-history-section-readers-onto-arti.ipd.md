@@ -40,28 +40,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Shared history helpers in `artifact_meta.py` (`4sd62s` C5)
 
-- [ ] E-01 Add three pure, typed history-section helpers beside `history_records` in `agent_workflows/artifact_meta.py`, and remove stale docstring references to `attention._history_section_lines` (`agent_workflows/artifact_meta.py::_history_block`, `agent_workflows/artifact_meta.py::_newest_history_record`):
+- [x] E-01 Add three pure, typed history-section helpers beside `history_records` in `agent_workflows/artifact_meta.py`, and remove stale docstring references to `attention._history_section_lines` (`agent_workflows/artifact_meta.py::_history_block`, `agent_workflows/artifact_meta.py::_newest_history_record`):
   1. `split_history_section(text: str) -> Tuple[str, HistoryBlock, bool]` (or a typed `HistorySection(before_heading, block, has_heading)` `NamedTuple`): locates an unfenced column-zero `## Workflow history` heading (matching `r"(?m)^##[ \t]+Workflow history[ \t]*\r?$"` so single or multiple spaces/tabs after `##` match) and returns `(before_heading, history_records(text), has_heading)`. When no heading is present, returns `(text, HistoryBlock([], [], ""), False)`.
   2. `history_record_blocks(text: str) -> List[List[str]]`: splits the unfenced `## Workflow history` section (through the next `## ` heading) into blank-line-separated contiguous blocks of column-zero `_HISTORY_RECORD_RE` lines, keeping indented continuation lines attached to the current block without splitting it, for `ipd_lifecycle._plan_status_event_groups`.
   3. `history_section_lines(text: str) -> List[Tuple[int, str]]`: returns 1-based `(lineno, raw_line)` tuples for every `- ` bullet line (matching `raw.lstrip().startswith("- ")`) inside the unfenced `## Workflow history` section (stopping at the next `## ` heading), preserving `ipd_lint.ParsedDoc.history_lines` and `releases._history_lines` semantics.
   - Depends on: none
   - Expected outcome: `agent_workflows/artifact_meta.py` exposes `split_history_section`, `history_record_blocks`, and `history_section_lines` with fence-aware scanning, without altering `history_records(text)` behavior, and `tests/test_history_block_bounding.py` and `tests/test_artifact_meta_legacy.py` pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Core record and board history readers (`rzxd1x`, `4sd62s` C5)
 
-- [ ] E-02 Migrate `attention.py`, `backlog.py`, `releases.py`, and `specs.py` onto `artifact_meta` history helpers and retarget the six test modules calling `attention._history_section_lines`:
+- [x] E-02 Migrate `attention.py`, `backlog.py`, `releases.py`, and `specs.py` onto `artifact_meta` history helpers and retarget the six test modules calling `attention._history_section_lines`:
   1. Delete `agent_workflows/attention.py::_history_section_lines` (which has zero production callers) and replace all 24 test call sites across `tests/test_backlog.py`, `tests/test_set_dispatch_parity.py`, `tests/test_history_label_parity.py`, `tests/test_backlog_history_dedup_parity.py`, `tests/test_status_set.py`, and `tests/test_history_provenance.py` with `artifact_meta.history_records(text).records`.
   2. Remove `agent_workflows/backlog.py::_WORKFLOW_HISTORY_HEADING_RE` and route `backlog.validate_item`, `backlog._render_item`, and `backlog._reattach_history` through `artifact_meta.split_history_section(text)`, preserving both distinct `backlog.history-empty` detail strings (`no ## Workflow history heading` vs. `heading present but no column-zero ... record`).
   3. Replace `agent_workflows/releases.py::_history_lines` with `artifact_meta.history_section_lines(text)`, stripping each bullet's leading `"- "` prefix (`line.lstrip()[2:].strip()`) so `ReleaseRecord.history`, JSON `"history"` output, and `aw releases show` output remain unchanged.
   4. Delete `agent_workflows/specs.py::_history_lines` and update `specs.validate_spec` to check `bool(_meta.history_records(text).records)`.
   - Depends on: E-01
   - Expected outcome: zero local `Workflow history` section parsers or heading regexes remain in `attention.py`, `backlog.py`, `releases.py`, and `specs.py`; all six retargeted test suites plus attention, backlog, releases, and specs tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Lifecycle, lint, citation, and migration-chain readers (`q4gwp9`, `rzxd1x`, `4sd62s` C5)
 
-- [ ] E-03 Migrate `record_history.py`, `ipd_lifecycle.py`, `ipd_lint.py`, `check_engine.py`, and `migrations/chain.py` onto `artifact_meta`:
+- [x] E-03 Migrate `record_history.py`, `ipd_lifecycle.py`, `ipd_lint.py`, `check_engine.py`, and `migrations/chain.py` onto `artifact_meta`:
   1. Delete `agent_workflows/record_history.py::_HIST_HEADING` and replace `record_history._inline_history_records(text)`'s manual section scan with `return _meta.history_records(text).records`, preserving `ipd_lifecycle._plan_status_events` and `derive_plan_status`.
   2. Replace the manual `## Workflow history` block-splitting loop in `agent_workflows/ipd_lifecycle.py::_plan_status_event_groups` with `_meta.history_record_blocks(text)`, preserving per-block direction classification (`oldest-first`, `newest-first`, `mixed`, `unknown`) and same-date tie handling.
   3. Replace the `if current_h2 == S.H_WORKFLOW_HISTORY:` history-line accumulation in `agent_workflows/ipd_lint.py::parse` with `artifact_meta.history_section_lines(text)`, preserving `ParsedDoc.history_lines: List[Tuple[int, str]]` (unpacked in `ipd_lint.py`, `check_engine._has_matching_history_line`, `tests/test_readers_read_at_gates.py`, and `tests/test_status_set.py`). Do NOT delete `ipd_schema.H_WORKFLOW_HISTORY`; it stays until cutover `cxxmyv` for `ipd_lint.check_headings` and `ipd_authoring`.
@@ -69,11 +69,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   5. Delete `agent_workflows/migrations/chain.py::_WORKFLOW_HISTORY_RE` and replace `_WORKFLOW_HISTORY_RE.search(text)` in `repo_has_legacy_records` with `artifact_meta.split_history_section(text)[2]`.
   - Depends on: E-01
   - Expected outcome: zero local `Workflow history` section parsers or heading regexes remain in `record_history.py`, `ipd_lifecycle.py`, `ipd_lint.py`, `check_engine.py`, and `migrations/chain.py`, and lifecycle, lint, check-engine, and migration-chain tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Behavioral regression tests and final validation (`4sd62s` AC-1, C10a)
 
-- [ ] E-04 Add behavioral regression tests in `tests/test_history_order.py` (marking the new fast test class with `@pytest.mark.core` so bare `python3 -m pytest` runs it without pulling the slow whole-tree `DerivationIsUnchangedTests` scan into the core tier) exercising:
+- [x] E-04 Add behavioral regression tests in `tests/test_history_order.py` (marking the new fast test class with `@pytest.mark.core` so bare `python3 -m pytest` runs it without pulling the slow whole-tree `DerivationIsUnchangedTests` scan into the core tier) exercising:
   1. `artifact_meta.split_history_section` (missing heading, empty heading, heading with records and trailing body, fenced heading ignored).
   2. `artifact_meta.history_record_blocks` (blank-line-separated blocks, indented continuation lines kept in-block, fenced heading ignored) and `ipd_lifecycle._plan_status_event_groups` / `check_engine.check_lifecycle_transitions`.
   3. `artifact_meta.history_section_lines` (1-based line numbers, fenced code block exclusion) and `ipd_lint.parse` / `check_engine._has_matching_history_line`.
@@ -81,12 +81,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Assert observable return values, diagnostics, file bytes, and exit codes only; perform zero source-reading assertions.
   - Depends on: E-02, E-03
   - Expected outcome: all new `@pytest.mark.core` behavioral tests and existing `tests/test_history_order.py` tests pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Run targeted pytest suites across all affected modules, the bare core gate `python3 -m pytest` (confirming pass summary), `python3 -m mypy` on all 10 modified production files, `rg -n "Workflow history"` across all 9 non-`artifact_meta` owned production files confirming zero surviving parser/regex/slicer hits (only diagnostic or comment strings), and `aw sanitize --agent`.
+- [x] E-05 Run targeted pytest suites across all affected modules, the bare core gate `python3 -m pytest` (confirming pass summary), `python3 -m mypy` on all 10 modified production files, `rg -n "Workflow history"` across all 9 non-`artifact_meta` owned production files confirming zero surviving parser/regex/slicer hits (only diagnostic or comment strings), and `aw sanitize --agent`.
   - Depends on: E-04
   - Expected outcome: all targeted tests and the bare core gate pass, `mypy` reports zero errors across all 10 production files, `rg` reports zero surviving parser/regex/slicer hits in the 9 owned non-`artifact_meta` files, and `aw sanitize --agent` reports clean (`pass`).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -193,30 +193,45 @@ None.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `python3 -m pytest tests/test_history_block_bounding.py tests/test_artifact_meta_legacy.py` summary showing all tests passing, plus a diff summary or signature check confirming `split_history_section`, `history_record_blocks`, and `history_section_lines` exist in `agent_workflows/artifact_meta.py` and stale `attention._history_section_lines` comments are removed.
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest tests/test_history_block_bounding.py tests/test_artifact_meta_legacy.py`: `35 passed in 4.10s` (`0 unlisted slow tests`).
+    - Signature check: `split_history_section: (text: 'str') -> 'HistorySection'`, `history_record_blocks: (text: 'str') -> 'List[List[str]]'`, `history_section_lines: (text: 'str') -> 'List[Tuple[int, str]]'`.
+    - `rg -n "_history_section_lines" agent_workflows/artifact_meta.py`: empty (stale docstring references removed).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `rg -n "Workflow history|_history_section_lines|_WORKFLOW_HISTORY_HEADING_RE|_history_lines" agent_workflows/attention.py agent_workflows/backlog.py agent_workflows/releases.py agent_workflows/specs.py` confirming zero surviving section parsers or heading regexes (only user-facing diagnostic strings or docstrings, each verified non-parser), `rg -n "_history_section_lines" tests/` empty (except docstring reference if any in `tests/support.py`), and `python3 -m pytest tests/test_readers_attention.py tests/test_backlog.py tests/test_backlog_history_empty_rule.py tests/test_backlog_history_dedup_parity.py tests/test_set_dispatch_parity.py tests/test_history_label_parity.py tests/test_status_set.py tests/test_history_provenance.py tests/test_releases.py tests/test_releases_cli.py tests/test_specs_verbs.py tests/test_specs_status_dirs.py` passing summary.
   - Observed evidence:
-  - Result: pending
+    - `rg -n "Workflow history|_history_section_lines|_WORKFLOW_HISTORY_HEADING_RE|_history_lines" agent_workflows/attention.py agent_workflows/backlog.py agent_workflows/releases.py agent_workflows/specs.py`: only non-parser docstrings/diagnostics remain (`backlog.py:36` module docstring, `backlog.py:600` diagnostic string `"no ## Workflow history heading; ..."`, `backlog.py:1498` docstring, `releases.py:326` `ReleaseRecord` docstring, `specs.py:393` diagnostic string `"no conformant ## Workflow history record"`). Zero hits in `attention.py`; zero surviving parsers or heading regexes.
+    - `rg -n "_history_section_lines" tests/`: only `tests/support.py:759` docstring reference.
+    - `python3 -m pytest tests/test_readers_attention.py tests/test_backlog.py tests/test_backlog_history_empty_rule.py tests/test_backlog_history_dedup_parity.py tests/test_set_dispatch_parity.py tests/test_history_label_parity.py tests/test_status_set.py tests/test_history_provenance.py tests/test_releases.py tests/test_releases_cli.py tests/test_specs_verbs.py tests/test_specs_status_dirs.py`: `324 passed in 14.43s`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `rg -n "Workflow history|_HIST_HEADING|_WORKFLOW_HISTORY_RE" agent_workflows/record_history.py agent_workflows/ipd_lifecycle.py agent_workflows/ipd_lint.py agent_workflows/check_engine.py agent_workflows/migrations/chain.py` confirming zero surviving section parsers, heading regexes, or slicers (only non-parser diagnostic strings or docstrings), plus `python3 -m pytest tests/test_history_order.py tests/test_ipd_lifecycle_cli.py tests/test_ipd_lifecycle_restored_behavior.py tests/test_readers_ipd_lint.py tests/test_ipd_lint.py tests/test_readers_read_at_gates.py tests/test_check_engine_test_citation.py tests/test_check_engine.py tests/test_migrations_chain.py` passing summary.
   - Observed evidence:
-  - Result: pending
+    - `rg -n "Workflow history|_HIST_HEADING|_WORKFLOW_HISTORY_RE" agent_workflows/record_history.py agent_workflows/ipd_lifecycle.py agent_workflows/ipd_lint.py agent_workflows/check_engine.py agent_workflows/migrations/chain.py`: only non-parser docstrings, comments, and diagnostic strings remain (`record_history.py:128,355`, `ipd_lifecycle.py:929,950,1116,1346,1636`, `ipd_lint.py:113,1756,1797,1971,2066`, `check_engine.py:367,3507,3758,3771,3856,10496,10509,12197`, and zero hits in `migrations/chain.py`). Zero surviving parsers, heading regexes, or slicers.
+    - `python3 -m pytest tests/test_history_order.py tests/test_ipd_lifecycle_cli.py tests/test_ipd_lifecycle_restored_behavior.py tests/test_readers_ipd_lint.py tests/test_ipd_lint.py tests/test_readers_read_at_gates.py tests/test_check_engine_test_citation.py tests/test_check_engine.py tests/test_migrations_chain.py`: `267 passed in 16.06s` (8 deselected by marker filter).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m pytest -v tests/test_history_order.py` showing all existing and new `@pytest.mark.core` behavioral tests passing (covering `split_history_section`, `history_record_blocks`, `history_section_lines`, `backlog`, `releases`, `specs`, `ipd_lifecycle`, `ipd_lint`, `check_engine`, and `migrations.chain`), and `rg -n "inspect\.|import ast|getsource|read_text\(.*agent_workflows" tests/test_history_order.py` empty.
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest -v tests/test_history_order.py`: `15 passed in 3.61s`.
+    - `python3 -m pytest -vv tests/test_history_order.py`: `15 passed in 4.74s`, including all 8 new `@pytest.mark.core` tests in `ArtifactMetaHistoryMigrationTests` (`test_split_history_section_cases`, `test_history_record_blocks_and_lifecycle_groups`, `test_history_section_bullets_ipd_lint_and_matching_history`, `test_backlog_validate_item_distinct_history_empty_details`, `test_releases_parse_release_strips_bullet_prefix`, `test_specs_validate_spec_history_presence`, `test_check_spec_test_citations_normative_vs_history_exemption`, `test_migrations_chain_repo_has_legacy_records`) plus all 7 existing tests (`DerivationIsUnchangedTests`, `HistoryOrderFixtureTests`).
+    - `rg -n "inspect\.|import ast|getsource|read_text\(.*agent_workflows" tests/test_history_order.py`: empty.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the bare `python3 -m pytest` summary line (`N passed`), `python3 -m mypy agent_workflows/artifact_meta.py agent_workflows/attention.py agent_workflows/backlog.py agent_workflows/releases.py agent_workflows/specs.py agent_workflows/record_history.py agent_workflows/ipd_lifecycle.py agent_workflows/ipd_lint.py agent_workflows/check_engine.py agent_workflows/migrations/chain.py` zero-error output, the full `rg -n "Workflow history"` output across the 9 non-`artifact_meta` owned files showing zero parser/regex/slicer hits, and `aw sanitize --agent` clean (`pass`) output.
   - Observed evidence:
-  - Result: pending
+    - Bare `python3 -m pytest`: `2905 passed, 1 skipped, 11 warnings in 253.19s (0:04:13)`.
+    - `python3 -m mypy agent_workflows/artifact_meta.py agent_workflows/attention.py agent_workflows/backlog.py agent_workflows/releases.py agent_workflows/specs.py agent_workflows/record_history.py agent_workflows/ipd_lifecycle.py agent_workflows/ipd_lint.py agent_workflows/check_engine.py agent_workflows/migrations/chain.py`: `Success: no issues found in 10 source files`.
+    - `rg -n "Workflow history" agent_workflows/attention.py agent_workflows/backlog.py agent_workflows/releases.py agent_workflows/specs.py agent_workflows/record_history.py agent_workflows/ipd_lifecycle.py agent_workflows/ipd_lint.py agent_workflows/check_engine.py agent_workflows/migrations/chain.py`: zero parser/regex/slicer hits (only docstrings/comments/diagnostic strings at `backlog.py:36,600,1498`, `releases.py:326`, `specs.py:393`, `record_history.py:128,355`, `ipd_lifecycle.py:929,950,1116,1346,1636`, `ipd_lint.py:113,1756,1797,1971,2066`, `check_engine.py:367,3507,3758,3771,3856,10496,10509,12197`; zero hits in `attention.py` and `migrations/chain.py`).
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7220,"findings":0,"evidence":["leak-scan"],"next":null}`.
+  - Result: pass
 
 ## Approval and execution gate
 

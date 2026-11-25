@@ -2786,6 +2786,7 @@ def _parse_metadata_comment(first_line: str) -> Dict[str, str]:
 
 _HISTORY_RECORD_RE = re.compile(r"^- (?P<date>\d{4}-\d{2}-\d{2}) .+$")
 _HISTORY_HEADING_RE = re.compile(r"(?m)^## Workflow history[ \t]*\r?$")
+_HISTORY_SECTION_HEADING_RE = re.compile(r"^##[ \t]+Workflow history[ \t]*$")
 _HISTORY_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -2795,58 +2796,67 @@ class HistoryBlock(NamedTuple):
     body: str
 
 
-def _history_block(text: str) -> HistoryBlock:
-    """The canonical, pure reader for an artifact's ``## Workflow history`` block.
+class HistorySection(NamedTuple):
+    before_heading: str
+    block: HistoryBlock
+    has_heading: bool
 
-    States the bounding rule ONCE and returns a :class:`HistoryBlock` with:
-      - ``records``: column-zero records matching :data:`_HISTORY_RECORD_RE` against ``line.rstrip()``
-        (never ``strip()``), returned with trailing whitespace stripped, in file order (newest-first).
-      - ``record_lines``: flat, file-order list of every record line FOLLOWED BY its indented
-        continuation lines (each ``rstrip()``ed, indentation KEPT, blank lines dropped; non-record
-        bullets and their continuations excluded). `"\n".join(record_lines)` re-emits each record
-        with its wrapped text.
-      - ``body``: remaining text from the terminating line on with leading blank lines removed and
-        trailing whitespace ``rstrip()``ed, but the first line's indentation PRESERVED (never
-        ``.strip()``/``.lstrip()``; ``""`` when there is none).
 
-    THE BOUNDING RULE (plan ``kgv213``, Set ``histdedup``):
-    1. Locate the heading with ``(?m)^## Workflow history[ \t]*$`` (missing heading yields
-       ``HistoryBlock([], [], "")``).
-    2. Scan subsequent lines. The block ENDS at:
-       - the next line starting with ``## ``, OR
-       - the first non-blank line starting at COLUMN ZERO that is not a ``- `` bullet, OR
-       - an INDENTED non-blank line that does not directly continue a bullet (a blank line ends
-         continuation, so a blank-separated indented quotation is NOT part of the block).
-    3. Inside the block, a record is a column-zero line matching :data:`_HISTORY_RECORD_RE` against
-       ``line.rstrip()``. Any following indented line directly continuing it is part of ``record_lines``.
-       Non-record bullets and their continuations are dropped from both ``records`` and ``record_lines``.
+def _iter_unfenced_lines(text: str) -> List[Tuple[int, int, int, str]]:
+    """Return ``(lineno, start, next_start, line)`` for lines outside fenced code blocks.
 
-    CANONICAL NEWEST RECORD:
-    ``_newest_history_record(_history_block(t).records)`` is the canonical newest record.
-
-    WHY THIS RULE WAS CHOSEN (findings F-01..F-07):
-    - F-01: Disagreement between readers (`backlog._prior_history_records` ending at column zero
-      vs `attention._history_section_lines` ending only at `## `) caused `status_set` to judge an
-      indented-only line as a duplicate while the writer could not preserve it, suppressing writes.
-    - F-02..F-04: Strict bounding was wrong for plans wrapping records onto continuation lines (155 plans,
-      F-03), while loose bounding re-opened the `tk1gqo` defect where indented prose quotations in bodies
-      were counted as records (F-04). This rule agrees with today's answers across all 2489 tracked
-      artifacts carrying history, changing zero consumer answers.
-    - F-06: Writers need `record_lines` (not `records` alone) and a shared body boundary (`_extract_body`,
-      E-06) so wrapped records and their following records are not duplicated on reattachment.
-    - F-07: De-indenting a blank-separated indented quotation in `body` turns it into a column-zero record
-      on the next rewrite (`tk1gqo` defect by another route); preserving leading indentation prevents this.
+    ``lineno`` is 1-based; ``start`` and ``next_start`` are character offsets into ``text``.
+    Splits only on ``\\n`` (stripping a trailing ``\\r``) so offsets remain exact and bare
+    control characters never fabricate synthetic lines.
     """
-    m = _HISTORY_HEADING_RE.search(text)
-    if not m:
-        return HistoryBlock([], [], "")
+    if not text:
+        return []
+    out: List[Tuple[int, int, int, str]] = []
+    in_fence = False
+    fence_char = ""
+    fence_len = 0
+    lineno = 0
+    pos = 0
+    n = len(text)
+    while pos < n:
+        nl = text.find("\n", pos)
+        if nl == -1:
+            raw_with_eol = text[pos:]
+            next_pos = n
+        else:
+            raw_with_eol = text[pos : nl + 1]
+            next_pos = nl + 1
+        lineno += 1
+        line = raw_with_eol.rstrip("\r\n")
+        stripped = line.strip()
+        if not in_fence:
+            if stripped.startswith("```") or stripped.startswith("~~~"):
+                ch = stripped[0]
+                flen = len(stripped) - len(stripped.lstrip(ch))
+                # CommonMark: backtick fence info strings cannot contain backticks.
+                if not (ch == "`" and "`" in stripped[flen:]):
+                    in_fence = True
+                    fence_char = ch
+                    fence_len = flen
+                    pos = next_pos
+                    continue
+        else:
+            if (
+                stripped.startswith(fence_char * fence_len)
+                and stripped.lstrip(fence_char) == ""
+            ):
+                in_fence = False
+                fence_char = ""
+                fence_len = 0
+            pos = next_pos
+            continue
+        out.append((lineno, pos, next_pos, line))
+        pos = next_pos
+    return out
 
-    after = text[m.end() :]
-    if after.startswith("\r\n"):
-        after = after[2:]
-    elif after.startswith("\n"):
-        after = after[1:]
 
+def _history_block_from_after(after: str) -> HistoryBlock:
+    """Parse a :class:`HistoryBlock` from the slice immediately following the heading line."""
     lines = after.splitlines(keepends=True)
     records: List[str] = []
     record_lines: List[str] = []
@@ -2897,6 +2907,61 @@ def _history_block(text: str) -> HistoryBlock:
     return HistoryBlock(records, record_lines, body)
 
 
+def _history_block(text: str) -> HistoryBlock:
+    """The canonical, pure reader for an artifact's ``## Workflow history`` block.
+
+    States the bounding rule ONCE and returns a :class:`HistoryBlock` with:
+      - ``records``: column-zero records matching :data:`_HISTORY_RECORD_RE` against ``line.rstrip()``
+        (never ``strip()``), returned with trailing whitespace stripped, in file order (newest-first).
+      - ``record_lines``: flat, file-order list of every record line FOLLOWED BY its indented
+        continuation lines (each ``rstrip()``ed, indentation KEPT, blank lines dropped; non-record
+        bullets and their continuations excluded). `"\n".join(record_lines)` re-emits each record
+        with its wrapped text.
+      - ``body``: remaining text from the terminating line on with leading blank lines removed and
+        trailing whitespace ``rstrip()``ed, but the first line's indentation PRESERVED (never
+        ``.strip()``/``.lstrip()``; ``""`` when there is none).
+
+    THE BOUNDING RULE (plan ``kgv213``, Set ``histdedup``):
+    1. Locate the heading with ``(?m)^## Workflow history[ \t]*$`` (missing heading yields
+       ``HistoryBlock([], [], "")``).
+    2. Scan subsequent lines. The block ENDS at:
+       - the next line starting with ``## ``, OR
+       - the first non-blank line starting at COLUMN ZERO that is not a ``- `` bullet, OR
+       - an INDENTED non-blank line that does not directly continue a bullet (a blank line ends
+         continuation, so a blank-separated indented quotation is NOT part of the block).
+    3. Inside the block, a record is a column-zero line matching :data:`_HISTORY_RECORD_RE` against
+       ``line.rstrip()``. Any following indented line directly continuing it is part of ``record_lines``.
+       Non-record bullets and their continuations are dropped from both ``records`` and ``record_lines``.
+
+    CANONICAL NEWEST RECORD:
+    ``_newest_history_record(_history_block(t).records)`` is the canonical newest record.
+
+    WHY THIS RULE WAS CHOSEN (findings F-01..F-07):
+    - F-01: Disagreement between readers (column-zero bounding vs. heading-only section slicing)
+      caused `status_set` to judge an indented-only line as a duplicate while the writer could not
+      preserve it, suppressing writes.
+    - F-02..F-04: Strict bounding was wrong for plans wrapping records onto continuation lines (155 plans,
+      F-03), while loose bounding re-opened the `tk1gqo` defect where indented prose quotations in bodies
+      were counted as records (F-04). This rule agrees with today's answers across all 2489 tracked
+      artifacts carrying history, changing zero consumer answers.
+    - F-06: Writers need `record_lines` (not `records` alone) and a shared body boundary (`_extract_body`,
+      E-06) so wrapped records and their following records are not duplicated on reattachment.
+    - F-07: De-indenting a blank-separated indented quotation in `body` turns it into a column-zero record
+      on the next rewrite (`tk1gqo` defect by another route); preserving leading indentation prevents this.
+    """
+    m = _HISTORY_HEADING_RE.search(text)
+    if not m:
+        return HistoryBlock([], [], "")
+
+    after = text[m.end() :]
+    if after.startswith("\r\n"):
+        after = after[2:]
+    elif after.startswith("\n"):
+        after = after[1:]
+
+    return _history_block_from_after(after)
+
+
 def _newest_history_record(history_lines: List[str]) -> Optional[str]:
     """THE ONE RULE for "which of these ``## Workflow history`` lines is the newest": the FIRST one
     matching :data:`_HISTORY_RECORD_RE`, or ``None`` when there is no record.
@@ -2928,7 +2993,7 @@ def _newest_history_record(history_lines: List[str]) -> Optional[str]:
     for the reader to reorder history it cannot see the intent of.
 
     Pure and total; ``history_lines`` is an already-bounded section (see
-    ``attention._history_section_lines``), never whole file text.
+    :func:`history_records` and :func:`history_section_lines`), never whole file text.
     """
 
     for line in history_lines:
@@ -3013,6 +3078,82 @@ def history_records(text: str) -> HistoryBlock:
     """
 
     return _history_block(text)
+
+
+def split_history_section(text: str) -> HistorySection:
+    """Split ``text`` at its first unfenced column-zero ``## Workflow history`` heading.
+
+    Locates an unfenced column-zero heading matching ``^##[ \\t]+Workflow history[ \\t]*$``
+    and returns ``HistorySection(before_heading, block, has_heading)``. When no unfenced
+    heading is present, returns ``HistorySection(text, HistoryBlock([], [], ""), False)``.
+    """
+
+    for _lineno, start, next_start, line in _iter_unfenced_lines(text):
+        if _HISTORY_SECTION_HEADING_RE.match(line):
+            return HistorySection(
+                before_heading=text[:start],
+                block=_history_block_from_after(text[next_start:]),
+                has_heading=True,
+            )
+    return HistorySection(text, HistoryBlock([], [], ""), False)
+
+
+def history_record_blocks(text: str) -> List[List[str]]:
+    """Split the unfenced ``## Workflow history`` section into blank-line-separated record blocks.
+
+    Scans from the first unfenced column-zero ``## Workflow history`` heading through the next
+    unfenced ``## `` heading. Each returned block is a contiguous list of column-zero
+    ``- YYYY-MM-DD ...`` records; indented continuation lines stay attached to the current block
+    without splitting it.
+    """
+
+    in_hist = False
+    blocks: List[List[str]] = []
+    current_block: List[str] = []
+
+    for _lineno, _start, _next_start, line in _iter_unfenced_lines(text):
+        if not in_hist:
+            if _HISTORY_SECTION_HEADING_RE.match(line):
+                in_hist = True
+            continue
+        if line.startswith("## "):
+            break
+        if not line.strip():
+            if current_block:
+                blocks.append(current_block)
+                current_block = []
+            continue
+        stripped_right = line.rstrip()
+        if _HISTORY_RECORD_RE.match(stripped_right):
+            current_block.append(stripped_right)
+
+    if current_block:
+        blocks.append(current_block)
+    return blocks
+
+
+def history_section_lines(text: str) -> List[Tuple[int, str]]:
+    """Return 1-based ``(lineno, raw_line)`` tuples for ``- `` bullets in ``## Workflow history``.
+
+    Scans the first unfenced column-zero ``## Workflow history`` section through the next
+    unfenced ``## `` heading, skipping fenced code blocks and collecting every bullet line
+    matching ``raw_line.lstrip().startswith("- ")``.
+    """
+
+    in_hist = False
+    out: List[Tuple[int, str]] = []
+
+    for lineno, _start, _next_start, line in _iter_unfenced_lines(text):
+        if not in_hist:
+            if _HISTORY_SECTION_HEADING_RE.match(line):
+                in_hist = True
+            continue
+        if line.startswith("## "):
+            break
+        if line.lstrip().startswith("- "):
+            out.append((lineno, line))
+
+    return out
 
 
 def history_record_date(line: str) -> Optional[str]:

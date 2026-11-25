@@ -205,20 +205,6 @@ def _single_token(value: Optional[str]) -> Optional[str]:
     return parts[0] if len(parts) == 1 else None
 
 
-def _history_lines(lines: List[str]) -> List[str]:
-    out: List[str] = []
-    in_hist = False
-    for line in lines:
-        if line.strip() == "## Workflow history":
-            in_hist = True
-            continue
-        if in_hist:
-            if line.startswith("## "):
-                break
-            out.append(line)
-    return out
-
-
 # --------------------------------------------------------------------------------------
 # Validation (the `check` core; reused by the attention scanner for the specs tree)
 # --------------------------------------------------------------------------------------
@@ -399,8 +385,7 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
             )
         )
 
-    hist = _history_lines(lines)
-    if not any(_meta.is_history_record(h) for h in hist):
+    if not _meta.history_records(text).records:
         drift.append(
             core.Drift(
                 loc,

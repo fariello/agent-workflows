@@ -30,7 +30,6 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import artifact_meta as _meta
-from agent_workflows import attention as att
 from agent_workflows import cli
 from tests.record_builder import RecordBuilder
 
@@ -242,11 +241,7 @@ class BacklogHistoryDedupParityTests(unittest.TestCase):
 
         # Check f1 (--status) has exactly ONE same-status record plus the 2 prior records
         text1 = f1.read_text(encoding="utf-8")
-        records1 = [
-            ln
-            for ln in att._history_section_lines(text1)
-            if _meta.is_history_record(ln)
-        ]
+        records1 = _meta.history_records(text1).records
         self.assertEqual(
             len(records1), 3, f"Expected exactly 3 records in f1, found: {records1}"
         )
@@ -256,11 +251,7 @@ class BacklogHistoryDedupParityTests(unittest.TestCase):
 
         # Check f2 (positional) has exactly ONE same-status record plus the 2 prior records
         text2 = f2.read_text(encoding="utf-8")
-        records2 = [
-            ln
-            for ln in att._history_section_lines(text2)
-            if _meta.is_history_record(ln)
-        ]
+        records2 = _meta.history_records(text2).records
         self.assertEqual(
             len(records2), 3, f"Expected exactly 3 records in f2, found: {records2}"
         )
@@ -369,22 +360,14 @@ class BacklogHistoryDedupParityTests(unittest.TestCase):
             self.assertEqual(rc, 0)
 
         text1 = f1.read_text(encoding="utf-8")
-        records1 = [
-            ln
-            for ln in att._history_section_lines(text1)
-            if _meta.is_history_record(ln)
-        ]
+        records1 = _meta.history_records(text1).records
         self.assertEqual(len(records1), 3)
         self.assertIn("second note", records1[0])
         self.assertIn("first note", records1[1])
         self.assertIn("initial", records1[2])
 
         text2 = f2.read_text(encoding="utf-8")
-        records2 = [
-            ln
-            for ln in att._history_section_lines(text2)
-            if _meta.is_history_record(ln)
-        ]
+        records2 = _meta.history_records(text2).records
         self.assertEqual(len(records2), 3)
         self.assertIn("second note", records2[0])
         self.assertIn("first note", records2[1])
@@ -446,11 +429,7 @@ class BacklogHistoryDedupParityTests(unittest.TestCase):
             self.assertEqual(rc, 0)
 
         text1 = f1.read_text(encoding="utf-8")
-        records1 = [
-            ln
-            for ln in att._history_section_lines(text1)
-            if _meta.is_history_record(ln)
-        ]
+        records1 = _meta.history_records(text1).records
         self.assertEqual(
             len(records1), 2, f"Expected exactly 2 records, found: {records1}"
         )
@@ -529,9 +508,7 @@ class BacklogHistoryDedupParityTests(unittest.TestCase):
         self.assertEqual(rc2, 0)
 
         text = moved.read_text(encoding="utf-8")
-        records = [
-            ln for ln in att._history_section_lines(text) if _meta.is_history_record(ln)
-        ]
+        records = _meta.history_records(text).records
         self.assertEqual(
             len(records),
             2,

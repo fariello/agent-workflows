@@ -1361,30 +1361,7 @@ def _plan_status_event_groups(
     from agent_workflows import artifact_meta as _meta
     from agent_workflows import record_history as _rh
 
-    in_hist = False
-    blocks: List[List[str]] = []
-    current_block: List[str] = []
-
-    for line in text.split("\n"):
-        if line.strip() == "## Workflow history":
-            in_hist = True
-            continue
-        if in_hist:
-            if line.startswith("## "):
-                break
-            if not line.strip():
-                if current_block:
-                    blocks.append(current_block)
-                    current_block = []
-                continue
-            if _meta.is_history_record(line):
-                current_block.append(line)
-            else:
-                # Indented continuation or non-record line inside history; continues current block.
-                pass
-
-    if current_block:
-        blocks.append(current_block)
+    blocks = _meta.history_record_blocks(text)
 
     status_events_by_date: Dict[str, List[Tuple[str, str, int, int, str]]] = {}
 

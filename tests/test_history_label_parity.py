@@ -22,7 +22,6 @@ import tempfile
 import unittest
 
 from agent_workflows import artifact_meta as _meta
-from agent_workflows import attention as att
 from agent_workflows import backlog, cli
 from tests.record_builder import RecordBuilder
 
@@ -170,9 +169,7 @@ class HistoryLabelParityTests(unittest.TestCase):
         moved = self.root / ".aw" / "records" / "backlog" / "graduated" / item.name
         self.assertTrue(moved.exists(), f"expected moved item at {moved}")
         text = moved.read_text(encoding="utf-8")
-        records = [
-            ln for ln in att._history_section_lines(text) if _meta.is_history_record(ln)
-        ]
+        records = _meta.history_records(text).records
         self.assertGreaterEqual(len(records), 2)
         newest = records[0]
         # Assert the label token is positively 'graduated'
@@ -272,16 +269,8 @@ class HistoryLabelParityTests(unittest.TestCase):
         self.assertTrue(res1_file.exists())
         self.assertTrue(res2_file.exists())
 
-        rec1 = [
-            ln
-            for ln in att._history_section_lines(res1_file.read_text(encoding="utf-8"))
-            if _meta.is_history_record(ln)
-        ][0]
-        rec2 = [
-            ln
-            for ln in att._history_section_lines(res2_file.read_text(encoding="utf-8"))
-            if _meta.is_history_record(ln)
-        ][0]
+        rec1 = _meta.history_records(res1_file.read_text(encoding="utf-8")).records[0]
+        rec2 = _meta.history_records(res2_file.read_text(encoding="utf-8")).records[0]
 
         # Positively assert label tokens
         self.assertIn(" graduated (aw backlog): handed off to plan", rec1)
@@ -377,16 +366,8 @@ class HistoryLabelParityTests(unittest.TestCase):
             )
         self.assertEqual(rc2, 0)
 
-        rec1 = [
-            ln
-            for ln in att._history_section_lines(f1.read_text(encoding="utf-8"))
-            if _meta.is_history_record(ln)
-        ][0]
-        rec2 = [
-            ln
-            for ln in att._history_section_lines(f2.read_text(encoding="utf-8"))
-            if _meta.is_history_record(ln)
-        ][0]
+        rec1 = _meta.history_records(f1.read_text(encoding="utf-8")).records[0]
+        rec2 = _meta.history_records(f2.read_text(encoding="utf-8")).records[0]
 
         # Positively assert label tokens
         self.assertIn(" same-status (aw backlog): clarification note", rec1)
@@ -448,9 +429,7 @@ class HistoryLabelParityTests(unittest.TestCase):
         moved = self.root / ".aw" / "records" / "backlog" / "graduated" / item.name
         self.assertTrue(moved.exists())
         text = moved.read_text(encoding="utf-8")
-        records = [
-            ln for ln in att._history_section_lines(text) if _meta.is_history_record(ln)
-        ]
+        records = _meta.history_records(text).records
         self.assertEqual(len(records), 4)
         self.assertIn("transitioning", records[0])
         self.assertEqual(records[1:], original_records)
@@ -478,9 +457,7 @@ class HistoryLabelParityTests(unittest.TestCase):
         )
 
         res = backlog._reattach_history(old_text, rendered, "done", "test message")
-        history_lines = [
-            ln for ln in att._history_section_lines(res) if _meta.is_history_record(ln)
-        ]
+        history_lines = _meta.history_records(res).records
         self.assertEqual(len(history_lines), 4)
         self.assertIn(" set (aw backlog): test message", history_lines[0])
         self.assertEqual(history_lines[1:], prior_records)

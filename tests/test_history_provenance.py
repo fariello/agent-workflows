@@ -16,7 +16,6 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import artifact_meta as _meta
-from agent_workflows import attention as att
 from agent_workflows import cli, record_history
 from tests.record_builder import RecordBuilder
 
@@ -51,11 +50,7 @@ class HistoryProvenanceRoutingTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        before = [
-            ln
-            for ln in att._history_section_lines(item.read_text(encoding="utf-8"))
-            if _meta.is_history_record(ln)
-        ]
+        before = _meta.history_records(item.read_text(encoding="utf-8")).records
         self.assertEqual(len(before), 3)
 
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
@@ -77,11 +72,7 @@ class HistoryProvenanceRoutingTests(unittest.TestCase):
             )
         self.assertEqual(rc, 0)
         moved = self.root / ".aw" / "records" / "backlog" / "done" / item.name
-        after = [
-            ln
-            for ln in att._history_section_lines(moved.read_text(encoding="utf-8"))
-            if _meta.is_history_record(ln)
-        ]
+        after = _meta.history_records(moved.read_text(encoding="utf-8")).records
         self.assertEqual(len(after), 4)
         self.assertIn("a real transition", after[0])
         self.assertEqual(
@@ -132,11 +123,7 @@ class HistoryProvenanceRoutingTests(unittest.TestCase):
         self.assertEqual(rc1, 0)
         self.assertEqual(rc2, 0)
 
-        records = [
-            ln
-            for ln in att._history_section_lines(spec.read_text(encoding="utf-8"))
-            if _meta.is_history_record(ln)
-        ]
+        records = _meta.history_records(spec.read_text(encoding="utf-8")).records
         self.assertEqual(
             records,
             [
@@ -186,9 +173,7 @@ class HistoryProvenanceRoutingTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         moved = self.root / ".aw" / "records" / "backlog" / "done" / item.name
         text = moved.read_text(encoding="utf-8")
-        inline = [
-            ln for ln in att._history_section_lines(text) if _meta.is_history_record(ln)
-        ]
+        inline = _meta.history_records(text).records
         self.assertEqual(len(inline), 3, inline)
         self.assertIn("finished", inline[0])
         self.assertIn("newer", inline[1])

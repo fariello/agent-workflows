@@ -10509,9 +10509,10 @@ def check_spec_test_citations_for_text(
     Exempts ## Workflow history: dated history notes record past measurements and
     are historical records rather than live contract claims.
     """
+    from agent_workflows import artifact_meta as _meta
+
     repo_root = Path(repo_root)
-    parts = _re.split(r"(?m)^##[ \t]+Workflow history\b", text, maxsplit=1)
-    normative_body = parts[0]
+    normative_body = _meta.split_history_section(text)[0]
     drift: List[_core.Drift] = []
     seen_paths: set = set()
 

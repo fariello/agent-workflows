@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 import json
 import os
 from pathlib import Path
-import re
 import tempfile
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
 
@@ -69,8 +68,6 @@ class Migration:
 
 
 CURRENT_METADATA_SCHEMA = 1
-
-_WORKFLOW_HISTORY_RE = re.compile(r"^## Workflow history\s*$", re.MULTILINE)
 
 _EXCLUDED_FILENAMES = frozenset({"README.md", "STATUS.md"})
 _EXCLUDED_DIRNAMES = frozenset({"comms", "prompt-library"})
@@ -259,6 +256,8 @@ def repo_has_legacy_records(
         is_agents = agents_resolved is not None and resolved == agents_resolved
         candidate_roots.append((candidate, is_agents))
 
+    from agent_workflows import artifact_meta as _meta
+
     skills_top_dir = _agents_skills_top_dir()
 
     for root_dir, is_agents in candidate_roots:
@@ -298,7 +297,7 @@ def repo_has_legacy_records(
                 if is_agents:
                     return True
                 text = (cur_path / fname).read_text(encoding="utf-8", errors="replace")
-                if _WORKFLOW_HISTORY_RE.search(text):
+                if _meta.split_history_section(text)[2]:
                     return True
                 rel_path = (cur_path / fname).relative_to(root_dir).as_posix()
                 if not _is_v2_mirror_text(text, fname, rel_path=rel_path):

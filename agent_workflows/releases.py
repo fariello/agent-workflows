@@ -356,34 +356,24 @@ def _summary_section(text: str) -> Optional[str]:
     return joined or None
 
 
-def _history_lines(text: str) -> Tuple[str, ...]:
-    """The `- ` bullet lines under `## Workflow history` (in file order)."""
-    m = re.search(r"(?m)^##[ \t]+Workflow history[ \t]*$", text)
-    if m is None:
-        return ()
-    out: List[str] = []
-    for line in text[m.end() :].split("\n"):
-        if line.startswith("#"):
-            break
-        s = line.strip()
-        if s.startswith("- "):
-            out.append(s[2:].strip())
-    return tuple(out)
-
-
 def parse_release(path: Path, text: str) -> ReleaseRecord:
     """Parse one release record's text into a ReleaseRecord (pure; never raises on bad content)."""
+    from agent_workflows import artifact_meta as _meta
+
     rf = _read_release_fields(text)
     summary = rf.summary
     if not summary:
         summary = _summary_section(text)
+    history = tuple(
+        line.lstrip()[2:].strip() for _lineno, line in _meta.history_section_lines(text)
+    )
     return ReleaseRecord(
         id6=rf.id6,
         version=rf.version,
         status=rf.status,
         summary=summary or None,
         path=Path(path),
-        history=_history_lines(text),
+        history=history,
     )
 
 
