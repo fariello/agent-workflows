@@ -18,7 +18,7 @@ import pytest
 
 from agent_workflows import cli
 from agent_workflows import review_findings as rf
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 pytestmark = pytest.mark.core
 
@@ -184,7 +184,7 @@ def test_one_gate_record_satisfies_both_spellings_and_the_check(tmp_path: Path) 
     )
     assert rc == 0, out
     moved = root / ".aw/records/specs/reviewed" / spec.name
-    assert "- Status: reviewed\n" in moved.read_text(encoding="utf-8")
+    assert_field(moved, "status", "reviewed")
     assert "check.spec-review-unattested" not in [
         d.get("rule") for d in _check_records(root)
     ]

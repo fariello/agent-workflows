@@ -28,7 +28,7 @@ from agent_workflows import (
     run_viewer,
     runner_shared,
 )
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -666,9 +666,8 @@ class TestSpecProductionE08(unittest.TestCase):
                     self.assertEqual(len(spec_files), 1)
                     spec_p = spec_files[0]
                     self.assertIn("/implementing/", str(spec_p).replace("\\", "/"))
+                    assert_field(spec_p, "status", "implementing")
                     spec_txt = spec_p.read_text(encoding="utf-8")
-                    self.assertIn("- Status: implementing", spec_txt)
-                    self.assertNotIn("- Status: implemented", spec_txt)
                     self.assertIn("produced by run run-", spec_txt)
 
                     # Assert generated_next_actions recorded
@@ -1566,8 +1565,7 @@ class TestSpecProductionLifecycleArmAndReportE09(unittest.TestCase):
                         )
                     )
                     self.assertEqual(len(impl_files), 1)
-                    impl_txt = impl_files[0].read_text(encoding="utf-8")
-                    self.assertIn("- Status: implementing", impl_txt)
+                    assert_field(impl_files[0], "status", "implementing")
 
     def test_quarantine_lane_preserved_on_failure(self):
         """A failed production leaves its isolated lane recorded as preserved in state (F-10)."""

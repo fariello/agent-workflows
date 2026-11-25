@@ -39,7 +39,7 @@ from unittest.mock import patch
 from agent_workflows import artifact_meta as _meta
 from agent_workflows import backlog, cli, runner_shared, specs, status_set
 from tests import support
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 # =============================================================================
 # NORMALIZATION HELPERS (E-01)
@@ -411,8 +411,7 @@ class TestBacklogSetDispatchParity(unittest.TestCase):
                         )
                 self.assertEqual(rc, 0)
                 moved = _find_backlog_item(repo, "bk0001")
-                text = moved.read_text(encoding="utf-8")
-                self.assertIn("- Status: done", text)
+                assert_field(moved, "status", "done")
 
     def test_backlog_resulting_file_location_agreement(self) -> None:
         """Both spellings relocate the file to .aw/records/backlog/<status>/."""
@@ -508,7 +507,7 @@ class TestBacklogSetDispatchParity(unittest.TestCase):
                 self.assertEqual(rc, 0)
                 moved = _find_backlog_item(repo, "bk0001")
                 text = moved.read_text(encoding="utf-8")
-                self.assertIn("- Status: open", text)
+                assert_field(moved, "status", "open")
                 self.assertNotIn("Gate-Kind", text)
                 self.assertNotIn("Gate-Ref", text)
 
@@ -613,8 +612,7 @@ class TestBacklogSetDispatchParity(unittest.TestCase):
                         )
                 self.assertEqual(rc, 0)
                 moved = _find_backlog_item(repo, "bk0001")
-                text = moved.read_text(encoding="utf-8")
-                self.assertIn("- Blocks-Release: next", text)
+                assert_field(moved, "blocks_release", "next")
 
     def test_backlog_blocks_release_set_and_cleared_agreement(self) -> None:
         """Both spellings support setting --blocks-release and clearing with '-'."""
@@ -758,9 +756,8 @@ class TestBacklogSetDispatchParity(unittest.TestCase):
                         )
                 self.assertEqual(rc, 0)
                 moved = _find_backlog_item(repo, "bk0001")
-                text = moved.read_text(encoding="utf-8")
-                self.assertIn("- Status: graduated", text)
-                self.assertIn("- Graduated-To: pl0001", text)
+                assert_field(moved, "status", "graduated")
+                assert_field(moved, "graduated_to", "pl0001")
 
     def test_backlog_priority_and_work_kind_writes_agreement(self) -> None:
         """Both spellings write --priority and --work-kind classification fields."""
@@ -817,9 +814,8 @@ class TestBacklogSetDispatchParity(unittest.TestCase):
                         )
                 self.assertEqual(rc, 0)
                 moved = _find_backlog_item(repo, "bk0001")
-                text = moved.read_text(encoding="utf-8")
-                self.assertIn("- Priority: high", text)
-                self.assertIn("- Work-Kind: feature", text)
+                assert_field(moved, "priority", "high")
+                assert_field(moved, "work_kind", "feature")
 
     def test_backlog_prior_history_preservation_agreement(self) -> None:
         """Both spellings preserve every prior history record verbatim and in order."""
@@ -1524,7 +1520,7 @@ class TestSpecsSetDispatchParity(unittest.TestCase):
                 self.assertEqual(rc, 0)
                 moved = _find_spec(repo, "sp0001")
                 self.assertEqual(moved.parent.name, "to-review")
-                self.assertIn("- Status: to-review", moved.read_text(encoding="utf-8"))
+                assert_field(moved, "status", "to-review")
 
     def test_specs_to_reviewed_attestation_refusal_agreement(self) -> None:
         """Both spellings refuse to-review -> reviewed when review attestation is missing."""
@@ -3016,7 +3012,7 @@ class TestSetEntryConvergence(unittest.TestCase):
             self.assertEqual(rc, 0)
             moved = _find_backlog_item(repo, "bk0001")
             self.assertEqual(moved.parent.name, "done")
-            self.assertIn("- Status: done", moved.read_text(encoding="utf-8"))
+            assert_field(moved, "status", "done")
 
         # Specs adapter
         with tempfile.TemporaryDirectory() as tmp:
@@ -3034,7 +3030,7 @@ class TestSetEntryConvergence(unittest.TestCase):
             self.assertEqual(rc, 0)
             moved = _find_spec(repo, "sp0001")
             self.assertEqual(moved.parent.name, "to-review")
-            self.assertIn("- Status: to-review", moved.read_text(encoding="utf-8"))
+            assert_field(moved, "status", "to-review")
 
 
 if __name__ == "__main__":

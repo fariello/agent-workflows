@@ -13,7 +13,7 @@ import pytest
 
 from agent_workflows import cli
 from tests import support
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 @pytest.fixture
@@ -182,5 +182,4 @@ def test_set_positive_control_backlog_item(repo_with_review: tuple[Path, Path]):
         / "20260929-zz12cd-01-zz12cd-y.backlog.md"
     )
     assert parked_path.is_file(), f"Expected parked file at {parked_path}"
-    parked_text = parked_path.read_text(encoding="utf-8")
-    assert "- Status: parked" in parked_text
+    assert_field(parked_path, "status", "parked")

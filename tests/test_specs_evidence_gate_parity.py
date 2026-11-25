@@ -26,7 +26,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from agent_workflows import cli
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 def _setup_repo(root: Path) -> Path:
@@ -378,7 +378,7 @@ class SpecsEvidenceGateParityTests(unittest.TestCase):
             found1 = _find_spec(repo1, "sp0001")
             self.assertIsNotNone(found1)
             self.assertEqual(found1.parent.name, "implemented")
-            self.assertIn("- Status: implemented", found1.read_text(encoding="utf-8"))
+            assert_field(found1, "status", "implemented")
 
         # 2. --status spelling (identical fresh repo)
         with tempfile.TemporaryDirectory() as tmp2:
@@ -411,7 +411,7 @@ class SpecsEvidenceGateParityTests(unittest.TestCase):
             found2 = _find_spec(repo2, "sp0001")
             self.assertIsNotNone(found2)
             self.assertEqual(found2.parent.name, "implemented")
-            self.assertIn("- Status: implemented", found2.read_text(encoding="utf-8"))
+            assert_field(found2, "status", "implemented")
 
     def test_untyped_set_implemented_parity(self) -> None:
         """aw set implemented <id6> and aw set specs implemented <id6> refuse without and succeed with evidence."""
@@ -473,7 +473,7 @@ class SpecsEvidenceGateParityTests(unittest.TestCase):
             found_b = _find_spec(repo, "sp0001")
             self.assertIsNotNone(found_b)
             self.assertEqual(found_b.parent.name, "implemented")
-            self.assertIn("- Status: implemented", found_b.read_text(encoding="utf-8"))
+            assert_field(found_b, "status", "implemented")
 
         # 2. aw set specs implemented <id6>
         with tempfile.TemporaryDirectory() as tmp:
@@ -535,7 +535,7 @@ class SpecsEvidenceGateParityTests(unittest.TestCase):
             found_b = _find_spec(repo, "sp0002")
             self.assertIsNotNone(found_b)
             self.assertEqual(found_b.parent.name, "implemented")
-            self.assertIn("- Status: implemented", found_b.read_text(encoding="utf-8"))
+            assert_field(found_b, "status", "implemented")
 
     def test_positional_no_op_fence(self) -> None:
         """Positional re-setting of an already-implemented spec to implemented succeeds (old == new is not a transition).
@@ -626,7 +626,7 @@ class SpecsEvidenceGateParityTests(unittest.TestCase):
             found1 = _find_spec(repo1, "sp0001")
             self.assertIsNotNone(found1)
             self.assertEqual(found1.parent.name, "to-review")
-            self.assertIn("- Status: to-review", found1.read_text(encoding="utf-8"))
+            assert_field(found1, "status", "to-review")
 
         # 2. --status spelling
         with tempfile.TemporaryDirectory() as tmp2:
@@ -656,7 +656,7 @@ class SpecsEvidenceGateParityTests(unittest.TestCase):
             found2 = _find_spec(repo2, "sp0001")
             self.assertIsNotNone(found2)
             self.assertEqual(found2.parent.name, "to-review")
-            self.assertIn("- Status: to-review", found2.read_text(encoding="utf-8"))
+            assert_field(found2, "status", "to-review")
 
     def test_aw_set_backlog_done_evidence_leg(self) -> None:
         """On a release-gated backlog item, aw set done --evidence satisfies close gate while bare set done refuses."""
@@ -719,7 +719,7 @@ class SpecsEvidenceGateParityTests(unittest.TestCase):
             found_b = _find_backlog(repo, "bk0001")
             self.assertIsNotNone(found_b)
             self.assertEqual(found_b.parent.name, "done")
-            self.assertIn("- Status: done", found_b.read_text(encoding="utf-8"))
+            assert_field(found_b, "status", "done")
 
     def test_set_declaration_agreement(self) -> None:
         """CommandDeclaration for 'set' declares --evidence and declared minus real parser options is empty."""
