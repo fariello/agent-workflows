@@ -1709,3 +1709,117 @@ class ScopeAckFallbackAndRemedyAccuracyTests(unittest.TestCase):
         self.assertEqual(prompt_calls, [([], ["tests/test_b.py"])])
         self.assertEqual(out2.acks["tests/test_a.py"], "not-needed")
         self.assertEqual(out2.acks["tests/test_b.py"], "prompted ack")
+
+    def test_defect_report_backlog_carrier_is_auto_reconciled_for_finalize(self):
+        """A newly filed open backlog item cited in defect_report is auto-reconciled so finalize succeeds on attempt 1."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            plan = self._init_plan_repo(repo, "def001", "src/demo.txt")
+            actor = oc_driver.driver_actor({"options": {"model": "opus"}})
+            rc, msg = oc_driver.driver_begin(repo, "def001", actor)
+            self.assertEqual(rc, 0, msg)
+
+            (repo / "src" / "demo.txt").write_text("after\n", encoding="utf-8")
+            backlog_rel = (
+                ".aw/records/backlog/open/"
+                "20261125-jycxw8-01-jycxw8-postcut-ipd-lint-bullets.backlog.md"
+            )
+            backlog_path = repo / backlog_rel
+            backlog_path.parent.mkdir(parents=True, exist_ok=True)
+            backlog_path.write_text(
+                "# Backlog: Postcut lint\n\n- Id: jycxw8\n- Status: open\n",
+                encoding="utf-8",
+            )
+            subprocess.run(
+                ["git", "add", "src/demo.txt", backlog_rel], cwd=repo, check=True
+            )
+            subprocess.run(
+                ["git", "commit", "-qm", "work + defect"], cwd=repo, check=True
+            )
+
+            defect_record = {
+                "state": "found",
+                "findings": [
+                    {
+                        "what": "Lint mismatch on post-cutover tree; filed as backlog jycxw8.",
+                        "where": "agent_workflows/ipd_lint.py; backlog jycxw8",
+                    }
+                ],
+            }
+            recorded = runner_shared.record_defect_report_backlog_scope_reasons(
+                repo,
+                plan,
+                "def001",
+                defect_record,
+                labels=runner_shared.OC_HOST_LABELS,
+            )
+            self.assertIn(backlog_rel, recorded)
+            self.assertIn("jycxw8", recorded[backlog_rel])
+
+            fin_rc, fin_msg = oc_driver.driver_finalize(
+                repo, plan, "def001", actor, "self-finalize verified"
+            )
+            self.assertEqual(fin_rc, 0, fin_msg)
+            executed = repo / ".aw" / "records" / "plans" / "executed" / plan.name
+            self.assertTrue(
+                executed.is_file(), f"expected finalized plan at {executed}"
+            )
+            self.assertIn(
+                "defect-report backlog carrier jycxw8",
+                executed.read_text(encoding="utf-8"),
+            )
+
+    def test_defect_report_auto_reconcile_ignores_uncited_backlog_and_non_backlog(self):
+        """Uncited backlog files and arbitrary out-of-scope files stay fail-closed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            plan = self._init_plan_repo(repo, "def002", "src/demo.txt")
+            actor = oc_driver.driver_actor({"options": {"model": "opus"}})
+            rc, msg = oc_driver.driver_begin(repo, "def002", actor)
+            self.assertEqual(rc, 0, msg)
+
+            (repo / "src" / "demo.txt").write_text("after\n", encoding="utf-8")
+            (repo / "src" / "extra.txt").write_text("unplanned\n", encoding="utf-8")
+            uncited_rel = (
+                ".aw/records/backlog/open/"
+                "20261125-zzzz99-01-zzzz99-uncited-backlog.backlog.md"
+            )
+            uncited_path = repo / uncited_rel
+            uncited_path.parent.mkdir(parents=True, exist_ok=True)
+            uncited_path.write_text(
+                "# Backlog: Uncited\n\n- Id: zzzz99\n- Status: open\n",
+                encoding="utf-8",
+            )
+            subprocess.run(
+                ["git", "add", "src/demo.txt", "src/extra.txt", uncited_rel],
+                cwd=repo,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-qm", "work + uncited"], cwd=repo, check=True
+            )
+
+            defect_record = {
+                "state": "found",
+                "findings": [
+                    {
+                        "what": "Saw bug tracked by backlog abc123 only.",
+                        "where": "agent_workflows/foo.py",
+                    }
+                ],
+            }
+            recorded = runner_shared.record_defect_report_backlog_scope_reasons(
+                repo,
+                plan,
+                "def002",
+                defect_record,
+                labels=runner_shared.OC_HOST_LABELS,
+            )
+            self.assertEqual(recorded, {})
+
+            fin_rc, fin_msg = oc_driver.driver_finalize(
+                repo, plan, "def002", actor, "self-finalize verified"
+            )
+            self.assertEqual(fin_rc, 1, fin_msg)
+            self.assertIn("src/extra.txt", fin_msg)
+            self.assertIn(uncited_rel, fin_msg)

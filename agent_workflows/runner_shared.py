@@ -11700,6 +11700,12 @@ def turn_failure_is_retryable(
             "the turn's failure is a REFUSED VERIFICATION, which the verification send-back already "
             "classifies and already spends correction budget on (see `verification_retry_decision`)",
         )
+    if last_attempt and last_attempt.get("attended_session_failed"):
+        return (
+            False,
+            "the attended interactive session exited non-zero without completing work; "
+            "interactive launch failures and aborts are not retried automatically",
+        )
     if last_attempt and last_attempt.get("turn_failure_kind"):
         kind = str(last_attempt["turn_failure_kind"])
         return (
@@ -27460,10 +27466,12 @@ def run_attended_turn(
     from agent_workflows import render_stream as _rs
 
     _rs.pause_active_statusline()
+    started_mono = time.monotonic()
     try:
         rc = att.run_interactive_session(argv, cwd=cwd, env=att.child_env(extra_env))
     finally:
         _rs.resume_active_statusline()
+    duration_s = round(max(0.0, time.monotonic() - started_mono), 3)
     ended = utc_now()
     with open(log_path, "a", encoding="utf-8") as handle:
         handle.write(
@@ -27473,6 +27481,7 @@ def run_attended_turn(
                     "host": host,
                     "argv0": argv[0],
                     "exit_code": rc,
+                    "duration_s": duration_s,
                     "started_at": started,
                     "ended_at": ended,
                 }
@@ -27481,7 +27490,13 @@ def run_attended_turn(
         )
     append_jsonl(
         run_dir / "events.jsonl",
-        {"at": ended, "event": "attended-session-end", "id6": id6, "exit_code": rc},
+        {
+            "at": ended,
+            "event": "attended-session-end",
+            "id6": id6,
+            "exit_code": rc,
+            "duration_s": duration_s,
+        },
     )
     print(
         f"[aw] {id6}: attended session ended (exit {rc}); continuing the run.",
@@ -39143,6 +39158,114 @@ def compute_scope_reconciliation(
     return ScopeReconciliation(reasons, acks, tuple(unjustified_out_of_scope))
 
 
+_BACKLOG_ID6_FROM_NAME_RE = re.compile(
+    r"^\d{8}-[a-z0-9_-]+-\d{2}-([a-z0-9]{6})-[^/]+\.backlog\.md$",
+    re.IGNORECASE,
+)
+
+
+def _defect_report_findings_text(defect_record: Mapping[str, Any] | None) -> str:
+    """Concatenate finding text from a validated defect_report record for carrier id6 matching."""
+    if not isinstance(defect_record, Mapping):
+        return ""
+    if str(defect_record.get("state") or "").strip().lower() != "found":
+        return ""
+    findings = defect_record.get("findings")
+    if not isinstance(findings, list) or not findings:
+        return ""
+    parts: list[str] = []
+    for entry in findings:
+        if isinstance(entry, Mapping):
+            what = str(entry.get("what") or "").strip()
+            where = str(entry.get("where") or "").strip()
+            if what:
+                parts.append(what)
+            if where:
+                parts.append(where)
+        elif isinstance(entry, str) and entry.strip():
+            parts.append(entry.strip())
+    return "\n".join(parts)
+
+
+def _open_backlog_id6_from_path(repo: Path, rel_path: str) -> str | None:
+    """Return the 6-char id6 when ``rel_path`` is an open backlog item file, else None."""
+    norm = rel_path.replace("\\", "/").lstrip("./")
+    if not norm.endswith(".backlog.md"):
+        return None
+    if "/backlog/open/" not in f"/{norm}":
+        return None
+    m = _BACKLOG_ID6_FROM_NAME_RE.match(Path(norm).name)
+    if m:
+        return m.group(1).lower()
+    full = repo / norm
+    if full.is_file():
+        try:
+            st, _ = _read_state_for_path(repo, full, record_type="backlog")
+            if st is not None and st.id6 and not getattr(st, "id_derived", False):
+                return str(st.id6).strip().lower()
+        except Exception:
+            pass
+    return None
+
+
+def record_defect_report_backlog_scope_reasons(
+    repo: Path,
+    plan_path: Path,
+    plan_id: str,
+    defect_record: Mapping[str, Any] | None,
+    *,
+    labels: HostLabels,
+) -> dict[str, str]:
+    """Auto-record `--scope-reason` onto the plan's begin receipt for cited defect-report backlog files.
+
+    The runner prompt requires an executing agent to file a backlog carrier (`aw backlog new`) for
+    each defect found during execution. Without recording a scope reason, `aw ipd finalize` refuses
+    that newly created open backlog item as out-of-scope and forces a wasted correction retry.
+
+    Only reconciles unjustified out-of-scope paths that are BOTH:
+      1. Open backlog files (`.../backlog/open/...backlog.md`) whose 6-char id6 is cited in this
+         attempt's `defect_report` findings (plus their own metadata log path, if present), AND
+      2. Reported as unjustified out-of-scope by `compute_scope_reconciliation`.
+    Arbitrary out-of-scope files and uncited backlog files remain strictly fail-closed.
+    """
+    findings_text = _defect_report_findings_text(defect_record)
+    if not findings_text or not plan_id:
+        return {}
+
+    from agent_workflows import ipd_lifecycle
+
+    recon = compute_scope_reconciliation(repo, plan_path, labels=labels)
+    if not recon.unjustified_out_of_scope:
+        return {}
+
+    cited_backlogs: list[tuple[str, str]] = []
+    for path in recon.unjustified_out_of_scope:
+        bid6 = _open_backlog_id6_from_path(repo, path)
+        if not bid6:
+            continue
+        if re.search(rf"\b{re.escape(bid6)}\b", findings_text, re.IGNORECASE):
+            cited_backlogs.append((path, bid6))
+
+    if not cited_backlogs:
+        return {}
+
+    auto_reasons: dict[str, str] = {}
+    for backlog_path, bid6 in cited_backlogs:
+        reason = (
+            f"defect-report backlog carrier {bid6} filed per runner prompt "
+            f"(auto-reconciled by {labels.command})"
+        )
+        auto_reasons[backlog_path] = reason
+        for other in recon.unjustified_out_of_scope:
+            if other == backlog_path or other in auto_reasons:
+                continue
+            if ipd_lifecycle.is_own_meta_log_path(other, backlog_path, plan_id=bid6):
+                auto_reasons[other] = reason
+
+    ok, _detail = ipd_lifecycle.record_scope_reasons(repo, plan_id, auto_reasons)
+    return auto_reasons if ok else {}
+
+
 # --------------------------------------------------------------------------------------
 # FINALIZE IDEMPOTENCE (finidem `ld8lb3` E-04/E-05, backlog `02371s`).
 #
@@ -50305,7 +50428,48 @@ def execute_item_core(
             outcome_written=outcome_written,
             lane=lane,
         )
-        if zero_work.attempted_nothing:
+        attended_nonzero_empty = (
+            bool(item.get(ATTENDED_KEY)) and exit_code != 0 and not outcome_written
+        )
+        if attended_nonzero_empty:
+            disposition = "failed-safely"
+            attempt["disposition"] = disposition
+            attempt["attended_session_failed"] = True
+            item["status"] = disposition
+            att_reason = (
+                f"attended interactive session ({host_labels.command}) exited {exit_code} "
+                "without producing an outcome; not retried automatically"
+            )
+            att_remedy = (
+                f"inspect the interactive host command or re-run `{host_labels.command} {item['id6']}` "
+                "in a terminal"
+            )
+            record_refusal(
+                item,
+                code="attended-session-failed",
+                reason=att_reason,
+                remedy=att_remedy,
+            )
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "attended-session-failed",
+                    "id6": item["id6"],
+                    "attempt": attempt_no,
+                    "exit_code": exit_code,
+                    "reason": att_reason,
+                    "facts": zero_work.facts,
+                },
+            )
+            print(
+                pal(
+                    f"\u2717 IPD {item['id6']} attended session failed (exit {exit_code}): {att_reason}",
+                    "red",
+                ),
+                file=sys.stderr,
+            )
+        elif zero_work.attempted_nothing:
             disposition = "fail-gate" if is_review else "fail-verify"
             attempt["disposition"] = disposition
             item["status"] = disposition
@@ -50327,7 +50491,10 @@ def execute_item_core(
                 },
             )
             print(
-                pal(f"\u2717 IPD {item['id6']} silent turn: {zero_work.reason}", "red"),
+                pal(
+                    f"\u2717 IPD {item['id6']} silent turn: {zero_work.reason}",
+                    "red",
+                ),
                 file=sys.stderr,
             )
         elif (
@@ -52980,6 +53147,24 @@ def execute_item_core(
                         actor=actor,
                         run_dir=run_dir,
                     )
+                    defect_scope_reasons = record_defect_report_backlog_scope_reasons(
+                        finalize_repo,
+                        current_plan_for_finalize,
+                        item["id6"],
+                        attempt.get(DEFECT_REPORT_KEY) or item.get(DEFECT_REPORT_KEY),
+                        labels=host_labels,
+                    )
+                    if defect_scope_reasons:
+                        append_jsonl(
+                            run_dir / "events.jsonl",
+                            {
+                                "at": utc_now(),
+                                "event": "defect-report-backlog-scope-reconciled",
+                                "id6": item["id6"],
+                                "attempt": attempt_no,
+                                "paths": sorted(defect_scope_reasons),
+                            },
+                        )
                     # finlockwait-01 (`y2vzit`) E-03: Lane arm finalize (first handle_finalize_refusal
                     # call site). If driver_finalize meets writer-lock contention, re-attempt bounded times
                     # (FINALIZE_LOCK_REATTEMPTS) keeping the LANE worktree `finalize_repo` argument.
@@ -54139,6 +54324,24 @@ def execute_item_core(
                         actor=actor,
                         run_dir=run_dir,
                     )
+                    defect_scope_reasons = record_defect_report_backlog_scope_reasons(
+                        repo,
+                        current_plan_for_finalize,
+                        item["id6"],
+                        attempt.get(DEFECT_REPORT_KEY) or item.get(DEFECT_REPORT_KEY),
+                        labels=host_labels,
+                    )
+                    if defect_scope_reasons:
+                        append_jsonl(
+                            run_dir / "events.jsonl",
+                            {
+                                "at": utc_now(),
+                                "event": "defect-report-backlog-scope-reconciled",
+                                "id6": item["id6"],
+                                "attempt": attempt_no,
+                                "paths": sorted(defect_scope_reasons),
+                            },
+                        )
                     # finlockwait-01 (`y2vzit`) E-03: Non-lane arm finalize (second handle_finalize_refusal
                     # call site). If driver_finalize meets writer-lock contention, re-attempt bounded times
                     # (FINALIZE_LOCK_REATTEMPTS) keeping `repo`.

@@ -102,7 +102,7 @@ def test_interactive_argv_per_host(tmp_path: Path) -> None:
     wd = tmp_path
     assert attended_session.build_interactive_argv(
         "opencode", workdir=wd, prompt="go", model="m/x", agent="build"
-    ) == ["opencode", str(wd), "--prompt", "go", "--model", "m/x", "--agent", "build"]
+    ) == ["opencode", "mini", "--prompt", "go", "--model", "m/x", "--agent", "build"]
     assert attended_session.build_interactive_argv(
         "claude", workdir=wd, prompt="go", model="opus"
     ) == ["claude", "--model", "opus", "go"]
@@ -153,7 +153,7 @@ def test_work_begin_opens_the_session_in_the_worktree(tmp_path: Path) -> None:
     rec = json.loads(record.read_text(encoding="utf-8"))
     worktree = repo / ".aw" / "worktrees" / "att004"
     assert Path(rec["cwd"]).resolve() == worktree.resolve()
-    assert Path(rec["argv"][0]).resolve() == worktree.resolve()
+    assert rec["argv"][0] == "mini"
     assert rec["argv"][1] == "--prompt" and "Execute plan att004" in rec["argv"][2]
     assert "session ended (exit 0)" in out
 
@@ -328,7 +328,7 @@ def test_attended_turn_runs_interactively_and_is_scored_normally(
     rec = json.loads(record.read_text(encoding="utf-8"))
     # Launched in its INTERACTIVE form, not the headless one.
     if runner_name == "oc":
-        assert rec["argv"][1] == "--prompt" and "run" not in rec["argv"][:1]
+        assert rec["argv"][0] == "mini" and rec["argv"][1] == "--prompt"
     else:
         assert rec["argv"][0] == "--prompt-interactive" and "-p" not in rec["argv"]
     assert "Execute plan att009" in " ".join(rec["argv"])
@@ -337,3 +337,59 @@ def test_attended_turn_runs_interactively_and_is_scored_normally(
     assert item["status"] == "executed", item.get("refusal")
     events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
     assert "attended-session-start" in events and "attended-session-end" in events
+
+
+@pytest.mark.parametrize("runner_name", ["oc", "agy"])
+def test_attended_turn_nonzero_empty_exit_fails_without_val_err_or_retry(
+    tmp_path: Path, runner_name: str
+) -> None:
+    """A non-zero empty attended-session exit fails safely immediately without fail-verify or retry."""
+    from tests.test_run_proposal_channel import _create_plan_file, _create_test_repo
+
+    repo = _create_test_repo(tmp_path)
+    plan_file = _create_plan_file(repo, "att010")
+    fake = support.make_fake_executable(
+        tmp_path / f"fake_fail_{runner_name}",
+        "#!/usr/bin/env python3\nimport sys\nsys.exit(1)\n",
+    )
+    run_dir = repo / ".aw" / "records" / "runs" / f"run-attended-fail-{runner_name}"
+    for sub in ("outcomes", "prompts"):
+        (run_dir / sub).mkdir(parents=True, exist_ok=True)
+    item: dict[str, Any] = {
+        "id6": "att010",
+        "setid": "testset",
+        "position": 1,
+        "action": "execute",
+        "status": "queued",
+        "configured_file": str(plan_file),
+        "attempts": [],
+        runner_shared.ATTENDED_KEY: True,
+    }
+    state: dict[str, Any] = {
+        "repo": str(repo),
+        "run_id": f"run-attended-fail-{runner_name}",
+        "queue": [item],
+        "options": {
+            "no_verify": True,
+            "validate": False,
+            "self_finalize": False,
+            "retry_budget": 2,
+            "output_mode": "quiet",
+        },
+    }
+    module = oc_runipd if runner_name == "oc" else agy_runipd
+    state["options"]["opencode" if runner_name == "oc" else "agy"] = str(fake)
+
+    with coordinator_role():
+        module.execute_item(run_dir, state, item, recovery=False)
+
+    assert item["status"] == "failed-safely"
+    assert item["refusal"]["code"] == "attended-session-failed"
+    assert len(item["attempts"]) == 1
+    assert item["attempts"][0]["attended_session_failed"] is True
+    assert item["attempts"][0]["disposition"] == "failed-safely"
+    assert not item.get(runner_shared.TURN_RETRY_COUNT_KEY)
+    events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+    assert "attended-session-failed" in events
+    assert "ipd-silent-turn" not in events
+    assert "ipd-turn-retry" not in events

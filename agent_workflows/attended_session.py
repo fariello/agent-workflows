@@ -14,9 +14,9 @@ question and take the answer while the run continues. Once that lands, an attend
 able to run as an ordinary runner turn, and this hand-off to an interactive session becomes the
 fallback rather than the only way. Design work on either should read D176.
 
-THE INTERACTIVE FORMS, checked against each host's ``--help`` on 2026-10-18:
+THE INTERACTIVE FORMS, checked against each host's ``--help`` (OpenCode re-checked on v2.3.2 on 2026-11-25):
 
-- OpenCode: ``opencode <project dir> --prompt <text> [--model M] [--agent A]`` (the TUI, prompt filled).
+- OpenCode: ``opencode mini --prompt <text> [--model M] [--agent A]`` (minimal interactive TUI run with ``cwd=workdir``; bare ``opencode`` v2.3.2 rejects ``--model`` and ``--agent`` with exit 1).
 - Claude Code: ``claude [--model M] <prompt>`` (interactive session with an initial prompt).
 - Antigravity: ``agy --prompt-interactive <text> [--model M] [--effort E]``.
 
@@ -109,7 +109,9 @@ def build_interactive_argv(
     name = RUNNER_TO_HOST.get(host, host)
     exe = binary or HOST_BINARIES.get(name, name)
     if name == "opencode":
-        argv = [exe, str(workdir), "--prompt", prompt]
+        # OpenCode v2.3.2 bare `opencode` rejects `--model` and `--agent` (exit 1);
+        # `opencode mini` accepts `--prompt`, `--model`, and `--agent` and runs in `cwd=workdir`.
+        argv = [exe, "mini", "--prompt", prompt]
         if model:
             argv += ["--model", model]
         if agent:
