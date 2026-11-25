@@ -6,7 +6,7 @@
 - Scope: Batches S12a and S12b: 8 modules (`tests/test_records_only_lane_rederive.py`, `tests/test_releases_cli.py`, `tests/test_release_sentinel_succession.py`, `tests/test_releases.py`, `tests/test_rereview_reviewed_plan.py`, `tests/test_review_record_classifier.py`, `tests/test_review_rereview.py`, `tests/test_review_sequence.py`). EXCLUDES the `w13bkp` exclusions: switching `RECORD_FORMAT` to `log`, the log branch of the helper, displayed-output assertions, legacy-format subject tests, the `review-pilot` corpus, production code.
 - Scope-Paths: tests/test_records_only_lane_rederive.py, tests/test_releases_cli.py, tests/test_release_sentinel_succession.py, tests/test_releases.py, tests/test_rereview_reviewed_plan.py, tests/test_review_record_classifier.py, tests/test_review_rereview.py, tests/test_review_sequence.py, .aw/records/plans/pending/20261109-metastore-264-cxylsu-move-setter-byte-assertions-of-batch-s12-first-eight-modules.ipd.md
 - Item-Dependencies: executed:1ajqaa, executed:59aiyh, executed:90iqr1, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:ya4ee4
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +18,11 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: cxylsu
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-25 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: cxylsu verified (set metastore, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_review_rereview.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_review_sequence.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, batch test outcome parity, and execution gate; marked reviewed and go-pending-approval.
