@@ -113,6 +113,7 @@ _BULLET_LABELS: dict[str, str] = {
     "release_exempt_kind": "Release-Exempt-Kind",
     "release_exempt_ref": "Release-Exempt-Ref",
     "close_evidence": "Close-Evidence",
+    "implemented": "Implemented",
 }
 
 _YAML_KEYS: dict[str, str] = {
@@ -1407,4 +1408,264 @@ class RecordBuilder:
             reviewer=reviewer,
             verdict=verdict,
             rounds=coerced_rounds,
+        )
+
+
+_REVIEW_FIELDS: frozenset[str] = frozenset(
+    ("subject_id", "subject_type", "reviewed_at", "reviewer", "verdict")
+)
+
+_SUFFIX_TO_RECORD_TYPE: tuple[tuple[str, str], ...] = (
+    (".ipd.md", "ipd"),
+    (".spec.md", "spec"),
+    (".backlog.md", "backlog"),
+    (".release.md", "release"),
+    (".prompt.md", "prompt"),
+    (".walkthrough.md", "walkthrough"),
+    (".review.md", "review"),
+    (".research-report.md", "research"),
+    (".research-prompt.md", "research"),
+    (".findings.md", "research"),
+    (".survey.md", "research"),
+    (".comparison.md", "research"),
+)
+
+
+def _infer_record_type(
+    record_path: Path,
+    text: str,
+    record_type: str | None,
+) -> str:
+    if record_type is not None:
+        if record_type in ("review", "reviews"):
+            return "review"
+        resolved, _ = _meta._normalize_legacy_types(
+            record_type, target_path=record_path
+        )
+        return resolved or "ipd"
+
+    name = record_path.name
+    for suffix, rtype in _SUFFIX_TO_RECORD_TYPE:
+        if name.endswith(suffix):
+            return rtype
+
+    for part in reversed(record_path.parts[:-1]):
+        if part == "reviews":
+            return "review"
+        mapped = _meta._LEGACY_PLURAL_TO_TYPE.get(part)
+        if mapped is not None:
+            return mapped
+
+    if text.startswith("<!--") and _meta.has_prompt_metadata_comment(text):
+        return "prompt"
+    if _meta._YAML_FENCE_OPEN_RE.match(text):
+        return "research"
+    return "ipd"
+
+
+def _read_state_field(state: _meta.State, field: str) -> Any:
+    if field in state.fields:
+        return state.fields[field]
+    if field == "status":
+        return state.status
+    if field == "id":
+        return state.id6 or None
+    if field == "set":
+        return state.set_id
+    if field == "order" and state.order_nn is not None:
+        return str(state.order_nn)
+    if field == "short_description":
+        return state.short_description
+    if state.type == "prompt":
+        if field == "prompt_kind":
+            return state.fields.get("plan_role")
+        if field == "created_day":
+            return state.fields.get("created")
+    return None
+
+
+def _bullet_label_for(field: str, record_type: str) -> str:
+    if record_type == "review" and field in _REVIEW_FIELDS:
+        return "-".join(part.capitalize() for part in field.split("_"))
+    label = _BULLET_LABELS.get(field)
+    if label is None:
+        raise ValueError(f"unknown field {field!r} for record type {record_type!r}")
+    return label
+
+
+def _prompt_comment_segments(text: str) -> list[str]:
+    first_line = text.replace("\r\n", "\n").split("\n", 1)[0]
+    match = _re.match(
+        r"^<!--\s*aw-prompt:\s*(.*?)(?:\s*\.\s*(This HTML comment.*?))?\s*-->$",
+        first_line,
+    )
+    if not match:
+        return []
+    return [seg.strip() for seg in match.group(1).split(" | ") if seg.strip()]
+
+
+def assert_field(
+    path: Path | str,
+    field: str,
+    value: Any,
+    *,
+    record_type: str | None = None,
+) -> None:
+    """Assert that the record at ``path`` has ``field`` equal to ``value`` in the active format.
+
+    In the legacy format (``RECORD_FORMAT == "legacy"``), reads the record through
+    ``artifact_meta.read_text`` and also checks the exact on-disk metadata representation
+    (bullet line ``- <Label>: <value>``, YAML ``<key>: <value>``, or prompt comment segment
+    ``<Key>: <value>``), so tests are never weaker than direct substring assertions.
+    """
+    _require_legacy_format()
+    record_path = Path(path)
+    text = record_path.read_text(encoding="utf-8")
+    resolved_type = _infer_record_type(record_path, text, record_type)
+    state = _meta.read_text(text, record_type=resolved_type)
+    observed = _read_state_field(state, field)
+
+    region_lines = _meta.metadata_region(text).replace("\r\n", "\n").split("\n")
+
+    if resolved_type == "research" and _meta._YAML_FENCE_OPEN_RE.match(text):
+        yaml_key = _meta._RESEARCH_YAML_KEY.get(field)
+        if yaml_key is None:
+            raise ValueError(
+                f"unknown field {field!r} for record type {resolved_type!r}"
+            )
+        expected_str = _meta._format_yaml_value(value, key=yaml_key)
+        expected_line = f"{yaml_key}: {expected_str}"
+        matching_lines = [
+            ln for ln in region_lines if _re.match(rf"^{_re.escape(yaml_key)}:", ln)
+        ]
+        if observed is None or str(observed) != expected_str:
+            raise AssertionError(
+                f"{record_path}: field {field!r} mismatch: "
+                f"expected {expected_str!r} (exact line {expected_line!r}), "
+                f"observed {observed!r} (lines: {matching_lines!r})"
+            )
+        if expected_line not in region_lines or len(matching_lines) != 1:
+            raise AssertionError(
+                f"{record_path}: field {field!r} exact-line mismatch: "
+                f"expected {expected_line!r} (value {expected_str!r}), "
+                f"observed {observed!r} (lines: {matching_lines!r})"
+            )
+        return
+
+    if resolved_type == "prompt" and _meta.has_prompt_metadata_comment(text):
+        key_label = _meta._PROMPT_COMMENT_KEY.get(field)
+        if key_label is None:
+            raise ValueError(
+                f"unknown field {field!r} for record type {resolved_type!r}"
+            )
+        expected_str = _meta._format_legacy_value(field, value)
+        expected_seg = f"{key_label}: {expected_str}"
+        segments = _prompt_comment_segments(text)
+        matching_segs = [
+            seg for seg in segments if _re.match(rf"^{_re.escape(key_label)}:", seg)
+        ]
+        if observed is None or str(observed) != expected_str:
+            raise AssertionError(
+                f"{record_path}: field {field!r} mismatch: "
+                f"expected {expected_str!r} (exact segment {expected_seg!r}), "
+                f"observed {observed!r} (segments: {matching_segs!r})"
+            )
+        if expected_seg not in segments or len(matching_segs) != 1:
+            raise AssertionError(
+                f"{record_path}: field {field!r} exact-segment mismatch: "
+                f"expected {expected_seg!r} (value {expected_str!r}), "
+                f"observed {observed!r} (segments: {matching_segs!r})"
+            )
+        return
+
+    label = _bullet_label_for(field, resolved_type)
+    expected_str = _meta._format_legacy_value(field, value)
+    expected_line = f"- {label}: {expected_str}"
+    matching_lines = [
+        ln for ln in region_lines if _re.match(rf"^-\s*{_re.escape(label)}:", ln)
+    ]
+    if observed is None or str(observed) != expected_str:
+        raise AssertionError(
+            f"{record_path}: field {field!r} mismatch: "
+            f"expected {expected_str!r} (exact line {expected_line!r}), "
+            f"observed {observed!r} (lines: {matching_lines!r})"
+        )
+    if expected_line not in region_lines or len(matching_lines) != 1:
+        raise AssertionError(
+            f"{record_path}: field {field!r} exact-line mismatch: "
+            f"expected {expected_line!r} (value {expected_str!r}), "
+            f"observed {observed!r} (lines: {matching_lines!r})"
+        )
+
+
+def assert_no_field(
+    path: Path | str,
+    field: str,
+    *,
+    record_type: str | None = None,
+) -> None:
+    """Assert that ``field`` is absent or unset on the record at ``path`` in the active format."""
+    _require_legacy_format()
+    record_path = Path(path)
+    text = record_path.read_text(encoding="utf-8")
+    resolved_type = _infer_record_type(record_path, text, record_type)
+    state = _meta.read_text(text, record_type=resolved_type)
+    observed = _read_state_field(state, field)
+
+    region_lines = _meta.metadata_region(text).replace("\r\n", "\n").split("\n")
+
+    if resolved_type == "research" and _meta._YAML_FENCE_OPEN_RE.match(text):
+        yaml_key = _meta._RESEARCH_YAML_KEY.get(field)
+        if yaml_key is None:
+            raise ValueError(
+                f"unknown field {field!r} for record type {resolved_type!r}"
+            )
+        non_empty_lines = [
+            ln
+            for ln in region_lines
+            if _re.match(rf"^{_re.escape(yaml_key)}:\s*\S", ln)
+        ]
+        if (observed is not None and str(observed) != "") or non_empty_lines:
+            raise AssertionError(
+                f"{record_path}: field {field!r} expected absent, "
+                f"observed {observed!r} (lines: {non_empty_lines!r})"
+            )
+        return
+
+    if resolved_type == "prompt" and _meta.has_prompt_metadata_comment(text):
+        key_label = _meta._PROMPT_COMMENT_KEY.get(field)
+        if key_label is None:
+            raise ValueError(
+                f"unknown field {field!r} for record type {resolved_type!r}"
+            )
+        segments = _prompt_comment_segments(text)
+        matching_segs = [
+            seg for seg in segments if _re.match(rf"^{_re.escape(key_label)}:", seg)
+        ]
+        bullet_label = _BULLET_LABELS.get(field)
+        matching_bullets = [
+            ln
+            for ln in region_lines
+            if bullet_label and _re.match(rf"^-\s*{_re.escape(bullet_label)}:", ln)
+        ]
+        if (
+            (observed is not None and str(observed) != "")
+            or matching_segs
+            or matching_bullets
+        ):
+            raise AssertionError(
+                f"{record_path}: field {field!r} expected absent, "
+                f"observed {observed!r} "
+                f"(segments: {matching_segs!r}, lines: {matching_bullets!r})"
+            )
+        return
+
+    label = _bullet_label_for(field, resolved_type)
+    matching_lines = [
+        ln for ln in region_lines if _re.match(rf"^-\s*{_re.escape(label)}:", ln)
+    ]
+    if (observed is not None and str(observed) != "") or matching_lines:
+        raise AssertionError(
+            f"{record_path}: field {field!r} expected absent, "
+            f"observed {observed!r} (lines: {matching_lines!r})"
         )

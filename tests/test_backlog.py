@@ -24,7 +24,7 @@ from agent_workflows import backlog as B
 from tests import support
 
 import pytest
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field, assert_no_field
 
 pytestmark = pytest.mark.core
 
@@ -137,7 +137,7 @@ class BacklogVerbTests(unittest.TestCase):
         moved = self.repo / ".agents/backlog/done" / f.name
         self.assertTrue(moved.exists())
         text = moved.read_text(encoding="utf-8")
-        self.assertIn("- Status: done", text)
+        assert_field(moved, "status", "done")
         # plan `vhbvwz` E-08: inline history is PRESERVED, newest-first. This assertion used to demand
         # exactly ONE record (awhistory Order 02's slimming), on the premise that the full log lived in
         # `.aw/records/history.jsonl`; that sidecar is gitignored, so the dropped records did not
@@ -181,7 +181,7 @@ class BacklogVerbTests(unittest.TestCase):
         moved = self.repo / ".agents/backlog/done" / f.name
         self.assertTrue(moved.exists())
         text = moved.read_text(encoding="utf-8")
-        self.assertIn("- Status: done", text)
+        assert_field(moved, "status", "done")
         self.assertIn("finished", text)
         after = support.section(text, "## Workflow history", "\n## ")
         inline = [ln for ln in after.split("\n") if ln.startswith("- ")]
@@ -223,9 +223,8 @@ class BacklogVerbTests(unittest.TestCase):
             )
         self.assertEqual(rc, 0)
         moved = self.repo / ".agents/backlog/blocked" / f.name
-        text = moved.read_text(encoding="utf-8")
-        self.assertIn("- Gate-Kind: artifact", text)
-        self.assertIn("- Gate-Ref: path/to/x.md", text)
+        assert_field(moved, "gate_kind", "artifact")
+        assert_field(moved, "gate_ref", "path/to/x.md")
 
     def test_check_fails_closed_on_status_dir_mismatch(self):
         # a file whose Status disagrees with its directory
@@ -418,7 +417,7 @@ class BacklogVerbTests(unittest.TestCase):
         text = items[0].read_text(encoding="utf-8")
         fields = META.read_text(text, record_type="backlog").fields
         self.assertEqual(fields.get("blocks_release"), "next")
-        self.assertIn("- Blocks-Release: next", text)
+        assert_field(items[0], "blocks_release", "next")
         self.assertIn("created (aw backlog): custom creation note", text)
         self.assertEqual(releases.check_blocks_release(self.repo), [])
         items_att, drift = ATT.scan(self.repo)
@@ -738,8 +737,7 @@ class BacklogNoteVerbTests(unittest.TestCase):
         rc, _out, _err = self._note("the reason this matters")
         self.assertEqual(rc, 0)
         self.assertTrue(self.item.exists(), "note must NOT move the item's file")
-        text = self.item.read_text(encoding="utf-8")
-        self.assertIn("- Status: open", text)
+        assert_field(self.item, "status", "open")
         recs = self._records(self.item)
         self.assertEqual(len(recs), 2, recs)
         self.assertEqual(
@@ -1068,9 +1066,9 @@ class BacklogPreservationTests(unittest.TestCase):
             meta2 = t2.split("\n## Workflow history")[0]
 
             self.assertEqual(meta1, meta2)
-            self.assertIn("- Blocks-Release: rel001", meta1)
+            assert_field(parked1, "blocks_release", "rel001")
             self.assertIn("- Custom-Field: keepme", meta1)
-            self.assertIn("- Graduated-To: foo", meta1)
+            assert_field(parked1, "graduated_to", "foo")
 
     def test_backlog_set_status_graduated_to_replaces_and_preserves_custom_field(self):
         """(b) --status graduated --graduated-to bar replaces value and keeps Custom-Field."""
@@ -1184,8 +1182,7 @@ class BacklogPreservationTests(unittest.TestCase):
             grad = r / ".aw" / "records" / "backlog" / "graduated" / p.name
             self.assertTrue(grad.exists())
             text = grad.read_text(encoding="utf-8")
-            self.assertIn("- Graduated-To: bar", text)
-            self.assertNotIn("- Graduated-To: foo", text)
+            assert_field(grad, "graduated_to", "bar")
             self.assertIn("- Custom-Field: keepme", text)
 
     def test_backlog_set_blocks_release_dash_removes_gate_and_preserves_custom_field(
@@ -1242,7 +1239,7 @@ class BacklogPreservationTests(unittest.TestCase):
             parked = r / ".aw" / "records" / "backlog" / "parked" / p.name
             self.assertTrue(parked.exists())
             text = parked.read_text(encoding="utf-8")
-            self.assertNotIn("- Blocks-Release:", text)
+            assert_no_field(parked, "blocks_release")
             self.assertIn("- Custom-Field: keepme", text)
 
     def test_close_on_answer_preserves_custom_field_and_handed_off_blocks_release(self):
@@ -1309,9 +1306,9 @@ class BacklogPreservationTests(unittest.TestCase):
             self.assertTrue(dest.exists())
             text = dest.read_text(encoding="utf-8")
             self.assertIn("- Custom-Field: keepme", text)
-            self.assertIn("- Blocks-Release: rel001", text)
-            self.assertNotIn("- Gate-Kind:", text)
-            self.assertNotIn("- Gate-Ref:", text)
+            assert_field(dest, "blocks_release", "rel001")
+            assert_no_field(dest, "gate_kind")
+            assert_no_field(dest, "gate_ref")
 
     def test_close_on_answer_preserves_prior_history_records(self):
         """(a) close_on_answer on a 3-record item yields 4 records, close-record first, originals byte-identical."""
@@ -1649,10 +1646,9 @@ class BacklogPreservationTests(unittest.TestCase):
 
             done = r / ".aw" / "records" / "backlog" / "done" / p.name
             self.assertTrue(done.exists())
-            text = done.read_text(encoding="utf-8")
-            self.assertNotIn("- Gate-Summary:", text)
-            self.assertNotIn("- Gate-Kind:", text)
-            self.assertNotIn("- Gate-Ref:", text)
+            assert_no_field(done, "gate_summary")
+            assert_no_field(done, "gate_kind")
+            assert_no_field(done, "gate_ref")
 
     def test_gated_close_refused_without_carrier(self):
         """(d) close_on_answer on item with Blocks-Release and no carrier raises ValueError and leaves file untouched."""
@@ -1878,10 +1874,9 @@ class BacklogPreservationTests(unittest.TestCase):
                 (repo / ".aw" / "records" / "backlog" / "open").glob("*.md")
             )
             self.assertEqual(len(created_files), 1)
-            content = created_files[0].read_text(encoding="utf-8")
-            self.assertIn("- Release-Exempt-Kind: decision\n", content)
-            self.assertIn("- Release-Exempt-Ref: D42\n", content)
-            self.assertNotIn("- Blocks-Release:", content)
+            assert_field(created_files[0], "release_exempt_kind", "decision")
+            assert_field(created_files[0], "release_exempt_ref", "D42")
+            assert_no_field(created_files[0], "blocks_release")
 
     def test_release_exempt_setter_roundtrip_and_parity(self):
         """Setter roundtrip through both spellings writes bullets and history, and produces field-identical output."""
@@ -1947,8 +1942,8 @@ class BacklogPreservationTests(unittest.TestCase):
                 rc1 = B.run_set(set_args1)
             self.assertEqual(rc1, 0)
             res1_text = f1.read_text(encoding="utf-8")
-            self.assertIn("- Release-Exempt-Kind: decision\n", res1_text)
-            self.assertIn("- Release-Exempt-Ref: D42\n", res1_text)
+            assert_field(f1, "release_exempt_kind", "decision")
+            assert_field(f1, "release_exempt_ref", "D42")
             self.assertIn("exempted reason", res1_text)
 
             # Route 2: positional spelling via run_set_command
@@ -1968,8 +1963,8 @@ class BacklogPreservationTests(unittest.TestCase):
                 )
             self.assertEqual(rc2, 0)
             res2_text = f2.read_text(encoding="utf-8")
-            self.assertIn("- Release-Exempt-Kind: decision\n", res2_text)
-            self.assertIn("- Release-Exempt-Ref: D42\n", res2_text)
+            assert_field(f2, "release_exempt_kind", "decision")
+            assert_field(f2, "release_exempt_ref", "D42")
             self.assertIn("exempted reason", res2_text)
 
             # One asymmetry is normalized away here:
