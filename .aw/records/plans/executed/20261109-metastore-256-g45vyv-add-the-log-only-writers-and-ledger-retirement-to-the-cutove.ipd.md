@@ -5,8 +5,9 @@
 - Concern: `cxxmyv` E-04 turned on the log-only writers inside the attended cutover turn: retiring the rename ledger and the history-sidecar writers, and removing the INDEX and sidecar ignore lines and scan skip-names from the installer. Like the rest of the code switch, it cannot land on `main` before the one cutover commit (spec `4sd62s` 5.2, C10a), but it can be prepared as part of the inert cumulative code patch that `2k5t16` started (round-3 split, research `nj8zdp`).
 - Scope: In a scratch worktree with both cutover patches applied, retire the rename ledger and `record_history` writers, remove the INDEX and sidecar ignore lines from the installer template paths, and remove the INDEX and STATUS skip-name entries; regenerate `.aw/system/cutover/metastore-code.cutover.patch`. No live code changes; this repository's own `.aw/.gitignore`, INDEX files, `STATUS.md` and sidecar are never touched (migration steps 2 and 5 do that).
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-256-g45vyv-add-the-log-only-writers-and-ledger-retirement-to-the-cutove.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
+- Scope-Exceeded: .aw/records/backlog/open/20261125-91eazx-01-91eazx-after-the-metastore-cutover-artifact-meta-read-loo.backlog.md (durable defect carrier the driver requires for a defect this execution found read_loose_id returns None on log-format records filed with aw backlog new, not plan work); .aw/records/backlog/open/20261125-eqjdre-01-eqjdre-research-mv-no-rename-event.backlog.md (durable defect carrier the driver requires for a defect this execution found research mv/set-assign write no rename event once g45vyv retires the ledger filed with aw backlog new, not plan work)
 - Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1, executed:2k5t16
-- Status: approved
+- Status: executed
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: g45vyv
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Reviewed and proofread per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-25 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5.5-1m-us variant=high profile=opus): aw oc run self-finalize: g45vyv verified (set metastore, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261125-91eazx-01-91eazx-after-the-metastore-cutover-artifact-meta-read-loo.backlog.md: durable defect carrier the driver requires for a defect this execution found (read_loose_id returns None on log-format records); filed with aw backlog new, not plan work; out-of-scope .aw/records/backlog/open/20261125-eqjdre-01-eqjdre-research-mv-no-rename-event.backlog.md: durable defect carrier the driver requires for a defect this execution found (research mv/set-assign write no rename event once g45vyv retires the ledger); filed with aw backlog new, not plan work]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity/gemini-3.8-flash): /plan-review (antigravity/gemini-3.8-flash): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005.
