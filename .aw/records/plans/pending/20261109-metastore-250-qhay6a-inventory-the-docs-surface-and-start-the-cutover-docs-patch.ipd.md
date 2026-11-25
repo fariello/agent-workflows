@@ -265,7 +265,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `3 files changed, 145 insertions(+), 108 deletions(-)`
     `git apply --check .aw/system/cutover/metastore-docs.cutover.patch`: exit 0 (`apply-check exit=0`).
     `git worktree list` (repo root sanitized as `<repo>`): `<repo> 7a9d29ba3 [main]`, `<repo>/.aw/worktrees/9o83cr 138f0c3c9 [aw/lane/9o83cr]`, `<repo>/.aw/worktrees/9o83cr_attempt2 3ef955292 [aw/lane/9o83cr_attempt2]`, `<repo>/.aw/worktrees/qhay6a 7a9d29ba3 [aw/lane/qhay6a]`, `<repo>/.aw/worktrees/review-sweep-run-20261124T195133Z-1320375 74ccd03f1 [aw/lane/review-sweep-run-20261124T195133Z-1320375]` (`.aw/state/qhay6a/scratch` removed).
-    `aw commit` output: (recorded in follow-up commit immediately after E-03 commit).
+    `aw commit` output: `aw commit: committed 2 path(s): 0a348042f8b5b927df81a5cd39f8227dbe1c600b` (via `aw commit qhay6a -m "feat(metastore): inventory docs surface and start cutover docs patch" -- .aw/records/plans/pending/20261109-metastore-250-qhay6a-inventory-the-docs-surface-and-start-the-cutover-docs-patch.ipd.md .aw/system/cutover/metastore-docs.cutover.patch`).
   - Result: pass
 
 ## Approval and execution gate
