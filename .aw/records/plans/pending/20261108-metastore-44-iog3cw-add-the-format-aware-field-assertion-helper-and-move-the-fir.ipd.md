@@ -99,6 +99,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-261-j5fqax-add-the-format-aware-field-assertion-helper-and-move-batch-s.ipd.md
 - Batch S01 (E-02), as S01a and S01b. Moved to 545ag7 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 545ag7
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-262-545ag7-move-setter-byte-assertions-of-batch-s01-onto-the-format-awa.ipd.md
 - Batches S05, S06, S07: Moved to 87rvs2 (split 2026-11-08 per maintainer step-complexity rule; at most 4 batch items per plan).
   - Carrier: 87rvs2
 - Batches S08, S09, S10: Moved to rdg0qv (split 2026-11-08 per maintainer step-complexity rule; at most 4 batch items per plan).
