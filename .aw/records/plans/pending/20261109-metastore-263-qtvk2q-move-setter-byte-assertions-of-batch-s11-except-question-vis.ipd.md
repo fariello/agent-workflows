@@ -45,20 +45,20 @@ Batch rule, applied to every batch E-item of this plan:
 
 ### Task group 1: work
 
-- [ ] E-01 (first half of `w13bkp` E-01 (S11)) Batch S11a: convert the setter-byte assertions of `tests/test_production_baseline_same_commit.py`, `tests/test_production_correction_turn.py`, `tests/test_production_resume_handoff.py`, `tests/test_production_set_check.py` (F-28). Apply the batch rule with `<batch>` = `S11a`.
+- [x] E-01 (first half of `w13bkp` E-01 (S11)) Batch S11a: convert the setter-byte assertions of `tests/test_production_baseline_same_commit.py`, `tests/test_production_correction_turn.py`, `tests/test_production_resume_handoff.py`, `tests/test_production_set_check.py` (F-28). Apply the batch rule with `<batch>` = `S11a`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S11a outcome lists; the remaining F-28 matches in these modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 (second half of `w13bkp` E-01 (S11), less `tests/test_question_visibility.py`, which is in `810kpy`) Batch S11b: convert the setter-byte assertions of `tests/test_prompts_set_surface.py`, `tests/test_question_drain.py`, `tests/test_question_parking.py`, `tests/test_question_preflight.py` (F-28). Apply the batch rule with `<batch>` = `S11b`.
+- [x] E-02 (second half of `w13bkp` E-01 (S11), less `tests/test_question_visibility.py`, which is in `810kpy`) Batch S11b: convert the setter-byte assertions of `tests/test_prompts_set_surface.py`, `tests/test_question_drain.py`, `tests/test_question_parking.py`, `tests/test_question_preflight.py` (F-28). Apply the batch rule with `<batch>` = `S11b`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S11b outcome lists; the remaining F-28 matches in these modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Finish this part: run the batch rule's command over the 8 modules of this plan once more and confirm the outcome multiset equals the union of the `-before.txt` lists of S11a, S11b; write this plan's F-28 rows (one row per remaining match with its class) and F-29 (per-module PASSED, FAILED, SKIPPED and XFAIL counts of the after run) so `w13bkp` E-11 can assemble the part table; run `aw sanitize --agent`; commit through `aw commit qtvk2q -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-03 Finish this part: run the batch rule's command over the 8 modules of this plan once more and confirm the outcome multiset equals the union of the `-before.txt` lists of S11a, S11b; write this plan's F-28 rows (one row per remaining match with its class) and F-29 (per-module PASSED, FAILED, SKIPPED and XFAIL counts of the after run) so `w13bkp` E-11 can assemble the part table; run `aw sanitize --agent`; commit through `aw commit qtvk2q -- <each changed path>`, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-01, E-02
   - Expected outcome: the union comparison is empty; F-28 and F-29 for this part are written; every commit is path-scoped to Scope-Paths.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -71,8 +71,8 @@ Batch rule, applied to every batch E-item of this plan:
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-28 | `w13bkp` F-28 (measurement at `ac76110f4`) | This part: S11a and S11b, 8 modules. Rows for remaining matches are written by E-03. |
-| F-29 | (written by E-03) | Per-module after-run outcome counts. |
+| F-28 | `w13bkp` F-28 (measurement at `ac76110f4`); post-conversion scan with the F-28 pattern at `6a41c4b46` (`rg -c` before -> after: `tests/test_production_baseline_same_commit.py` 2 -> 0, `tests/test_production_correction_turn.py` 2 -> 0, `tests/test_production_resume_handoff.py` 3 -> 0, `tests/test_production_set_check.py` 5 -> 0, `tests/test_prompts_set_surface.py` 2 -> 2, `tests/test_question_drain.py` 3 -> 3, `tests/test_question_parking.py` 1 -> 0, `tests/test_question_preflight.py` 7 -> 7) | This part: S11a and S11b, 8 modules, 25 candidate lines; 13 converted, 12 remaining, 0 `setter-byte, exact spelling`, 0 `displayed-output assertion`, 12 `legacy-format subject`. None of the 12 is a front-matter setter-byte assertion, so none is a cutover row (decision `06-qtvk2q-D1`). (1) `tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_comment_write_with_body_byte_identity` (`self.assertNotIn("- Status:", dest_text)`) and (2) `::test_commentless_prompt_fallback_relocates_without_comment` (`self.assertNotIn("- Status:", dest_text)`) - `legacy-format subject`: the subject is the staged-prompt grammar itself, a whole-file check that `aw prompts set` never writes a legacy `- Status:` bullet anywhere into a prompt (module docstring: "without prepending a `- Status:` bullet"); `assert_no_field` checks only the metadata region and would weaken it. (3) to (12) `tests/test_question_drain.py::test_e08_a17_preflight_grouping_and_single_commit` (`assert "- Status: resolved" in text`), `::test_e08_a17_preflight_stale_artifact_routes_unanswered` (2 lines: `- Status: resolved`, `- Status: open`), `tests/test_question_preflight.py::test_a40_durable_artifact_write_back`, `::test_stale_artifact_refusal` (`- Status: open`), `::test_record_oq_answer_appends_to_existing_rationale`, `::test_record_oq_answer_appends_with_indented_continuation_rationale`, `::test_record_oq_answer_preserves_backslash_answer_rationale`, `::test_record_oq_answer_empty_field_rationale`, `::test_a47_unattended_routing_and_checkpoint_consumption` (`- Status: resolved`) - `legacy-format subject`: each asserts the `- Status:` bullet of an `### OQ-NN` block under `## Open questions` in the plan BODY (fixtures `_create_plan_file` / `_create_plan_with_oqs`; the front-matter status is `approved`), which spec `4sd62s` N3 keeps in Markdown, so `assert_field(path, "status", ...)` would test the wrong field and fail. Converted: the front-matter `status` assertions of the 4 S11a modules (11 lines, including `graduated_to` in `tests/test_production_resume_handoff.py`), `- Readiness:` absence in `tests/test_production_correction_turn.py` and `tests/test_question_parking.py` via `assert_no_field`. |
+| F-29 | `.aw/state/qtvk2q/union-after.txt` (batch-rule command over all 8 modules, after conversion) | Per-module after-run counts (PASSED / FAILED / SKIPPED / XFAIL): `tests/test_production_baseline_same_commit.py` 4/0/0/0; `tests/test_production_correction_turn.py` 9/0/0/0; `tests/test_production_resume_handoff.py` 9/0/0/0; `tests/test_production_set_check.py` 16/0/0/0; `tests/test_prompts_set_surface.py` 12/0/0/0; `tests/test_question_drain.py` 19/0/0/0; `tests/test_question_parking.py` 9/0/0/0; `tests/test_question_preflight.py` 17/0/0/0. Total 95 PASSED. `tests/test_prompts_set_surface.py`, `tests/test_question_drain.py` and `tests/test_question_preflight.py` were not modified (only `legacy-format subject` matches). |
 
 ## Proposed changes (ordered, validatable)
 
@@ -122,20 +122,33 @@ No spec change; prepares part of `4sd62s` section 6 and section 7 step 9 (the te
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the empty `diff .aw/state/qtvk2q/S11a-before.txt .aw/state/qtvk2q/S11a-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_production_baseline_same_commit.py`, `tests/test_production_correction_turn.py`, `tests/test_production_resume_handoff.py`, `tests/test_production_set_check.py`, and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/qtvk2q/S11a-before.txt .aw/state/qtvk2q/S11a-after.txt`: empty (exit 0; 38 lines in both files, all `PASSED`).
+    - F-28 `rg -c` counts (before -> after): `tests/test_production_baseline_same_commit.py` 2 -> 0; `tests/test_production_correction_turn.py` 2 -> 0; `tests/test_production_resume_handoff.py` 3 -> 0; `tests/test_production_set_check.py` 5 -> 0.
+    - Remaining matches: none, so no class to assign. Liveness spot check: changing the converted `assert_field(plan_p, "status", "to-review")` in `tests/test_production_correction_turn.py` to `"draft"` failed with `AssertionError: ...20261004-setex-00-orce01-test-orch.ipd.md: field 'status' mismatch: expected 'draft' (exact line '- Status: draft'), observed 'to-review' (lines: ['- Status: to-review'])` (`1 failed, 8 passed`); reverted.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the empty `diff .aw/state/qtvk2q/S11b-before.txt .aw/state/qtvk2q/S11b-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_prompts_set_surface.py`, `tests/test_question_drain.py`, `tests/test_question_parking.py`, `tests/test_question_preflight.py`, and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/qtvk2q/S11b-before.txt .aw/state/qtvk2q/S11b-after.txt`: empty (exit 0; 57 lines in both files, all `PASSED`).
+    - F-28 `rg -c` counts (before -> after): `tests/test_prompts_set_surface.py` 2 -> 2; `tests/test_question_drain.py` 3 -> 3; `tests/test_question_parking.py` 1 -> 0; `tests/test_question_preflight.py` 7 -> 7.
+    - Remaining matches (12), all `legacy-format subject` (decision `06-qtvk2q-D1`): `tests/test_prompts_set_surface.py` L201 and L250 (whole-file check that no legacy `- Status:` bullet is written into a staged prompt); `tests/test_question_drain.py` L1410, L1491, L1495 and `tests/test_question_preflight.py` L359, L392, L432, L487, L524, L575, L800 (the `- Status:` bullet of an `### OQ-NN` open-question block in the plan body, kept in Markdown by spec `4sd62s` N3, not the front-matter status). Node ids are listed in F-28.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the empty union `diff`, this plan's F-28 rows, the F-29 table with one row per module of this plan, the `aw sanitize --agent` result with zero `fail`, and every `aw commit qtvk2q` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/qtvk2q/union-before.txt .aw/state/qtvk2q/union-after.txt` (union-before is `sort S11a-before.txt S11b-before.txt`; union-after is one batch-rule run over all 8 modules): empty (exit 0; 95 lines each).
+    - F-28 rows and F-29 table for this part written in `## Findings` (12 remaining rows, all `legacy-format subject`, 0 `setter-byte, exact spelling`; F-29 95 PASSED, 0 FAILED/SKIPPED/XFAIL).
+    - Bare core gate `python3 -m pytest`: `2952 passed, 1 skipped, 11 warnings in 104.64s (0:01:44)`.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7230,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit qtvk2q -m "test(qtvk2q): move S11a setter-byte assertions onto assert_field/assert_no_field" -- tests/test_production_baseline_same_commit.py tests/test_production_correction_turn.py tests/test_production_resume_handoff.py tests/test_production_set_check.py`: `aw commit: committed 4 path(s): de5ff0bcaad1dd973ce01a9829b8c4a9edbd6da9`.
+    - `aw commit qtvk2q -m "test(qtvk2q): move S11b setter-byte assertion onto assert_no_field" -- tests/test_question_parking.py`: `aw commit: committed 1 path(s): 6a41c4b468c3f010fc7e6a505ca6225f582cb3a0`.
+    - This plan update is committed in a follow-up `aw commit qtvk2q` naming only this IPD path. Declared but unmodified: `tests/test_prompts_set_surface.py`, `tests/test_question_drain.py`, `tests/test_question_preflight.py` (only `legacy-format subject` matches; acknowledge at finalize).
+  - Result: pass
 
 ## Approval and execution gate
 
