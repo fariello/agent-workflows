@@ -115,6 +115,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-252-y1zihp-add-readme-docs-and-reference-document-rewrites-to-the-cutov.ipd.md
 - The `Kind` renames in documents and `cli.py` help strings (rest of old E-05), the quickstarts (old E-06), and the final patch regeneration (rest of old E-08). Moved to ngc2a2 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: ngc2a2
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-253-ngc2a2-add-kind-rename-and-quickstart-rewrites-to-the-cutover-docs.ipd.md
 - Renaming any CLI option that carries the legacy `Kind` name (for example `aw ipd scaffold --kind`), and updating tests that assert pre-cutover text (F-07): both are code changes in the cutover commit.
   - Carrier: cxxmyv
 
