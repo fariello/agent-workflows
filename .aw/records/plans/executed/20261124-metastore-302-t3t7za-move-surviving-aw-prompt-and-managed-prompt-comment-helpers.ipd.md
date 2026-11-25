@@ -6,7 +6,7 @@
 - Scope: Move prompt metadata comment detection, `id6`/`Set` injection, status update, trailer constant, and post-cutover mirror-id reading (`PROMPT_METADATA_TRAILER`, `has_prompt_metadata_comment`, `inject_prompt_metadata_id6`, `update_prompt_metadata_status`, `read_mirror_id6`) into `agent_workflows/artifact_meta.py`; remove the reverse-delegation imports from `artifact_meta.py` into `prompts.py`; remove the surviving prompt metadata parsers and writers from `prompts.py`, `check_engine.py`, and `artifact_rename.py` (retargeting callers in `prompts.py`, `cli.py`, `status_set.py`, `check_engine.py`, and `artifact_rename.py`); and verify with `@pytest.mark.core` behavioral tests in `tests/test_prompts_set_surface.py`. Excludes `Workflow history` readers (`wgn3bl`), specs/backlog `^-` regexes (`fkvrc7`), `Scope-Paths` writer and widened front-matter readers (`75jciz`), `cli.py` user-facing help text (`90iqr1`), and the `9o83cr` final AC-1 audit.
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/prompts.py, agent_workflows/check_engine.py, agent_workflows/artifact_rename.py, agent_workflows/cli.py, agent_workflows/status_set.py, tests/test_prompts_set_surface.py, .aw/records/plans/pending/20261124-metastore-302-t3t7za-move-surviving-aw-prompt-and-managed-prompt-comment-helpers.ipd.md
 - Item-Dependencies: executed:0xsx2n, executed:e8420v, executed:k6jd6l, executed:q6epwc, executed:snin8q
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - From-Spec: 4sd62s
@@ -18,13 +18,13 @@
 - Order: 302
 - Highest E allocated: 4
 - Id: t3t7za
-- Approval: 2026-11-25, recorded via aw ipd set: status set to approved
 - Author: antigravity
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-25 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: t3t7za verified (set metastore, attempt 1).
 - 2026-11-25 approved (aw set): status set to approved
 - 2026-11-25 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED
 - 2026-11-25 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008; review record .aw/records/reviews/20261124-metastore-302-t3t7za-move-surviving-aw-prompt-and-managed-prompt-comment-helpers.review.md
