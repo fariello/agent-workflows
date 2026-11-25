@@ -47,17 +47,17 @@ Batch rule, applied to every batch E-item of this plan:
 
 ### Task group 1: batches
 
-- [ ] E-04 Batch S14: Ensure `.aw/state/w13bkp` exists (`mkdir -p .aw/state/w13bkp`) and convert the setter-byte assertions of `tests/test_set_dispatch_parity.py`, `tests/test_set_refuses_review_record.py`, `tests/test_spec_id6_filenames.py`, `tests/test_spec_production.py`, `tests/test_spec_review_gate_kind.py`, `tests/test_specs_evidence_gate_parity.py` (23 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S14`.
+- [x] E-04 Batch S14: Ensure `.aw/state/w13bkp` exists (`mkdir -p .aw/state/w13bkp`) and convert the setter-byte assertions of `tests/test_set_dispatch_parity.py`, `tests/test_set_refuses_review_record.py`, `tests/test_spec_id6_filenames.py`, `tests/test_spec_production.py`, `tests/test_spec_review_gate_kind.py`, `tests/test_specs_evidence_gate_parity.py` (23 candidate assertion lines at `ac76110f4`, F-28). Apply the batch rule with `<batch>` = `S14`.
   - Depends on: none
   - Expected outcome: an empty before/after `diff` for the S14 outcome lists; the remaining F-28 matches in the batch's modules pasted with a class on each and no `setter-byte` row left unconverted except `setter-byte, exact spelling` rows with their node ids.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: finish
 
-- [ ] E-11 Finish this part: run the batch rule's command over the six S14 modules once more and confirm the outcome multiset equals the S14 `-before.txt` list; write F-28's remaining-match table for S11 to S14 (this plan's S14 rows plus the F-28 rows of `qtvk2q`, `cxylsu` and `810kpy`, copied with their source named) so the cutover (`x1mmdp`, carrying `cxxmyv` E-07) has the exact list of `setter-byte, exact spelling` rows it must still change; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit w13bkp -- <each changed path>`, one commit per batch allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
+- [x] E-11 Finish this part: run the batch rule's command over the six S14 modules once more and confirm the outcome multiset equals the S14 `-before.txt` list; write F-28's remaining-match table for S11 to S14 (this plan's S14 rows plus the F-28 rows of `qtvk2q`, `cxylsu` and `810kpy`, copied with their source named) so the cutover (`x1mmdp`, carrying `cxxmyv` E-07) has the exact list of `setter-byte, exact spelling` rows it must still change; run the bare core gate `python3 -m pytest` and `aw sanitize --agent`; commit through `aw commit w13bkp -- <each changed path>`, one commit per batch allowed, never `git add -A`, a bare `git add` or `git commit -a`. Never push.
   - Depends on: E-04
   - Expected outcome: the union comparison is empty; F-28 for this part is written; all runs pass; every commit is path-scoped to Scope-Paths (or justified at finalize).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -71,6 +71,8 @@ Batch rule, applied to every batch E-item of this plan:
 | Id | Evidence | Finding |
 |---|---|---|
 | F-28 | Candidate setter-byte lines at `ac76110f4` with the pattern in the Concern, minus lines whose subject is command output (`stdout`, `stderr`, `output`, `result.`, `proc.`, `captured`, `msg`, `message`) and minus legacy-grammar modules (`*legacy*`, `*m0001*`, `*migrat*`, `test_front_matter_loose*`, `test_selector_two_dialect*`, `test_history_block_bounding*`): 518 in 81 modules; minus the 7 modules `k6jd6l` E-08 retargets (51 lines): 467 in 74 modules, split into 20 batches S01 to S20 of at most about 30 lines (`tests/test_status_set.py`, 79 lines, is split by test class into S18 to S20). This part: S11, S12, S13, S14, 103 lines (S15 to S20, 144 lines, moved to `aqc3m6` and `zgyna1`). | Each batch is at most about 30 one-line conversions in at most 10 modules. The final table (written by E-11) lists every remaining match with its class. |
+| F-30 | S14 post-conversion scan with the F-28 pattern at `4bc52bd83` (`rg -c` before -> after: `tests/test_set_dispatch_parity.py` 10 -> 0, `tests/test_set_refuses_review_record.py` 1 -> 0, `tests/test_spec_id6_filenames.py` 1 -> 1, `tests/test_spec_production.py` 3 -> 0, `tests/test_spec_review_gate_kind.py` 1 -> 0, `tests/test_specs_evidence_gate_parity.py` 7 -> 0); `.aw/state/w13bkp/S14-before.txt` and `S14-after.txt` (101 PASSED each) | This part, S14: 6 modules, 23 candidate lines; 22 converted (21 into `assert_field` calls, 1 negative check subsumed), 1 remaining, `setter-byte, exact spelling`. The remaining row: `tests/test_spec_id6_filenames.py::TestToId6DatedLegacyNames::test_a_spec_still_gets_its_bullet` (`self.assertIn(f"- Status: draft\n- Id: {id6}\n", text)`), which asserts that `aw rename specs --to-id6` writes the `- Id:` bullet on the line directly after `- Status:`; that is a bullet ORDER and newline check `assert_field` cannot express, so converting it would weaken the test and the cutover must change it (`cxxmyv` E-07, carried by `x1mmdp`). The subsumed negative check is `self.assertNotIn("- Status: implemented", spec_txt)` in `tests/test_spec_production.py::TestSpecProductionE08`: `assert_field(spec_p, "status", "implementing")` requires exactly one `- Status:` bullet in the metadata region with value `implementing`, which excludes `implemented` there (same treatment as decision `05-cxylsu-D1`; this run's decision `01-w13bkp-D1`). `tests/test_spec_review_gate_kind.py` checked `"- Status: reviewed\n"` with a trailing newline; `assert_field` checks the exact region line `- Status: reviewed`, which is equivalent because region lines are split on newlines. |
+| F-31 | F-28 rows of `qtvk2q`, `cxylsu` and `810kpy` (executed records under `.aw/records/plans/executed/`) and F-30 above, rechecked with the F-28 pattern at `4bc52bd83` (every quoted line below still present) | Remaining-match table for S11 to S14, 18 rows. `setter-byte, exact spelling` (cutover must change): (1) `tests/test_spec_id6_filenames.py::TestToId6DatedLegacyNames::test_a_spec_still_gets_its_bullet` `- Status: draft\n- Id: {id6}\n` (source: this plan, F-30). `legacy-format subject` (not cutover rows; source `qtvk2q` F-28): (2) and (3) `tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_comment_write_with_body_byte_identity` and `::test_commentless_prompt_fallback_relocates_without_comment` `assertNotIn("- Status:", dest_text)`; (4) to (6) `tests/test_question_drain.py` OQ-block `- Status: resolved` / `- Status: open` (3 lines); (7) to (13) `tests/test_question_preflight.py` OQ-block `- Status: resolved` / `- Status: open` (7 lines). `displayed-output assertion` (not cutover rows): (14) and (15) `tests/test_runner_shared.py` `assertIn("- Status: to-review", reason)` and `assertIn("- Status: executed", reason)` (source `810kpy` F-28); (16) and (17) `tests/test_review_rereview.py` `- Readiness: no-go` in `err1` and `inst`; (18) `tests/test_review_sequence.py` `- Kind: child` in `rendered` (source `cxylsu` F-28). So the cutover's exact list of S11 to S14 `setter-byte, exact spelling` rows is row (1) alone. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -147,15 +149,24 @@ No spec change; prepares part of `4sd62s` section 6 and section 7 step 9 (the te
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition), as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction, name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the empty `diff .aw/state/w13bkp/S14-before.txt .aw/state/w13bkp/S14-after.txt`, the before and after F-28 `rg -c` count for each of `tests/test_set_dispatch_parity.py`, `tests/test_set_refuses_review_record.py`, `tests/test_spec_id6_filenames.py`, `tests/test_spec_production.py`, `tests/test_spec_review_gate_kind.py`, `tests/test_specs_evidence_gate_parity.py` (one line per module or test class), and the class of every remaining match.
   - Observed evidence:
-  - Result: pending
+    - `diff .aw/state/w13bkp/S14-before.txt .aw/state/w13bkp/S14-after.txt` printed nothing (`diff rc=0`); 101 outcomes, all PASSED, before and after.
+    - F-28 `rg -c` before/after: `tests/test_set_dispatch_parity.py` 10/0, `tests/test_set_refuses_review_record.py` 1/0, `tests/test_spec_id6_filenames.py` 1/1, `tests/test_spec_production.py` 3/0, `tests/test_spec_review_gate_kind.py` 1/0, `tests/test_specs_evidence_gate_parity.py` 7/0.
+    - The one remaining match, `tests/test_spec_id6_filenames.py:480` `self.assertIn(f"- Status: draft\n- Id: {id6}\n", text)`, is `setter-byte, exact spelling` (node id `tests/test_spec_id6_filenames.py::TestToId6DatedLegacyNames::test_a_spec_still_gets_its_bullet`; it pins bullet order, see F-30).
+  - Result: pass
 
-- [ ] V-11 validates E-11
+- [x] V-11 validates E-11
   - Required evidence: paste the `diff` of the sorted S14 `-before.txt` list against the after-run list (empty), F-28 for S11 to S14 as written with one row per remaining match and its class, the per-module F-28 `rg -c` count for each of the six S14 modules, the bare `python3 -m pytest` summary line and wall time beside them, the `aw sanitize --agent` result with zero `fail`, and every `aw commit w13bkp` output listing only Scope-Paths.
   - Observed evidence:
-  - Result: pending
+    - Final re-run after the commit into `.aw/state/w13bkp/S14-final.txt`; `diff .aw/state/w13bkp/S14-before.txt .aw/state/w13bkp/S14-final.txt` printed nothing (`final diff rc=0`). Per-module PASSED counts: `test_set_dispatch_parity.py` 40, `test_set_refuses_review_record.py` 5, `test_spec_id6_filenames.py` 21, `test_spec_production.py` 23, `test_spec_review_gate_kind.py` 4, `test_specs_evidence_gate_parity.py` 8.
+    - F-28 table for S11 to S14 written as F-30 (S14) and F-31 (S11 to S14, 18 rows with classes) in `## Findings`.
+    - Per-module F-28 `rg -c` after: 0, 0, 1, 0, 0, 0 (order as in V-04).
+    - Bare `python3 -m pytest`: `2952 passed, 1 skipped, 11 warnings in 68.60s (0:01:08)`, wall 68.6s. The bare run exits 1 only because of `CORE TIER BUDGET EXCEEDED` (`Core tier wall time: 68.61s exceeded budget of 30.00s.`, `Host 1-minute load average: 7.28 on 12 CPUs`); no test failed. That budget overrun is pre-existing and tracked by open backlog `6o5aan`. `aw suite` (same core tier, bounded workers): `2952 passed, 1 skipped, 11 warnings in 66.20s (0:01:06)`, `rc=0`.
+    - `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":7232,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    - `aw commit w13bkp`: `aw commit: committed 5 path(s): 4bc52bd830c59a569b70532396dac68b0060905d` (paths: `tests/test_set_dispatch_parity.py`, `tests/test_set_refuses_review_record.py`, `tests/test_spec_production.py`, `tests/test_spec_review_gate_kind.py`, `tests/test_specs_evidence_gate_parity.py`, all Scope-Paths). `tests/test_spec_id6_filenames.py` is a declared Scope-Path left unmodified because its only match is the `setter-byte, exact spelling` row. A second `aw commit w13bkp` records this plan file.
+  - Result: pass
 
 ## Approval and execution gate
 
