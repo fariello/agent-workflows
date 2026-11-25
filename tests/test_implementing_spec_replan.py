@@ -33,7 +33,7 @@ from agent_workflows import (
     run_selection_policy,
     runner_shared,
 )
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 _HOSTS = (("oc", oc_runipd), ("agy", agy_runipd))
 
@@ -436,9 +436,8 @@ class TestImplementingSpecReplan(unittest.TestCase):
                     spec_p = spec_files[0]
                     self.assertIn("/implementing/", str(spec_p).replace("\\", "/"))
 
+                    assert_field(spec_p, "status", "implementing")
                     spec_text = spec_p.read_text(encoding="utf-8")
-                    self.assertIn("- Status: implementing", spec_text)
-                    self.assertNotIn("- Status: implemented", spec_text)
                     self.assertIn(
                         f"note (aw specs): stage planned by run {run_id}:", spec_text
                     )

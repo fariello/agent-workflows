@@ -26,7 +26,7 @@ from pathlib import Path
 from agent_workflows import check_engine as ce
 from agent_workflows import coverage_record as cr
 from tests.conformance_matrix import run_cli_inproc
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 def _run_cli(*args, cwd=None, **kwargs):
@@ -561,7 +561,7 @@ class TestBacklogSetterSubprocess(unittest.TestCase):
         self.assertEqual(res1.returncode, 0, f"res1 failed: {res1.stderr}")
         moved1 = self.repo / ".aw" / "records" / "backlog" / "graduated" / item1.name
         self.assertTrue(moved1.exists())
-        self.assertIn("- Status: graduated", moved1.read_text(encoding="utf-8"))
+        assert_field(moved1, "status", "graduated")
 
         # 2. --status spelling
         item2 = RecordBuilder(self.repo).backlog(
@@ -592,7 +592,7 @@ class TestBacklogSetterSubprocess(unittest.TestCase):
         self.assertEqual(res2.returncode, 0, f"res2 failed: {res2.stderr}")
         moved2 = self.repo / ".aw" / "records" / "backlog" / "graduated" / item2.name
         self.assertTrue(moved2.exists())
-        self.assertIn("- Status: graduated", moved2.read_text(encoding="utf-8"))
+        assert_field(moved2, "status", "graduated")
 
     def test_same_status_note_skips_check(self):
         # Already graduated item with no handoff: a same-status note succeeds without refusal
@@ -676,7 +676,7 @@ class TestSpecSetterSubprocess(unittest.TestCase):
         self.assertEqual(res.returncode, 0, f"Expected success: {res.stderr}")
         moved = self.repo / ".aw" / "records" / "specs" / "implementing" / spec.name
         self.assertTrue(moved.exists())
-        self.assertIn("- Status: implementing", moved.read_text(encoding="utf-8"))
+        assert_field(moved, "status", "implementing")
 
 
 class TestGraduationIncompleteCheckRule(unittest.TestCase):
@@ -842,7 +842,7 @@ class TestProductionAndIsolation(unittest.TestCase):
             )
             moved = self.repo / ".aw" / "records" / "backlog" / "graduated" / item.name
             self.assertTrue(moved.exists())
-            self.assertIn("- Status: graduated", moved.read_text(encoding="utf-8"))
+            assert_field(moved, "status", "graduated")
         finally:
             gate_tmp.cleanup()
 

@@ -29,7 +29,7 @@ from agent_workflows import ipd_lifecycle as LC
 from agent_workflows import ipd_lint as L
 from agent_workflows import ipd_schema as S
 from tests import support
-from tests.record_builder import RecordBuilder
+from tests.record_builder import RecordBuilder, assert_field
 
 
 def _init_git(root: Path) -> None:
@@ -545,7 +545,7 @@ class FinalizeTests(unittest.TestCase):
         self.assertTrue(moved.is_file())
         moved_text = moved.read_text(encoding="utf-8")
         self.assertIn("opencode/test", moved_text)
-        self.assertIn("- Status: executed", moved_text)
+        assert_field(moved, "status", "executed")
         self.assertEqual(
             result.evidence["pre_transition"]["disposition"], S.DISPOSITION_CONFORMING
         )
@@ -2750,7 +2750,7 @@ class DelegationAndBypassRemovalTests(unittest.TestCase):
                 )
                 self.assertTrue(exec_path.is_file())
                 moved = exec_path.read_text(encoding="utf-8")
-                self.assertIn("- Status: executed", moved)
+                assert_field(exec_path, "status", "executed")
                 self.assertIn("opencode/test", moved)
                 self.tearDown()
 
@@ -2809,7 +2809,7 @@ class DelegationAndBypassRemovalTests(unittest.TestCase):
         _commit_all(self.root, "add draft plan")
         rc, out = self._run_cli(["set", "approved", "drf123", "--by-human", "--yes"])
         self.assertEqual(rc, 0, out)
-        self.assertIn("- Status: approved", draft.read_text(encoding="utf-8"))
+        assert_field(draft, "status", "approved")
 
     def test_delegation_refusals(self):
         """Missing actor fails closed (exit 2) and missing receipt refuses (exit 1)."""
@@ -2999,7 +2999,7 @@ class ParenthesizedActorIsRefusedBeforeAnyWrite(unittest.TestCase):
         self.assertEqual(rc, 0, out)
         text = self.plan.read_text(encoding="utf-8")
         self.assertIn(f"reviewed ({self.GOOD})", text)
-        self.assertIn("- Status: reviewed", text)
+        assert_field(self.plan, "status", "reviewed")
 
 
 class ScaffoldStopsWritingTheShapeItsOwnSetterRefuses(unittest.TestCase):
