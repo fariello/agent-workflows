@@ -17,7 +17,7 @@
 - Blocks-Release: next
 - Set: metastore
 - Order: 0
-- Highest E allocated: 227
+- Highest E allocated: 228
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 63ib9r
 - Approval: 2026-11-16, recorded via aw ipd set: status set to approved
@@ -26,6 +26,7 @@
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-26 note (antigravity/gemini): split Order 316 (otin36, make ipd_lifecycle, partition, plans, untooled-range, hooks, and meta_repair log-aware in the cutover code patch) ahead of x8id25 per recovery of run-20261126T020242Z-3080634 parked x8id25 OQ-01 Option 1; E-228 confirms otin36; E-222 (x8id25), E-179 (x1mmdp), and E-13 (cxxmyv) depend on E-228.
 - 2026-11-26 coverage pass (aw oc run): fingerprint c43b7eb71194, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-26 note (antigravity/gemini): split Order 315 (szykgd, make specs, releases, spec-link, search, and dep-gate log-aware in the cutover code patch) ahead of psm9ac per maintainer answer to run-20261126T020242Z-3080634 question 05-psm9ac-a1-batch-b-production-log-aware-gaps; E-227 confirms szykgd; E-221 (psm9ac), E-179 (x1mmdp), and E-13 (cxxmyv) depend on E-227.
 - 2026-11-26 note (antigravity/gemini): split Order 314 (fljn9b, make backlog validation and readers log-aware in the cutover code patch) ahead of cugg3w per maintainer answer to run-20261126T020242Z-3080634 question 04-cugg3w-a1-backlog-log-aware-gap; E-226 confirms fljn9b; E-220 (cugg3w), E-179 (x1mmdp), and E-13 (cxxmyv) depend on E-226.
@@ -128,7 +129,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 - [ ] E-13 CONFIRM cxxmyv REACHED executed
-  - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-176, E-177, E-178, E-179, E-180, E-181, E-182, E-213, E-214, E-215, E-216, E-217, E-218, E-219, E-220, E-221, E-222, E-223, E-224, E-225, E-226, E-227
+  - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-176, E-177, E-178, E-179, E-180, E-181, E-182, E-213, E-214, E-215, E-216, E-217, E-218, E-219, E-220, E-221, E-222, E-223, E-224, E-225, E-226, E-227, E-228
   - Expected outcome: `aw find plans cxxmyv` shows it under `executed/`.
   - Execution state: pending
 
@@ -957,7 +958,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 - [ ] E-179 CONFIRM x1mmdp REACHED executed
-  - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-178, E-217, E-218, E-219, E-220, E-221, E-222, E-223, E-224, E-225, E-226, E-227
+  - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-178, E-217, E-218, E-219, E-220, E-221, E-222, E-223, E-224, E-225, E-226, E-227, E-228
   - Expected outcome: `aw find plans x1mmdp` shows it under `executed/`.
   - Execution state: pending
 
@@ -1172,7 +1173,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 - [ ] E-222 CONFIRM x8id25 REACHED executed
-  - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-221
+  - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-228
   - Expected outcome: `aw find plans x8id25` shows it under `executed/`.
   - Execution state: pending
 
@@ -1199,6 +1200,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - [ ] E-227 CONFIRM szykgd REACHED executed
   - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-220
   - Expected outcome: `aw find plans szykgd` shows it under `executed/`.
+  - Execution state: pending
+
+- [ ] E-228 CONFIRM otin36 REACHED executed
+  - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-221
+  - Expected outcome: `aw find plans otin36` shows it under `executed/`.
   - Execution state: pending
 
 ## Child IPDs, sequence, and dependencies
@@ -1426,12 +1432,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 307 | `nv3upa` | `20261125-metastore-307-nv3upa-retire-or-repoint-the-legacy-loader-and-writer-unit-tests-in.ipd.md` | Retire or repoint the legacy loader and writer unit tests in the cutover code patch. | `executed:89mtbl` |
 | 308 | `cugg3w` | `20261125-metastore-308-cugg3w-convert-test-batch-a-artifact-meta-through-backlog-in-the-cu.ipd.md` | Convert test batch A (artifact_meta through backlog) in the cutover code patch. | `executed:fljn9b` |
 | 309 | `psm9ac` | `20261125-metastore-309-psm9ac-convert-test-batch-b-backlog-handoff-close-through-ipd-depen.ipd.md` | Convert test batch B (backlog_handoff_close through ipd_dependency_statement_gate) in the cutover code patch. | `executed:szykgd` |
-| 310 | `x8id25` | `20261125-metastore-310-x8id25-convert-test-batch-c-ipd-lifecycle-cli-through-prompts-set-s.ipd.md` | Convert test batch C (ipd_lifecycle_cli through prompts_set_surface) in the cutover code patch. | `executed:psm9ac` |
+| 310 | `x8id25` | `20261125-metastore-310-x8id25-convert-test-batch-c-ipd-lifecycle-cli-through-prompts-set-s.ipd.md` | Convert test batch C (ipd_lifecycle_cli through prompts_set_surface) in the cutover code patch. | `executed:otin36` |
 | 311 | `e0g2gt` | `20261125-metastore-311-e0g2gt-convert-test-batch-d-prose-dash-advisory-through-readers-run.ipd.md` | Convert test batch D (prose_dash_advisory through readers_runner) in the cutover code patch. | `executed:x8id25` |
 | 312 | `qi0kl6` | `20261125-metastore-312-qi0kl6-convert-test-batch-e-readers-selectors-find-through-spec-id6.ipd.md` | Convert test batch E (readers_selectors_find through spec_id6_filenames) in the cutover code patch. | `executed:e0g2gt` |
 | 313 | `x3mig6` | `20261125-metastore-313-x3mig6-convert-test-batch-f-spec-review-gate-kind-through-writers-s.ipd.md` | Convert test batch F (spec_review_gate_kind through writers_scope_fields) in the cutover code patch. | `executed:qi0kl6` |
 | 314 | `fljn9b` | `20261125-metastore-314-fljn9b-make-backlog-validation-and-readers-log-aware-in-the-cutover.ipd.md` | Make backlog validation and readers log-aware in the cutover code patch (cugg3w OQ-01). | `executed:nv3upa` |
 | 315 | `szykgd` | `20261125-metastore-315-szykgd-make-specs-releases-spec-link-search-and-dep-gate-log-aware.ipd.md` | Make specs, releases, spec-link, search, and dep-gate log-aware in the cutover code patch (psm9ac OQ-01). | `executed:cugg3w` |
+| 316 | `otin36` | `20261126-metastore-316-otin36-make-ipd-lifecycle-partition-plans-untooled-range-hooks-and.ipd.md` | Make ipd_lifecycle, partition, plans, untooled-range, hooks, and meta_repair log-aware in the cutover code patch (x8id25 OQ-01). | `executed:psm9ac` |
 
 SPLIT 2026-11-07 and again 2026-11-09 (maintainer step-complexity rule, then research `nj8zdp` followability guidance: a modest agent must be able to execute each plan). Orders 15 to 299 are parts split out of Orders 04, 05, 07, 08, 09, 10, 11, 12, 13 and 14; each original keeps its id6 as its family's final capstone and depends on every part in its family, so an `executed:<original>` edge still means the whole family is done. Order numbers past 14 are only the next free numbers: the runner orders by the dependency edges in this table (`dependency_depth` first), not by `Order`.
 
@@ -2676,6 +2683,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-227 validates E-227
   - Required evidence: paste `aw find plans szykgd` output showing the plan under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-228 validates E-228
+  - Required evidence: paste `aw find plans otin36` output showing the plan under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 
