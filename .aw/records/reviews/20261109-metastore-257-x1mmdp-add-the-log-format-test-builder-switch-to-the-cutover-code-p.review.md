@@ -2,7 +2,7 @@
 
 - Subject-Id: x1mmdp
 - Subject-Type: ipd
-- Reviewed-At: 2026-11-14
+- Reviewed-At: 2026-11-26
 - Reviewer: antigravity/gemini
 - Verdict: APPROVE WITH REVISIONS APPLIED
 
@@ -96,3 +96,73 @@ AW-TIER: standard
 |----|----------|--------|-------------------------|-------|------------|
 | D-001 | How should scratch worktree removal in E-05 be specified? | Explicitly specify `git worktree remove --force .aw/state/x1mmdp/scratch` | Leave as generic "remove the scratch worktree" | Matches the exact syntax used in prerequisite `2k5t16` E-05, ensuring reproducible automated execution | yes |
 | D-002 | How should the unicode em dashes in the validation rule of line 109 be resolved? | Replace with spaced plain ASCII hyphens (` - `) | Keep unicode em dashes or rephrase with commas | Conforms to `IPD-C802` rule in `agent_workflows/ipd_lint.py` and repository dash rule in `AGENTS.md` | yes |
+
+## Round 2
+
+Re-review following the 2026-11-26 attempt-2 split of `x1mmdp` (`OQ-01` resolved, `E-02` moved to `89mtbl`, 17 split children `hdwqex`..`3e0vfy`..`x3mig6` added ahead of `x1mmdp`). Pre-review snapshot of the runner-demoted plan committed verbatim at `ea249e6f72798cd32d48cfcf41233d47b689feb5`.
+
+### Step T
+1. No - the plan updates test fixtures and test assertions inside the inert prepared cutover code patch (`.aw/system/cutover/metastore-code.cutover.patch`) and does not change a spec or public CLI contract.
+2. Yes - it regenerates `.aw/system/cutover/metastore-code.cutover.patch`, which carries the cutover code and test changes for the entire metadata store, and produces the authoritative `F-03` refusal list consumed by `5qyba0` E-02 and `cxxmyv` E-09.
+3. Yes - it is the capstone over 17 split children (`hdwqex` through `x3mig6`), settles all remaining exact-spelling F-28/F-29/F-31 rows, settles `tests/fixtures/review-pilot/plans/` and `tests/test_review_pilot.py`, and validates the entire repository test suite across both tiers (`python3 -m pytest` and `make test-all`).
+4. Yes - `- Scope-Paths:` lists the plan file and `.aw/system/cutover/metastore-code.cutover.patch`.
+5. Yes - omitting `make test-all` from `E-04`/`F-03` or leaving stale `E-01`/`V-01` checkmarks or omitting `rdg0qv` F-29's 4 exact-spelling rows would silently break `5qyba0` E-02 and `cxxmyv` E-09 during cutover rehearsal and execution.
+- Selected tier: `standard`
+
+AW-TIER: standard
+
+### Step R1: References, Scope, and Dependencies
+- Checked: `.aw/records/plans/pending/20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.ipd.md`, all six executed F-28/F-29/F-31 setter-byte plans (`iog3cw`, `87rvs2`, `rdg0qv`, `w13bkp`, `aqc3m6`, `zgyna1`), `90iqr1` F-07, `0zylig`, `5qyba0`, `cxxmyv`, `89mtbl`, `nv3upa`, `cugg3w`, `psm9ac`, `qi0kl6`, `tests/test_review_pilot.py`, `tools/review_pilot.py`, `tests/fixtures/review-pilot/plans/`, `tests/test_metastore_cutover_code_patch.py`, `Makefile`, and `pyproject.toml`.
+- Found that `E-03`/`V-03` omitted `rdg0qv` F-29 (4 of the 7 total `setter-byte, exact spelling` rows across S01-S20, in `tests/test_plan_priority_required.py`, which no batch child owns) (`PR-003`).
+- Verified `90iqr1` F-07 recorded 0 failing tests on the docs-patched tree across the 5 documentation-text modules, so `0zylig` (which runs after `x1mmdp`) does not leave pre-existing docs-patch failures in `x1mmdp` E-04.
+- Found stale references in `Scope`, `F-06`, `## Proposed changes`, `## Spec / documentation sync`, and `## Approval and execution gate` omitting the 8 split prerequisite production-fix plans (`fljn9b`..`3e0vfy`) and citing gitignored `evidence/failing-modules.txt` as live (`PR-005`).
+
+### Step R2: Executability and Verification Rigor
+- Checked: `pyproject.toml:227` (`addopts = "-q -n auto --dist=worksteal -m 'not slow and not livecorpus'"`) and `Makefile:31-32` (`make test-all` runs `python3 -m pytest tests/ -m ''`) against `x1mmdp` `E-04`/`V-04`, `5qyba0` `E-02`/`V-02`, and `cxxmyv` `E-09`/`V-09`.
+- Found `x1mmdp` `E-04`/`V-04` ran ONLY the bare core gate (`python3 -m pytest`), skipping `slow` and `livecorpus` tests and leaving `F-03` incomplete for `5qyba0` E-02 and `cxxmyv` E-09 (`PR-001`).
+- Found `E-01` and `V-01` were still marked `- [x]` / `performed` / `pass` with stale attempt-1 (`2026-11-25`, HEAD `c7eed9a50`) evidence and `$BASE` even though the attempt-1 worktree was deleted and 17 split children regenerate the code patch before `x1mmdp` executes (`PR-002`).
+- Found `E-04` omitted `tools/review_pilot.py::build_cell` (which copies only `.ipd.md` without companion `meta/<fixture_id6>.jsonl`) and `tests/test_review_pilot.py::ReviewPilotTests::test_f_redaction_replaces_agent_model_host_runid` (whose `RecordBuilder(..., text_only=True)` inputs drop `- Reviewer:` and `## Workflow history` in log format) (`PR-004`).
+
+### Step R3: Security, Isolation, and Safety
+- Checked: Scratch worktree isolation (`.aw/state/x1mmdp/scratch`), live-tree safety, `- Scope-Paths:` fence, `git status --short` clean-tree verification added to `E-05`/`V-05`, `aw commit x1mmdp` path-scoped commit contract, never-push rule, and no assertion-weakening rule (including preserving real reviewer/history redaction coverage in `tests/test_review_pilot.py::test_f_redaction_replaces_agent_model_host_runid`).
+
+### Step R4: Engineering Quality and Contract Conformance
+- Checked: Technical writing standard (`.aw/system/workflows/technical-writing/technical-writing.md`), `IPD-Z603` sizing (4 active E-items `E-01`, `E-03`, `E-04`, `E-05` matching `V-01`, `V-03`, `V-04`, `V-05` 1:1 with `- Highest E allocated: 05`), Mermaid diagram parity with `## Proposed changes`, substantiated `## Spec / documentation sync`, and `s7-finalize.md` managed-runner-lane vs. hand-run `aw ipd finalize` ownership (`PR-005`).
+
+### Step S5: Open Questions and Decisions
+- Checked: `OQ-01` is already `- Status: resolved` (maintainer answer 2026-11-26). All 5 new findings (`PR-001..PR-005`) are `Overall:Low`, `Reversible: yes`, resolved directly from repository evidence, and recorded in `### Decisions` (`D-1..D-5`). Zero open blocking questions remain.
+
+### Pass 2: Verification of Edits
+- Re-read revised `.aw/records/plans/pending/20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.ipd.md` from top to bottom.
+- Verified `PR-001..PR-005` are applied cleanly, `- Status: reviewed`, `- Review-Depth: standard`, and `- Readiness: go-pending-approval` are written, `E-01`/`V-01` are reset to `pending` while preserving historical attempt-1 provenance in `F-01` and `## Workflow history`, `E-01`/`E-03`/`E-04`/`E-05` match `V-01`/`V-03`/`V-04`/`V-05` 1:1, `## Proposed changes` (`1.`..`4.`) matches the Mermaid diagram, and `aw ipd lint --phase review-finalize` passes clean with 0 findings.
+
+### Findings
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|---|---|---|---|---|---|---|---|---|
+| PR-001 | HIGH | UNDER-SCOPE | Both-tier F-03 refusal list (`E-04`, `V-04`) | `pyproject.toml:227`; `Makefile:31-32`; `5qyba0` E-02/V-02; `cxxmyv` E-09/V-09; `x1mmdp` `E-04`/`V-04` | `E-04` and `V-04` ran ONLY the bare core gate (`python3 -m pytest`, which excludes `slow` and `livecorpus` via `addopts`), yet `5qyba0` E-02 and `cxxmyv` E-09 run BOTH bare core gate AND `make test-all` and require every failing node id in both runs to appear in `x1mmdp` F-03. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Updated `E-04`, `V-04`, `F-03`, `Step 0`, and `## Required tests / validation` to run both `python3 -m pytest` and `make test-all` (`python3 -m pytest tests/ -m ''`) in `.aw/state/x1mmdp/scratch`, fixing any non-live-repo failure across both tiers and recording the complete two-tier refusal table in F-03 (`D-1`). |
+| PR-002 | HIGH | IN-SCOPE | Stale attempt-1 checklist state (`E-01`, `V-01`, `F-01`) | `x1mmdp` `E-01` (lines 47-51), `V-01` (lines 166-180), `F-01` (line 81) | `E-01` and `V-01` remained checked `[x]`/`performed`/`pass` with stale 2026-11-25 attempt-1 (`c7eed9a50`) evidence and `$BASE` even though that worktree was deleted and 17 split children regenerate the code patch before `x1mmdp` executes. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Reset `E-01` and `V-01` to `- [ ]`/`pending` requiring a fresh scratch worktree and `$BASE` on the post-`x3mig6` HEAD while preserving the 2026-11-25 attempt-1 provenance in `F-01`, `E-01`'s `Execution note`, and `## Workflow history` (`D-2`). |
+| PR-003 | HIGH | UNDER-SCOPE | Exact-spelling row coverage (`E-03`, `V-03`) | `iog3cw` F-28; `87rvs2` F-28; `rdg0qv` F-29; `w13bkp` F-31; `aqc3m6` F-28; `zgyna1` F-28; `x1mmdp` `E-03`/`V-03` | `E-03` and `V-03` cited only `iog3cw` and `w13bkp` F-28 tables, omitting `rdg0qv` F-29's 4 `setter-byte, exact spelling` rows in `tests/test_plan_priority_required.py` (which no batch child owns). | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Enumerated all 7 `setter-byte, exact spelling` rows across `iog3cw` F-28 (2 rows), `rdg0qv` F-29 (4 rows), and `w13bkp` F-31 (1 row) in `E-03` and `V-03`, noting the 0-row siblings and batch coverage so no exact-spelling row is skipped (`D-3`). |
+| PR-004 | MEDIUM | UNDER-SCOPE | `review-pilot` log-format settlement (`E-04`, `F-02`) | `tools/review_pilot.py::build_cell:327-339`; `tests/test_review_pilot.py::ReviewPilotTests::test_f_redaction_replaces_agent_model_host_runid:302-331` | `E-04` did not mention that converting `tests/fixtures/review-pilot/plans/` to log format requires `tools/review_pilot.py::build_cell` to copy companion `meta/<fixture_id6>.jsonl`, nor that `test_f` uses `RecordBuilder(..., text_only=True)` whose log-format output omits `- Reviewer:` and `## Workflow history`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Updated `E-04` and `F-02` to require handling `build_cell` companion logs (if converting the corpus) and preserving non-vacuous reviewer/history redaction assertions in `test_f` (`D-4`). |
+| PR-005 | MEDIUM | IN-SCOPE | Chain completeness, provenance, placeholders, spec sync, and finalize gate | `x1mmdp` `Scope`, `Step 0`, `F-06`, `## Proposed changes`, `E-05`/`V-05`, `## Spec / documentation sync`, `## Approval and execution gate`; `s7-finalize.md:31-36` | `Scope`/`Step 0`/`## Scope check` omitted the 8 prerequisite production-fix children (`fljn9b`..`3e0vfy`); `F-06` cited gitignored `evidence/failing-modules.txt` as live; `## Proposed changes` merged `E-03`+`E-04`; `E-05`/`V-05` used `<this plan>` placeholder and lacked `git status --short`; `## Spec / documentation sync` gave unsubstantiated `No spec change.`; and the gate cited stale `g45vyv` and unconditional `aw ipd finalize`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Updated all affected sections with the full 17-child chain, historical provenance attribution, 4-step `## Proposed changes` + diagram parity, exact repo-relative paths and `git status --short` in `E-05`/`V-05`, substantiated spec sync, and runner-lane vs. hand-run `aw ipd finalize` ownership (`D-5`). |
+
+### Proofreading
+#### Changes
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| `Scope`, `Step 0`, `## Scope check`, `OQ-01` rationale | Mentioned only `hdwqex`, `89mtbl`, and `nv3upa`..`x3mig6` | Listed the complete 17-child split chain including prerequisite production-fix plans `fljn9b`..`3e0vfy` and downstream `0zylig` | Accuracy & set-chain parity |
+| `E-01`, `V-01`, `F-01` | Checked `[x]`/`performed`/`pass` with stale 2026-11-25 attempt-1 `$BASE` | Reset `E-01`/`V-01` to `pending` with exact patch paths while preserving attempt-1 provenance in `F-01` and `Execution note` | Executability & honest validation |
+| `E-03`, `V-03` | Cited only `iog3cw` and `w13bkp` F-28 tables | Enumerated all 7 exact-spelling rows across `iog3cw` F-28, `rdg0qv` F-29, and `w13bkp` F-31 | Complete exact-spelling coverage |
+| `E-04`, `V-04`, `F-02`, `F-03` | Bare core gate only; omitted `build_cell` and `test_f` redaction catch | Required both bare core gate and `make test-all`, `build_cell` companion log / `test_f` redaction checks, and two-tier F-03 | Contract parity with `5qyba0` E-02 and `cxxmyv` E-09 |
+| `## Proposed changes`, `E-05`/`V-05`, `## Spec / documentation sync`, `## Approval and execution gate` | 3-item merged list, `<this plan>` placeholder, bare `No spec change.`, stale `g45vyv` + unconditional finalize | 4-item list matching diagram, exact paths + `git status --short`, substantiated spec `4sd62s` sync, managed runner lane vs. hand-run finalize | Precision, checklist parity, & runner contract |
+
+#### Issues
+- (none)
+
+### Decisions
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | Should `x1mmdp` `E-04`/`V-04` run both the bare core gate (`python3 -m pytest`) and `make test-all` (`python3 -m pytest tests/ -m ''`) to assemble F-03? | Run BOTH tiers in `.aw/state/x1mmdp/scratch` and record every allowed live-repo refusal across both tiers in F-03. | Keep bare core gate only (rejected: excludes `slow` and `livecorpus` via `pyproject.toml:227`, breaking `5qyba0` E-02 and `cxxmyv` E-09 which compare `make test-all` failures against `x1mmdp` F-03). | `pyproject.toml:227`, `Makefile:31-32`, `5qyba0` E-02/V-02, `cxxmyv` E-09/V-09. | yes |
+| D-2 | Should `E-01` and `V-01` be reset from `[x]`/`performed`/`pass` to `[ ]`/`pending` on this pending plan before post-split execution? | Reset `E-01` and `V-01` to `pending` while keeping the 2026-11-25 attempt-1 provenance in `F-01`, `Execution note`, and `## Workflow history`. | Leave `E-01`/`V-01` checked from attempt 1 (rejected: attempt-1 scratch worktree was deleted and `$BASE` is stale relative to the post-`x3mig6` HEAD). | `x1mmdp` `E-01` Execution note (line 51), `V-01` (lines 166-180). | yes |
+| D-3 | Which executed F-28/F-29/F-31 tables own `setter-byte, exact spelling` rows for `E-03`/`V-03`? | Cite all three tables containing exact-spelling rows: `iog3cw` F-28 (2 rows), `rdg0qv` F-29 (4 rows in `tests/test_plan_priority_required.py`), and `w13bkp` F-31 (1 row), noting the 0-row siblings (`87rvs2`, `aqc3m6`, `zgyna1`). | Keep only `iog3cw` and `w13bkp` (rejected: misses 4 unowned rows in `tests/test_plan_priority_required.py`). | Static audit of executed plans `iog3cw`, `87rvs2`, `rdg0qv`, `w13bkp`, `aqc3m6`, and `zgyna1`. | yes |
+| D-4 | How should `E-04` constrain the `review-pilot` settlement without dictating one branch over the other? | Keep the author's two valid settlement options (convert corpus OR route through `m0001`), while requiring `tools/review_pilot.py::build_cell` companion-log handling if converted and preserving non-vacuous reviewer/history redaction coverage in `test_f`. | Leave `build_cell` and `test_f` unmentioned (rejected: converting the corpus without updating `build_cell` produces orphan mirrors, and `text_only=True` in log format drops `- Reviewer:`/`## Workflow history` silently). | `tools/review_pilot.py::build_cell:327-339`, `tests/test_review_pilot.py:302-331`. | yes |
+| D-5 | Should `x1mmdp`'s `Scope`, `F-06`, `## Proposed changes`, `E-05`/`V-05`, `## Spec / documentation sync`, and `## Approval and execution gate` be brought into parity with the reviewed batch children? | Reconcile all six sections in place so `x1mmdp` reflects the full 17-child split chain, substantiated spec sync, exact paths + `git status --short`, and runner-lane finalize ownership. | Leave pre-split wording (rejected: stale `g45vyv` gate note, gitignored lane path, and unconditional `aw ipd finalize` conflict with `s7-finalize.md:31-36`). | `.aw/system/workflows/plan-review/steps/s7-finalize.md:31-36`; `89mtbl`..`x3mig6` reviewed plans. | yes |
