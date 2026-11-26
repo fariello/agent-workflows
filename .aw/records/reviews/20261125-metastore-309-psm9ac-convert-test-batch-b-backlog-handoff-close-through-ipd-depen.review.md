@@ -132,3 +132,150 @@ AW-TIER: standard
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 |---|---|---|---|---|---|
 | D-1 | Where in the serial cutover code-patch chain should Order 315 (`szykgd`) sit? | Chain `szykgd` immediately after `cugg3w` (`- Item-Dependencies: executed:cugg3w`) and set `psm9ac` to `- Item-Dependencies: executed:szykgd` (wiring `szykgd` into `63ib9r` and `x1mmdp`). | Chain `szykgd` ahead of `cugg3w` right after `fljn9b` (rejected: would require editing already-reviewed `cugg3w`, which does not need any of `szykgd`'s five fixes). | Maintainer answer to `05-psm9ac-a1-batch-b-production-log-aware-gaps` ("Fix backlog pointer in fljn9b and split 1 production-fix plan ahead of psm9ac (Recommended)"); `.aw/records/plans/pending/20261125-metastore-308-cugg3w-convert-test-batch-a-artifact-meta-through-backlog-in-the-cu.ipd.md`; `.aw/records/plans/pending/20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.ipd.md`. | yes |
+
+## Round 3
+
+This re-review ran in an isolated review-sweep lane worktree (`review-sweep-run-20261126T161303Z-1366371`) after `psm9ac` was demoted `reviewed -> to-review` for `[stale-review]`. The target plan `.aw/records/plans/pending/20261125-metastore-309-psm9ac-convert-test-batch-b-backlog-handoff-close-through-ipd-depen.ipd.md` was committed and clean, so the pre-review snapshot commit was skipped. Before edits, `aw ipd lint --phase author --agent` returned `clean` (exit 0, 0 findings). The re-review cross-checked all 18 batch B test modules against the six production log-awareness plans authored after `psm9ac` Round 2 (`otin36` Order 316, `p109wy` Order 317, `q6fiws` Order 318, `j1f454` Order 319, `lec341` Order 320, `3e0vfy` Order 321) and later test batches (`e0g2gt` batch D, `qi0kl6` batch E). It found one `BLOCKER` cross-plan sequencing inversion (`PR-006`, `Overall:Medium-High`, escalated to the maintainer as blocking `OQ-02` and parked in outcome JSON with `gates_verdict: true`), one `MEDIUM` finding (`PR-007`), and one `LOW` finding (`PR-008`), with `PR-007` and `PR-008` fixed in place. No production code or test code was modified.
+
+### Step T
+
+1. No direct public-interface or spec change (converts 18 test modules inside `.aw/system/cutover/metastore-code.cutover.patch`).
+2. Yes; regenerates `.aw/system/cutover/metastore-code.cutover.patch`, which carries hook/gate and runner changes.
+3. Yes; converts 18 test modules across `E-02`..`E-04`, including end-to-end runner, graduation, adoption, and check-meta suites.
+4. Yes; `- Scope-Paths:` lists the plan file and `.aw/system/cutover/metastore-code.cutover.patch`.
+5. Yes; executing `psm9ac` ahead of the production fixes (`otin36`..`3e0vfy`) that 5 of its 18 modules exercise guarantees execution failure and stranded work.
+
+AW-TIER: standard
+
+### Step R1
+
+- Checked: all 18 batch B test modules, `szykgd` (Order 315), `otin36` (Order 316), `p109wy` (Order 317), `q6fiws` (Order 318), `j1f454` (Order 319), `lec341` (Order 320), `3e0vfy` (Order 321), `tests/test_oc_runipd.py::_init_repo_with_conforming_plan` (batch D `e0g2gt`), and `tests/test_runner_shared.py::_repo_with_pending_plan` (batch E `qi0kl6`).
+- Found (`PR-006`): Because `otin36`..`3e0vfy` were split during later batch C..F reviews and chained AFTER `psm9ac` (Order 309), 5 of `psm9ac`'s 18 test modules cannot pass when `psm9ac` runs at its current position:
+  1. `tests/test_check_meta.py` and `tests/test_index_rebuild.py` index spec `4sd62s` Section 4.1a `.review.md` YAML mirrors alongside `op: "review"` events, which depend on `p109wy` (Order 317) to stop `artifact_meta._load_sources` from clobbering log-owned `reviews` rows and failing with `REV-M101`.
+  2. `tests/test_index_aliases.py::test_producers_write_no_index_files_and_find_sees_each_change` runs `aw ipd begin`/`finalize` (needs `otin36` Order 316), `aw research mv` + `aw find` (needs `lec341` Order 320), and `aw adopt --apply` (needs `lec341` Order 320 + `3e0vfy` Order 321).
+  3. `tests/test_gradcover_end_to_end.py` (run by `E-04` `-m ''`) drives `coverage_record.is_current`/`write` (needs `q6fiws` Order 318), `aw ipd set reviewed` on an orchestrator and `aw ipd set approved` (needs `3e0vfy` Order 321), and `ipd_lifecycle.retire_orchestrator` (needs `otin36` Order 316).
+  4. `tests/test_inlane_retirement_lands.py` relies on `check_status_untooled_range` (needs `otin36` Order 316) and directly imports unconverted fixture builders from `tests/test_oc_runipd.py` (`e0g2gt`) and `tests/test_runner_shared.py` (`qi0kl6`).
+- Verified the other 13 batch B modules do not depend on `otin36`..`3e0vfy` (notably `tests/test_companion_record_owner_root.py` line 523 only asserts the hint string `--to-id6`, and `tests/test_backlog_handoff_close.py` only uses `.review.md` as a `close_evidence` path string).
+
+### Step R2
+
+- Checked: E/V bijection (`5/5`), `- Scope-Paths:` (2 tracked paths), `- Item-Dependencies: executed:szykgd`, `OQ-01` (resolved) and newly escalated `OQ-02` (`Blocking: yes`, `Status: open`, `Owner: maintainer`, `Finding: PR-006`, `Carrier: ldfefd`), `V-*` evidence, re-derivation convention, `rg` patterns, and `## Approval and execution gate`.
+- Found: `PR-006` breaks executability of 5 modules in `E-02` and `E-04` until resolved; `V-05` hardcoded `with all 3 tests PASSED` and `V-02`..`V-04` `rg` patterns omitted `append_legacy|restore_legacy_snapshot|LEGACY_LOADER_VERSION|meta\.load_legacy_artifact|meta\.derive_id6` (`PR-007`, fixed in place); Step 0 chain and Mermaid `E-01` branch were updated (`PR-008`, fixed in place).
+
+### Step R3
+
+- Checked (full form, `standard` tier):
+  - Anti-regression / gate safety: surfacing `PR-006` prevents an executor from weakening assertions on `test_check_meta.py`, `test_index_rebuild.py`, `test_index_aliases.py`, `test_gradcover_end_to_end.py`, or `test_inlane_retirement_lands.py` to work around missing production fixes (`otin36`..`3e0vfy`).
+  - Workspace containment: edits occur strictly inside gitignored `.aw/state/psm9ac/scratch`; no live code or secrets touched.
+
+### Step R4
+
+- Checked: correctness, anti-regression, testing/verification, KISS, right-sizing, and `## Spec / documentation sync`.
+- Verified `PR-006` crosses multiple sibling plans outside `psm9ac`'s `- Scope-Paths:` (`Overall:Medium-High`, `Decision: OPEN`, escalated as `OQ-02`).
+
+### Step S5
+
+- Checked: `OQ-01` remains resolved (2026-11-26). Escalated `PR-006` into `OQ-02` (`- Blocking: yes`, `- Status: open`, `- Owner: maintainer`, `- Finding: PR-006`, `- Carrier: ldfefd`, recommendation strength `strong`) and parked `batch-b-downstream-prod-order` (`gates_verdict: true`) in `.aw/state/lane-submissions/run-20261126T161303Z-1366371/03-psm9ac/attempt-1/outcomes/03-psm9ac.json`. Fixed `PR-007` and `PR-008` in place (`Overall:Low`). Set `- Readiness: no-go` and verdict `REVIEWED - OPEN QUESTIONS`.
+
+### Pass 2
+
+- Re-read `psm9ac` in full: verified `F-06`, `OQ-02` (`Blocking: yes`, `Finding: PR-006`, `Owner: maintainer`), `- Status: reviewed`, `- Review-Depth: standard`, `- Readiness: no-go`, `## Workflow history` leading with `REVIEWED - OPEN QUESTIONS`, `V-02`..`V-05` fixes, updated Mermaid diagram, and `## Approval and execution gate` referencing `OQ-02`.
+- Verified `aw ipd lint --phase review-finalize --agent` reports only `IPD-Q501` for intentionally open blocking `OQ-02` (zero other errors or warnings).
+- `AW-REVIEW: DONE`
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|---|---|---|---|---|---|---|---|---|
+| PR-006 | BLOCKER | IN-SCOPE | R1 / R2 / R4 / Cross-plan sequencing inversion against `otin36`..`3e0vfy` and `e0g2gt`/`qi0kl6` | `tests/test_check_meta.py:189`, `tests/test_index_rebuild.py:84`, `tests/test_index_aliases.py:293-406`, `tests/test_gradcover_end_to_end.py:544-800`, `tests/test_inlane_retirement_lands.py:23-26,207-248`; `otin36` (Order 316), `p109wy` (Order 317), `q6fiws` (Order 318), `lec341` (Order 320), `3e0vfy` (Order 321), `tests/test_oc_runipd.py:2992`, `tests/test_runner_shared.py:4468` | Six production log-awareness plans (`otin36`..`3e0vfy`) split during later batch C..F reviews sit AFTER `psm9ac` (Order 309) in the serial code-patch chain, yet 5 of `psm9ac`'s 18 test modules depend on them (`test_check_meta` and `test_index_rebuild` on `p109wy`; `test_index_aliases` on `otin36`, `lec341`, `3e0vfy`; `test_gradcover_end_to_end` on `otin36`, `q6fiws`, `3e0vfy`; `test_inlane_retirement_lands` on `otin36` plus unconverted fixture builders imported from `test_oc_runipd.py` in `e0g2gt` and `test_runner_shared.py` in `qi0kl6`). | C:Medium-High; U:Medium; S:Low; F:High; Overall:Medium-High | OPEN | Escalated to maintainer as blocking `OQ-02` (`- Blocking: yes`, `- Finding: PR-006`) and parked in outcome JSON (`gates_verdict: true`) to decide between re-chaining all 6 production-fix plans (`otin36`..`3e0vfy`) ahead of test batches `psm9ac`..`x3mig6` and localizing the two imported helpers in `test_inlane_retirement_lands.py` (Recommended, `strong`), moving the 5 modules out of `psm9ac` to a final batch after `3e0vfy`/`qi0kl6`, or deferring their failures to `x1mmdp`. Recommendation strength: strong. |
+| PR-007 | MEDIUM | IN-SCOPE | R2 / Re-derivation convention (`V-05` test count) and `V-02`..`V-04` `rg` pattern | plan `V-05` (`with all 3 tests PASSED`), `V-02`..`V-04` (`rg` pattern); `.aw/system/workflows/plan-review/steps/r2-executability.md` | `V-05` hardcoded a collected test count (`all 3 tests PASSED`) contrary to the re-derivation convention, and `V-02`..`V-04` `rg` patterns omitted `append_legacy`, `restore_legacy_snapshot`, `LEGACY_LOADER_VERSION`, `meta\.load_legacy_artifact`, and `meta\.derive_id6`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Replaced `with all 3 tests PASSED` in `V-05` with pinned guard-test behaviors and expanded `V-02`..`V-04` `rg` patterns. Recommendation strength: very strong. |
+| PR-008 | LOW | IN-SCOPE | Check P / Technical writing requirement 12 (diagram) and chain/gate sync | plan Step 0 chain, `## Proposed changes` Mermaid flowchart, `## Approval and execution gate`; `.aw/system/workflows/technical-writing/technical-writing.md` requirement 12(b)/(d) | Step 0 omitted the post-split production-fix children (`otin36`..`3e0vfy`), the Mermaid diagram omitted the `E-01` patch-rejection stop branch, and `## Approval and execution gate` needed to reflect open blocking `OQ-02`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Updated Step 0's serial chain, added the `Patches apply cleanly?` stop branch to the Mermaid diagram, and updated `## Approval and execution gate` to gate execution on `OQ-02`. Recommendation strength: strong. |
+
+### Proofreading
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| `F-06`, `## Open questions` (`OQ-02`), `## Approval and execution gate` | Assumed `fljn9b` and `szykgd` unblocked all 18 batch B modules | Documented the 5 modules blocked by later `otin36`..`3e0vfy` and `e0g2gt`/`qi0kl6` helpers (`F-06`) and escalated blocking `OQ-02` | PR-006 |
+| `V-02`..`V-05` | Narrower `rg` pattern; hardcoded `with all 3 tests PASSED` in `V-05` | Expanded removed-symbol `rg` pattern across `V-02`..`V-04` and behavioral guard-test check in `V-05` | PR-007 |
+| Step 0, `## Proposed changes` Mermaid flowchart | Short chain list; linear Mermaid diagram | Complete current serial chain (`hdwqex`..`0zylig`) and E-01 stop branch in Mermaid diagram | PR-008 |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| PR-006 | `## Open questions` (`OQ-02`) | Sequencing of 5 batch B test modules against later production-fix plans (`otin36`..`3e0vfy`) and imported test-batch helpers (`e0g2gt`/`qi0kl6`) | Maintainer decision on re-chaining all remaining production-fix plans ahead of test batches B through F vs. moving the 5 modules out of `psm9ac` vs. deferring failures to `x1mmdp` | Re-chain `otin36`..`3e0vfy` ahead of test batches `psm9ac`..`x3mig6` and localize the two imported fixture helpers in `tests/test_inlane_retirement_lands.py` | strong |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| (none) | All non-escalated fixes (`PR-007`, `PR-008`) are mechanical rule compliance; `PR-006` is escalated to the maintainer as `OQ-02` rather than decided unilaterally. | Escalated `PR-006` to maintainer (`OQ-02`, `gates_verdict: true`). | Re-chain sibling plans unilaterally inside `psm9ac` review (rejected: changes `- Item-Dependencies:` across 7+ sibling plans outside `psm9ac`'s scope). | `steps/_findings.md`, `steps/s5-questions.md`, `tests/test_check_meta.py`, `tests/test_index_rebuild.py`, `tests/test_index_aliases.py`, `tests/test_gradcover_end_to_end.py`, `tests/test_inlane_retirement_lands.py`. | yes |
+
+
+## Round 4
+
+### Step T
+
+1. No direct public-interface or spec change (converts 18 batch B test modules inside `.aw/system/cutover/metastore-code.cutover.patch`).
+2. Yes; regenerates `.aw/system/cutover/metastore-code.cutover.patch`.
+3. Yes; converts 18 test modules across `E-02`..`E-04` and re-chains sibling plans per maintainer Option 1 answer to `OQ-02`.
+4. Yes; `- Scope-Paths:` lists the plan file and `.aw/system/cutover/metastore-code.cutover.patch`.
+5. Yes; resolving `PR-006` clears the cross-plan sequencing inversion across batches B through F.
+
+AW-TIER: standard
+
+### Step R1
+
+- Checked: `psm9ac` and all re-chained sibling plans (`szykgd`, `otin36`, `p109wy`, `q6fiws`, `j1f454`, `lec341`, `3e0vfy`, `x8id25`, `e0g2gt`, `qi0kl6`, `x3mig6`).
+- Verified the serial `- Item-Dependencies:` chain now runs all six remaining production-fix plans (`otin36 -> p109wy -> q6fiws -> j1f454 -> lec341 -> 3e0vfy`) right after `szykgd` and ahead of all five remaining test batches (`psm9ac -> x8id25 -> e0g2gt -> qi0kl6 -> x3mig6 -> x1mmdp`) with zero cycles.
+- Verified `psm9ac` `E-04` item 5 now localizes the two imported fixture helpers (`_conforming_plan_text`/`_init_repo_with_conforming_plan` from `tests/test_oc_runipd.py` and `_repo_with_pending_plan`/`_verified_lane`/`_write_run_state`/`_stranded_item` from `tests/test_runner_shared.py`) inside `tests/test_inlane_retirement_lands.py`.
+
+### Step R2
+
+- Checked: `E-01`..`E-05`, `V-01`..`V-05`, `OQ-01` (resolved), `OQ-02` (resolved), `- Item-Dependencies: executed:3e0vfy`, `- Readiness: go-pending-approval`, and `## Approval and execution gate`.
+- Verified all 5 previously blocked batch B test modules (`test_check_meta.py`, `test_index_rebuild.py`, `test_index_aliases.py`, `test_gradcover_end_to_end.py`, `test_inlane_retirement_lands.py`) now run after every production-fix prerequisite (`otin36`..`3e0vfy`) has executed and have zero dependency on later unconverted test-batch modules.
+
+### Step R3
+
+- Checked: scratch worktree isolation, `- Scope-Paths:` fence, `aw commit psm9ac` path-scoped commit contract, and never-push clause remain intact.
+
+### Step R4
+
+- Checked: `PR-006` cleared (`Decision: FIXED`), `OQ-02` carries `- Status: resolved` and `- Owner: maintainer`, and `aw ipd lint --phase review-finalize` conforms with zero errors or warnings.
+
+### Step S5
+
+- Checked: maintainer answered `OQ-02` with Option 1 on 2026-11-26; no blocking open questions remain. Set `- Readiness: go-pending-approval` and verdict `APPROVE WITH REVISIONS APPLIED`.
+
+### Pass 2
+
+- Re-read `psm9ac` in full and validated all re-chained plans via `aw ipd lint`, `aw check plans`, and `aw attention`.
+- `AW-REVIEW: DONE`
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|---|---|---|---|---|---|---|---|---|
+| PR-006 | BLOCKER | IN-SCOPE | R1 / R2 / R4 / Cross-plan sequencing inversion against `otin36`..`3e0vfy` and `e0g2gt`/`qi0kl6` | `psm9ac` (`F-06`, `OQ-02`, `E-04` item 5); re-chained `- Item-Dependencies:` across `otin36`, `p109wy`, `j1f454`, `3e0vfy`, `psm9ac`, `x8id25`, `e0g2gt`, `qi0kl6`, `x3mig6` | Five batch B test modules depended on production-fix plans `otin36`..`3e0vfy` chained after `psm9ac` and on two imported helpers from `e0g2gt`/`qi0kl6`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Maintainer chose Option 1 (2026-11-26). Re-chained `otin36 -> p109wy -> q6fiws -> j1f454 -> lec341 -> 3e0vfy` ahead of `psm9ac -> x8id25 -> e0g2gt -> qi0kl6 -> x3mig6` via `aw ipd dependencies set`, updated `psm9ac` `E-04` item 5 to localize the two imported fixture helpers inside `tests/test_inlane_retirement_lands.py`, marked `OQ-02` resolved, set `- Readiness: go-pending-approval`, and swept stale open-`OQ-02` references across `psm9ac`. |
+
+### Proofreading
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| `psm9ac` (`Scope`, `E-04` item 5, `Step 0`, `F-06`, `Proposed changes`, `Scope check`, `OQ-02`, `Approval and execution gate`) | Treated `OQ-02`/`PR-006` as open and chained `psm9ac` directly after `szykgd` | Resolved `OQ-02` (Option 1), updated chain to `executed:3e0vfy`, added helper localization in `E-04` item 5, set `- Readiness: go-pending-approval` | PR-006 |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| (none) | (none) | No unresolved proofreading issues remain. | None | None | very strong |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | How to apply Option 1 re-chaining across already-`approved` sibling plans without inducing `[stale-review]` on unchanged execution checklists? | Updated `- Item-Dependencies:` via `aw ipd dependencies set` across all 9 affected plans (leaving `frozen_region_digest` unchanged on already-`approved` plans) and updated `otin36` (`to-review`) and `psm9ac` prose in full. | Rewrite `- Scope:` prose on all 7 already-`approved` plans (rejected: modifies `frozen_region_digest` and invalidates human approval unnecessarily when only the dependency edge moved). | Maintainer Option 1 answer (2026-11-26); `agent_workflows/ipd_lifecycle.py::frozen_region_digest`; `agent_workflows/plan_readiness.py::review_staleness_from_texts`. | yes |
