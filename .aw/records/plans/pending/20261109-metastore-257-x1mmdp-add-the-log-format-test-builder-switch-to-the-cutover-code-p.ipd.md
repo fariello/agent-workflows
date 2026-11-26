@@ -5,7 +5,7 @@
 - Concern: `cxxmyv` E-07 switched the shared test record builder and the field assertion helper to the log format inside the attended cutover turn. On `main` before the cutover that switch would make the suite test a format `main` does not use, so it belongs in the one cutover commit (spec `4sd62s` 5.2, C10a); it can be prepared as part of the inert cumulative code patch (round-3 split, research `nj8zdp`).
 - Scope: In a scratch worktree with both cutover patches applied (after the split children `hdwqex`, `89mtbl` and the batch children `nv3upa` to `x3mig6` have switched the builder and converted the test modules), update the exact-spelling rows, keep the literal-input legacy tests pointing at `m0001`, settle the `review-pilot` corpus, assemble the final refusal list, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. The builder switch (former E-02) moved to `89mtbl`. No live code changes.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
-- Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1, executed:g45vyv, executed:hdwqex, executed:89mtbl, executed:nv3upa, executed:fljn9b, executed:cugg3w, executed:szykgd, executed:psm9ac, executed:otin36, executed:x8id25, executed:p109wy, executed:q6fiws, executed:e0g2gt, executed:j1f454, executed:lec341, executed:qi0kl6, executed:x3mig6
+- Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1, executed:g45vyv, executed:hdwqex, executed:89mtbl, executed:nv3upa, executed:fljn9b, executed:cugg3w, executed:szykgd, executed:psm9ac, executed:otin36, executed:x8id25, executed:p109wy, executed:q6fiws, executed:e0g2gt, executed:j1f454, executed:lec341, executed:qi0kl6, executed:3e0vfy, executed:x3mig6
 - Status: approved
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -21,6 +21,7 @@
 - Review-Depth: standard
 
 ## Workflow history
+- 2026-11-26 note (antigravity/gemini): added Order 321 prerequisite 3e0vfy (plan_readiness, readiness_recheck, status_set, artifact_refs, and artifact_adopt log-awareness fix) ahead of x3mig6 per maintainer answer to run-20261126T055808Z-863961 question 06-x3mig6-a1-batch-f-production-log-aware-gaps.
 - 2026-11-26 note (antigravity/gemini): added Order 319 prerequisite j1f454 (selectors status matching, typed-subject ownership, and artifact_rename --to-id6 log-awareness fix) and Order 320 prerequisite lec341 (research_cmd create, research_refs renames, and research_archive moves log-awareness fix) ahead of qi0kl6 per maintainer answer to run-20261126T055808Z-863961 question 05-qi0kl6-a1-batch-e-production-log-aware-gaps.
 - 2026-11-26 note (antigravity/gemini): added Order 317 prerequisite p109wy (review mirrors, prompt metadata, and check_engine priority log-awareness fix) and Order 318 prerequisite q6fiws (coverage_record, readiness, runner, and review-sequence log-awareness fix) ahead of e0g2gt per maintainer answer to run-20261126T055808Z-863961 question 04-e0g2gt-a1-batch-d-production-log-aware-gaps.
 - 2026-11-26 note (antigravity/gemini): added Order 316 prerequisite otin36 (ipd_lifecycle, partition, plans, untooled-range, hooks, and meta_repair log-awareness fix) ahead of x8id25 per recovery of run-20261126T020242Z-3080634 parked x8id25 OQ-01 Option 1.
@@ -120,6 +121,8 @@ flowchart TD
   - Carrier: j1f454
 - Making `research_cmd.py` create, `research_refs.py` renames, and `research_archive.py` moves log-aware in the cutover code patch (`qi0kl6` OQ-01, maintainer answer 2026-11-26).
   - Carrier: lec341
+- Making `plan_readiness.py`/`readiness_recheck.py`, `status_set.py`, `artifact_refs.py`, and `artifact_adopt.py` log-aware in the cutover code patch (`x3mig6` OQ-01, maintainer answer 2026-11-26).
+  - Carrier: 3e0vfy
 - Converting the test modules that call the removed legacy API or fail on the switched tree (F-05, F-06; backlog `ldfefd`), in a chain of batches.
   - Carrier: nv3upa
   - Carrier: cugg3w

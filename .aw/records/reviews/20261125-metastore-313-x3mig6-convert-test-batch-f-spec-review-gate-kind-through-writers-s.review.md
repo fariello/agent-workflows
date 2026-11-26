@@ -4,7 +4,7 @@
 - Subject-Type: ipd
 - Reviewed-At: 2026-11-26
 - Reviewer: antigravity/gemini
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
 
@@ -81,3 +81,51 @@ AW-TIER: standard
 | D-3 | How should `Step 0` and `## Deferred / out of scope` reflect the current `metastore` Set chain? | List the full current chain (`hdwqex`..`lec341`, `qi0kl6`, `x3mig6`, `x1mmdp`) in Step 0 and add `lec341`, `qi0kl6`, `ldfefd`, and `cxxmyv` to `## Deferred / out of scope`. | Keep the pre-split chain omitting prerequisite production-fix plans and `cxxmyv` (rejected: stale relative to `.aw/records/plans/pending/`). | `.aw/records/plans/pending/` for `hdwqex`, `fljn9b`, `szykgd`, `otin36`, `p109wy`, `q6fiws`, `j1f454`, `lec341`, `qi0kl6`, and `cxxmyv`. | yes |
 | D-4 | How should `E-01`, `E-04`, `E-05`, and `V-01`..`V-05` specify paths, removed-symbol checks, and live-tree safety? | Use exact repo-relative patch, plan, and module paths, exact `rg -n` patterns expecting exit 1, and `git status --short` verification in `E-05`/`V-05`. | Keep placeholders and generic `rg` wording (rejected: ambiguous and weakens verification). | `x3mig6` `E-01`, `E-04`, `E-05`, `V-01`..`V-05`; `e0g2gt`/`qi0kl6` review precedent. | yes |
 | D-5 | How should `## Proposed changes` and `## Approval and execution gate` align with checklist parity and runner-lane finalize ownership? | Align `## Proposed changes` (`1.`..`5.`) 1:1 with `E-01`..`E-05` and the Mermaid diagram, distinguish managed runner lanes from hand-run sessions for `aw ipd finalize`, and gate execution on `OQ-01` resolution. | Keep merged numbering and unconditional `aw ipd finalize` (rejected: checklist mismatch and conflicts with `s7-finalize.md:31-36`). | `.aw/system/workflows/plan-review/steps/s7-finalize.md:31-36`. | yes |
+
+## Round 2
+
+### Step T
+- Escalation return path following maintainer answer to `run-20261126T055808Z-863961` question `06-x3mig6-a1-batch-f-production-log-aware-gaps` (Option 2: `Split one prerequisite production-fix plan ahead of x3mig6`).
+- Selected tier: `standard` (unchanged from Round 1).
+
+AW-TIER: standard
+
+### Step R1: References, Scope, and Dependencies
+- Checked: Updated `x3mig6` (`- Item-Dependencies: executed:3e0vfy`), newly authored Order 321 (`3e0vfy`, `- Item-Dependencies: executed:qi0kl6`), orchestrator `63ib9r` (`E-233`/`V-233` for `3e0vfy`, `E-225` depending on `E-233`, `E-179` and `E-13` depending on `E-233`, child table rows 257, 313, 321), and capstone `x1mmdp` (`- Item-Dependencies:` and `## Deferred / out of scope`).
+- Verified `x3mig6` remains strictly test-only (`- Scope-Paths:` limited to `x3mig6` and `.aw/system/cutover/metastore-code.cutover.patch`) and carries no open `OQ-*` items.
+
+### Step R2: Executability and Verification Rigor
+- Checked: `x3mig6` `E-01..E-05` and `V-01..V-05` now assume `3e0vfy` has already landed in `.aw/system/cutover/metastore-code.cutover.patch` via `- Item-Dependencies: executed:3e0vfy`.
+- Verified `3e0vfy` (covering `agent_workflows/plan_readiness.py`, `agent_workflows/readiness_recheck.py::_run_stale_findings`, `agent_workflows/status_set.py`, `agent_workflows/artifact_refs.py`, and `agent_workflows/artifact_adopt.py`, including rollback log cleanup) is review-ready (`to-review`), carries `- From-Spec: 4sd62s`, `- From-Backlog: ldfefd`, `- Blocks-Release: next`, chains cleanly after `executed:qi0kl6` (so `hdwqex`, `q6fiws`, and `lec341`'s `PlannedFile.fields` are already in the patch), and includes dedicated core behavioral test module `tests/test_cutover_log_readiness_status_refs_adopt.py` and patch regeneration steps.
+
+### Step R3: Security, Isolation, and Safety
+- Checked: Both split prerequisite plan `3e0vfy` and `x3mig6` execute in isolated scratch worktrees (`.aw/state/<id6>/scratch`), fence writes to their plan file and `.aw/system/cutover/metastore-code.cutover.patch`, require `git status --short` clean-tree verification, preserve all approval-gate, in-flight receipt-guard, unsafe-summary/actor, and symlink-containment checks, and commit path-scoped through `aw commit`.
+
+### Step R4: Engineering Quality and Contract Conformance
+- Checked: Technical writing standard across `x3mig6`, `3e0vfy`, `63ib9r`, and `x1mmdp`; verified `x3mig6` `- Readiness: go-pending-approval`, `OQ-01` `- Status: resolved`, and `aw ipd lint --phase review-finalize` clean.
+
+### Step S5: Open Questions and Decisions
+- Checked: Maintainer answered `OQ-01` (`06-x3mig6-a1-batch-f-production-log-aware-gaps`) selecting Option 2 (`Split one prerequisite production-fix plan ahead of x3mig6`). Recorded resolution verbatim in `x3mig6` `## Open questions`, closed `PR-001` as `FIXED`, and recorded the coupled `readiness_recheck._run_stale_findings` + `apply_adoption` rollback scope refinement in `### Decisions` (`D-1`). Zero open blocking questions remain.
+
+### Pass 2: Verification of Edits
+- Re-read `x3mig6`, `3e0vfy`, `x1mmdp`, and the updated sections of `63ib9r`.
+- Verified `OQ-01` is `resolved`, `PR-001` is `FIXED`, `- Readiness: go-pending-approval` is set, `- Item-Dependencies: executed:3e0vfy` chains cleanly (`qi0kl6 -> 3e0vfy -> x3mig6 -> x1mmdp`), and `ipd_lint` / `review_findings` / `check_engine` / `plan_readiness` all pass cleanly.
+
+### Findings
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|---|---|---|---|---|---|---|---|---|
+| PR-001 | BLOCKER | UNDER-SCOPE | Production cutover readiness (`plan_readiness.py`, `readiness_recheck.py`, `status_set.py`, `artifact_refs.py`, `artifact_adopt.py`) | Maintainer answer to `run-20261126T055808Z-863961` question `06-x3mig6-a1-batch-f-production-log-aware-gaps`; `.aw/records/plans/pending/20261126-metastore-321-3e0vfy-make-plan-readiness-status-set-artifact-refs-and-artifact-ad.ipd.md` | Four unpatched production cutover gaps in `.aw/system/cutover/metastore-code.cutover.patch` blocked 4 batch F test modules (`test_status_set.py`, `test_writers_create_summary.py`, `test_writers_merge_independence.py`, `test_writers_obligations.py`). | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Resolved per maintainer Option 2: split out one prerequisite production-fix child plan Order 321 (`3e0vfy`, `- Item-Dependencies: executed:qi0kl6`, covering `plan_readiness.py`/`readiness_recheck.py`, `status_set.py`, `artifact_refs.py`, and `artifact_adopt.py`), re-chained `x3mig6` to `- Item-Dependencies: executed:3e0vfy`, wired `3e0vfy` into `63ib9r` (`E-233`/`V-233`) and `x1mmdp`, marked `OQ-01` `resolved`, and set `x3mig6` `- Readiness: go-pending-approval` (`D-1`). |
+
+### Proofreading
+#### Changes
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| `x3mig6` header, `Step 0`, `E-02`, `E-03`, `F-05`, `## Deferred / out of scope`, `## Scope check`, `## Spec / documentation sync`, `## Open questions`, `## Approval and execution gate` | Parked on open `OQ-01` with `- Item-Dependencies: executed:qi0kl6` and `- Readiness: no-go` | Resolved `OQ-01` per maintainer Option 2, re-chained `- Item-Dependencies: executed:3e0vfy`, referenced `3e0vfy` (Order 321), and set `- Readiness: go-pending-approval` | Maintainer decision applied consistently across all sections |
+
+#### Issues
+- (none)
+
+### Decisions
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | Should Order 321 (`3e0vfy`) also fix the tightly coupled bullet-only `_meta.read_loose_id` call in `readiness_recheck.py::_run_stale_findings` and companion log unlink on `artifact_adopt.py::apply_adoption` rollback, while keeping `rewrite_scope_path_citations` reporting `plan_file` and `post_relocation_citation_rewrite` returning `.aw/records/meta/<plan_id6>.jsonl`? | Include both tightly coupled fixes inside `3e0vfy` `E-02`/`E-03`, and keep `rewrite_scope_path_citations` reporting `Change(path=str(plan_file))` while `post_relocation_citation_rewrite` returns the mutated `.aw/records/meta/<plan_id6>.jsonl` path for `--commit`. | Leave `readiness_recheck._run_stale_findings` and rollback log cleanup unpatched (rejected: breaks `aw ipd recheck-readiness --stale-findings` and leaves orphan logs on rollback), or return only `meta/<id6>.jsonl` from `apply_scope_path_reference_rewrites` (rejected: breaks `Change.path` reporting on `pl0010-norm.ipd.md` pinned by `tests/test_status_set.py:4521-4530`). | `agent_workflows/readiness_recheck.py:157`, `agent_workflows/artifact_adopt.py:1131`, `agent_workflows/artifact_refs.py:1120-1193`, `tests/test_status_set.py:4521-4530`. | yes |
