@@ -17,7 +17,7 @@
 - Blocks-Release: next
 - Set: metastore
 - Order: 0
-- Highest E allocated: 230
+- Highest E allocated: 232
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 63ib9r
 - Approval: 2026-11-16, recorded via aw ipd set: status set to approved
@@ -26,6 +26,7 @@
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-26 note (antigravity/gemini): split Orders 319 (j1f454, make selectors status matching, typed-subject ownership, and artifact_rename to-id6 log-aware in the cutover code patch) and 320 (lec341, make research_cmd create, research_refs renames, and research_archive moves log-aware in the cutover code patch) ahead of qi0kl6 per maintainer answer to run-20261126T055808Z-863961 question 05-qi0kl6-a1-batch-e-production-log-aware-gaps; E-231 confirms j1f454; E-232 confirms lec341; E-224 (qi0kl6) depends on E-232; E-179 (x1mmdp) and E-13 (cxxmyv) depend on E-231 and E-232.
 - 2026-11-26 note (antigravity/gemini): split Orders 317 (p109wy, make review mirrors, prompt metadata, and check_engine priority log-aware in the cutover code patch) and 318 (q6fiws, make coverage_record, readiness, runner, and review-sequence evaluators log-aware in the cutover code patch) ahead of e0g2gt per maintainer answer to run-20261126T055808Z-863961 question 04-e0g2gt-a1-batch-d-production-log-aware-gaps; E-229 confirms p109wy; E-230 confirms q6fiws; E-223 (e0g2gt) depends on E-230; E-179 (x1mmdp) and E-13 (cxxmyv) depend on E-229 and E-230.
 - 2026-11-26 note (antigravity/gemini): split Order 316 (otin36, make ipd_lifecycle, partition, plans, untooled-range, hooks, and meta_repair log-aware in the cutover code patch) ahead of x8id25 per recovery of run-20261126T020242Z-3080634 parked x8id25 OQ-01 Option 1; E-228 confirms otin36; E-222 (x8id25), E-179 (x1mmdp), and E-13 (cxxmyv) depend on E-228.
 - 2026-11-26 coverage pass (aw oc run): fingerprint c43b7eb71194, model uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -130,7 +131,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 - [ ] E-13 CONFIRM cxxmyv REACHED executed
-  - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-176, E-177, E-178, E-179, E-180, E-181, E-182, E-213, E-214, E-215, E-216, E-217, E-218, E-219, E-220, E-221, E-222, E-223, E-224, E-225, E-226, E-227, E-228, E-229, E-230
+  - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-176, E-177, E-178, E-179, E-180, E-181, E-182, E-213, E-214, E-215, E-216, E-217, E-218, E-219, E-220, E-221, E-222, E-223, E-224, E-225, E-226, E-227, E-228, E-229, E-230, E-231, E-232
   - Expected outcome: `aw find plans cxxmyv` shows it under `executed/`.
   - Execution state: pending
 
@@ -959,7 +960,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 - [ ] E-179 CONFIRM x1mmdp REACHED executed
-  - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-178, E-217, E-218, E-219, E-220, E-221, E-222, E-223, E-224, E-225, E-226, E-227, E-228, E-229, E-230
+  - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-178, E-217, E-218, E-219, E-220, E-221, E-222, E-223, E-224, E-225, E-226, E-227, E-228, E-229, E-230, E-231, E-232
   - Expected outcome: `aw find plans x1mmdp` shows it under `executed/`.
   - Execution state: pending
 
@@ -1184,7 +1185,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 - [ ] E-224 CONFIRM qi0kl6 REACHED executed
-  - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-223
+  - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-232
   - Expected outcome: `aw find plans qi0kl6` shows it under `executed/`.
   - Execution state: pending
 
@@ -1216,6 +1217,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - [ ] E-230 CONFIRM q6fiws REACHED executed
   - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-229
   - Expected outcome: `aw find plans q6fiws` shows it under `executed/`.
+  - Execution state: pending
+
+- [ ] E-231 CONFIRM j1f454 REACHED executed
+  - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-223
+  - Expected outcome: `aw find plans j1f454` shows it under `executed/`.
+  - Execution state: pending
+
+- [ ] E-232 CONFIRM lec341 REACHED executed
+  - Depends on: E-03, E-51, E-12, E-53, E-48, E-04, E-14, E-44, E-52, E-47, E-05, E-54, E-231
+  - Expected outcome: `aw find plans lec341` shows it under `executed/`.
   - Execution state: pending
 
 ## Child IPDs, sequence, and dependencies
@@ -1400,7 +1411,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 254 | `tub3ir` | `20261109-metastore-254-tub3ir-record-the-description-model-and-run-the-attended-pre-cutove.ipd.md` | Record the description model and run the attended pre-cutover migration dry run. | `executed:1ajqaa`, `executed:87rvs2`, `executed:90iqr1`, `executed:aqc3m6`, `executed:clors0`, `executed:dcerjg`, `executed:g5hpbb`, `executed:iog3cw`, `executed:rdg0qv`, `executed:w13bkp`, `executed:ya4ee4`, `executed:zgyna1` |
 | 255 | `2k5t16` | `20261109-metastore-255-2k5t16-start-the-cutover-code-patch-with-the-log-format-loader-and.ipd.md` | Start the cutover code patch with the log-format loader and writer switch. | `executed:1ajqaa`, `executed:87rvs2`, `executed:90iqr1`, `executed:aqc3m6`, `executed:clors0`, `executed:dcerjg`, `executed:g5hpbb`, `executed:iog3cw`, `executed:rdg0qv`, `executed:w13bkp`, `executed:ya4ee4`, `executed:zgyna1` |
 | 256 | `g45vyv` | `20261109-metastore-256-g45vyv-add-the-log-only-writers-and-ledger-retirement-to-the-cutove.ipd.md` | Add the log-only writers and ledger retirement to the cutover code patch. | `executed:1ajqaa`, `executed:87rvs2`, `executed:90iqr1`, `executed:aqc3m6`, `executed:clors0`, `executed:dcerjg`, `executed:g5hpbb`, `executed:iog3cw`, `executed:rdg0qv`, `executed:w13bkp`, `executed:ya4ee4`, `executed:zgyna1`, `executed:2k5t16` |
-| 257 | `x1mmdp` | `20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.ipd.md` | Add the log-format test builder switch to the cutover code patch. | `executed:1ajqaa`, `executed:87rvs2`, `executed:90iqr1`, `executed:aqc3m6`, `executed:clors0`, `executed:dcerjg`, `executed:g5hpbb`, `executed:iog3cw`, `executed:rdg0qv`, `executed:w13bkp`, `executed:ya4ee4`, `executed:zgyna1`, `executed:g45vyv`, `executed:hdwqex`, `executed:89mtbl`, `executed:nv3upa`, `executed:fljn9b`, `executed:cugg3w`, `executed:szykgd`, `executed:psm9ac`, `executed:otin36`, `executed:x8id25`, `executed:p109wy`, `executed:q6fiws`, `executed:e0g2gt`, `executed:qi0kl6`, `executed:x3mig6` |
+| 257 | `x1mmdp` | `20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.ipd.md` | Add the log-format test builder switch to the cutover code patch. | `executed:1ajqaa`, `executed:87rvs2`, `executed:90iqr1`, `executed:aqc3m6`, `executed:clors0`, `executed:dcerjg`, `executed:g5hpbb`, `executed:iog3cw`, `executed:rdg0qv`, `executed:w13bkp`, `executed:ya4ee4`, `executed:zgyna1`, `executed:g45vyv`, `executed:hdwqex`, `executed:89mtbl`, `executed:nv3upa`, `executed:fljn9b`, `executed:cugg3w`, `executed:szykgd`, `executed:psm9ac`, `executed:otin36`, `executed:x8id25`, `executed:p109wy`, `executed:q6fiws`, `executed:e0g2gt`, `executed:j1f454`, `executed:lec341`, `executed:qi0kl6`, `executed:x3mig6` |
 | 258 | `0zylig` | `20261109-metastore-258-0zylig-add-the-kind-option-renames-and-text-test-updates-to-the-cut.ipd.md` | Add the Kind option renames and text-test updates to the cutover code patch. | `executed:1ajqaa`, `executed:87rvs2`, `executed:90iqr1`, `executed:aqc3m6`, `executed:clors0`, `executed:dcerjg`, `executed:g5hpbb`, `executed:iog3cw`, `executed:rdg0qv`, `executed:w13bkp`, `executed:ya4ee4`, `executed:zgyna1`, `executed:x1mmdp` |
 | 259 | `33vxoi` | `20261109-metastore-259-33vxoi-write-the-post-cutover-acceptance-demonstration-script.ipd.md` | Write the post-cutover acceptance demonstration script. | `executed:1ajqaa`, `executed:87rvs2`, `executed:90iqr1`, `executed:aqc3m6`, `executed:clors0`, `executed:dcerjg`, `executed:g5hpbb`, `executed:iog3cw`, `executed:rdg0qv`, `executed:w13bkp`, `executed:ya4ee4`, `executed:zgyna1`, `executed:tub3ir` |
 | 260 | `5qyba0` | `20261109-metastore-260-5qyba0-rehearse-the-full-metadata-cutover-on-a-clone-with-the-prepa.ipd.md` | Rehearse the full metadata cutover on a clone with the prepared patches. | `executed:1ajqaa`, `executed:87rvs2`, `executed:90iqr1`, `executed:aqc3m6`, `executed:clors0`, `executed:dcerjg`, `executed:g5hpbb`, `executed:iog3cw`, `executed:rdg0qv`, `executed:w13bkp`, `executed:ya4ee4`, `executed:zgyna1`, `executed:tub3ir`, `executed:0zylig`, `executed:33vxoi` |
@@ -1445,13 +1456,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 309 | `psm9ac` | `20261125-metastore-309-psm9ac-convert-test-batch-b-backlog-handoff-close-through-ipd-depen.ipd.md` | Convert test batch B (backlog_handoff_close through ipd_dependency_statement_gate) in the cutover code patch. | `executed:szykgd` |
 | 310 | `x8id25` | `20261125-metastore-310-x8id25-convert-test-batch-c-ipd-lifecycle-cli-through-prompts-set-s.ipd.md` | Convert test batch C (ipd_lifecycle_cli through prompts_set_surface) in the cutover code patch. | `executed:otin36` |
 | 311 | `e0g2gt` | `20261125-metastore-311-e0g2gt-convert-test-batch-d-prose-dash-advisory-through-readers-run.ipd.md` | Convert test batch D (prose_dash_advisory through readers_runner) in the cutover code patch. | `executed:q6fiws` |
-| 312 | `qi0kl6` | `20261125-metastore-312-qi0kl6-convert-test-batch-e-readers-selectors-find-through-spec-id6.ipd.md` | Convert test batch E (readers_selectors_find through spec_id6_filenames) in the cutover code patch. | `executed:e0g2gt` |
+| 312 | `qi0kl6` | `20261125-metastore-312-qi0kl6-convert-test-batch-e-readers-selectors-find-through-spec-id6.ipd.md` | Convert test batch E (readers_selectors_find through spec_id6_filenames) in the cutover code patch. | `executed:lec341` |
 | 313 | `x3mig6` | `20261125-metastore-313-x3mig6-convert-test-batch-f-spec-review-gate-kind-through-writers-s.ipd.md` | Convert test batch F (spec_review_gate_kind through writers_scope_fields) in the cutover code patch. | `executed:qi0kl6` |
 | 314 | `fljn9b` | `20261125-metastore-314-fljn9b-make-backlog-validation-and-readers-log-aware-in-the-cutover.ipd.md` | Make backlog validation and readers log-aware in the cutover code patch (cugg3w OQ-01). | `executed:nv3upa` |
 | 315 | `szykgd` | `20261125-metastore-315-szykgd-make-specs-releases-spec-link-search-and-dep-gate-log-aware.ipd.md` | Make specs, releases, spec-link, search, and dep-gate log-aware in the cutover code patch (psm9ac OQ-01). | `executed:cugg3w` |
 | 316 | `otin36` | `20261126-metastore-316-otin36-make-ipd-lifecycle-partition-plans-untooled-range-hooks-and.ipd.md` | Make ipd_lifecycle, partition, plans, untooled-range, hooks, and meta_repair log-aware in the cutover code patch (x8id25 OQ-01). | `executed:psm9ac` |
 | 317 | `p109wy` | `20261126-metastore-317-p109wy-make-review-mirrors-prompt-metadata-and-check-engine-priorit.ipd.md` | Make review mirrors, prompt metadata, and check_engine priority log-aware in the cutover code patch (e0g2gt OQ-01 part 1). | `executed:x8id25` |
 | 318 | `q6fiws` | `20261126-metastore-318-q6fiws-make-coverage-record-readiness-runner-and-review-sequence-ev.ipd.md` | Make coverage_record, readiness, runner, and review-sequence evaluators log-aware in the cutover code patch (e0g2gt OQ-01 part 2). | `executed:p109wy` |
+| 319 | `j1f454` | `20261126-metastore-319-j1f454-make-selectors-status-matching-typed-subject-ownership-and-a.ipd.md` | Make selectors status matching, typed-subject ownership, and artifact_rename to-id6 log-aware in the cutover code patch (qi0kl6 OQ-01 part 1). | `executed:e0g2gt` |
+| 320 | `lec341` | `20261126-metastore-320-lec341-make-research-cmd-create-research-refs-renames-and-research.ipd.md` | Make research_cmd create, research_refs renames, and research_archive moves log-aware in the cutover code patch (qi0kl6 OQ-01 part 2). | `executed:j1f454` |
 
 SPLIT 2026-11-07 and again 2026-11-09 (maintainer step-complexity rule, then research `nj8zdp` followability guidance: a modest agent must be able to execute each plan). Orders 15 to 299 are parts split out of Orders 04, 05, 07, 08, 09, 10, 11, 12, 13 and 14; each original keeps its id6 as its family's final capstone and depends on every part in its family, so an `executed:<original>` edge still means the whole family is done. Order numbers past 14 are only the next free numbers: the runner orders by the dependency edges in this table (`dependency_depth` first), not by `Order`.
 
@@ -2711,6 +2724,16 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-230 validates E-230
   - Required evidence: paste `aw find plans q6fiws` output showing the plan under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-231 validates E-231
+  - Required evidence: paste `aw find plans j1f454` output showing the plan under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-232 validates E-232
+  - Required evidence: paste `aw find plans lec341` output showing the plan under `.aw/records/plans/executed/`.
   - Observed evidence:
   - Result: pending
 

@@ -4,7 +4,7 @@
 - Subject-Type: ipd
 - Reviewed-At: 2026-11-26
 - Reviewer: antigravity/gemini
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
 
@@ -81,3 +81,51 @@ AW-TIER: standard
 | D-3 | How should `Step 0` and `## Deferred / out of scope` reflect the current `metastore` Set chain? | List the full current chain (`hdwqex`..`q6fiws`, `e0g2gt`, `qi0kl6`, `x3mig6`, `x1mmdp`) in Step 0 and add `hdwqex`, `otin36`, `q6fiws`, and `cxxmyv` to `## Deferred / out of scope`. | Keep the pre-split chain omitting prerequisite production-fix plans and `cxxmyv` (rejected: stale relative to `.aw/records/plans/pending/`). | `.aw/records/plans/pending/` for `hdwqex`, `fljn9b`, `szykgd`, `otin36`, `p109wy`, `q6fiws`, and `cxxmyv`. | yes |
 | D-4 | How should `E-01`, `E-04`, `E-05`, and `V-01`..`V-05` specify paths, removed-symbol checks, and live-tree safety? | Use exact repo-relative patch, plan, and module paths, exact `rg -n` patterns expecting exit 1, and `git status --short` verification in `E-05`/`V-05`. | Keep placeholders and generic `rg` wording (rejected: ambiguous and weakens verification). | `qi0kl6` `E-01`, `E-04`, `E-05`, `V-01`..`V-05`; `e0g2gt` review precedent. | yes |
 | D-5 | How should `## Proposed changes` and `## Approval and execution gate` align with checklist parity and runner-lane finalize ownership? | Align `## Proposed changes` (`1.`..`5.`) 1:1 with `E-01`..`E-05` and the Mermaid diagram, distinguish managed runner lanes from hand-run sessions for `aw ipd finalize`, and gate execution on `OQ-01` resolution. | Keep merged numbering and unconditional `aw ipd finalize` (rejected: checklist mismatch and conflicts with `s7-finalize.md:31-36`). | `.aw/system/workflows/plan-review/steps/s7-finalize.md:31-36`. | yes |
+
+## Round 2
+
+### Step T
+- Escalation return path following maintainer answer to `run-20261126T055808Z-863961` question `05-qi0kl6-a1-batch-e-production-log-aware-gaps` (Option 2: `Split two prerequisite plans (selectors/rename, then research cmd/refs/archive)`).
+- Selected tier: `standard` (unchanged from Round 1).
+
+AW-TIER: standard
+
+### Step R1: References, Scope, and Dependencies
+- Checked: Updated `qi0kl6` (`- Item-Dependencies: executed:lec341`), newly authored Orders 319 (`j1f454`, `- Item-Dependencies: executed:e0g2gt`) and 320 (`lec341`, `- Item-Dependencies: executed:j1f454`), orchestrator `63ib9r` (`E-231`/`V-231` for `j1f454`, `E-232`/`V-232` for `lec341`, `E-224` depending on `E-232`, `E-179` and `E-13` depending on `E-231` and `E-232`, child table rows 257, 312, 319, 320), and capstone `x1mmdp` (`- Item-Dependencies:` and `## Deferred / out of scope`).
+- Verified `qi0kl6` remains strictly test-only (`- Scope-Paths:` limited to `qi0kl6` and `.aw/system/cutover/metastore-code.cutover.patch`) and carries no open `OQ-*` items.
+
+### Step R2: Executability and Verification Rigor
+- Checked: `qi0kl6` `E-01..E-05` and `V-01..V-05` now assume `j1f454` and `lec341` have already landed in `.aw/system/cutover/metastore-code.cutover.patch` via `- Item-Dependencies: executed:lec341`.
+- Verified `j1f454` (gaps 1 & 4: `agent_workflows/selectors.py` status matching & typed-subject ownership, `agent_workflows/artifact_rename.py` `--to-id6` log creation and YAML-mirror id6 helpers) and `lec341` (gaps 2 & 3: `agent_workflows/research_cmd.py` structured create fields, `agent_workflows/research_refs.py` rename event and touched log paths, `agent_workflows/research_archive.py` touched log paths) are review-ready (`to-review`), carry `- From-Spec: 4sd62s`, `- From-Backlog: ldfefd`, `- Blocks-Release: next`, and include dedicated behavioral test modules and patch regeneration steps.
+
+### Step R3: Security, Isolation, and Safety
+- Checked: Both split prerequisite plans and `qi0kl6` execute in isolated scratch worktrees (`.aw/state/<id6>/scratch`), fence writes to their plan file and `.aw/system/cutover/metastore-code.cutover.patch`, require `git status --short` clean-tree verification, and commit path-scoped through `aw commit`.
+
+### Step R4: Engineering Quality and Contract Conformance
+- Checked: Technical writing standard across `qi0kl6`, `j1f454`, `lec341`, `63ib9r`, and `x1mmdp`; verified `qi0kl6` `- Readiness: go-pending-approval`, `OQ-01` `- Status: resolved`, and `aw ipd lint --phase review-finalize` clean.
+
+### Step S5: Open Questions and Decisions
+- Checked: Maintainer answered `OQ-01` (`05-qi0kl6-a1-batch-e-production-log-aware-gaps`) selecting Option 2 (`Split two prerequisite plans (selectors/rename, then research cmd/refs/archive)`). Recorded resolution verbatim in `qi0kl6` `## Open questions`, closed `PR-001` as `FIXED`, and recorded the gap-partition decision in `### Decisions` (`D-1`). Zero open blocking questions remain.
+
+### Pass 2: Verification of Edits
+- Re-read `qi0kl6`, `j1f454`, `lec341`, `x1mmdp`, and the updated sections of `63ib9r`.
+- Verified `OQ-01` is `resolved`, `PR-001` is `FIXED`, `- Readiness: go-pending-approval` is set, `- Item-Dependencies: executed:lec341` chains cleanly (`e0g2gt -> j1f454 -> lec341 -> qi0kl6 -> x3mig6 -> x1mmdp`), and `ipd_lint` / `review_findings` / `check_engine` / `plan_readiness` all pass cleanly.
+
+### Findings
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|---|---|---|---|---|---|---|---|---|
+| PR-001 | BLOCKER | UNDER-SCOPE | Production cutover readiness (`selectors.py`, `research_cmd.py`, `research_refs.py`, `research_archive.py`, `artifact_rename.py`) | Maintainer answer to `run-20261126T055808Z-863961` question `05-qi0kl6-a1-batch-e-production-log-aware-gaps`; `.aw/records/plans/pending/20261126-metastore-319-j1f454-make-selectors-status-matching-typed-subject-ownership-and-a.ipd.md`; `.aw/records/plans/pending/20261126-metastore-320-lec341-make-research-cmd-create-research-refs-renames-and-research.ipd.md` | Four unpatched production cutover gaps in `.aw/system/cutover/metastore-code.cutover.patch` blocked 6 batch E test modules. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Resolved per maintainer Option 2: split out Order 319 (`j1f454`, `executed:e0g2gt`, covering `selectors.py` and `artifact_rename.py`) and Order 320 (`lec341`, `executed:j1f454`, covering `research_cmd.py`, `research_refs.py`, and `research_archive.py`), re-chained `qi0kl6` to `- Item-Dependencies: executed:lec341`, wired both plans into `63ib9r` (`E-231`/`V-231`, `E-232`/`V-232`) and `x1mmdp`, marked `OQ-01` `resolved`, and set `qi0kl6` `- Readiness: go-pending-approval` (`D-1`). |
+
+### Proofreading
+#### Changes
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| `qi0kl6` header, `Step 0`, `E-02`, `E-03`, `F-05`, `## Deferred / out of scope`, `## Scope check`, `## Open questions`, `## Approval and execution gate` | Parked on open `OQ-01` with `- Item-Dependencies: executed:e0g2gt` and `- Readiness: no-go` | Resolved `OQ-01` per maintainer Option 2, re-chained `- Item-Dependencies: executed:lec341`, referenced `j1f454` (Order 319) and `lec341` (Order 320), and set `- Readiness: go-pending-approval` | Maintainer decision applied consistently across all sections |
+
+#### Issues
+- (none)
+
+### Decisions
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | How should the four batch E production cutover gaps be partitioned across the two prerequisite plans requested by the maintainer's Option 2 answer? | Order 319 (`j1f454`, `executed:e0g2gt`) owns gaps 1 and 4 (`agent_workflows/selectors.py` status matching & typed-subject ownership, `agent_workflows/artifact_rename.py` `--to-id6` log creation and YAML-mirror id6 helpers); Order 320 (`lec341`, `executed:j1f454`) owns gaps 2 and 3 (`agent_workflows/research_cmd.py` create fields, `agent_workflows/research_refs.py` rename event & touched log paths, `agent_workflows/research_archive.py` touched log paths). | Swap order of the two plans (rejected: maintainer explicitly selected "selectors/rename, then research cmd/refs/archive"). | Maintainer answer to `run-20261126T055808Z-863961` question `05-qi0kl6-a1-batch-e-production-log-aware-gaps`. | yes |
