@@ -1,19 +1,18 @@
-# Plan Review Record: cugg3w
+# Review findings: ipd cugg3w
 
 - Subject-Id: cugg3w
-- Subject-Type: plan
-- Review-Type: plan-review
-- Date: 2026-11-26
-- Verdict: REVIEWED - OPEN QUESTIONS
-- Readiness: no-go
-- Review-Depth: standard
+- Subject-Type: ipd
+- Reviewed-At: 2026-11-26
 - Reviewer: antigravity/gemini
+- Verdict: REVIEWED - OPEN QUESTIONS
 
 ## Round 1
 
-### Step T: Tier
+### Step T
 - Selected tier: `standard`
 - Rationale: Child plan modifying 8 test modules inside the cumulative cutover code patch (`.aw/system/cutover/metastore-code.cutover.patch`), spanning core metadata cache/read/write tests, attention contract tests, mutation verbs, and backlog verbs/validation.
+
+AW-TIER: standard
 
 ### Step R1: References, Scope, and Dependencies
 - Checked: `.aw/records/plans/pending/20261125-metastore-308-cugg3w-convert-test-batch-a-artifact-meta-through-backlog-in-the-cu.ipd.md`, `.aw/records/plans/pending/20261125-metastore-306-89mtbl-switch-the-shared-test-record-builder-and-codemod-to-the-log.ipd.md`, `.aw/records/plans/pending/20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.ipd.md`, `.aw/records/plans/pending/20261125-metastore-309-psm9ac-convert-test-batch-b-backlog-handoff-close-through-ipd-depen.ipd.md`, `.aw/system/cutover/metastore-code.cutover.patch`, `tests/test_artifact_meta_cache.py`, `tests/test_artifact_meta_loader_parity.py`, `tests/test_artifact_meta_read.py`, `tests/test_artifact_meta_write.py`, `tests/test_attention_contract.py`, `tests/test_attention_priority_blocker.py`, `tests/test_awcmdsurf_mutation_verbs.py`, `tests/test_backlog.py`, `agent_workflows/backlog.py`, `agent_workflows/artifact_meta.py`, `agent_workflows/check_engine.py`, `agent_workflows/runner_shared.py`, `agent_workflows/attention.py`.
