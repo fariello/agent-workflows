@@ -4,7 +4,7 @@
 - Subject-Type: ipd
 - Reviewed-At: 2026-11-26
 - Reviewer: antigravity/gemini
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
 
@@ -83,3 +83,60 @@ AW-TIER: standard
 | D-3 | How should `Step 0` and `## Deferred / out of scope` reflect the current `metastore` Set chain? | List `hdwqex`, `89mtbl`, `nv3upa`, `fljn9b`, `cugg3w`, `szykgd`, `psm9ac`, `otin36`, `x8id25`, `e0g2gt`, `qi0kl6`, `x3mig6`, `x1mmdp` in Step 0 and add `hdwqex`, `otin36`, and `cxxmyv` to `## Deferred / out of scope`. | Keep the pre-split chain omitting `hdwqex`, `fljn9b`, `szykgd`, `otin36`, and `cxxmyv` (rejected: stale relative to `.aw/records/plans/pending/`). | `.aw/records/plans/pending/` for `hdwqex`, `fljn9b`, `szykgd`, `otin36`, and `cxxmyv`. | yes |
 | D-4 | How should `E-01`, `E-05`, and `V-01`..`V-05` specify paths, removed-symbol checks, and live-tree safety? | Use exact repo-relative patch and plan paths, exact `rg -n` patterns expecting exit 1, and `git status --short` verification in `E-05`/`V-05`. | Keep placeholders and generic `rg` wording (rejected: ambiguous and weakens verification). | `e0g2gt` `E-01`, `E-05`, `V-01`..`V-05`; `x8id25` review precedent. | yes |
 | D-5 | How should `## Proposed changes` and `## Approval and execution gate` align with checklist parity and runner-lane finalize ownership? | Align `## Proposed changes` (`1.`..`5.`) 1:1 with `E-01`..`E-05` and the Mermaid diagram, distinguish managed runner lanes from hand-run sessions for `aw ipd finalize`, and gate execution on `OQ-01` resolution. | Keep merged numbering and unconditional `aw ipd finalize` (rejected: checklist mismatch and conflicts with `s7-finalize.md:31-36`). | `.aw/system/workflows/plan-review/steps/s7-finalize.md:31-36`. | yes |
+
+## Round 2
+
+### Step T
+1. No - `e0g2gt` converts 10 batch D test modules inside `.aw/system/cutover/metastore-code.cutover.patch` and does not change a spec or public contract.
+2. Yes - it regenerates `.aw/system/cutover/metastore-code.cutover.patch`, which patches metadata-store, check-engine, review, coverage, readiness, and runner code paths.
+3. Yes - it converts 10 reader-suite test modules across `E-02` and `E-03`.
+4. Yes - `- Scope-Paths:` lists the plan file and `.aw/system/cutover/metastore-code.cutover.patch`.
+5. Yes - regenerating the cumulative cutover code patch affects downstream batches (`qi0kl6`, `x3mig6`, `x1mmdp`).
+- Selected tier: `standard`
+
+AW-TIER: standard
+
+### Step R1: References, Scope, and Dependencies
+- Checked: `.aw/records/plans/pending/20261125-metastore-311-e0g2gt-convert-test-batch-d-prose-dash-advisory-through-readers-run.ipd.md`, `.aw/records/plans/pending/20261126-metastore-317-p109wy-make-review-mirrors-prompt-metadata-and-check-engine-priorit.ipd.md`, `.aw/records/plans/pending/20261126-metastore-318-q6fiws-make-coverage-record-readiness-runner-and-review-sequence-ev.ipd.md`, `.aw/records/plans/pending/20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.ipd.md`, `.aw/records/plans/pending/20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.ipd.md`, `.aw/system/cutover/metastore-code.cutover.patch`, and the target production modules (`agent_workflows/artifact_meta.py`, `agent_workflows/review_findings.py`, `agent_workflows/check_engine.py`, `agent_workflows/coverage_record.py`, `agent_workflows/orchestrator_readiness.py`, `agent_workflows/plan_readiness.py`, `agent_workflows/runner_shared.py`, `agent_workflows/review_tier.py`, `agent_workflows/review_sequence.py`, `agent_workflows/review_rereview.py`).
+- Verified the maintainer's answer to `run-20261126T055808Z-863961` question `04-e0g2gt-a1-batch-d-production-log-aware-gaps` (`"Split into two prerequisite plans (review/prompt/check fixes, then runner/readiness/coverage fixes)"`, Option 2) is applied: Order 317 `p109wy` chains after `executed:x8id25`, Order 318 `q6fiws` chains after `executed:p109wy`, and `e0g2gt` now carries `- Item-Dependencies: executed:q6fiws`.
+- Verified both `p109wy` and `q6fiws` are wired into orchestrator `63ib9r` (`Highest E allocated: 230`, `E-229`/`V-229` confirming `p109wy`, `E-230`/`V-230` confirming `q6fiws`, `## Child IPDs` rows 317 and 318, `E-223` (`e0g2gt`) depending on `E-230`, and `E-179` (`x1mmdp`) and `E-13` (`cxxmyv`) depending on `E-229` and `E-230`) and into `x1mmdp` (`- Item-Dependencies:` and `## Deferred / out of scope`).
+- Corrected the symbol name in `e0g2gt` `F-05` and `OQ-01` from `_load_review_file` to the verified symbol `load_legacy_review` (`agent_workflows/artifact_meta.py:4147`).
+
+### Step R2: Executability and Verification Rigor
+- Checked: `e0g2gt` (`E-01`..`E-05`, `V-01`..`V-05`, `Step 0`, `F-05`, `OQ-01`, `## Scope check`, `## Deferred / out of scope`, `## Approval and execution gate`), plus the two newly split prerequisite child plans `p109wy` (Order 317) and `q6fiws` (Order 318).
+- Confirmed all six production cutover gaps in `F-05` are partitioned cleanly across `p109wy` (gaps 1, 2, 5: spec-4.1a `.review.md` YAML mirrors, `has_prompt_metadata_comment`/`validate_prompt_content`, and `check_plan_priority_required`) and `q6fiws` (gaps 3, 4, 6: `coverage_record`/`orchestrator_readiness`, `plan_readiness`/`runner_shared`, and `review_tier`/`review_sequence`/`review_rereview`), leaving `e0g2gt` strictly test-only and executable once `executed:q6fiws` completes.
+
+### Step R3: Security, Isolation, and Safety
+- Checked: Scratch worktree isolation (`.aw/state/e0g2gt/scratch`, `.aw/state/p109wy/scratch`, `.aw/state/q6fiws/scratch`), `- Scope-Paths:` fence, `aw commit` path-scoped commit contract, and never-push rule. No new security or isolation risks introduced.
+
+### Step R4: Engineering Quality and Contract Conformance
+- Checked: Technical writing standard (`.aw/system/workflows/technical-writing/technical-writing.md`), `E-*`/`V-*` bijection, qualified spec `4sd62s` citations, Mermaid diagrams, and sweep of all `OQ-01` references across `e0g2gt` (`Concern`, `Scope`, `E-02`, `E-03`, `Step 0`, `F-05`, `## Deferred / out of scope`, `## Scope check`, `## Spec / documentation sync`, `## Open questions`, `## Approval and execution gate`).
+- Confirmed zero stale `OQ-01` open-gating or `no-go` prose remains in `e0g2gt`.
+
+### Step S5: Open Questions and Decisions
+- Checked: Resolved `OQ-01` (`- Status: resolved`, `- Owner: maintainer`, `- Finding: PR-001`) per the maintainer's explicit choice of Option 2 on 2026-11-26, and cleared Round 1's gating `PR-001` as `FIXED` in Round 2 (escalation return path). No open questions remain in `e0g2gt`.
+
+### Pass 2: Verification of Edits
+- Re-read `e0g2gt` end-to-end and verified `p109wy`, `q6fiws`, `63ib9r`, and `x1mmdp` conform to `aw ipd lint` with zero structural errors, `- Readiness: go-pending-approval` and `- Review-Depth: standard` are set on `e0g2gt`, `## Workflow history` leads with `APPROVE WITH REVISIONS APPLIED`, and zero unescalated gating findings or irreversible decisions remain.
+
+### Findings
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|---|---|---|---|---|---|---|---|---|
+| PR-001 | BLOCKER | repo-wide | Production cutover readiness (`artifact_meta.py`, `review_findings.py`, `check_engine.py`, `coverage_record.py`, `orchestrator_readiness.py`, `plan_readiness.py`, `runner_shared.py`, `review_tier.py`, `review_sequence.py`, `review_rereview.py`) | `.aw/records/plans/pending/20261125-metastore-311-e0g2gt-convert-test-batch-d-prose-dash-advisory-through-readers-run.ipd.md` (`F-05`, `OQ-01`); `.aw/records/plans/pending/20261126-metastore-317-p109wy-make-review-mirrors-prompt-metadata-and-check-engine-priorit.ipd.md`; `.aw/records/plans/pending/20261126-metastore-318-q6fiws-make-coverage-record-readiness-runner-and-review-sequence-ev.ipd.md` | Six unpatched production cutover gaps in `.aw/system/cutover/metastore-code.cutover.patch` blocked `tests/test_readers_check_engine.py`, `tests/test_readers_review_modules.py`, and `tests/test_readers_runner.py` in batch D (`e0g2gt`). | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Resolved via maintainer answer (2026-11-26) to `run-20261126T055808Z-863961` question `04-e0g2gt-a1-batch-d-production-log-aware-gaps` (Option 2): split into Order 317 `p109wy` (review mirrors, prompt metadata, and `check_engine` priority; `- Item-Dependencies: executed:x8id25`) and Order 318 `q6fiws` (`coverage_record`, `orchestrator_readiness`, `plan_readiness`, `runner_shared`, and `review_tier`/`review_sequence`/`review_rereview`; `- Item-Dependencies: executed:p109wy`), wired both into `63ib9r` (`E-229`/`V-229`, `E-230`/`V-230`) and `x1mmdp`, marked `OQ-01` resolved, and chained `e0g2gt` after `executed:q6fiws`. |
+
+### Proofreading
+#### Changes
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| `e0g2gt` `Concern`, `Scope`, `- Item-Dependencies:`, `E-02`, `E-03`, `Step 0`, `F-05`, `## Deferred / out of scope`, `## Scope check`, `## Spec / documentation sync`, `OQ-01`, `## Approval and execution gate` | `OQ-01` open, `- Readiness: no-go`, `- Item-Dependencies: executed:x8id25`, and `_load_review_file` symbol typo | Marked `OQ-01` resolved per maintainer answer (Option 2), chained `e0g2gt` after `executed:q6fiws` (following `p109wy`), added `p109wy`/`q6fiws` carriers, fixed symbol name to `load_legacy_review`, updated `- Readiness: go-pending-approval`, and cleared stale `OQ-01` open-gating prose | Escalation return path & cross-plan consistency |
+
+#### Issues
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| (none) | - | None open. | - | - | - |
+
+### Decisions
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | How should the six production gaps in `e0g2gt` `F-05` be partitioned across the two prerequisite plans chosen by the maintainer? | Assign gaps 1, 2, and 5 (spec-4.1a `.review.md` mirrors/checks, `has_prompt_metadata_comment`/`validate_prompt_content`, and `check_plan_priority_required`) to Order 317 `p109wy` (`executed:x8id25`) and gaps 3, 4, and 6 (`coverage_record`/`orchestrator_readiness`, `plan_readiness`/`runner_shared`, and `review_tier`/`review_sequence`/`review_rereview`) to Order 318 `q6fiws` (`executed:p109wy`), chaining `e0g2gt` on `executed:q6fiws`. | Partitioning by file alphabetically or combining `check_plan_priority_required` into plan 2 (rejected: maintainer explicitly specified "review/prompt/check fixes, then runner/readiness/coverage fixes"). | Maintainer answer to `run-20261126T055808Z-863961` question `04-e0g2gt-a1-batch-d-production-log-aware-gaps`; `e0g2gt` `F-05` and `OQ-01`. | yes |
+| D-2 | How should `63ib9r` row 257 (`x1mmdp`) be kept in sync when adding Orders 317 (`p109wy`) and 318 (`q6fiws`)? | Include `executed:otin36`, `executed:p109wy`, and `executed:q6fiws` in `63ib9r`'s row 257 Depends-on column so it matches `x1mmdp`'s `- Item-Dependencies:` verbatim. | Adding only `p109wy` and `q6fiws` while leaving `otin36` omitted from row 257 (rejected: leaves table out of sync with `x1mmdp`). | `.aw/records/plans/pending/20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.ipd.md:8` and `63ib9r` line 1403. | yes |
