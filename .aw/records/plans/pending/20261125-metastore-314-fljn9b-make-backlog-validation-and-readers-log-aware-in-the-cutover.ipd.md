@@ -6,9 +6,8 @@
 - Scope: In an isolated scratch worktree with both cutover patches applied (including prerequisite plans `hdwqex`, `89mtbl`, and `nv3upa`), make `agent_workflows/backlog.py` (`item_from_state`, `validate_item_state`, `validate_item`, `run_check`, `existing_backlog_ids`, `blocks_release_of_item`, `find_item`, `find_duplicate_candidates`, `find_duplicate_candidates_in_items`, and `run_new`'s duplicate scan and writing-standard pointer) and its production callers (`agent_workflows/check_engine.py::check_content`, `agent_workflows/runner_shared.py::enforce_freeze_time_refusal` and `perform_coordinator_proposal_file`, and `agent_workflows/set_records.py::promote_question_to_backlog` and `close_on_answer`) log-aware while keeping legacy bullet-format parity intact. Add and pass a core behavioral test module `tests/test_backlog_log_format.py` in the scratch worktree, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. Make no live code changes outside the cutover code patch.
 - Scope-Paths: .aw/records/plans/pending/20261125-metastore-314-fljn9b-make-backlog-validation-and-readers-log-aware-in-the-cutover.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:nv3upa
-- Status: reviewed
+- Status: to-review
 - Review-Depth: standard
-- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: bug
 - Priority: high
@@ -24,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-26 to-review (aw set): demoted reviewed -> to-review: These were flagged as '[stale-review]'
 - 2026-11-26 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-26 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005; review record .aw/records/reviews/20261125-metastore-314-fljn9b-make-backlog-validation-and-readers-log-aware-in-the-cutover.review.md
 - 2026-11-26 note (antigravity/gemini): added backlog.run_new writing-standard pointer fix (core.writing_standard_pointer("backlog item"), lost when metastore-code.cutover.patch removed artifact_meta.render_legacy) per maintainer answer to run-20261126T020242Z-3080634 question 05-psm9ac-a1-batch-b-production-log-aware-gaps.

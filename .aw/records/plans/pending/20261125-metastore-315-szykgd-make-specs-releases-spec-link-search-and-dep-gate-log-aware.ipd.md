@@ -6,9 +6,8 @@
 - Scope: In an isolated scratch worktree with both cutover patches applied (including prerequisite plans `hdwqex`, `89mtbl`, `nv3upa`, `fljn9b`, and `cugg3w`), make `agent_workflows/specs.py` (and its `check_engine`/`runner_shared` callers), `agent_workflows/releases.py` (and its `check_engine` caller), `agent_workflows/check_engine.py::parse_cited_spec_ids`/`check_plan_spec_link_missing`, `agent_workflows/cli.py::_run_search`, and `agent_workflows/hooks/ipd_dependency_statement_gate.py::_staged_ipd_overlay` log-aware while preserving legacy bullet-format parity. Add and pass core behavioral test module `tests/test_cutover_log_checkers.py` in the scratch worktree, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. Make no live code changes outside the cutover code patch.
 - Scope-Paths: .aw/records/plans/pending/20261125-metastore-315-szykgd-make-specs-releases-spec-link-search-and-dep-gate-log-aware.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:cugg3w
-- Status: reviewed
+- Status: to-review
 - Review-Depth: standard
-- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: bug
 - Priority: high
@@ -24,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-26 to-review (aw set): demoted reviewed -> to-review: These were flagged as '[stale-review]'
 - 2026-11-26 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-26 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005; review record .aw/records/reviews/20261125-metastore-315-szykgd-make-specs-releases-spec-link-search-and-dep-gate-log-aware.review.md
 - 2026-11-26 to-review (antigravity/gemini): authored as Order 315 ahead of psm9ac per maintainer answer to run-20261126T020242Z-3080634 question 05-psm9ac-a1-batch-b-production-log-aware-gaps ("Fix backlog pointer in fljn9b and split 1 production-fix plan ahead of psm9ac (Recommended)").

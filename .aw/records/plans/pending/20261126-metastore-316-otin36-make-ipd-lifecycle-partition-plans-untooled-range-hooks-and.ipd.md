@@ -6,9 +6,8 @@
 - Scope: In an isolated scratch worktree `.aw/state/otin36/scratch` with both cutover patches applied (including prerequisite plans `hdwqex`, `89mtbl`, `nv3upa`, `fljn9b`, `cugg3w`, `szykgd`, and `psm9ac`), make `agent_workflows/ipd_lifecycle.py`, `agent_workflows/partition.py`, `agent_workflows/plans.py`, `agent_workflows/check_engine.py::check_status_untooled` and `check_status_untooled_range`, `agent_workflows/hooks/executed_transition_gate.py::check`, `agent_workflows/hooks/backlog_blocking_close_gate.py::check`, and `agent_workflows/meta_cli.py::meta_repair` log-aware while keeping legacy bullet-format parity intact. Add and pass core behavioral test module `tests/test_cutover_log_lifecycle_and_hooks.py` in the scratch worktree, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. Make no live code changes outside `- Scope-Paths:`.
 - Scope-Paths: .aw/records/plans/pending/20261126-metastore-316-otin36-make-ipd-lifecycle-partition-plans-untooled-range-hooks-and.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:psm9ac
-- Status: reviewed
+- Status: to-review
 - Review-Depth: standard
-- Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Work-Kind: bug
 - Priority: high
@@ -24,6 +23,7 @@
 
 ## Workflow history
 
+- 2026-11-26 to-review (aw set): demoted reviewed -> to-review: These were flagged as '[stale-review]'
 - 2026-11-26 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-26 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005; review record .aw/records/reviews/20261126-metastore-316-otin36-make-ipd-lifecycle-partition-plans-untooled-range-hooks-and.review.md
 - 2026-11-26 to-review (aw set): authored as Order 316 ahead of x8id25 per recovery of run-20261126T020242Z-3080634 parked x8id25 OQ-01 Option 1
