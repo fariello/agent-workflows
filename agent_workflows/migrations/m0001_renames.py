@@ -1227,28 +1227,29 @@ def plan_citation_rewrites(
                     + len(occ_list)
                 )
 
-        orig_line_starts = [s for s, _, _ in orig_lines]
-        for pm in artifact_refs._PINNED_PERMALINK_RE.finditer(text):
-            ps, pe = pm.start(), pm.end()
-            if _overlaps_any(ps, pe, prot_intervals) or _overlaps_any(
-                ps, pe, fenced_intervals
-            ):
-                continue
-            p_line = _line_number_at(orig_line_starts, ps)
-            occ_list = _scan_unchanged_in_span(
-                pm.group(0),
-                p_line,
-                rel_posix,
-                "fenced-or-permalink",
-                matchers,
-                prefilter_re=span_prefilter_re,
-            )
-            unchanged_occurrences.extend(occ_list)
-            if occ_list:
-                unchanged_counts_by_reason["fenced-or-permalink"] = (
-                    unchanged_counts_by_reason.get("fenced-or-permalink", 0)
-                    + len(occ_list)
+        if "/blob/" in text or "/tree/" in text or "/raw/" in text:
+            orig_line_starts = [s for s, _, _ in orig_lines]
+            for pm in artifact_refs._PINNED_PERMALINK_RE.finditer(text):
+                ps, pe = pm.start(), pm.end()
+                if _overlaps_any(ps, pe, prot_intervals) or _overlaps_any(
+                    ps, pe, fenced_intervals
+                ):
+                    continue
+                p_line = _line_number_at(orig_line_starts, ps)
+                occ_list = _scan_unchanged_in_span(
+                    pm.group(0),
+                    p_line,
+                    rel_posix,
+                    "fenced-or-permalink",
+                    matchers,
+                    prefilter_re=span_prefilter_re,
                 )
+                unchanged_occurrences.extend(occ_list)
+                if occ_list:
+                    unchanged_counts_by_reason["fenced-or-permalink"] = (
+                        unchanged_counts_by_reason.get("fenced-or-permalink", 0)
+                        + len(occ_list)
+                    )
 
         # Compute exact substituted count on masked text for files with RefEdits
         if file_edits:

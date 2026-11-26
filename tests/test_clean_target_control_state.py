@@ -180,23 +180,9 @@ class TestCleanTargetControlState(unittest.TestCase):
         self.tmp.cleanup()
 
     def _init_git_repo(self, path: Path) -> str:
-        path.mkdir(parents=True, exist_ok=True)
-        subprocess.run(
-            ["git", "init", "-b", "main", str(path)],
-            check=True,
-            capture_output=True,
-            env=self.env,
-        )
-        subprocess.run(
-            ["git", "-C", str(path), "config", "user.name", "Test User"],
-            check=True,
-            env=self.env,
-        )
-        subprocess.run(
-            ["git", "-C", str(path), "config", "user.email", "test@example.com"],
-            check=True,
-            env=self.env,
-        )
+        from tests.repo_template import copy_template_repo
+
+        copy_template_repo(path)
         (path / "README.md").write_text("# Test Repo\n", encoding="utf-8")
         subprocess.run(
             ["git", "-C", str(path), "add", "README.md"], check=True, env=self.env
@@ -212,18 +198,26 @@ class TestCleanTargetControlState(unittest.TestCase):
         ).strip()
 
     def _run_aw_install(self, path: Path, preset: str) -> None:
-        cmd = [
-            sys.executable,
-            "-m",
-            "agent_workflows",
-            "install",
-            str(path),
-            "--preset",
-            preset,
-            "-y",
-            "--no-interactive",
-        ]
-        subprocess.run(cmd, check=True, capture_output=True, env=self.env)
+        if preset == "private-target":
+            from tests.repo_template import copy_installed_template_repo
+
+            copy_installed_template_repo(path, preset=preset)
+            return
+        from tests.conformance_matrix import run_cli_inproc
+
+        res = run_cli_inproc(
+            [
+                "install",
+                str(path),
+                "--preset",
+                preset,
+                "-y",
+                "--no-interactive",
+            ],
+            env_overrides=self.env,
+        )
+        if res.returncode != 0:
+            raise AssertionError(f"aw install failed: {res.stdout}\n{res.stderr}")
 
     def _strip_in_target_residue(self, path: Path, pre_sha: str) -> None:
         # E-08 recipe: remove in-target residue from HEAD, the index AND the working tree

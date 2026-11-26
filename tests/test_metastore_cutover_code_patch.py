@@ -125,7 +125,7 @@ class MetastoreCutoverCodePatchGuardTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as tmp_dir:
             bad_patch = Path(tmp_dir) / "bad.patch"
-            bad_patch.write_text(bad, encoding="utf-8", newline="\n")
+            bad_patch.write_bytes(bad.encode("utf-8"))
             docs_rc, code_rc, _stderr = _apply_on_temp_index(DOCS_PATCH, bad_patch)
         self.assertEqual(docs_rc, 0)
         self.assertNotEqual(code_rc, 0)

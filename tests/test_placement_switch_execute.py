@@ -80,9 +80,14 @@ class TestPlacementSwitchExecute(unittest.TestCase):
         name: str = "repo",
     ) -> tuple[Path, dict[str, str]]:
         from tests.conformance_matrix import run_cli_inproc
-        from tests.repo_template import copy_template_repo
+        from tests.repo_template import copy_installed_template_repo, copy_template_repo
 
         repo = tpath / name
+        env = self._make_env(tpath, aw_home, xdg_home)
+        if preset == "private-target":
+            copy_installed_template_repo(repo, preset=preset)
+            return repo, env
+
         copy_template_repo(repo)
         (repo / "README.md").write_text("hello\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=str(repo), check=True)
@@ -93,7 +98,6 @@ class TestPlacementSwitchExecute(unittest.TestCase):
             capture_output=True,
         )
 
-        env = self._make_env(tpath, aw_home, xdg_home)
         r = run_cli_inproc(
             [
                 "install",

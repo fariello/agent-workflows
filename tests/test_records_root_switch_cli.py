@@ -75,55 +75,11 @@ class TestRecordsRootSwitchCli(unittest.TestCase):
     def _create_fixture_repo(
         self, tpath: Path, aw_home: Path, xdg_home: Path
     ) -> tuple[Path, dict[str, str]]:
-        repo = tpath / "repo"
-        repo.mkdir(parents=True, exist_ok=True)
-        env = self._make_env(tpath, aw_home, xdg_home)
-        subprocess.run(
-            ["git", "init", "-b", "main", str(repo)],
-            check=True,
-            capture_output=True,
-            env=env,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "Test User"],
-            cwd=str(repo),
-            check=True,
-            env=env,
-        )
-        subprocess.run(
-            ["git", "config", "user.email", "test@example.com"],
-            cwd=str(repo),
-            check=True,
-            env=env,
-        )
-        subprocess.run(
-            ["git", "commit", "--allow-empty", "-m", "init"],
-            cwd=str(repo),
-            check=True,
-            env=env,
-        )
+        from tests.repo_template import copy_installed_template_repo
 
-        # Fresh install --preset private-target -y --no-interactive
-        r = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "agent_workflows",
-                "install",
-                str(repo),
-                "--preset",
-                "private-target",
-                "-y",
-                "--no-interactive",
-            ],
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        self.assertEqual(
-            r.returncode, 0, f"Initial install failed: {r.stdout}\n{r.stderr}"
-        )
+        repo = tpath / "repo"
+        env = self._make_env(tpath, aw_home, xdg_home)
+        copy_installed_template_repo(repo, preset="private-target")
 
         # Commit user record
         rec_file = repo / ".aw" / "records" / "backlog" / "mine.md"

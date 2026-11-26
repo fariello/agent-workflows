@@ -54,6 +54,13 @@ class TestPlacementSwitchPlan(unittest.TestCase):
         name: str = "repo",
     ) -> tuple[Path, dict[str, str]]:
         repo = tpath / name
+        env = self._make_env(tpath, aw_home, xdg_home)
+        if preset == "private-target":
+            from tests.repo_template import copy_installed_template_repo
+
+            copy_installed_template_repo(repo, preset=preset)
+            return repo, env
+
         repo.mkdir(parents=True, exist_ok=True)
         subprocess.run(
             ["git", "init", "-b", "main", str(repo)], check=True, capture_output=True
@@ -74,7 +81,6 @@ class TestPlacementSwitchPlan(unittest.TestCase):
             check=True,
         )
 
-        env = self._make_env(tpath, aw_home, xdg_home)
         r = subprocess.run(
             [
                 sys.executable,

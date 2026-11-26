@@ -10,3 +10,5 @@
 #
 # Example (commented out):
 # 0a1b2c3d4e5f6a7b8c9d:tests/fixtures/sample.env:generic-api-key:12
+# False positive on Python call `classify_field(art_type, key, historical_ipd=historical_ipd)`
+1f771614186503ec7a423600c94392b6b57be5e8:agent_workflows/migrations/m0001_verify.py:generic-api-key:868

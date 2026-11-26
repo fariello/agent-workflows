@@ -74,6 +74,11 @@ class _Scratch:
         self.git(path, "commit", "-q", "--allow-empty", "-m", "init")
 
     def install(self, preset: str, companion: Optional[Path] = None) -> None:
+        if preset == PRIV:
+            from tests.repo_template import copy_installed_template_repo
+
+            copy_installed_template_repo(self.repo, preset=PRIV)
+            return
         self.init_repo(self.repo)
         cmd = [
             sys.executable,

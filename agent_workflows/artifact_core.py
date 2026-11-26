@@ -947,6 +947,12 @@ def is_ignored_path(
         rel_posix = ""
     elif path_str.startswith(repo_str + os.sep):
         rel_posix = path_str[len(repo_str) + 1 :].replace("\\", "/")
+    elif repo_str == "." and not os.path.isabs(path_str):
+        cand = path_str.replace("\\", "/")
+        if cand.startswith("./"):
+            cand = cand[2:]
+        if ".." not in cand.split("/"):
+            rel_posix = cand
     else:
         res_repo_str = _resolved_root_str(repo_str)
         if path_str == res_repo_str:

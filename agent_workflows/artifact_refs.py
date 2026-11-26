@@ -140,8 +140,14 @@ _PINNED_PERMALINK_RE = re.compile(
 _FENCE_RE = re.compile(r"^(\s*)(```|~~~)")
 
 
+def _identity_restore(s: str) -> str:
+    return s
+
+
 def _mask_fenced_code(text: str):
     """Return (masked_text, restore) where every fenced code block is replaced by an inert token."""
+    if "```" not in text and "~~~" not in text:
+        return text, _identity_restore
 
     saved: List[str] = []
     lines = text.splitlines(keepends=True)
@@ -185,6 +191,8 @@ def _mask_fenced_code(text: str):
 
 def _mask_permalinks(text: str):
     """Return (masked_text, restore) where every pinned permalink is replaced by an inert token."""
+    if "/blob/" not in text and "/tree/" not in text and "/raw/" not in text:
+        return text, _identity_restore
 
     saved: List[str] = []
 

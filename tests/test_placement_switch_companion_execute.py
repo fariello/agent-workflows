@@ -160,6 +160,11 @@ class _Scratch:
 
     def install(self, preset: str, companion: Optional[Path] = None) -> None:
         from tests.conformance_matrix import run_cli_inproc
+        from tests.repo_template import copy_installed_template_repo
+
+        if preset == PRIV:
+            copy_installed_template_repo(self.repo, preset=PRIV)
+            return
 
         self.init_repo(self.repo)
         argv = [

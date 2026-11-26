@@ -111,28 +111,9 @@ class _ScratchWorld:
         self.git(path, "commit", "--allow-empty", "-m", "init")
 
     def install_target_private(self) -> None:
-        self.init_repo(self.target)
-        r = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "agent_workflows",
-                "install",
-                str(self.target),
-                "--preset",
-                "private-target",
-                "-y",
-                "--no-interactive",
-            ],
-            env=self.env,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        if r.returncode != 0:
-            raise AssertionError(
-                f"install private-target failed: {r.stdout}\n{r.stderr}"
-            )
+        from tests.repo_template import copy_installed_template_repo
+
+        copy_installed_template_repo(self.target, preset="private-target")
         rec = self.target / ".aw" / "records" / "backlog" / "open" / "item.backlog.md"
         rec.parent.mkdir(parents=True, exist_ok=True)
         rec.write_text("# Item\n", encoding="utf-8")

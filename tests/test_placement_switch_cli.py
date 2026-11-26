@@ -73,35 +73,11 @@ class TestPlacementSwitchCLI(unittest.TestCase):
     def _create_fixture_repo(
         self, tpath: Path, aw_home: Path, xdg_home: Path
     ) -> tuple[Path, dict[str, str]]:
-        from tests.conformance_matrix import run_cli_inproc
-        from tests.repo_template import copy_template_repo
+        from tests.repo_template import copy_installed_template_repo
 
         repo = tpath / "repo"
         env = self._make_env(tpath, aw_home, xdg_home)
-        copy_template_repo(repo)
-        subprocess.run(
-            ["git", "commit", "--allow-empty", "-m", "init"],
-            cwd=str(repo),
-            check=True,
-            capture_output=True,
-            env=env,
-        )
-
-        # Fresh install --preset private-target -y --no-interactive
-        r = run_cli_inproc(
-            [
-                "install",
-                str(repo),
-                "--preset",
-                "private-target",
-                "-y",
-                "--no-interactive",
-            ],
-            env_overrides=env,
-        )
-        self.assertEqual(
-            r.returncode, 0, f"Initial install failed: {r.stdout}\n{r.stderr}"
-        )
+        copy_installed_template_repo(repo, preset="private-target")
 
         # Commit user record
         rec_file = repo / ".aw" / "records" / "backlog" / "open" / "x.backlog.md"

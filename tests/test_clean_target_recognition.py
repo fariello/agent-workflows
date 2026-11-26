@@ -70,15 +70,7 @@ class TestCleanTargetRecognition(unittest.TestCase):
         # Set up completely-clean-target fixture
         self.clean_repo = self.base / "clean_repo"
         self._init_git_repo(self.clean_repo)
-        self._run_aw(
-            "install",
-            str(self.clean_repo),
-            "--preset",
-            "completely-clean-target",
-            "-y",
-            "--no-interactive",
-            cwd=self.clean_repo,
-        )
+        self._install_inproc(self.clean_repo, "completely-clean-target")
         self._strip_in_target_residue(self.clean_repo)
         self.clean_subdir = self.clean_repo / "sub" / "deep"
         self.clean_subdir.mkdir(parents=True)
@@ -113,15 +105,7 @@ class TestCleanTargetRecognition(unittest.TestCase):
         # Set up local-only fixture
         self.local_repo = self.base / "local_repo"
         self._init_git_repo(self.local_repo)
-        self._run_aw(
-            "install",
-            str(self.local_repo),
-            "--preset",
-            "local-only",
-            "-y",
-            "--no-interactive",
-            cwd=self.local_repo,
-        )
+        self._install_inproc(self.local_repo, "local-only")
         self._strip_in_target_residue(self.local_repo)
         ctx_local = resolve_project_context(
             target_repo=str(self.local_repo),
@@ -150,16 +134,9 @@ class TestCleanTargetRecognition(unittest.TestCase):
 
         # Set up tracked in-repo fixture (private-target)
         self.tracked_repo = self.base / "tracked_repo"
-        self._init_git_repo(self.tracked_repo)
-        self._run_aw(
-            "install",
-            str(self.tracked_repo),
-            "--preset",
-            "private-target",
-            "-y",
-            "--no-interactive",
-            cwd=self.tracked_repo,
-        )
+        from tests.repo_template import copy_installed_template_repo
+
+        copy_installed_template_repo(self.tracked_repo, preset="private-target")
         self.tracked_lane = self.tracked_repo / "lane1"
         subprocess.run(
             [
@@ -181,23 +158,9 @@ class TestCleanTargetRecognition(unittest.TestCase):
         self.tmp.cleanup()
 
     def _init_git_repo(self, path: Path) -> None:
-        path.mkdir(parents=True, exist_ok=True)
-        subprocess.run(
-            ["git", "init", "-b", "main", str(path)],
-            check=True,
-            capture_output=True,
-            env=self.env,
-        )
-        subprocess.run(
-            ["git", "-C", str(path), "config", "user.name", "Test User"],
-            check=True,
-            env=self.env,
-        )
-        subprocess.run(
-            ["git", "-C", str(path), "config", "user.email", "test@example.com"],
-            check=True,
-            env=self.env,
-        )
+        from tests.repo_template import copy_template_repo
+
+        copy_template_repo(path)
         (path / "README.md").write_text("# Test\n", encoding="utf-8")
         subprocess.run(
             ["git", "-C", str(path), "add", "README.md"], check=True, env=self.env
@@ -208,6 +171,23 @@ class TestCleanTargetRecognition(unittest.TestCase):
             capture_output=True,
             env=self.env,
         )
+
+    def _install_inproc(self, path: Path, preset: str) -> None:
+        from tests.conformance_matrix import run_cli_inproc
+
+        res = run_cli_inproc(
+            [
+                "install",
+                str(path),
+                "--preset",
+                preset,
+                "-y",
+                "--no-interactive",
+            ],
+            env_overrides=self.env,
+        )
+        if res.returncode != 0:
+            raise AssertionError(f"aw install failed: {res.stdout}\n{res.stderr}")
 
     def _strip_in_target_residue(self, path: Path) -> None:
         subprocess.run(
