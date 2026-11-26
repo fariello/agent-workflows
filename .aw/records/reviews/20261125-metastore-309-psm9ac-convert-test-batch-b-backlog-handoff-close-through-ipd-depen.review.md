@@ -4,7 +4,7 @@
 - Subject-Type: ipd
 - Reviewed-At: 2026-11-26
 - Reviewer: antigravity/gemini
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
 
@@ -75,3 +75,60 @@ AW-TIER: standard
 | D-2 | How should `E-02`..`E-04` address module-specific traps (`_assert_pointer_before_history`, `"events:0"`, `.md` text metadata checks, and companion `meta/<id6>.jsonl` staging)? | Specify exact per-module conversion rules for all 18 batch B modules, including updating `_assert_pointer_before_history` to drop the removed `## Workflow history` requirement and staging `meta/<id6>.jsonl` in `test_ipd_dependency_statement_gate.py`. | Leave `E-02`..`E-04` as bare filename lists (rejected: hides non-mechanical assertion and fixture traps across 18 files). | Static audit of all 18 batch B test modules against `.aw/system/cutover/metastore-code.cutover.patch`. | yes |
 | D-3 | How should `Concern`, `Step 0`, `F-04`, `Proposed changes`, and `V-02`..`V-04` handle gitignored census provenance, chain updates, and `rg` patterns? | Attribute attempt-1 counts as historical `x1mmdp` provenance (starting from `89mtbl` F-04), include `fljn9b` in Step 0, fix `Proposed changes` numbering, and write exact `rg -n` commands in `V-02`..`V-04`. | Keep direct citations to gitignored lane files and generic `rg` instructions (rejected: file absent in fresh lanes; generic `rg` misses removed symbols). | `.aw/records/plans/pending/20261125-metastore-309-psm9ac-convert-test-batch-b-backlog-handoff-close-through-ipd-depen.ipd.md`, `cugg3w` Round 1 D-4. | yes |
 | D-4 | How should `E-01`, `E-05`, `V-01`, `V-05`, `## Deferred / out of scope`, and `## Approval and execution gate` align with the runner-lane execution contract? | Name exact patch/plan paths, require `git status --short` verification in `E-05`/`V-05`, list `cxxmyv` in `## Deferred / out of scope`, and distinguish managed runner lanes from hand-run sessions for `aw ipd finalize`. | Keep unconditional `aw ipd finalize` wording and generic placeholders (rejected: violates `s7-finalize.md` runner-lane ownership rule). | `.aw/system/workflows/plan-review/steps/s7-finalize.md:31-36`, `cugg3w` Round 1 D-5. | yes |
+
+## Round 2
+
+### Step T
+1. No - `psm9ac` converts 18 test modules inside `.aw/system/cutover/metastore-code.cutover.patch`.
+2. Yes - it regenerates `.aw/system/cutover/metastore-code.cutover.patch`.
+3. Yes - it covers 18 test modules across `E-02`..`E-04`.
+4. Yes - `- Scope-Paths:` lists the plan and `.aw/system/cutover/metastore-code.cutover.patch`.
+5. Yes - regenerating the cumulative cutover code patch affects downstream batches.
+- Selected tier: `standard`
+
+AW-TIER: standard
+
+### Step R1: References, Scope, and Dependencies
+- Checked: `.aw/records/plans/pending/20261125-metastore-309-psm9ac-convert-test-batch-b-backlog-handoff-close-through-ipd-depen.ipd.md`, `.aw/records/plans/pending/20261125-metastore-314-fljn9b-make-backlog-validation-and-readers-log-aware-in-the-cutover.ipd.md`, `.aw/records/plans/pending/20261125-metastore-315-szykgd-make-specs-releases-spec-link-search-and-dep-gate-log-aware.ipd.md`, `.aw/records/plans/pending/20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.ipd.md`, and `.aw/records/plans/pending/20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.ipd.md`.
+- Verified the `backlog.run_new` writing-standard pointer fix (`core.writing_standard_pointer("backlog item")`) was folded into Order 314 `fljn9b` (still `to-review`), and Order 315 `szykgd` chains directly after `cugg3w` (`- Item-Dependencies: executed:cugg3w`) and ahead of `psm9ac` (`- Item-Dependencies: executed:szykgd`).
+- Verified `szykgd` is wired into orchestrator `63ib9r` (`Highest E allocated: 227`, `E-227`/`V-227`, `## Child IPDs` Order 315, `E-221`/`E-179`/`E-13` dependencies) and `x1mmdp` (`- Item-Dependencies:` and `## Deferred / out of scope`).
+- Swept every stale open-`OQ-01`/`PR-001` reference across `psm9ac`.
+
+### Step R2: Executability and Verification Rigor
+- Checked: `E-01`..`E-05` and `V-01`..`V-05` in `psm9ac`, `szykgd`, and updated `fljn9b`.
+- Verified `psm9ac` requires zero production edits outside the scratch worktree because `fljn9b` and `szykgd` land all six production cutover fixes before `psm9ac` executes.
+
+### Step R3: Security, Isolation, and Safety
+- Checked: Scratch worktree isolation, `- Scope-Paths:` fences, `aw commit` path-scoped commit contracts, and never-push clauses in `psm9ac`, `szykgd`, and `fljn9b`.
+
+### Step R4: Engineering Quality and Contract Conformance
+- Checked: Technical writing standard (`.aw/system/workflows/technical-writing/technical-writing.md`), `IPD-Z603` sizing, `E-*`/`V-*` bijection, Mermaid diagrams, and `check.review-finding-unescalated` / `IPD-Q501` gates.
+- Verified `PR-001` is cleared (`FIXED`), `OQ-01` carries `- Status: resolved` and `- Owner: maintainer` citing the maintainer's 2026-11-26 answer, `- Readiness: go-pending-approval` is written in `psm9ac`, and `szykgd` is authored review-ready (`Status: to-review`) with zero `TODO` placeholders.
+
+### Step S5: Open Questions and Decisions
+- Checked: `OQ-01` (`PR-001`) resolved by the maintainer's answer to `run-20261126T020242Z-3080634` question `05-psm9ac-a1-batch-b-production-log-aware-gaps`; recorded chaining decision `D-1` below (`Reversible: yes`). Wrote empty `questions: []` to `.aw/state/lane-submissions/run-20261126T020242Z-3080634/05-psm9ac/attempt-2/outcomes/05-psm9ac.json`.
+
+### Pass 2: Verification of Edits
+- Re-read `psm9ac`, `szykgd`, and updated `fljn9b` in full; verified `aw ipd lint --phase review-finalize` on `psm9ac`, `aw ipd lint --phase author` on `szykgd`, `fljn9b`, `63ib9r`, and `x1mmdp`, and `check_review_lane_artifacts` on all modified records.
+
+### Findings
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|---|---|---|---|---|---|---|---|---|
+| PR-001 | BLOCKER | repo-wide | Production cutover readiness (`specs.py`, `releases.py`, `backlog.py`, `check_engine.py`, `cli.py`, `ipd_dependency_statement_gate.py`) | `.aw/records/plans/pending/20261125-metastore-309-psm9ac-convert-test-batch-b-backlog-handoff-close-through-ipd-depen.ipd.md` (`OQ-01`, `F-05`); `.aw/records/plans/pending/20261125-metastore-314-fljn9b-make-backlog-validation-and-readers-log-aware-in-the-cutover.ipd.md`; `.aw/records/plans/pending/20261125-metastore-315-szykgd-make-specs-releases-spec-link-search-and-dep-gate-log-aware.ipd.md` | Six unpatched production cutover log-awareness gaps blocking at least 7 batch B test modules and later batches. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Maintainer answered `05-psm9ac-a1-batch-b-production-log-aware-gaps` (`OQ-01`, 2026-11-26) with "Fix backlog pointer in fljn9b and split 1 production-fix plan ahead of psm9ac (Recommended)". Folded the `backlog.run_new` pointer fix into Order 314 `fljn9b`, authored Order 315 child plan `szykgd` chained after `cugg3w`, wired `szykgd` into `63ib9r` and `x1mmdp`, updated `psm9ac`'s `- Item-Dependencies:` to `executed:szykgd`, marked `OQ-01` resolved, and swept stale references across `psm9ac`. |
+
+### Proofreading
+#### Changes
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| `psm9ac` (`Concern`, `Scope`, `E-02`..`E-04`, `Step 0`, `F-05`, `Proposed changes`, `Scope check`, `Approval and execution gate`) | Described `OQ-01`/`PR-001` as open and gating batch B modules | Updated all references to resolved `OQ-01`, `fljn9b`, and prerequisite Order 315 (`szykgd`) in `- Item-Dependencies:` | Consistency & stale-wording sweep |
+| `psm9ac` (`## Deferred / out of scope`) | Did not list `fljn9b` or `szykgd` | Added `fljn9b` and `szykgd` carriers for the six production log-awareness fixes | Explicit scope boundary |
+
+#### Issues
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| (none) | (none) | No unresolved proofreading issues remain. | None | None | very strong |
+
+### Decisions
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | Where in the serial cutover code-patch chain should Order 315 (`szykgd`) sit? | Chain `szykgd` immediately after `cugg3w` (`- Item-Dependencies: executed:cugg3w`) and set `psm9ac` to `- Item-Dependencies: executed:szykgd` (wiring `szykgd` into `63ib9r` and `x1mmdp`). | Chain `szykgd` ahead of `cugg3w` right after `fljn9b` (rejected: would require editing already-reviewed `cugg3w`, which does not need any of `szykgd`'s five fixes). | Maintainer answer to `05-psm9ac-a1-batch-b-production-log-aware-gaps` ("Fix backlog pointer in fljn9b and split 1 production-fix plan ahead of psm9ac (Recommended)"); `.aw/records/plans/pending/20261125-metastore-308-cugg3w-convert-test-batch-a-artifact-meta-through-backlog-in-the-cu.ipd.md`; `.aw/records/plans/pending/20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.ipd.md`. | yes |
