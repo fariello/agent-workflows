@@ -1,15 +1,15 @@
 - Id: m4apfh
-- Status: open
+- Status: done
 - Set: m4apfh
 - Work-Kind: bug
 - Priority: high
 - Summary: Support AW-emitted review fields, timestamped dates, historical IPD headers, and dry-run scratch cleanup in m0001
 - Short-Description: Support AW-emitted review fields, timestamped dates, historical IPD headers, and dry-run scratch cleanup in m0001
-- Blocks-Release: next
 
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-26 done (aw set): Fixed directly in commit 1f7716141: added AW review header fields, timestamped/annotated Date normalization, deterministic historical IPD bullet preservation, and dry-run scratch/ cleanup (173 passed in 22.75s, mypy clean, sanitize clean)
 - 2026-11-26 created (aw backlog): Support AW-emitted review fields, timestamped dates, historical IPD headers, and dry-run scratch cleanup in m0001
 
 ## Problem
