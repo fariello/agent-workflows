@@ -740,8 +740,13 @@ def cited_by_executed_ids(
     )
     cand_bytes_re: Optional[re.Pattern[bytes]] = None
     if remaining is not None:
+        # Both citation forms in research_contract.iter_id6_citations (RSCH-<id6> and
+        # YYYYMMDD-<set>-<nn>-<id6>-<slug>....md) precede <id6> with '-'. Anchoring the
+        # bytes prefilter on '-' lets CPython's regex engine skip non-hyphen bytes in C.
         cand_bytes_re = re.compile(
-            b"|".join(re.escape(c.encode("ascii")) for c in sorted(remaining))
+            b"-(?:"
+            + b"|".join(re.escape(c.encode("ascii")) for c in sorted(remaining))
+            + b")"
         )
     for f in _core.iter_scan_files(repo_root, scan_roots=_EXEC_SCAN_ROOTS):
         if remaining is not None and not remaining:
@@ -791,7 +796,9 @@ def cited_by_executed_ids(
                 raw_bytes = f.read_bytes()
             except OSError:
                 continue
-            if not cand_bytes_re.search(raw_bytes):
+            if (
+                b"RSCH-" not in raw_bytes and b".md" not in raw_bytes
+            ) or not cand_bytes_re.search(raw_bytes):
                 continue
             try:
                 text = raw_bytes.decode("utf-8")
@@ -814,7 +821,9 @@ def cited_by_executed_ids(
                         break
             if remaining and len(remaining) != prev_len:
                 cand_bytes_re = re.compile(
-                    b"|".join(re.escape(c.encode("ascii")) for c in sorted(remaining))
+                    b"-(?:"
+                    + b"|".join(re.escape(c.encode("ascii")) for c in sorted(remaining))
+                    + b")"
                 )
         else:
             for cid in R.iter_id6_citations(text):

@@ -5694,6 +5694,23 @@ _FRONT_MATTER_BULLET_FORGE_RE: re.Pattern[str] = re.compile(
 )
 
 
+_DETAIL_KEY_RANK: Dict[str, int] = {
+    "summary": 0,
+    "scope": 1,
+    "concern": 2,
+    "question": 3,
+    "title": 4,
+}
+_DETAIL_KEY_ORDER: Tuple[str, ...] = (
+    "summary",
+    "scope",
+    "concern",
+    "question",
+    "title",
+)
+_DETAIL_FIRST_CHARS: frozenset[str] = frozenset("sScCqQtT")
+
+
 def extract_detail_fields(text: str) -> Tuple[Optional[str], Optional[str]]:
     """Extract ``(detail_kind, detail_text)`` using the metadata detail cascade.
 
@@ -5704,26 +5721,40 @@ def extract_detail_fields(text: str) -> Tuple[Optional[str], Optional[str]]:
     """
     if not text:
         return None, None
-    yaml_fields: Optional[Dict[str, Any]] = None
-    text_lower = text.lower()
-    for tag, rx in _DETAIL_FIELD_PATTERNS:
-        if f"{tag}:" not in text_lower:
-            continue
-        m = rx.search(text)
-        if m:
-            val = m.group(1).strip()
-            if val:
-                return tag, val
-        if yaml_fields is None:
-            yaml_fields = (
-                read_text(metadata_region(text), record_type="research").fields
-                if text.startswith("---")
-                else {}
-            )
-        uval = str(yaml_fields.get(tag) or "").strip()
-        if uval:
-            return tag, uval
-    return None, None
+    best_rank = 99
+    best_pair: Tuple[Optional[str], Optional[str]] = (None, None)
+    n = len(text)
+    pos = 0 if text.startswith("-") else text.find("\n-")
+    while pos != -1:
+        ls = pos if pos == 0 else pos + 1
+        i = ls + 1
+        while i < n and text[i] in " \t":
+            i += 1
+        if i < n and text[i] in _DETAIL_FIRST_CHARS:
+            colon = text.find(":", i, i + 10)
+            if colon != -1:
+                key = text[i:colon].lower()
+                rank = _DETAIL_KEY_RANK.get(key)
+                if rank is not None and rank < best_rank:
+                    nl = text.find("\n", colon + 1)
+                    val = (
+                        text[colon + 1 :] if nl == -1 else text[colon + 1 : nl]
+                    ).strip()
+                    if val:
+                        best_rank = rank
+                        best_pair = (key, val)
+                        if rank == 0:
+                            return best_pair
+        pos = text.find("\n-", ls + 1)
+    if text.startswith("---"):
+        yaml_fields = read_text(metadata_region(text), record_type="research").fields
+        for rank, tag in enumerate(_DETAIL_KEY_ORDER):
+            if rank >= best_rank:
+                break
+            uval = str(yaml_fields.get(tag) or "").strip()
+            if uval:
+                return tag, uval
+    return best_pair
 
 
 def read_multiline_bullets(text: str, keys: Sequence[str]) -> List[str]:

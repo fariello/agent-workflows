@@ -489,7 +489,7 @@ def _split_row(line: str) -> List[str]:
         s = s[1:]
     if s.endswith("|") and not s.endswith("\\|"):
         s = s[:-1]
-    if "\\" not in s:
+    if "\\|" not in s:
         return [c.strip() for c in s.split("|")]
     cells: List[str] = []
     buf: List[str] = []
@@ -568,44 +568,45 @@ def parse_review_text(text: str, path: Optional[Path] = None) -> ReviewDocument:
 
     lines = text.splitlines()
     for idx, raw in enumerate(lines, start=1):
-        if _FENCE_RE.match(raw):
+        if ("`" in raw or "~" in raw) and _FENCE_RE.match(raw):
             in_fence = not in_fence
             continue
         if in_fence:
             continue
 
-        mr = _ROUND_RE.match(raw)
-        if mr:
-            _flush()
-            cur_findings = []
-            cur_decisions = []
-            cur_section = ""
-            cur_num = int(mr.group(1))
-            cur_line = idx
-            if cur_num in seen_numbers:
-                diagnostics.append(
-                    Diagnostic(
-                        idx,
-                        D_DUPLICATE_ROUND,
-                        f"round {cur_num} appears more than once "
-                        f"(first at line {seen_numbers[cur_num]}); "
-                        "round numbers must be unique and ascending",
+        if raw.startswith("##"):
+            mr = _ROUND_RE.match(raw)
+            if mr:
+                _flush()
+                cur_findings = []
+                cur_decisions = []
+                cur_section = ""
+                cur_num = int(mr.group(1))
+                cur_line = idx
+                if cur_num in seen_numbers:
+                    diagnostics.append(
+                        Diagnostic(
+                            idx,
+                            D_DUPLICATE_ROUND,
+                            f"round {cur_num} appears more than once "
+                            f"(first at line {seen_numbers[cur_num]}); "
+                            "round numbers must be unique and ascending",
+                        )
                     )
-                )
-            seen_numbers[cur_num] = idx
-            continue
+                seen_numbers[cur_num] = idx
+                continue
 
-        mh3 = _H3_RE.match(raw)
-        if mh3:
-            cur_section = mh3.group(1).strip().lower()
-            continue
+            mh3 = _H3_RE.match(raw)
+            if mh3:
+                cur_section = mh3.group(1).strip().lower()
+                continue
 
-        mh2 = _H2_RE.match(raw)
-        if mh2:
-            # Some other `##` section (not a Round): leaves any round context alone but ends the
-            # current table context so a stray table below is not attributed to Findings.
-            cur_section = ""
-            continue
+            mh2 = _H2_RE.match(raw)
+            if mh2:
+                # Some other `##` section (not a Round): leaves any round context alone but ends the
+                # current table context so a stray table below is not attributed to Findings.
+                cur_section = ""
+                continue
 
         if cur_num is None:
             continue

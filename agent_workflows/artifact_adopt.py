@@ -80,16 +80,23 @@ _UNINDEXED_SKIP_DIRS = frozenset({"runs", "comms", "reviews", ".data", "meta"})
 
 def _iter_body_bullet_id6s(text: str) -> List[str]:
     """Extract column-zero ``- Id: <id6>`` tokens from untrusted raw drop or research body text."""
+    if "Id:" not in text:
+        return []
     found: List[str] = []
-    for line in text.splitlines():
-        if not line.startswith("-"):
-            continue
-        rest = line[1:].lstrip(" \t")
-        if not rest.startswith("Id:"):
-            continue
-        val = rest[3:].strip(" \t")
-        if _core.ID6_RE.fullmatch(val):
-            found.append(val)
+    pos = text.find("Id:")
+    while pos != -1:
+        ls = text.rfind("\n", 0, pos) + 1
+        if ls < pos and text[ls] == "-":
+            mid = text[ls + 1 : pos]
+            if not mid or not mid.strip(" \t"):
+                nl = text.find("\n", pos + 3)
+                end = len(text) if nl == -1 else nl
+                if end > pos + 3 and text[end - 1] == "\r":
+                    end -= 1
+                val = text[pos + 3 : end].strip(" \t")
+                if _core.ID6_RE.fullmatch(val):
+                    found.append(val)
+        pos = text.find("Id:", pos + 3)
     return found
 
 
@@ -135,9 +142,13 @@ def _yaml_frontmatter_block(text: str) -> Optional[str]:
     module needs the raw text, not a typed mapping).
     """
 
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
+    if not text:
         return None
+    first_nl = text.find("\n")
+    first_line = text if first_nl == -1 else text[:first_nl]
+    if first_line.strip() != "---":
+        return None
+    lines = text.splitlines()
     for i in range(1, len(lines)):
         if lines[i].strip() == "---":
             return "\n".join(lines[1:i])

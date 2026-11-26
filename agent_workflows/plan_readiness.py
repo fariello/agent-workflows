@@ -1389,6 +1389,8 @@ def review_staleness_from_texts(
 
     Returns None when neither reason holds.
     """
+    if reviewed_text == current_text:
+        return None
     reviewed_oqs: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
     for block in _open_question_blocks(reviewed_text):
         m_head = _OQ_HEADING_RE.match(block[0].rstrip())
@@ -1528,6 +1530,7 @@ def review_staleness_index(
         cmd = [
             "git",
             "log",
+            "--grep=^plan-review:",
             "--format=%x01%H%x00%s",
             "--name-only",
             "--",

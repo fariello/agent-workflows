@@ -156,18 +156,37 @@ _OQ_HEADING_RE = re.compile(
 _OQ_STATUS_RE = re.compile(r"^-[ \t]*Status:[ \t]*(\S+)", re.IGNORECASE)
 
 
+def _find_oq_section_span(text: str) -> Optional[Tuple[int, int]]:
+    """Return ``(start, end)`` of the first Open/Resolved questions H2 heading line, or None.
+
+    Uses C-level ``str.find`` to jump directly between ``##`` headings instead of scanning the
+    entire document with a case-insensitive multiline regex.
+    """
+    pos = 0 if text.startswith("##") else text.find("\n##")
+    while pos != -1:
+        line_start = pos if pos == 0 else pos + 1
+        nl = text.find("\n", line_start)
+        line = text[line_start:] if nl == -1 else text[line_start:nl]
+        m = _OQ_SECTION_RE.match(line)
+        if m:
+            return line_start, line_start + m.end()
+        pos = text.find("\n##", line_start + 2)
+    return None
+
+
 def count_question_stats(text: str) -> Tuple[int, int]:
     """Count (unresolved_oqs, resolved_rqs) in an artifact's '## Open questions' section."""
     if not text:
         return 0, 0
-    m = _OQ_SECTION_SEARCH_RE.search(text)
-    if not m:
+    span = _find_oq_section_span(text)
+    if span is None:
         return 0, 0
-    next_h2 = re.search(r"(?m)^##\s+", text[m.end() :])
+    start_idx, end_idx = span
+    next_h2 = re.search(r"(?m)^##\s+", text[end_idx:])
     if next_h2:
-        section_text = text[m.start() : m.end() + next_h2.start()]
+        section_text = text[start_idx : end_idx + next_h2.start()]
     else:
-        section_text = text[m.start() :]
+        section_text = text[start_idx:]
 
     sec_lower = section_text.lower()
     if "oq-" not in sec_lower and "rq-" not in sec_lower:
@@ -372,6 +391,7 @@ def count_unresolved_open_questions(text: str) -> int:
 
 
 _EV_LEAF_RE = re.compile(r"^-\s*\[([ xX])\]\s*([EV])-[0-9]{2,}\b", re.MULTILINE)
+_EV_LINE_RE = re.compile(r"^-\s*\[([ xX])\]\s*([EV])-[0-9]{2,}\b")
 
 
 def _extract_checklist_progress(
@@ -383,24 +403,39 @@ def _extract_checklist_progress(
     """
     if not text or ("E-" not in text and "V-" not in text):
         return None, None
-    e_matches: List[str] = []
-    v_matches: List[str] = []
-    for mark, kind in _EV_LEAF_RE.findall(text):
-        if kind == "E":
-            e_matches.append(mark)
-        else:
-            v_matches.append(mark)
+    e_checked = 0
+    e_total = 0
+    v_checked = 0
+    v_total = 0
+    pos = text.find("[")
+    n = len(text)
+    last_ls = -1
+    while pos != -1:
+        if pos + 2 < n and text[pos + 2] == "]" and text[pos + 1] in " xX":
+            ls = text.rfind("\n", 0, pos) + 1
+            if ls != last_ls and text[ls] == "-":
+                last_ls = ls
+                nl = text.find("\n", pos)
+                line = text[ls:] if nl == -1 else text[ls:nl]
+                m = _EV_LINE_RE.match(line)
+                if m:
+                    mark, kind = m.group(1), m.group(2)
+                    if kind == "E":
+                        e_total += 1
+                        if mark != " ":
+                            e_checked += 1
+                    else:
+                        v_total += 1
+                        if mark != " ":
+                            v_checked += 1
+                if nl == -1:
+                    break
+                pos = text.find("[", nl + 1)
+                continue
+        pos = text.find("[", pos + 1)
 
-    exec_prog = (
-        (sum(1 for m in e_matches if m in ("x", "X")), len(e_matches))
-        if e_matches
-        else None
-    )
-    valid_prog = (
-        (sum(1 for m in v_matches if m in ("x", "X")), len(v_matches))
-        if v_matches
-        else None
-    )
+    exec_prog = (e_checked, e_total) if e_total else None
+    valid_prog = (v_checked, v_total) if v_total else None
     return exec_prog, valid_prog
 
 
