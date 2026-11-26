@@ -6,7 +6,7 @@
 - Scope: In an isolated scratch worktree with both cutover patches applied, make `agent_workflows/ipd_schema.py` and `agent_workflows/ipd_lint.py` accept a log-format plan matching spec `4sd62s` Section 4.1 and the patched `ipd-structure-and-linting.spec.md` Sections 4.3 and 4.4 (required metadata `Date`, `Kind`/`plan_role`, `Status`, `Author`, `Id` overlaid from `artifact_meta.State` with date resolution across `created_day`, `filename_date`, filename prefix, and `created_at`; `Highest E allocated` overlaid from `highest_e_allocated`; optional `## Concern` and `## Scope` body sections tolerated; no required `## Workflow history` H2; ready-to-execute gates `IPD-M106`, `IPD-M110`, `IPD-M111`, `check_item_dependencies`, `IPD-S404`, and `IPD-M112` reading overlaid State while keeping legacy bullet-format reading intact), update `agent_workflows/ipd_authoring.py` (`build_skeleton`, `_AUTHORING_PLACEHOLDERS`/`authoring_placeholders_resolved`, and `compute_sync`/`run_sync`) for the post-cutover shape, add and run a standalone core behavioral test module `tests/test_ipd_log_format.py` in the scratch worktree (recording the `tests/record_builder.py` import error on the four deferred legacy test modules in F-03), and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. No live code changes.
 - Scope-Paths: .aw/records/plans/pending/20261125-metastore-305-hdwqex-make-ipd-lint-and-ipd-scaffold-log-aware-in-the-cutover-code.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:2k5t16, executed:g45vyv
-- Status: reviewed
+- Status: approved
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -19,11 +19,13 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: hdwqex
+- Approval: 2026-11-26, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-26 approved (aw set): status set to approved
 - 2026-11-26 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 - 2026-11-26 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006; review record .aw/records/reviews/20261125-metastore-305-hdwqex-make-ipd-lint-and-ipd-scaffold-log-aware-in-the-cutover-code.review.md
 - 2026-11-26 to-review (aw set): authored as part of the x1mmdp split per maintainer answer to run-20261125T162650Z-1337442 question 06-x1mmdp-a1-Q-01 (Split into new children; fix jycxw8 first)

@@ -6,7 +6,7 @@
 - Scope: In an isolated scratch worktree with both cutover patches applied (including `hdwqex`), record the log-format `text_only` and `raw_fields` contract in F-02, switch `tests/record_builder.py` to `RECORD_FORMAT = "log"` across all eight record types (7 log-backed artifact types through `artifact_meta.create`/`append`, plus `review` through `artifact_meta.render_review_mirror` and subject-log `op: "review"` events per spec `4sd62s` Section 4.1a) with the log branch of `assert_field`/`assert_no_field`, update `tests/support.py` (`_conforming_orchestrator_path` and `ready_plan_text`) as required by F-02, repoint `tools/fixture_codemod.py::_registry_field_map` onto `agent_workflows/migrations/m0001_convert.py::FIELD_DESTINATIONS` and align its rewrite/proof target with F-02, update and pass the four builder and codemod test modules (plus their fixture/golden baselines), measure the per-module core-gate failure census in F-04, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. No live code changes.
 - Scope-Paths: .aw/records/plans/pending/20261125-metastore-306-89mtbl-switch-the-shared-test-record-builder-and-codemod-to-the-log.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:hdwqex
-- Status: reviewed
+- Status: approved
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -19,11 +19,13 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 89mtbl
+- Approval: 2026-11-26, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-26 approved (aw set): status set to approved
 - 2026-11-26 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 - 2026-11-26 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006; review record .aw/records/reviews/20261125-metastore-306-89mtbl-switch-the-shared-test-record-builder-and-codemod-to-the-log.review.md
 - 2026-11-26 to-review (aw set): authored as part of the x1mmdp split per maintainer answer to run-20261125T162650Z-1337442 question 06-x1mmdp-a1-Q-01 (Split into new children; fix jycxw8 first)
