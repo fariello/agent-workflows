@@ -960,6 +960,73 @@ class TestFreezeRefusalColorStyling(unittest.TestCase):
                     agy_runipd.initialize_run(args)
             self.assertIn("ipd \033[1;33mclr001\033[0m", str(cm.exception))
 
+    def test_review_action_accepts_external_auto_approved_dependency(self):
+        """Regression: review preflight accepts an external auto-approved dependency, while execute refuses it."""
+        with tempfile.TemporaryDirectory() as td:
+            repo = _init_repo(Path(td))
+            _write_plan(
+                repo,
+                "depaa1",
+                status="auto-approved",
+                order=1,
+            )
+            consumer_path = _write_plan(
+                repo,
+                "rev001",
+                status="to-review",
+                dependencies=["executed:depaa1"],
+                order=2,
+            )
+            exec_consumer_path = _write_plan(
+                repo,
+                "exe001",
+                status="approved",
+                dependencies=["executed:depaa1"],
+                order=3,
+            )
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "add auto-approved dep and consumers"],
+                cwd=repo,
+                check=True,
+            )
+
+            review_queue = [
+                {
+                    "id6": "rev001",
+                    "artifact_type": "ipd",
+                    "status": "queued",
+                    "initial_status": "to-review",
+                    "action": "review",
+                    "dependencies": ["executed:depaa1"],
+                    "configured_file": str(consumer_path.relative_to(repo)),
+                }
+            ]
+            # Must not raise DriverError: an auto-approved prerequisite satisfies a review consumer.
+            runner_shared.enforce_freeze_time_refusal(
+                review_queue, repo=repo, host="agy", color=False
+            )
+
+            exec_queue = [
+                {
+                    "id6": "exe001",
+                    "artifact_type": "ipd",
+                    "status": "queued",
+                    "initial_status": "approved",
+                    "action": "execute",
+                    "dependencies": ["executed:depaa1"],
+                    "configured_file": str(exec_consumer_path.relative_to(repo)),
+                }
+            ]
+            with self.assertRaises(runner_shared.DriverError) as cm:
+                runner_shared.enforce_freeze_time_refusal(
+                    exec_queue, repo=repo, host="agy", color=False
+                )
+            msg = str(cm.exception)
+            self.assertIn("[RUN-DEPENDENCY-UNSATISFIABLE]", msg)
+            self.assertIn("exe001 requires executed:depaa1", msg)
+            self.assertIn("depaa1 is auto-approved and is not in this run", msg)
+
 
 if __name__ == "__main__":
     unittest.main()

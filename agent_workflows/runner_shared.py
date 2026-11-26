@@ -57913,7 +57913,9 @@ def edge_satisfied(
             return False, f"{tok}: {exc}"
         bucket = plan_bucket(dep_path)
         allowed: tuple[str, ...] = (
-            ("executed",) if is_exec else ("executed", "reviewed", "approved")
+            ("executed",)
+            if is_exec
+            else ("executed", "reviewed", "approved", "auto-approved")
         )
         if not is_exec and review_accepts_unreviewed_deps(state):
             from agent_workflows import review_basis as _basis
@@ -58034,10 +58036,17 @@ def edge_satisfied(
                     return True, ""
             elif edge.target_type == "ipd" and edge.status in (
                 "approved",
+                "auto-approved",
                 "reviewed",
                 "executed",
             ):
-                if status in ("to-review", "reviewed", "approved", "executed"):
+                if status in (
+                    "to-review",
+                    "reviewed",
+                    "approved",
+                    "auto-approved",
+                    "executed",
+                ):
                     return True, ""
         return False, (
             f"{tok}: {edge.target_type} {edge.id6} is {status!r}, needs exactly {edge.status!r}"
