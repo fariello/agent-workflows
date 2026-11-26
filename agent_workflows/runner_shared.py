@@ -30090,7 +30090,7 @@ QUESTION_REQUIRED_KEYS: tuple[str, ...] = (
 )
 
 _QUESTION_ID_RE: re.Pattern[str] = re.compile(r"^[A-Za-z0-9._-]{1,40}$")
-QUESTION_TEXT_MAX_LENGTH: int = 2000
+QUESTION_TEXT_MAX_LENGTH: int = 6000
 QUESTION_EVIDENCE_MAX_COUNT: int = 10
 QUESTION_EVIDENCE_ITEM_MAX_LENGTH: int = 500
 QUESTION_OPTIONS_MIN_COUNT: int = 2
@@ -31038,6 +31038,86 @@ def validate_questions(outcome: Any, *, item_id6: str) -> QuestionsVerdict:
         questions=tuple(valid_questions),
         violations=tuple(all_violations),
     )
+
+
+def _raw_outcome_has_gating_question(outcome: Any) -> bool:
+    """Whether raw outcome JSON attempted to emit at least one gating question.
+
+    Used when `validate_questions` returns `malformed` so the driver fails closed instead of
+    silently falling through into integration (where an open blocking OQ would be misreported
+    as `fail-merge`) or marking an execute turn `executed` despite an unanswered gating question.
+    """
+
+    if not isinstance(outcome, Mapping):
+        return False
+    raw = outcome.get(QUESTIONS_KEY)
+    if not isinstance(raw, list) or not raw:
+        return False
+    for entry in raw:
+        if not isinstance(entry, Mapping):
+            return True
+        if entry.get("gates_verdict") is not False:
+            return True
+    return False
+
+
+def questions_reask_message(verdict: QuestionsVerdict, *, artifact_id6: str) -> str:
+    """Same-session one-shot follow-up prompt asking the agent to repair malformed questions."""
+
+    violation_lines = "\n".join(f"- {v}" for v in verdict.violations)
+    return f"""Your turn is finished and its outcome file is written, but the `{QUESTIONS_KEY}` array
+failed schema validation, so the driver cannot park your question(s) for the human yet.
+
+WHAT WAS WRONG:
+{violation_lines}
+
+Fix ONLY the `{QUESTIONS_KEY}` array in the outcome JSON you already wrote (for example, tighten
+any over-length field so it fits the limit while keeping the key facts and decision intact).
+Change nothing else in that file, make no code or plan edits, and create no commit.
+
+Expected `{QUESTIONS_KEY}` shape:
+
+{questions_schema_literal(artifact_id6)}
+"""
+
+
+def perform_questions_reask(
+    *,
+    item_id6: str,
+    prompt_path: Path,
+    outcome_path: Path | str | None,
+    resume: Callable[..., Any],
+    recollect: Callable[[], Any] | None = None,
+    session_turn_counts: dict[str, int] | None = None,
+    session_id: str | None = None,
+) -> tuple[QuestionsVerdict, Any, int]:
+    """Spend ONE follow-up turn in the same session to repair malformed `questions`, then re-validate.
+
+    Structural mirror of `perform_defect_reask`: bounded to one call, reuses the host's injected
+    launcher via `resume_via_launcher`, and never loops. Returns `(verdict_after, outcome_after,
+    exit_code)`.
+    """
+
+    exit_code = 0
+    result = resume(prompt_path)
+    if isinstance(result, tuple) and result:
+        try:
+            exit_code = int(result[0])
+        except (TypeError, ValueError):
+            exit_code = 0
+    elif isinstance(result, int):
+        exit_code = result
+
+    if session_turn_counts is not None and session_id:
+        session_turn_counts[session_id] = session_turn_counts.get(session_id, 0) + 1
+
+    if recollect is not None:
+        with contextlib.suppress(Exception):
+            recollect()
+
+    after_outcome = read_defect_report_outcome(outcome_path)
+    after_verdict = validate_questions(after_outcome, item_id6=item_id6)
+    return after_verdict, after_outcome, exit_code
 
 
 #: Phrases a bare "nothing to report" answer takes. Kept SMALL and used only where the alternative is
@@ -49229,6 +49309,7 @@ def execute_item_core(
             if cur_sha is not None and cur_sha != before_sha:
                 outcome_fresh = True
 
+        attempt_outcome: Any = None
         if not outcome_fresh:
             attempt["questions_verdict"] = {"verdict": QUESTIONS_VERDICT_ABSENT}
         else:
@@ -49265,9 +49346,201 @@ def execute_item_core(
                         ),
                         file=sys.stderr,
                     )
+                    q_reask_session = attempt.get("session_id")
+                    if q_reask_session and not attempt.get("questions_reasked"):
+                        q_reask_prompt = write_prompt(
+                            run_dir,
+                            item,
+                            questions_reask_message(
+                                q_verdict, artifact_id6=item["id6"]
+                            ),
+                            attempt_no,
+                            suffix="questions-reask",
+                        )
+                        attempt["questions_reask_prompt"] = str(q_reask_prompt)
+                        attempt["questions_reasked"] = True
+                        try:
+                            reask_q_verdict, reask_outcome, q_reask_rc = (
+                                perform_questions_reask(
+                                    item_id6=item["id6"],
+                                    prompt_path=q_reask_prompt,
+                                    outcome_path=run_dir
+                                    / "outcomes"
+                                    / f"{item['position']:02d}-{item['id6']}.json",
+                                    resume=(
+                                        (
+                                            lambda rp: resume_via_launcher(
+                                                raw_launcher,
+                                                (
+                                                    state,
+                                                    run_dir,
+                                                    item,
+                                                    plan_path,
+                                                    rp,
+                                                    attempt_no,
+                                                ),
+                                                {
+                                                    "log_suffix": "questions-reask",
+                                                    "label_suffix": "questions-reask",
+                                                    "tracker": tracker,
+                                                    "work_dir": work_dir,
+                                                    "resume_session": q_reask_session,
+                                                },
+                                            )
+                                        )
+                                        if host_labels == OC_HOST_LABELS
+                                        else (
+                                            lambda rp: resume_via_launcher(
+                                                raw_launcher,
+                                                (
+                                                    state,
+                                                    run_dir,
+                                                    item,
+                                                    rp,
+                                                    attempt_no,
+                                                ),
+                                                {
+                                                    "session_id": q_reask_session,
+                                                    "use_continue": False,
+                                                    "log_suffix": "questions-reask",
+                                                    "label_suffix": "questions-reask",
+                                                    "work_dir": work_dir,
+                                                    "tracker": tracker,
+                                                },
+                                            )
+                                        )
+                                    ),
+                                    recollect=(
+                                        functools.partial(
+                                            lane_containment.collect_lane_submissions,
+                                            run_dir=run_dir,
+                                            item=item,
+                                            run_id=state["run_id"],
+                                            lane_root=Path(work_dir),
+                                            plan_path=plan_path,
+                                            attempt=attempt_no,
+                                        )
+                                        if work_dir
+                                        else None
+                                    ),
+                                    session_turn_counts=(
+                                        None
+                                        if work_dir
+                                        else state.setdefault("session_turn_counts", {})
+                                    ),
+                                    session_id=q_reask_session,
+                                )
+                            )
+                            attempt["questions_reask_exit_code"] = q_reask_rc
+                        except (KeyboardInterrupt, StallTimeout):
+                            reask_q_verdict = q_verdict
+                            reask_outcome = attempt_outcome
+                        append_jsonl(
+                            run_dir / "events.jsonl",
+                            {
+                                "at": utc_now(),
+                                "event": "questions-reask-finished",
+                                "id6": item["id6"],
+                                "attempt": attempt_no,
+                                "before_verdict": q_verdict.verdict,
+                                "after_verdict": reask_q_verdict.verdict,
+                                "violations": list(reask_q_verdict.violations),
+                            },
+                        )
+                        if reask_outcome is not None:
+                            attempt_outcome = reask_outcome
+                            outcome = reask_outcome
+                        if reask_q_verdict.is_valid:
+                            q_verdict = reask_q_verdict
+                            attempt["questions_verdict"] = {
+                                "verdict": q_verdict.verdict,
+                                "questions": list(q_verdict.questions),
+                                "violations": list(q_verdict.violations),
+                                "reasked": True,
+                            }
+                            attempt["questions"] = list(q_verdict.questions)
+                        elif reask_q_verdict.is_absent:
+                            q_verdict = reask_q_verdict
+                            attempt["questions_verdict"] = {
+                                "verdict": QUESTIONS_VERDICT_ABSENT,
+                                "reasked": True,
+                            }
+                        else:
+                            q_verdict = reask_q_verdict
+                            attempt["questions_verdict"] = {
+                                "verdict": q_verdict.verdict,
+                                "questions": list(q_verdict.questions),
+                                "violations": list(q_verdict.violations),
+                                "reasked": True,
+                            }
 
         # qchan-02 (epsti7) E-02: Execute turn question parking
         q_v_exec = attempt.get("questions_verdict") or {}
+        if (
+            not is_review
+            and not is_production
+            and q_v_exec.get("verdict") == QUESTIONS_VERDICT_MALFORMED
+            and _raw_outcome_has_gating_question(attempt_outcome)
+        ):
+            mal_violations = (
+                "; ".join(q_v_exec.get("violations") or []) or "malformed questions"
+            )
+            disposition = "fail-gate"
+            attempt["disposition"] = "fail-gate"
+            item["status"] = "fail-gate"
+            item[NEEDS_INPUT_KEY] = True
+            attempt[NEEDS_INPUT_KEY] = True
+            record_refusal(
+                item,
+                code="questions-malformed",
+                reason=(
+                    f"IPD {item['id6']} emitted a malformed gating question in its outcome JSON: "
+                    f"{mal_violations}"
+                ),
+                remedy=(
+                    "inspect the recorded outcome JSON, fix or answer the question, and re-run "
+                    "with --retry-incomplete"
+                ),
+            )
+            if wt_handle is not None:
+                lane_containment.record_lane_preserved(
+                    run_dir=run_dir,
+                    item=item,
+                    handle=wt_handle,
+                    reason=(
+                        f"IPD {item['id6']} emitted a malformed gating question ({mal_violations}); "
+                        "lane preserved"
+                    ),
+                    reason_codes=("questions-malformed",),
+                )
+            save_state(run_dir, state)
+            finish_resolved = resolve_item_lifecycle(disposition)
+            finish = (
+                pal.lifecycle_glyph(finish_resolved, width=2)
+                + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold")
+                + pal(f" ({action})", "dim")
+                + " -> "
+                + pal.lifecycle(finish_resolved, disposition)
+                + pal(f"  (exit {exit_code})", "dim")
+            )
+            print(finish)
+            print()
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "ipd-finished",
+                    "id6": item["id6"],
+                    "action": action,
+                    "attempt": attempt_no,
+                    "exit_code": exit_code,
+                    "status": disposition,
+                    "session_id": session_id,
+                    "verification_status": None,
+                },
+            )
+            return
+
         if q_v_exec.get("verdict") == QUESTIONS_VERDICT_VALID:
             attempt["questions"] = list(q_v_exec.get("questions", []))
             gating_questions = [
@@ -51107,6 +51380,128 @@ def execute_item_core(
                 )
                 save_state(run_dir, state)
                 ring_bell_on_first_park(run_dir, state, stream=sys.stdout)
+
+                finish_resolved = resolve_item_lifecycle(disposition)
+                finish = (
+                    pal.lifecycle_glyph(finish_resolved, width=2)
+                    + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold")
+                    + pal(f" ({action})", "dim")
+                    + " -> "
+                    + pal.lifecycle(finish_resolved, disposition)
+                    + pal(f"  (exit {exit_code})", "dim")
+                )
+                print(finish)
+                print()
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "ipd-finished",
+                        "id6": item["id6"],
+                        "action": action,
+                        "attempt": attempt_no,
+                        "exit_code": exit_code,
+                        "status": disposition,
+                        "session_id": session_id,
+                        "verification_status": None,
+                    },
+                )
+                return
+
+            if q_v_review.get(
+                "verdict"
+            ) == QUESTIONS_VERDICT_MALFORMED and _raw_outcome_has_gating_question(
+                attempt_outcome
+            ):
+                mal_violations = (
+                    "; ".join(q_v_review.get("violations") or [])
+                    or "malformed questions"
+                )
+                base_tip = attempt.get("review_lane_tip_before")
+                _rc_tip, current_tip_out, _ = _run_git(wt_path, ["rev-parse", "HEAD"])
+                current_tip = current_tip_out.strip() if _rc_tip == 0 else ""
+                is_descendant = False
+                if base_tip and current_tip:
+                    _rc_anc, _, _ = _run_git(
+                        wt_path, ["merge-base", "--is-ancestor", base_tip, current_tip]
+                    )
+                    if _rc_anc == 0:
+                        is_descendant = True
+
+                parked_branch = None
+                if base_tip and is_descendant:
+                    rev_commit, rev_paths = commit_review_lane_output(
+                        repo,
+                        wt_handle,
+                        item["id6"],
+                        host_label=host_labels.command,
+                        run_id=str(state.get("run_id") or "") or None,
+                        own_paths=own_paths,
+                        review_mode=options.get("review_mode", "single"),
+                    )
+                    if rev_commit:
+                        attempt["review_lane_commit"] = rev_commit
+                        attempt["review_lane_committed_paths"] = list(rev_paths)
+                    _rc_tip_after, tip_after_out, _ = _run_git(
+                        wt_path, ["rev-parse", "HEAD"]
+                    )
+                    tip_after_commit = (
+                        tip_after_out.strip() if _rc_tip_after == 0 else current_tip
+                    )
+                    run_id_val = str(state.get("run_id") or "")
+                    parked_branch = f"aw/parked/{run_id_val}/{item['id6']}"
+                    _run_git(wt_path, ["branch", "-f", parked_branch, tip_after_commit])
+                    reset_tip = (
+                        attempt.get("review_lane_sweep_tip_before_resume") or base_tip
+                    )
+                    _run_git(wt_path, ["reset", "--hard", reset_tip])
+                    item["preserved_branch"] = parked_branch
+                    item["preserved_base"] = base_tip
+                    item["preserved_lane_id"] = f"parked-{item['id6']}"
+                    item["preserved_reason"] = (
+                        f"review {item['id6']} emitted a malformed gating question "
+                        f"({mal_violations}); parked branch {parked_branch} and reset sweep lane"
+                    )
+                    item["preserved_retention_reasons"] = ["questions-malformed"]
+                    attempt["preserved_branch"] = parked_branch
+                    attempt["preserved_base"] = base_tip
+                    attempt["preserved_lane_id"] = f"parked-{item['id6']}"
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": lane_containment.LANE_PRESERVED_EVENT,
+                            "id6": item.get("id6"),
+                            "worktree": str(wt_path),
+                            "branch": parked_branch,
+                            "lane_id": f"parked-{item['id6']}",
+                            "base_commit": base_tip,
+                            "status": "fail-gate",
+                            "reason": item["preserved_reason"],
+                            "retention_reasons": ["questions-malformed"],
+                        },
+                    )
+
+                record_refusal(
+                    item,
+                    code="questions-malformed",
+                    reason=(
+                        f"review {item['id6']} emitted a malformed gating question: "
+                        f"{mal_violations}"
+                    ),
+                    remedy=(
+                        f"inspect the parked branch {parked_branch} and recorded outcome JSON, "
+                        "resolve the open question, or retry with --retry-incomplete"
+                        if parked_branch
+                        else "inspect the recorded outcome JSON and retry with --retry-incomplete"
+                    ),
+                )
+                disposition = "fail-gate"
+                attempt["disposition"] = "fail-gate"
+                item["status"] = "fail-gate"
+                item[NEEDS_INPUT_KEY] = True
+                attempt[NEEDS_INPUT_KEY] = True
+                save_state(run_dir, state)
 
                 finish_resolved = resolve_item_lifecycle(disposition)
                 finish = (

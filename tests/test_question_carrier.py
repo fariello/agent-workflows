@@ -250,14 +250,22 @@ class TestQuestionValidator(unittest.TestCase):
             self.assertIn(field, v.violations[0])
 
     def test_malformed_over_length_and_empty_text(self) -> None:
-        """Over-length text (> 2000 chars) and empty text yield named violations."""
-        bad_over = dict(self.valid_q, text="x" * 2001)
+        """Over-length text (> QUESTION_TEXT_MAX_LENGTH chars) and empty text yield named violations."""
+        max_len = runner_shared.QUESTION_TEXT_MAX_LENGTH
+        ok_at_cap = dict(self.valid_q, text="x" * max_len)
+        v_ok = runner_shared.validate_questions(
+            {"questions": [ok_at_cap]}, item_id6=self.item_id6
+        )
+        self.assertTrue(v_ok.is_valid)
+        self.assertGreaterEqual(max_len, 2500)
+
+        bad_over = dict(self.valid_q, text="x" * (max_len + 1))
         v_over = runner_shared.validate_questions(
             {"questions": [bad_over]}, item_id6=self.item_id6
         )
         self.assertTrue(v_over.is_malformed)
         self.assertIn("text", v_over.violations[0])
-        self.assertIn("exceeds 2000", v_over.violations[0])
+        self.assertIn(f"exceeds {max_len}", v_over.violations[0])
 
         bad_empty = dict(self.valid_q, text="   ")
         v_empty = runner_shared.validate_questions(
@@ -1089,3 +1097,214 @@ class TestA30CarrierSeparation(unittest.TestCase):
         self.assertIn("option_details", schema_lit)
         self.assertIn("recommendation_strength", schema_lit)
         self.assertIn("uncertainty", schema_lit)
+
+    def test_e06_malformed_question_reask_repairs_and_parks(self) -> None:
+        """One-shot questions-reask repairs a malformed gating question and parks cleanly as awaiting-human."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp_path = Path(td)
+            repo = _create_test_repo(tmp_path)
+            plan_file = _create_plan_file(repo, "rsk001")
+            call_counter = tmp_path / "calls.txt"
+            from tests import support
+
+            fake_bin = support.make_fake_executable(
+                tmp_path / "fake_reask_agent",
+                f"""#!/usr/bin/env python3
+import json, re, sys
+from pathlib import Path
+
+prompt_text = ""
+for arg in sys.argv[1:]:
+    if "Required JSON outcome:" in arg or "WHAT WAS WRONG:" in arg:
+        prompt_text = arg
+        break
+    if Path(arg).is_file():
+        try:
+            content = Path(arg).read_text(encoding="utf-8")
+            if "Required JSON outcome:" in content or "WHAT WAS WRONG:" in content:
+                prompt_text = content
+                break
+        except Exception:
+            pass
+
+if not prompt_text:
+    sys.exit(0)
+
+counter = Path({str(call_counter)!r})
+n = int(counter.read_text().strip()) + 1 if counter.is_file() else 1
+counter.write_text(str(n))
+
+print(json.dumps({{"event": "init", "conversation_id": "ses-reask-1", "init": {{"model": "test-model"}}}}), flush=True)
+print(json.dumps({{"type": "text", "sessionID": "ses-reask-1", "part": {{"text": "working"}}}}), flush=True)
+
+outcome_path = Path({str(repo / ".aw" / "records" / "runs" / "run-reask" / "outcomes" / "01-rsk001.json")!r})
+outcome_path.parent.mkdir(parents=True, exist_ok=True)
+if "WHAT WAS WRONG:" not in prompt_text:
+    payload = {{
+        "disposition": "executed",
+        "defect_report": {{"state": "none-found", "findings": []}},
+        "questions": [{{
+            "question_id": "q-too-long",
+            "text": "x" * ({runner_shared.QUESTION_TEXT_MAX_LENGTH} + 50),
+            "artifact_id6": "rsk001",
+            "gates_verdict": True,
+            "evidence": ["ev1"],
+        }}],
+        "pushed": False,
+    }}
+else:
+    payload = {{
+        "disposition": "executed",
+        "defect_report": {{"state": "none-found", "findings": []}},
+        "questions": [{{
+            "question_id": "q-too-long",
+            "text": "Shortened question after re-ask?",
+            "artifact_id6": "rsk001",
+            "gates_verdict": True,
+            "evidence": ["ev1"],
+        }}],
+        "pushed": False,
+    }}
+outcome_path.write_text(json.dumps(payload), encoding="utf-8")
+sys.exit(0)
+""",
+            )
+
+            run_dir = repo / ".aw" / "records" / "runs" / "run-reask"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / "outcomes").mkdir(parents=True, exist_ok=True)
+            (run_dir / "prompts").mkdir(parents=True, exist_ok=True)
+
+            item: dict[str, Any] = {
+                "id6": "rsk001",
+                "setid": "testset",
+                "position": 1,
+                "action": "execute",
+                "status": "queued",
+                "configured_file": str(plan_file),
+                "attempts": [],
+            }
+            state: dict[str, Any] = {
+                "repo": str(repo),
+                "run_id": "run-reask",
+                "queue": [item],
+                "options": {
+                    "no_verify": True,
+                    "validate": False,
+                    "self_finalize": False,
+                    "output_mode": "quiet",
+                    "opencode": str(fake_bin),
+                },
+            }
+
+            with coordinator_role():
+                oc_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(item["status"], runner_shared.AWAITING_HUMAN_STATUS)
+            attempt = item["attempts"][0]
+            self.assertTrue(attempt.get("questions_reasked"))
+            self.assertEqual(attempt["questions_verdict"]["verdict"], "valid")
+            self.assertEqual(
+                attempt["questions"][0]["text"], "Shortened question after re-ask?"
+            )
+            events = [
+                json.loads(line)
+                for line in (run_dir / "events.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line.strip()
+            ]
+            reask_events = [
+                e for e in events if e.get("event") == "questions-reask-finished"
+            ]
+            self.assertEqual(len(reask_events), 1)
+            self.assertEqual(reask_events[0]["after_verdict"], "valid")
+
+    def test_e06_review_malformed_gating_question_fails_gate_and_parks_instead_of_merging(
+        self,
+    ) -> None:
+        """Unrepaired malformed gating question on a review sweep lane fails-gate and parks cleanly instead of falling through to integration / fail-merge."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp_path = Path(td)
+            repo = _create_test_repo(tmp_path)
+            plan_file = _create_plan_file(repo, "rml001", status="to-review")
+            fake_bin = _make_fake_agent_script(tmp_path)
+
+            run_dir = repo / ".aw" / "records" / "runs" / "run-rev-mal"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / "outcomes").mkdir(parents=True, exist_ok=True)
+            (run_dir / "prompts").mkdir(parents=True, exist_ok=True)
+
+            # Still over QUESTION_TEXT_MAX_LENGTH even on re-ask
+            outcome_payload = {
+                "disposition": "reviewed",
+                "defect_report": {"state": "none-found", "findings": []},
+                "questions": [
+                    {
+                        "question_id": "q-overlong",
+                        "text": "y" * (runner_shared.QUESTION_TEXT_MAX_LENGTH + 100),
+                        "artifact_id6": "rml001",
+                        "gates_verdict": True,
+                        "evidence": ["ev1"],
+                    }
+                ],
+                "pushed": False,
+            }
+
+            item: dict[str, Any] = {
+                "id6": "rml001",
+                "setid": "testset",
+                "position": 1,
+                "action": "review",
+                "status": "queued",
+                "configured_file": str(plan_file),
+                "attempts": [],
+            }
+            state: dict[str, Any] = {
+                "repo": str(repo),
+                "run_id": "run-rev-mal",
+                "queue": [item],
+                "options": {
+                    "no_verify": True,
+                    "validate": False,
+                    "self_finalize": False,
+                    "isolate_review": True,
+                    "output_mode": "quiet",
+                    "opencode": str(fake_bin),
+                },
+            }
+
+            main_head_before = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+            ).strip()
+
+            with mock.patch.dict(
+                os.environ, {"FAKE_PAYLOAD_JSON": json.dumps(outcome_payload)}
+            ), coordinator_role():
+                oc_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            main_head_after = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+            ).strip()
+            self.assertEqual(main_head_before, main_head_after)
+            self.assertEqual(item["status"], "fail-gate")
+            refusal = runner_shared.refusal_of_item(item)
+            self.assertIsNotNone(refusal)
+            assert refusal is not None
+            self.assertEqual(refusal.code, "questions-malformed")
+            self.assertEqual(
+                item.get("preserved_branch"), "aw/parked/run-rev-mal/rml001"
+            )
+            self.assertIn(
+                "questions-malformed", item.get("preserved_retention_reasons") or []
+            )
+            events = [
+                json.loads(line)
+                for line in (run_dir / "events.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line.strip()
+            ]
+            event_names = [e.get("event") for e in events]
+            self.assertNotIn("review-lane-integrated", event_names)
+            self.assertNotIn("review-lane-not-integrated", event_names)
