@@ -1,5 +1,5 @@
 - Id: ldfefd
-- Status: open
+- Status: graduated
 - Set: metastore
 - Work-Kind: followup
 - Priority: high
@@ -10,6 +10,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-26 graduated (aw backlog): Carried by metastore Orders 306-313 (89mtbl, nv3upa, cugg3w, psm9ac, x8id25, e0g2gt, qi0kl6, x3mig6) per maintainer answer to run-20261125T162650Z-1337442 question 06-x1mmdp-a1-Q-01
 - 2026-11-26 created (aw backlog): Metastore cutover code patch removes the legacy bullet API that tests/record_builder.py, tools/fixture_codemod.py and 31 test modules still call; no metastore child owns converting them
 
 Found by x1mmdp (run run-20261125T162650Z-1337442, attempt 1) in a scratch worktree holding HEAD c7eed9a50 plus both cutover patches (docs base tree f88e0ca4f).
