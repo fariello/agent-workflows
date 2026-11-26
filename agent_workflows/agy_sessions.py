@@ -228,7 +228,7 @@ def get_sessions(
     return results
 
 
-def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="agy sessions",
         description="List and inspect Antigravity (agy) sessions for a project or directory.",
@@ -264,7 +264,11 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Output session list as JSON.",
     )
-    return parser.parse_args(argv)
+    return parser
+
+
+def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
+    return build_parser().parse_args(argv)
 
 
 def main(argv: Iterable[str] | None = None) -> int:

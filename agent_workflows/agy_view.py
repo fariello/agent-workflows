@@ -88,7 +88,7 @@ def records(handle: TextIO) -> Iterable[tuple[int, dict[str, Any]]]:
         yield line_number, value
 
 
-def main(argv: Iterable[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="agy view", description=__doc__)
     parser.add_argument(
         "log", nargs="?", default="-", help="JSONL log path, or - for stdin"
@@ -101,6 +101,11 @@ def main(argv: Iterable[str] | None = None) -> int:
         action="store_true",
         help="Also emit each matching source object as indented JSON",
     )
+    return parser
+
+
+def main(argv: Iterable[str] | None = None) -> int:
+    parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
     if args.log == "-":
         handle, close = sys.stdin, False

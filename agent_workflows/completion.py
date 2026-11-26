@@ -95,17 +95,26 @@ _COMMAND_ALIASES: Dict[str, str] = {
     "todo": "next",
     "attention": "next",
     "sanitize": "check-local-leaks",
-    "doctor": "checkup",
+    "clear-title": "reset-title",
+    "restore-title": "reset-title",
     "opencode": "oc",
     "antigravity": "agy",
 }
 
 
-def _aliases_for(command: str) -> List[str]:
-    """Return all known aliases mapping to canonical ``command``."""
-    return sorted(
-        [alias for alias, canon in _COMMAND_ALIASES.items() if canon == command]
-    )
+def _aliases_for(command: str, node: Optional[Dict[str, Any]] = None) -> List[str]:
+    """Return all known aliases mapping to canonical ``command`` at ``node``."""
+    subcmds = set(node.get("subcommands", {})) if node is not None else set()
+    aliases = {
+        alias
+        for alias, canon in _COMMAND_ALIASES.items()
+        if canon == command and alias not in subcmds
+    }
+    if node is not None:
+        for alias, target in node.get("subcommand_aliases", {}).items():
+            if target == command and alias not in subcmds:
+                aliases.add(alias)
+    return sorted(aliases)
 
 
 def _visible_subcommands(
@@ -160,6 +169,234 @@ def _flags_of(parser: argparse.ArgumentParser) -> List[Dict[str, str]]:
     return out
 
 
+def _flag_choices_of(parser: argparse.ArgumentParser) -> Dict[str, List[str]]:
+    """Return ``{flag: [choices...]}`` for visible option flags declaring argparse ``choices``."""
+    out: Dict[str, List[str]] = {}
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            continue
+        if getattr(action, "help", None) is argparse.SUPPRESS:
+            continue
+        if not action.option_strings or not action.choices:
+            continue
+        vals = sorted({str(c) for c in action.choices})
+        for opt in action.option_strings:
+            if opt:
+                out[opt] = list(vals)
+    return out
+
+
+def _flag_takes_value_of(parser: argparse.ArgumentParser) -> List[str]:
+    """Return sorted visible option strings that consume a following argument token."""
+    out: set[str] = set()
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            continue
+        if getattr(action, "help", None) is argparse.SUPPRESS:
+            continue
+        if not action.option_strings:
+            continue
+        if action.nargs == 0:
+            continue
+        for opt in action.option_strings:
+            if opt:
+                out.add(opt)
+    return sorted(out)
+
+
+def _merge_flag_metadata(target: Dict[str, Any], source: Dict[str, Any]) -> None:
+    """Merge ``flags``, ``flag_choices``, and ``flag_takes_value`` from ``source`` into ``target``."""
+    by_flag: Dict[str, str] = {
+        f["flag"]: f.get("help", "") for f in target.get("flags", []) if f.get("flag")
+    }
+    for f in source.get("flags", []):
+        flag = f.get("flag")
+        if not flag:
+            continue
+        if flag not in by_flag or (not by_flag[flag] and f.get("help")):
+            by_flag[flag] = f.get("help", "")
+    target["flags"] = [{"flag": k, "help": by_flag[k]} for k in sorted(by_flag)]
+
+    choices: Dict[str, List[str]] = {
+        k: list(v) for k, v in target.get("flag_choices", {}).items()
+    }
+    for k, vals in source.get("flag_choices", {}).items():
+        merged = sorted(set(choices.get(k, [])) | {str(v) for v in vals})
+        if merged:
+            choices[k] = merged
+    target["flag_choices"] = choices
+
+    takes = set(target.get("flag_takes_value", [])) | set(
+        source.get("flag_takes_value", [])
+    )
+    target["flag_takes_value"] = sorted(takes)
+
+
+def _has_remainder_action(parser: argparse.ArgumentParser) -> bool:
+    return any(a.nargs == argparse.REMAINDER for a in parser._actions)
+
+
+def _find_parser_node(
+    root: argparse.ArgumentParser, path: Sequence[str]
+) -> Optional[argparse.ArgumentParser]:
+    cur: argparse.ArgumentParser = root
+    for seg in path:
+        sp = next(
+            (a for a in cur._actions if isinstance(a, argparse._SubParsersAction)),
+            None,
+        )
+        if sp is None or seg not in sp.choices:
+            return None
+        cur = sp.choices[seg]
+    return cur
+
+
+def _find_tree_node(
+    tree: Dict[str, Any], path: Sequence[str]
+) -> Optional[Dict[str, Any]]:
+    cur: Dict[str, Any] = tree
+    for seg in path:
+        sub = cur.get("subcommands", {}).get(seg)
+        if sub is None:
+            return None
+        cur = sub
+    return cur
+
+
+def _attach_delegated_subtrees(
+    parser: argparse.ArgumentParser,
+    tree: Dict[str, Any],
+    walk: Callable[[argparse.ArgumentParser], Dict[str, Any]],
+) -> None:
+    """Attach delegated ``REMAINDER`` parser subtrees/flags onto ``tree`` without mutating ``parser``.
+
+    Subcommands in ``cli._build_parser()`` that forward ``argparse.REMAINDER`` tails to standalone
+    parsers (``oc runipd``, ``agy runipd``, ``oc/agy review``, ``oc/agy integrate``,
+    ``agy sessions/view/exec``, ``run as/ipd``, ``pwatch``, ``runners``) declare no flags on their
+    thin wrapper parser. Walking their real target parsers here keeps one single source of truth
+    across ``introspect_cli_tree``, ``complete_query``, and all three static shell generators.
+    """
+
+    def _ready(path: Tuple[str, ...]) -> Optional[Dict[str, Any]]:
+        pnode = _find_parser_node(parser, path)
+        if pnode is None or not _has_remainder_action(pnode):
+            return None
+        return _find_tree_node(tree, path)
+
+    oc_tree: Optional[Dict[str, Any]] = None
+    agy_tree: Optional[Dict[str, Any]] = None
+
+    def _get_oc_tree() -> Dict[str, Any]:
+        nonlocal oc_tree
+        if oc_tree is None:
+            from agent_workflows import oc_runipd
+
+            oc_tree = walk(oc_runipd.build_parser())
+        return oc_tree
+
+    def _get_agy_tree() -> Dict[str, Any]:
+        nonlocal agy_tree
+        if agy_tree is None:
+            from agent_workflows import agy_runipd
+
+            agy_tree = walk(agy_runipd.build_parser())
+        return agy_tree
+
+    def _attach_runner(
+        runipd_path: Tuple[str, ...],
+        review_path: Tuple[str, ...],
+        integrate_path: Tuple[str, ...],
+        get_runner_tree: Callable[[], Dict[str, Any]],
+    ) -> None:
+        run_node = _ready(runipd_path)
+        if run_node is not None:
+            rtree = get_runner_tree()
+            run_node["subcommands"].update(rtree.get("subcommands", {}))
+            run_node["subcommand_aliases"].update(rtree.get("subcommand_aliases", {}))
+            _merge_flag_metadata(run_node, rtree)
+            start_node = rtree.get("subcommands", {}).get("start")
+            if start_node is not None:
+                # Implicit-start shim: `aw oc run [SEL] --flag` accepts `start`'s flags directly.
+                _merge_flag_metadata(run_node, start_node)
+
+        rev_node = _ready(review_path)
+        if rev_node is not None:
+            rtree = get_runner_tree()
+            _merge_flag_metadata(rev_node, rtree)
+            start_node = rtree.get("subcommands", {}).get("start")
+            if start_node is not None:
+                _merge_flag_metadata(rev_node, start_node)
+
+        int_node = _ready(integrate_path)
+        if int_node is not None:
+            rtree = get_runner_tree()
+            _merge_flag_metadata(int_node, rtree)
+            sub_int = rtree.get("subcommands", {}).get("integrate")
+            if sub_int is not None:
+                _merge_flag_metadata(int_node, sub_int)
+
+    _attach_runner(
+        ("oc", "runipd"), ("oc", "review"), ("oc", "integrate"), _get_oc_tree
+    )
+    _attach_runner(
+        ("agy", "runipd"), ("agy", "review"), ("agy", "integrate"), _get_agy_tree
+    )
+
+    for path in (("run", "as"), ("run", "ipd")):
+        node = _ready(path)
+        if node is not None:
+            for get_rt in (_get_oc_tree, _get_agy_tree):
+                rtree = get_rt()
+                _merge_flag_metadata(node, rtree)
+                start_node = rtree.get("subcommands", {}).get("start")
+                if start_node is not None:
+                    _merge_flag_metadata(node, start_node)
+
+    simple_delegates: Tuple[
+        Tuple[Tuple[str, ...], Callable[[], argparse.ArgumentParser]], ...
+    ] = (
+        (
+            ("agy", "sessions"),
+            lambda: __import__(
+                "agent_workflows.agy_sessions", fromlist=["build_parser"]
+            ).build_parser(),
+        ),
+        (
+            ("agy", "view"),
+            lambda: __import__(
+                "agent_workflows.agy_view", fromlist=["build_parser"]
+            ).build_parser(),
+        ),
+        (
+            ("agy", "exec"),
+            lambda: __import__(
+                "agent_workflows.agy_run", fromlist=["build_parser"]
+            ).build_parser(),
+        ),
+        (
+            ("pwatch",),
+            lambda: __import__(
+                "agent_workflows.pwatch", fromlist=["build_parser"]
+            ).build_parser(),
+        ),
+        (
+            ("runners",),
+            lambda: __import__(
+                "agent_workflows.runners_monitor", fromlist=["build_parser"]
+            ).build_parser(),
+        ),
+    )
+    for path, builder in simple_delegates:
+        node = _ready(path)
+        if node is not None:
+            dtree = walk(builder())
+            _merge_flag_metadata(node, dtree)
+            if dtree.get("subcommands"):
+                node["subcommands"].update(dtree["subcommands"])
+            if dtree.get("subcommand_aliases"):
+                node["subcommand_aliases"].update(dtree["subcommand_aliases"])
+
+
 def _positional_choices(parser: argparse.ArgumentParser) -> List[str]:
     """Return the argparse ``choices`` of this parser's FIRST user-facing positional, else ``[]``.
 
@@ -190,7 +427,7 @@ def _positional_choices(parser: argparse.ArgumentParser) -> List[str]:
 def introspect_cli_tree(parser: argparse.ArgumentParser) -> Dict[str, Any]:
     """Recursively extract the user-facing command tree from an argparse parser (bja8og E-01).
 
-    Returns ``{"flags": [...], "subcommands": {name: <same shape>}, "choices": [...], "subcommand_aliases": {alias: primary}}``
+    Returns ``{"flags": [...], "flag_choices": {...}, "flag_takes_value": [...], "subcommands": {name: <same shape>}, "choices": [...], "subcommand_aliases": {alias: primary}}``
     without mutating the parser. Models the recursion on ``cli._apply_descriptions`` (it walks
     ``_SubParsersAction.choices``), but applies the ``_visible_subcommands`` policy so internal gate
     commands and hidden aliases are absent from the tree.
@@ -206,6 +443,8 @@ def introspect_cli_tree(parser: argparse.ArgumentParser) -> Dict[str, Any]:
     def walk(node: argparse.ArgumentParser) -> Dict[str, Any]:
         tree: Dict[str, Any] = {
             "flags": _flags_of(node),
+            "flag_choices": _flag_choices_of(node),
+            "flag_takes_value": _flag_takes_value_of(node),
             "subcommands": {},
             "subcommand_aliases": {},
             "choices": _positional_choices(node),
@@ -225,7 +464,9 @@ def introspect_cli_tree(parser: argparse.ArgumentParser) -> Dict[str, Any]:
                         tree["subcommands"][name] = walk(sub)
         return tree
 
-    return walk(parser)
+    result = walk(parser)
+    _attach_delegated_subtrees(parser, result, walk)
+    return result
 
 
 def _node_candidates(node: Dict[str, Any]) -> List[str]:
@@ -301,6 +542,55 @@ def _fish_desc(text: str) -> str:
 # --------------------------------------------------------------------------------------
 
 
+def _brief_desc(text: str, limit: int = 96) -> str:
+    """Shorten a flag help string to one concise clause for shell completion menus."""
+    collapsed = " ".join(text.split())
+    if len(collapsed) <= limit:
+        return collapsed
+    dot = collapsed.find(". ")
+    if 0 < dot <= limit:
+        return collapsed[: dot + 1]
+    cut = collapsed.rfind(" ", 0, limit - 2)
+    if cut <= 0:
+        cut = limit - 3
+    return collapsed[:cut].rstrip(" ,;:") + "..."
+
+
+def _zsh_word(token: str) -> str:
+    """Single-quote a token for Zsh."""
+    return "'" + token.replace("'", "'\\''") + "'"
+
+
+def _zsh_flag_spec(flag: str, desc: str) -> str:
+    """Format one ``'flag:description'`` entry for Zsh ``_describe``."""
+    f_esc = flag.replace("\\", "\\\\").replace("'", "'\\''").replace(":", "\\:")
+    d_esc = _zsh_desc(_brief_desc(desc)) if desc else ""
+    return f"'{f_esc}:{d_esc}'" if d_esc else f"'{f_esc}'"
+
+
+def _group_flag_choices(
+    flag_choices: Dict[str, List[str]],
+) -> List[Tuple[List[str], List[str]]]:
+    """Group option strings sharing identical choice lists for compact case arms."""
+    grouped: Dict[Tuple[str, ...], List[str]] = {}
+    for flag in sorted(flag_choices):
+        vals = tuple(sorted({str(v) for v in flag_choices[flag]}))
+        if vals:
+            grouped.setdefault(vals, []).append(flag)
+    return [
+        (flags, list(vals))
+        for vals, flags in sorted(grouped.items(), key=lambda kv: kv[1])
+    ]
+
+
+def _node_has_bash_or_zsh_content(node: Dict[str, Any]) -> bool:
+    if _node_candidates(node) or node.get("flags") or node.get("flag_choices"):
+        return True
+    return any(
+        _node_has_bash_or_zsh_content(sc) for sc in node.get("subcommands", {}).values()
+    )
+
+
 def generate_bash_completion(tree: Dict[str, Any] | None = None) -> str:
     """Emit a self-contained Bash completion script binding all three entrypoints (bja8og E-02).
 
@@ -308,9 +598,10 @@ def generate_bash_completion(tree: Dict[str, Any] | None = None) -> str:
     slot, then, in the slot after a command, THAT COMMAND'S OWN arguments: its nested subcommands,
     subcommand aliases, and the fixed ``choices`` vocabulary of its first positional. A command with
     none of these offers NOTHING, so bash falls back to its own default (filenames) instead of
-    proposing a token that cannot be valid there. Flags are offered when the current word starts with
-    ``-``. Every command, choice and flag token is ``shlex.quote``d before being placed in the
-    completion word list.
+    proposing a token that cannot be valid there. Flags (per-command, including delegated parsers)
+    are offered when the current word starts with ``-``, and option ``choices`` are offered when
+    the previous word is a choices-bearing flag. Every command, choice and flag token is
+    ``shlex.quote``d before being placed in the completion word list.
 
     THE FALL-THROUGH IS GONE ON PURPOSE (compargs 4y95tp E-01). This function used to end its `case`
     with an unconditional top-level ``COMPREPLY=``, so any command without a `case` arm (31 of 48 when
@@ -319,65 +610,126 @@ def generate_bash_completion(tree: Dict[str, Any] | None = None) -> str:
     answer when the parser declares no vocabulary for the position.
     """
     if tree is None:
-        tree = introspect_cli_tree(_lazy_parser())
+        tree = _lazy_tree()
     top = tree.get("subcommands", {})
     top_names = " ".join(_bash_word(n) for n in sorted(top))
+    root_flags_str = " ".join(
+        _bash_word(f["flag"]) for f in tree.get("flags", []) if f.get("flag")
+    )
+    root_takes_val = sorted(set(tree.get("flag_takes_value", [])))
+
+    def emit_flag_choices(node: Dict[str, Any], indent: str) -> List[str]:
+        grouped = _group_flag_choices(node.get("flag_choices", {}))
+        if not grouped:
+            return []
+        out = [f'{indent}case "$prev" in']
+        for flags, vals in grouped:
+            pat = "|".join(_bash_word(f) for f in flags)
+            vals_str = " ".join(_bash_word(v) for v in vals)
+            out.append(f"{indent}    {pat})")
+            out.append(
+                f'{indent}        COMPREPLY=( $(compgen -W {shlex.quote(vals_str)} -- "$cur") )'
+            )
+            out.append(f"{indent}        return 0")
+            out.append(f"{indent}        ;;")
+        out.append(f"{indent}esac")
+        return out
 
     def emit_level(node: Dict[str, Any], depth: int, indent: str) -> List[str]:
         subcmds = node.get("subcommands", {})
         sub_aliases = node.get("subcommand_aliases", {})
         lines: List[str] = []
 
-        children_with_content = []
-        for name in sorted(subcmds):
-            child = subcmds[name]
-            has_cands = bool(_node_candidates(child))
-            has_sub = any(
-                bool(_node_candidates(sc)) or bool(sc.get("subcommands"))
-                for sc in child.get("subcommands", {}).values()
-            )
-            if has_cands or has_sub:
-                children_with_content.append((name, child))
-
+        children_with_content = [
+            (name, subcmds[name])
+            for name in sorted(subcmds)
+            if _node_has_bash_or_zsh_content(subcmds[name])
+        ]
         if not children_with_content:
             return lines
 
-        lines.append(f'{indent}case "${{COMP_WORDS[{depth}]}}" in')
+        word_expr = (
+            '"${COMP_WORDS[_off]}"'
+            if depth == 0
+            else f'"${{COMP_WORDS[_off+{depth}]}}"'
+        )
+        lines.append(f"{indent}case {word_expr} in")
         for name, child in children_with_content:
             patterns = [_bash_word(name)]
-            if depth == 1:
-                patterns += [_bash_word(a) for a in _aliases_for(name)]
+            if depth == 0:
+                patterns += [_bash_word(a) for a in _aliases_for(name, node)]
             else:
                 patterns += [
-                    _bash_word(a) for a, target in sub_aliases.items() if target == name
+                    _bash_word(a)
+                    for a, target in sorted(sub_aliases.items())
+                    if target == name
                 ]
             pattern_str = "|".join(patterns)
 
-            cands = _node_candidates(child)
             lines.append(f"{indent}    {pattern_str})")
+            child_lines = emit_level(child, depth + 1, indent + "            ")
+            if child_lines:
+                lines.append(
+                    f"{indent}        if (( COMP_CWORD > _off + {depth + 1} )); then"
+                )
+                lines.extend(child_lines)
+                lines.append(f"{indent}        fi")
+
+            lines.extend(emit_flag_choices(child, indent + "        "))
+
+            child_flags = " ".join(
+                _bash_word(f["flag"]) for f in child.get("flags", []) if f.get("flag")
+            )
+            if child_flags:
+                lines.append(f'{indent}        if [[ "$cur" == -* ]]; then')
+                lines.append(
+                    f'{indent}            COMPREPLY=( $(compgen -W {shlex.quote(child_flags)} -- "$cur") )'
+                )
+                lines.append(f"{indent}            return 0")
+                lines.append(f"{indent}        fi")
+
+            cands = _node_candidates(child)
             if cands:
                 cands_str = " ".join(_bash_word(c) for c in cands)
                 lines.append(
-                    f"{indent}        if [[ $COMP_CWORD -eq {depth + 1} ]]; then"
+                    f"{indent}        if (( COMP_CWORD == _off + {depth + 1} )); then"
                 )
                 lines.append(
-                    f'            COMPREPLY=( $(compgen -W {shlex.quote(cands_str)} -- "$cur") )'
+                    f'{indent}            COMPREPLY=( $(compgen -W {shlex.quote(cands_str)} -- "$cur") )'
                 )
-                lines.append("            return 0")
+                lines.append(f"{indent}            return 0")
                 lines.append(f"{indent}        fi")
 
-            child_lines = emit_level(child, depth + 1, indent + "        ")
-            if child_lines:
-                lines.extend(child_lines)
+            lines.append(f"{indent}        return 0")
             lines.append(f"{indent}        ;;")
         lines.append(f"{indent}esac")
         return lines
 
-    all_flags = set()
-    _collect_flags(tree, all_flags)
-    flags_str = " ".join(_bash_word(f) for f in sorted(all_flags))
+    cases = emit_level(tree, 0, "    ")
+    root_choice_lines = emit_flag_choices(tree, "        ")
 
-    cases = emit_level(tree, 1, "    ")
+    skip_loop = [
+        "    local _off=1",
+        "    while (( _off < COMP_CWORD )); do",
+        '        case "${COMP_WORDS[_off]}" in',
+    ]
+    if root_takes_val:
+        pat = "|".join(_bash_word(f) for f in root_takes_val)
+        skip_loop += [
+            f"            {pat})",
+            "                _off=$((_off + 2))",
+            "                ;;",
+        ]
+    skip_loop += [
+        "            -*)",
+        "                _off=$((_off + 1))",
+        "                ;;",
+        "            *)",
+        "                break",
+        "                ;;",
+        "        esac",
+        "    done",
+    ]
 
     lines = [
         "# bash completion for aw (agent-workflows). Generated by `aw completion bash`.",
@@ -386,13 +738,21 @@ def generate_bash_completion(tree: Dict[str, Any] | None = None) -> str:
         "    local cur prev words cword",
         "    COMPREPLY=()",
         '    cur="${COMP_WORDS[COMP_CWORD]}"',
-        '    prev="${COMP_WORDS[COMP_CWORD-1]}"',
-        '    if [[ "$cur" == -* ]]; then',
-        f'        COMPREPLY=( $(compgen -W {shlex.quote(flags_str)} -- "$cur") )',
+        '    prev=""',
+        "    if (( COMP_CWORD > 0 )); then",
+        '        prev="${COMP_WORDS[COMP_CWORD-1]}"',
+        "    fi",
+        *skip_loop,
+        "    if (( _off > COMP_CWORD )); then",
+        *root_choice_lines,
         "        return 0",
         "    fi",
-        "    if [[ $COMP_CWORD -eq 1 ]]; then",
-        f'        COMPREPLY=( $(compgen -W {shlex.quote(top_names)} -- "$cur") )',
+        "    if (( COMP_CWORD == _off )); then",
+        '        if [[ "$cur" == -* ]]; then',
+        f'            COMPREPLY=( $(compgen -W {shlex.quote(root_flags_str)} -- "$cur") )',
+        "        else",
+        f'            COMPREPLY=( $(compgen -W {shlex.quote(top_names)} -- "$cur") )',
+        "        fi",
         "        return 0",
         "    fi",
         *cases,
@@ -409,84 +769,152 @@ def generate_bash_completion(tree: Dict[str, Any] | None = None) -> str:
 def generate_zsh_completion(tree: Dict[str, Any] | None = None) -> str:
     """Emit a native Zsh ``#compdef`` completion script binding all three entrypoints (bja8og E-02).
 
-    Uses ``_arguments`` + ``_values`` with escaped ``'name:description'`` specs for the top-level
-    commands, and nested ``case`` blocks for deeper levels. Descriptions are ``_zsh_desc``-escaped.
-
-    The second level offers a command's OWN arguments - subcommands plus its first positional's fixed
-    ``choices`` (compargs 4y95tp E-03) - and nothing when it declares neither. Zsh never had bash's
-    top-level fall-through (its inner `case` has no default arm), so E-01 has no counterpart here.
+    Completes top-level commands, nested subcommands, positional ``choices``, per-command flags
+    (with ``_zsh_desc``-escaped descriptions via ``_describe``), and option ``choices`` at every
+    command depth, including delegated parsers (``agy run``, ``oc run``, etc.).
     """
     if tree is None:
-        tree = introspect_cli_tree(_lazy_parser())
+        tree = _lazy_tree()
     top = tree.get("subcommands", {})
+    top_specs = " ".join(_zsh_word(name) for name in sorted(top))
+    root_takes_val = sorted(set(tree.get("flag_takes_value", [])))
 
-    top_specs = " ".join(
-        f"'{name}'" for name in sorted(top)
-    )  # names are word-safe (command tokens)
+    def emit_flag_choices(node: Dict[str, Any], indent: str) -> List[str]:
+        grouped = _group_flag_choices(node.get("flag_choices", {}))
+        if not grouped:
+            return []
+        out = [f'{indent}case "$prev" in']
+        for flags, vals in grouped:
+            pat = "|".join(_zsh_word(f) for f in flags)
+            vals_str = " ".join(_zsh_word(v) for v in vals)
+            out.append(f"{indent}    ({pat})")
+            out.append(f"{indent}        _values 'value' {vals_str}")
+            out.append(f"{indent}        return 0")
+            out.append(f"{indent}        ;;")
+        out.append(f"{indent}esac")
+        return out
+
+    def emit_flags_block(node: Dict[str, Any], indent: str) -> List[str]:
+        flags = [f for f in node.get("flags", []) if f.get("flag")]
+        if not flags:
+            return []
+        specs = [_zsh_flag_spec(f["flag"], f.get("help", "")) for f in flags]
+        out = [
+            f'{indent}if [[ "$cur" == -* ]]; then',
+            f"{indent}    _opts=(",
+        ]
+        for spec in specs:
+            out.append(f"{indent}        {spec}")
+        out += [
+            f"{indent}    )",
+            f"{indent}    _describe -t options 'option' _opts",
+            f"{indent}    return 0",
+            f"{indent}fi",
+        ]
+        return out
 
     def emit_level(node: Dict[str, Any], depth: int, indent: str) -> List[str]:
         subcmds = node.get("subcommands", {})
         sub_aliases = node.get("subcommand_aliases", {})
         lines: List[str] = []
 
-        children_with_content = []
-        for name in sorted(subcmds):
-            child = subcmds[name]
-            has_cands = bool(_node_candidates(child))
-            has_sub = any(
-                bool(_node_candidates(sc)) or bool(sc.get("subcommands"))
-                for sc in child.get("subcommands", {}).values()
-            )
-            if has_cands or has_sub:
-                children_with_content.append((name, child))
-
+        children_with_content = [
+            (name, subcmds[name])
+            for name in sorted(subcmds)
+            if _node_has_bash_or_zsh_content(subcmds[name])
+        ]
         if not children_with_content:
             return lines
 
-        lines.append(f'{indent}case "$line[{depth}]" in')
+        word_expr = '"${words[_off]}"' if depth == 0 else f'"${{words[_off+{depth}]}}"'
+        lines.append(f"{indent}case {word_expr} in")
         for name, child in children_with_content:
-            patterns = [name]
-            if depth == 1:
-                patterns += _aliases_for(name)
+            patterns = [_zsh_word(name)]
+            if depth == 0:
+                patterns += [_zsh_word(a) for a in _aliases_for(name, node)]
             else:
-                patterns += [a for a, target in sub_aliases.items() if target == name]
+                patterns += [
+                    _zsh_word(a)
+                    for a, target in sorted(sub_aliases.items())
+                    if target == name
+                ]
             pattern_str = "|".join(patterns)
 
             lines.append(f"{indent}    ({pattern_str})")
-            child_lines = emit_level(child, depth + 1, indent + "        ")
+            child_lines = emit_level(child, depth + 1, indent + "            ")
             if child_lines:
+                lines.append(
+                    f"{indent}        if (( CURRENT > _off + {depth + 1} )); then"
+                )
                 lines.extend(child_lines)
-            else:
-                cands = _node_candidates(child)
-                sub_specs = " ".join(f"'{s}'" for s in cands)
-                if sub_specs:
-                    lines.append(f"{indent}        _values 'subcommand' {sub_specs}")
+                lines.append(f"{indent}        fi")
+
+            lines.extend(emit_flag_choices(child, indent + "        "))
+            lines.extend(emit_flags_block(child, indent + "        "))
+
+            cands = _node_candidates(child)
+            if cands:
+                sub_specs = " ".join(_zsh_word(s) for s in cands)
+                lines.append(
+                    f"{indent}        if (( CURRENT == _off + {depth + 1} )); then"
+                )
+                lines.append(f"{indent}            _values 'subcommand' {sub_specs}")
+                lines.append(f"{indent}            return 0")
+                lines.append(f"{indent}        fi")
+
+            lines.append(f"{indent}        return 0")
             lines.append(f"{indent}        ;;")
-        if depth > 1:
-            parent_cands = _node_candidates(node)
-            parent_specs = " ".join(f"'{s}'" for s in parent_cands)
-            if parent_specs:
-                lines.append(f"{indent}    (*)")
-                lines.append(f"{indent}        _values 'subcommand' {parent_specs} ;;")
         lines.append(f"{indent}esac")
         return lines
 
-    cases = emit_level(tree, 1, "            ")
+    cases = emit_level(tree, 0, "    ")
+    root_choice_lines = emit_flag_choices(tree, "        ")
+    root_flags_lines = emit_flags_block(tree, "        ")
+
+    skip_loop = [
+        "    local _off=2",
+        "    while (( _off < CURRENT )); do",
+        '        case "${words[_off]}" in',
+    ]
+    if root_takes_val:
+        pat = "|".join(_zsh_word(f) for f in root_takes_val)
+        skip_loop += [
+            f"            ({pat})",
+            "                (( _off += 2 ))",
+            "                ;;",
+        ]
+    skip_loop += [
+        "            (-*)",
+        "                (( _off += 1 ))",
+        "                ;;",
+        "            (*)",
+        "                break",
+        "                ;;",
+        "        esac",
+        "    done",
+    ]
 
     lines = [
         f"#compdef {' '.join(ENTRYPOINTS)}",
         "# zsh completion for aw (agent-workflows). Generated by `aw completion zsh`.",
         "_aw_completion() {",
-        '    local curcontext="$curcontext" state line',
-        "    typeset -A opt_args",
-        "    _arguments -C '1: :->cmd' '*:: :->args'",
-        '    case "$state" in',
-        "        cmd)",
-        f"            _values 'command' {top_specs} ;;",
-        "        args)",
+        '    local curcontext="$curcontext" cur prev',
+        "    local -a _opts",
+        '    cur="${words[CURRENT]}"',
+        '    prev=""',
+        '    (( CURRENT > 1 )) && prev="${words[CURRENT-1]}"',
+        *skip_loop,
+        "    if (( _off > CURRENT )); then",
+        *root_choice_lines,
+        "        return 0",
+        "    fi",
+        "    if (( CURRENT == _off )); then",
+        *root_flags_lines,
+        f"        _values 'command' {top_specs}",
+        "        return 0",
+        "    fi",
         *cases,
-        "            ;;",
-        "    esac",
+        "    return 0",
         "}",
         '_aw_completion "$@"',
         "",
@@ -494,51 +922,122 @@ def generate_zsh_completion(tree: Dict[str, Any] | None = None) -> str:
     return "\n".join(lines)
 
 
+def _fish_flag_line(
+    entry: str,
+    cond: str,
+    flag: str,
+    desc: str,
+    choices: Optional[List[str]] = None,
+) -> Optional[str]:
+    if flag.startswith("--") and len(flag) > 2:
+        flag_spec = f"-l {_fish_word(flag[2:])}"
+    elif flag.startswith("-") and len(flag) == 2:
+        flag_spec = f"-s {_fish_word(flag[1:])}"
+    else:
+        return None
+    parts = [f"complete -c {entry} -n {cond} {flag_spec}"]
+    if choices:
+        parts.append(f"-x -a {_fish_word(' '.join(choices))}")
+    if desc:
+        parts.append(f"-d '{_fish_desc(_brief_desc(desc))}'")
+    return " ".join(parts)
+
+
 def generate_fish_completion(tree: Dict[str, Any] | None = None) -> str:
     """Emit a native Fish ``complete -c`` completion script binding all three entrypoints (E-02).
 
-    Top-level commands complete only as the first token (a ``__fish_use_subcommand`` condition);
-    each command's own arguments - its subcommands, subcommand aliases, and its first positional's fixed ``choices``
-    (compargs 4y95tp E-03) - complete after it (``__fish_seen_subcommand_from``). Command tokens and
-    description bodies are Fish-escaped. Every emitted line is conditional, so fish never had bash's
-    top-level fall-through and E-01 has no counterpart here.
+    Top-level commands and root flags complete when ``__fish_use_subcommand`` holds; each command's
+    own arguments (subcommands, aliases, positional ``choices``) and flags (including delegated
+    parsers and option ``choices``) complete under its ``__fish_seen_subcommand_from`` scope.
+    The secondary console-script aliases inherit ``aw``'s full completion via Fish's ``-w`` wrap.
     """
     if tree is None:
-        tree = introspect_cli_tree(_lazy_parser())
+        tree = _lazy_tree()
     top = tree.get("subcommands", {})
+    primary_entry = ENTRYPOINTS[0]
 
     lines = [
         "# fish completion for aw (agent-workflows). Generated by `aw completion fish`.",
     ]
-    for entry in ENTRYPOINTS:
-        for name in sorted(top):
-            lines.append(
-                f"complete -c {entry} -n __fish_use_subcommand -a {_fish_word(name)}"
+    for name in sorted(top):
+        lines.append(
+            f"complete -c {primary_entry} -n __fish_use_subcommand -a {_fish_word(name)}"
+        )
+    root_flag_choices = tree.get("flag_choices", {})
+    for f in tree.get("flags", []):
+        flag = f.get("flag", "")
+        if not flag:
+            continue
+        line = _fish_flag_line(
+            primary_entry,
+            "__fish_use_subcommand",
+            flag,
+            f.get("help", ""),
+            root_flag_choices.get(flag),
+        )
+        if line:
+            lines.append(line)
+
+    def walk_fish(
+        node: Dict[str, Any],
+        ancestor_patterns: List[str],
+        ancestor_tokens: set[str],
+    ) -> None:
+        subcmds = node.get("subcommands", {})
+        sub_aliases = node.get("subcommand_aliases", {})
+        for name in sorted(subcmds):
+            child = subcmds[name]
+            if not ancestor_patterns:
+                patterns = [name] + _aliases_for(name, node)
+            else:
+                patterns = [name] + [
+                    a for a, target in sorted(sub_aliases.items()) if target == name
+                ]
+
+            cond_clause = "__fish_seen_subcommand_from " + " ".join(patterns)
+            current_ancestors = ancestor_patterns + [cond_clause]
+            current_tokens = ancestor_tokens | set(patterns)
+            full_cond = "; and ".join(current_ancestors)
+
+            child_sub_tokens = sorted(
+                (
+                    set(child.get("subcommands", {}))
+                    | set(child.get("subcommand_aliases", {}))
+                )
+                - current_tokens
             )
+            if child_sub_tokens:
+                own_cond = (
+                    f"{full_cond}; and not __fish_seen_subcommand_from "
+                    + " ".join(child_sub_tokens)
+                )
+            else:
+                own_cond = full_cond
 
-        def walk_fish(node: Dict[str, Any], ancestor_patterns: List[str]) -> None:
-            subcmds = node.get("subcommands", {})
-            sub_aliases = node.get("subcommand_aliases", {})
-            for name in sorted(subcmds):
-                child = subcmds[name]
-                if not ancestor_patterns:
-                    patterns = [name] + _aliases_for(name)
-                else:
-                    patterns = [name] + [
-                        a for a, target in sub_aliases.items() if target == name
-                    ]
+            own_cond_q = _fish_word(own_cond)
+            for c in _node_candidates(child):
+                lines.append(
+                    f"complete -c {primary_entry} -n {own_cond_q} -a {_fish_word(c)}"
+                )
+            child_flag_choices = child.get("flag_choices", {})
+            for f in child.get("flags", []):
+                flag = f.get("flag", "")
+                if not flag:
+                    continue
+                line = _fish_flag_line(
+                    primary_entry,
+                    own_cond_q,
+                    flag,
+                    f.get("help", ""),
+                    child_flag_choices.get(flag),
+                )
+                if line:
+                    lines.append(line)
+            walk_fish(child, current_ancestors, current_tokens)
 
-                cond_clause = "__fish_seen_subcommand_from " + " ".join(patterns)
-                current_ancestors = ancestor_patterns + [cond_clause]
-                full_cond = "; and ".join(current_ancestors)
-
-                for c in _node_candidates(child):
-                    lines.append(
-                        f"complete -c {entry} -n {_fish_word(full_cond)} -a {_fish_word(c)}"
-                    )
-                walk_fish(child, current_ancestors)
-
-        walk_fish(tree, [])
+    walk_fish(tree, [], set())
+    for alias_entry in ENTRYPOINTS[1:]:
+        lines.append(f"complete -c {alias_entry} -w {primary_entry}")
 
     lines.append("")
     return "\n".join(lines)
@@ -556,6 +1055,17 @@ def _lazy_parser() -> argparse.ArgumentParser:
     from agent_workflows import cli
 
     return cli._build_parser()
+
+
+_CACHED_DEFAULT_TREE: Optional[Dict[str, Any]] = None
+
+
+def _lazy_tree() -> Dict[str, Any]:
+    """Return the cached introspected tree for the default CLI parser."""
+    global _CACHED_DEFAULT_TREE
+    if _CACHED_DEFAULT_TREE is None:
+        _CACHED_DEFAULT_TREE = introspect_cli_tree(_lazy_parser())
+    return _CACHED_DEFAULT_TREE
 
 
 def _lazy_profile_parser() -> argparse.ArgumentParser:
@@ -1130,13 +1640,73 @@ def _is_status_position(words: List[str], cword: int) -> Optional[str]:
     return None
 
 
+def _walk_command_path(
+    tree: Dict[str, Any], tokens: Sequence[str]
+) -> Tuple[Dict[str, Any], bool]:
+    """Walk ``tokens`` down ``tree``, skipping option tokens and their values.
+
+    Returns ``(node, hit_positional)`` where ``hit_positional`` is True once a non-option token
+    does not match any child subcommand of the current node.
+    """
+    node = tree
+    skip_next = False
+    hit_positional = False
+    for tok in tokens:
+        if skip_next:
+            skip_next = False
+            continue
+        if tok.startswith("-"):
+            if "=" not in tok and tok in node.get("flag_takes_value", []):
+                skip_next = True
+            continue
+        if hit_positional:
+            continue
+        subcmds = node.get("subcommands", {})
+        sub = subcmds.get(tok)
+        if sub is None:
+            alias_target = node.get("subcommand_aliases", {}).get(tok)
+            if alias_target:
+                sub = subcmds.get(alias_target)
+        if sub is None and node is tree:
+            norm_tok = _COMMAND_ALIASES.get(tok)
+            if norm_tok:
+                sub = subcmds.get(norm_tok)
+        if sub is None:
+            hit_positional = True
+            continue
+        node = sub
+    return node, hit_positional
+
+
+def _flag_choice_candidates(words: List[str], cword: int) -> Optional[List[str]]:
+    """Return option value choices when ``words[cword - 1]`` is a value-taking flag, else None.
+
+    Returns a non-empty list when the flag declares argparse ``choices``, an empty list ``[]``
+    when it takes a free-form value (preventing false subcommand suggestions), and ``None`` when
+    the previous token is not a value-taking option.
+    """
+    if cword < 1 or cword - 1 >= len(words):
+        return None
+    prev = words[cword - 1]
+    if not prev.startswith("-") or "=" in prev:
+        return None
+    tree = _lazy_tree()
+    node, _ = _walk_command_path(tree, words[1 : cword - 1])
+    choices = node.get("flag_choices", {}).get(prev)
+    if choices is not None:
+        return list(choices)
+    if prev in node.get("flag_takes_value", []):
+        return []
+    return None
+
+
 def _subcommand_candidates(words: List[str], cword: int) -> List[str]:
     """Static subcommand/flag candidates for the command position, reusing the introspected tree.
 
     Position 1 -> top-level commands; position 2 -> the first command's own arguments (its
     subcommands, subcommand aliases, AND its first positional's fixed ``choices``); position 3+ ->
     nested subcommands/choices along the command path; a word starting with ``-`` -> that context's flags.
-    This mirrors the generated static scripts so `__complete` and the offline scripts agree on the
+    This mirrors the generated static scripts so ``__complete`` and the offline scripts agree on the
     static layer.
 
     THE CHOICES HALF IS WHY THAT PARITY SENTENCE IS STILL TRUE (compargs 4y95tp E-05). When the static
@@ -1148,39 +1718,20 @@ def _subcommand_candidates(words: List[str], cword: int) -> List[str]:
     Both surfaces read the SAME ``introspect_cli_tree`` key through the SAME ``_node_candidates``
     helper, so they cannot drift by construction rather than by discipline.
     """
-    tree = introspect_cli_tree(_lazy_parser())
+    tree = _lazy_tree()
     cur = words[cword] if cword < len(words) else ""
+    node, hit_positional = _walk_command_path(tree, words[1:cword])
 
-    # Flag context: offer flags of the current subcommand path.
+    # Flag context: offer flags of the current subcommand path (even after positionals).
     if cur.startswith("-"):
-        node = tree
-        for tok in words[1:cword]:
-            norm_tok = _COMMAND_ALIASES.get(tok, tok)
-            sub = node.get("subcommands", {}).get(norm_tok)
-            if sub is None:
-                alias_target = node.get("subcommand_aliases", {}).get(tok)
-                if alias_target:
-                    sub = node.get("subcommands", {}).get(alias_target)
-            if sub is None:
-                break
-            node = sub
         return [f["flag"] for f in node.get("flags", [])]
 
-    if cword <= 1:
+    if hit_positional:
+        return []
+
+    if node is tree:
         return list(tree.get("subcommands", {}).keys())
 
-    # Nested position: walk to words[cword-1]'s node and offer ITS own arguments.
-    node = tree
-    for tok in words[1:cword]:
-        norm_tok = _COMMAND_ALIASES.get(tok, tok)
-        sub = node.get("subcommands", {}).get(norm_tok)
-        if sub is None:
-            alias_target = node.get("subcommand_aliases", {}).get(tok)
-            if alias_target:
-                sub = node.get("subcommands", {}).get(alias_target)
-        if sub is None:
-            return []
-        node = sub
     return _node_candidates(node)
 
 
@@ -1196,6 +1747,7 @@ def complete_query(
 
     Layering (first match wins for the DYNAMIC layer, then merged with static subcommands):
       1. If completing a STATUS position, return that record type's status vocabulary.
+      1b. Else if completing the value of an option flag, return its argparse ``choices`` (or ``[]``).
       2. Else if in an entity command's id6 position, return that type's active id6 handles.
       3. Else if completing ``aw run``/``aw runs`` targets, return Set ids + run ids.
       4. Always fall back to / include the static subcommand-or-flag candidates for the position.
@@ -1214,6 +1766,11 @@ def complete_query(
     status_rt = _is_status_position(words, cword)
     if status_rt is not None:
         return _prefix_filter(status_candidates(status_rt), prefix)
+
+    # 1b. Value slot of a value-taking option flag (e.g. `aw agy run --action <TAB>`).
+    flag_vals = _flag_choice_candidates(words, cword)
+    if flag_vals is not None:
+        return _prefix_filter(flag_vals, prefix)
 
     # 2. Entity id6 positions (aw ipd/specs/backlog/find ...). Only when PAST the subcommand slot
     #    (cword >= 3 so a real selector/positional is being typed, e.g. `aw ipd lint <id6>`); the

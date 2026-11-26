@@ -88,7 +88,7 @@ class AgyResult:
     status: str
 
 
-def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="agy_run.py",
         description=(
@@ -304,7 +304,11 @@ STREAMING LOGS AND MONITORING:
         help="Execute Turn-2 skeptical audit/verification only on an existing conversation session.",
     )
 
-    return parser.parse_args(argv)
+    return parser
+
+
+def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
+    return build_parser().parse_args(argv)
 
 
 def repository_root(start: Path) -> Path:

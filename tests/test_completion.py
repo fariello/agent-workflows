@@ -3464,5 +3464,200 @@ class RcWriteOfferTests(_DropInFixture):
         self.assertEqual(self.rc.read_bytes(), self.before)
 
 
+class DelegatedAndFlagCompletionTests(unittest.TestCase):
+    """All CLI flags (including delegated REMAINDER parsers) complete across all surfaces.
+
+    Verifies that every visible option of `aw agy run`, `aw oc run`, `aw agy/oc review`,
+    `aw agy/oc integrate`, `aw agy sessions/view/exec`, `aw run as/ipd`, `aw pwatch`,
+    `aw runners`, and every command path in `cli._build_parser()` is surfaced consistently
+    in `introspect_cli_tree`, `complete_query`, driven Bash, Zsh, and Fish.
+    """
+
+    @staticmethod
+    def _visible_opts(parser: argparse.ArgumentParser) -> set[str]:
+        return {
+            opt
+            for action in parser._actions
+            if not isinstance(action, argparse._SubParsersAction)
+            and getattr(action, "help", None) is not argparse.SUPPRESS
+            for opt in action.option_strings
+        }
+
+    @staticmethod
+    def _subparser(
+        parser: argparse.ArgumentParser, name: str
+    ) -> argparse.ArgumentParser:
+        sp = next(
+            a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
+        )
+        return sp.choices[name]
+
+    def test_every_command_path_flags_complete_in_query(self) -> None:
+        tree = completion.introspect_cli_tree(cli._build_parser())
+        missing = []
+
+        def sweep(node, path):
+            expected = {f["flag"] for f in node.get("flags", []) if f.get("flag")}
+            if expected:
+                words = ["aw", *path, "-"]
+                got = set(completion.complete_query(words, len(words) - 1))
+                diff = sorted(expected - got)
+                if diff:
+                    missing.append((path, diff))
+            for name, sub in sorted(node.get("subcommands", {}).items()):
+                sweep(sub, path + [name])
+
+        sweep(tree, [])
+        self.assertEqual(missing, [])
+
+    def test_delegated_parsers_complete_all_flags_in_query_and_bash(self) -> None:
+        from agent_workflows import (
+            agy_run,
+            agy_runipd,
+            agy_sessions,
+            agy_view,
+            oc_runipd,
+            pwatch,
+            runners_monitor,
+        )
+
+        agy_p = agy_runipd.build_parser()
+        oc_p = oc_runipd.build_parser()
+        agy_start = self._visible_opts(agy_p) | self._visible_opts(
+            self._subparser(agy_p, "start")
+        )
+        agy_resume = self._visible_opts(self._subparser(agy_p, "resume"))
+        agy_integrate = self._visible_opts(agy_p) | self._visible_opts(
+            self._subparser(agy_p, "integrate")
+        )
+        oc_start = self._visible_opts(oc_p) | self._visible_opts(
+            self._subparser(oc_p, "start")
+        )
+        oc_resume = self._visible_opts(self._subparser(oc_p, "resume"))
+        oc_integrate = self._visible_opts(oc_p) | self._visible_opts(
+            self._subparser(oc_p, "integrate")
+        )
+        both_start = agy_start | oc_start
+
+        cases = [
+            (["aw", "agy", "run", "-"], agy_start),
+            (["aw", "agy", "run", "comphome", "-"], agy_start),
+            (["aw", "antigravity", "run", "comphome", "-"], agy_start),
+            (["aw", "agy", "run", "resume", "-"], agy_resume),
+            (["aw", "agy", "review", "-"], agy_start),
+            (["aw", "agy", "integrate", "-"], agy_integrate),
+            (["aw", "oc", "run", "-"], oc_start),
+            (["aw", "oc", "run", "as", "gem", "comphome", "-"], oc_start),
+            (["aw", "opencode", "run", "comphome", "-"], oc_start),
+            (["aw", "oc", "run", "resume", "-"], oc_resume),
+            (["aw", "oc", "review", "-"], oc_start),
+            (["aw", "oc", "integrate", "-"], oc_integrate),
+            (["aw", "run", "as", "gem", "comphome", "-"], both_start),
+            (["aw", "run", "ipd", "comphome", "-"], both_start),
+            (
+                ["aw", "agy", "sessions", "-"],
+                self._visible_opts(agy_sessions.build_parser()),
+            ),
+            (["aw", "agy", "view", "-"], self._visible_opts(agy_view.build_parser())),
+            (["aw", "agy", "exec", "-"], self._visible_opts(agy_run.build_parser())),
+            (["aw", "pwatch", "-"], self._visible_opts(pwatch.build_parser())),
+            (
+                ["aw", "runners", "-"],
+                self._visible_opts(runners_monitor.build_parser()),
+            ),
+        ]
+
+        bash_script = completion.generate_bash_completion() if _BASH else None
+        for words, expected in cases:
+            got_query = sorted(completion.complete_query(words, len(words) - 1))
+            self.assertEqual(
+                sorted(expected - set(got_query)),
+                [],
+                f"complete_query missing flags for {words}",
+            )
+            if bash_script is not None:
+                got_bash = _drive_bash_completion(bash_script, words)
+                self.assertEqual(
+                    got_bash,
+                    got_query,
+                    f"bash vs complete_query mismatch for {words}",
+                )
+
+    @unittest.skipUnless(_BASH, "no usable bash installed")
+    def test_full_auto_flag_choices_and_per_command_scoping(self) -> None:
+        from agent_workflows import agy_runipd
+
+        action_opt = next(
+            a
+            for a in self._subparser(agy_runipd.build_parser(), "start")._actions
+            if "--action" in a.option_strings
+        )
+        expected_actions = sorted(str(c) for c in (action_opt.choices or []))
+        self.assertTrue(expected_actions)
+
+        bash_script = completion.generate_bash_completion()
+        exact_cases = [
+            (["aw", "agy", "run", "--full"], ["--full-auto"]),
+            (["aw", "agy", "run", "comphome", "--full"], ["--full-auto"]),
+            (["aw", "agy", "run", "--no-full"], ["--no-full-auto"]),
+            (["aw", "oc", "run", "--full"], ["--full-auto"]),
+            (["aw", "oc", "run", "as", "gem", "comphome", "--full"], ["--full-auto"]),
+            (["aw", "--no-color", "agy", "run", "--full"], ["--full-auto"]),
+            (["aw", "agy", "run", "--action", ""], expected_actions),
+            (["aw", "agy", "run", "comphome", "--action", ""], expected_actions),
+            (["aw", "oc", "run", "--action", ""], expected_actions),
+            (["aw", "--title-style", ""], ["long", "medium", "none", "short"]),
+        ]
+        for words, expected in exact_cases:
+            self.assertEqual(
+                sorted(completion.complete_query(words, len(words) - 1)),
+                expected,
+                f"complete_query mismatch for {words}",
+            )
+            self.assertEqual(
+                _drive_bash_completion(bash_script, words),
+                expected,
+                f"bash mismatch for {words}",
+            )
+
+        # Per-command flag scoping: `doctor` is not shadowed by `checkup`, and
+        # `agy sessions` does not leak runner flags like `--full-auto`.
+        doctor_bash = _drive_bash_completion(bash_script, ["aw", "doctor", "--check-"])
+        self.assertIn("--check-pypi", doctor_bash)
+        sessions_bash = _drive_bash_completion(
+            bash_script, ["aw", "agy", "sessions", "--"]
+        )
+        self.assertNotIn("--full-auto", sessions_bash)
+        self.assertIn("--json", sessions_bash)
+
+    def test_zsh_and_fish_include_delegated_flags_and_choices(self) -> None:
+        zsh_script = completion.generate_zsh_completion()
+        self.assertTrue(zsh_script.startswith("#compdef aw agentwf agent-workflows\n"))
+        self.assertIn("'--full-auto:", zsh_script)
+        self.assertIn("'--no-full-auto", zsh_script)
+        self.assertIn("_describe -t options 'option' _opts", zsh_script)
+        self.assertIn("('--action')", zsh_script)
+
+        fish_script = completion.generate_fish_completion()
+        self.assertIn("-l 'full-auto'", fish_script)
+        self.assertIn("-l 'no-full-auto'", fish_script)
+        self.assertIn("-l 'action' -x -a 'execute plan review'", fish_script)
+        self.assertIn("complete -c agentwf -w aw", fish_script)
+        self.assertIn("complete -c agent-workflows -w aw", fish_script)
+
+    def test_synthetic_parser_does_not_attach_delegated_aw_trees(self) -> None:
+        toy = argparse.ArgumentParser(prog="toy")
+        sub = toy.add_subparsers(dest="cmd")
+        p_ping = sub.add_parser("ping", help="ping")
+        p_ping.add_argument("--count", choices=("1", "2"), help="how many")
+        tree = completion.introspect_cli_tree(toy)
+        self.assertEqual(sorted(tree["subcommands"]), ["ping"])
+        self.assertEqual(
+            tree["subcommands"]["ping"]["flag_choices"], {"--count": ["1", "2"]}
+        )
+        self.assertNotIn("agy", tree["subcommands"])
+        self.assertNotIn("oc", tree["subcommands"])
+
+
 if __name__ == "__main__":
     unittest.main()
