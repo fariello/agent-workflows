@@ -412,10 +412,10 @@ def test_case_a_and_a2_red_beyond_n_warns_at_start_and_end_and_runs(
     assert _spawn_count(spawn_log) >= 1
     assert pass_short in err
     assert "3 commit(s)" in err
-    assert "[RUN-RED-CI]" in err
+    assert "RUN-RED-CI" in err
     # Verify warning appears at start and again at the end (at least 2 occurrences)
-    assert err.count("[RUN-RED-CI]") >= 2
-    assert err.count("=" * 80) >= 4
+    assert err.count("RUN-RED-CI") >= 2
+    assert err.count("Warning: Continuous Integration (CI)") >= 2
 
     run_dir = repo / ".aw" / "records" / "runs" / "run-warned-a"
     events = [
@@ -446,7 +446,7 @@ def test_case_a_and_a2_red_beyond_n_warns_at_start_and_end_and_runs(
     assert rc_prep == 0
     assert _spawn_count(spawn_log) == count_before_prep  # prepare-only spawns no agent
     assert pass_short in err_prep
-    assert err_prep.count("[RUN-RED-CI]") >= 2
+    assert err_prep.count("RUN-RED-CI") >= 2
 
 
 # --------------------------------------------------------------------------------------
@@ -610,7 +610,7 @@ def test_case_d_exempt_set_runs_and_mixed_queue_refused(tmp_path: Path) -> None:
     )
     assert rc_mixed != 2
     assert _spawn_count(spawn_log) >= 1
-    assert "[RUN-RED-CI]" in err_m
+    assert "RUN-RED-CI" in err_m
 
     # Exempt-only selection (`cihealth`) -> allowed with no flag, agent spawned
     rc_exempt, _out_ex, _err_ex = _run_host_main(
@@ -795,7 +795,7 @@ def test_case_g_and_g2_within_n_runs_and_stale_record_crossing_n_refused(
     assert _spawn_count(spawn_log) > count_after_g
     assert "5 commit(s)" in err_g2
     assert shas[1][:7] in err_g2
-    assert "[RUN-RED-CI]" in err_g2
+    assert "RUN-RED-CI" in err_g2
 
 
 # --------------------------------------------------------------------------------------
@@ -839,7 +839,7 @@ def test_case_h_and_i_both_hosts_parity_agent_mode_and_full_auto_non_override(
     )
     assert rc_fa != 2
     assert _spawn_count(spawn_log) >= 1
-    assert "[RUN-RED-CI]" in err_fa
+    assert "RUN-RED-CI" in err_fa
 
     # (h) --agent runs and emits aw.agent/v1 JSON record with red_ci_warning
     rc_ag_ref, out_ag_ref, _err_ag_ref = _run_host_main(
@@ -891,26 +891,95 @@ def test_case_h_and_i_both_hosts_parity_agent_mode_and_full_auto_non_override(
 
 
 def test_red_ci_warning_banner_formatting_and_colors() -> None:
+    import datetime
+    from agent_workflows import term
+
     msg = (
         "WARNING: [RUN-RED-CI] CI has not passed in 618 commit(s) "
         "(threshold: 100; CI status: FAILING; last passing commit: 3a8d2b2)."
     )
 
-    # 1. Plain formatting (color=False)
-    plain_lines = runner_shared.format_red_ci_warning_banner(msg, color=False)
-    assert len(plain_lines) == 3
-    assert plain_lines[0] == "=" * 80
-    assert plain_lines[1] == msg
-    assert plain_lines[2] == "=" * 80
+    # 1. Plain formatting (color=False, unicode=True) from raw message fallback
+    plain_lines = runner_shared.format_red_ci_warning_banner(
+        msg, color=False, unicode=True
+    )
+    assert len(plain_lines) == 5
+    assert plain_lines[0].startswith(
+        "╭─\ue0b6 ⚠︎  Warning: Continuous Integration (CI) \ue0b4"
+    )
+    assert "\ue0b6 RUN-RED-CI \ue0b4─╮" in plain_lines[0]
+    assert "[RUN-RED-CI]" not in plain_lines[0]
+    assert plain_lines[-1].startswith("╰") and plain_lines[-1].endswith("╯")
     assert "\033[" not in "".join(plain_lines)
+    joined_plain = "\n".join(plain_lines)
+    assert "FAILING" in joined_plain
+    assert "618 commit(s) (threshold: 100)" in joined_plain
+    assert "3a8d2b2" in joined_plain
+    widths = {term.visible_width(ln) for ln in plain_lines}
+    assert len(widths) == 1
 
-    # 2. Bold red formatting (color=True)
-    styled_lines = runner_shared.format_red_ci_warning_banner(msg, color=True)
-    assert len(styled_lines) == 3
-    for line in styled_lines:
-        assert line.startswith("\033[1;31m")
-        assert line.endswith("\033[0m")
-    assert msg in styled_lines[1]
+    # 2. Bold red formatting for FAILING (color=True)
+    styled_lines = runner_shared.format_red_ci_warning_banner(
+        msg, color=True, unicode=True
+    )
+    assert len(styled_lines) == 5
+    assert styled_lines[0].startswith("\033[1;31m")
+    assert styled_lines[0].endswith("\033[0m")
+    assert styled_lines[-1].startswith("\033[1;31m")
+    assert "\033[1;31m" in styled_lines[1]
+    assert len({term.visible_width(ln) for ln in styled_lines}) == 1
+
+    # 3. PASSING (stale/unpushed) renders in bold yellow with elapsed d/h/m + datetime
+    fixed_now = datetime.datetime(2026, 11, 26, 16, 18, tzinfo=datetime.timezone.utc)
+    passing_info = {
+        "status": "PASSING",
+        "last_passing_commit": "f5bfcb2eb71a3a276327dd68b9c1e4fdf58b2d5d",
+        "last_passing_at": "2026-11-24T13:24:00+00:00",
+        "commits_since_last_pass": 256,
+        "interval": 250,
+        "unpushed_commits": 27,
+    }
+    passing_lines = runner_shared.format_red_ci_warning_banner(
+        "[RUN-RED-CI]",
+        color=True,
+        unicode=True,
+        info=passing_info,
+        now=fixed_now,
+    )
+    assert passing_lines[0].startswith("\033[1;33m")
+    passing_plain = term.strip_ansi("\n".join(passing_lines))
+    assert "PASSING on remote (not failing; 27 unpushed commit(s))" in passing_plain
+    assert "256 commit(s) (threshold: 250)" in passing_plain
+    assert "2d 02h 54m ago" in passing_plain
+    assert "2026-11-24" in passing_plain
+    assert "f5bfcb2eb7" in passing_plain
+    assert "push to run CI" in passing_plain
+    assert len({term.visible_width(ln) for ln in passing_lines}) == 1
+
+    # 4. ASCII fallback (unicode=False)
+    ascii_lines = runner_shared.format_red_ci_warning_banner(
+        "[RUN-RED-CI]",
+        color=False,
+        unicode=False,
+        info={
+            "status": "FAILING",
+            "latest_commit": "deadbeef1234",
+            "last_passing_commit": "3a8d2b2999",
+            "last_passing_at": "2026-11-26T11:05:00+00:00",
+            "commits_since_last_pass": 12,
+            "interval": 10,
+            "unpushed_commits": 3,
+        },
+        now=fixed_now,
+    )
+    assert ascii_lines[0].startswith("+-[!  Warning: Continuous Integration (CI)]")
+    assert ascii_lines[0].endswith("[RUN-RED-CI]-+")
+    assert ascii_lines[-1].startswith("+") and ascii_lines[-1].endswith("+")
+    ascii_joined = "\n".join(ascii_lines)
+    assert "FAILING (latest CI run failed on deadbeef12)" in ascii_joined
+    assert "5h 13m ago" in ascii_joined
+    assert "3 unpushed commit(s) locally" in ascii_joined
+    assert len({term.visible_width(ln) for ln in ascii_lines}) == 1
 
 
 @pytest.mark.parametrize("host_mod", [oc_runipd, agy_runipd])
@@ -949,7 +1018,10 @@ def test_red_ci_warning_banner_printed_at_start_and_end_both_hosts(
 
     assert _spawn_count(spawn_log) >= 1
     # Check warning banner at start and end
-    assert err.count("[RUN-RED-CI]") >= 2
+    assert err.count("RUN-RED-CI") >= 2
+    assert err.count("Warning: Continuous Integration (CI)") >= 2
     # Check bold red ANSI escape is present in the output
     assert "\033[1;31m" in err
-    assert "=" * 80 in err
+    # Check git-commit timestamp fallback populated elapsed age + datetime
+    assert "ago (" in err
+    assert pass_short in err

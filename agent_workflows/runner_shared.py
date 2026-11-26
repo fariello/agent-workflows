@@ -26114,6 +26114,9 @@ class RedCiGateDecision:
     interval: int = 0
     override_reason: str | None = None
     exempt: bool = False
+    latest_commit: str | None = None
+    last_passing_at: str | None = None
+    unpushed_commits: int | None = None
 
     @property
     def proceed(self) -> bool:
@@ -26280,6 +26283,20 @@ def decide_red_ci_gate(
         if isinstance(last_pass_raw, str) and last_pass_raw.strip()
         else None
     )
+    latest_commit_raw = ci.get("latest_commit") or ci.get("latest_run_commit")
+    latest_commit = (
+        str(latest_commit_raw).strip()
+        if isinstance(latest_commit_raw, str) and latest_commit_raw.strip()
+        else None
+    )
+    last_pass_at_raw = ci.get("last_passing_created_at") or ci.get(
+        "last_pass_created_at"
+    )
+    last_pass_at = (
+        str(last_pass_at_raw).strip()
+        if isinstance(last_pass_at_raw, str) and last_pass_at_raw.strip()
+        else None
+    )
     reason_detail = str(
         ci.get("reason")
         or ci.get("detail")
@@ -26388,10 +26405,125 @@ def decide_red_ci_gate(
         last_passing_commit=last_pass,
         commits_since_last_pass=count,
         interval=int(interval),
+        latest_commit=latest_commit,
+        last_passing_at=last_pass_at,
     )
 
 
 evaluate_red_ci_gate = decide_red_ci_gate
+
+_RED_CI_WARNING_RE = re.compile(
+    r"CI has not passed in (?P<count>\d+) commit\(s\)\s*"
+    r"\(threshold:\s*(?P<interval>\d+);\s*"
+    r"CI status:\s*(?P<status>[A-Z_]+);\s*"
+    r"last passing commit:\s*(?P<last_pass>[^)]+)\)"
+)
+
+
+def _resolve_commit_timestamp_iso(repo: Path, commit_sha: str | None) -> str | None:
+    """Return ISO-8601 committer timestamp for `commit_sha`, or None if unavailable."""
+    if not commit_sha or commit_sha.lower() == "unknown":
+        return None
+    try:
+        res = subprocess.run(
+            ["git", "show", "-s", "--format=%cI", commit_sha],
+            cwd=str(repo),
+            capture_output=True,
+            text=True,
+            timeout=5.0,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            return res.stdout.strip()
+    except Exception:
+        return None
+    return None
+
+
+def _count_unpushed_commits(repo: Path, branch: str | None = None) -> int | None:
+    """Return count of local commits ahead of upstream, or None if no upstream exists."""
+    refs = ["@{u}..HEAD"]
+    if branch and branch.strip():
+        refs.append(f"origin/{branch.strip()}..HEAD")
+    for spec in refs:
+        try:
+            res = subprocess.run(
+                ["git", "rev-list", "--count", spec],
+                cwd=str(repo),
+                capture_output=True,
+                text=True,
+                timeout=5.0,
+            )
+            if res.returncode == 0 and res.stdout.strip().isdigit():
+                return int(res.stdout.strip())
+        except Exception:
+            continue
+    return None
+
+
+def _parse_iso_timestamp(raw: str | None) -> dt.datetime | None:
+    """Parse an ISO-8601 / RFC 3339 timestamp string into an aware datetime."""
+    if not raw or not isinstance(raw, str):
+        return None
+    s = raw.strip()
+    if not s:
+        return None
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        parsed_dt = dt.datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    if parsed_dt.tzinfo is None:
+        parsed_dt = parsed_dt.replace(tzinfo=dt.timezone.utc)
+    return parsed_dt
+
+
+def _format_ci_elapsed_and_dt(
+    ts: str | None,
+    *,
+    now: dt.datetime | None = None,
+) -> str | None:
+    """Format elapsed duration (days, hours, minutes) and local datetime for a CI timestamp."""
+    parsed_dt = _parse_iso_timestamp(ts)
+    if parsed_dt is None:
+        return None
+    ref_now = now if now is not None else dt.datetime.now(dt.timezone.utc)
+    if ref_now.tzinfo is None:
+        ref_now = ref_now.replace(tzinfo=dt.timezone.utc)
+    delta_s = max(0, int((ref_now - parsed_dt).total_seconds()))
+    days, rem = divmod(delta_s, 86400)
+    hours, rem = divmod(rem, 3600)
+    mins = rem // 60
+    if days > 0:
+        age = f"{days}d {hours:02d}h {mins:02d}m ago"
+    elif hours > 0:
+        age = f"{hours}h {mins:02d}m ago"
+    elif mins > 0:
+        age = f"{mins}m ago"
+    else:
+        age = "<1m ago"
+    local_dt = parsed_dt.astimezone()
+    tz_label = local_dt.tzname() or ""
+    dt_str = (
+        f"{local_dt.strftime('%Y-%m-%d %H:%M')} {tz_label}".strip()
+        if tz_label
+        else local_dt.strftime("%Y-%m-%d %H:%M")
+    )
+    return f"{age} ({dt_str})"
+
+
+def _parse_red_ci_warning_text(warning: str) -> dict[str, Any] | None:
+    """Extract structured CI fields from a plain `[RUN-RED-CI]` warning string."""
+    m = _RED_CI_WARNING_RE.search(str(warning or ""))
+    if not m:
+        return None
+    last_pass = m.group("last_pass").strip()
+    return {
+        "status": m.group("status").strip().upper(),
+        "commits_since_last_pass": int(m.group("count")),
+        "interval": int(m.group("interval")),
+        "last_passing_commit": None if last_pass.lower() == "unknown" else last_pass,
+    }
 
 
 def format_red_ci_warning_banner(
@@ -26400,24 +26532,182 @@ def format_red_ci_warning_banner(
     term: Any = None,
     stream: Any = None,
     color: bool | None = None,
+    info: Mapping[str, Any] | None = None,
+    unicode: bool | None = None,
+    now: dt.datetime | None = None,
 ) -> list[str]:
-    """Format a prominent red-CI warning banner in bold red letters."""
+    """Format a rounded-box CI warning panel with capped pill headers matching the runner HUD.
+
+    Distinguishes remote CI failures (bold red) from passing-but-stale/unpushed
+    branches (bold yellow), includes commit count since last green CI plus
+    elapsed days/hours/minutes and datetime when available, and falls back
+    cleanly to ASCII borders and plain text when Unicode or color is off.
+    """
+    from agent_workflows import render_stream as _rs
     from agent_workflows import term as _term
 
-    eff_term = term
-    if eff_term is None:
-        eff_stream = stream if stream is not None else sys.stderr
-        eff_term = _term.Term(stream=eff_stream, color=color)
+    eff_stream = stream if stream is not None else sys.stderr
+    eff_term = term if term is not None else _term.Term(stream=eff_stream, color=color)
+    eff_unicode = (
+        bool(unicode) if unicode is not None else _term.should_unicode(eff_stream)
+    )
+    use_color = bool(eff_term.color)
 
-    border = "=" * 80
-    raw_lines = [border]
-    for line in str(warning).splitlines():
-        line = line.strip()
-        if line:
-            raw_lines.append(line)
-    raw_lines.append(border)
+    parsed: dict[str, Any] = {}
+    if isinstance(info, Mapping):
+        parsed.update(info)
+    else:
+        inferred = _parse_red_ci_warning_text(warning)
+        if inferred:
+            parsed.update(inferred)
 
-    return [eff_term.colorize(line, "bold", "red") for line in raw_lines]
+    status = str(parsed.get("status") or "").strip().upper()
+    is_passing = status == "PASSING"
+    accent = "yellow" if is_passing else "red"
+    pill_bg = 214 if is_passing else 196
+    tag_bg = 240
+
+    if eff_unicode:
+        tl, tr, bl, br, hz, vt, sep, glyph = (
+            "╭",
+            "╮",
+            "╰",
+            "╯",
+            "─",
+            "│",
+            "·",
+            "⚠︎",
+        )
+    else:
+        tl, tr, bl, br, hz, vt, sep, glyph = (
+            "+",
+            "+",
+            "+",
+            "+",
+            "-",
+            "|",
+            "|",
+            "!",
+        )
+
+    body_entries: list[tuple[str, str]] = []
+    if parsed:
+        count = parsed.get("commits_since_last_pass")
+        interval = parsed.get("interval")
+        last_pass = parsed.get("last_passing_commit")
+        latest_commit = parsed.get("latest_commit")
+        last_pass_at = parsed.get("last_passing_at")
+        unpushed = parsed.get("unpushed_commits")
+
+        last_short = str(last_pass)[:10] if last_pass else "unknown"
+        latest_short = str(latest_commit)[:10] if latest_commit else None
+
+        if status == "FAILING":
+            if latest_short:
+                status_val = f"FAILING (latest CI run failed on {latest_short})"
+            else:
+                status_val = "FAILING on remote CI"
+        elif status == "PASSING":
+            if isinstance(unpushed, int) and unpushed > 0:
+                status_val = (
+                    f"PASSING on remote (not failing; {unpushed} unpushed commit(s))"
+                )
+            elif unpushed == 0:
+                status_val = "PASSING on remote (not failing; newer pushed commits not yet green)"
+            else:
+                status_val = (
+                    "PASSING on remote (not failing; local commits may not be pushed)"
+                )
+        else:
+            status_val = status or "UNKNOWN"
+
+        body_entries.append(
+            ("Status:     ", eff_term.colorize(status_val, "bold", accent))
+        )
+
+        since_parts: list[str] = []
+        if count is not None:
+            thr_str = f" (threshold: {interval})" if interval is not None else ""
+            since_parts.append(f"{count} commit(s){thr_str}")
+        age_dt = _format_ci_elapsed_and_dt(
+            str(last_pass_at) if last_pass_at else None, now=now
+        )
+        if age_dt:
+            since_parts.append(age_dt)
+        if since_parts:
+            body_entries.append(("Since pass: ", f" {sep} ".join(since_parts)))
+
+        green_parts = [last_short]
+        if isinstance(unpushed, int) and unpushed > 0:
+            if is_passing:
+                green_parts.append(
+                    f"{unpushed} unpushed commit(s) ahead of upstream (push to run CI)"
+                )
+            else:
+                green_parts.append(f"{unpushed} unpushed commit(s) locally")
+        body_entries.append(("Last green: ", f" {sep} ".join(green_parts)))
+    else:
+        for raw_ln in str(warning).splitlines():
+            stripped = raw_ln.strip()
+            if stripped:
+                body_entries.append(("", stripped))
+
+    left_pill_styled, left_pill_plain = _rs.format_capped_pill(
+        f"{glyph}  Warning: Continuous Integration (CI)",
+        bg_code=pill_bg,
+        use_unicode=eff_unicode,
+        color=use_color,
+    )
+    right_pill_styled, right_pill_plain = _rs.format_capped_pill(
+        "RUN-RED-CI",
+        bg_code=tag_bg,
+        use_unicode=eff_unicode,
+        color=use_color,
+    )
+    # Inner top layout: hz + left_pill + (hz * fill_len) + right_pill + hz
+    header_min_inner = (
+        1
+        + _term.visible_width(left_pill_plain)
+        + 2
+        + _term.visible_width(right_pill_plain)
+        + 1
+    )
+
+    rendered_rows: list[str] = []
+    max_body_w = 0
+    for label, val in body_entries:
+        row_text = f"{eff_term.colorize(label, 'bold')}{val}" if label else val
+        rendered_rows.append(row_text)
+        w = _term.visible_width(row_text)
+        if w > max_body_w:
+            max_body_w = w
+
+    inner_width = max(76, header_min_inner, max_body_w + 2)
+    fill_len = max(
+        1,
+        inner_width
+        - 1
+        - _term.visible_width(left_pill_plain)
+        - _term.visible_width(right_pill_plain)
+        - 1,
+    )
+    top_border = (
+        eff_term.colorize(f"{tl}{hz}", "bold", accent)
+        + left_pill_styled
+        + eff_term.colorize(hz * fill_len, "bold", accent)
+        + right_pill_styled
+        + eff_term.colorize(f"{hz}{tr}", "bold", accent)
+    )
+    bottom_border = eff_term.colorize(f"{bl}{hz * inner_width}{br}", "bold", accent)
+    vbar = eff_term.colorize(vt, "bold", accent)
+
+    lines: list[str] = [top_border]
+    content_width = inner_width - 2
+    for row in rendered_rows:
+        padded = _term.pad_visible(row, content_width)
+        lines.append(f"{vbar} {padded} {vbar}")
+    lines.append(bottom_border)
+    return lines
 
 
 def is_agent_mode(args: Any) -> bool:
@@ -26592,7 +26882,23 @@ def enforce_red_ci_gate(
         return decision
 
     if decision.verdict == RED_CI_ALLOW_WITH_WARNING:
+        last_pass_at = decision.last_passing_at or _resolve_commit_timestamp_iso(
+            eff_repo, decision.last_passing_commit
+        )
+        ci_branch = _config.ci_checkup_branch(eff_repo)
+        unpushed = _count_unpushed_commits(eff_repo, branch=ci_branch)
+        warning_info: dict[str, Any] = {
+            "status": decision.status,
+            "latest_commit": decision.latest_commit,
+            "last_passing_commit": decision.last_passing_commit,
+            "last_passing_at": last_pass_at,
+            "commits_since_last_pass": decision.commits_since_last_pass,
+            "interval": decision.interval,
+            "unpushed_commits": unpushed,
+        }
         state["red_ci_warning"] = decision.message
+        if "[RUN-RED-CI]" in decision.message:
+            state["red_ci_warning_info"] = warning_info
         _save(eff_run_dir, state)
         _append(
             eff_run_dir / "events.jsonl",
@@ -26602,16 +26908,19 @@ def enforce_red_ci_gate(
                 "proceed": True,
                 "code": decision.code,
                 "status": decision.status,
+                "latest_commit": decision.latest_commit,
                 "last_passing_commit": decision.last_passing_commit,
+                "last_passing_at": last_pass_at,
                 "commits_since_last_pass": decision.commits_since_last_pass,
                 "interval": decision.interval,
+                "unpushed_commits": unpushed,
                 "warning": decision.message,
             },
         )
         if warn_fn is not None:
             if "[RUN-RED-CI]" in decision.message:
                 for line in format_red_ci_warning_banner(
-                    decision.message, stream=sys.stderr
+                    decision.message, stream=sys.stderr, info=warning_info
                 ):
                     warn_fn(line)
             else:
@@ -26619,7 +26928,7 @@ def enforce_red_ci_gate(
         elif not is_agent_mode(args):
             if "[RUN-RED-CI]" in decision.message:
                 for line in format_red_ci_warning_banner(
-                    decision.message, stream=sys.stderr
+                    decision.message, stream=sys.stderr, info=warning_info
                 ):
                     print(line, file=sys.stderr)
             else:
@@ -26668,7 +26977,9 @@ def report_red_ci_warning(
         return []
 
     out = stream if stream is not None else sys.stderr
-    lines = format_red_ci_warning_banner(warning, stream=out)
+    raw_info = state.get("red_ci_warning_info")
+    warning_info = raw_info if isinstance(raw_info, Mapping) else None
+    lines = format_red_ci_warning_banner(warning, stream=out, info=warning_info)
     for line in lines:
         print(line, file=out)
     return lines
