@@ -6,7 +6,7 @@
 - Scope: In an isolated scratch worktree `.aw/state/x1mmdp/scratch` with both cutover patches applied (after the split children `hdwqex`, `89mtbl`, the prerequisite production-fix children `fljn9b`, `szykgd`, `otin36`, `p109wy`, `q6fiws`, `j1f454`, `lec341`, `3e0vfy`, and the test-conversion batch children `nv3upa`, `cugg3w`, `psm9ac`, `x8id25`, `e0g2gt`, `qi0kl6`, `x3mig6` have switched the builder, fixed production log-awareness gaps, and converted the failing test modules), verify and settle every `setter-byte, exact spelling` row across `iog3cw` F-28, `rdg0qv` F-29, and `w13bkp` F-31, verify the literal-input legacy tests point at `m0001`, settle the `tests/fixtures/review-pilot/plans/` corpus and `tests/test_review_pilot.py`, run both the bare core gate and `make test-all` to assemble the authoritative final refusal list in F-03, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. The builder switch (former E-02) moved to `89mtbl`. Make no live code or test changes outside `- Scope-Paths:`.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1, executed:g45vyv, executed:hdwqex, executed:89mtbl, executed:nv3upa, executed:fljn9b, executed:cugg3w, executed:szykgd, executed:psm9ac, executed:otin36, executed:x8id25, executed:p109wy, executed:q6fiws, executed:e0g2gt, executed:j1f454, executed:lec341, executed:qi0kl6, executed:3e0vfy, executed:x3mig6
-- Status: reviewed
+- Status: approved
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -18,8 +18,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: x1mmdp
+- Approval: 2026-11-26, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-11-26 approved (aw set): status set to approved
 - 2026-11-26 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED; review record .aw/records/reviews/20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.review.md
 - 2026-11-26 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: re-review requested via agy review
 - 2026-11-26 note (antigravity/gemini): added Order 321 prerequisite 3e0vfy (plan_readiness, readiness_recheck, status_set, artifact_refs, and artifact_adopt log-awareness fix) ahead of x3mig6 per maintainer answer to run-20261126T055808Z-863961 question 06-x3mig6-a1-batch-f-production-log-aware-gaps.
