@@ -128,3 +128,84 @@ AW-TIER: standard
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 |---|---|---|---|---|---|
 | D-1 | Where in the serial cutover code-patch chain should the new Order 314 child plan (`fljn9b`) sit? | Chain `fljn9b` immediately after `nv3upa` (`- Item-Dependencies: executed:nv3upa`) and set `cugg3w` to `- Item-Dependencies: executed:fljn9b` (wiring `fljn9b` into `63ib9r` and `x1mmdp`). | Chain `fljn9b` right after `hdwqex` before `89mtbl` (rejected: would require editing already-reviewed `89mtbl` and running `fljn9b` before `tests/record_builder.py` is switched to log format). | Maintainer answer to `04-cugg3w-a1-backlog-log-aware-gap` ("Split out a dedicated production-fix child plan ahead of cugg3w (Recommended)"); `.aw/records/plans/pending/20261125-metastore-307-nv3upa-retire-or-repoint-the-legacy-loader-and-writer-unit-tests-in.ipd.md`; `.aw/records/plans/pending/20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.ipd.md`. | yes |
+
+## Round 3
+
+This re-review ran in an isolated review-sweep lane worktree (`review-sweep-run-20261126T161303Z-1366371`) after `cugg3w` was demoted `reviewed -> to-review` for `[stale-review]`. The target plan `.aw/records/plans/pending/20261125-metastore-308-cugg3w-convert-test-batch-a-artifact-meta-through-backlog-in-the-cu.ipd.md` was committed and clean, so the pre-review snapshot commit was skipped. Before edits, `aw ipd lint --phase author --agent` returned `clean` (exit 0, 0 findings). The re-review statically re-verified all eight batch A test modules (`tests/test_artifact_meta_cache.py`, `tests/test_artifact_meta_loader_parity.py`, `tests/test_artifact_meta_read.py`, `tests/test_artifact_meta_write.py`, `tests/test_attention_contract.py`, `tests/test_attention_priority_blocker.py`, `tests/test_awcmdsurf_mutation_verbs.py`, `tests/test_backlog.py`), prerequisite `fljn9b`, `nv3upa`, `89mtbl`, `x1mmdp`, `3e0vfy`, and `.aw/system/cutover/metastore-code.cutover.patch` (`artifact_meta.py`, `attention.py`, `attention_contract.py`, `artifact_rename.py`, `backlog.py`, `status_set.py`). It uncovered one `HIGH`, two `MEDIUM`, and one `LOW` findings (`PR-007..PR-010`), all `Overall:Low` remediation risk and all fixed in place. No production code or test code was modified.
+
+### Step T
+
+1. No direct public-interface or spec change (edits 8 test modules only inside `.aw/system/cutover/metastore-code.cutover.patch`), though all downstream children (`szykgd`, `psm9ac`..`x3mig6`, `x1mmdp`) depend on `executed:cugg3w` and the regenerated cumulative patch.
+2. No; it does not touch private-data sanitizers, commit/lock helpers, worktree isolation, merge-to-main gates, or host sandbox profiles.
+3. No; bounded to 5 execution items across 3 task groups, focused on one cohesive concern (converting the 8 batch A test modules inside the inert code patch).
+4. Yes; `- Scope-Paths:` declares both tracked files modified by this plan (the plan file itself and `.aw/system/cutover/metastore-code.cutover.patch`).
+5. Yes; misconverting `tests/test_attention_contract.py`, `tests/test_attention_priority_blocker.py`, `tests/test_awcmdsurf_mutation_verbs.py`, or `tests/test_backlog.py` could create vacuous readiness assertions, trigger `validate_id6` / `.agents/` layout failures, or drop backlog validation coverage.
+
+AW-TIER: standard
+
+### Step R1
+
+- Checked: all 8 batch A test modules, `.aw/system/cutover/metastore-code.cutover.patch` (`artifact_meta.py`, `attention.py`, `attention_contract.py`, `artifact_rename.py`, `plans_refs.py`, `backlog.py`, `status_set.py`), `agent_workflows/status_set.py::inventory_all_artifacts`, and `Set: metastore` siblings `nv3upa`, `fljn9b`, `89mtbl`, `3e0vfy`, and `x1mmdp`.
+- Found:
+  - `tests/test_attention_contract.py::TrackedTreeReachabilityTests._FIXTURES` (lines 490-543) builds class-level `text_only=True` fixtures using invalid short IDs (`s1`, `p1`, `r1`, `b1`, `rel1`, `prm1`) and invalid `Kind: primary`, and `ReleaseRecordsReachTheViewTests._scan_synth` (line 619) uses 5-char `f"relr{status[0]}"`. Post-cutover `artifact_meta.validate_id6` rejects all of these when materialized through `RecordBuilder(root)` (`PR-007`).
+  - `tests/test_awcmdsurf_mutation_verbs.py::MutationVerbsTests.setUp` (lines 39-55) writes to `.agents/plans/pending/` with `set="demo (demo)"` and `text_only=True`; switching to `RecordBuilder(self.root)` writes under `.aw/records/plans/pending/` and requires updating `self.pend`, `set="demo"`, `order=1`, and `slug="original"` so `self.doc_b`'s citation and `self.pend.glob` match (`PR-008`).
+  - `tests/test_attention_priority_blocker.py::ReadinessReaderTests.test_agrees_with_the_schema_authority` (line 265) can pass vacuously if `RecordBuilder().plan(raw_fields={"Readiness": value}, text_only=True)` produces YAML-only front matter where both readers return `None`; and `tests/test_backlog.py` has 6 `test_validate_item_release_exempt_findings` cases writing `text_only=True` without companion logs, companion `text_only=True` release/carrier-plan fixtures (lines 862, 1273), and inline history assertions in `test_release_exempt_setter_roundtrip_and_parity` (lines 1947-1983) (`PR-009`).
+  - Confirmed `status_set.inventory_all_artifacts`, `artifact_rename.run_rename_generic` / `run_group_generic`, `artifact_meta.spec_status_bullet`, and `fljn9b`'s backlog validation/reader fixes cover every production dependency of batch A without any new production cutover gap.
+
+### Step R2
+
+- Checked: E/V bijection (`5/5`: `E-01..E-05` to `V-01..V-05`, `- Highest E allocated: 05`), `- Scope-Paths:` (2 tracked paths), `- Item-Dependencies: executed:fljn9b` (matching `63ib9r` row 308), `OQ-01` (`- Status: resolved`, `- Owner: maintainer`, `- Carrier: fljn9b`), concrete `V-*` evidence, re-derivation convention, `rg` coverage, durable carriers (`fljn9b`, `psm9ac`, `x1mmdp`, `cxxmyv`), and `## Approval and execution gate`.
+- Found: `V-05` hardcoded a collected test count (`with all 3 tests PASSED`), `V-02`/`V-03` `rg` patterns omitted `append_legacy|restore_legacy_snapshot|LEGACY_LOADER_VERSION|meta\.load_legacy_artifact|meta\.derive_id6`, Step 0 omitted the post-split prerequisite production-fix children from the chain summary, and the Mermaid diagram omitted the `E-01` patch-rejection stop branch (`PR-010`). Also aligned `E-02` item 4 with `nv3upa` Round 2 (`nv3upa` migrates AC-14a/AC-15/writer-leak tests into `tests/test_artifact_meta_write.py` while leaving `test_append_dry_run` for `cugg3w`). All fixed in place.
+
+### Step R3
+
+- Checked (full form, `standard` tier):
+  - Security/anti-regression preservation: fixing `ReadinessReaderTests.test_agrees_with_the_schema_authority` prevents vacuous readiness-parser agreement (`PR-009`), and verifying `tests/test_artifact_meta_write.py` unfiltered in `E-02`/`V-02` exercises both `test_append_dry_run` and every AC-14a/AC-15/writer-leak test migrated by `nv3upa`.
+  - Workspace containment: edits occur strictly inside gitignored `.aw/state/cugg3w/scratch`, removed before commit; no live code, secrets, or outbound calls are touched.
+
+### Step R4
+
+- Checked: correctness, anti-regression, testing/verification, KISS, right-sizing/conceptual density per E-item, and `## Spec / documentation sync`.
+- Found `PR-007..PR-010` (all `Overall:Low`, all fixed in place). Right-sizing check: 5 E-items across 3 task groups, 1 work `Scope-Path` (`.aw/system/cutover/metastore-code.cutover.patch`), 4 modules per conversion step (`E-02`, `E-03`) with explicit per-module rules. No split needed.
+
+### Step S5
+
+- Checked: `## Open questions` (`OQ-01` resolved by maintainer 2026-11-26; no open questions remain). All four Round 3 findings (`PR-007..PR-010`) have `Overall:Low` remediation risk and are settled by authoritative repository evidence. Two reversible review decisions are recorded in `### Decisions` (`D-1..D-2`). Outcome JSON records `{"questions": []}`.
+
+### Pass 2
+
+- Re-checked the complete revised plan: front matter (`- Status: reviewed`, `- Review-Depth: standard`, `- Readiness: go-pending-approval`), `## Workflow history`, `## Goal`, `E-01..E-05`, `## Project conventions discovered (Step 0)`, `## Findings` (`F-01..F-05`), `## Proposed changes` and updated Mermaid `flowchart TD`, `## Deferred / out of scope`, `## Scope check`, `## Required tests / validation`, `## Spec / documentation sync`, `## Open questions` (`OQ-01` resolved), `V-01..V-05`, and `## Approval and execution gate`.
+- Verified `5/5` E/V bijection, unchanged `- Scope-Paths:` and `- Item-Dependencies: executed:fljn9b`, zero bare `file:line` citations, zero em/en dashes, and clean `aw ipd lint --phase review-finalize --agent`.
+- `AW-REVIEW: DONE`
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|---|---|---|---|---|---|---|---|---|
+| PR-007 | HIGH | IN-SCOPE | R1 / R4 / `E-03` (`test_attention_contract.py`) invalid short IDs and class-level `_FIXTURES` | `tests/test_attention_contract.py::TrackedTreeReachabilityTests._FIXTURES` (lines 490-543: `s1`, `p1`, `r1`, `b1`, `rel1`, `prm1`, `Kind: primary`); `tests/test_attention_contract.py::ReleaseRecordsReachTheViewTests._scan_synth` (line 619: `f"relr{status[0]}"`); `agent_workflows/artifact_meta.py::validate_id6` | `E-03` item 1 instructed materializing `TrackedTreeReachabilityTests` and `ReleaseRecordsReachTheViewTests` via `RecordBuilder(root)` without noting that `_FIXTURES` is built at class-definition time with `text_only=True` and uses non-6-char IDs (`s1`..`prm1`, `Kind: primary`) and `_scan_synth` uses 5-char `relr{status[0]}`, all of which `artifact_meta.validate_id6` rejects on `artifact_meta.create`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Updated `E-03` item 1 to materialize those fixtures inside each test via `RecordBuilder(root)` using valid 6-character base36 `id6` values (`sp0001`..`pr0001`, `f"relr0{status[0]}"`) and valid `plan_role="child"` (`D-1`). Recommendation strength: very strong. |
+| PR-008 | MEDIUM | IN-SCOPE | R1 / R4 / `E-03` (`test_awcmdsurf_mutation_verbs.py`) `.agents/` layout and parenthetical `set` | `tests/test_awcmdsurf_mutation_verbs.py::MutationVerbsTests.setUp` (lines 39-55: `.agents/plans/pending/`, `set="demo (demo)"`, `self.pend`) | `MutationVerbsTests.setUp` writes to `.agents/plans/pending/` with `set="demo (demo)"`. Materializing via `RecordBuilder(self.root)` writes to `.aw/records/plans/pending/` and rejects parenthetical `set`, so `self.pend` and `set`/`order`/`slug` must be updated together for `self.pend.glob` and `self.doc_b`'s citation to match. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Updated `E-03` item 3 to specify updating `self.pend = self.root / ".aw" / "records" / "plans" / "pending"`, `set="demo"`, `order=1`, and `slug="original"` alongside `RecordBuilder(self.root)` (`D-1`). Recommendation strength: very strong. |
+| PR-009 | MEDIUM | IN-SCOPE | R1 / R3 / R4 / `E-03` vacuous readiness check and `test_backlog.py` release-exempt/companion traps | `tests/test_attention_priority_blocker.py::ReadinessReaderTests.test_agrees_with_the_schema_authority` (line 265); `tests/test_backlog.py::test_validate_item_release_exempt_findings` (lines 1696-1810), lines 862, 1273, `test_release_exempt_setter_roundtrip_and_parity` (lines 1881-1984) | `test_agrees_with_the_schema_authority` becomes vacuous (both readers returning `None`) if log-format `text_only=True` omits `- Readiness:`; and `test_backlog.py` has 6 `test_validate_item_release_exempt_findings` cases writing `text_only=True` without logs, companion release/carrier-plan `text_only=True` fixtures, and inline history checks in `test_release_exempt_setter_roundtrip_and_parity`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Updated `E-03` items 2 and 4 to require explicit `- Readiness:` text for non-vacuous readiness comparison, log-backed materialization for `test_validate_item_release_exempt_findings` and companion release/carrier-plan fixtures, and `artifact_meta.history` assertions for `test_release_exempt_setter_roundtrip_and_parity` (`D-2`). Recommendation strength: very strong. |
+| PR-010 | LOW | IN-SCOPE | R2 / Check P / `V-05` test count, `V-02`/`V-03` `rg` pattern, chain note, and Mermaid stop branch | plan `V-05` (`with all 3 tests PASSED`), `V-02`/`V-03` `rg` regex, Step 0 chain, Mermaid flowchart, `E-02` item 4; `.aw/system/workflows/plan-review/steps/r2-executability.md`; `.aw/system/workflows/technical-writing/technical-writing.md` requirement 12(b)/(d) | `V-05` hardcoded a collected test count (`all 3 tests PASSED`); `V-02`/`V-03` `rg` patterns omitted `append_legacy`, `restore_legacy_snapshot`, `LEGACY_LOADER_VERSION`, `meta\.load_legacy_artifact`, and `meta\.derive_id6`; Step 0 omitted the split production-fix children from the serial chain; `E-02` item 4 did not note `nv3upa`'s migrated tests in `test_artifact_meta_write.py`; and the Mermaid diagram omitted the `E-01` stop branch. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Replaced `with all 3 tests PASSED` in `V-05` with pinned guard-test behaviors, expanded `V-02`/`V-03` `rg` patterns, updated Step 0's serial chain and `E-02` item 4 (`nv3upa` handoff note), and added the `Patches apply cleanly?` stop branch to the Mermaid flowchart. Recommendation strength: strong. |
+
+### Proofreading
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| `E-02` item 4 | Mentioned only updating `test_append_dry_run` | Noted `nv3upa` E-03's migrated tests in `tests/test_artifact_meta_write.py` and required running the whole module unfiltered | PR-010 |
+| `E-03` items 1 to 4 | Omitted invalid short IDs in `test_attention_contract.py`, `.agents/`/`set` details in `test_awcmdsurf_mutation_verbs.py`, vacuous readiness risk, and `test_backlog.py` release-exempt/companion traps | Added exact per-fixture conversion instructions across all four second-half modules | PR-007, PR-008, PR-009 |
+| Step 0, Mermaid diagram, `V-02`, `V-03`, `V-05` | Short chain list, linear Mermaid diagram, narrower `rg` regex, hardcoded `all 3 tests PASSED` | Complete post-split serial chain, E-01 stop branch in Mermaid diagram, expanded removed-symbol `rg` regex, and behavioral guard-test check in `V-05` | PR-010 |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| (none) | | | | | |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | How should `tests/test_attention_contract.py` and `tests/test_awcmdsurf_mutation_verbs.py` fixtures be adapted for `RecordBuilder(root)`? | Materialize `TrackedTreeReachabilityTests` and `ReleaseRecordsReachTheViewTests` inside each test using valid 6-character base36 `id6` values (`sp0001`..`pr0001`, `f"relr0{status[0]}"`) and `plan_role="child"`, and update `MutationVerbsTests.setUp` to `.aw/records/plans/pending/` with `set="demo"`, `order=1`, and `slug="original"`. | Keep class-level `_FIXTURES` with short IDs or `.agents/plans/pending/` with `set="demo (demo)"` (rejected: `artifact_meta.validate_id6` rejects non-6-char IDs and `RecordBuilder(root)` writes to `.aw/records/`). | `tests/test_attention_contract.py:490-625`, `tests/test_awcmdsurf_mutation_verbs.py:39-96`, `agent_workflows/artifact_meta.py::validate_id6`. | yes |
+| D-2 | How should `ReadinessReaderTests.test_agrees_with_the_schema_authority` and `tests/test_backlog.py` release-exempt/companion fixtures avoid vacuous or failing `text_only=True` reads? | Use explicit `- Readiness: {value}` text if log-format `text_only=True` omits bullets in `ReadinessReaderTests`, materialize companion release/plan and `test_validate_item_release_exempt_findings` fixtures via `RecordBuilder(repo)` (or `backlog.validate_item_state`), and assert `test_release_exempt_setter_roundtrip_and_parity` history via `artifact_meta.history`. | Leave `text_only=True` in place on those fixtures (rejected: produces vacuous `None == None` readiness comparisons and missing log fields under `89mtbl` F-02). | `tests/test_attention_priority_blocker.py:261-270`, `tests/test_backlog.py:862,1273,1696-1984`, `89mtbl` F-02, `fljn9b` E-02. | yes |
