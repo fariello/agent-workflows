@@ -2,11 +2,13 @@
 
 - Date: 2026-11-25
 - Kind: child
-- Concern: Backlog `ldfefd`: on the switched tree these 8 test modules (batch F, alphabetical slice) fail or call an API the cutover code patch removes; the `x1mmdp` attempt-1 core census `.aw/state/lane-submissions/run-20261125T162650Z-1337442/06-x1mmdp/attempt-1/evidence/failing-modules.txt` counts 143 failing tests among them. Most failures are `MetadataSchemaError` refusals of fixtures written as bullet records, the rest calls to removed symbols. `89mtbl` F-04 re-measures the census after the builder switch.
-- Scope: In a scratch worktree with both cutover patches applied (including `hdwqex`, `89mtbl` and the earlier batch children), convert the batch F modules under the shared conversion rules, run them on both tiers, record any remaining refusal of this repository's own records in F-03, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. No live code changes.
+- Concern: Backlog `ldfefd`: on the switched tree these 8 test modules (batch F, alphabetical slice) fail or call an API that `.aw/system/cutover/metastore-code.cutover.patch` removes; the historical `x1mmdp` attempt-1 pre-split core census counted 143 failing tests among them. Most failures are `MetadataSchemaError` refusals of fixtures written as bullet records, with the rest calling removed Phase-B APIs or hitting four unpatched production cutover gaps (`plan_readiness.py`, `status_set.py`, `artifact_refs.py`, and `artifact_adopt.py`, recorded in F-05 and escalated in `OQ-01`). `89mtbl` F-04 re-measures the authoritative post-builder census before batch execution.
+- Scope: In an isolated scratch worktree `.aw/state/x3mig6/scratch` with both cutover patches applied (including prerequisite plans `hdwqex`, `89mtbl`, `nv3upa`, `fljn9b`, `cugg3w`, `szykgd`, `psm9ac`, `otin36`, `x8id25`, `p109wy`, `q6fiws`, `e0g2gt`, `j1f454`, `lec341`, and `qi0kl6`, plus any prerequisite production-fix plan(s) split out by `OQ-01`), convert the 8 batch F test modules under the shared conversion rules, run them on both tiers, record any rule-4 retirements in F-02 and any remaining refusal of this repository's own unmigrated records in F-03, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. Make no live code or test changes outside `- Scope-Paths:`.
 - Scope-Paths: .aw/records/plans/pending/20261125-metastore-313-x3mig6-convert-test-batch-f-spec-review-gate-kind-through-writers-s.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:qi0kl6
-- Status: to-review
+- Status: reviewed
+- Review-Depth: standard
+- Readiness: no-go
 - From-Spec: 4sd62s
 - Work-Kind: followup
 - Priority: high
@@ -22,6 +24,8 @@
 
 ## Workflow history
 
+- 2026-11-26 reviewed (aw set): REVIEWED - OPEN QUESTIONS; PR-002..PR-006 FIXED; PR-001 OPEN (OQ-01)
+- 2026-11-26 /plan-review (antigravity/gemini): REVIEWED - OPEN QUESTIONS; PR-002..PR-006 FIXED; PR-001 OPEN (escalated as OQ-01); review record .aw/records/reviews/20261125-metastore-313-x3mig6-convert-test-batch-f-spec-review-gate-kind-through-writers-s.review.md
 - 2026-11-26 to-review (aw set): authored as part of the x1mmdp split per maintainer answer to run-20261125T162650Z-1337442 question 06-x1mmdp-a1-Q-01 (Split into new children; fix jycxw8 first)
 - 2026-11-26 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.
 
@@ -35,113 +39,146 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: scratch worktree
 
-- [ ] E-01 Create the scratch worktree with the SCRATCH PROCEDURE of `2k5t16` (Step 0): `git worktree add --detach .aw/state/x3mig6/scratch HEAD`, apply the docs patch with `git apply --index`, record `BASE=$(git write-tree)` in F-01, then apply the code patch with `git apply --index`. If either patch does not apply, stop and report.
+- [ ] E-01 Create the scratch worktree following the SCRATCH PROCEDURE of executed plan `2k5t16` (Step 0): run `git worktree add --detach .aw/state/x3mig6/scratch HEAD`; inside `.aw/state/x3mig6/scratch`, apply `.aw/system/cutover/metastore-docs.cutover.patch` with `git apply --index .aw/system/cutover/metastore-docs.cutover.patch`, record `BASE=$(git write-tree)` in F-01, and then apply `.aw/system/cutover/metastore-code.cutover.patch` with `git apply --index .aw/system/cutover/metastore-code.cutover.patch`. If either patch rejects, stop and report.
   - Depends on: none
-  - Expected outcome: the scratch worktree holds HEAD plus both patches, staged; F-01 holds the base tree id.
+  - Expected outcome: `.aw/state/x3mig6/scratch` holds HEAD plus both patches staged, and F-01 holds the base tree id.
   - Execution state: pending
 
 ### Task group 2: convert batch F (scratch worktree only)
 
-- [ ] E-02 Convert the first half of batch F under the conversion rules in Step 0: `tests/test_spec_review_gate_kind.py` (4 failing), `tests/test_specs_metadata_duplicate_bullet.py` (1 failing), `tests/test_status_set.py` (67 failing), `tests/test_status_set_meta_writer.py` (10 failing). Start each module from its `89mtbl` F-04 census row.
+- [ ] E-02 Convert the first half of batch F (4 modules) in `.aw/state/x3mig6/scratch` under the shared conversion rules in Step 0, starting each module from its `89mtbl` F-04 census row (gated on `OQ-01` resolution for the `plan_readiness.py`, `status_set.py`, and `artifact_refs.py` production gaps recorded in F-05):
+  1. `tests/test_spec_review_gate_kind.py`: replace the `text_only=True` fixture in `_spec_text` with `RecordBuilder(root).spec(...)` so `.aw/records/meta/gk0001.jsonl` exists on disk, keeping both setter spellings (`aw specs set` and `aw set reviewed`) and `check.spec-review-unattested` assertions intact.
+  2. `tests/test_specs_metadata_duplicate_bullet.py`: replace the 6 `text_only=True` calls in duplicate-bullet syntax tests with explicit literal malformed bullet strings (preserving `specs.validate_spec` legacy-parity coverage), build the on-disk spec fixtures in `test_stale_spec_anchors_resolves_spec_id_via_artifact_meta` through `RecordBuilder(root).spec(...)` (keeping the body-only `- Id:` negative check), and for `test_run_migrate_captures_trailing_prose_status_via_artifact_meta` either convert to log-backed `specs.run_migrate` assertions or retire the pre-cutover inline-bullet `- Status:` rewrite pin under rule 4 citing spec `4sd62s` Sections 4.1, 4.2, and 7 in F-02.
+  3. `tests/test_status_set.py`: remove `LegacyRender` and `LegacyTarget` calls, rebuild all 22 `text_only=True` and hand-written bullet fixtures in `StatusSetTestBase` and subclasses through `RecordBuilder(self.repo_root)` (ensuring git commits include `.aw/records/meta/<id6>.jsonl`), replace inline `- Status:` / `- Approval:` / `- Blocks-Release:` / `- Gate-Kind:` / `## Workflow history` text assertions with `tests.record_builder.assert_field` / `assert_no_field` / `artifact_meta.read` / `artifact_meta.history`, and update `test_j_commit_includes_rewritten_citing_file` to assert `.aw/records/meta/pl0009.jsonl` is included in the commit (where post-cutover `scope_paths` lives). Keep all approval-gate, orchestrator-readiness, untooled-recovery, and citation-rewrite assertions unweakened.
+  4. `tests/test_status_set_meta_writer.py`: retire the Phase-B inline-bullet placement byte-pin tests (`test_w04_*`, `test_w14_*`, `test_w05_*`, `test_w16_*`, `test_w18_*`) under rule 4 citing spec `4sd62s` Sections 4.1, 4.2, 4.3, and 7 in F-02 (or replace with log-format behavioral checks asserting on `artifact_meta.read` and `artifact_meta.history` without pinning inline bullet order), and convert the 3 `text_only=True` fixtures in `test_w09_from_spec_unknown_id_refuses_and_leaves_bytes` and `test_cache_state_does_not_change_setter_bytes_or_stdout` to `RecordBuilder(repo)` log-format fixtures asserting both mirror and `meta/<id6>.jsonl` byte parity across `cold`/`warm`/`deleted`/`corrupt` cache states.
   - Depends on: E-01
-  - Expected outcome: each listed module imports no removed symbol and builds its fixtures in the log format.
+  - Expected outcome: each first-half module imports no removed Phase-B symbol, builds its fixtures in log format (keeping literal legacy text only where legacy syntax is the test subject), preserves all behavioral assertions, and records any rule-4 retirements for F-02.
   - Execution state: pending
 
-- [ ] E-03 Convert the second half of batch F under the same rules: `tests/test_writers_create_summary.py` (34 failing), `tests/test_writers_merge_independence.py` (2 failing), `tests/test_writers_obligations.py` (16 failing), `tests/test_writers_scope_fields.py` (9 failing).
+- [ ] E-03 Convert the second half of batch F (4 modules) in `.aw/state/x3mig6/scratch` under the same shared conversion rules (gated on `OQ-01` resolution for the `plan_readiness.py` and `artifact_adopt.py` production gaps recorded in F-05):
+  1. `tests/test_writers_create_summary.py`: replace `_extract_id6` (bullet regex) with `artifact_meta.read_mirror_id6`, build `_write_plan_fixture`, walkthrough, spec, and review fixtures via `RecordBuilder`, replace inline `- Short-Description:` / `short-description:` / `<!-- aw-prompt:` text assertions with `artifact_meta.read` (`state.short_description`, `state.fields["short_description"]`), `artifact_meta.history`, and `<!-- aw-managed-prompt:` mirror checks (preserving prompt body purity and every unsafe-summary/breakout/pipe refusal); repoint `test_prompts_load_legacy_artifact_strips_metadata_trailer` from removed `artifact_meta.load_legacy_artifact` to `agent_workflows.migrations.m0001_metadata_v2.load_legacy_artifact` under rule 3; drop the retired `.aw/records/history.jsonl` sidecar assertion in `test_describe_specs_and_backlog_sidecar_round_trip` (`4sd62s` Section 4.6) while keeping the `aw describe` round-trip checks; and retire the Phase-B inline YAML/prompt ordering tests (`test_yaml_short_description_rendered_last_before_closing_fence`, `test_yaml_short_description_absent_or_none_renders_no_line`, `test_prompts_new_short_description_is_the_last_field_before_the_trailer`) under rule 4 citing `4sd62s` Sections 4.1, 4.2, 4.3, and 7 in F-02.
+  2. `tests/test_writers_merge_independence.py`: replace `_extract_id6` with `artifact_meta.read_mirror_id6`, build `pl0001` via `RecordBuilder(repo).plan(...)` with log-backed review history and `readiness: no-go` so `aw ipd recheck-readiness` and `git merge` exercise log-format merges, and retire `test_same_record_history_prepends_conflict_in_phase_b` under rule 4 citing spec `4sd62s` Section 4.7 and AC-3 (or convert to assert post-cutover log merge behavior) in F-02.
+  3. `tests/test_writers_obligations.py`: replace `LegacyTarget`/`LegacyRender` calls in `test_ac15_1_*`, `test_ac14a_1_and_2_*`, and `test_ac15_3_*` with `meta.append(id6, ...)` keyed by `id6`; convert `_write_plan`, `_write_set_fixtures`, standalone coverage fixture, and `test_ac21_obligations_*` fixtures to `RecordBuilder` log-format fixtures; replace removed `meta.write_legacy`/`meta.render_legacy_text` sub-cases in `test_ac24_2_unsafe_actor_refused_before_write_leaving_digests_unchanged` with `meta.append(id6, ...)` unsafe-actor refusal checks; retire `test_coverage_checked_by_decoupled_from_history_actor_label` (Phase-B `LegacyRender.checked_by` bullet test) and update or retire the Phase-B inline-bullet git-diff assertions in `test_ac6_phase_b_backlog_done_git_diff` and `test_ac6_phase_b_ipd_finalize_within_and_out_of_scope_git_diff` to check mirror + `meta/<id6>.jsonl` diffs (citing spec `4sd62s` Sections 4.1-4.3, 4.4, AC-6, and 7 in F-02).
+  4. `tests/test_writers_scope_fields.py`: replace the removed `render_legacy_text`/`write_legacy`/`append_legacy` assertions in `test_reason_newlines_allowed_and_legacy_writer_threads_repo_root` with log-backed `meta.append` repo-root containment refusals; build the `LC.finalize` and `LC.retire_orchestrator` plans in `test_phase_b_finalize_and_log_replay_*` and `test_phase_b_retire_orchestrator_rollup_and_log_replay` through `RecordBuilder(repo).plan(...)` and assert directly on `meta.read(plan_id)` and `_read_scope_exceptions` (untrimmed reasons, no `- Scope-Exceeded:` inline bullet); repoint `test_legacy_loader_scope_exceeded_raw_and_metadata_region_boundary` to `agent_workflows.migrations.m0001_metadata_v2.load_legacy_artifact` under rule 3; and remove the removed `LegacyTarget`/`LegacyRender` half of `test_owned_scope_field_and_enum_refusals_on_legacy_and_log` under rule 1/4 while keeping all log-backed refusal checks.
   - Depends on: E-02
-  - Expected outcome: each listed module imports no removed symbol and builds its fixtures in the log format.
+  - Expected outcome: each second-half module imports no removed Phase-B symbol, builds its fixtures in log format (or calls `m0001` where legacy input is the subject), preserves all behavioral assertions, and records any rule-4 retirements for F-02.
   - Execution state: pending
 
-- [ ] E-04 Run every batch F module in the scratch worktree with `python3 -m pytest -o addopts="" -m '' <modules>` (both tiers). Record in F-02 any node id deleted under conversion rule 4 with its clause, and in F-03 every node id that still fails, each with its failure text; each F-03 entry must be a "run `aw migrate metadata`" refusal of a test reading this repository's own records (`livecorpus` or `REPO_ROOT`). Any other failure stops the plan here and is reported.
+- [ ] E-04 Run all 8 batch F modules in `.aw/state/x3mig6/scratch` on both tiers with `python3 -m pytest -o addopts="" -m '' tests/test_spec_review_gate_kind.py tests/test_specs_metadata_duplicate_bullet.py tests/test_status_set.py tests/test_status_set_meta_writer.py tests/test_writers_create_summary.py tests/test_writers_merge_independence.py tests/test_writers_obligations.py tests/test_writers_scope_fields.py`. Record in F-02 every node id deleted under conversion rule 4 with its spec `4sd62s` clause (or "none"), and in F-03 every node id that still fails, each with its refusal text; each F-03 entry must be a "run `aw migrate metadata`" refusal of a test reading this repository's own records (`livecorpus` or `REPO_ROOT`, expected "none" for batch F). Any other failure stops the plan here and is reported.
   - Depends on: E-03
-  - Expected outcome: every other test passes; F-03 lists the allowed refusals only.
+  - Expected outcome: every remaining batch F test passes on both tiers; F-02 lists any rule-4 deletions with their spec `4sd62s` clauses; F-03 lists allowed live-repo refusals only (expected "none").
   - Execution state: pending
 
 ### Task group 3: package
 
-- [ ] E-05 In the scratch worktree run `git add -A`, write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch`, remove the scratch worktree (`git worktree remove --force .aw/state/x3mig6/scratch`), run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout, and commit through `aw commit x3mig6 -- <this plan> .aw/system/cutover/metastore-code.cutover.patch`; never push.
+- [ ] E-05 In `.aw/state/x3mig6/scratch` run `git add -A` and write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch` in the executing checkout; remove the scratch worktree (`git worktree remove --force .aw/state/x3mig6/scratch`); run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout; verify `git status --short` shows only `- Scope-Paths:` modified (no live code or test edits); and commit through `aw commit x3mig6 -- .aw/records/plans/pending/20261125-metastore-313-x3mig6-convert-test-batch-f-spec-review-gate-kind-through-writers-s.ipd.md .aw/system/cutover/metastore-code.cutover.patch`; never push.
   - Depends on: E-04
-  - Expected outcome: the regenerated code patch holds the earlier changes plus this plan's; the guard test passes; one path-scoped commit.
+  - Expected outcome: `.aw/system/cutover/metastore-code.cutover.patch` holds all earlier changes plus batch F's updates; `tests/test_metastore_cutover_code_patch.py` passes; scratch worktree is removed; no live files outside `- Scope-Paths:` are modified; one path-scoped commit is created.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
-- The scratch procedure and the cumulative code patch are defined in `2k5t16`. The batch children run in a chain (`nv3upa`, `cugg3w`, `psm9ac`, `x8id25`, `e0g2gt`, `qi0kl6`, `x3mig6`) because each regenerates the one cumulative code patch from its own base.
-- Conversion rules shared by the `ldfefd` batch children (`nv3upa`, `cugg3w`, `psm9ac`, `x8id25`, `e0g2gt`, `qi0kl6`, `x3mig6`), fixed here so no executor chooses them: (1) a call to an API the code patch removes (`LegacyRender`, `LegacyTarget`, `render_legacy_text`, `set_legacy_bullet_line`, `_LEGACY_BULLET_LABEL`, `_format_legacy_value`, `_RESEARCH_YAML_KEY`, `_format_yaml_value`, `_PROMPT_COMMENT_KEY`, `write_legacy`, `SidecarRecord`, `backlog._render_item`'s bullet form) is replaced by its log-format equivalent: `artifact_meta.create` or `artifact_meta.append` keyed by id6, or `tests.record_builder.assert_field`/`assert_no_field`; (2) a fixture written as bullet-format literal text is rebuilt through `tests.record_builder.RecordBuilder` under the `text_only` contract that `89mtbl` F-02 records; (3) a test whose SUBJECT is legacy input (the legacy loader, migration, conversion) keeps its literal input and calls `m0001` (`agent_workflows.migrations.m0001_metadata_v2.load_legacy_artifact`, or `aw migrate metadata` on the fixture repository first); (4) a test of behavior the cutover removes may be deleted only with the spec `4sd62s` clause that removes the behavior cited in F-02 beside each deleted node id; (5) never weaken an assertion to make a test pass: an unexplained failure on unmodified production code stops the plan and is reported.
+- The scratch procedure and cumulative code patch are defined in executed plan `2k5t16` (Step 0, OQ-01). The `ldfefd` children run in a serial chain (`hdwqex`, `89mtbl`, `nv3upa`, `fljn9b`, `cugg3w`, `szykgd`, `psm9ac`, `otin36`, `x8id25`, `p109wy`, `q6fiws`, `e0g2gt`, `j1f454`, `lec341`, `qi0kl6`, plus any prerequisite production-fix plan(s) decided in `OQ-01`, then `x3mig6`, then capstone `x1mmdp`) because each regenerates the one cumulative `.aw/system/cutover/metastore-code.cutover.patch` from its own `$BASE`.
+- Conversion rules shared by the `ldfefd` batch children (`nv3upa`, `cugg3w`, `psm9ac`, `x8id25`, `e0g2gt`, `qi0kl6`, `x3mig6`), fixed here so no executor chooses them: (1) a call to an API the code patch removes (`LegacyRender`, `LegacyTarget`, `render_legacy_text`, `set_legacy_bullet_line`, `_LEGACY_BULLET_LABEL`, `_format_legacy_value`, `_RESEARCH_YAML_KEY`, `_format_yaml_value`, `_PROMPT_COMMENT_KEY`, `write_legacy`, `append_legacy`, `load_legacy_artifact`, `SidecarRecord`, `backlog._render_item`'s bullet form) is replaced by its log-format equivalent: `artifact_meta.create` or `artifact_meta.append` keyed by id6, or `tests.record_builder.assert_field`/`assert_no_field`; (2) a fixture written as bullet-format literal text is rebuilt through `tests.record_builder.RecordBuilder` under the `text_only` contract that `89mtbl` F-02 records; (3) a test whose SUBJECT is legacy input (the legacy loader, migration, conversion) keeps its literal input and calls `m0001` (`agent_workflows.migrations.m0001_metadata_v2.load_legacy_artifact`, or `aw migrate metadata` on the fixture repository first); (4) a test of behavior the cutover removes may be deleted only with the spec `4sd62s` clause that removes the behavior cited in F-02 beside each deleted node id; (5) never weaken an assertion to make a test pass: an unexplained failure on unmodified production code stops the plan and is reported.
 - A fixture repository the switched builder writes is log-format, so `migrations.chain.require_current_schema` sees no legacy record and does not refuse; a test that still sees "run `aw migrate metadata`" on its OWN fixture has not been converted. Only tests that read this repository's own records (`livecorpus`, `REPO_ROOT`) may still refuse, and those are listed in F-03, not edited.
-- Tests exercise code and assert on outcomes (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE").
-- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (advisory `IPD-C801`).
+- Tests exercise code and assert on outcomes (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"); no `inspect`, `ast`, regex, or substring code-pinning tests.
+- Cite code by SYMBOL (`path::Symbol`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (advisory `IPD-C801`).
 
 ## Findings
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-01 | (written by E-01) | Base tree id after the docs patch. |
+| F-01 | (written by E-01) | Base tree id after applying `.aw/system/cutover/metastore-docs.cutover.patch`. |
 | F-02 | (written by E-04) | Node ids deleted under conversion rule 4, each with its spec `4sd62s` clause (or "none"). |
-| F-03 | (written by E-04) | Node ids still refused on the switched, unmigrated tree, each with its refusal text; `x1mmdp` E-04 merges this into its list. |
-| F-04 | `.aw/state/lane-submissions/run-20261125T162650Z-1337442/06-x1mmdp/attempt-1/evidence/failing-modules.txt` and the census the batch boundaries were cut from (2026-11-25) | Batch F is the alphabetical slice from `test_spec_review_gate_kind` to `test_writers_scope_fields`: 8 modules, 143 failing core tests in the attempt-1 census. |
+| F-03 | (written by E-04) | Node ids still refused on the switched, unmigrated tree, each with its refusal text (expected "none" for batch F because none of the 8 batch F modules reads `livecorpus` or `REPO_ROOT`); `x1mmdp` E-04 merges this into its list. |
+| F-04 | Historical `x1mmdp` attempt-1 pre-split census (2026-11-25) and `89mtbl` F-04 (authoritative post-builder census) | Batch F is the alphabetical slice from `tests/test_spec_review_gate_kind.py` to `tests/test_writers_scope_fields.py`: 8 modules, 143 failing core tests in the historical pre-split census. Static audit confirmed 4 modules call removed Phase-B APIs (`LegacyRender`, `LegacyTarget`, `render_legacy_text`, `write_legacy`, `load_legacy_artifact`), 4 modules carry 32 `text_only=True` fixtures, and zero modules are currently touched by `.aw/system/cutover/metastore-code.cutover.patch`. |
+| F-05 | Static audit of `.aw/system/cutover/metastore-code.cutover.patch` against all 8 batch F modules and prior prerequisite plans (`hdwqex`, `fljn9b`, `szykgd`, `otin36`, `p109wy`, `q6fiws`, `j1f454`, `lec341`) | Four unpatched production cutover gaps remain outside all prior prerequisite plans and block 4 batch F modules (`test_status_set.py`, `test_writers_create_summary.py`, `test_writers_merge_independence.py`, `test_writers_obligations.py`): (1) `agent_workflows/plan_readiness.py` (`_declared_id6`, `approval_refusals`, `recheck_conditions`, `recheck_readiness`) reads inline `- Id:`, `- Readiness:`, and `## Workflow history` only (disabling the approval gate on log-format plans/specs and making `aw ipd recheck-readiness` refuse every log-format plan); (2) `agent_workflows/status_set.py` calls bare `_ipd_lint.parse(raw_text)` without `state=` in the orchestrator readiness gate and write-ordering sort (silently skipping orchestrator readiness checks and child-before-orchestrator ordering), omits `.aw/records/meta/<orch.id6>.jsonl` from dirtiness checks and `touched_paths` on child retirement, and checks only filename/inline text for `research-prompt` hot-status refusals; (3) `agent_workflows/artifact_refs.py` (`classify_citing_plans_for_rewrite`, `plan_scope_path_reference_rewrites`, `apply_scope_path_reference_rewrites`) uses bullet-only `read_loose_id` (misclassifying every log-format pending plan as `"missing - Id:"`, refusing citation rewrites and bypassing the in-flight begin-receipt guard in `filter_in_flight_plan_edits`), discovers citing plans only via `.md` text scan (missing log-stored `scope_paths`), and returns only `plan_file` instead of `.aw/records/meta/<plan_id6>.jsonl` (omitting the mutated log from `--commit`); and (4) `agent_workflows/artifact_adopt.py` (`AdoptionPlan`, `plan_adoption`, `apply_adoption`) stores only `planned.content` (the 2-key YAML mirror from `research_cmd.plan_new`) and re-parses it via `front_matter_mapping(plan.frontmatter)` in `apply_adoption`, dropping `created`, `set`, `order`, `topic`, `model`, `research_kind`, `outcome`, `summary`, `consumed_by`, and `priority` on every `aw adopt --apply`. Escalated as blocking `OQ-01`. |
 
 ## Proposed changes (ordered, validatable)
 
-1. E-01: scratch worktree.
-2. E-02 and E-03: convert the two halves of batch F.
-3. E-04: run both tiers; record F-02 and F-03.
-4. E-05: regenerate the code patch and commit.
+1. E-01: Create scratch worktree `.aw/state/x3mig6/scratch` with both cutover patches staged and record `$BASE` in F-01.
+2. E-02: Convert the first 4 batch F modules (`test_spec_review_gate_kind.py` through `test_status_set_meta_writer.py`).
+3. E-03: Convert the remaining 4 batch F modules (`test_writers_create_summary.py` through `test_writers_scope_fields.py`).
+4. E-04: Run all 8 batch F modules on both tiers in the scratch worktree; record F-02 and F-03.
+5. E-05: Regenerate `.aw/system/cutover/metastore-code.cutover.patch`, remove the scratch worktree, pass `tests/test_metastore_cutover_code_patch.py`, verify clean live tree outside `- Scope-Paths:`, and commit path-scoped.
 
 ```mermaid
 flowchart TD
-    E01["E-01: scratch worktree"] --> E02["E-02: convert first half of batch F"]
-    E02 --> E03["E-03: convert second half of batch F"]
-    E03 --> E04["E-04: run both tiers; F-02, F-03"]
-    E04 --> E05["E-05: regenerate patch, guard test, commit"]
+    E01["E-01: Create scratch worktree with both patches"] --> P{Patches apply cleanly?}
+    P -->|No| STOP["Stop and report"]
+    P -->|Yes| E02["E-02: Convert first 4 batch F modules"]
+    E02 --> E03["E-03: Convert remaining 4 batch F modules"]
+    E03 --> E04["E-04: Run both tiers; record F-02 and F-03"]
+    E04 --> E05["E-05: Regenerate code patch, run guard test, commit"]
 ```
 
 ## Deferred / out of scope (with reason)
 
-- Modules outside batch F: the other batch children.
+- Prior prerequisite production fixes in the cutover code patch (`hdwqex` for `ipd_lint`/`ipd_scaffold`, `fljn9b` for `backlog.py`, `szykgd` for `specs.py`/`releases.py`/spec-link/search/dep-gate, `otin36` for `ipd_lifecycle`/`partition`/`plans`/untooled-range/hooks/`meta_repair`, `p109wy` for review mirrors/prompt metadata/priority, `q6fiws` for `coverage_record`/`orchestrator_readiness`/readiness/runner/review-sequence, `j1f454` for `selectors`/`artifact_rename`, and `lec341` for `research_cmd`/`research_refs`/`research_archive`): already owned by Orders 305 and 314-320.
+  - Carrier: lec341
+- The four unpatched batch F production cutover gaps (`plan_readiness.py`, `status_set.py`, `artifact_refs.py`, `artifact_adopt.py`, recorded in F-05): parked on maintainer sequencing decision in `OQ-01` (recommended: split into two prerequisite production-fix child plans ahead of `x3mig6`).
+  - Carrier: ldfefd
+- Modules outside batch F (batches A through E): owned by earlier batch children (`nv3upa`, `cugg3w`, `psm9ac`, `x8id25`, `e0g2gt`, `qi0kl6`).
+  - Carrier: qi0kl6
+- The final refusal list across all batches and the full-suite runs: owned by the narrowed capstone plan.
   - Carrier: x1mmdp
-- The final refusal list across all batches and the full-suite runs: the narrowed parent step.
-  - Carrier: x1mmdp
+- Applying the cutover patches on the real tree: attended cutover commit.
+  - Carrier: cxxmyv
 
 ## Scope check
 
-- Over-scope: none.
-- Under-scope: none. Every batch F module is named in E-02 or E-03 and run in E-04.
+- Over-scope: none. No live code or test files are modified outside `.aw/system/cutover/metastore-code.cutover.patch`.
+- Under-scope: F-05 identifies four unpatched production cutover gaps (`plan_readiness.py`, `status_set.py`, `artifact_refs.py`, `artifact_adopt.py`) that are outside `x3mig6`'s test-only scope and must be resolved via `OQ-01` before `x3mig6` can execute. Within batch F test conversion itself, every one of the 8 batch F modules is named in E-02 or E-03 and run in E-04.
 
 ## Required tests / validation
 
-- Named runs in the scratch worktree (V-02 to V-04); the `2k5t16` guard test (V-05).
+- Per-module removed-symbol `rg -n` checks (expecting exit 1) and scratch-worktree pytest runs across all 8 batch F modules (V-02, V-03).
+- Combined both-tier pytest run across all 8 batch F modules in `.aw/state/x3mig6/scratch` (V-04).
+- Cumulative patch guard test `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` and `git status --short` clean-tree check in the executing checkout (V-05).
 
 ## Spec / documentation sync
 
-No spec change: spec `4sd62s` 4.1 to 4.3 already define the log format and the cutover, and the docs patch already describes it. This plan brings the tests in the code patch into line with them.
+No spec change: spec `4sd62s` Sections 4.1 through 4.7 already define the log format, in-file mirrors, review/readiness obligations, and cutover, and `.aw/system/cutover/metastore-docs.cutover.patch` already documents them. This plan brings the batch F tests in `.aw/system/cutover/metastore-code.cutover.patch` into line with them once the four F-05 production gaps are resolved via `OQ-01`.
 
 ## Open questions
 
-None open.
+### OQ-01: How should the four unpatched production cutover gaps blocking batch F (`plan_readiness`, `status_set`, `artifact_refs`, `artifact_adopt`) be sequenced ahead of `x3mig6`?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-001
+- Carrier: ldfefd
+- Context: Static review of `.aw/system/cutover/metastore-code.cutover.patch` against all 8 batch F test modules verified four unpatched production gaps outside every earlier prerequisite plan (`hdwqex`, `fljn9b`, `szykgd`, `otin36`, `p109wy`, `q6fiws`, `j1f454`, `lec341`): (1) `agent_workflows/plan_readiness.py` (`_declared_id6`, `approval_refusals`, `recheck_conditions`, `recheck_readiness`) reads inline `- Id:`, `- Readiness:`, and `## Workflow history` only, disabling the approval gate on log-format plans/specs and making `aw ipd recheck-readiness` refuse every log-format plan; (2) `agent_workflows/status_set.py` calls bare `_ipd_lint.parse(raw_text)` without `state=` in the orchestrator readiness gate and write-ordering sort, omits `.aw/records/meta/<orch.id6>.jsonl` from dirtiness checks and `touched_paths` on child retirement, and checks only filename/inline text for `research-prompt` hot-status refusals; (3) `agent_workflows/artifact_refs.py` (`classify_citing_plans_for_rewrite`, `plan_scope_path_reference_rewrites`, `apply_scope_path_reference_rewrites`) uses bullet-only `read_loose_id` (misclassifying log-format pending plans as `"missing - Id:"`, refusing citation rewrites and bypassing the in-flight begin-receipt guard), scans only `.md` text for `Scope-Paths` citations, and omits `.aw/records/meta/<plan_id6>.jsonl` from returned modified paths; and (4) `agent_workflows/artifact_adopt.py` (`AdoptionPlan`, `plan_adoption`, `apply_adoption`) re-parses the 2-key YAML mirror `plan.frontmatter` instead of carrying structured fields from `research_cmd.plan_new`, dropping all research metadata except `status` and `short_description` on `aw adopt --apply`. Under shared conversion rule 5, `x3mig6` cannot weaken assertions to hide these defects.
+- Options:
+  1. Split into two focused prerequisite production-fix child plans ahead of `x3mig6`: part 1 for `plan_readiness.py` (`_declared_id6`, `approval_refusals`, `recheck_conditions`, `recheck_readiness`) and `status_set.py` (orchestrator readiness/ordering, child-retirement log commit, `research-prompt` guard), and part 2 for `artifact_refs.py` (log-aware `Scope-Paths` citation rewriting and in-flight receipt guard) and `artifact_adopt.py` (structured adoption fields), keeping `x3mig6` strictly test-only (`qi0kl6 -> <part 1> -> <part 2> -> x3mig6 -> x1mmdp`).
+  2. Split one single prerequisite production-fix child plan ahead of `x3mig6` covering all four gaps together, keeping `x3mig6` strictly test-only (`qi0kl6 -> <new plan> -> x3mig6 -> x1mmdp`).
+  3. Expand `x3mig6` in place to fix all four production gaps and convert all 8 batch F test modules in one plan.
+- Recommendation: Option 1 (strength: strong) - matches the maintainer's two-plan split precedent on `e0g2gt` (`p109wy` + `q6fiws`) and `qi0kl6` (`j1f454` + `lec341`), keeps each production-fix plan right-sized (`IPD-Z603`) around two tightly coupled subsystems (`plan_readiness`/`status_set`, then `artifact_refs`/`artifact_adopt`) with dedicated behavioral tests, and keeps `x3mig6` strictly test-only.
+- Resolution or deferral rationale: Pending maintainer decision on `run-20261126T055808Z-863961` question `batch-f-production-log-aware-gaps`.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the worktree command and both `git apply --index` commands with exit status 0, and F-01.
+  - Required evidence: paste the `git worktree add --detach .aw/state/x3mig6/scratch HEAD` command, both `git apply --index` commands (for `.aw/system/cutover/metastore-docs.cutover.patch` and `.aw/system/cutover/metastore-code.cutover.patch`) with exit status 0, and the base tree id recorded in F-01.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: paste, for each first-half module, `rg` for the removed symbols printing nothing and the pytest summary line from a run of that module in the scratch worktree.
+  - Required evidence: paste, in `.aw/state/x3mig6/scratch`, `rg -n 'LegacyRender|LegacyTarget|render_legacy_text|set_legacy_bullet_line|_LEGACY_BULLET_LABEL|_format_legacy_value|_RESEARCH_YAML_KEY|_format_yaml_value|_PROMPT_COMMENT_KEY|write_legacy|append_legacy|load_legacy_artifact|SidecarRecord' tests/test_spec_review_gate_kind.py tests/test_specs_metadata_duplicate_bullet.py tests/test_status_set.py tests/test_status_set_meta_writer.py` exiting 1 with empty output, plus the pytest summary line for each of those 4 first-half modules run in `.aw/state/x3mig6/scratch`.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: paste, for each second-half module, `rg` for the removed symbols printing nothing and the pytest summary line from a run of that module in the scratch worktree.
+  - Required evidence: paste, in `.aw/state/x3mig6/scratch`, `rg -n 'LegacyRender|LegacyTarget|render_legacy_text|set_legacy_bullet_line|_LEGACY_BULLET_LABEL|_format_legacy_value|_RESEARCH_YAML_KEY|_format_yaml_value|_PROMPT_COMMENT_KEY|write_legacy|append_legacy|SidecarRecord' tests/test_writers_create_summary.py tests/test_writers_merge_independence.py tests/test_writers_obligations.py tests/test_writers_scope_fields.py` exiting 1 with empty output (and confirming any `load_legacy_artifact` match is exclusively `m0001_metadata_v2.load_legacy_artifact`), plus the pytest summary line for each of those 4 second-half modules run in `.aw/state/x3mig6/scratch`.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: paste the combined both-tier pytest summary line for batch F, F-02, and F-03 as a table of node ids each shown with its refusal text.
+  - Required evidence: paste the combined both-tier pytest summary line (`python3 -m pytest -o addopts="" -m '' ...`) across all 8 batch F modules in `.aw/state/x3mig6/scratch`, F-02 (every rule-4 deleted node id with its spec `4sd62s` clause, or "none"), and F-03 as a table of any allowed live-repo refusal node ids with refusal text (or "none").
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: paste `git apply --stat .aw/system/cutover/metastore-code.cutover.patch`, the `tests/test_metastore_cutover_code_patch.py` run with each test PASSED, `git worktree list` showing the scratch worktree removed, and the `aw commit` output naming the commit hash.
+  - Required evidence: paste `git apply --stat .aw/system/cutover/metastore-code.cutover.patch`, the `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` run showing every test PASSED, `git worktree list` showing `.aw/state/x3mig6/scratch` removed, `git status --short` confirming no live edits outside `- Scope-Paths:`, and the `aw commit x3mig6` output naming the commit hash.
   - Observed evidence:
   - Result: pending
 
@@ -150,4 +187,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after every plan in `- Item-Dependencies:` is executed. Code and tests are edited ONLY in the scratch worktree. Scope fence: the paths in `- Scope-Paths:` are a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Stop and report rather than editing production code outside the scratch worktree or weakening test assertions if an unexpected failure occurs on unmodified code, if a patch hunk rejects, or if an unresolvable concurrent-edit conflict occurs. Honesty rule: paste the ACTUAL output of every command named above; never claim a result you did not run. Commits: commit only through `aw commit x3mig6 -- <paths>`; never push. Lifecycle transition: the plan moves to `.aw/records/plans/executed/` only through `aw ipd finalize`, after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence.
+Execute only after `OQ-01` is resolved (with any prerequisite production-fix child plan(s) authored and added to `- Item-Dependencies:`), after explicit human approval (`Status: approved`), and after every plan in `- Item-Dependencies:` is executed. Code and tests are edited ONLY in `.aw/state/x3mig6/scratch`. Scope fence: `- Scope-Paths:` is a declaration; a needed file outside the fence is edited and then justified at finalize (`--scope-reason`), and a declared path left unmodified is acknowledged (`--scope-ack`). Stop and report rather than editing live production code outside the scratch worktree or weakening test assertions if an unexpected failure occurs on unmodified code, if a patch hunk rejects, or if an unresolvable concurrent-edit conflict occurs. Honesty rule: you MUST paste the ACTUAL output of every command named in V-01 through V-05; never claim a result you did not run. Commits: commit only through `aw commit x3mig6 -- <paths>`; never push. Lifecycle transition: after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence, in a managed runner lane stop after committing the updated plan and let the runner run `aw ipd finalize`; in a hand-run session run `aw ipd finalize` to move the plan to `.aw/records/plans/executed/` (never use a raw `git mv` to `executed/`).
