@@ -21,6 +21,7 @@
 - Review-Depth: standard
 
 ## Workflow history
+- 2026-11-25 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): run run-20261125T162650Z-1337442 attempt 1 performed E-01 (V-01 pass) and blocked at E-02: the switch is a suite-wide conversion (F-05 to F-07, OQ-01, backlog ldfefd); code patch unchanged.
 - 2026-11-16 approved (aw set): status set to approved
 - 2026-11-14 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 
@@ -37,17 +38,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: scratch worktree
 
-- [ ] E-01 Create the scratch worktree with the SCRATCH PROCEDURE of `2k5t16` (Step 0): `git worktree add --detach .aw/state/x1mmdp/scratch HEAD`, apply the docs patch, record `BASE=$(git write-tree)` in F-01, then apply the code patch. If either patch does not apply, stop and report.
+- [x] E-01 Create the scratch worktree with the SCRATCH PROCEDURE of `2k5t16` (Step 0): `git worktree add --detach .aw/state/x1mmdp/scratch HEAD`, apply the docs patch, record `BASE=$(git write-tree)` in F-01, then apply the code patch. If either patch does not apply, stop and report.
   - Depends on: none
   - Expected outcome: the scratch worktree holds HEAD plus both patches, staged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: test switch (scratch worktree only; was `cxxmyv` E-07, in three steps)
 
 - [ ] E-02 Switch the shared test record builder to `RECORD_FORMAT = "log"` and add the log-format branch of the field assertion helper (`assert_field`/`assert_no_field`, added by `iog3cw` E-01: in the log format it reads `artifact_meta.read` plus the in-file mirror).
   - Depends on: E-01
   - Expected outcome: a test that builds a record and asserts a field passes on the switched tree.
-  - Execution state: pending
+  - Execution state: blocked
+  - Execution note: 2026-11-25 (run run-20261125T162650Z-1337442, attempt 1). Not performed; the scratch builder is unchanged. The step is far larger than one item, as F-05 to F-07 record: the code patch removes the legacy bullet API that the builder, `tools/fixture_codemod.py` and 31 test modules call; the builder's `text_only=True` form (1692 calls in 311 files) has no log-format meaning yet; and `jycxw8` makes any log-format plan fail `ipd_lint`. Filed as backlog `ldfefd` with a proposed split; the decision on the split is the maintainer's.
 
 - [ ] E-03 Change only the rows that the F-28 tables of `iog3cw` and `w13bkp` list as `setter-byte, exact spelling` (`59aiyh`); the other setter-byte assertions were already moved onto the helper by `iog3cw`, `w13bkp` and their batch parts. Keep the legacy-format tests that must keep literal input (the legacy loader, migration round-trip and conversion tests) pointing at `m0001`.
   - Depends on: E-02
@@ -75,10 +77,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-01 | (written by E-01) | Base tree id. |
+| F-01 | E-01, 2026-11-25: `git write-tree` after the docs patch printed `f88e0ca4f3803675d342959fdc081db8dfb41d6b` (HEAD `c7eed9a50`) | Base tree id: `f88e0ca4f3803675d342959fdc081db8dfb41d6b`. |
 | F-02 | (written by E-04) | The `review-pilot` decision: converted corpus, or routed through `m0001`. |
 | F-03 | (written by E-04) | Node ids of tests refused on the switched, unmigrated tree; `cxxmyv` E-09 and `5qyba0` compare against this list. |
 | F-04 | `cxxmyv` F-07: `tests/test_attention.py` `REPO_ROOT`; `pyproject.toml` `livecorpus` marker | Some tests read this repository's own records and are refused until the migration. |
+| F-05 | Scratch tree (HEAD + both patches), 2026-11-25: `python3 -m pytest -q tests/test_record_builder.py` fails at import with `AttributeError: module 'agent_workflows.artifact_meta' has no attribute '_LEGACY_BULLET_LABEL'` (`tests/record_builder.py:103`, via `tests/support.py:34`); the same error from `tools.fixture_codemod._registry_field_map` (line 1094). A grep for `LegacyRender`, `LegacyTarget`, `render_legacy_text`, `set_legacy_bullet_line`, `_LEGACY_BULLET_LABEL`, `_format_legacy_value`, `_RESEARCH_YAML_KEY`, `_PROMPT_COMMENT_KEY` and `write_legacy` finds 31 test modules plus `tools/fixture_codemod.py` | The code patch removes the legacy API that the builder, the codemod and 31 test modules call. No metastore child owns converting them (backlog `ldfefd`). |
+| F-06 | Scratch tree with the builder kept on the legacy format via copies of the removed helpers: core gate `567 failed, 2348 passed, 1 skipped, 11 warnings, 66 errors in 47.83s` across 71 modules; 385 are `MetadataSchemaError: Repository metadata schema is 1 (current is 2); run aw migrate metadata`, raised from fixture repos the tests build themselves, not from `REPO_ROOT` | Far more than the "livecorpus and REPO_ROOT only" refusal list E-04 expects; the per-module counts are in the lane submission `evidence/failing-modules.txt`. |
+| F-07 | Census in the scratch tree: `text_only=True` 1692 calls in 311 files (about 700 written to disk by the caller afterwards); `raw_fields=` 442; `history=` 796. Probe: a plan from `ipd_authoring.build_skeleton` behind the log mirror fails `ipd_lint.lint_file` with IPD-M101, I304, H202, S404, M106, M110 (`jycxw8`) | In the log format a record needs a `meta/<id6>.jsonl`, so a caller that writes the builder's text to disk produces an orphan; the text form needs a design decision, and `jycxw8` must be fixed before a log plan can lint as conforming. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -114,20 +119,43 @@ No spec change.
 
 ## Open questions
 
-None open.
+### OQ-01: How is the log-format test switch split and sequenced?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Question: E-02 as written cannot be one step (F-05 to F-07): the code patch removes the legacy API that the builder, `tools/fixture_codemod.py` and 31 test modules call, 71 modules fail on the switched tree, the `text_only=True` form has no log-format meaning yet, and `jycxw8` makes every log-format plan fail `ipd_lint`. Should the work be split into new metastore children (fix `jycxw8`; decide the text form; convert the builder and codemod; convert the failing modules in batches), with this plan narrowed or retired?
+- Recommendation: split it, fix `jycxw8` first, and keep this plan only for the final packaging (E-05) once the children have added their hunks to the code patch. Backlog `ldfefd` records the proposal.
+- Closes when: the maintainer chooses the split and the children exist, or narrows this plan's scope.
+- Carrier: ldfefd
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the worktree and both `git apply --index` commands with exit status 0, and F-01.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 2026-11-25, executing checkout HEAD `c7eed9a50698fd68c506210f931276f2130ba581`. Scratch worktree: `git worktree add --detach .aw/state/x1mmdp/scratch HEAD` printed `Preparing worktree (detached HEAD c7eed9a50)`, exit 0. The two applies, re-run verbatim in a second throwaway worktree `.aw/state/x1mmdp/v01` (since removed) to capture the output:
+    ```
+    $ git apply --index ../../../system/cutover/metastore-docs.cutover.patch; echo "docs exit=$?"
+    docs exit=0
+    $ git write-tree
+    f88e0ca4f3803675d342959fdc081db8dfb41d6b
+    $ git apply --index ../../../system/cutover/metastore-code.cutover.patch; echo "code exit=$?"
+    code exit=0
+    $ git diff --cached --stat | tail -1
+     112 files changed, 3307 insertions(+), 6236 deletions(-)
+    ```
+    F-01 = `f88e0ca4f3803675d342959fdc081db8dfb41d6b`, the same tree the scratch worktree gave.
+  - Result: pass
 - [ ] V-02 validates E-02
   - Required evidence: paste the diff hunk setting `RECORD_FORMAT = "log"`, the diff hunk adding the log branch of `assert_field`/`assert_no_field`, and a run of one named test module that uses the helper, with its PASSED lines.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: E-02 not performed (see its Execution note and F-05 to F-07); no diff exists. The switched tree fails before any test runs:
+    ```
+    $ python3 -m pytest -o addopts="" -q -x tests/test_record_builder.py
+    AttributeError: module 'agent_workflows.artifact_meta' has no attribute '_LEGACY_BULLET_LABEL'
+    ```
+  - Result: blocked
 - [ ] V-03 validates E-03
   - Required evidence: paste the per-row list of the exact-spelling rows from the `iog3cw` and `w13bkp` F-28 tables, each with its node id PASSED in the scratch worktree, and `rg -n m0001` over the literal-input legacy test modules showing each import.
   - Observed evidence:
