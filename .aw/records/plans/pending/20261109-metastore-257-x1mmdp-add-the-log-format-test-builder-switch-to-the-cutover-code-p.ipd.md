@@ -6,7 +6,7 @@
 - Scope: In a scratch worktree with both cutover patches applied (after the split children `hdwqex`, `89mtbl` and the batch children `nv3upa` to `x3mig6` have switched the builder and converted the test modules), update the exact-spelling rows, keep the literal-input legacy tests pointing at `m0001`, settle the `review-pilot` corpus, assemble the final refusal list, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. The builder switch (former E-02) moved to `89mtbl`. No live code changes.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1, executed:g45vyv, executed:hdwqex, executed:89mtbl, executed:nv3upa, executed:fljn9b, executed:cugg3w, executed:szykgd, executed:psm9ac, executed:otin36, executed:x8id25, executed:p109wy, executed:q6fiws, executed:e0g2gt, executed:j1f454, executed:lec341, executed:qi0kl6, executed:3e0vfy, executed:x3mig6
-- Status: approved
+- Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: feature
 - Priority: high
@@ -16,11 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: x1mmdp
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
-- Readiness: go-pending-approval
 - Review-Depth: standard
 
 ## Workflow history
+- 2026-11-26 to-review (aw set): demoted approved -> to-review: APPROVAL WITHDRAWN: re-review requested via agy review
 - 2026-11-26 note (antigravity/gemini): added Order 321 prerequisite 3e0vfy (plan_readiness, readiness_recheck, status_set, artifact_refs, and artifact_adopt log-awareness fix) ahead of x3mig6 per maintainer answer to run-20261126T055808Z-863961 question 06-x3mig6-a1-batch-f-production-log-aware-gaps.
 - 2026-11-26 note (antigravity/gemini): added Order 319 prerequisite j1f454 (selectors status matching, typed-subject ownership, and artifact_rename --to-id6 log-awareness fix) and Order 320 prerequisite lec341 (research_cmd create, research_refs renames, and research_archive moves log-awareness fix) ahead of qi0kl6 per maintainer answer to run-20261126T055808Z-863961 question 05-qi0kl6-a1-batch-e-production-log-aware-gaps.
 - 2026-11-26 note (antigravity/gemini): added Order 317 prerequisite p109wy (review mirrors, prompt metadata, and check_engine priority log-awareness fix) and Order 318 prerequisite q6fiws (coverage_record, readiness, runner, and review-sequence log-awareness fix) ahead of e0g2gt per maintainer answer to run-20261126T055808Z-863961 question 04-e0g2gt-a1-batch-d-production-log-aware-gaps.
