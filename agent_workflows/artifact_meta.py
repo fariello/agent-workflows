@@ -2699,6 +2699,7 @@ _BULLET_RE = re.compile(r"^\s*-\s*([A-Za-z0-9_-]+):\s*(.*)$")
 _STRICT_BULLET_RE = re.compile(r"^- ([A-Za-z0-9_-]+):[ \t]*(.*)$")
 _LOOSE_BULLET_RE = re.compile(r"^-[ \t]*([A-Za-z0-9_-]+):[ \t]*(.*)$")
 _YAML_KEY_RE = re.compile(r"^\s*([A-Za-z0-9_-]+):\s*(.*)$")
+_HEADING2_RE = re.compile(r"^#{2,}(?:[ \t]|$)")
 
 
 def _normalize_yaml_scalar(value: str) -> str:
@@ -3034,14 +3035,61 @@ def _iter_unfenced_lines(text: str) -> List[Tuple[int, int, int, str]]:
     return out
 
 
-def _history_block_from_after(after: str) -> HistoryBlock:
+def _history_block_from_after(after: str, *, need_body: bool = True) -> HistoryBlock:
     """Parse a :class:`HistoryBlock` from the slice immediately following the heading line."""
-    lines = after.splitlines(keepends=True)
     records: List[str] = []
     record_lines: List[str] = []
 
     continuing = False
     current_bullet_is_record = False
+
+    if (
+        not need_body
+        and "\r" not in after
+        and "\x85" not in after
+        and "\u2028" not in after
+        and "\u2029" not in after
+    ):
+        # Fast path when caller only needs records/record_lines: avoid splitting the entire
+        # remainder of large documents after the terminating heading.
+        pos = 0
+        n = len(after)
+        while pos < n:
+            nl = after.find("\n", pos)
+            if nl == -1:
+                line = after[pos:]
+                pos = n
+            else:
+                line = after[pos:nl]
+                pos = nl + 1
+            if line.startswith("## "):
+                break
+            is_indented = line.startswith(" ") or line.startswith("\t")
+            is_blank = not line.strip()
+            if not is_blank and not is_indented and not line.startswith("- "):
+                break
+            if not is_blank and is_indented and not continuing:
+                break
+
+            if is_blank:
+                continuing = False
+                current_bullet_is_record = False
+            elif not is_indented and line.startswith("- "):
+                stripped_line = line.rstrip()
+                if _HISTORY_RECORD_RE.match(stripped_line):
+                    records.append(stripped_line)
+                    record_lines.append(stripped_line)
+                    continuing = True
+                    current_bullet_is_record = True
+                else:
+                    continuing = True
+                    current_bullet_is_record = False
+            elif is_indented:
+                if current_bullet_is_record:
+                    record_lines.append(line.rstrip())
+        return HistoryBlock(records, record_lines, "")
+
+    lines = after.splitlines(keepends=True)
     terminating_idx: Optional[int] = None
 
     for idx, raw_line in enumerate(lines):
@@ -3075,7 +3123,7 @@ def _history_block_from_after(after: str) -> HistoryBlock:
             if current_bullet_is_record:
                 record_lines.append(line.rstrip())
 
-    if terminating_idx is None:
+    if not need_body or terminating_idx is None:
         body = ""
     else:
         rem_lines = [ln.rstrip("\r\n") for ln in lines[terminating_idx:]]
@@ -3086,7 +3134,7 @@ def _history_block_from_after(after: str) -> HistoryBlock:
     return HistoryBlock(records, record_lines, body)
 
 
-def _history_block(text: str) -> HistoryBlock:
+def _history_block(text: str, *, need_body: bool = True) -> HistoryBlock:
     """The canonical, pure reader for an artifact's ``## Workflow history`` block.
 
     States the bounding rule ONCE and returns a :class:`HistoryBlock` with:
@@ -3138,7 +3186,7 @@ def _history_block(text: str) -> HistoryBlock:
     elif after.startswith("\n"):
         after = after[1:]
 
-    return _history_block_from_after(after)
+    return _history_block_from_after(after, need_body=need_body)
 
 
 def _newest_history_record(history_lines: List[str]) -> Optional[str]:
@@ -3364,7 +3412,6 @@ def _parse_bullet_metadata_with_loose(
     would cut a bullet value short (hiding an unsafe control character from the descriptive-safety
     checks) and let text after it be read as a forged bullet.
     """
-    lines = text.replace("\r\n", "\n").split("\n")
     bullets: Dict[str, str] = {}
     loose_bullets: Dict[str, str] = {}
     title: Optional[str] = None
@@ -3373,7 +3420,19 @@ def _parse_bullet_metadata_with_loose(
     fence_char = ""
     fence_len = 0
 
-    for line in lines:
+    pos = 0
+    n = len(text)
+    while pos <= n:
+        nl = text.find("\n", pos)
+        if nl == -1:
+            line = text[pos:]
+            pos = n + 1
+        else:
+            line = text[pos:nl]
+            if line.endswith("\r"):
+                line = line[:-1]
+            pos = nl + 1
+
         stripped = line.strip()
         if not in_fence:
             if stripped.startswith("```") or stripped.startswith("~~~"):
@@ -3397,21 +3456,24 @@ def _parse_bullet_metadata_with_loose(
             first_h1_done = True
             continue
 
-        if re.match(r"^#{2,}(?:[ \t]|$)", stripped):
+        if stripped.startswith("##") and _HEADING2_RE.match(stripped):
             break
 
-        m_strict = _STRICT_BULLET_RE.match(line)
-        if m_strict:
-            k = m_strict.group(1).strip()
-            v = m_strict.group(2).strip()
-            bullets.setdefault(k, v)
-        m_loose = _LOOSE_BULLET_RE.match(line)
-        if m_loose:
-            k_l = m_loose.group(1).strip()
-            v_l = m_loose.group(2).strip()
-            loose_bullets.setdefault(k_l, v_l)
+        if line.startswith("-"):
+            m_strict = _STRICT_BULLET_RE.match(line)
+            if m_strict:
+                k = m_strict.group(1).strip()
+                v = m_strict.group(2).strip()
+                bullets.setdefault(k, v)
+                loose_bullets.setdefault(k, v)
+            else:
+                m_loose = _LOOSE_BULLET_RE.match(line)
+                if m_loose:
+                    k_l = m_loose.group(1).strip()
+                    v_l = m_loose.group(2).strip()
+                    loose_bullets.setdefault(k_l, v_l)
 
-    history_lines = _history_block(text).records
+    history_lines = _history_block(text, need_body=False).records
     return bullets, loose_bullets, title, history_lines
 
 

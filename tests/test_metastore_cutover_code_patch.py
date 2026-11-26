@@ -35,13 +35,20 @@ CODE_PATCH = Path(
 )
 
 
-def _git(args: list[str], env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+def _patch_lf_bytes(patch_path: Path) -> bytes:
+    """Read patch_path normalized to LF so Windows core.autocrlf checkouts match the LF git index."""
+    return patch_path.read_bytes().replace(b"\r\n", b"\n")
+
+
+def _git(
+    args: list[str], env: dict[str, str], *, input_bytes: bytes | None = None
+) -> subprocess.CompletedProcess[bytes]:
     return subprocess.run(
         ["git", *args],
         cwd=REPO_ROOT,
         env=env,
+        input=input_bytes,
         capture_output=True,
-        text=True,
         check=False,
     )
 
@@ -54,13 +61,24 @@ def _apply_on_temp_index(docs_patch: Path, code_patch: Path) -> tuple[int, int, 
         read_tree = _git(["read-tree", "HEAD"], env)
         if read_tree.returncode != 0:
             raise AssertionError(
-                f"git read-tree HEAD failed: {read_tree.stderr.strip()}"
+                f"git read-tree HEAD failed: "
+                f"{read_tree.stderr.decode('utf-8', errors='replace').strip()}"
             )
-        docs = _git(["apply", "--cached", str(docs_patch)], env)
+        docs = _git(
+            ["apply", "--cached", "-"], env, input_bytes=_patch_lf_bytes(docs_patch)
+        )
         if docs.returncode != 0:
-            return docs.returncode, -1, docs.stderr
-        code = _git(["apply", "--cached", "--check", str(code_patch)], env)
-        return docs.returncode, code.returncode, code.stderr
+            return docs.returncode, -1, docs.stderr.decode("utf-8", errors="replace")
+        code = _git(
+            ["apply", "--cached", "--check", "-"],
+            env,
+            input_bytes=_patch_lf_bytes(code_patch),
+        )
+        return (
+            docs.returncode,
+            code.returncode,
+            code.stderr.decode("utf-8", errors="replace"),
+        )
 
 
 class MetastoreCutoverCodePatchGuardTests(unittest.TestCase):
@@ -81,14 +99,19 @@ class MetastoreCutoverCodePatchGuardTests(unittest.TestCase):
 
     def test_code_patch_touches_files(self) -> None:
         stat = subprocess.run(
-            ["git", "apply", "--numstat", str(CODE_PATCH)],
+            ["git", "apply", "--numstat", "-"],
             cwd=REPO_ROOT,
+            input=_patch_lf_bytes(CODE_PATCH),
             capture_output=True,
-            text=True,
             check=False,
         )
-        self.assertEqual(stat.returncode, 0, stat.stderr.strip())
-        self.assertTrue(stat.stdout.strip(), "code patch touches no files")
+        self.assertEqual(
+            stat.returncode, 0, stat.stderr.decode("utf-8", errors="replace").strip()
+        )
+        self.assertTrue(
+            stat.stdout.decode("utf-8", errors="replace").strip(),
+            "code patch touches no files",
+        )
 
     def test_check_refuses_a_patch_that_no_longer_applies(self) -> None:
         """The check is not vacuous: a code patch whose context is wrong is refused."""
@@ -102,7 +125,7 @@ class MetastoreCutoverCodePatchGuardTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as tmp_dir:
             bad_patch = Path(tmp_dir) / "bad.patch"
-            bad_patch.write_text(bad, encoding="utf-8")
+            bad_patch.write_text(bad, encoding="utf-8", newline="\n")
             docs_rc, code_rc, _stderr = _apply_on_temp_index(DOCS_PATCH, bad_patch)
         self.assertEqual(docs_rc, 0)
         self.assertNotEqual(code_rc, 0)

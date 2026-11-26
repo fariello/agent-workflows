@@ -111,21 +111,27 @@ def _is_in_allowed_documentation_set(rel_path: str) -> bool:
     return bool(RECORDS_README_RE.match(rel_path))
 
 
+def _patch_lf_bytes(patch_path: Path) -> bytes:
+    """Read patch_path normalized to LF so Windows core.autocrlf checkouts match the LF git index."""
+    return patch_path.read_bytes().replace(b"\r\n", b"\n")
+
+
 def _patch_touched_paths(patch_path: Path) -> set[str]:
     """Return the set of repository-relative paths touched by patch_path."""
     proc = subprocess.run(
-        ["git", "apply", "--numstat", str(patch_path)],
+        ["git", "apply", "--numstat", "-"],
         cwd=REPO_ROOT,
+        input=_patch_lf_bytes(patch_path),
         capture_output=True,
-        text=True,
         check=False,
     )
     if proc.returncode != 0:
         raise AssertionError(
-            f"git apply --numstat failed (exit {proc.returncode}): {proc.stderr.strip()}"
+            f"git apply --numstat failed (exit {proc.returncode}): "
+            f"{proc.stderr.decode('utf-8', errors='replace').strip()}"
         )
     paths: set[str] = set()
-    for line in proc.stdout.splitlines():
+    for line in proc.stdout.decode("utf-8", errors="replace").splitlines():
         if not line.strip():
             continue
         parts = line.split("\t", 2)
@@ -163,18 +169,18 @@ class MetastoreCutoverPatchGuardTests(unittest.TestCase):
             )
 
             apply_check = subprocess.run(
-                ["git", "apply", "--cached", "--check", str(PATCH_PATH)],
+                ["git", "apply", "--cached", "--check", "-"],
                 cwd=REPO_ROOT,
                 env=env,
+                input=_patch_lf_bytes(PATCH_PATH),
                 capture_output=True,
-                text=True,
                 check=False,
             )
             self.assertEqual(
                 apply_check.returncode,
                 0,
                 f"Cutover docs patch no longer applies cleanly to HEAD:\n"
-                f"{apply_check.stderr.strip()}",
+                f"{apply_check.stderr.decode('utf-8', errors='replace').strip()}",
             )
 
     def test_patch_covers_all_f03_rewrite_files(self) -> None:

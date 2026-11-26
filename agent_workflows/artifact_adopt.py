@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import re
 from datetime import date
 from pathlib import Path
@@ -72,6 +73,9 @@ INBOX_REL = ".aw/inbox"
 # `research_cmd.build_frontmatter`. This is the dialect the likeliest destination actually uses, so
 # a guard written against the bullet form alone would miss the case it meets first.
 _YAML_ID_RE = re.compile(r"(?m)^[ \t]*id:[ \t]*([0-9a-z]{6})[ \t]*$")
+_PROMPT_COMMENT_ID_RE = re.compile(r"(?i)\bId:[ \t]*([0-9a-z]{6})\b")
+_FILENAME_CLUSTERED_ID_RE = re.compile(r"^\d{8}-[a-z0-9-]+-\d{2}-([0-9a-z]{6})-")
+_UNINDEXED_SKIP_DIRS = frozenset({"runs", "comms", "reviews", ".data", "meta"})
 
 
 def _iter_body_bullet_id6s(text: str) -> List[str]:
@@ -243,35 +247,114 @@ def repository_id6s(repo_root: Path) -> Set[str]:
             parsed = None
         if parsed is not None:
             found.add(parsed.id6)
+            return
+        m_pre = _FILENAME_CLUSTERED_ID_RE.match(name)
+        if m_pre and _core.is_valid_id6(m_pre.group(1)):
+            found.add(m_pre.group(1))
 
-    # 1. Cached record metadata inventory via artifact_meta.query (D-3).
+    # 1. Cached record metadata inventory via artifact_meta.query (D-3), or a lightweight
+    # direct header scan when index.db has not been materialized yet (avoids building and
+    # discarding a full SQLite index over thousands of files/reviews on fresh clones).
     try:
         ctx = _am.legacy_context(repo_root)
         records_root = Path(ctx.logical_roots["records"])
-        scan_repo = _am._scan_repo_root(ctx, records_root) or repo_root.resolve()
-        with _am.scan_once(), _am.ephemeral_if_uninitialized():
-            qres = _am.query(project_context=ctx)
-        for st in qres.rows:
-            if (
-                not getattr(st, "id_derived", False)
-                and st.id6
-                and _core.is_valid_id6(st.id6)
-            ):
-                found.add(st.id6)
-            if not st.path:
-                continue
-            _add_filename_id(Path(st.path).name)
-            if st.type in ("research", "roadmap"):
+        state_root = Path(ctx.logical_roots["state"])
+        index_db = state_root / "index.db"
+        if index_db.is_file():
+            scan_repo = _am._scan_repo_root(ctx, records_root) or repo_root.resolve()
+            with _am.scan_once(), _am.ephemeral_if_uninitialized():
+                qres = _am.query(project_context=ctx)
+            for st in qres.rows:
+                if (
+                    not getattr(st, "id_derived", False)
+                    and st.id6
+                    and _core.is_valid_id6(st.id6)
+                ):
+                    found.add(st.id6)
+                if not st.path:
+                    continue
+                _add_filename_id(Path(st.path).name)
+                if st.type in ("research", "roadmap"):
+                    try:
+                        src_p = _am.source_path(st.path, records_root, scan_repo)
+                        src_res = src_p.resolve()
+                        if src_res not in scanned_research:
+                            scanned_research.add(src_res)
+                            found.update(
+                                scan_declared_identities(
+                                    src_p.read_text(encoding="utf-8")
+                                )
+                            )
+                    except (OSError, UnicodeDecodeError, ValueError):
+                        pass
+        elif records_root.is_dir():
+            meta_dir = records_root / "meta"
+            if meta_dir.is_dir():
                 try:
-                    src_p = _am.source_path(st.path, records_root, scan_repo)
-                    src_res = src_p.resolve()
-                    if src_res not in scanned_research:
-                        scanned_research.add(src_res)
-                        found.update(
-                            scan_declared_identities(src_p.read_text(encoding="utf-8"))
-                        )
-                except (OSError, UnicodeDecodeError, ValueError):
+                    for entry in os.scandir(meta_dir):
+                        if entry.is_file() and entry.name.endswith(".jsonl"):
+                            stem = entry.name[:-6]
+                            if _core.is_valid_id6(stem):
+                                found.add(stem)
+                except OSError:
                     pass
+            records_res = records_root.resolve()
+            for dirpath, dirnames, filenames in os.walk(records_res):
+                if Path(dirpath) == records_res:
+                    dirnames[:] = [d for d in dirnames if d not in _UNINDEXED_SKIP_DIRS]
+                else:
+                    dirnames[:] = [
+                        d for d in dirnames if d not in (".data", "runs", "untracked")
+                    ]
+                rel_dir = Path(dirpath).relative_to(records_res)
+                top = rel_dir.parts[0] if rel_dir.parts else ""
+                is_research_like = top in ("research", "roadmaps")
+                for fname in filenames:
+                    if not fname.endswith(".md"):
+                        continue
+                    _add_filename_id(fname)
+                    fpath = Path(dirpath) / fname
+                    if is_research_like:
+                        try:
+                            f_res = fpath.resolve()
+                            if f_res not in scanned_research:
+                                scanned_research.add(f_res)
+                                found.update(
+                                    scan_declared_identities(
+                                        fpath.read_text(encoding="utf-8")
+                                    )
+                                )
+                        except (OSError, UnicodeDecodeError):
+                            pass
+                        continue
+                    try:
+                        with fpath.open("r", encoding="utf-8", errors="replace") as fh:
+                            head = fh.read(4096)
+                    except OSError:
+                        continue
+                    if head.startswith("---"):
+                        block = _yaml_frontmatter_block(head)
+                        if block:
+                            for m_y in _YAML_ID_RE.findall(block):
+                                found.add(m_y)
+                        continue
+                    if head.startswith("<!--"):
+                        end_c = head.find("-->")
+                        if end_c != -1:
+                            m_p = _PROMPT_COMMENT_ID_RE.search(head[:end_c])
+                            if m_p:
+                                found.add(m_p.group(1).lower())
+                    for line in head.splitlines():
+                        if line.startswith("##"):
+                            break
+                        if not line.startswith("-"):
+                            continue
+                        rest = line[1:].lstrip(" \t")
+                        if rest.startswith("Id:") or rest.startswith("id:"):
+                            val = rest[3:].strip(" \t`*")
+                            if _core.ID6_RE.fullmatch(val):
+                                found.add(val)
+                            break
     except Exception:
         pass
 

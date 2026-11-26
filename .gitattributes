@@ -1,0 +1,3 @@
+# Keep unified patch files in LF line endings across platforms (including Windows core.autocrlf=true)
+# so `git apply --cached` matches LF blobs in the git index without CR trailing-whitespace failures.
+*.patch text eol=lf

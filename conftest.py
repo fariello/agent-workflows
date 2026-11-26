@@ -127,15 +127,17 @@ def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
 # --------------------------------------------------------------------------------------
 # Core test tier selection: run only core-marked tests on bare pytest invocation (IPD hguae9).
 # --------------------------------------------------------------------------------------
-@pytest.hookimpl
+@pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
-    """Select the core test tier on a bare pytest invocation.
+    """Select the core test tier on a bare pytest invocation (IPD hguae9) and front-load
+    long-pole slow+livecorpus tests for xdist work-stealing balance.
 
-    Only applies when pytest fell back to testpaths (config.args_source == ArgsSource.TESTPATHS)
-    and AW_TEST_TIER is not 'thorough'. Explicit path or nodeid runs (make test-all, pytest tests/,
-    pytest tests/test_foo.py) retain all non-slow tests they name.
+    Runs with ``trylast=True`` so ``pytest-randomly`` (``tryfirst=True``) shuffles first,
+    keeping randomized order across the suite while dispatching multi-minute ``slow`` +
+    ``livecorpus`` tests at t=0 on gw0 so idle workers never stall on a single straggler
+    at the tail of a thorough run.
     """
     args_source = getattr(config, "args_source", None)
     testpaths_source = getattr(
@@ -158,6 +160,20 @@ def pytest_collection_modifyitems(
         if deselected_items:
             config.hook.pytest_deselected(items=deselected_items)
             items[:] = core_items
+
+    if len(items) > 1:
+        long_pole: list[pytest.Item] = []
+        rest: list[pytest.Item] = []
+        for item in items:
+            if (
+                item.get_closest_marker("slow") is not None
+                and item.get_closest_marker("livecorpus") is not None
+            ):
+                long_pole.append(item)
+            else:
+                rest.append(item)
+        if long_pole:
+            items[:] = long_pole + rest
 
 
 _CORE_TEST_DURATIONS: list[tuple[float, str]] = []
