@@ -109,13 +109,20 @@ def _seed_journal_descriptions(
     jpath = repo / ".aw" / "state" / "durable" / "migrations" / "m0001" / "journal.json"
     data = json.loads(jpath.read_text(encoding="utf-8"))
     descs = dict(data.get("descriptions") or {})
-    records_root = Path(data["records_root"])
-    scratch_recs = Path(jpath.parent / "scratch" / "repo" / ".aw" / "records")
-    scan_dir = scratch_recs if scratch_recs.is_dir() else records_root
-    if scan_dir.is_dir():
-        for md in sorted(scan_dir.rglob("*.md")):
-            rel = md.relative_to(scan_dir).as_posix()
-            descs.setdefault(rel, text)
+    missing = (
+        (data.get("steps") or {}).get("census", {}).get("missing_description_paths")
+    )
+    if isinstance(missing, list):
+        for rel in missing:
+            descs.setdefault(str(rel), text)
+    else:
+        records_root = Path(data["records_root"])
+        scratch_recs = Path(jpath.parent / "scratch" / "repo" / ".aw" / "records")
+        scan_dir = scratch_recs if scratch_recs.is_dir() else records_root
+        if scan_dir.is_dir():
+            for md in sorted(scan_dir.rglob("*.md")):
+                rel = md.relative_to(scan_dir).as_posix()
+                descs.setdefault(rel, text)
     for old_rel, id6 in (data.get("minted_ids") or {}).items():
         descs.setdefault(id6, text)
         descs.setdefault(old_rel, text)

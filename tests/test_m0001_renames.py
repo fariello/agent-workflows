@@ -721,8 +721,15 @@ def test_m0001_metadata_v2_step3_wiring_dry_run_apply_rollback_and_missing_root(
     for rel, digest in orig_hashes.items():
         assert hashlib.sha256((repo / rel).read_bytes()).hexdigest() == digest
 
+    # Dry run cleans up its temporary scratch tree upon completion
+    assert not Path(dry["scratch_dir"]).exists()
+
     # Missing scan root in scratch copy refuses cleanly
-    scratch_repo = Path(dry["scratch_dir"]) / "repo"
+    scratch_check = tmp_path / "scratch_scan_root_check"
+    m0001_metadata_v2._stage_scratch(
+        repo, rec, scratch_check, scan_roots=m0001_renames.M0001_SCAN_ROOTS
+    )
+    scratch_repo = scratch_check / "repo"
     with pytest.raises(layout_migration.MigrationError, match="missing scan root"):
         (scratch_repo / "TODO.md").unlink()
         m0001_metadata_v2._verify_scratch_scan_roots(

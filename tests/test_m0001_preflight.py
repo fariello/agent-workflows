@@ -401,7 +401,7 @@ def test_journal_dry_run_isolation_and_chain_delegation(
 
     journal_dir = repo / ".aw" / "state" / "durable" / "migrations" / "m0001"
     assert (journal_dir / "journal.json").is_file()
-    assert (journal_dir / "scratch" / "records").is_dir()
+    assert not (journal_dir / "scratch").exists()
     assert not (journal_dir / "writer.lock").exists()
     assert not (
         repo
@@ -740,10 +740,29 @@ def test_hard_crash_ops_progress_replay_for_peek_resume_and_rollback(
 
     ref_snap = _tracked_snapshot(ref_repo)
 
+    def _stage_applying_crash_fixture(target_repo: Path) -> Path:
+        def _abort_before_ops(*_args, **_kwargs):
+            raise layout_migration.MigrationError(
+                "interrupt-mid-apply: simulated crash"
+            )
+
+        with unittest.mock.patch.object(
+            m0001_metadata_v2, "_execute_planned_operations", _abort_before_ops
+        ):
+            with pytest.raises(
+                layout_migration.MigrationError, match="interrupt-mid-apply"
+            ):
+                m0001_metadata_v2.run(
+                    target_repo,
+                    apply=True,
+                    commit=False,
+                    fault_injection="interrupt-mid-apply",
+                )
+        return target_repo / ".aw" / "state" / "durable" / "migrations" / "m0001"
+
     # Crash fixture 1: _peek_journal + resume()
     repo_res = _init_repo(tmp_path, monkeypatch, name="crash_resume")
-    dry_res = m0001_metadata_v2.run(repo_res, apply=False)
-    jdir_res = Path(dry_res["journal_dir"])
+    jdir_res = _stage_applying_crash_fixture(repo_res)
     jdata_pre, op1_bak_path, op1_orig_bytes = _simulate_hard_crash_progress(
         repo_res, jdir_res
     )
@@ -789,8 +808,7 @@ def test_hard_crash_ops_progress_replay_for_peek_resume_and_rollback(
     # Crash fixture 2: rollback() restores both completed and half-completed ops byte-for-byte
     repo_rb = _init_repo(tmp_path, monkeypatch, name="crash_rollback")
     orig_rb_snap = _tracked_snapshot(repo_rb)
-    dry_rb = m0001_metadata_v2.run(repo_rb, apply=False)
-    jdir_rb = Path(dry_rb["journal_dir"])
+    jdir_rb = _stage_applying_crash_fixture(repo_rb)
     _simulate_hard_crash_progress(repo_rb, jdir_rb)
 
     rb = m0001_metadata_v2.rollback(repo_rb)

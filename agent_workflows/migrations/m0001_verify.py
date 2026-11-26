@@ -249,19 +249,11 @@ def build_field_census(
         entry["record_types"].add(art_type)
 
     def _classify_field(
-        art_type: str, field_name: str
+        art_type: str, field_name: str, *, historical_ipd: bool = False
     ) -> Optional[m0001_convert.FieldDestination]:
-        dest_map = m0001_convert.FIELD_DESTINATIONS.get(art_type, {})
-        dest = dest_map.get(field_name)
-        if dest is not None:
-            return dest
-        reg = artifact_meta.REGISTRY.get(art_type, {})
-        cand = field_name.lower().replace("-", "_")
-        if cand in reg:
-            return m0001_convert.FieldDestination(
-                "log_field", cand, "same-named registry field"
-            )
-        return None
+        return m0001_convert.classify_field(
+            art_type, field_name, historical_ipd=historical_ipd
+        )
 
     target_files = m0001_convert._walk_target_records(
         legacy_root, record_types=m0001_convert.ALL_RECORD_TYPES
@@ -390,9 +382,12 @@ def build_field_census(
                 role = kind_val.strip()
                 plan_role_counts[role] = plan_role_counts.get(role, 0) + 1
 
+        historical_ipd = (art_type == "ipd") and m0001_convert.is_historical_ipd(
+            rel_path, raw_bullets.get("Status")
+        )
         for k, v in ordered_pairs_b:
             distinct_bullet_names.add(k)
-            dest = _classify_field(art_type, k)
+            dest = _classify_field(art_type, k, historical_ipd=historical_ipd)
             if dest is None:
                 refusals.append(
                     {
@@ -864,14 +859,14 @@ def verify_round_trip(
                 f"Status round-trip mismatch for {rel_path}: {state.status!r} != {leg_status!r}"
             )
 
-        dest_map = m0001_convert.FIELD_DESTINATIONS.get(art_type, {})
         reg = artifact_meta.REGISTRY.get(art_type, {})
+        historical_ipd = (art_type == "ipd") and m0001_convert.is_historical_ipd(
+            rel_path, leg_status
+        )
         for key, val in ordered_pairs:
-            dest = dest_map.get(key)
-            if dest is None:
-                cand = key.lower().replace("-", "_")
-                if cand in reg:
-                    dest = m0001_convert.FieldDestination("log_field", cand, "")
+            dest = m0001_convert.classify_field(
+                art_type, key, historical_ipd=historical_ipd
+            )
             if dest is None:
                 errors.append(f"Unmapped field {key!r} in {rel_path}")
                 continue
@@ -906,10 +901,14 @@ def verify_round_trip(
                         f"Field 'order' mismatch for {rel_path}: {state.fields.get('order')!r} != {int(s_val)!r}"
                     )
             elif key in ("Date", "Created", "created"):
-                cday = m0001_convert._normalize_day(str(val))
+                cday, date_note = m0001_convert._parse_legacy_day(str(val))
                 if cday and state.fields.get("created_day") != cday:
                     errors.append(
                         f"Field 'created_day' mismatch for {rel_path}: {state.fields.get('created_day')!r} != {cday!r}"
+                    )
+                if date_note and date_note not in rewritten_text:
+                    errors.append(
+                        f"Date annotation note missing verbatim value in {rel_path}"
                     )
             elif key == "Item-Dependencies":
                 dep_decl, dep_edges = artifact_meta.parse_item_dependencies_field(val)

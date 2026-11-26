@@ -21,7 +21,12 @@ from typing import Any, Dict, List, Tuple
 import pytest
 
 from agent_workflows import artifact_meta, cli, review_findings
-from agent_workflows.migrations import chain, m0001_convert, m0001_verify
+from agent_workflows.migrations import (
+    chain,
+    m0001_convert,
+    m0001_metadata_v2,
+    m0001_verify,
+)
 
 pytestmark = pytest.mark.core
 
@@ -1516,3 +1521,177 @@ def test_review_subject_path_bullet_preserved_without_unknown_field_refusal(
         record_types=m0001_convert.ALL_RECORD_TYPES,
     )
     assert f"## Subject-Path\n\n{plan_rel}" in rev_path.read_text(encoding="utf-8")
+
+
+def test_m4apfh_review_headers_dates_historical_ipds_and_dry_run_scratch_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """m4apfh: AW review fields, timestamped/annotated dates, historical IPD bullets, and dry-run scratch cleanup."""
+    repo = _init_repo(tmp_path, monkeypatch, name="m4apfh_full")
+    rec = repo / ".aw" / "records"
+    (rec / "plans" / "executed").mkdir(parents=True)
+    (rec / "plans" / "superseded").mkdir(parents=True)
+    (rec / "reviews").mkdir(parents=True)
+
+    # 1. Executed historical plan with timestamped Date + named & arbitrary legacy bullets
+    exec_rel = ".aw/records/plans/executed/20260810-demo-01-pl9201-hist-exec.ipd.md"
+    (repo / exec_rel).write_text(
+        "# IPD: Historical Executed\n\n"
+        "- Id: pl9201\n"
+        "- Status: executed\n"
+        "- Date: 2026-08-10 21:00\n"
+        "- Set: demo\n"
+        "- Order: 1\n"
+        "- Risk tier: low\n"
+        "- Parent: 000aaa\n"
+        "- Grandparent: 000bbb\n"
+        "- Prior-Status: approved\n"
+        "- Relationship: split-from 000aaa\n"
+        "- Requested by: maintainer\n"
+        "- Custom-Historical-Banner: legacy value preserved\n"
+        "- Short-Description: Historical executed plan\n\n"
+        "## Workflow history\n\n"
+        "- 2026-08-10 executed (tester): done\n",
+        encoding="utf-8",
+    )
+
+    # 2. Superseded historical plan with parenthetically annotated Date
+    sup_rel = ".aw/records/plans/superseded/20260723-demo-02-pl9202-hist-sup.ipd.md"
+    (repo / sup_rel).write_text(
+        "# IPD: Historical Superseded\n\n"
+        "- Id: pl9202\n"
+        "- Status: superseded\n"
+        "- Date: 2026-07-23 (fleshed from stub 2026-08-07)\n"
+        "- Set: demo\n"
+        "- Order: 2\n"
+        "- Short-Description: Historical superseded plan\n\n"
+        "## Workflow history\n\n"
+        "- 2026-08-07 superseded (tester): replaced\n",
+        encoding="utf-8",
+    )
+
+    # 3. Review record carrying all 7 AW-emitted review header fields
+    rev_path = rec / "reviews" / "20260810-demo-01-pl9201-hist-exec.review.md"
+    rev_path.write_text(
+        "# Review: Historical Executed\n\n"
+        "- Subject-Id: pl9201\n"
+        "- Subject-Type: ipd\n"
+        f"- Subject-Path: {exec_rel}\n"
+        "- Review-Depth: standard\n"
+        "- Date: 2026-08-10 21:30\n"
+        "- Id: rv9201\n"
+        "- Plan: pl9201\n"
+        "- Diff: abc123..def456\n"
+        "- Kind: plan-review\n"
+        "- Reviewer: tester\n"
+        "- Verdict: APPROVE\n"
+        "- Findings: 0\n\n"
+        "## Round 1\n\nClean review.\n",
+        encoding="utf-8",
+    )
+
+    subprocess.run(
+        ["git", "-C", str(repo), "add", ".aw/records"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-m", "seed m4apfh fixture"],
+        check=True,
+        capture_output=True,
+    )
+
+    # Dry run passes census + round-trip and removes temporary scratch/ copy
+    dry = m0001_metadata_v2.run(repo, apply=False)
+    assert dry["status"] == "dry_run"
+    assert dry["census"]["unknown_field_refusal_count"] == 0, dry["census"]["refusals"]
+    assert dry["census"]["unparseable_value_refusal_count"] == 0, dry["census"][
+        "refusals"
+    ]
+    assert dry["round_trip"]["passed"] is True, dry["round_trip"]["errors"]
+    assert not Path(dry["scratch_dir"]).exists()
+
+    # Apply and verify converted logs and preserved body sections
+    applied = m0001_metadata_v2.run(repo, apply=True, commit=False)
+    assert applied["status"] == "applied"
+
+    log1_lines = (
+        (rec / "meta" / "pl9201.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines(keepends=True)
+    )
+    state1, _, _, proj1 = artifact_meta.replay(
+        "pl9201", "ipd", log1_lines, records_root=rec
+    )
+    assert state1.fields["created_day"] == "2026-08-10"
+    assert proj1["reviews"][-1]["observed_day"] == "2026-08-10"
+
+    exec_after = (repo / exec_rel).read_text(encoding="utf-8")
+    for expected in (
+        "## Risk tier\n\nlow",
+        "## Parent\n\n000aaa",
+        "## Grandparent\n\n000bbb",
+        "## Prior-Status\n\napproved",
+        "## Relationship\n\nsplit-from 000aaa",
+        "## Requested by\n\nmaintainer",
+        "## Custom-Historical-Banner\n\nlegacy value preserved",
+    ):
+        assert expected in exec_after
+
+    log2_lines = (
+        (rec / "meta" / "pl9202.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines(keepends=True)
+    )
+    state2, _, _, _ = artifact_meta.replay(
+        "pl9202", "ipd", log2_lines, records_root=rec
+    )
+    assert state2.fields["created_day"] == "2026-07-23"
+    sup_after = (repo / sup_rel).read_text(encoding="utf-8")
+    assert "## Date-Note\n\nfleshed from stub 2026-08-07" in sup_after
+
+    rev_after = rev_path.read_text(encoding="utf-8")
+    for expected in (
+        f"## Subject-Path\n\n{exec_rel}",
+        "## Review-Depth\n\nstandard",
+        "## Id\n\nrv9201",
+        "## Plan\n\npl9201",
+        "## Diff\n\nabc123..def456",
+        "## Kind\n\nplan-review",
+    ):
+        assert expected in rev_after
+
+
+def test_m4apfh_active_unknown_field_invalid_date_still_refused_and_cleans_scratch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Active pending plans still refuse unknown fields and invalid dates, while dry run still cleans scratch/."""
+    repo = _init_repo(tmp_path, monkeypatch, name="m4apfh_refusal")
+    rec = repo / ".aw" / "records"
+    (rec / "plans" / "pending").mkdir(parents=True)
+    (rec / "plans" / "pending" / "20261125-demo-01-pl9203-bad.ipd.md").write_text(
+        "# IPD: Bad Active\n\n"
+        "- Id: pl9203\n"
+        "- Status: approved\n"
+        "- Date: 2026-13-45\n"
+        "- Set: demo\n"
+        "- Order: 1\n"
+        "- Totally-Bogus-Active-Key: nope\n"
+        "- Short-Description: Bad active plan\n",
+        encoding="utf-8",
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "add", ".aw/records"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-m", "seed refusal fixture"],
+        check=True,
+        capture_output=True,
+    )
+
+    dry = m0001_metadata_v2.run(repo, apply=False)
+    assert dry["census"]["unknown_field_refusal_count"] == 1
+    assert dry["census"]["unparseable_value_refusal_count"] == 1
+    assert not Path(dry["scratch_dir"]).exists()

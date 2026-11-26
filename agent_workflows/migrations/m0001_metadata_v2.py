@@ -2523,6 +2523,10 @@ def run(
                     ) from exc
                 raise layout_migration.MigrationError(f"{exc} (rolled back)") from exc
         finally:
+            if not apply:
+                scratch_dir = journal_dir / "scratch"
+                if scratch_dir.exists():
+                    shutil.rmtree(scratch_dir, ignore_errors=True)
             mgr._release_lock()
 
 

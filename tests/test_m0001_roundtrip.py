@@ -266,11 +266,12 @@ def test_roundtrip_long_and_control_char_history_lines_and_writer_refusal(
     dry = m0001_metadata_v2.run(repo, apply=False)
     assert dry["round_trip"]["passed"] is True
     assert dry["round_trip"]["replayed_count"] == 1
+    assert not Path(dry["scratch_dir"]).exists()
 
-    # Post-cutover writer validation (migration_import=False) refuses the same long line & ctrl line.
-    log_path = (
-        Path(dry["scratch_dir"]) / "repo" / ".aw" / "records" / "meta" / "pl3001.jsonl"
-    )
+    # Apply (without commit) and verify post-cutover writer validation refuses the same long & ctrl lines.
+    applied = m0001_metadata_v2.run(repo, apply=True, commit=False)
+    assert applied["status"] == "applied"
+    log_path = rec / "meta" / "pl3001.jsonl"
     events = _read_jsonl(log_path)
     hist_lines = [
         ev["line"]
@@ -527,7 +528,7 @@ def test_roundtrip_step3_rewritten_citations_and_prompt_hr(
     (
         rec / "prompts" / "executed" / "20261101-demo-01-pr5555-hr-body.prompt.md"
     ).write_text(
-        "<!-- aw-prompt: Kind: research | Id: pr5555 | Status: executed | Created: 2026-11-01 | Concerns: hr test -->\n"
+        "<!-- aw-prompt: Kind: research | Id: pr5555 | Status: executed | Created: 2026-11-01 | Concerns: hr test | Short-Description: Prompt with thematic break -->\n"
         "# Prompt with thematic break\n\n"
         "Intro paragraph.\n\n"
         "---\n\n"
@@ -540,11 +541,14 @@ def test_roundtrip_step3_rewritten_citations_and_prompt_hr(
     dry = m0001_metadata_v2.run(repo, apply=False)
     assert dry["round_trip"]["round_trip_passed"] is True, dry["round_trip"]["errors"]
     assert dry["round_trip"]["replayed_count"] == 3
+    assert not Path(dry["scratch_dir"]).exists()
+    assert _git(repo, "status", "--porcelain").stdout.strip() == ""
+
+    applied = m0001_metadata_v2.run(repo, apply=True, commit=False)
+    assert applied["status"] == "applied"
 
     # History log op keeps pre-Step-3 legacy citation verbatim while scope_paths uses new name.
-    log_path = (
-        Path(dry["scratch_dir"]) / "repo" / ".aw" / "records" / "meta" / "pl5555.jsonl"
-    )
+    log_path = rec / "meta" / "pl5555.jsonl"
     events = _read_jsonl(log_path)
     hist_lines = [
         ev["line"]
@@ -553,12 +557,11 @@ def test_roundtrip_step3_rewritten_citations_and_prompt_hr(
     ]
     assert any(legacy_spec in line for line in hist_lines)
 
-    new_spec_name = Path(dry["rename_map"][f"specs/implemented/{legacy_spec}"]).name
+    new_spec_name = Path(applied["rename_map"][f"specs/implemented/{legacy_spec}"]).name
     replayed_state, _, _, _ = artifact_meta.replay(
         "pl5555",
         "ipd",
         log_path.read_text(encoding="utf-8").splitlines(keepends=True),
-        records_root=Path(dry["scratch_dir"]) / "repo" / ".aw" / "records",
+        records_root=rec,
     )
     assert any(new_spec_name in sp for sp in replayed_state.fields["scope_paths"])
-    assert _git(repo, "status", "--porcelain").stdout.strip() == ""

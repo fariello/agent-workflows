@@ -60,8 +60,18 @@ _FENCE_RE = re.compile(r"^[ \t]*(`{3,}|~{3,})")
 _H1_RE = re.compile(r"^#\s+.+$")
 _H2_PLUS_RE = re.compile(r"^#{2,6}\s+")
 _YYYYMMDD_RE = re.compile(r"\A(\d{4})(\d{2})(\d{2})\Z")
-_YYYY_MM_DD_RE = re.compile(r"\A\d{4}-\d{2}-\d{2}\Z")
+_YYYY_MM_DD_RE = re.compile(r"\A(\d{4})-(\d{2})-(\d{2})\Z")
+_LEGACY_DAY_RE = re.compile(
+    r"\A(?P<y>\d{4})-(?P<m>\d{2})-(?P<d>\d{2})"
+    r"(?:[ T](?P<hh>\d{2}):(?P<mm>\d{2})(?::(?P<ss>\d{2}))?(?:Z|[+-]\d{2}:?\d{2}| UTC)?)?"
+    r"(?:\s+\((?P<note>[^)]+)\))?\Z"
+)
 _DATED_PREFIX_RE = re.compile(r"^-\s*(\d{4}-\d{2}-\d{2})(?:[:/\s]|$)")
+
+_HISTORICAL_IPD_DIRS = frozenset({"executed", "superseded", "archive", "archived"})
+_HISTORICAL_IPD_STATUSES = frozenset(
+    {"executed", "superseded", "archived", "obsolete", "abandoned"}
+)
 
 _EXCLUDED_DIRNAMES = m0001_discover.EXCLUDED_DIRNAMES
 _EXCLUDED_FILENAMES = frozenset({"README.md", "STATUS.md"})
@@ -158,6 +168,21 @@ def _build_field_destinations() -> Dict[str, Dict[str, FieldDestination]]:
             "Supersedes-Note",
             "legacy one-off bullet preserved in body",
         ),
+        **{
+            k: FieldDestination(
+                "body_section",
+                k,
+                "legacy historical IPD bullet preserved in body",
+            )
+            for k in (
+                "Risk tier",
+                "Parent",
+                "Grandparent",
+                "Prior-Status",
+                "Relationship",
+                "Requested by",
+            )
+        },
         **common_ipd_spec_prose,
     }
 
@@ -512,6 +537,26 @@ def _build_field_destinations() -> Dict[str, Dict[str, FieldDestination]]:
         "Subject-Path": FieldDestination(
             "body_section", "Subject-Path", "legacy review bullet preserved in body"
         ),
+        "Date": FieldDestination(
+            "review_event",
+            "observed_day",
+            "legacy review date fallback (4.1a K5a/K6)",
+        ),
+        "Review-Depth": FieldDestination(
+            "body_section", "Review-Depth", "legacy review bullet preserved in body"
+        ),
+        "Id": FieldDestination(
+            "body_section", "Id", "legacy review bullet preserved in body"
+        ),
+        "Plan": FieldDestination(
+            "body_section", "Plan", "legacy review bullet preserved in body"
+        ),
+        "Diff": FieldDestination(
+            "body_section", "Diff", "legacy review bullet preserved in body"
+        ),
+        "Kind": FieldDestination(
+            "body_section", "Kind", "legacy review bullet preserved in body"
+        ),
         **common_ipd_spec_prose,
     }
 
@@ -531,16 +576,94 @@ def _build_field_destinations() -> Dict[str, Dict[str, FieldDestination]]:
 FIELD_DESTINATIONS: Dict[str, Dict[str, FieldDestination]] = _build_field_destinations()
 
 
-def _normalize_day(raw: Optional[str]) -> Optional[str]:
-    """Normalize ``YYYYMMDD`` or ``YYYY-MM-DD`` to ``YYYY-MM-DD`` when valid."""
-    if not raw:
+def _valid_calendar_day(y: int, m: int, d: int) -> Optional[str]:
+    """Return ``YYYY-MM-DD`` when ``(y, m, d)`` is a valid calendar date, else None."""
+    try:
+        dt = datetime.date(y, m, d)
+    except ValueError:
         return None
+    return dt.isoformat()
+
+
+def _parse_legacy_day(raw: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+    """Parse legacy date strings into ``(YYYY-MM-DD, annotation_note)``.
+
+    Accepts ``YYYY-MM-DD``, ``YYYYMMDD``, timestamped ``YYYY-MM-DD HH:MM[:SS]``
+    (including ISO ``T`` / timezone suffixes), and parenthetically annotated
+    historical dates such as ``2026-07-23 (fleshed from stub 2026-08-07)``.
+    """
+    if not raw:
+        return None, None
     s = raw.strip()
-    if _YYYY_MM_DD_RE.match(s):
-        return s
-    m = _YYYYMMDD_RE.match(s)
-    if m:
-        return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+    m_plain = _YYYY_MM_DD_RE.match(s)
+    if m_plain:
+        day = _valid_calendar_day(
+            int(m_plain.group(1)), int(m_plain.group(2)), int(m_plain.group(3))
+        )
+        return day, None
+    m_compact = _YYYYMMDD_RE.match(s)
+    if m_compact:
+        day = _valid_calendar_day(
+            int(m_compact.group(1)), int(m_compact.group(2)), int(m_compact.group(3))
+        )
+        return day, None
+    m_ext = _LEGACY_DAY_RE.match(s)
+    if m_ext:
+        day = _valid_calendar_day(
+            int(m_ext.group("y")), int(m_ext.group("m")), int(m_ext.group("d"))
+        )
+        if day is None:
+            return None, None
+        hh_s = m_ext.group("hh")
+        mm_s = m_ext.group("mm")
+        ss_s = m_ext.group("ss")
+        if hh_s is not None and mm_s is not None:
+            hh, mm = int(hh_s), int(mm_s)
+            ss = int(ss_s) if ss_s is not None else 0
+            if not (0 <= hh <= 23 and 0 <= mm <= 59 and 0 <= ss <= 59):
+                return None, None
+        note_raw = m_ext.group("note")
+        note = note_raw.strip() if note_raw and note_raw.strip() else None
+        return day, note
+    return None, None
+
+
+def _normalize_day(raw: Optional[str]) -> Optional[str]:
+    """Normalize legacy date forms to ``YYYY-MM-DD`` when valid."""
+    day, _note = _parse_legacy_day(raw)
+    return day
+
+
+def is_historical_ipd(rel_path: str, status: Optional[str] = None) -> bool:
+    """Return True when an IPD is a historical terminal record (executed/superseded/archived)."""
+    parts = Path(rel_path).parts
+    if any(p in _HISTORICAL_IPD_DIRS for p in parts):
+        return True
+    if isinstance(status, str) and status.strip():
+        tok = status.strip().split()[0].lower()
+        if tok in _HISTORICAL_IPD_STATUSES:
+            return True
+    return False
+
+
+def classify_field(
+    art_type: str, field_name: str, *, historical_ipd: bool = False
+) -> Optional[FieldDestination]:
+    """Resolve the migration destination for ``field_name`` on ``art_type``."""
+    dest_map = FIELD_DESTINATIONS.get(art_type, {})
+    dest = dest_map.get(field_name)
+    if dest is not None:
+        return dest
+    reg = artifact_meta.REGISTRY.get(art_type, {})
+    cand = field_name.lower().replace("-", "_")
+    if cand in reg:
+        return FieldDestination("log_field", cand, "same-named registry field")
+    if art_type == "ipd" and historical_ipd:
+        return FieldDestination(
+            "body_section",
+            field_name,
+            "historical IPD bullet preserved in body",
+        )
     return None
 
 
@@ -1073,7 +1196,6 @@ def build_record_log(
             f"Unsupported record type {art_type!r} for m0001_convert at {rel_path}"
         )
 
-    dest_map = FIELD_DESTINATIONS[art_type]
     is_prompt = art_type == "prompt"
     is_research = art_type == "research"
     is_statusless = art_type in ("walkthrough", "roadmap")
@@ -1131,20 +1253,17 @@ def build_record_log(
 
     body_sections: List[Tuple[str, str]] = []
     unknown_keys: List[str] = []
+    historical_ipd = (art_type == "ipd") and is_historical_ipd(rel_path, status)
 
     for key, val in ordered_pairs:
-        dest = dest_map.get(key)
+        dest = classify_field(art_type, key, historical_ipd=historical_ipd)
         if dest is None:
-            cand = key.lower().replace("-", "_")
-            if cand in reg:
-                dest = FieldDestination("log_field", cand, "same-named registry field")
-            else:
-                unknown_keys.append(key)
-                if isinstance(val, str):
-                    body_sections.append((key, val))
-                elif val is not None:
-                    body_sections.append((key, str(val)))
-                continue
+            unknown_keys.append(key)
+            if isinstance(val, str):
+                body_sections.append((key, val))
+            elif val is not None:
+                body_sections.append((key, str(val)))
+            continue
 
         if dest.kind in (
             "identity",
@@ -1178,9 +1297,11 @@ def build_record_log(
                     ) from exc
             continue
         if key in ("Date", "Created", "created"):
-            cday = _normalize_day(str(val))
+            cday, date_note = _parse_legacy_day(str(val))
             if cday:
                 fields["created_day"] = cday
+            if date_note:
+                body_sections.append(("Date-Note", date_note))
             continue
         if key == "Item-Dependencies":
             dep_decl, dep_edges = artifact_meta.parse_item_dependencies_field(val)
