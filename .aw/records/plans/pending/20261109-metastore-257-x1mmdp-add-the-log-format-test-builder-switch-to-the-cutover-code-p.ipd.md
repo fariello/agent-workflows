@@ -5,7 +5,7 @@
 - Concern: `cxxmyv` E-07 switched the shared test record builder and the field assertion helper to the log format inside the attended cutover turn. On `main` before the cutover that switch would make the suite test a format `main` does not use, so it belongs in the one cutover commit (spec `4sd62s` 5.2, C10a); it can be prepared as part of the inert cumulative code patch (round-3 split, research `nj8zdp`).
 - Scope: In a scratch worktree with both cutover patches applied (after the split children `hdwqex`, `89mtbl` and the batch children `nv3upa` to `x3mig6` have switched the builder and converted the test modules), update the exact-spelling rows, keep the literal-input legacy tests pointing at `m0001`, settle the `review-pilot` corpus, assemble the final refusal list, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. The builder switch (former E-02) moved to `89mtbl`. No live code changes.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
-- Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1, executed:g45vyv, executed:hdwqex, executed:89mtbl, executed:nv3upa, executed:cugg3w, executed:psm9ac, executed:x8id25, executed:e0g2gt, executed:qi0kl6, executed:x3mig6
+- Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1, executed:g45vyv, executed:hdwqex, executed:89mtbl, executed:nv3upa, executed:fljn9b, executed:cugg3w, executed:psm9ac, executed:x8id25, executed:e0g2gt, executed:qi0kl6, executed:x3mig6
 - Status: approved
 - From-Spec: 4sd62s
 - Work-Kind: feature
@@ -21,6 +21,7 @@
 - Review-Depth: standard
 
 ## Workflow history
+- 2026-11-26 note (antigravity/gemini): added Order 314 prerequisite fljn9b (backlog log-awareness fix) ahead of cugg3w per maintainer answer to run-20261126T020242Z-3080634 question 04-cugg3w-a1-backlog-log-aware-gap.
 - 2026-11-26 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): run run-20261125T162650Z-1337442 attempt 2: split per the maintainer answer to 06-x1mmdp-a1-Q-01 ("Split into new children; fix jycxw8 first"); E-02 moved to 89mtbl, test conversion to nv3upa..x3mig6, jycxw8 fix to hdwqex; this plan narrowed to E-03..E-05 and now depends on all nine; OQ-01 resolved.
 - 2026-11-25 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): run run-20261125T162650Z-1337442 attempt 1 performed E-01 (V-01 pass) and blocked at E-02: the switch is a suite-wide conversion (F-05 to F-07, OQ-01, backlog ldfefd); code patch unchanged.
 - 2026-11-16 approved (aw set): status set to approved
@@ -101,6 +102,8 @@ flowchart TD
   - Carrier: 89mtbl
 - Making `ipd_lint` and `ipd_authoring.build_skeleton` log-aware (`jycxw8`), which every log-format plan fixture needs first.
   - Carrier: hdwqex
+- Making `agent_workflows/backlog.py` validation and readers and their production callers log-aware in the cutover code patch (`cugg3w` OQ-01, maintainer answer 2026-11-26).
+  - Carrier: fljn9b
 - Converting the test modules that call the removed legacy API or fail on the switched tree (F-05, F-06; backlog `ldfefd`), in a chain of batches.
   - Carrier: nv3upa
   - Carrier: cugg3w
