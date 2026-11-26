@@ -6,7 +6,7 @@
 - Scope: In an isolated scratch worktree with both cutover patches applied (including `hdwqex`, `89mtbl`, `nv3upa`, `fljn9b`, `cugg3w`, `szykgd`, `otin36`, `p109wy`, `q6fiws`, `j1f454`, `lec341`, and `3e0vfy`), convert the 18 batch B test modules under the shared conversion rules and per-module rules in E-02 through E-04 (localizing the two imported fixture helpers in `tests/test_inlane_retirement_lands.py`), run them on both tiers, record deleted legacy-behavior tests in F-02 and any remaining refusal of this repository's own unmigrated records in F-03, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. No live code changes outside the cutover code patch.
 - Scope-Paths: .aw/records/plans/pending/20261125-metastore-309-psm9ac-convert-test-batch-b-backlog-handoff-close-through-ipd-depen.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:3e0vfy
-- Status: to-review
+- Status: reviewed
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -24,6 +24,7 @@
 
 ## Workflow history
 
+- 2026-11-26 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-006 FIXED (OQ-02 resolved via maintainer Option 1)
 - 2026-11-26 same-status (aw set): OQ-02 Option 1: re-chain production-fix plans otin36..3e0vfy ahead of test batches psm9ac..x3mig6
 - 2026-11-26 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-006 (FIXED, OQ-02 resolved via maintainer Option 1: re-chained otin36..3e0vfy ahead of psm9ac..x3mig6 and localized helpers in test_inlane_retirement_lands.py); review record .aw/records/reviews/20261125-metastore-309-psm9ac-convert-test-batch-b-backlog-handoff-close-through-ipd-depen.review.md
 - 2026-11-26 /plan-review (antigravity/gemini): REVIEWED - OPEN QUESTIONS; PR-006 (OPEN, OQ-02), PR-007, PR-008; review record .aw/records/reviews/20261125-metastore-309-psm9ac-convert-test-batch-b-backlog-handoff-close-through-ipd-depen.review.md
