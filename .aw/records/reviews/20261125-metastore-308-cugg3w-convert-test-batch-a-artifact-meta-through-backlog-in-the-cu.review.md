@@ -4,7 +4,7 @@
 - Subject-Type: ipd
 - Reviewed-At: 2026-11-26
 - Reviewer: antigravity/gemini
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
 
@@ -74,3 +74,57 @@ AW-TIER: standard
 | D-3 | How should `E-03` address `text_only=True` / `raw_fields` interactions and removed `backlog._render_item` calls in the second half of batch A? | Explicitly specify `RecordBuilder(root)` log materialization for disk-backed tests, explicit text or rule-4 handling for `spec_status_bullet`/`extract_newest_history_entry`, `artifact_meta.read`/`history`/`assert_field` for backlog state/history checks, and rule-1/rule-4 handling for the 4 removed `backlog._render_item` calls. | Leave `E-03` as a bare list of 4 filenames and attempt-1 counts (rejected: hides concrete `89mtbl` F-02 and removed-API traps). | `tests/test_attention_contract.py:245,298,490-645`, `tests/test_attention_priority_blocker.py:130,188,265`, `tests/test_awcmdsurf_mutation_verbs.py:39-50`, `tests/test_backlog.py:122-1984`. | yes |
 | D-4 | How should `Concern`, `F-04`, `V-02`, and `V-03` cite attempt-1 census counts and removed-symbol `rg` checks? | Attribute attempt-1 counts as historical `x1mmdp` provenance (anchoring execution to `89mtbl` F-04) and specify the exact `rg -n` removed-symbol pattern and exit-1 expectation in `V-02` and `V-03`. | Keep direct citations to gitignored lane-submission files and vague `rg` instructions (rejected: file is absent in fresh lanes and vague `rg` can miss `_render_item` or `load_legacy_artifact`). | `.aw/records/plans/pending/20261125-metastore-308-cugg3w-convert-test-batch-a-artifact-meta-through-backlog-in-the-cu.ipd.md:5,82,132,136`. | yes |
 | D-5 | How should `E-01`, `E-05`, `V-05`, `## Deferred / out of scope`, and `## Approval and execution gate` align with the runner-lane execution contract? | Name exact patch/plan paths in `E-01`/`E-05`, add `git status --short` verification in `V-05`, list `cxxmyv` in `## Deferred / out of scope`, and distinguish managed runner lanes from hand-run sessions for `aw ipd finalize`. | Keep unconditional `aw ipd finalize` instruction and generic patch references (rejected: violates `s7-finalize.md` runner-lane ownership rule). | `.aw/system/workflows/plan-review/steps/s7-finalize.md:31-36`, `.aw/records/plans/pending/20261125-metastore-306-89mtbl-switch-the-shared-test-record-builder-and-codemod-to-the-log.ipd.md`. | yes |
+
+## Round 2
+
+### Step T
+- Selected tier: `standard`
+- Rationale: Re-review of child plan `cugg3w` after the maintainer answered blocking question `04-cugg3w-a1-backlog-log-aware-gap` (`OQ-01`) with "Split out a dedicated production-fix child plan ahead of cugg3w (Recommended)", authoring Order 314 (`fljn9b`) and updating `cugg3w`'s dependency chain.
+
+AW-TIER: standard
+
+### Step R1: References, Scope, and Dependencies
+- Checked: `.aw/records/plans/pending/20261125-metastore-308-cugg3w-convert-test-batch-a-artifact-meta-through-backlog-in-the-cu.ipd.md`, `.aw/records/plans/pending/20261125-metastore-314-fljn9b-make-backlog-validation-and-readers-log-aware-in-the-cutover.ipd.md`, `.aw/records/plans/pending/20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.ipd.md`, `.aw/records/plans/pending/20261109-metastore-257-x1mmdp-add-the-log-format-test-builder-switch-to-the-cutover-code-p.ipd.md`, `.aw/records/backlog/graduated/20261125-metastore-01-ldfefd-cutover-tests-unowned.backlog.md`, `agent_workflows/backlog.py`, `agent_workflows/check_engine.py`, `agent_workflows/runner_shared.py`, `agent_workflows/set_records.py`, `agent_workflows/specs.py`, and `.aw/system/cutover/metastore-code.cutover.patch`.
+- Verified `fljn9b` (Order 314) chains directly after `nv3upa` (`- Item-Dependencies: executed:nv3upa`) and ahead of `cugg3w` (`- Item-Dependencies: executed:fljn9b`), preserving the serial cumulative code-patch chain (`hdwqex` -> `89mtbl` -> `nv3upa` -> `fljn9b` -> `cugg3w` -> `psm9ac` -> `x8id25` -> `e0g2gt` -> `qi0kl6` -> `x3mig6` -> `x1mmdp`).
+- Verified `fljn9b` is wired into orchestrator `63ib9r` (`Highest E allocated: 226`, `E-226`/`V-226`, `## Child IPDs` Order 314, `E-220`/`E-179`/`E-13` dependencies) and into `x1mmdp` (`- Item-Dependencies:` and `## Deferred / out of scope`).
+- Swept every stale reference to open `OQ-01` / `PR-001` across `cugg3w` (`Concern`, `Scope`, `Item-Dependencies`, `E-03` item 4, Step 0, `F-05`, `Proposed changes`, `Deferred / out of scope`, `Scope check`, `OQ-01`, `Approval and execution gate`).
+
+### Step R2: Executability and Verification Rigor
+- Checked: `E-01` through `E-05` and `V-01` through `V-05` in `cugg3w` after `OQ-01` resolution, plus `E-01` through `E-05` and `V-01` through `V-05` in `fljn9b`.
+- Verified `cugg3w` requires zero production edits outside the scratch worktree and has no remaining unblocked dependency on `agent_workflows/backlog.py` because `fljn9b` lands log-aware validation (`validate_item_state`, `validate_item`, `run_check`), readers (`existing_backlog_ids`, `blocks_release_of_item`, `find_item`, `find_duplicate_candidates`, `run_new` duplicate scan), and callers (`check_engine.check_content`, `runner_shared.enforce_freeze_time_refusal` cache key, `runner_shared.perform_coordinator_proposal_file` companion log recovery, `set_records`) before `cugg3w` executes.
+
+### Step R3: Security, Isolation, and Safety
+- Checked: Scratch worktree containment, `- Scope-Paths:` fences, `aw commit` path-scoped commit contracts, and never-push clauses in both `cugg3w` and `fljn9b`.
+- Verified no security, secret-leak, or live-tree safety issues remain.
+
+### Step R4: Engineering Quality and Contract Conformance
+- Checked: Technical writing standard (`.aw/system/workflows/technical-writing/technical-writing.md`), `IPD-Z603` sizing, `E-*`/`V-*` bijection, Mermaid diagrams, and `check.review-finding-unescalated` / `IPD-Q501` gates.
+- Verified `PR-001` is cleared (`FIXED`), `OQ-01` carries `- Status: resolved` and `- Owner: maintainer` citing the maintainer's 2026-11-26 answer, `- Readiness: go-pending-approval` is written in `cugg3w`, and `fljn9b` is authored review-ready (`Status: to-review`) with zero `TODO` placeholders.
+
+### Step S5: Open Questions and Decisions
+- Checked: `OQ-01` (`PR-001`) resolved by the maintainer's answer to `run-20261126T020242Z-3080634` question `04-cugg3w-a1-backlog-log-aware-gap`; recorded chaining decision `D-1` below (`Reversible: yes`). No open questions remain; wrote empty `questions: []` to `.aw/state/lane-submissions/run-20261126T020242Z-3080634/04-cugg3w/attempt-2/outcomes/04-cugg3w.json`.
+
+### Pass 2: Verification of Edits
+- Re-read `cugg3w` and `fljn9b` in full and verified `aw ipd lint --phase review-finalize` on `cugg3w`, `aw ipd lint --phase author` on `fljn9b`, `63ib9r`, and `x1mmdp`, and `check_review_lane_artifacts` conformance on all modified records.
+
+### Findings
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|---|---|---|---|---|---|---|---|---|
+| PR-001 | BLOCKER | repo-wide | Production cutover readiness (`backlog.py`) | `.aw/records/plans/pending/20261125-metastore-308-cugg3w-convert-test-batch-a-artifact-meta-through-backlog-in-the-cu.ipd.md` (`OQ-01`, `F-05`); `.aw/records/plans/pending/20261125-metastore-314-fljn9b-make-backlog-validation-and-readers-log-aware-in-the-cutover.ipd.md` | Unpatched `agent_workflows/backlog.py` log-awareness gap blocking `tests/test_backlog.py` and 13 sibling `tests/test_backlog_*.py` modules. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Maintainer answered `04-cugg3w-a1-backlog-log-aware-gap` (`OQ-01`, 2026-11-26) with "Split out a dedicated production-fix child plan ahead of cugg3w (Recommended)". Authored Order 314 child plan `fljn9b` chained after `nv3upa`, wired `fljn9b` into `63ib9r` and `x1mmdp`, set `cugg3w`'s `- Item-Dependencies:` to `executed:fljn9b`, marked `OQ-01` resolved, and cleared stale `OQ-01`/`PR-001` references across `cugg3w`. |
+
+### Proofreading
+#### Changes
+| Location | Original | Revised | Rule |
+|---|---|---|---|
+| `cugg3w` (`Concern`, `Scope`, `E-03` item 4, `F-05`, `Proposed changes`, `Scope check`, `Approval and execution gate`) | Described `OQ-01` / `PR-001` as open and gating `tests/test_backlog.py` | Updated all references to point to resolved `OQ-01` and prerequisite Order 314 (`fljn9b`) in `- Item-Dependencies:` | Consistency & stale-wording sweep |
+| `cugg3w` (`## Deferred / out of scope`) | Did not list `fljn9b` | Added `fljn9b` carrier for `backlog.py` and caller log-awareness | Explicit scope boundary |
+
+#### Issues
+| Location | Issue | Severity | Action |
+|---|---|---|---|
+| (none) | No unresolved proofreading issues remain. | LOW | None |
+
+### Decisions
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | Where in the serial cutover code-patch chain should the new Order 314 child plan (`fljn9b`) sit? | Chain `fljn9b` immediately after `nv3upa` (`- Item-Dependencies: executed:nv3upa`) and set `cugg3w` to `- Item-Dependencies: executed:fljn9b` (wiring `fljn9b` into `63ib9r` and `x1mmdp`). | Chain `fljn9b` right after `hdwqex` before `89mtbl` (rejected: would require editing already-reviewed `89mtbl` and running `fljn9b` before `tests/record_builder.py` is switched to log format). | Maintainer answer to `04-cugg3w-a1-backlog-log-aware-gap` ("Split out a dedicated production-fix child plan ahead of cugg3w (Recommended)"); `.aw/records/plans/pending/20261125-metastore-307-nv3upa-retire-or-repoint-the-legacy-loader-and-writer-unit-tests-in.ipd.md`; `.aw/records/plans/pending/20261102-metastore-00-63ib9r-build-the-artifact-metadata-store-of-spec-4sd62s-orchestrato.ipd.md`. | yes |
