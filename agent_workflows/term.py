@@ -28,6 +28,7 @@ import functools
 import io
 import os
 import re
+import subprocess
 import sys
 import unicodedata
 from typing import Any, Dict, List, Mapping, Optional, Sequence, TextIO, Tuple, Union
@@ -554,6 +555,94 @@ def _configured_color_depth() -> Optional[str]:
     return value if value in COLOR_DEPTHS else None
 
 
+@functools.lru_cache(maxsize=4)
+def _read_ancestor_process_names(ppid: int, max_hops: int = 4) -> Tuple[str, ...]:
+    """Return up to ``max_hops`` ancestor process names starting at ``ppid``.
+
+    Pure stdlib and fail-closed (returns ``()`` on unsupported platforms or read errors).
+    On Linux reads ``/proc/<pid>/comm`` and ``/proc/<pid>/stat`` directly (no subprocess).
+    On other POSIX systems (e.g. macOS) falls back to ``ps``.
+    """
+    if os.name != "posix" or ppid <= 1:
+        return ()
+
+    names: List[str] = []
+    seen = set()
+    pid = ppid
+    has_proc = os.path.isdir("/proc")
+
+    for _ in range(max_hops):
+        if pid <= 1 or pid in seen:
+            break
+        seen.add(pid)
+        if has_proc:
+            try:
+                with open(
+                    f"/proc/{pid}/comm", encoding="utf-8", errors="replace"
+                ) as fh:
+                    comm = fh.read().strip()
+                with open(
+                    f"/proc/{pid}/stat", encoding="utf-8", errors="replace"
+                ) as fh:
+                    stat = fh.read()
+                if comm:
+                    names.append(comm)
+                rparen = stat.rfind(")")
+                if rparen == -1:
+                    break
+                fields = stat[rparen + 1 :].split()
+                if len(fields) < 2:
+                    break
+                pid = int(fields[1])
+            except (OSError, ValueError, IndexError):
+                break
+        else:
+            try:
+                res = subprocess.run(
+                    ["ps", "-o", "ppid=,comm=", "-p", str(pid)],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=1.0,
+                )
+                if res.returncode != 0:
+                    break
+                line = res.stdout.strip()
+                if not line:
+                    break
+                parts = line.split(None, 1)
+                if len(parts) < 2:
+                    break
+                next_pid = int(parts[0])
+                comm = parts[1].strip()
+                if comm:
+                    names.append(comm)
+                pid = next_pid
+            except (OSError, ValueError, subprocess.SubprocessError):
+                break
+    return tuple(names)
+
+
+def _running_under_watch() -> bool:
+    """Return True when this process was launched under ``watch`` (e.g. ``watch -c aw ...``).
+
+    ``watch -c`` (procps-ng) captures child output on a pipe while preserving the outer
+    terminal's ``TERM``/``COLORTERM`` (``xterm-256color`` / ``truecolor``), yet silently drops
+    xterm-256 foreground sequences above index 15 (``38;5;16``..``38;5;255``) while rendering
+    standard 16-color SGR codes cleanly.
+    """
+    if os.name != "posix":
+        return False
+    try:
+        ppid = os.getppid()
+    except OSError:
+        return False
+    for name in _read_ancestor_process_names(ppid):
+        if os.path.basename(name) == "watch":
+            return True
+    return False
+
+
 def resolve_color_depth(
     stream: Optional[TextIO] = None, *, override: Optional[bool] = None
 ) -> str:
@@ -571,7 +660,10 @@ def resolve_color_depth(
        ``TERM=dumb`` and the TTY test. See the note below on why this rung delegates rather than
        re-implements.
     2. AN EXPLICIT USER DEPTH PIN -> that tier (``aw config`` key ``color_depth``).
-    3. DETECTED CAPABILITY via ``COLORTERM``/``TERM`` -> that tier.
+    3. DETECTED CAPABILITY via ``watch`` consumer / ``COLORTERM`` / ``TERM`` -> that tier.
+       When stdout is a non-TTY pipe owned by ``watch`` (e.g. ``watch -c aw ... --color``),
+       downgrade to ``'16'`` so ``watch -c`` renders colors instead of stripping 256-color
+       ``38;5;N`` codes.
     4. The DEFAULT -> ``'256'``.
 
     ``NO_COLOR`` OUTRANKS A PINNED DEPTH, which R9.3a.2 singles out as the rung "a well-meaning
@@ -605,6 +697,9 @@ def resolve_color_depth(
     pinned = _configured_color_depth()
     if pinned is not None:
         return pinned
+
+    if not _stream_is_tty(stream or sys.stdout) and _running_under_watch():
+        return DEPTH_16
 
     detected = _depth_from_environment()
     if detected is not None:

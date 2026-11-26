@@ -1864,5 +1864,126 @@ class LifecycleColorDepthCrossSurfaceCliTests(unittest.TestCase):
                 )
 
 
+class WatchColorDepthTests(_DepthTestBase):
+    """`watch -c aw ... --color` degrades to 16-color SGR so `watch` renders real colors.
+
+    procps-ng `watch -c` inherits `TERM=xterm-256color` / `COLORTERM=truecolor` from the outer
+    terminal while silently dropping xterm-256 foreground escapes above index 15 (`38;5;16..255`).
+    Downgrading non-TTY output under `watch` to `DEPTH_16` makes `--color` work as intended
+    without requiring extra flags or environment workarounds.
+    """
+
+    def test_watch_pipe_downgrades_to_16_color_while_respecting_precedence(self):
+        self._capable_tty()
+        os.environ["COLORTERM"] = "truecolor"
+
+        with mock.patch.object(T, "_running_under_watch", return_value=True):
+            # Forced color on a non-TTY pipe under watch -> 16-color SGR (no 38;5;).
+            self.assertEqual(
+                T.resolve_color_depth(_FakePipe(), override=True), T.DEPTH_16
+            )
+            t_pipe = T.Term(stream=_FakePipe(), color=True)
+            styled = t_pipe.color256("READY", 46, bold=True)
+            self.assertIn("\033[", styled)
+            self.assertNotIn("38;5;", styled)
+
+            # FORCE_COLOR on a pipe under watch also resolves to 16-color.
+            os.environ["FORCE_COLOR"] = "1"
+            self.assertEqual(T.resolve_color_depth(_FakePipe()), T.DEPTH_16)
+            os.environ.pop("FORCE_COLOR", None)
+
+            # Plain pipe under watch without --color/FORCE_COLOR stays monochrome.
+            self.assertEqual(T.resolve_color_depth(_FakePipe()), T.DEPTH_NONE)
+
+            # Real TTY is never downgraded even if an ancestor is named watch.
+            self.assertEqual(T.resolve_color_depth(_FakeTTY()), T.DEPTH_256)
+
+            # Explicit user config pin (Rung 2) outranks watch detection (Rung 3).
+            self._pin("256")
+            self.assertEqual(
+                T.resolve_color_depth(_FakePipe(), override=True), T.DEPTH_256
+            )
+
+        # Non-watch pipes (e.g. `| less -R`) keep full 256-color when --color is passed.
+        CFG.unset_config_value("color_depth")
+        with mock.patch.object(T, "_running_under_watch", return_value=False):
+            self.assertEqual(
+                T.resolve_color_depth(_FakePipe(), override=True), T.DEPTH_256
+            )
+
+    def test_real_watch_c_renders_colors_end_to_end(self):
+        import shutil
+
+        watch_bin = shutil.which("watch")
+        if os.name != "posix" or not watch_bin:
+            self.skipTest("POSIX `watch` binary not installed")
+
+        import fcntl
+        import pty
+        import select
+        import struct
+        import termios
+        import time
+
+        repo_root = str(Path(__file__).resolve().parents[1])
+        snippet = (
+            "import sys; "
+            f"sys.path.insert(0, {repo_root!r}); "
+            "from agent_workflows.term import Term; "
+            "t = Term(color=True); "
+            "print(t.color256('WATCHOK', 33, bold=True))"
+        )
+        cmd = f"{sys.executable} -c {snippet!r}"
+
+        master_fd, slave_fd = pty.openpty()
+        fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 120, 0, 0))
+        child_env = dict(os.environ)
+        child_env["TERM"] = "xterm-256color"
+        child_env["COLORTERM"] = "truecolor"
+        child_env.pop("NO_COLOR", None)
+        child_env["AW_CONFIG_DIR"] = self._tmp.name
+
+        proc = subprocess.Popen(
+            [watch_bin, "-c", "-n", "15", cmd],
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            env=child_env,
+            start_new_session=True,
+            close_fds=True,
+        )
+        os.close(slave_fd)
+
+        out = b""
+        end = time.time() + 4.0
+        try:
+            while time.time() < end:
+                ready, _, _ = select.select([master_fd], [], [], 0.1)
+                if ready:
+                    try:
+                        chunk = os.read(master_fd, 65536)
+                        if not chunk:
+                            break
+                        out += chunk
+                        if b"WATCHOK" in out:
+                            end = min(end, time.time() + 0.25)
+                    except OSError:
+                        break
+        finally:
+            try:
+                proc.kill()
+            except OSError:
+                pass
+            proc.wait(timeout=5)
+            os.close(master_fd)
+
+        text = out.decode("utf-8", "replace")
+        self.assertIn("WATCHOK", text)
+        idx = text.rfind("WATCHOK")
+        before = text[max(0, idx - 30) : idx]
+        # Must carry an actual foreground color SGR (30-37 or 90-97), not only bold (0;1m).
+        self.assertRegex(before, r"\x1b\[[0-9;]*(?:3[0-7]|9[0-7])m")
+
+
 if __name__ == "__main__":
     unittest.main()
