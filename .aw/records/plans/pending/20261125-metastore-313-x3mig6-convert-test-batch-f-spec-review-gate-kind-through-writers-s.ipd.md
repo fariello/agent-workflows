@@ -5,7 +5,7 @@
 - Concern: Backlog `ldfefd`: on the switched tree these 8 test modules (batch F, alphabetical slice) fail or call an API that `.aw/system/cutover/metastore-code.cutover.patch` removes; the historical `x1mmdp` attempt-1 pre-split core census counted 143 failing tests among them. Most failures are `MetadataSchemaError` refusals of fixtures written as bullet records, with the rest calling removed Phase-B APIs or hitting the four production cutover gaps (`plan_readiness.py`, `status_set.py`, `artifact_refs.py`, and `artifact_adopt.py`, recorded in F-05) now owned by prerequisite Order 321 (`3e0vfy`) per resolved `OQ-01`. `89mtbl` F-04 re-measures the authoritative post-builder census before batch execution.
 - Scope: In an isolated scratch worktree `.aw/state/x3mig6/scratch` with both cutover patches applied (including prerequisite plans `hdwqex`, `89mtbl`, `nv3upa`, `fljn9b`, `cugg3w`, `szykgd`, `psm9ac`, `otin36`, `x8id25`, `p109wy`, `q6fiws`, `e0g2gt`, `j1f454`, `lec341`, `qi0kl6`, and Order 321 `3e0vfy`), convert the 8 batch F test modules under the shared conversion rules, run them on both tiers, record any rule-4 retirements in F-02 and any remaining refusal of this repository's own unmigrated records in F-03, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. Make no live code or test changes outside `- Scope-Paths:`.
 - Scope-Paths: .aw/records/plans/pending/20261125-metastore-313-x3mig6-convert-test-batch-f-spec-review-gate-kind-through-writers-s.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
-- Item-Dependencies: executed:3e0vfy
+- Item-Dependencies: executed:qi0kl6
 - Status: approved
 - Review-Depth: standard
 - Readiness: go-pending-approval
@@ -25,6 +25,7 @@
 
 ## Workflow history
 
+- 2026-11-26 same-status (aw set): OQ-02 Option 1: re-chain production-fix plans otin36..3e0vfy ahead of test batches psm9ac..x3mig6
 - 2026-11-26 approved (aw set): status set to approved
 - 2026-11-26 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001 (FIXED via OQ-01 split into Order 321 3e0vfy); review record .aw/records/reviews/20261125-metastore-313-x3mig6-convert-test-batch-f-spec-review-gate-kind-through-writers-s.review.md
 - 2026-11-26 reviewed (aw set): REVIEWED - OPEN QUESTIONS; PR-002..PR-006 FIXED; PR-001 OPEN (OQ-01)
