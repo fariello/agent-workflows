@@ -5,7 +5,7 @@
 - Concern: Backlog `ldfefd`: on the switched tree these 10 test modules (batch D, alphabetical slice from `tests/test_prose_dash_advisory.py` through `tests/test_readers_runner.py`) fail or exercise legacy bullet-format fixtures and Phase-B reader behavior removed by `.aw/system/cutover/metastore-code.cutover.patch`; the historical `x1mmdp` attempt-1 pre-split census (2026-11-25) counted 134 failing core tests among them before `89mtbl` switched `tests/record_builder.py`. Most failures are `MetadataSchemaError` refusals of `text_only=True` bullet fixtures written to disk without `meta/<id6>.jsonl`, legacy inline-header/Phase-B reader assumptions, or the six production cutover gaps (`F-05`) now owned by prerequisite Orders 317 (`p109wy`) and 318 (`q6fiws`) per resolved `OQ-01`. Execution anchors on the authoritative post-builder census in `89mtbl` F-04.
 - Scope: In a scratch worktree with both cutover patches applied (including `hdwqex`, `89mtbl`, `fljn9b`, `szykgd`, `otin36`, the earlier batch children, and prerequisite production-fix children `p109wy` and `q6fiws`), convert the 10 batch D modules under the shared conversion rules, run them on both tiers, record any rule-4 retirements in F-02 and any remaining refusal of this repository's own records in F-03, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. No live code changes.
 - Scope-Paths: .aw/records/plans/pending/20261125-metastore-311-e0g2gt-convert-test-batch-d-prose-dash-advisory-through-readers-run.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
-- Item-Dependencies: executed:q6fiws
+- Item-Dependencies: executed:x8id25
 - Status: approved
 - Review-Depth: standard
 - Readiness: go-pending-approval
@@ -25,6 +25,7 @@
 
 ## Workflow history
 
+- 2026-11-26 same-status (aw set): OQ-02 Option 1: re-chain production-fix plans otin36..3e0vfy ahead of test batches psm9ac..x3mig6
 - 2026-11-26 approved (aw set): status set to approved
 - 2026-11-26 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001 (FIXED via OQ-01 split into Order 317 p109wy and Order 318 q6fiws); review record .aw/records/reviews/20261125-metastore-311-e0g2gt-convert-test-batch-d-prose-dash-advisory-through-readers-run.review.md
 - 2026-11-26 reviewed (aw set): REVIEWED - OPEN QUESTIONS; PR-001 OPEN (OQ-01); PR-002..PR-006 FIXED
