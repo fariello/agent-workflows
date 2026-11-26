@@ -5,7 +5,7 @@
 - Concern: Backlog `ldfefd`: on the switched tree these 14 test modules (batch E, alphabetical slice from `tests/test_readers_selectors_find.py` through `tests/test_spec_id6_filenames.py`) fail or call removed legacy APIs inside `.aw/system/cutover/metastore-code.cutover.patch`; the historical `x1mmdp` attempt-1 pre-split census (2026-11-25) counted 94 failing core tests among them before `89mtbl` switched `tests/record_builder.py`. Most failures are `MetadataSchemaError` refusals of `text_only=True` bullet/YAML fixtures written to disk without `meta/<id6>.jsonl`, direct calls to removed legacy helpers (`LegacyRender`, `LegacyTarget`, `render_legacy_text`), Phase-B inline-writer assertions, or the four production cutover gaps (`F-05`) now owned by prerequisite Orders 319 (`j1f454`) and 320 (`lec341`) per resolved `OQ-01`. Execution anchors on the authoritative post-builder census in `89mtbl` F-04.
 - Scope: In a scratch worktree with both cutover patches applied (including `hdwqex`, `89mtbl`, `fljn9b`, `szykgd`, `otin36`, `p109wy`, `q6fiws`, the earlier batch children, and prerequisite production-fix children `j1f454` and `lec341`), convert the 14 batch E modules under the shared conversion rules, run them on both tiers, record any rule-4 retirements in F-02 and any remaining refusal of this repository's own records in F-03, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. No live code changes.
 - Scope-Paths: .aw/records/plans/pending/20261125-metastore-312-qi0kl6-convert-test-batch-e-readers-selectors-find-through-spec-id6.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
-- Item-Dependencies: executed:lec341
+- Item-Dependencies: executed:e0g2gt
 - Status: approved
 - Review-Depth: standard
 - Readiness: go-pending-approval
@@ -25,6 +25,7 @@
 
 ## Workflow history
 
+- 2026-11-26 same-status (aw set): OQ-02 Option 1: re-chain production-fix plans otin36..3e0vfy ahead of test batches psm9ac..x3mig6
 - 2026-11-26 approved (aw set): status set to approved
 - 2026-11-26 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001 (FIXED via OQ-01 split into Order 319 j1f454 and Order 320 lec341); review record .aw/records/reviews/20261125-metastore-312-qi0kl6-convert-test-batch-e-readers-selectors-find-through-spec-id6.review.md
 - 2026-11-26 reviewed (aw set): REVIEWED - OPEN QUESTIONS; PR-001 OPEN (OQ-01); PR-002..PR-006 FIXED
