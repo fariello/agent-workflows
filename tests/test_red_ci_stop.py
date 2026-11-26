@@ -1025,3 +1025,49 @@ def test_red_ci_warning_banner_printed_at_start_and_end_both_hosts(
     # Check git-commit timestamp fallback populated elapsed age + datetime
     assert "ago (" in err
     assert pass_short in err
+
+
+def test_report_red_ci_warning_backfills_timestamp_and_age_when_info_absent(
+    tmp_path: Path,
+) -> None:
+    """Resumed runs created before `red_ci_warning_info` existed still render elapsed age + timestamp."""
+    from agent_workflows import term
+
+    repo, first_sha, tip_sha, _ = _setup_repo(tmp_path, interval=2, extra_commits=3)
+    pass_short = first_sha[:10]
+    _write_checkup_record(
+        repo,
+        commit=tip_sha,
+        status="PASSING",
+        last_passing_commit=first_sha,
+        commits_since_last_pass=3,
+    )
+    # Also attach a real checkup `last_passing_created_at` timestamp.
+    last_path = repo / ".aw" / "state" / "checkup" / "last.json"
+    rec = json.loads(last_path.read_text(encoding="utf-8"))
+    rec["ci"]["last_passing_created_at"] = "2026-11-24T13:47:09Z"
+    last_path.write_text(json.dumps(rec), encoding="utf-8")
+
+    # Legacy state dict carrying ONLY `red_ci_warning` and `repo` (no `red_ci_warning_info`).
+    legacy_state = {
+        "repo": str(repo),
+        "red_ci_warning": (
+            f"WARNING: [RUN-RED-CI] CI has not passed in 256 commit(s) "
+            f"(threshold: 250; CI status: PASSING; last passing commit: {first_sha})."
+        ),
+    }
+    buf = io.StringIO()
+    lines = runner_shared.report_red_ci_warning(legacy_state, stream=buf)
+    plain = term.strip_ansi("\n".join(lines))
+    assert "256 commit(s) (threshold: 250)" in plain
+    assert "ago (" in plain
+    assert "2026-11-24" in plain
+    assert pass_short in plain
+
+    # Even without a checkup record timestamp, fallback resolves the git commit timestamp.
+    last_path.unlink()
+    buf_git = io.StringIO()
+    lines_git = runner_shared.report_red_ci_warning(legacy_state, stream=buf_git)
+    plain_git = term.strip_ansi("\n".join(lines_git))
+    assert "ago (" in plain_git
+    assert pass_short in plain_git

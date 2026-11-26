@@ -26938,6 +26938,116 @@ def enforce_red_ci_gate(
     return decision
 
 
+def _enrich_red_ci_warning_info(
+    warning: str,
+    raw_info: Mapping[str, Any] | None,
+    *,
+    repo: Path | None = None,
+) -> dict[str, Any] | None:
+    """Backfill missing `last_passing_at`, `latest_commit`, and `unpushed_commits` from `repo`.
+
+    Resumed runs created before `red_ci_warning_info` was persisted (or callers passing only
+    the plain `[RUN-RED-CI]` warning string) otherwise lack elapsed age, timestamp, and unpushed
+    counts when `report_red_ci_warning` renders the banner.
+    """
+    info: dict[str, Any] | None
+    if isinstance(raw_info, Mapping):
+        info = dict(raw_info)
+    else:
+        inferred = _parse_red_ci_warning_text(warning)
+        info = dict(inferred) if inferred else None
+
+    if info is None or repo is None or not repo.is_dir():
+        return info
+
+    last_pass = info.get("last_passing_commit")
+    last_pass_str = (
+        str(last_pass).strip()
+        if isinstance(last_pass, str) and last_pass.strip()
+        else None
+    )
+
+    if not info.get("last_passing_at") or not info.get("latest_commit"):
+        try:
+            from agent_workflows import checkup as _checkup
+
+            rec = _checkup.read_checkup_record(repo)
+            ci_raw = rec.get("ci") if isinstance(rec, Mapping) else None
+            ci: Mapping[str, Any] | None = (
+                ci_raw
+                if isinstance(ci_raw, Mapping)
+                else (rec if isinstance(rec, Mapping) else None)
+            )
+            if ci is not None:
+                rec_last = ci.get("last_passing_commit") or ci.get("last_pass_commit")
+                rec_last_str = (
+                    str(rec_last).strip()
+                    if isinstance(rec_last, str) and rec_last.strip()
+                    else None
+                )
+                rec_last_at = ci.get("last_passing_created_at") or ci.get(
+                    "last_pass_created_at"
+                )
+                same_commit = (
+                    not last_pass_str
+                    or not rec_last_str
+                    or rec_last_str.startswith(last_pass_str)
+                    or last_pass_str.startswith(rec_last_str)
+                )
+                if (
+                    not info.get("last_passing_at")
+                    and same_commit
+                    and isinstance(rec_last_at, str)
+                    and rec_last_at.strip()
+                ):
+                    info["last_passing_at"] = rec_last_at.strip()
+                rec_latest = ci.get("latest_commit") or ci.get("latest_run_commit")
+                if (
+                    not info.get("latest_commit")
+                    and isinstance(rec_latest, str)
+                    and rec_latest.strip()
+                ):
+                    info["latest_commit"] = rec_latest.strip()
+        except Exception:
+            pass
+
+    if not info.get("last_passing_at") and last_pass_str:
+        resolved_ts = _resolve_commit_timestamp_iso(repo, last_pass_str)
+        if resolved_ts:
+            info["last_passing_at"] = resolved_ts
+
+    if info.get("unpushed_commits") is None:
+        try:
+            from agent_workflows import config as _config
+
+            ci_branch = _config.ci_checkup_branch(repo)
+        except Exception:
+            ci_branch = None
+        unpushed = _count_unpushed_commits(repo, branch=ci_branch)
+        if unpushed is not None:
+            info["unpushed_commits"] = unpushed
+
+    return info
+
+
+def _resolve_repo_for_red_ci_report(
+    state: Mapping[str, Any], state_or_run_dir: Mapping[str, Any] | Path | str
+) -> Path | None:
+    raw_repo = state.get("repo")
+    if isinstance(raw_repo, str) and raw_repo.strip():
+        cand = Path(raw_repo.strip())
+        if cand.is_dir():
+            return cand
+    if isinstance(state_or_run_dir, (str, Path)):
+        cur = Path(state_or_run_dir).resolve()
+        if cur.is_file():
+            cur = cur.parent
+        for ancestor in (cur, *cur.parents):
+            if (ancestor / ".git").exists():
+                return ancestor
+    return None
+
+
 def report_red_ci_warning(
     state_or_run_dir: Mapping[str, Any] | Path | str | None,
     *,
@@ -26978,7 +27088,12 @@ def report_red_ci_warning(
 
     out = stream if stream is not None else sys.stderr
     raw_info = state.get("red_ci_warning_info")
-    warning_info = raw_info if isinstance(raw_info, Mapping) else None
+    eff_repo = _resolve_repo_for_red_ci_report(state, state_or_run_dir)
+    warning_info = _enrich_red_ci_warning_info(
+        warning,
+        raw_info if isinstance(raw_info, Mapping) else None,
+        repo=eff_repo,
+    )
     lines = format_red_ci_warning_banner(warning, stream=out, info=warning_info)
     for line in lines:
         print(line, file=out)
