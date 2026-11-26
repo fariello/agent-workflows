@@ -1,5 +1,5 @@
 - Id: jycxw8
-- Status: open
+- Status: graduated
 - Set: jycxw8
 - Work-Kind: bug
 - Priority: high
@@ -10,6 +10,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-26 graduated (aw backlog): Carried by metastore Order 305 (hdwqex) per maintainer answer to run-20261125T162650Z-1337442 question 06-x1mmdp-a1-Q-01
 - 2026-11-25 created (aw backlog): Post-cutover ipd lint and ipd scaffold still assume the bullet block and Workflow history H2
 
 Found by 2k5t16 (run run-20261125T162650Z-1337442) while smoke-testing the metastore code patch (.aw/system/cutover/metastore-code.cutover.patch applied over the docs patch) in a throwaway repo.
