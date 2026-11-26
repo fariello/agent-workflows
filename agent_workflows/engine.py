@@ -8455,7 +8455,41 @@ def install_into_repo(
     ``yes`` here, so the CLI path silently preserved customizations even under `--yes`; unifying
     on this core fixes that drift.
     """
+    if _VERSIONING is not None:
+        with _VERSIONING.cache_scope():
+            return _install_into_repo_impl(
+                repo_root,
+                source_root,
+                dry_run=dry_run,
+                backup=backup,
+                prune=prune,
+                yes=yes,
+                no_color=no_color,
+                target_layout=target_layout,
+            )
+    return _install_into_repo_impl(
+        repo_root,
+        source_root,
+        dry_run=dry_run,
+        backup=backup,
+        prune=prune,
+        yes=yes,
+        no_color=no_color,
+        target_layout=target_layout,
+    )
 
+
+def _install_into_repo_impl(
+    repo_root: Path,
+    source_root: Path,
+    *,
+    dry_run: bool = False,
+    backup: bool = True,
+    prune: bool = True,
+    yes: bool = False,
+    no_color: bool = False,
+    target_layout: Optional[str] = None,
+) -> dict:
     plan = InstallPlan(
         source_root=source_root,
         repo_root=repo_root,

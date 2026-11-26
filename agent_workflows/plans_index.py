@@ -16,6 +16,7 @@ when a plan sits in a shard subdir. Complements (does not replace) the dispositi
 from __future__ import annotations
 
 import argparse
+import os
 import re
 from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Tuple
@@ -144,14 +145,27 @@ def _cached_plan_states(
         return {}
     pdir_res = plans_dir.resolve()
     ctx, records_root, scan_repo = _meta_context_for_plans_dir(pdir_res)
+    state_root = Path(ctx.logical_roots["state"])
+    if (
+        not (state_root / "index.db").exists()
+        and not (records_root / "meta").is_dir()
+        and not _am._SCAN_ONCE_CONNS.get()
+    ):
+        return {}
     with _am.scan_once(), _am.ephemeral_if_uninitialized():
         res = _am.query(type="ipd", project_context=ctx, include_fields=include_fields)
+    records_root_res = records_root.resolve()
+    scan_repo_res = scan_repo.resolve() if scan_repo is not None else None
     by_path: Dict[Path, Any] = {}
     for st in res.rows:
         if not st.path:
             continue
         try:
-            abs_p = _am.source_path(st.path, records_root, scan_repo).resolve()
+            abs_p = Path(
+                os.path.normpath(
+                    _am.source_path(st.path, records_root_res, scan_repo_res)
+                )
+            )
         except Exception:
             continue
         if abs_p.is_relative_to(pdir_res):
@@ -213,8 +227,17 @@ def plan_entry(
             except OSError:
                 date_val = ""
     else:
-        text = p.read_text(encoding="utf-8")
-        st_text = _am.read_text(text, record_type="ipd")
+        hdr_lines: List[str] = []
+        with p.open("r", encoding="utf-8") as fh:
+            for line in fh:
+                if (
+                    line.startswith("## ")
+                    or line.startswith("##\t")
+                    or line.rstrip("\r\n") == "##"
+                ):
+                    break
+                hdr_lines.append(line)
+        st_text = _am.read_text("".join(hdr_lines), record_type="ipd")
         plan_id = (
             st_text.id6 if (st_text.id6 and _core.is_valid_id6(st_text.id6)) else None
         )

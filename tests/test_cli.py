@@ -297,9 +297,15 @@ class SetupTests(CliTestBase):
 
 
 class UninstallTests(CliTestBase):
+    def _installed_repo(self, name: str) -> Path:
+        from tests.repo_template import copy_installed_template_repo
+
+        repo = self.base / name
+        copy_installed_template_repo(repo, preset="private-target")
+        return repo
+
     def test_uninstall_removes_framework_keeps_user_content(self):
-        repo = self._repo("r")
-        _run(["install", str(repo), "--yes"])
+        repo = self._installed_repo("r")
         (repo / "my_code.py").write_text("print('mine')\n", encoding="utf-8")
         code, out = _run(["uninstall", str(repo), "--yes"])
         self.assertEqual(code, 0, out)
@@ -308,8 +314,7 @@ class UninstallTests(CliTestBase):
         self.assertTrue((repo / "my_code.py").is_file())  # user content untouched
 
     def test_uninstall_removes_config_entry(self):
-        repo = self._repo("r")
-        _run(["install", str(repo), "--yes"])
+        repo = self._installed_repo("r")
         cfg = CFG.default_config()
         CFG.set_repo_setting(cfg, "installed", [str(repo)])
         CFG.save(cfg)
@@ -323,8 +328,7 @@ class UninstallTests(CliTestBase):
         self.assertIn("not installed", out)
 
     def test_uninstall_dry_run_changes_nothing(self):
-        repo = self._repo("dry")
-        _run(["install", str(repo), "--yes"])
+        repo = self._installed_repo("dry")
         code, out = _run(["uninstall", str(repo), "--dry-run"])
         self.assertEqual(code, 0, out)
         self.assertIn("dry-run", out.lower())
@@ -334,8 +338,7 @@ class UninstallTests(CliTestBase):
 
     def test_uninstall_yes_removes_manifest_and_leaves_scaffolding(self):
         # --yes (no --deep) removes owned files + manifest but PRESERVES the scaffolding.
-        repo = self._repo("y")
-        _run(["install", str(repo), "--yes"])
+        repo = self._installed_repo("y")
         code, out = _run(["uninstall", str(repo), "--yes"])
         self.assertEqual(code, 0, out)
         self.assertFalse((repo / ".aw/system/workflows").exists())
@@ -344,15 +347,13 @@ class UninstallTests(CliTestBase):
         self.assertTrue((repo / ".aw/records/plans").exists())
 
     def test_uninstall_deep_removes_scaffolding(self):
-        repo = self._repo("d")
-        _run(["install", str(repo), "--yes"])
+        repo = self._installed_repo("d")
         code, out = _run(["uninstall", str(repo), "--yes", "--deep"])
         self.assertEqual(code, 0, out)
         self.assertFalse((repo / ".aw/records/plans").exists())
 
     def test_uninstall_force_removes_edited_shim(self):
-        repo = self._repo("f")
-        _run(["install", str(repo), "--yes"])
+        repo = self._installed_repo("f")
         shim = repo / ".opencode/commands/advise.md"
         shim.write_text("MY EDIT\n", encoding="utf-8")
         code, out = _run(["uninstall", str(repo), "--force"])

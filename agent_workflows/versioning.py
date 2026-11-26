@@ -36,11 +36,37 @@ The real describe forms this parses (verified live against git):
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import datetime
 import re
 import subprocess
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import Dict, Iterator, NamedTuple, Optional, Tuple
+
+_VERSION_CACHE: contextvars.ContextVar[Optional[Dict[Tuple[str, str], str]]] = (
+    contextvars.ContextVar("_aw_version_cache", default=None)
+)
+
+
+@contextlib.contextmanager
+def cache_scope() -> Iterator[None]:
+    """Memoize ``resolve_version`` within a single install/command call.
+
+    Avoids running ``git describe`` + ``git status`` multiple times against the same
+    read-only source checkout during one ``aw install`` invocation while keeping
+    consecutive calls outside the scope uncached.
+    """
+    existing = _VERSION_CACHE.get()
+    if existing is not None:
+        yield
+        return
+    token = _VERSION_CACHE.set({})
+    try:
+        yield
+    finally:
+        _VERSION_CACHE.reset(token)
+
 
 VERSION_FILENAME = "VERSION"
 
@@ -289,9 +315,20 @@ def resolve_version(repo_root: Path, *, version_file: Optional[Path] = None) -> 
         A PEP 440 version string, or the file's contents, or ``"unknown"``.
     """
 
+    cache = _VERSION_CACHE.get()
+    cache_key: Optional[Tuple[str, str]] = None
+    if cache is not None:
+        cache_key = (str(repo_root), "" if version_file is None else str(version_file))
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
     describe = _git_describe(repo_root)
     if describe is not None:
-        return parse_describe(describe)
+        resolved = parse_describe(describe)
+        if cache is not None and cache_key is not None:
+            cache[cache_key] = resolved
+        return resolved
 
     if version_file is None:
         # Default to the canonical `.aw/system/VERSION` (matches the docstring + the migrated
@@ -304,7 +341,10 @@ def resolve_version(repo_root: Path, *, version_file: Optional[Path] = None) -> 
             if aw_version.is_file()
             else repo_root / ".agents" / "workflows" / VERSION_FILENAME
         )
-    return read_version_file(version_file)
+    resolved = read_version_file(version_file)
+    if cache is not None and cache_key is not None:
+        cache[cache_key] = resolved
+    return resolved
 
 
 # --------------------------------------------------------------------------------------

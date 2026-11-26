@@ -9335,7 +9335,22 @@ def _install_one(
 
     Returns one of "ok", "nochange", or "failed" for the caller's tally.
     """
+    from agent_workflows import versioning as _versioning
 
+    with _versioning.cache_scope():
+        return _install_one_impl(
+            repo_root, source_root, args, term, skip_commit=skip_commit
+        )
+
+
+def _install_one_impl(
+    repo_root: Path,
+    source_root: Path,
+    args: argparse.Namespace,
+    term: Term,
+    *,
+    skip_commit: bool = False,
+) -> str:
     if _split_brain_guard(term, repo_root, args) == "skip":
         return "nochange"
 

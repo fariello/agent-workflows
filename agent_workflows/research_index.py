@@ -715,6 +715,8 @@ def cited_by_executed_ids(
     scan_repo = _am._scan_repo_root(ctx, records_root)
     spec_states: Dict[Path, Any] = {}
     backlog_states: Dict[Path, Any] = {}
+    records_root_res = records_root.resolve()
+    scan_repo_res = scan_repo.resolve() if scan_repo is not None else None
     with _am.scan_once(), _am.ephemeral_if_uninitialized():
         for rec_type, target_map in (
             ("spec", spec_states),
@@ -724,7 +726,11 @@ def cited_by_executed_ids(
                 if not st.path:
                     continue
                 try:
-                    abs_p = _am.source_path(st.path, records_root, scan_repo).resolve()
+                    abs_p = Path(
+                        os.path.normpath(
+                            _am.source_path(st.path, records_root_res, scan_repo_res)
+                        )
+                    )
                 except Exception:
                     continue
                 target_map[abs_p] = st

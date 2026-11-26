@@ -864,7 +864,7 @@ def _cached_states_by_path(repo_root: Path, record_type: str) -> Dict[Path, Any]
     if (
         not (state_root / "index.db").exists()
         and not (records_root / "meta").is_dir()
-        and _meta._SCAN_ONCE_CONNS.get() is None
+        and not _meta._SCAN_ONCE_CONNS.get()
     ):
         # Without a persistent index.db, log-format meta/ tree, or outer scan_once() session,
         # calling _meta.query() under ephemeral_if_uninitialized() parses the entire multi-thousand
@@ -872,18 +872,24 @@ def _cached_states_by_path(repo_root: Path, record_type: str) -> Dict[Path, Any]
         # one record type. Returning {} lets resolve() use bounded header reads over this type's
         # candidate paths only.
         return {}
-    filters: Dict[str, Any] = {"project_context": ctx}
     meta_t = _META_TYPE_FOR_RECORD.get(record_type)
-    if meta_t is not None:
-        filters["type"] = meta_t
+    if meta_t is None:
+        return {}
+    filters: Dict[str, Any] = {"project_context": ctx, "type": meta_t}
     with _meta.ephemeral_if_uninitialized():
         res = _meta.query(**filters)
+    records_root_res = records_root.resolve()
+    scan_repo_res = scan_repo.resolve() if scan_repo is not None else None
     by_path: Dict[Path, Any] = {}
     for st in res.rows:
         if not st.path:
             continue
         try:
-            abs_p = _meta.source_path(st.path, records_root, scan_repo).resolve()
+            abs_p = Path(
+                os.path.normpath(
+                    _meta.source_path(st.path, records_root_res, scan_repo_res)
+                )
+            )
         except Exception:
             continue
         by_path[abs_p] = st
