@@ -10,7 +10,7 @@
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Coverage: pass
-- Coverage-Fingerprint: 4e5bec5a7e8101cc840fa000c84f3a83246fe047e9309870989705e516b75742
+- Coverage-Fingerprint: c43b7eb71194391b0f4e9858cfcda7dd003ee9418eac80282802cf63b5a198f5
 - Coverage-Checked: 2026-11-26 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: feature
 - Priority: high
@@ -26,6 +26,7 @@
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-26 coverage pass (aw oc run): fingerprint c43b7eb71194, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-26 note (antigravity/gemini): split Order 315 (szykgd, make specs, releases, spec-link, search, and dep-gate log-aware in the cutover code patch) ahead of psm9ac per maintainer answer to run-20261126T020242Z-3080634 question 05-psm9ac-a1-batch-b-production-log-aware-gaps; E-227 confirms szykgd; E-221 (psm9ac), E-179 (x1mmdp), and E-13 (cxxmyv) depend on E-227.
 - 2026-11-26 note (antigravity/gemini): split Order 314 (fljn9b, make backlog validation and readers log-aware in the cutover code patch) ahead of cugg3w per maintainer answer to run-20261126T020242Z-3080634 question 04-cugg3w-a1-backlog-log-aware-gap; E-226 confirms fljn9b; E-220 (cugg3w), E-179 (x1mmdp), and E-13 (cxxmyv) depend on E-226.
 - 2026-11-26 coverage pass (aw oc run): fingerprint 4e5bec5a7e81, model uri/its_direct/pt3-claude-opus-5.5-1m-us
