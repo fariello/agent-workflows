@@ -89,6 +89,84 @@ def _parse_iso_ts(raw: Any) -> Optional[float]:
     return None
 
 
+_HEADING_PREFIX_RE = re.compile(
+    r"^(?:IPD|Backlog|Spec|Prompt|Walkthrough|Roadmap):\s*",
+    re.IGNORECASE,
+)
+_SUMMARY_BULLET_RE = re.compile(
+    r"^-\s+(?:Summary|Short-Description):\s*(.+)$",
+    re.IGNORECASE,
+)
+
+
+def _strip_logical_records_prefix(rel_posix: str) -> str:
+    """Strip logical records roots ('.aw/records/', '.agents/records/', 'records/') if present."""
+    s = rel_posix
+    while s.startswith("./"):
+        s = s[2:]
+    s = s.lstrip("/")
+    for prefix in (".aw/records/", ".agents/records/", "records/"):
+        if s.startswith(prefix):
+            return s[len(prefix) :]
+    return s
+
+
+def _candidate_artifact_paths(raw_file: str, repo: Path | str | None) -> list[Path]:
+    """Return candidate physical paths for an artifact file across in-repo, companion, and AW_HOME layouts."""
+    raw = raw_file.strip()
+    if not raw:
+        return []
+    candidates: list[Path] = []
+    seen: set[str] = set()
+
+    def _add(p: Path) -> None:
+        key = str(p)
+        if key not in seen:
+            seen.add(key)
+            candidates.append(p)
+
+    direct = Path(raw)
+    if direct.is_absolute():
+        _add(direct)
+    elif repo is not None:
+        _add(Path(repo) / direct)
+    else:
+        _add(direct)
+
+    if repo is None:
+        return candidates
+
+    repo_path = Path(repo)
+    rel_posix = raw.replace("\\", "/")
+    sub_rel = _strip_logical_records_prefix(rel_posix)
+
+    records_roots: list[Path] = []
+    try:
+        from agent_workflows import project_context as _pc
+
+        rec_root = _pc.project_records_dir(repo_path)
+        if rec_root is not None:
+            records_roots.append(Path(rec_root))
+    except Exception:
+        pass
+    records_roots.append(repo_path / ".aw" / "records")
+
+    sub_variants = [sub_rel]
+    fname = Path(sub_rel).name
+    if sub_rel.startswith("plans/pending/"):
+        sub_variants.append(f"plans/executed/{fname}")
+    elif sub_rel.startswith("backlog/open/"):
+        sub_variants.append(f"backlog/graduated/{fname}")
+        sub_variants.append(f"backlog/done/{fname}")
+
+    for root in records_roots:
+        for variant in sub_variants:
+            if variant:
+                _add(root / variant)
+
+    return candidates
+
+
 def resolve_artifact_title(
     item: Optional[Mapping[str, Any]],
     repo: Path | str | None = None,
@@ -96,12 +174,13 @@ def resolve_artifact_title(
     """Resolve a human-readable one-line title/description for a queue artifact."""
     if not isinstance(item, Mapping):
         return ""
-    for key in ("title", "description", "summary"):
+    for key in ("title", "description", "summary", "short_description"):
         val = _one_line_clean(item.get(key))
         if val:
             return val
 
-    # Try reading the first markdown '# Heading' from the artifact file on disk.
+    # Try reading the first markdown '# Heading' (or '- Summary:'/'- Short-Description:') on disk,
+    # resolving companion and AW_HOME records roots when configured_file is a logical path.
     raw_file = (
         item.get("file")
         or item.get("configured_file")
@@ -109,11 +188,11 @@ def resolve_artifact_title(
         or item.get("plan_path")
     )
     if isinstance(raw_file, (str, Path)) and str(raw_file).strip():
-        cand = Path(str(raw_file).strip())
-        if not cand.is_absolute() and repo is not None:
-            cand = Path(repo) / cand
-        try:
-            if cand.is_file():
+        for cand in _candidate_artifact_paths(str(raw_file), repo):
+            try:
+                if not cand.is_file():
+                    continue
+                summary_fallback = ""
                 with cand.open("r", encoding="utf-8", errors="replace") as fh:
                     for _ in range(40):
                         line = fh.readline()
@@ -122,11 +201,19 @@ def resolve_artifact_title(
                         stripped = line.strip()
                         if stripped.startswith("# "):
                             title = stripped[2:].strip().replace("`", "")
-                            title = re.sub(r"^IPD:\s*", "", title, flags=re.IGNORECASE)
+                            title = _HEADING_PREFIX_RE.sub("", title).strip()
                             if title:
                                 return _one_line_clean(title)
-        except OSError:
-            pass
+                        elif not summary_fallback:
+                            m = _SUMMARY_BULLET_RE.match(stripped)
+                            if m:
+                                summary_fallback = _one_line_clean(
+                                    m.group(1).strip().replace("`", "")
+                                )
+                if summary_fallback:
+                    return summary_fallback
+            except OSError:
+                pass
 
     slug = _one_line_clean(item.get("slug"))
     if slug:

@@ -131,6 +131,7 @@ from agent_workflows.render_stream import (
     render_run_summary_table,
     install_exit_signal_handler,
     statusline_action_for_item,
+    statusline_artifact_kind_for_item,
     # RE-EXPORTED IN THE `as <same-name>` FORM BECAUSE THIS MODULE NO LONGER CALLS IT, and that is a
     # measured `ruff` deletion rather than a precaution (runnerlayer Order 02 `1f7xno`). This entry was
     # a PLAIN import while `announce_run_order` was defined here and called it; the moment that
@@ -3313,7 +3314,7 @@ def run_opencode(
                         run_start_mono=run_start_mono,
                         watchdog=watchdog,
                         action=statusline_action_for_item(item),
-                        artifact_kind=item.get("kind", item.get("type", "ipd")),
+                        artifact_kind=statusline_artifact_kind_for_item(item),
                         activity=activity_for_item(item),
                         runner="opencode",
                         model=options.get(model_key),

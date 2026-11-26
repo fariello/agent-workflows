@@ -1375,9 +1375,46 @@ def format_artifact_kind_label(artifact_kind: str | None) -> str:
     if not artifact_kind:
         return "IPD"
     key = artifact_kind.strip().lower()
+    if not key or key == "none":
+        return "IPD"
     return ARTIFACT_DISPLAY_MAP.get(
         key, _T.truncate_visible(artifact_kind.strip(), 7).capitalize()
     )
+
+
+def statusline_artifact_kind_for_item(item: Mapping[str, Any] | None) -> str:
+    """Derive the workflow artifact kind token for a queue item ('ipd', 'spec', 'backlog', ...).
+
+    Queue entries for non-IPD artifacts (backlog items, specs) set ``artifact_type`` and leave
+    IPD-only ``kind`` as ``None``. Check ``artifact_type`` first, never stringify ``None`` into
+    ``"None"``, and fall back to filename suffix inference before defaulting to ``"ipd"``.
+    """
+    if not isinstance(item, Mapping):
+        return "ipd"
+    for key in ("artifact_type", "type", "kind"):
+        raw = item.get(key)
+        if isinstance(raw, str):
+            tok = raw.strip()
+            if tok and tok.lower() != "none":
+                return tok
+    raw_file = (
+        item.get("file")
+        or item.get("configured_file")
+        or item.get("path")
+        or item.get("plan_path")
+    )
+    if isinstance(raw_file, (str, Path)):
+        name = Path(str(raw_file)).name.lower()
+        for suffix, kind in (
+            (".backlog.md", "backlog"),
+            (".spec.md", "spec"),
+            (".prompt.md", "prompt"),
+            (".walkthrough.md", "walkthrough"),
+            (".roadmap.md", "roadmap"),
+        ):
+            if name.endswith(suffix):
+                return kind
+    return "ipd"
 
 
 def statusline_action_for_item(item: dict[str, Any]) -> str:
@@ -2866,7 +2903,11 @@ def print_final_statusline(
         stall_remaining=None,
         progress_source=None,
         action=action,
-        artifact_kind=None,
+        artifact_kind=(
+            statusline_artifact_kind_for_item(last_item)
+            if last_item is not None
+            else None
+        ),
         use_unicode=pal.use_unicode,
         activity=None,
         runner=runner,
@@ -3068,7 +3109,7 @@ def item_statusline(
         id6=str(item.get("id6", "")),
         run_start_mono=run_start_mono,
         action=statusline_action_for_item(dict(item)),
-        artifact_kind=str(item.get("kind", item.get("type", "ipd"))),
+        artifact_kind=statusline_artifact_kind_for_item(item),
         activity=activity_for_item(dict(item)),
         runner=runner,
         model=model if model is not None else options.get("model"),

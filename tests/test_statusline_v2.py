@@ -1025,3 +1025,128 @@ def test_phase_timeout_and_source_tags_during_integration_and_suite_check() -> N
         assert sl.watchdog is turn_wd
         assert sl.progress_source == "stdout"
         sl.detach_turn()
+
+
+def test_companion_backlog_description_and_artifact_kind_render_in_statusline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Companion-repo logical paths resolve description and backlog kind never renders 'None'."""
+    from agent_workflows import project_context
+
+    target_repo = tmp_path / "polyopen"
+    target_repo.mkdir()
+    comp_records = tmp_path / "polyopen.aw" / "records"
+    backlog_file = (
+        comp_records
+        / "backlog"
+        / "open"
+        / "20261125-hxile6-01-hxile6-detect-truncated-zst-streams.backlog.md"
+    )
+    backlog_file.parent.mkdir(parents=True)
+    backlog_file.write_text(
+        "# Backlog: Detect truncated .zst streams instead of returning silent EOF in PolyReader\n\n"
+        "- Id: hxile6\n- Status: open\n",
+        encoding="utf-8",
+    )
+
+    # Also test a Spec file and a moved plan under plans/executed/.
+    spec_file = (
+        comp_records / "specs" / "to-review" / "20261125-sp0001-01-sp0001-demo.spec.md"
+    )
+    spec_file.parent.mkdir(parents=True)
+    spec_file.write_text(
+        "# Spec: Streaming frame integrity\n\n- Id: sp0001\n", encoding="utf-8"
+    )
+
+    moved_plan = (
+        comp_records / "plans" / "executed" / "20261125-demo-01-pl0001-done.ipd.md"
+    )
+    moved_plan.parent.mkdir(parents=True)
+    moved_plan.write_text(
+        "# IPD: Completed companion plan\n\n- Id: pl0001\n", encoding="utf-8"
+    )
+
+    monkeypatch.setattr(
+        project_context,
+        "project_records_dir",
+        lambda repo: comp_records
+        if Path(repo) == target_repo
+        else Path(repo) / ".aw" / "records",
+    )
+
+    backlog_item = {
+        "id6": "hxile6",
+        "setid": "hxile6",
+        "artifact_type": "backlog",
+        "kind": None,
+        "action": "plan",
+        "status": "running",
+        "configured_file": ".aw/records/backlog/open/20261125-hxile6-01-hxile6-detect-truncated-zst-streams.backlog.md",
+    }
+    assert (
+        _sl.resolve_artifact_title(backlog_item, repo=target_repo)
+        == "Detect truncated .zst streams instead of returning silent EOF in PolyReader"
+    )
+    assert (
+        _sl.resolve_artifact_title(
+            {
+                "configured_file": ".aw/records/specs/to-review/20261125-sp0001-01-sp0001-demo.spec.md"
+            },
+            repo=target_repo,
+        )
+        == "Streaming frame integrity"
+    )
+    assert (
+        _sl.resolve_artifact_title(
+            {
+                "configured_file": ".aw/records/plans/pending/20261125-demo-01-pl0001-done.ipd.md"
+            },
+            repo=target_repo,
+        )
+        == "Completed companion plan"
+    )
+
+    assert rs.statusline_artifact_kind_for_item(backlog_item) == "backlog"
+    assert (
+        rs.statusline_artifact_kind_for_item({"artifact_type": "spec", "kind": None})
+        == "spec"
+    )
+    assert (
+        rs.statusline_artifact_kind_for_item(
+            {"kind": None, "configured_file": "x.backlog.md"}
+        )
+        == "backlog"
+    )
+    assert rs.format_artifact_kind_label("None") == "IPD"
+    assert rs.format_artifact_kind_label("backlog") == "Backlog"
+
+    state = {
+        "repo": str(target_repo),
+        "run_id": "run-20261126T011527Z-2737767",
+        "queue": [backlog_item],
+        "options": {"output_mode": "clean", "model": "Gemini 4 Neon (High)"},
+    }
+
+    class _Tty(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr(rs, "_live_terminal_width", lambda _stream: 160)
+    tty = _Tty()
+    with rs.item_statusline(
+        None,
+        state,
+        backlog_item,
+        pal=rs.Palette(False, use_unicode=True),
+        runner="agy",
+        stream=tty,
+    ) as sl:
+        rendered = sl.render_line()
+        lines = rendered.splitlines()
+        assert len(lines) == 7
+        assert (
+            "Detect truncated .zst streams instead of returning silent EOF in PolyReader"
+            in lines[1]
+        )
+        assert "Backlog" in rendered
+        assert "None" not in rendered

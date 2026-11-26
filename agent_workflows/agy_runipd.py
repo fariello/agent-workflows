@@ -84,6 +84,7 @@ from agent_workflows.render_stream import (
     render_run_summary_table,
     install_exit_signal_handler,
     statusline_action_for_item,
+    statusline_artifact_kind_for_item,
     # orchprobe (r2i1b1) E-01/E-02: the ONE refusal record (reason AND remedy), imported from
     # `render_stream` and NEVER from `oc_runipd`, so this shared symbol does not deepen the
     # oc-to-agy coupling that backlog `cnwy8g` tracks. Same object in both hosts (`tests/test_refusal_surfacing.py`
@@ -2867,7 +2868,7 @@ def run_agy_turn(
                         run_start_mono=run_start_mono,
                         watchdog=watchdog,
                         action=statusline_action_for_item(item),
-                        artifact_kind=item.get("kind", item.get("type", "ipd")),
+                        artifact_kind=statusline_artifact_kind_for_item(item),
                         activity=activity_for_item(item),
                         runner="agy",
                         model=options.get("model"),
