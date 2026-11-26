@@ -43,6 +43,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: the scratch worktree holds HEAD plus both patches, staged.
   - Execution state: performed
+  - Execution note: 2026-11-26 (run run-20261125T162650Z-1337442, attempt 2). Performed in attempt 1 (V-01), but that scratch worktree was removed, and the split children `hdwqex` to `x3mig6` will regenerate the code patch. Re-run this step from the then-current HEAD before E-03, and overwrite F-01 if the base tree differs.
 
 ### Task group 2: test switch (scratch worktree only; was `cxxmyv` E-07; the builder switch moved to `89mtbl`)
 
