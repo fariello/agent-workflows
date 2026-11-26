@@ -18926,7 +18926,8 @@ def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
         is_stale_tool_litter,
     )
 
-    repo_path = Path(os.getcwd())
+    raw_dir = getattr(args, "dir", None)
+    repo_path = Path(raw_dir).expanduser().resolve() if raw_dir else Path(os.getcwd())
     action = getattr(args, "action", None)
     output = getattr(args, "output", None)
     json_out = getattr(args, "json", False)
@@ -19883,9 +19884,9 @@ def _run_migrate_bare(
 ) -> int:
     """Execute or dry-run every pending migration step in order for bare `aw migrate` (E-02)."""
     import contextlib as _contextlib
-    from agent_workflows import layout_inventory as inv_mod
     from agent_workflows import layout_migration as _lm
     from agent_workflows.migrations import chain as _chain
+    from agent_workflows.migrations import m0001_discover as _m0001_discover
     from agent_workflows.renderers import AgentRenderer, get_renderer
     from agent_workflows.result_types import (
         CommandResult,
@@ -19894,7 +19895,8 @@ def _run_migrate_bare(
         select_output,
     )
 
-    repo_path = Path(os.getcwd())
+    raw_dir = getattr(args, "dir", None)
+    repo_path = Path(raw_dir).expanduser().resolve() if raw_dir else Path(os.getcwd())
     ctx = context if context is not None else select_output(args)
     apply_mode = not bool(getattr(args, "migrate_dry_run", False))
     force_mode = bool(getattr(args, "migrate_force", False))
@@ -19902,10 +19904,11 @@ def _run_migrate_bare(
     commit_flag = bool(getattr(args, "commit", False))
     no_commit_flag = bool(getattr(args, "no_commit", False))
 
-    has_agents_root = any(
-        label == "agents" for label, _ in inv_mod._default_roots(repo_path)
+    records_root = project_context.project_records_dir(repo_path)
+    has_legacy_agents, _ = _m0001_discover._compute_layout_stage_needed(
+        repo_path, records_root
     )
-    layout_pending = has_agents_root or engine.detect_split_brain_layout(repo_path)
+    layout_pending = has_legacy_agents or engine.detect_split_brain_layout(repo_path)
     pending_meta = _chain.pending_migrations(repo_path)
 
     if not layout_pending and not pending_meta:
@@ -19994,6 +19997,7 @@ def _run_migrate_bare(
             output=None,
             fault_injection=None,
             rename_to_grammar=False,
+            dir=str(repo_path),
         )
         if ctx.is_json or ctx.is_agent:
             buf_out = io.StringIO()

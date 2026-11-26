@@ -484,3 +484,41 @@ def test_bare_migrate_case7_phase_a_constant_1_aw_only_prints_nothing_to_migrate
     rc, out, _ = _run_cli_inproc(repo, ["migrate"], aw_home=aw_home)
     assert rc == 0, out
     assert "nothing to migrate" in out.lower()
+
+
+def test_bare_migrate_ignores_preserved_agents_skills_in_modern_aw_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Modern `.aw/` repo with only `.agents/skills/` reports nothing to migrate and mutates zero files."""
+    aw_home = tmp_path / "aw_home"
+    aw_home.mkdir()
+    repo = tmp_path / "repo"
+    _seed_legacy_aw_repo(repo, with_sidecar=False)
+    (repo / ".agents" / "skills" / "demo").mkdir(parents=True, exist_ok=True)
+    (repo / ".agents" / "skills" / "demo" / "SKILL.md").write_text(
+        "# Demo skill\n", encoding="utf-8"
+    )
+    (repo / ".aw" / "config" / "config.json").write_text(
+        json.dumps({"records_backend": "repository"}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    _commit_all(repo, "add preserved .agents/skills and config.json")
+    before_tree = _tree_sha256(repo)
+
+    monkeypatch.setattr(chain, "CURRENT_METADATA_SCHEMA", 1)
+    rc, out, err = _run_cli_inproc(repo, ["migrate", "--agent"], aw_home=aw_home)
+    assert rc == 0, err or out
+    rec = json.loads(out.strip().splitlines()[-1])
+    assert rec["outcome"] == "clean", rec
+    assert rec["applied"] is False, rec
+
+    rc_plain, out_plain, err_plain = _run_cli_inproc(repo, ["migrate"], aw_home=aw_home)
+    assert rc_plain == 0, err_plain or out_plain
+    assert "nothing to migrate" in out_plain.lower()
+    assert _tree_sha256(repo) == before_tree
+    assert not (
+        repo / ".aw" / "state" / "durable" / "migrations" / "switch_receipt.json"
+    ).exists()
+    assert not (
+        repo / ".aw" / "state" / "durable" / "migrations" / "retention_manifest.json"
+    ).exists()

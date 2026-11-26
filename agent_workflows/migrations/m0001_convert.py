@@ -509,6 +509,9 @@ def _build_field_destinations() -> Dict[str, Dict[str, FieldDestination]]:
         "Readiness": FieldDestination(
             "body_section", "Readiness", "legacy review bullet preserved in body"
         ),
+        "Subject-Path": FieldDestination(
+            "body_section", "Subject-Path", "legacy review bullet preserved in body"
+        ),
         **common_ipd_spec_prose,
     }
 

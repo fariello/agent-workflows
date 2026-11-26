@@ -7259,11 +7259,24 @@ def legacy_context(repo_root: Union[str, Path]) -> Any:
     with contextlib.suppress(Exception):
         resolved = _proj_ctx.resolve_project_context(target_repo=str(root))
         if Path(resolved.logical_roots["records"]).resolve() == records_res:
-            state = Path(resolved.logical_roots["state"])
+            cand_state = Path(resolved.logical_roots["state"])
+            cand_state_res = cand_state.resolve()
+            # When records live under AW_HOME (`records_backend == "home"`), keep meta
+            # locks/cache beside the external home records root instead of creating
+            # untracked `.aw/state/` inside the target repo. For companion repos, honor
+            # the resolved state root so we never create untracked `state/` inside the
+            # companion git repository.
+            if not (
+                getattr(resolved, "records_backend", None) == "home"
+                and not records_res.is_relative_to(root)
+                and cand_state_res.is_relative_to(root)
+            ):
+                state = cand_state
     if state is None:
         if not records_res.is_relative_to(root):
-            # External records root without matching project context: keep meta locks/cache
-            # beside the external records root rather than creating untracked `.aw/state/` inside
+            # External records root whose resolved state would land inside the target repo
+            # (e.g. home backend with tracked delivery_mode): keep meta locks/cache beside
+            # the external records root rather than creating untracked `.aw/state/` inside
             # a clean target repo.
             state = records_res.parent / "state"
         else:

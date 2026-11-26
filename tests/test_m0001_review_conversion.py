@@ -1466,3 +1466,53 @@ def test_non_research_id_only_mirror_still_rejected(
         encoding="utf-8",
     )
     assert chain.repo_has_legacy_records(repo_spec, records_root=rec_spec) is True
+
+
+def test_review_subject_path_bullet_preserved_without_unknown_field_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Review records carrying `- Subject-Path:` pass m0001 field census with zero refusals."""
+    repo = _init_repo(tmp_path, monkeypatch, name="rev_subj_path")
+    rec = repo / ".aw" / "records"
+    (rec / "plans" / "pending").mkdir(parents=True)
+    (rec / "reviews").mkdir(parents=True)
+
+    plan_rel = ".aw/records/plans/pending/20261124-demo-01-pl9101-sample.ipd.md"
+    (repo / plan_rel).write_text(
+        "# IPD: Sample\n\n"
+        "- Id: pl9101\n"
+        "- Status: reviewed\n"
+        "- Set: demo\n"
+        "- Order: 1\n"
+        "- Short-Description: Sample plan\n\n"
+        "## Workflow history\n\n"
+        "- 2026-11-24 reviewed (tester): reviewed\n",
+        encoding="utf-8",
+    )
+    rev_path = rec / "reviews" / "20261124-demo-01-pl9101-sample.review.md"
+    rev_path.write_text(
+        "# Review: Sample\n\n"
+        "- Subject-Id: pl9101\n"
+        "- Subject-Type: ipd\n"
+        f"- Subject-Path: {plan_rel}\n"
+        "- Reviewed-At: 2026-11-24\n"
+        "- Reviewer: tester\n"
+        "- Verdict: APPROVE\n"
+        "- Findings: 0\n\n"
+        "## Round 1\n\nClean review.\n",
+        encoding="utf-8",
+    )
+
+    census = m0001_verify.build_field_census(repo)
+    assert census["unknown_field_refusal_count"] == 0, census.get("refusals")
+    assert census["unparseable_value_refusal_count"] == 0, census.get("refusals")
+
+    m0001_convert.convert_records(
+        repo,
+        records_root=rec,
+        repo_root=repo,
+        sidecar_events={},
+        migration_at="2026-11-24T00:00:00Z",
+        record_types=m0001_convert.ALL_RECORD_TYPES,
+    )
+    assert f"## Subject-Path\n\n{plan_rel}" in rev_path.read_text(encoding="utf-8")
