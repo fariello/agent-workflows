@@ -135,6 +135,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-314-fljn9b-make-backlog-validation-and-readers-log-aware-in-the-cutover.ipd.md
 - Making `specs.py`/`releases.py`/`check_engine.py` spec-link/`cli._run_search`/`ipd_dependency_statement_gate.py` log-aware: already owned by Order 315.
   - Carrier: szykgd
+  - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-315-szykgd-make-specs-releases-spec-link-search-and-dep-gate-log-aware.ipd.md
 - Remaining production log-awareness fixes (`p109wy` -> `q6fiws` -> `j1f454` -> `lec341` -> `3e0vfy`): chained immediately after this plan (`p109wy` depends on `executed:otin36`) and ahead of test batches B through F per `psm9ac` OQ-02 Option 1.
   - Carrier: p109wy
 - Converting batch C's 18 test modules (`test_ipd_lifecycle_cli` through `test_prompts_set_surface`): runs after `psm9ac` once the remaining production log-awareness plans (`p109wy..3e0vfy`) land.
