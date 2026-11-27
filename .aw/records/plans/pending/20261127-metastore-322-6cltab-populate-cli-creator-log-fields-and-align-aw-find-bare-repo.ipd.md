@@ -2,15 +2,15 @@
 
 - Date: 2026-11-27
 - Kind: child
-- Concern: Backlog `0b3ynm` and `2etrjf` (discovered during `89mtbl` E-04 when running `tests/test_record_builder_slow.py` on the switched log-format tree, and split into this prerequisite child plan ahead of `x1mmdp` per maintainer answer to `run-20261127T045218Z-1963184` question `219-89mtbl-a1-89mtbl-slow-tests-circular-dep`): inside `.aw/system/cutover/metastore-code.cutover.patch`, two production defects break post-cutover CLI parity and bare-repo discovery. First (`0b3ynm`), four CLI creation commands omit registry metadata fields that legacy mode used to infer from the H1 heading or filename when calling `artifact_meta.create`: `agent_workflows/ipd_authoring.py::run_scaffold` omits `title`; `agent_workflows/specs.py::run_new` omits `set` and `order`; `agent_workflows/releases.py::_create_release_via_meta` omits `title`, `set`, and `order`; and `agent_workflows/prompts.py::run_new` omits `order`. Because post-cutover `artifact_meta.read` reads only `meta/<id6>.jsonl`, those fields read back as `None` and fail `tests/test_record_builder_slow.py::RecordBuilderParityTests` (`test_parity_plan`, `test_parity_spec`, `test_parity_release`, `test_parity_prompt`). Second (`2etrjf`, sibling of `ggp2pf`), `agent_workflows/cli.py::_find_type_records` resolves its context via `project_context.resolve_project_context(target_repo=str(repo_root))` instead of `artifact_meta.legacy_context(repo_root)`. On bare temporary repositories without `.aw/config/`, `resolve_project_context` places `logical_roots["records"]` under `AW_HOME` instead of `<repo>/.aw/records`, so `artifact_meta.query` marks in-repo records as orphans (`st.id_derived=True`) and the research branch (`if st is None or st.id_derived: continue`) drops research records from `aw find -p`, breaking `tests/test_record_builder_slow.py::RecordBuilderVisibilityTests::test_visibility_find_attention_check`.
-- Scope: In an isolated scratch worktree `.aw/state/6cltab/scratch` with both cutover patches applied (after `hdwqex`, `89mtbl`, production-fix plans `fljn9b` through `3e0vfy`, and test-conversion batches `nv3upa` through `x3mig6`), populate the missing `artifact_meta.create` fields in `agent_workflows/ipd_authoring.py::run_scaffold`, `agent_workflows/specs.py::run_new`, `agent_workflows/releases.py::_create_release_via_meta`, and `agent_workflows/prompts.py::run_new`, switch `agent_workflows/cli.py::_find_type_records` to `artifact_meta.legacy_context(repo_root)`, add and pass core behavioral tests in `tests/test_cutover_log_cli_creators_and_find.py`, run `tests/test_record_builder_slow.py` to confirm all 7 visibility and parity tests pass, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. Make no live code or test changes outside `- Scope-Paths:`.
+- Concern: Backlog `0b3ynm`, `2etrjf`, and `3pxjya` (first two discovered during `89mtbl` E-04 on `tests/test_record_builder_slow.py`; `3pxjya` discovered during `cugg3w` batch A and consolidated here ahead of test batches A through F per maintainer Option 2 decision on `run-20261127T045218Z-1963184` question `g-b366f2ff84656927`): inside `.aw/system/cutover/metastore-code.cutover.patch`, three coupled production defects break post-cutover CLI parity and bare-repo discovery. First (`0b3ynm`), four CLI creation commands omit registry metadata fields that legacy mode used to infer from the H1 heading or filename when calling `artifact_meta.create`: `agent_workflows/ipd_authoring.py::run_scaffold` omits `title`; `agent_workflows/specs.py::run_new` omits `set` and `order`; `agent_workflows/releases.py::_create_release_via_meta` omits `title`, `set`, and `order`; and `agent_workflows/prompts.py::run_new` omits `order`. Because post-cutover `artifact_meta.read` reads only `meta/<id6>.jsonl`, those fields read back as `None` and fail `tests/test_record_builder_slow.py::RecordBuilderParityTests` (`test_parity_plan`, `test_parity_spec`, `test_parity_release`, `test_parity_prompt`). Second (`2etrjf`, sibling of `ggp2pf`), `agent_workflows/cli.py::_find_type_records` resolves its context via `project_context.resolve_project_context(target_repo=str(repo_root))` instead of `artifact_meta.legacy_context(repo_root)`. On bare temporary repositories without `.aw/config/`, `resolve_project_context` places `logical_roots["records"]` under `AW_HOME` instead of `<repo>/.aw/records`, so `artifact_meta.query` marks in-repo records as orphans (`st.id_derived=True`) and the research branch (`if st is None or st.id_derived: continue`) drops research records from `aw find -p`, breaking `tests/test_record_builder_slow.py::RecordBuilderVisibilityTests::test_visibility_find_attention_check`. Third (`3pxjya`, sibling of `ggp2pf` and `2etrjf`), metadata readers in `agent_workflows/status_set.py` (`_cached_states_by_path`, `_cached_state_for_path`, `_state_for_record`, `_prepare_status_change`, `_offer_self_commit`) and `agent_workflows/check_engine.py` (`_git_read_at_context`, `_meta_records_with_fields`, `_meta_state_for_path`, `build_graduation_reverse_index`, `_item_close_date`, `_item_graduated_date`, `_spec_implementing_date`, and any remaining `resolve_project_context` call in `validate_prompt_content`) call `project_context.resolve_project_context(target_repo=str(repo_root))` without the in-tree `records` fallback (`artifact_meta.legacy_context(repo_root)`) already added to `check_engine._meta_state_map` and `ipd_lint._meta_context_and_state_map` by `hdwqex`; on bare temporary repositories without `.aw/config/` under `AW_HOME`, they miss companion JSONL logs under `<repo>/.aw/records/meta/`, fall back to reading the two-key YAML mirror, and return `None` for non-mirror fields (`set_id`, `blocks_release`, `from_backlog`, `gate_summary`), blocking 5 tests in batch A (`tests/test_artifact_meta_loader_parity.py` and `tests/test_backlog.py`) and sibling tests in batches B through F.
+- Scope: In an isolated scratch worktree `.aw/state/6cltab/scratch` with both cutover patches applied (after `hdwqex`, `89mtbl`, `nv3upa`, and production-fix plans `fljn9b` through `3e0vfy`, ahead of test-conversion batches `cugg3w` through `x3mig6`), populate the missing `artifact_meta.create` fields in `agent_workflows/ipd_authoring.py::run_scaffold`, `agent_workflows/specs.py::run_new`, `agent_workflows/releases.py::_create_release_via_meta`, and `agent_workflows/prompts.py::run_new` (`0b3ynm`), switch `agent_workflows/cli.py::_find_type_records` to `artifact_meta.legacy_context(repo_root)` (`2etrjf`), add the bare-repo in-tree `artifact_meta.legacy_context` fallback across all `resolve_project_context` metadata reader/writer sites in `agent_workflows/status_set.py` and `agent_workflows/check_engine.py` (`3pxjya`), add and pass core behavioral tests in `tests/test_cutover_log_cli_creators_and_find.py`, run `tests/test_record_builder_slow.py` to confirm all 7 visibility and parity tests pass, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. Make no live code or test changes outside `- Scope-Paths:`.
 - Scope-Paths: .aw/records/plans/pending/20261127-metastore-322-6cltab-populate-cli-creator-log-fields-and-align-aw-find-bare-repo.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
-- Item-Dependencies: executed:x3mig6
+- Item-Dependencies: executed:3e0vfy
 - Status: to-review
 - From-Spec: 4sd62s
 - Work-Kind: bug
 - Priority: high
-- From-Backlog: 0b3ynm
+- From-Backlog: 0b3ynm, 2etrjf, 3pxjya
 - Blocks-Release: next
 - Set: metastore
 - Order: 322
@@ -22,12 +22,13 @@
 
 ## Workflow history
 
+- 2026-11-27 note (antigravity/gemini): expanded scope to include backlog 3pxjya (status_set.py and check_engine.py bare-repo resolve_project_context fallbacks) and re-chained after 3e0vfy ahead of test batches cugg3w through x3mig6 per maintainer Option 2 decision on run-20261127T045218Z-1963184 question g-b366f2ff84656927 (proposal igbr4f).
 - 2026-11-27 to-review (aw set): authored as Order 322 ahead of x1mmdp for backlog items 0b3ynm and 2etrjf per maintainer answer to 219-89mtbl-a1-89mtbl-slow-tests-circular-dep
 - 2026-11-27 draft (antigravity/gemini): created.
 
 ## Goal
 
-Populate the missing log metadata fields in the four CLI artifact creators (`0b3ynm`) and align `aw find` context resolution on bare repositories with `artifact_meta.legacy_context` (`2etrjf`) inside `.aw/system/cutover/metastore-code.cutover.patch`, unblocking the deferred `tests/test_record_builder_slow.py` gate in `x1mmdp`.
+Populate the missing log metadata fields in the four CLI artifact creators (`0b3ynm`) and align bare-repo context resolution across `aw find` (`2etrjf`), `status_set.py`, and `check_engine.py` (`3pxjya`) with `artifact_meta.legacy_context` inside `.aw/system/cutover/metastore-code.cutover.patch`, unblocking test batches A through F (`cugg3w` through `x3mig6`) and the `tests/test_record_builder_slow.py` gate in `x1mmdp`.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -52,18 +53,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: all four CLI creators persist complete log fields matching `RecordBuilder` and `artifact_meta.read` returns non-`None` values for `title`, `set_id`, and `order_nn`; F-02 records the audit.
   - Execution state: pending
 
-- [ ] E-03 Align `agent_workflows/cli.py::_find_type_records` context resolution (`2etrjf`) in `.aw/state/6cltab/scratch`:
+- [ ] E-03 Align bare-repo context resolution across `agent_workflows/cli.py::_find_type_records` (`2etrjf`), `agent_workflows/status_set.py`, and `agent_workflows/check_engine.py` (`3pxjya`) in `.aw/state/6cltab/scratch`:
   1. In `agent_workflows/cli.py::_find_type_records`, replace `ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))` with `ctx = _meta.legacy_context(repo_root)` (which uses `project_context.project_records_dir(root)` and preserves configured/companion/home roots when `.aw/config/` exists while resolving `<repo>/.aw/records` on bare repositories without `.aw/config/`, per `ggp2pf`).
-  2. Verify `aw find -p` on a bare temporary repository containing all 8 record types (including a `research` record) returns all records without dropping research or marking in-repo records as orphans, and verify configured-repository `aw find` behavior remains unchanged.
-  3. Record the verified behavior check in F-03.
+  2. In `agent_workflows/status_set.py` (`_cached_states_by_path`, `_cached_state_for_path`, `_state_for_record`, `_prepare_status_change`, `_offer_self_commit`), route every `resolve_project_context(target_repo=...)` call through a shared local helper (matching the `hdwqex` pattern in `check_engine._meta_state_map` and `ipd_lint._meta_context_and_state_map`: when `Path(ctx.logical_roots["records"])` does not exist and `<repo>/.aw/records` exists on disk, fall back to `artifact_meta.legacy_context(repo_root)`).
+  3. In `agent_workflows/check_engine.py` (`_git_read_at_context`, `_meta_records_with_fields`, `_meta_state_for_path`, `build_graduation_reverse_index`, `_item_close_date`, `_item_graduated_date`, `_spec_implementing_date`, and `validate_prompt_content` if still calling `resolve_project_context` on the patched tree), apply the same `in_tree_records -> artifact_meta.legacy_context(repo_root)` fallback helper already used in `check_engine._meta_state_map`.
+  4. Verify on a bare temporary repository without `.aw/config/` (with `AW_HOME` pointed to a separate empty temp dir) that: (a) `aw find -p` returns all 8 governed record types including `research` without dropping research or marking in-repo records as orphans; (b) `status_set` (`_cached_states_by_path`, `_state_for_record`) and `check_engine` (`_meta_state_for_path`, `build_graduation_reverse_index`, `_item_close_date`) read non-mirror log fields (`set_id`, `blocks_release`, `from_backlog`, `gate_summary`) from `<repo>/.aw/records/meta/` instead of returning `None`; and (c) configured-repository behavior with `.aw/config/` remains unchanged.
+  5. Record the verified behavior check in F-03.
   - Depends on: E-02
-  - Expected outcome: `aw find -p` discovers every governed record including `research` on bare temporary repositories without regressing configured or companion-repo layouts; F-03 records the verification.
+  - Expected outcome: `aw find -p`, `status_set`, and `check_engine` resolve `<repo>/.aw/records` and read full JSONL metadata logs on bare temporary repositories without regressing configured or companion-repo layouts; F-03 records the verification.
   - Execution state: pending
 
 - [ ] E-04 Add and run core behavioral test module `tests/test_cutover_log_cli_creators_and_find.py` (`pytestmark = pytest.mark.core`) and verify `tests/test_record_builder_slow.py` in `.aw/state/6cltab/scratch` (asserting real outputs, exit codes, and side effects; no code-pinning tests):
   1. Cover each of the four CLI creators (`aw ipd scaffold --apply`, `aw specs new --apply`, `aw releases new --apply`, `aw prompts new --apply`) on an isolated temp repository: assert `artifact_meta.read(id6, project_context=...)` returns the expected `title`, `set_id`, and `order_nn`.
   2. Cover `aw find -p` on a bare temp repository without `.aw/config/` containing log-format records of all governed types including `research`: assert exit 0 and that the `research` record appears in the output paths.
-  3. Run `python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_cli_creators_and_find.py tests/test_record_builder_slow.py` in `.aw/state/6cltab/scratch`; every test in both modules must exit 0 with every test PASSED.
+  3. Cover `status_set` and `check_engine` on a bare temp repository without `.aw/config/` while `AW_HOME` points to a separate empty directory: materialize log-backed backlog and plan records carrying `set_id`, `blocks_release`, `from_backlog`, and `gate_summary`, and assert `status_set._state_for_record` / `_cached_states_by_path` and `check_engine._meta_state_for_path` / `build_graduation_reverse_index` read those log fields instead of returning `None`.
+  4. Run `python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_cli_creators_and_find.py tests/test_record_builder_slow.py` in `.aw/state/6cltab/scratch`; every test in both modules must exit 0 with every test PASSED.
   - Depends on: E-03
   - Expected outcome: both `tests/test_cutover_log_cli_creators_and_find.py` and `tests/test_record_builder_slow.py` pass every test (including all 7 tests in `tests/test_record_builder_slow.py`).
   - Execution state: pending
@@ -89,15 +93,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 |---|---|---|
 | F-01 | (written by E-01) | Base tree id after applying `.aw/system/cutover/metastore-docs.cutover.patch`. |
 | F-02 | (written by E-02) | Verified audit of `fields` passed to `artifact_meta.create` in `ipd_authoring.py::run_scaffold`, `specs.py::run_new`, `releases.py::_create_release_via_meta`, and `prompts.py::run_new`. |
-| F-03 | (written by E-03) | Verified `aw find -p` behavior on bare temporary repositories and configured repositories after switching `cli.py::_find_type_records` to `artifact_meta.legacy_context(repo_root)`. |
-| F-04 | `89mtbl` attempt-1 `tests/test_record_builder_slow.py` run (6 failed, 1 passed) and static inspection of `agent_workflows/ipd_authoring.py::run_scaffold`, `agent_workflows/specs.py::run_new`, `agent_workflows/releases.py::_create_release_via_meta`, `agent_workflows/prompts.py::run_new`, and `agent_workflows/cli.py::_find_type_records` | Measured exact parity diffs: `plan` omitted `title` (`None` vs `'Parity Plan'`); `spec` omitted `set` and `order` (`None` vs `<id6>`/`1`); `release` omitted `title`, `set`, and `order` (`None` vs `'Release: 1.2.3'`/`<id6>`/`1`); `prompt` omitted `order` (`None` vs `1`); `aw find -p` dropped `research` on bare temp repos because `_find_type_records` used `resolve_project_context` instead of `artifact_meta.legacy_context` (backlog `0b3ynm`, `2etrjf`). |
+| F-03 | (written by E-03) | Verified bare-repo (`AW_HOME` isolated, no `.aw/config/`) and configured-repo behavior for `cli._find_type_records`, `status_set` (`_cached_states_by_path`, `_cached_state_for_path`, `_state_for_record`, `_prepare_status_change`, `_offer_self_commit`), and `check_engine` (`_git_read_at_context`, `_meta_records_with_fields`, `_meta_state_for_path`, `build_graduation_reverse_index`, `_item_close_date`, `_item_graduated_date`, `_spec_implementing_date`). |
+| F-04 | `89mtbl` attempt-1 `tests/test_record_builder_slow.py` run (6 failed, 1 passed), `cugg3w` batch A run (5 bare-repo failures across `tests/test_artifact_meta_loader_parity.py` and `tests/test_backlog.py`, backlog `3pxjya`), and static inspection of `agent_workflows/ipd_authoring.py::run_scaffold`, `agent_workflows/specs.py::run_new`, `agent_workflows/releases.py::_create_release_via_meta`, `agent_workflows/prompts.py::run_new`, `agent_workflows/cli.py::_find_type_records`, `agent_workflows/status_set.py`, and `agent_workflows/check_engine.py` | Measured exact parity diffs: `plan` omitted `title` (`None` vs `'Parity Plan'`); `spec` omitted `set` and `order` (`None` vs `<id6>`/`1`); `release` omitted `title`, `set`, and `order` (`None` vs `'Release: 1.2.3'`/`<id6>`/`1`); `prompt` omitted `order` (`None` vs `1`); `aw find -p` dropped `research` on bare temp repos (`2etrjf`); and `status_set`/`check_engine` missed companion JSONL logs on bare temp repos under `AW_HOME`, reading `None` for `set_id`, `blocks_release`, `from_backlog`, and `gate_summary` (`3pxjya`). |
 
 ## Proposed changes (ordered, validatable)
 
 1. E-01: Create scratch worktree `.aw/state/6cltab/scratch` with both cutover patches staged and record `$BASE` in F-01.
 2. E-02: Populate `title`, `set`, and `order` in `ipd_authoring.py::run_scaffold`, `specs.py::run_new`, `releases.py::_create_release_via_meta`, and `prompts.py::run_new` (`0b3ynm`); record F-02.
-3. E-03: Switch `cli.py::_find_type_records` to `artifact_meta.legacy_context(repo_root)` (`2etrjf`); record F-03.
-4. E-04: Add and pass `tests/test_cutover_log_cli_creators_and_find.py` and pass all 7 tests in `tests/test_record_builder_slow.py` in `.aw/state/6cltab/scratch`.
+3. E-03: Switch `cli.py::_find_type_records` to `artifact_meta.legacy_context(repo_root)` (`2etrjf`) and add the bare-repo `in_tree_records -> artifact_meta.legacy_context` fallback across `status_set.py` and `check_engine.py` (`3pxjya`); record F-03.
+4. E-04: Add and pass `tests/test_cutover_log_cli_creators_and_find.py` (including bare-repo `status_set` and `check_engine` checks) and pass all 7 tests in `tests/test_record_builder_slow.py` in `.aw/state/6cltab/scratch`.
 5. E-05: Regenerate `.aw/system/cutover/metastore-code.cutover.patch`, remove the scratch worktree, pass `tests/test_metastore_cutover_code_patch.py`, verify clean live tree outside `- Scope-Paths:`, and commit path-scoped.
 
 ```mermaid
@@ -105,16 +109,16 @@ flowchart TD
     E01["E-01: Create scratch worktree with both patches"] --> P{Patches apply cleanly?}
     P -->|No| STOP["Stop and report"]
     P -->|Yes| E02["E-02: Populate CLI creator log fields (0b3ynm)"]
-    E02 --> E03["E-03: Switch cli._find_type_records to legacy_context (2etrjf)"]
+    E02 --> E03["E-03: Align bare-repo context in cli, status_set, check_engine (2etrjf, 3pxjya)"]
     E03 --> E04["E-04: Pass new core tests and test_record_builder_slow.py"]
     E04 --> E05["E-05: Regenerate code patch, run guard test, commit"]
 ```
 
 ## Deferred / out of scope (with reason)
 
-- Broader `project_context.resolve_project_context` bare-repo policy outside `cli._find_type_records` (pre-existing backlog `ggp2pf`).
+- Broader `project_context.resolve_project_context` bare-repo policy outside `cli._find_type_records`, `status_set.py`, and `check_engine.py` (pre-existing backlog `ggp2pf`).
   - Carrier: ggp2pf
-- Final both-tier test verification and authoritative F-03 live-repo refusal list: runs immediately after this plan executes.
+- Test-conversion batches A through F (`cugg3w` through `x3mig6`) and final both-tier verification + authoritative F-03 live-repo refusal list (`x1mmdp`): run after this plan executes.
   - Carrier: x1mmdp
 - Applying the cutover patches on the real tree: attended cutover commit.
   - Carrier: cxxmyv
@@ -122,7 +126,7 @@ flowchart TD
 ## Scope check
 
 - Over-scope: none. No live code or test files are modified outside `.aw/system/cutover/metastore-code.cutover.patch`.
-- Under-scope: none. Both newly discovered production defects from `89mtbl` attempt 1 (`0b3ynm` four CLI creators and `2etrjf` `cli._find_type_records` bare-repo research drop) map directly to E-02 through E-04 and unblock `tests/test_record_builder_slow.py` ahead of `x1mmdp`.
+- Under-scope: none. All three production defects (`0b3ynm` four CLI creators, `2etrjf` `cli._find_type_records` bare-repo research drop, and `3pxjya` `status_set`/`check_engine` bare-repo log reads) map directly to E-02 through E-04 and unblock test batches A through F (`cugg3w` through `x3mig6`) and `tests/test_record_builder_slow.py` ahead of `x1mmdp`.
 
 ## Required tests / validation
 
@@ -150,11 +154,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: paste F-03, the diff hunk in `agent_workflows/cli.py::_find_type_records` switching to `_meta.legacy_context(repo_root)`, and observed `aw find -p` output on a bare temporary repository showing the `research` record returned with exit 0.
+  - Required evidence: paste F-03, the diff hunks in `agent_workflows/cli.py::_find_type_records`, `agent_workflows/status_set.py`, and `agent_workflows/check_engine.py` adding the bare-repo `legacy_context` fallback, and observed output on a bare temporary repository under an isolated `AW_HOME` showing `aw find -p` returning `research` with exit 0 and `status_set`/`check_engine` reading non-`None` `set_id`, `blocks_release`, `from_backlog`, and `gate_summary`.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04
-  - Required evidence: paste the full `python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_cli_creators_and_find.py tests/test_record_builder_slow.py` output in `.aw/state/6cltab/scratch` showing every test in both modules PASSED with exit 0 (including all 7 tests in `tests/test_record_builder_slow.py`).
+  - Required evidence: paste the full `python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_cli_creators_and_find.py tests/test_record_builder_slow.py` output in `.aw/state/6cltab/scratch` showing every test in both modules PASSED with exit 0 (including bare-repo `status_set`/`check_engine` assertions and all 7 tests in `tests/test_record_builder_slow.py`).
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
@@ -167,4 +171,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execute only after human approval (`Status: approved`) and after `executed:x3mig6` is satisfied; open questions: none open. Code and tests are edited ONLY inside `.aw/state/6cltab/scratch` and packaged into `.aw/system/cutover/metastore-code.cutover.patch`. Scope fence: `- Scope-Paths:` is a declaration; any needed edit outside it must be justified at finalize (`--scope-reason`), and any declared path left unmodified must be acknowledged (`--scope-ack`). Safety stop conditions: stop and report rather than editing live production code outside the scratch worktree or weakening test assertions if a patch hunk rejects, an unexpected failure occurs on unmodified code, or an unresolvable concurrent-edit conflict occurs. Honesty rule: you MUST paste the ACTUAL runner output of every command named in V-01 through V-05; never claim a result you did not run. Commits: commit only through `aw commit 6cltab -- <paths>`; never push. Lifecycle transition: after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence, in a managed runner lane stop after committing the updated plan and let the runner run `aw ipd finalize`; in a hand-run session run `aw ipd finalize` to move the plan to `.aw/records/plans/executed/` (never use a raw `git mv` to `executed/`).
+Execute only after human approval (`Status: approved`) and after `executed:3e0vfy` is satisfied; open questions: none open. Code and tests are edited ONLY inside `.aw/state/6cltab/scratch` and packaged into `.aw/system/cutover/metastore-code.cutover.patch`. Scope fence: `- Scope-Paths:` is a declaration; any needed edit outside it must be justified at finalize (`--scope-reason`), and any declared path left unmodified must be acknowledged (`--scope-ack`). Safety stop conditions: stop and report rather than editing live production code outside the scratch worktree or weakening test assertions if a patch hunk rejects, an unexpected failure occurs on unmodified code, or an unresolvable concurrent-edit conflict occurs. Honesty rule: you MUST paste the ACTUAL runner output of every command named in V-01 through V-05; never claim a result you did not run. Commits: commit only through `aw commit 6cltab -- <paths>`; never push. Lifecycle transition: after `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass` with pasted evidence, in a managed runner lane stop after committing the updated plan and let the runner run `aw ipd finalize`; in a hand-run session run `aw ipd finalize` to move the plan to `.aw/records/plans/executed/` (never use a raw `git mv` to `executed/`).
