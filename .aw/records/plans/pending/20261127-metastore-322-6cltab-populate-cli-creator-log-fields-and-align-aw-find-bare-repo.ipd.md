@@ -10,7 +10,7 @@
 - From-Spec: 4sd62s
 - Work-Kind: bug
 - Priority: high
-- From-Backlog: 0b3ynm, 2etrjf, 3pxjya
+- From-Backlog: 0b3ynm
 - Blocks-Release: next
 - Set: metastore
 - Order: 322
