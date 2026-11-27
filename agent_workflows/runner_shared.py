@@ -61451,3 +61451,462 @@ def _gch_lockfree(args):
     from agent_workflows.git_commit_helper import lockfree_git_argv
 
     return lockfree_git_argv(args)
+
+
+# ---- AD-HOC PROMPT & SHARED SESSION CONTINUATION (adhocprompt, `z4kwzd`) ------------------------
+
+_ADHOC_PROMPT_META_HEADER_RE = re.compile(
+    r"\A<!--\s*aw-(?:managed-)?prompt:.*?-->[ \t]*(?:\r?\n)*",
+    re.DOTALL,
+)
+
+
+def resolve_adhoc_prompt_text(
+    prompt_arg: str | None,
+    file_arg: str | None,
+    stdin_stream: TextIO | None = None,
+) -> str:
+    """Resolve one ad-hoc prompt from inline text, a file, or stdin.
+
+    Enforces single-source input, strips an optional UTF-8 BOM and anchored
+    leading ``<!-- aw-prompt: ... -->`` / ``<!-- aw-managed-prompt: ... -->``
+    metadata comment on file-backed prompts without altering embedded HTML
+    comments in the body, refuses interactive TTY stdin when no source is
+    provided, and rejects empty or whitespace-only text with :class:`DriverError`.
+    """
+    if prompt_arg is not None and file_arg is not None:
+        raise DriverError(
+            "Conflicting prompt sources: provide either an inline prompt/'-' or --file, not both."
+        )
+
+    if file_arg is not None:
+        path = Path(file_arg).expanduser()
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            raise DriverError(
+                f"Unable to read prompt file {file_arg!r}: {exc}"
+            ) from exc
+        if text.startswith("\ufeff"):
+            text = text[1:]
+        text = _ADHOC_PROMPT_META_HEADER_RE.sub("", text, count=1)
+    elif prompt_arg == "-":
+        stream = sys.stdin if stdin_stream is None else stdin_stream
+        if stream is None:
+            raise DriverError(
+                "Cannot read prompt from stdin: stdin stream is unavailable."
+            )
+        text = stream.read()
+    elif prompt_arg is None:
+        stream = sys.stdin if stdin_stream is None else stdin_stream
+        isatty = getattr(stream, "isatty", None)
+        if stream is None or (callable(isatty) and isatty()):
+            raise DriverError(
+                "No prompt provided: pass inline prompt text, --file PATH, or pipe prompt text on stdin (or '-' to read stdin)."
+            )
+        text = stream.read()
+    else:
+        text = prompt_arg
+
+    if not text or not text.strip():
+        raise DriverError("Prompt text is empty or whitespace-only.")
+    return text
+
+
+def validate_adhoc_prompt_options(
+    *,
+    session_id: str | None,
+    use_continue: bool,
+    isolate_worktree: bool,
+) -> None:
+    """Validate mutually exclusive ad-hoc prompt flags before creating any run state or worktree."""
+    if session_id and use_continue:
+        raise DriverError(
+            "Conflicting session flags: --session and -c/--continue cannot be used together."
+        )
+    if isolate_worktree and (session_id or use_continue):
+        raise DriverError(
+            "Conflicting isolation flags: --isolate-worktree cannot be combined with --session or "
+            "-c/--continue (cross-tree session reuse is refused)."
+        )
+
+
+def _format_adhoc_display_path(target: Path, repo: Path) -> str:
+    """Format a path relative to ``repo`` when inside it, or redacted otherwise."""
+    try:
+        resolved_target = target.resolve()
+        resolved_repo = repo.resolve()
+        return resolved_target.relative_to(resolved_repo).as_posix()
+    except (OSError, ValueError):
+        return _redact_absolute_paths(str(target))
+
+
+def initialize_adhoc_prompt_run(
+    repo: Path,
+    *,
+    host_labels: HostLabels,
+    options: dict[str, Any],
+    prompt_text: str,
+) -> tuple[Path, dict[str, Any], dict[str, Any], Path]:
+    """Create a lightweight ad-hoc prompt run directory compatible with host launchers and `aw runs`."""
+    repo_resolved = Path(repo).expanduser().resolve()
+    run_id, run_dir = mint_run_dir(repo_resolved)
+    now = utc_now()
+
+    item: dict[str, Any] = {
+        "position": 1,
+        "id6": "adhoc0",
+        "setid": "adhoc",
+        "artifact_type": "adhoc-prompt",
+        "action": "prompt",
+        "status": "queued",
+        "attempts": [],
+    }
+    state: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "run_id": run_id,
+        "run_kind": "adhoc-prompt",
+        "driver": host_labels.id,
+        "repo": str(repo_resolved),
+        "created_at": now,
+        "updated_at": now,
+        "selectors": ["prompt"],
+        "set_sessions": {},
+        "options": dict(options),
+        "queue": [item],
+    }
+
+    prompt_path = run_dir / "prompts" / "01-adhoc0-attempt-1.md"
+    prompt_path.parent.mkdir(parents=True, exist_ok=True)
+    prompt_path.write_text(prompt_text, encoding="utf-8")
+
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": now,
+            "event": "run-initialized",
+            "run_id": run_id,
+            "run_kind": "adhoc-prompt",
+            "driver": host_labels.id,
+        },
+    )
+    save_state(
+        run_dir,
+        state,
+        write_report=lambda rd, st: write_report(rd, st, labels=host_labels),
+    )
+    return run_dir, state, item, prompt_path
+
+
+def continue_session_turn(
+    *,
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    prompt_text: str,
+    session_id: str | None,
+    use_continue: bool,
+    work_dir: str | None,
+    tracker: Any,
+    spawn_turn_fn: Callable[..., tuple[int, str | None, Path, list[str]]],
+    suffix: str = "",
+    attempt_no: int | None = None,
+    record_attempt: bool = True,
+    event_prefix: str = "prompt-turn",
+    write_report_fn: Callable[[Path, dict[str, Any]], None] | None = None,
+) -> tuple[int, str | None, Path, list[str]]:
+    """Run one host-neutral prompt or session-continuation turn and record durable run state.
+
+    Shared by `aw oc|agy prompt` and backlog `9ici96` (mid-run prompt injection).
+    When ``record_attempt`` is True, an in-flight attempt record is appended to
+    ``item["attempts"]`` before invoking ``spawn_turn_fn`` so host launchers reading
+    ``item["attempts"][-1]`` see the active attempt, then finalized afterward.
+    Callers that must not consume a retry slot pass ``record_attempt=False``.
+    """
+    attempts = item.setdefault("attempts", [])
+    if attempt_no is not None:
+        effective_attempt_no = int(attempt_no)
+    elif record_attempt:
+        effective_attempt_no = len(attempts) + 1
+    else:
+        effective_attempt_no = max(1, len(attempts))
+
+    if item.get("action") == "prompt" and not suffix:
+        prompt_path = (
+            run_dir
+            / "prompts"
+            / f"{item['position']:02d}-{item['id6']}-attempt-{effective_attempt_no}.md"
+        )
+        prompt_path.parent.mkdir(parents=True, exist_ok=True)
+        prompt_path.write_text(prompt_text, encoding="utf-8")
+    else:
+        prompt_path = write_prompt(
+            run_dir, item, prompt_text, effective_attempt_no, suffix=suffix
+        )
+
+    attempt_record: dict[str, Any] | None = None
+    if record_attempt:
+        attempt_record = {
+            "attempt": effective_attempt_no,
+            "started_at": utc_now(),
+            "prompt_path": str(prompt_path),
+            "session_id": session_id,
+        }
+        attempts.append(attempt_record)
+        save_state(run_dir, state, write_report=write_report_fn)
+
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": f"{event_prefix}-started",
+            "id6": item.get("id6"),
+            "attempt": effective_attempt_no,
+            "session_id": session_id,
+            "use_continue": bool(use_continue),
+            "record_attempt": bool(record_attempt),
+            "prompt_path": str(prompt_path),
+        },
+    )
+
+    from agent_workflows import runner_stop
+
+    try:
+        returncode, observed_session_id, log_path, argv = spawn_turn_fn(
+            prompt_path=prompt_path,
+            attempt_no=effective_attempt_no,
+            session_id=session_id,
+            use_continue=use_continue,
+            work_dir=work_dir,
+            tracker=tracker,
+            suffix=suffix,
+        )
+    except (
+        KeyboardInterrupt,
+        runner_stop.StopNowForce,
+        runner_stop.StopAtCheckpoint,
+    ):
+        if attempt_record is not None:
+            attempt_record["ended_at"] = utc_now()
+            attempt_record["returncode"] = 130
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": f"{event_prefix}-finished",
+                "id6": item.get("id6"),
+                "attempt": effective_attempt_no,
+                "returncode": 130,
+                "interrupted": True,
+                "session_id": session_id,
+            },
+        )
+        save_state(run_dir, state, write_report=write_report_fn)
+        raise
+    except BaseException as exc:
+        if attempt_record is not None:
+            attempt_record["ended_at"] = utc_now()
+            attempt_record["returncode"] = None
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": f"{event_prefix}-finished",
+                "id6": item.get("id6"),
+                "attempt": effective_attempt_no,
+                "error": str(exc),
+                "session_id": session_id,
+            },
+        )
+        save_state(run_dir, state, write_report=write_report_fn)
+        raise
+
+    final_session_id = observed_session_id or session_id
+    if attempt_record is not None:
+        attempt_record["ended_at"] = utc_now()
+        attempt_record["returncode"] = returncode
+        attempt_record["session_id"] = final_session_id
+        attempt_record["log_path"] = str(log_path)
+
+    if observed_session_id:
+        state["session_id"] = observed_session_id
+
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": f"{event_prefix}-finished",
+            "id6": item.get("id6"),
+            "attempt": effective_attempt_no,
+            "returncode": returncode,
+            "session_id": final_session_id,
+            "log_path": str(log_path),
+        },
+    )
+    save_state(run_dir, state, write_report=write_report_fn)
+    return returncode, observed_session_id, log_path, argv
+
+
+def run_adhoc_prompt_turn(
+    *,
+    repo: Path,
+    host_labels: HostLabels,
+    options: dict[str, Any],
+    prompt_text: str,
+    spawn_turn_fn: Callable[..., tuple[int, str | None, Path, list[str]]],
+    session_id: str | None = None,
+    use_continue: bool = False,
+    isolate_worktree: bool = False,
+    write_report_fn: Callable[[Path, dict[str, Any]], None] | None = None,
+    stdout: TextIO | None = None,
+    stderr: TextIO | None = None,
+) -> int:
+    """Execute one ad-hoc prompt turn with streaming output, optional worktree isolation, and `aw runs` state."""
+    from agent_workflows import runner_stop, worktree_lease
+
+    out = sys.stdout if stdout is None else stdout
+    err = sys.stderr if stderr is None else stderr
+
+    try:
+        validate_adhoc_prompt_options(
+            session_id=session_id,
+            use_continue=use_continue,
+            isolate_worktree=isolate_worktree,
+        )
+    except DriverError as exc:
+        print(f"{host_labels.id}: {exc}", file=err)
+        return 2
+
+    repo_resolved = Path(repo).expanduser().resolve()
+    effective_write_report = (
+        write_report_fn
+        if write_report_fn is not None
+        else (lambda rd, st: write_report(rd, st, labels=host_labels))
+    )
+
+    run_dir: Path | None = None
+    state: dict[str, Any] | None = None
+    item: dict[str, Any] | None = None
+    worktree_handle: Any = None
+    observed_session_id: str | None = session_id
+
+    try:
+        run_dir, state, item, _prompt_path = initialize_adhoc_prompt_run(
+            repo_resolved,
+            host_labels=host_labels,
+            options=options,
+            prompt_text=prompt_text,
+        )
+
+        def _on_terminal_stop(level: int, requester: str) -> None:
+            raise KeyboardInterrupt(
+                f"stop level {level} ({runner_stop.LEVEL_NAMES.get(level, 'unknown')}) requested by "
+                f"{requester or 'SIGINT'} ({FORCED_INTERRUPT_SENTINEL})"
+            )
+
+        runner_stop.install_stop_signal_handlers(
+            run_dir,
+            command=host_labels.command,
+            requester=f"signal pid={os.getpid()}",
+            on_terminal=_on_terminal_stop,
+        )
+
+        work_dir: str | None = None
+        if isolate_worktree:
+            lane_id = f"adhoc-{state['run_id']}"
+            worktree_handle = worktree_lease.allocate_worktree(
+                repo_resolved,
+                lane_id=lane_id,
+                base_commit="HEAD",
+            )
+            work_dir = str(worktree_handle.path)
+            item["lane_id"] = lane_id
+            item["lane_branch"] = worktree_handle.branch
+
+        tracker = StreamTracker()
+        item["status"] = "running"
+        save_state(run_dir, state, write_report=effective_write_report)
+
+        def _bound_spawn(
+            *,
+            prompt_path: Path,
+            attempt_no: int,
+            session_id: str | None,
+            use_continue: bool,
+            work_dir: str | None,
+            tracker: Any,
+            suffix: str = "",
+        ) -> tuple[int, str | None, Path, list[str]]:
+            assert state is not None and run_dir is not None and item is not None
+            return spawn_turn_fn(
+                state=state,
+                run_dir=run_dir,
+                item=item,
+                prompt_path=prompt_path,
+                attempt_no=attempt_no,
+                session_id=session_id,
+                use_continue=use_continue,
+                work_dir=work_dir,
+                tracker=tracker,
+                suffix=suffix,
+            )
+
+        returncode, turn_session_id, _log_path, _argv = continue_session_turn(
+            run_dir=run_dir,
+            state=state,
+            item=item,
+            prompt_text=prompt_text,
+            session_id=session_id,
+            use_continue=use_continue,
+            work_dir=work_dir,
+            tracker=tracker,
+            spawn_turn_fn=_bound_spawn,
+            write_report_fn=effective_write_report,
+        )
+        if turn_session_id:
+            observed_session_id = turn_session_id
+        item["status"] = "completed" if returncode == 0 else "failed"
+        save_state(run_dir, state, write_report=effective_write_report)
+        return int(returncode)
+    except (
+        KeyboardInterrupt,
+        runner_stop.StopNowForce,
+        runner_stop.StopAtCheckpoint,
+    ):
+        if run_dir is not None and state is not None and item is not None:
+            item["status"] = "interrupted"
+            save_state(run_dir, state, write_report=effective_write_report)
+        return 130
+    except (
+        DriverError,
+        worktree_lease.WorktreeError,
+        worktree_lease.LeaseConflictError,
+    ) as exc:
+        if run_dir is not None and state is not None and item is not None:
+            item["status"] = "failed"
+            save_state(run_dir, state, write_report=effective_write_report)
+        print(f"{host_labels.id}: {exc}", file=err)
+        return 2
+    finally:
+        if worktree_handle is not None:
+            lane_state = worktree_lease.inspect_lane(
+                repo_resolved,
+                worktree_handle.lane_id,
+                base_commit=worktree_handle.base_commit,
+            )
+            if lane_state.state == worktree_lease.LANE_EMPTY:
+                worktree_lease.teardown_worktree(repo_resolved, worktree_handle)
+            else:
+                display_wt = _format_adhoc_display_path(
+                    worktree_handle.path, repo_resolved
+                )
+                print(
+                    f"Preserved isolated worktree with changes: {display_wt} "
+                    f"(branch: {worktree_handle.branch})",
+                    file=out,
+                )
+        if run_dir is not None:
+            if observed_session_id:
+                print(f"Session ID: {observed_session_id}", file=out)
+            display_run_dir = _format_adhoc_display_path(run_dir, repo_resolved)
+            print(f"Run dir: {display_run_dir}", file=out)

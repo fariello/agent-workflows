@@ -368,6 +368,11 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         citation="positional argument required",
         reason="Requires subshell command or script arguments; does not accept bare --agent.",
     ),
+    "agy prompt": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires prompt text or --file argument; does not accept bare --agent.",
+    ),
     "agy profile remove": Exemption(
         reason_kind="arg_fixture_needed",
         citation="positional argument required",
@@ -472,6 +477,11 @@ MUTATION_EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         reason_kind="arg_fixture_needed",
         citation="positional argument required",
         reason="Requires state positional argument.",
+    ),
+    "oc prompt": Exemption(
+        reason_kind="arg_fixture_needed",
+        citation="positional argument required",
+        reason="Requires prompt text or --file argument; does not accept bare --agent.",
     ),
     "oc runipd": Exemption(
         reason_kind="arg_fixture_needed",
