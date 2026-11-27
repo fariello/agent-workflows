@@ -6082,7 +6082,7 @@ index 038a893c1..b19962684 100644
                      hits += 1
                      file_matches.append((0, p.name))
 diff --git a/agent_workflows/coverage_record.py b/agent_workflows/coverage_record.py
-index 9f69cef67..3083d774f 100644
+index 9f69cef67..39bebc51f 100644
 --- a/agent_workflows/coverage_record.py
 +++ b/agent_workflows/coverage_record.py
 @@ -20,7 +20,7 @@ import os
@@ -6094,7 +6094,7 @@ index 9f69cef67..3083d774f 100644
  
  COVERAGE_PASS = "pass"
  COVERAGE_FAIL = "fail"
-@@ -48,37 +48,139 @@ class CoverageWriteResult(NamedTuple):
+@@ -48,37 +48,143 @@ class CoverageWriteResult(NamedTuple):
      detail: str = ""
  
  
@@ -6167,8 +6167,8 @@ index 9f69cef67..3083d774f 100644
 +
 +def _date_and_model_from_history(
 +    history: Sequence[Mapping[str, Any]],
-+) -> tuple[str, str]:
-+    """Derive coverage `(date, model)` from the newest `op == 'coverage'` log event."""
++) -> tuple[str, str] | None:
++    """Derive coverage `(date, model)` from the newest `op == 'coverage'` log event, or None."""
 +    for ev in reversed(list(history)):
 +        if ev.get("op") != "coverage":
 +            continue
@@ -6184,7 +6184,7 @@ index 9f69cef67..3083d774f 100644
 +        else:
 +            model = raw_model
 +        return date, model
-+    return "", "by host-default"
++    return None
 +
 +
 +def read(
@@ -6228,34 +6228,38 @@ index 9f69cef67..3083d774f 100644
 -    elif raw_checked.endswith(" by"):
 -        date = raw_checked[:-3].strip()
 -        raw_model = ""
--    else:
++    from_history = _date_and_model_from_history(resolved_history)
++    if from_history is not None:
++        date, model = from_history
+     else:
 -        date = raw_checked
 -        raw_model = ""
 -    if not raw_model or raw_model == "host-default":
 -        model = "by host-default"
-+    raw_checked = str(fields.get("coverage_checked") or "").strip()
-+    if raw_checked:
-+        if " by " in raw_checked:
-+            date_part, model_part = raw_checked.split(" by ", 1)
-+            date = date_part.strip()
-+            raw_model = model_part.strip()
-+        elif raw_checked.endswith(" by"):
-+            date = raw_checked[:-3].strip()
-+            raw_model = ""
-+        else:
-+            date = raw_checked
-+            raw_model = ""
-+        if not raw_model or raw_model == "host-default":
-+            model = "by host-default"
-+        else:
-+            model = raw_model
-     else:
+-    else:
 -        model = raw_model
-+        date, model = _date_and_model_from_history(resolved_history)
++        raw_checked = str(fields.get("coverage_checked") or "").strip()
++        if raw_checked:
++            if " by " in raw_checked:
++                date_part, model_part = raw_checked.split(" by ", 1)
++                date = date_part.strip()
++                raw_model = model_part.strip()
++            elif raw_checked.endswith(" by"):
++                date = raw_checked[:-3].strip()
++                raw_model = ""
++            else:
++                date = raw_checked
++                raw_model = ""
++            if not raw_model or raw_model == "host-default":
++                model = "by host-default"
++            else:
++                model = raw_model
++        else:
++            date, model = "", "by host-default"
  
      quotes: list[str] = []
      if verdict == COVERAGE_FAIL:
-@@ -110,9 +212,22 @@ def read(plan_text: str) -> CoverageRecord:
+@@ -110,9 +216,22 @@ def read(plan_text: str) -> CoverageRecord:
      )
  
  
@@ -6281,7 +6285,7 @@ index 9f69cef67..3083d774f 100644
      if rec.verdict not in (COVERAGE_PASS, COVERAGE_FAIL) or not rec.fingerprint:
          return False
      from agent_workflows.runner_shared import probe_cache_digest
-@@ -207,7 +322,6 @@ def write(
+@@ -207,7 +326,6 @@ def write(
      from agent_workflows.runner_shared import probe_cache_digest
  
      fingerprint = probe_cache_digest(plan_text)
@@ -6289,7 +6293,7 @@ index 9f69cef67..3083d774f 100644
  
      raw_model = (model or "").strip()
      if not raw_model or raw_model in ("host-default", "by host-default"):
-@@ -231,16 +345,42 @@ def write(
+@@ -231,16 +349,42 @@ def write(
              resolved_repo = path.parent if cand == path.resolve() else cand
  
      git_repo = _proj_ctx.record_git_root(path) or resolved_repo
@@ -6300,9 +6304,8 @@ index 9f69cef67..3083d774f 100644
 +        str(path_res.relative_to(git_repo_res))
 +        if path_res.is_relative_to(git_repo_res)
 +        else str(path)
-     )
- 
--    # 1. Dirty-plan check before writing if commit=True
++    )
++
 +    try:
 +        id6 = _meta.file_id6(
 +            path, _meta.read_mirror_id6(plan_text) or _meta.read_loose_id(plan_text)
@@ -6319,8 +6322,9 @@ index 9f69cef67..3083d774f 100644
 +    log_in_git = log_path.is_relative_to(git_repo_res)
 +    log_rel = (
 +        str(log_path.relative_to(git_repo_res)) if log_in_git else str(log_path)
-+    )
-+
+     )
+ 
+-    # 1. Dirty-plan check before writing if commit=True
 +    dirty_paths = [rel_path]
 +    if log_in_git and log_rel != rel_path:
 +        dirty_paths.append(log_rel)
@@ -6335,7 +6339,7 @@ index 9f69cef67..3083d774f 100644
              cwd=str(git_repo),
              capture_output=True,
              text=True,
-@@ -249,12 +389,11 @@ def write(
+@@ -249,12 +393,11 @@ def write(
          if st_proc.returncode == 0 and st_proc.stdout.strip():
              dirty = True
              dirty_reason = (
@@ -6350,7 +6354,7 @@ index 9f69cef67..3083d774f 100644
      body_text = _update_coverage_findings_section(plan_text, verdict, quotes)
  
      event: dict[str, object] = {
-@@ -266,25 +405,29 @@ def write(
+@@ -266,25 +409,29 @@ def write(
      actor_dict: dict[str, str] = {"tool": tool_str}
      if clean_model:
          actor_dict["model"] = clean_model
@@ -6392,7 +6396,7 @@ index 9f69cef67..3083d774f 100644
      except Exception as exc:
          if path.is_file() and path.read_bytes() != pre_bytes:
              _restore_file_bytes(path, pre_bytes)
-@@ -294,17 +437,19 @@ def write(
+@@ -294,17 +441,19 @@ def write(
              detail=str(exc),
          )
  
@@ -6416,7 +6420,7 @@ index 9f69cef67..3083d774f 100644
          cwd=str(git_repo),
          capture_output=True,
          text=True,
-@@ -317,14 +462,6 @@ def write(
+@@ -317,14 +466,6 @@ def write(
              detail=f"git add failed: {add_proc.stderr.strip()}",
          )
  
@@ -6431,7 +6435,7 @@ index 9f69cef67..3083d774f 100644
      from agent_workflows import git_commit_helper as _gch
  
      commit_msg = f"coverage({resolved_host}): record the coverage answer for {id6}"
-@@ -335,7 +472,7 @@ def write(
+@@ -335,7 +476,7 @@ def write(
          message=commit_msg,
      )
      commit_proc = subprocess.run(
@@ -6440,7 +6444,7 @@ index 9f69cef67..3083d774f 100644
          cwd=str(git_repo),
          env=ident.env,
          capture_output=True,
-@@ -344,7 +481,7 @@ def write(
+@@ -344,7 +485,7 @@ def write(
      )
      if commit_proc.returncode != 0:
          subprocess.run(
@@ -13142,7 +13146,7 @@ index 7d655e668..423e04b7b 100644
          current_marker = marker
  
 diff --git a/agent_workflows/review_sequence.py b/agent_workflows/review_sequence.py
-index 743de8176..141ff2822 100644
+index 743de8176..1a17d8a76 100644
 --- a/agent_workflows/review_sequence.py
 +++ b/agent_workflows/review_sequence.py
 @@ -273,19 +273,31 @@ def render_prompt(
@@ -13223,19 +13227,18 @@ index 743de8176..141ff2822 100644
          if not plan_id6:
              st_after = artifact_meta.read_text(plan_text_after or "", record_type="ipd")
              if st_after.id6 and not getattr(st_after, "id_derived", False):
-@@ -527,21 +548,42 @@ def check_S5(
+@@ -527,21 +548,41 @@ def check_S5(
          if not plan_id6:
              plan_id6 = check_engine._read_item_id(plan_text_after)
  
 -        # Ensure minimal review metadata if missing in snippet
-+        # Preserve valid spec 4sd62s Section 4.1a YAML review mirrors without prepending legacy bullets.
-+        has_yaml_review_mirror = False
-+        try:
-+            has_yaml_review_mirror = (
-+                artifact_meta.parse_review_mirror(review_text) is not None
-+            )
-+        except ValueError:
-+            has_yaml_review_mirror = False
++        # Preserve spec 4sd62s Section 4.1a YAML review mirrors (valid or malformed)
++        # without prepending legacy bullets so valid mirrors are not corrupted and
++        # malformed YAML headers fail closed in evaluate_review_finding_escalation.
++        first_rev_lines = (review_text or "").lstrip("\ufeff").splitlines()
++        starts_with_yaml_mirror = bool(
++            first_rev_lines and first_rev_lines[0].strip() == "---"
++        )
 +
 +        # Ensure minimal legacy review metadata if missing in snippet
          fixed_rev_text = review_text
@@ -13252,7 +13255,7 @@ index 743de8176..141ff2822 100644
 -            meta_needed.append("- Verdict: APPROVE")
 -        if meta_needed:
 -            fixed_rev_text = "\n".join(meta_needed) + "\n\n" + review_text
-+        if not has_yaml_review_mirror:
++        if not starts_with_yaml_mirror:
 +            meta_needed: list[str] = []
 +            if "- subject-id:" not in review_text.lower():
 +                meta_needed.append(f"- Subject-Id: {plan_id6 or 'pln001'}")
@@ -13280,7 +13283,7 @@ index 743de8176..141ff2822 100644
  
          with tempfile.TemporaryDirectory() as td:
              tmp_dir = Path(td)
-@@ -553,7 +595,7 @@ def check_S5(
+@@ -553,7 +594,7 @@ def check_S5(
              drift = check_engine.evaluate_review_finding_escalation(
                  r_root,
                  plan_path=p_path,
@@ -13289,7 +13292,7 @@ index 743de8176..141ff2822 100644
                  open_questions=doc.open_questions,
                  review_index={plan_id6: [rev_file]} if plan_id6 else None,
              )
-@@ -563,8 +605,68 @@ def check_S5(
+@@ -563,8 +604,68 @@ def check_S5(
      return None
  
  
@@ -13359,7 +13362,7 @@ index 743de8176..141ff2822 100644
      count = 0
      for candidate in artifact_meta.history_records(plan_text or "").records:
          if not plan_readiness.is_review_history_entry(candidate):
-@@ -577,16 +679,34 @@ def count_verdict_bearing_entries(plan_text: str) -> int:
+@@ -577,16 +678,34 @@ def count_verdict_bearing_entries(plan_text: str) -> int:
      return count
  
  
@@ -13399,7 +13402,7 @@ index 743de8176..141ff2822 100644
      return (rd, st, newest)
  
  
-@@ -594,19 +714,20 @@ def restore_pre_s7_plan(
+@@ -594,19 +713,20 @@ def restore_pre_s7_plan(
      pre_pass_text: str,
      current_text: str,
  ) -> str:
@@ -13431,7 +13434,7 @@ index 743de8176..141ff2822 100644
  
  
  def check_S6(
-@@ -640,6 +761,11 @@ def check_S7(
+@@ -640,6 +760,11 @@ def check_S7(
      plan_text_after: str,
      review_text: str,
      reply_text: str,
@@ -13443,7 +13446,7 @@ index 743de8176..141ff2822 100644
  ) -> str | None:
      """Postcondition check for S7 (Finalize).
  
-@@ -650,7 +776,11 @@ def check_S7(
+@@ -650,7 +775,11 @@ def check_S7(
      aw ipd lint --phase author reports no new error except IPD-Q501.
      """
      try:
@@ -13456,7 +13459,7 @@ index 743de8176..141ff2822 100644
          rd = _readiness_from_state(state_a)
          st = _status_from_state(state_a)
      except Exception:
-@@ -674,15 +804,27 @@ def check_S7(
+@@ -674,15 +803,27 @@ def check_S7(
              "`to-review`, and the round records an exhausted orchestrator repair."
          )
  
@@ -24455,10 +24458,10 @@ index 000000000..da1713901
 +    assert any(a.command == "aw migrate metadata" for a in res_repair.next_actions)
 diff --git a/tests/test_cutover_log_readiness_runner_and_review_seq.py b/tests/test_cutover_log_readiness_runner_and_review_seq.py
 new file mode 100644
-index 000000000..77268e9ae
+index 000000000..7c8d660c6
 --- /dev/null
 +++ b/tests/test_cutover_log_readiness_runner_and_review_seq.py
-@@ -0,0 +1,1199 @@
+@@ -0,0 +1,1254 @@
 +"""Core behavioral tests for log-aware coverage_record, readiness, runner helpers, and review-sequence evaluators (q6fiws)."""
 +
 +from __future__ import annotations
@@ -24776,6 +24779,42 @@ index 000000000..77268e9ae
 +    assert res_dirty.committed is False
 +    assert "uncommitted" in res_dirty.detail.lower()
 +    assert _git(repo, "rev-parse", "HEAD") == head_before
++
++    # Migrated orchestrator carrying stale migration-only coverage_checked:
++    # before re-probe read() uses coverage_checked; after a new op='coverage' write,
++    # read() must prefer the newest op='coverage' event's date and model.
++    mig_orch = _create_log_plan(
++        repo,
++        "or1002",
++        status="to-review",
++        order=0,
++        set_id="migset",
++        plan_role="orchestrator",
++        slug="orch-migrated",
++        body=_orchestrator_body("ch1001"),
++        extra_fields={
++            "coverage": "pass",
++            "coverage_fingerprint": "0" * 64,
++            "coverage_checked": "2026-10-01 by legacy-migrated-model",
++        },
++    )
++    mig_text = mig_orch.read_text(encoding="utf-8")
++    rec_mig_before = coverage_record.read(mig_text, plan_path=mig_orch, repo=repo)
++    assert rec_mig_before.date == "2026-10-01"
++    assert rec_mig_before.model == "legacy-migrated-model"
++    res_mig_reprobe = coverage_record.write(
++        mig_orch,
++        coverage_record.COVERAGE_PASS,
++        model="fresh-reprobe-model",
++        tool="aw oc run",
++        commit=False,
++        repo=repo,
++    )
++    assert res_mig_reprobe.written is True
++    rec_mig_after = coverage_record.read(mig_text, plan_path=mig_orch, repo=repo)
++    assert rec_mig_after.model == "fresh-reprobe-model"
++    assert rec_mig_after.date != "2026-10-01"
++    assert len(rec_mig_after.date) == 10 and rec_mig_after.date[4] == "-"
 +
 +    # Legacy inline text parity (no plan_path/repo, no log state)
 +    legacy_text = (
@@ -25366,6 +25405,25 @@ index 000000000..77268e9ae
 +        )
 +        is None
 +    )
++
++    # Malformed YAML review header must fail closed (not be masked by injected legacy bullets)
++    malformed_yaml_review = (
++        "---\n"
++        "subject: invalid!\n"
++        "---\n"
++        "# Review: malformed\n\n"
++        "## Round 1\n\n"
++        "### Findings\n\n"
++        "None.\n"
++    )
++    err_s5_malformed = review_sequence.check_S5(
++        plan_text_before,
++        plan_text_before,
++        malformed_yaml_review,
++        "",
++        repo_root=repo,
++    )
++    assert err_s5_malformed is not None and "review-finding-unescalated" in err_s5_malformed
 +
 +    # 4. verdict_outputs, count_verdict_bearing_entries, and check_S7 with real log append + read + history (no false IPD-M107)
 +    assert review_sequence.verdict_outputs(
