@@ -5944,7 +5944,7 @@ index 5395ccb00..30e193203 100644
      ctx = select_output(args)
      # rolswj/akhwp7: ONE count expression read by the human AND machine branches.
 diff --git a/agent_workflows/check_engine.py b/agent_workflows/check_engine.py
-index 9b09c151c..209cd9bc9 100644
+index 9b09c151c..91bf29bb8 100644
 --- a/agent_workflows/check_engine.py
 +++ b/agent_workflows/check_engine.py
 @@ -1610,23 +1610,27 @@ def check_content(
@@ -6102,7 +6102,39 @@ index 9b09c151c..209cd9bc9 100644
  
          m = _naming.parse_clustered(path.name)
          if m and not _re.fullmatch(r"\d{4}", m.group("set")):
-@@ -3672,6 +3665,9 @@ def _check_untooled_plan_transition(
+@@ -3557,13 +3550,28 @@ def _git_read_at_context(repo_root: Path, *, rel_path: Optional[str] = None) ->
+         )()
+     ctx = _proj_ctx.resolve_project_context(target_repo=str(root))
+     records_root = Path(ctx.logical_roots["records"])
+-    if _proj_ctx.record_git_root(records_root) is not None:
++    in_tree_records = root / ".aw" / "records"
++    use_in_tree = (
++        (root / ".git").exists()
++        and in_tree_records.is_dir()
++        and Path(_proj_ctx.project_records_dir(root)).resolve()
++        == in_tree_records.resolve()
++        and (
++            not records_root.is_dir()
++            or (
++                in_tree_records.resolve() != records_root.resolve()
++                and not (records_root / "meta").is_dir()
++                and (in_tree_records / "meta").is_dir()
++            )
++        )
++    )
++    if not use_in_tree and _proj_ctx.record_git_root(records_root) is not None:
+         return ctx
+     if (root / ".git").exists():
+-        if (root / ".agents").is_dir() and not (root / ".aw" / "records").is_dir():
++        if (root / ".agents").is_dir() and not in_tree_records.is_dir():
+             rec = root / ".agents"
+         else:
+-            rec = root / ".aw" / "records"
++            rec = in_tree_records
+         return type(
+             "_GitReadAtCtx",
+             (),
+@@ -3672,6 +3680,9 @@ def _check_untooled_plan_transition(
      new_history: Sequence[Dict[str, Any]] = (),
      commit_subjects: Optional[Sequence[str]] = None,
      scope_label: str = "this commit",
@@ -6112,7 +6144,7 @@ index 9b09c151c..209cd9bc9 100644
  ) -> Optional[_core.Drift]:
      """Check a single plan transition between old and new ``read_at`` states for untooled changes.
  
-@@ -3684,6 +3680,37 @@ def _check_untooled_plan_transition(
+@@ -3684,6 +3695,37 @@ def _check_untooled_plan_transition(
      new_status = _plan_status_from_state(new_state)
      old_status = _plan_status_from_state(old_state) if old_state is not None else None
  
@@ -6150,7 +6182,7 @@ index 9b09c151c..209cd9bc9 100644
      is_in_executed = _EXECUTED_SEGMENT in ("/" + new_path.replace("\\", "/"))
      was_in_executed = bool(
          old_path and _EXECUTED_SEGMENT in ("/" + old_path.replace("\\", "/"))
-@@ -3822,11 +3849,23 @@ def check_status_untooled(repo_root: Path) -> List[_core.Drift]:
+@@ -3822,11 +3864,23 @@ def check_status_untooled(repo_root: Path) -> List[_core.Drift]:
                      )
                  )
                  continue
@@ -6174,7 +6206,7 @@ index 9b09c151c..209cd9bc9 100644
              d = _check_untooled_plan_transition(
                  old_path,
                  head_state,
-@@ -3835,6 +3874,8 @@ def check_status_untooled(repo_root: Path) -> List[_core.Drift]:
+@@ -3835,6 +3889,8 @@ def check_status_untooled(repo_root: Path) -> List[_core.Drift]:
                  new_history=staged_history,
                  commit_subjects=None,
                  scope_label="this commit",
@@ -6183,7 +6215,7 @@ index 9b09c151c..209cd9bc9 100644
              )
              if d is not None:
                  drift.append(d)
-@@ -3892,14 +3933,36 @@ def check_status_untooled_range(
+@@ -3892,14 +3948,36 @@ def check_status_untooled_range(
                  continue
              if not _is_plan_ipd_path(new_path):
                  continue
@@ -6221,7 +6253,7 @@ index 9b09c151c..209cd9bc9 100644
              d = _check_untooled_plan_transition(
                  old_path,
                  old_state,
-@@ -3908,6 +3971,8 @@ def check_status_untooled_range(
+@@ -3908,6 +3986,8 @@ def check_status_untooled_range(
                  new_history=new_history,
                  commit_subjects=commit_subjects,
                  scope_label="this range",
@@ -6230,7 +6262,7 @@ index 9b09c151c..209cd9bc9 100644
              )
              if d is not None:
                  drift.append(d)
-@@ -4245,7 +4310,7 @@ def check_ipd_draft_ready(
+@@ -4245,7 +4325,7 @@ def check_ipd_draft_ready(
      from agent_workflows import ipd_authoring as _authoring
  
      drift: List[_core.Drift] = []
@@ -6239,7 +6271,7 @@ index 9b09c151c..209cd9bc9 100644
      for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
          # Only nudge a plan that is actually in a pending lane (not executed/superseded/etc.).
          if "pending" not in p.parts:
-@@ -4261,7 +4326,7 @@ def check_ipd_draft_ready(
+@@ -4261,7 +4341,7 @@ def check_ipd_draft_ready(
                  text = p.read_text(encoding="utf-8")
              except OSError:
                  continue
@@ -6248,18 +6280,80 @@ index 9b09c151c..209cd9bc9 100644
              continue  # still a stub: stay silent
          id6 = _meta_declared_id6(st_obj) or p.stem
          recovery = f"aw ipd set to-review {id6}"
-@@ -5873,6 +5938,10 @@ def _meta_state_map(
+@@ -5661,6 +5741,27 @@ def _meta_from_backlog(st: Any) -> Optional[str]:
+     return cls.id6 if cls.verdict == _S.SOURCE_LINK_USABLE else None
  
-     ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+ 
++def _meta_context_for_repo(repo_root: Path) -> Any:
++    """Resolve `artifact_meta` context for `repo_root`, falling back to `legacy_context` on bare repos."""
++    from agent_workflows import artifact_meta as _meta
++    from agent_workflows import project_context as _proj_ctx
++
++    root = Path(repo_root)
++    ctx = _proj_ctx.resolve_project_context(target_repo=str(root))
++    records_root = Path(ctx.logical_roots["records"])
++    in_tree_records = root / ".aw" / "records"
++    if in_tree_records.is_dir():
++        if not records_root.is_dir():
++            return _meta.legacy_context(root)
++        if (
++            in_tree_records.resolve() != records_root.resolve()
++            and not (records_root / "meta").is_dir()
++            and (in_tree_records / "meta").is_dir()
++        ):
++            return _meta.legacy_context(root)
++    return ctx
++
++
+ def _meta_records_with_fields(
+     repo_root: Path,
+     meta_type: str,
+@@ -5670,10 +5771,9 @@ def _meta_records_with_fields(
+ ) -> List[Tuple[Path, Any]]:
+     """Query `artifact_meta` for `meta_type` records and load each record's typed fields."""
+     from agent_workflows import artifact_meta as _meta
+-    from agent_workflows import project_context as _proj_ctx
+ 
+     repo_root = Path(repo_root)
+-    ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
++    ctx = _meta_context_for_repo(repo_root)
      records_root = Path(ctx.logical_roots["records"])
-+    in_tree_records = repo_root / ".aw" / "records"
-+    if not records_root.is_dir() and in_tree_records.is_dir():
-+        ctx = _meta.legacy_context(repo_root)
-+        records_root = Path(ctx.logical_roots["records"])
      scan_repo = _meta._scan_repo_root(ctx, records_root)
      has_tree = records_root.is_dir() or (
-         scan_repo is not None
-@@ -5944,6 +6013,33 @@ def _meta_state_for_cached_path(
+@@ -5794,14 +5894,13 @@ def _meta_state_for_path(
+ ) -> Optional[Any]:
+     """Return `artifact_meta.read` State for an on-disk record path, or None if uncached."""
+     from agent_workflows import artifact_meta as _meta
+-    from agent_workflows import project_context as _proj_ctx
+ 
+     repo_root = Path(repo_root)
+     try:
+         target_res = Path(path).resolve()
+     except OSError:
+         return None
+-    ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
++    ctx = _meta_context_for_repo(repo_root)
+     records_root = Path(ctx.logical_roots["records"])
+     scan_repo = _meta._scan_repo_root(ctx, records_root)
+     has_tree = records_root.is_dir() or (
+@@ -5852,7 +5951,6 @@ def _meta_state_map(
+ ) -> Dict[Path, Any]:
+     """Return resolved-path -> `artifact_meta` State map for `meta_type` in one cache scan."""
+     from agent_workflows import artifact_meta as _meta
+-    from agent_workflows import project_context as _proj_ctx
+     from agent_workflows import selectors as _selectors
+ 
+     repo_root = Path(repo_root)
+@@ -5871,7 +5969,7 @@ def _meta_state_map(
+         except OSError:
+             cache_key = None
+ 
+-    ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
++    ctx = _meta_context_for_repo(repo_root)
+     records_root = Path(ctx.logical_roots["records"])
+     scan_repo = _meta._scan_repo_root(ctx, records_root)
+     has_tree = records_root.is_dir() or (
+@@ -5944,6 +6042,33 @@ def _meta_state_for_cached_path(
      return _meta.read_text(text, record_type=record_type), text
  
  
@@ -6293,7 +6387,19 @@ index 9b09c151c..209cd9bc9 100644
  def _from_backlog_value(text: str) -> Optional[str]:
      """Return the captured `- From-Backlog:` value, or None if absent, sentinel, or malformed (plan okp2o4)."""
      from agent_workflows import artifact_meta as _meta
-@@ -6552,7 +6648,7 @@ def build_plan_setid_index(
+@@ -6416,10 +6541,9 @@ def build_graduation_reverse_index(
+     rather than order.
+     """
+     from agent_workflows import artifact_meta as _meta
+-    from agent_workflows import project_context as _proj_ctx
+ 
+     repo_root = Path(repo_root)
+-    ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
++    ctx = _meta_context_for_repo(repo_root)
+     records_root = Path(ctx.logical_roots["records"])
+     scan_repo = _meta._scan_repo_root(ctx, records_root)
+     has_tree = records_root.is_dir() or (
+@@ -6552,7 +6676,7 @@ def build_plan_setid_index(
              or _core.is_ignored_path(path, repo_root, ignored_dirs)
          ):
              continue
@@ -6302,7 +6408,52 @@ index 9b09c151c..209cd9bc9 100644
          if not setid:
              continue
          declared_id = _meta_declared_id6(st_obj) or ""
-@@ -9168,7 +9264,7 @@ def check_plan_priority_required(
+@@ -7308,11 +7432,11 @@ def _item_close_date(
+     """
+     if repo_root is not None and item_id6 is not None:
+         from agent_workflows import artifact_meta as _meta
+-        from agent_workflows import project_context as _proj_ctx
+ 
+-        ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
++        ctx = _meta_context_for_repo(repo_root)
+         try:
+-            events = _meta.history(item_id6, project_context=ctx)
++            with _meta.ephemeral_if_uninitialized():
++                events = _meta.history(item_id6, project_context=ctx)
+         except Exception:
+             events = []
+         dates: List[str] = []
+@@ -7629,11 +7753,11 @@ def _item_graduated_date(
+     """
+     if repo_root is not None and item_id6 is not None:
+         from agent_workflows import artifact_meta as _meta
+-        from agent_workflows import project_context as _proj_ctx
+ 
+-        ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
++        ctx = _meta_context_for_repo(repo_root)
+         try:
+-            events = _meta.history(item_id6, project_context=ctx)
++            with _meta.ephemeral_if_uninitialized():
++                events = _meta.history(item_id6, project_context=ctx)
+         except Exception:
+             events = []
+         dates: List[str] = []
+@@ -7691,11 +7815,11 @@ def _spec_implementing_date(
+     """
+     if repo_root is not None and spec_id6 is not None:
+         from agent_workflows import artifact_meta as _meta
+-        from agent_workflows import project_context as _proj_ctx
+ 
+-        ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
++        ctx = _meta_context_for_repo(repo_root)
+         try:
+-            events = _meta.history(spec_id6, project_context=ctx)
++            with _meta.ephemeral_if_uninitialized():
++                events = _meta.history(spec_id6, project_context=ctx)
+         except Exception:
+             events = []
+         dates: List[str] = []
+@@ -9168,7 +9292,7 @@ def check_plan_priority_required(
      from agent_workflows import ipd_schema as _schema
  
      drift: List[_core.Drift] = []
@@ -6311,7 +6462,7 @@ index 9b09c151c..209cd9bc9 100644
      for p in _iter_type_files(
          repo_root,
          "plans",
-@@ -9180,19 +9276,25 @@ def check_plan_priority_required(
+@@ -9180,19 +9304,25 @@ def check_plan_priority_required(
          except OSError:
              continue
          try:
@@ -6344,7 +6495,7 @@ index 9b09c151c..209cd9bc9 100644
          id6 = _meta_declared_id6(st_obj) or p.stem
          for b in blocking_prio:
              drift.append(
-@@ -9305,11 +9407,23 @@ def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
+@@ -9305,11 +9435,23 @@ def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
              text = path.read_text(encoding="utf-8")
          except OSError:
              continue
@@ -6371,7 +6522,7 @@ index 9b09c151c..209cd9bc9 100644
          subject_type = raw_stype.lower() if raw_stype else ""
          known = known_by_type.get(subject_type)
          if known is None:
-@@ -9923,13 +10037,74 @@ _PLAN_SPEC_LINK_MISSING_RULE = "check.plan-spec-link-missing"
+@@ -9923,13 +10065,74 @@ _PLAN_SPEC_LINK_MISSING_RULE = "check.plan-spec-link-missing"
  PLAN_SPEC_LINK_NO_SOURCE_SENTINELS: FrozenSet[str] = frozenset({"-", "none"})
  
  
@@ -6452,7 +6603,7 @@ index 9b09c151c..209cd9bc9 100644
      Filters candidate 6-character [0-9a-z]{6} tokens on word boundaries against `known_spec_ids`.
      """
      known = set(known_spec_ids)
-@@ -9938,9 +10113,18 @@ def parse_cited_spec_ids(plan_text: str, known_spec_ids: Iterable[str]) -> List[
+@@ -9938,9 +10141,18 @@ def parse_cited_spec_ids(plan_text: str, known_spec_ids: Iterable[str]) -> List[
  
      from agent_workflows import artifact_meta as _meta
  
@@ -6472,7 +6623,7 @@ index 9b09c151c..209cd9bc9 100644
      cited: List[str] = []
      for m in _CITED_SPEC_TOKEN_RE.finditer(joined):
          tok = m.group(1)
-@@ -9954,10 +10138,11 @@ def check_plan_spec_link_missing(
+@@ -9954,10 +10166,11 @@ def check_plan_spec_link_missing(
  ) -> List[_core.Drift]:
      """Pending-scoped advisory rule flagging a pending plan citing a known spec without From-Spec.
  
@@ -6488,7 +6639,7 @@ index 9b09c151c..209cd9bc9 100644
      Pending-scoping ensures historical records (executed/superseded) are never examined, while keeping
      the advisory nudge visible on `aw check plans` throughout the plan's authoring/review lifecycle.
      """
-@@ -9972,7 +10157,9 @@ def check_plan_spec_link_missing(
+@@ -9972,7 +10185,9 @@ def check_plan_spec_link_missing(
  
      spec_files_by_id6: Dict[str, Set[str]] = {}
      resolved_root = repo_root.resolve()
@@ -6499,7 +6650,7 @@ index 9b09c151c..209cd9bc9 100644
          sid = _meta_declared_id6(st)
          if sid:
              try:
-@@ -10006,14 +10193,26 @@ def check_plan_spec_link_missing(
+@@ -10006,14 +10221,26 @@ def check_plan_spec_link_missing(
              except OSError:
                  continue
  
@@ -6529,7 +6680,7 @@ index 9b09c151c..209cd9bc9 100644
              if parsed_paths:
                  scope_set = set(parsed_paths)
                  cited = [
-@@ -10318,7 +10517,9 @@ class StaleScopePath(NamedTuple):
+@@ -10318,7 +10545,9 @@ class StaleScopePath(NamedTuple):
      resolved: Tuple[str, ...] = ()
  
  
@@ -6540,7 +6691,7 @@ index 9b09c151c..209cd9bc9 100644
      """Flag missing literal Scope-Paths under .aw/records/ classified moved-terminal/moved/vanished.
  
      Pure-ish predicate (reads filesystem, no subprocess, no git).
-@@ -10328,8 +10529,13 @@ def stale_record_scope_paths(repo_root: Path, plan_text: str) -> List[StaleScope
+@@ -10328,8 +10557,13 @@ def stale_record_scope_paths(repo_root: Path, plan_text: str) -> List[StaleScope
      from agent_workflows import status_set as _status_set
  
      repo_root = Path(repo_root)
@@ -6555,7 +6706,7 @@ index 9b09c151c..209cd9bc9 100644
      except Exception:
          return []
      sp_value = doc.meta_fields.get("Scope-Paths")
-@@ -10433,10 +10639,15 @@ def check_scope_path_target_stale(repo_root: Path) -> List[_core.Drift]:
+@@ -10433,10 +10667,15 @@ def check_scope_path_target_stale(repo_root: Path) -> List[_core.Drift]:
      """
      repo_root = Path(repo_root)
      drift: List[_core.Drift] = []
@@ -6572,7 +6723,7 @@ index 9b09c151c..209cd9bc9 100644
              if stale.resolved:
                  resolved_str = ", ".join(stale.resolved)
                  detail = (
-@@ -10814,7 +11025,9 @@ def evaluate_review_finding_escalation(
+@@ -10814,7 +11053,9 @@ def evaluate_review_finding_escalation(
      if str(thr).strip().lower() in ("off", ""):
          return drift
  
@@ -6583,7 +6734,7 @@ index 9b09c151c..209cd9bc9 100644
      if plan_id6 is None:
          return drift  # no `- Id:` to join on; the metadata linter owns that complaint
  
-@@ -11010,7 +11223,9 @@ def evaluate_review_decision_escalation(
+@@ -11010,7 +11251,9 @@ def evaluate_review_decision_escalation(
      except Exception:
          return drift
  
@@ -6594,7 +6745,7 @@ index 9b09c151c..209cd9bc9 100644
      if plan_id6 is None:
          return drift  # no `- Id:` to join on; the metadata linter owns that complaint
  
-@@ -11587,7 +11802,8 @@ def find_obligations_carried_by(
+@@ -11587,7 +11830,8 @@ def find_obligations_carried_by(
                  from agent_workflows import artifact_meta as _meta
  
                  plan_id6 = (
@@ -6604,7 +6755,7 @@ index 9b09c151c..209cd9bc9 100644
                      or p.name[:6]
                  )
  
-@@ -12072,6 +12288,7 @@ def evaluate_carrier_ungated(
+@@ -12072,6 +12316,7 @@ def evaluate_carrier_ungated(
      plan_path: Path,
      plan_text: str,
      open_questions=None,
@@ -6612,7 +6763,7 @@ index 9b09c151c..209cd9bc9 100644
  ) -> List[_core.Drift]:
      """The pure per-plan evaluator for `check.ipd-carrier-ungated` (carriergate rpw4sb E-02).
  
-@@ -12087,16 +12304,21 @@ def evaluate_carrier_ungated(
+@@ -12087,16 +12332,21 @@ def evaluate_carrier_ungated(
          from agent_workflows import ipd_lint as _lint
          from agent_workflows import ipd_schema as _ipd_schema
  
@@ -6636,7 +6787,7 @@ index 9b09c151c..209cd9bc9 100644
  
          meta_fields = getattr(parsed, "meta_fields", None) or {}
          raw_deps = (meta_fields.get(_ipd_schema.META_ITEM_DEPENDENCIES) or "").strip()
-@@ -12173,6 +12395,7 @@ def check_carrier_ungated(
+@@ -12173,6 +12423,7 @@ def check_carrier_ungated(
      drift: List[_core.Drift] = []
      try:
          repo_root = Path(repo_root)
@@ -6644,7 +6795,7 @@ index 9b09c151c..209cd9bc9 100644
          for p in _iter_type_files(
              repo_root, "plans", include_untracked=include_untracked
          ):
-@@ -12182,11 +12405,16 @@ def check_carrier_ungated(
+@@ -12182,11 +12433,16 @@ def check_carrier_ungated(
                  text = p.read_text(encoding="utf-8")
              except OSError:
                  continue
@@ -6662,7 +6813,7 @@ index 9b09c151c..209cd9bc9 100644
              )
      except Exception:
 diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
-index 038a893c1..b19962684 100644
+index 038a893c1..a2eedc38a 100644
 --- a/agent_workflows/cli.py
 +++ b/agent_workflows/cli.py
 @@ -600,9 +600,9 @@ _DESCRIPTIONS = {
@@ -6756,7 +6907,24 @@ index 038a893c1..b19962684 100644
              actor={"tool": "aw describe"},
              message=msg,
          )
-@@ -17790,6 +17762,10 @@ def _run_search(
+@@ -16021,7 +15993,6 @@ def _find_type_records(
+     from agent_workflows import agent_schema as _schema
+     from agent_workflows import artifact_core as _core
+     from agent_workflows import artifact_meta as _meta
+-    from agent_workflows import project_context as _proj_ctx
+     from agent_workflows import selectors as sel_mod
+ 
+     highlight_tokens = list(selectors_list)
+@@ -16033,7 +16004,7 @@ def _find_type_records(
+         highlight_tokens.append(args.topic)
+ 
+     with _meta.scan_once(), _meta.ephemeral_if_uninitialized(), sel_mod.scan_once():
+-        ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
++        ctx = _meta.legacy_context(repo_root)
+         records_root = Path(ctx.logical_roots["records"])
+         scan_repo = _meta._scan_repo_root(ctx, records_root)
+ 
+@@ -17790,6 +17761,10 @@ def _run_search(
  
      search_ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
      search_records_root = Path(search_ctx.logical_roots["records"])
@@ -6767,7 +6935,7 @@ index 038a893c1..b19962684 100644
      search_scan_repo = _meta._scan_repo_root(search_ctx, search_records_root)
      search_has_tree = search_records_root.is_dir() or (
          search_scan_repo is not None
-@@ -17799,9 +17775,9 @@ def _run_search(
+@@ -17799,9 +17774,9 @@ def _run_search(
          )
      )
      cached_by_path: Dict[Path, _meta.State] = {}
@@ -6779,7 +6947,7 @@ index 038a893c1..b19962684 100644
          for st_row in _qrows:
              if not st_row.path:
                  continue
-@@ -17814,6 +17790,37 @@ def _run_search(
+@@ -17814,6 +17789,37 @@ def _run_search(
              except Exception:
                  continue
  
@@ -6817,7 +6985,7 @@ index 038a893c1..b19962684 100644
      def _artifact_status(p: Path, text: str) -> str:
          st_row = cached_by_path.get(p.resolve())
          if st_row is None:
-@@ -17929,7 +17936,10 @@ def _run_search(
+@@ -17929,7 +17935,10 @@ def _run_search(
                              end_offset = m_close.end()
                              line_count = text[:end_offset].count("\n") + 1
                              post_fence = text[end_offset:]
@@ -6829,7 +6997,7 @@ index 038a893c1..b19962684 100644
                              if m_h1 is not None:
                                  line_count += text[
                                      end_offset : end_offset + m_h1.end()
-@@ -17954,6 +17964,22 @@ def _run_search(
+@@ -17954,6 +17963,22 @@ def _run_search(
                              {"path": str(p), "line": i, "text": line.strip()}
                          )
  
@@ -7545,7 +7713,7 @@ index 248703373..270a517ec 100644
  
  def _count_record_files(root: Path) -> int:
 diff --git a/agent_workflows/ipd_authoring.py b/agent_workflows/ipd_authoring.py
-index 6b02552f7..ee5f14e88 100644
+index 6b02552f7..b94cf34a2 100644
 --- a/agent_workflows/ipd_authoring.py
 +++ b/agent_workflows/ipd_authoring.py
 @@ -21,7 +21,7 @@ import re
@@ -7774,7 +7942,15 @@ index 6b02552f7..ee5f14e88 100644
          else:
              if kind == S.KIND_ORCHESTRATOR and h in _ORCH_SECTION_BODY:
                  body = _ORCH_SECTION_BODY[h]
-@@ -686,11 +663,6 @@ def run_scaffold(args: argparse.Namespace) -> int:
+@@ -669,6 +646,7 @@ def run_scaffold(args: argparse.Namespace) -> int:
+     apply = bool(getattr(args, "apply", False))
+     fields = {
+         "status": "draft",
++        "title": title,
+         "plan_role": kind,
+         "set": set_name,
+         "order": order,
+@@ -686,11 +664,6 @@ def run_scaffold(args: argparse.Namespace) -> int:
      if short_description:
          fields["short_description"] = short_description
  
@@ -7786,7 +7962,7 @@ index 6b02552f7..ee5f14e88 100644
      meta_ctx = _meta.legacy_context(repo_root)
      records_root = Path(meta_ctx.logical_roots["records"]).resolve()
      resolved_path = path.resolve()
-@@ -714,47 +686,30 @@ def run_scaffold(args: argparse.Namespace) -> int:
+@@ -714,47 +687,30 @@ def run_scaffold(args: argparse.Namespace) -> int:
          print(f"error: scaffold write failed: {exc}")
          return 2
  
@@ -7858,7 +8034,7 @@ index 6b02552f7..ee5f14e88 100644
  
      if not apply:
          if ctx.is_agent or ctx.is_json:
-@@ -812,13 +767,18 @@ class SyncResult:
+@@ -812,13 +768,18 @@ class SyncResult:
          self.new_watermark: Optional[str] = None
  
  
@@ -7879,7 +8055,7 @@ index 6b02552f7..ee5f14e88 100644
      status = doc.meta_fields.get("Status", "")
      # Refuse structural change once execution has begun or approval is granted (Section 6.1).
      if status in ("approved", "auto-approved"):
-@@ -1054,7 +1014,7 @@ def _run_bulk_id_backfill(args: argparse.Namespace, targets: List[str]) -> int:
+@@ -1054,7 +1015,7 @@ def _run_bulk_id_backfill(args: argparse.Namespace, targets: List[str]) -> int:
          paths = sorted(
              p
              for p in plans_root.rglob("*.md")
@@ -7888,7 +8064,7 @@ index 6b02552f7..ee5f14e88 100644
          )
      for t in targets:
          p = Path(t)
-@@ -1161,6 +1121,9 @@ def run_sync(args: argparse.Namespace) -> int:
+@@ -1161,6 +1122,9 @@ def run_sync(args: argparse.Namespace) -> int:
          print(f"error: not a file: {target}")
          return 2
      id_only_notes: List[str] = []
@@ -7898,7 +8074,7 @@ index 6b02552f7..ee5f14e88 100644
      try:
          text = path.read_text(encoding="utf-8")
          # Backfill a missing stable `Id` first (plans-adopter Order 02), then sync E/V leaves.
-@@ -1170,7 +1133,10 @@ def run_sync(args: argparse.Namespace) -> int:
+@@ -1170,7 +1134,10 @@ def run_sync(args: argparse.Namespace) -> int:
              text,
              _existing_plan_ids(path) | _core.global_id6s(_core.repo_root_of(path)),
          )
@@ -7910,7 +8086,7 @@ index 6b02552f7..ee5f14e88 100644
          # AN ID BACKFILL IS NOT A STRUCTURAL CHANGE. compute_sync refuses on an approved or
          # in-flight plan because assigning E/V ids would rewrite the reviewed contract. A missing
          # `- Id:` is different: it is the plan's identity handle, which every lifecycle verb
-@@ -1188,22 +1154,24 @@ def run_sync(args: argparse.Namespace) -> int:
+@@ -1188,22 +1155,24 @@ def run_sync(args: argparse.Namespace) -> int:
              from agent_workflows import artifact_meta as _meta
  
              sync_repo_root = _core.repo_root_of(path.parent)
@@ -7951,7 +8127,7 @@ index 6b02552f7..ee5f14e88 100644
              )
      except Exception as exc:
          print(f"error: sync failed to run: {exc}")
-@@ -1287,6 +1255,15 @@ def run_sync(args: argparse.Namespace) -> int:
+@@ -1287,6 +1256,15 @@ def run_sync(args: argparse.Namespace) -> int:
  
      try:
          _atomic_write(path, res.new_text)
@@ -11998,10 +12174,18 @@ index 5f2610b9b..970c56aca 100644
      if not history_rows:
          return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
 diff --git a/agent_workflows/prompts.py b/agent_workflows/prompts.py
-index 113c66d30..d0411673a 100644
+index 113c66d30..4241f088a 100644
 --- a/agent_workflows/prompts.py
 +++ b/agent_workflows/prompts.py
-@@ -403,13 +403,6 @@ def run_new(args) -> int:
+@@ -373,6 +373,7 @@ def run_new(args) -> int:
+     fields = {
+         "prompt_kind": kind,
+         "set": set_id,
++        "order": order,
+         "status": status,
+         "created_day": date_iso,
+     }
+@@ -403,13 +404,6 @@ def run_new(args) -> int:
          },
      )()
      rel_dest = dest.resolve().relative_to(records_root).as_posix()
@@ -12015,7 +12199,7 @@ index 113c66d30..d0411673a 100644
      try:
          preview = _meta.create(
              id6,
-@@ -419,14 +412,13 @@ def run_new(args) -> int:
+@@ -419,14 +413,13 @@ def run_new(args) -> int:
              destination=rel_dest,
              dry_run=not apply,
              project_context=create_ctx,
@@ -12387,7 +12571,7 @@ index 42ae51951..090fb934e 100644
  # Inline history parsing helpers (shared with ipd_lifecycle)
  # --------------------------------------------------------------------------------------
 diff --git a/agent_workflows/releases.py b/agent_workflows/releases.py
-index 4651ab385..69fbde857 100644
+index 4651ab385..be67e0543 100644
 --- a/agent_workflows/releases.py
 +++ b/agent_workflows/releases.py
 @@ -76,29 +76,278 @@ def _read_release_fields(text: str) -> _ReleaseFields:
@@ -12675,8 +12859,18 @@ index 4651ab385..69fbde857 100644
      """Render (and write when ``dry_run=False``) a new release record via ``artifact_meta.create``."""
      from agent_workflows import artifact_meta as _meta
  
-@@ -118,7 +367,7 @@ def _create_release_via_meta(
-     release_fields: Dict[str, Any] = {"status": status, "version": version}
+@@ -115,10 +364,16 @@ def _create_release_via_meta(
+     name = f"{today}-{id6}-01-{id6}-{slug}.release.md"
+     body = f"# Release: {version}\n\n## Summary\n\n{summary}\n"
+     ctx = _meta.legacy_context(repo_root)
+-    release_fields: Dict[str, Any] = {"status": status, "version": version}
++    release_fields: Dict[str, Any] = {
++        "status": status,
++        "title": f"Release: {version}",
++        "set": id6,
++        "order": 1,
++        "version": version,
++    }
      if summary and summary.strip():
          release_fields["short_description"] = summary
 -    preview = _meta.create(
@@ -12684,7 +12878,7 @@ index 4651ab385..69fbde857 100644
          id6,
          "release",
          release_fields,
-@@ -126,16 +375,24 @@ def _create_release_via_meta(
+@@ -126,16 +381,24 @@ def _create_release_via_meta(
          destination=f"releases/{name}",
          dry_run=dry_run,
          project_context=ctx,
@@ -12717,7 +12911,7 @@ index 4651ab385..69fbde857 100644
  
  
  def plan_release(
-@@ -162,12 +419,11 @@ def create_release(
+@@ -162,12 +425,11 @@ def create_release(
      return dest
  
  
@@ -12734,7 +12928,7 @@ index 4651ab385..69fbde857 100644
      if not rf.id6:
          drift.append(_core.Drift(loc, "release.id-missing", "no valid `- Id:` (id6)"))
      if rf.status is None:
-@@ -193,7 +449,7 @@ def validate_release(path: Path, text: str) -> List[_core.Drift]:
+@@ -193,7 +455,7 @@ def validate_release(path: Path, text: str) -> List[_core.Drift]:
                      "Summary bullet is over-length or has control chars/newlines",
                  )
              )
@@ -12743,7 +12937,7 @@ index 4651ab385..69fbde857 100644
          prose_summary = _summary_section(text)
          if prose_summary and A._CONTROL_CHAR_RE.search(prose_summary):
              drift.append(
-@@ -207,6 +463,89 @@ def validate_release(path: Path, text: str) -> List[_core.Drift]:
+@@ -207,6 +469,89 @@ def validate_release(path: Path, text: str) -> List[_core.Drift]:
      return drift
  
  
@@ -12833,7 +13027,7 @@ index 4651ab385..69fbde857 100644
  def resolve_release_outcome(repo_root: Path, value: str) -> ReleaseResolution:
      """Resolve a Blocks-Release value to an outcome enum and candidate paths.
  
-@@ -215,52 +554,61 @@ def resolve_release_outcome(repo_root: Path, value: str) -> ReleaseResolution:
+@@ -215,52 +560,61 @@ def resolve_release_outcome(repo_root: Path, value: str) -> ReleaseResolution:
        * SENTINEL_ABSENT: zero candidates matched
        * SENTINEL_AMBIGUOUS: two or more candidates matched
      """
@@ -12932,7 +13126,7 @@ index 4651ab385..69fbde857 100644
  
  
  def resolve_release(repo_root: Path, value: str) -> Optional[Path]:
-@@ -277,15 +625,19 @@ def describe_planned_release(repo_root: Path) -> Optional[Tuple[str, str]]:
+@@ -277,15 +631,19 @@ def describe_planned_release(repo_root: Path) -> Optional[Tuple[str, str]]:
      """Return (id6, version) of THE single planned release, or None if there is not
      exactly one. Used to name the release in surfacing UI (attention/status) so the
      thing that `Blocks-Release: next` gates is visible, not just a blocker count."""
@@ -12961,7 +13155,7 @@ index 4651ab385..69fbde857 100644
  
  
  class ActiveRelease(NamedTuple):
-@@ -356,10 +708,52 @@ def _summary_section(text: str) -> Optional[str]:
+@@ -356,10 +714,52 @@ def _summary_section(text: str) -> Optional[str]:
      return joined or None
  
  
@@ -13016,7 +13210,7 @@ index 4651ab385..69fbde857 100644
      rf = _read_release_fields(text)
      summary = rf.summary
      if not summary:
-@@ -383,16 +777,20 @@ def list_releases(repo_root: Path) -> List[ReleaseRecord]:
+@@ -383,16 +783,20 @@ def list_releases(repo_root: Path) -> List[ReleaseRecord]:
      Uses the SAME discovery glob as `resolve_release`/`_existing_ids` (`rglob("*.release.md")` under
      `_releases_dir`), so the listing and the resolver see exactly one set of files. Unreadable files
      are skipped (a listing must not blow up on an I/O error)."""
@@ -13044,7 +13238,7 @@ index 4651ab385..69fbde857 100644
      return out
  
  
-@@ -404,29 +802,35 @@ def get_release(repo_root: Path, selector: str) -> Optional[ReleaseRecord]:
+@@ -404,29 +808,35 @@ def get_release(repo_root: Path, selector: str) -> Optional[ReleaseRecord]:
      `Blocks-Release: next` can never point at different records. Version/filename matching is the
      only additional lookup this verb adds, and it is applied after the canonical resolver misses.
      Returns None when the selector resolves to nothing (incl. an ambiguous `next`)."""
@@ -13099,7 +13293,7 @@ index 4651ab385..69fbde857 100644
  
  
  def get_release_blockers(repo_root: Path, selector: str) -> List[Dict[str, Any]]:
-@@ -486,32 +890,45 @@ def get_release_blockers(repo_root: Path, selector: str) -> List[Dict[str, Any]]
+@@ -486,32 +896,45 @@ def get_release_blockers(repo_root: Path, selector: str) -> List[Dict[str, Any]]
  
  
  def _declared_blocks_release(repo_root: Path, rel_path: str) -> Optional[str]:
@@ -13170,7 +13364,7 @@ index 4651ab385..69fbde857 100644
      return None
  
  
-@@ -613,31 +1030,48 @@ def canonicalize_graduated_to(
+@@ -613,31 +1036,48 @@ def canonicalize_graduated_to(
  
  
  def count_blocks_release_sentinel(repo_root: Path) -> int:
@@ -13238,7 +13432,7 @@ index 4651ab385..69fbde857 100644
      return count
  
  
-@@ -656,80 +1090,97 @@ def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
+@@ -656,80 +1096,97 @@ def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
      literally 'next'. Records carrying non-'next' values (concrete id6 or version) that do not
      resolve continue to report per-record as check.blocks-release-dangling.
      """
@@ -13399,7 +13593,7 @@ index 4651ab385..69fbde857 100644
  
      return drift
  
-@@ -772,44 +1223,64 @@ def check_from_backlog(repo_root: Path) -> List[_core.Drift]:
+@@ -772,44 +1229,64 @@ def check_from_backlog(repo_root: Path) -> List[_core.Drift]:
      repo_root = Path(repo_root)
      ignored_dirs = _core.get_ignored_dirs(repo_root)
      drift: List[_core.Drift] = []
@@ -13494,7 +13688,7 @@ index 4651ab385..69fbde857 100644
      return drift
  
  
-@@ -827,7 +1298,7 @@ def check_graduated_to(
+@@ -827,7 +1304,7 @@ def check_graduated_to(
  
      setidhard Order bwgyum E-03: the DIRECT MIRROR of `check_from_backlog` directly above, in the same
      module, with the same traversal (`rglob` over `plans`/`specs`/`backlog` under BOTH the `.aw/records/`
@@ -13503,7 +13697,7 @@ index 4651ab385..69fbde857 100644
      paths), and registered at the same once-per-full-sweep seam. Only the RESOLUTION TARGET differs: the
      back-link resolves an id6 against `backlog.existing_backlog_ids`, and this resolves a SETID against
      the set of setids that name a real plan Set.
-@@ -856,7 +1327,7 @@ def check_graduated_to(
+@@ -856,7 +1333,7 @@ def check_graduated_to(
  
      WHAT `_iter_plan_ipds` MISSES, stated because it decides whether a VALID link can be called dangling:
      it globs `*.ipd.md` ONLY. Measured on this repository, every plan file matches and the non-matching
@@ -13512,7 +13706,7 @@ index 4651ab385..69fbde857 100644
      nothing real is lost today. A bare-`.md` plan (a form the naming grammar still permits) would be
      invisible to this scan and its Set would read as nonexistent.
  
-@@ -883,6 +1354,7 @@ def check_graduated_to(
+@@ -883,6 +1360,7 @@ def check_graduated_to(
      `aw check backlog` does NOT validate the field. An empty `- Graduated-To:` line is treated as ABSENT
      and reports nothing (see `parse_graduated_to`).
      """
@@ -13520,7 +13714,7 @@ index 4651ab385..69fbde857 100644
      from agent_workflows import (
          check_engine as _ce,
      )  # local import avoids an import cycle
-@@ -892,67 +1364,85 @@ def check_graduated_to(
+@@ -892,67 +1370,85 @@ def check_graduated_to(
      ignored_dirs = _core.get_ignored_dirs(repo_root)
      drift: List[_core.Drift] = []
  
@@ -13661,7 +13855,7 @@ index 4651ab385..69fbde857 100644
      return drift
  
  
-@@ -1303,11 +1793,22 @@ def run_new(args) -> int:
+@@ -1303,11 +1799,22 @@ def run_new(args) -> int:
          )
  
      applied = bool(getattr(args, "apply", False))
@@ -16853,7 +17047,7 @@ index 3d9f3bc0f..bd310e41a 100644
  
  
 diff --git a/agent_workflows/specs.py b/agent_workflows/specs.py
-index 7943ab597..b93414df0 100644
+index 7943ab597..ca73363e9 100644
 --- a/agent_workflows/specs.py
 +++ b/agent_workflows/specs.py
 @@ -103,7 +103,7 @@ def _spec_files(repo_root: Path) -> List[Path]:
@@ -17372,7 +17566,16 @@ index 7943ab597..b93414df0 100644
  
      if not re.match(r"\A\d{4}-\d{2}-\d{2}\Z", date_iso):
          return _refuse(f"aw specs new: --date must be YYYY-MM-DD (got {date_iso!r})")
-@@ -1201,16 +1414,10 @@ def run_new(args) -> int:
+@@ -1186,6 +1399,8 @@ def run_new(args) -> int:
+     spec_fields: Dict[str, object] = {
+         "status": "draft",
+         "title": title,
++        "set": id6,
++        "order": 1,
+         "author": "aw specs new",
+     }
+     if (
+@@ -1201,16 +1416,10 @@ def run_new(args) -> int:
          destination=rel_dest,
          dry_run=not apply,
          project_context=create_ctx,
@@ -17391,7 +17594,7 @@ index 7943ab597..b93414df0 100644
  
      if not apply:
          if ctx.is_agent or ctx.is_json:
-@@ -1286,7 +1493,7 @@ def _review_attestation_refusal(spec_path: Path, text: str) -> Optional[str]:
+@@ -1286,7 +1495,7 @@ def _review_attestation_refusal(spec_path: Path, text: str) -> Optional[str]:
      from agent_workflows import artifact_meta as _meta
      from agent_workflows import review_findings as _rf
  
@@ -17400,7 +17603,7 @@ index 7943ab597..b93414df0 100644
      repo_root = _spec_repo_root(spec_path)
      try:
          missing = _rf.review_attestation_missing(repo_root, id6, "spec")
-@@ -1340,7 +1547,11 @@ def _deferred_ids_refusal(spec_path: Path, text: str) -> Optional[str]:
+@@ -1340,7 +1549,11 @@ def _deferred_ids_refusal(spec_path: Path, text: str) -> Optional[str]:
      from agent_workflows import artifact_meta as _meta
      from agent_workflows import production_checks as _pc
  
@@ -17414,10 +17617,92 @@ index 7943ab597..b93414df0 100644
          markers = _pc.parse_spec_id_markers(text or "")
      except Exception:
 diff --git a/agent_workflows/status_set.py b/agent_workflows/status_set.py
-index fe7f5d6a4..b76d6f14d 100644
+index fe7f5d6a4..db5b818fc 100644
 --- a/agent_workflows/status_set.py
 +++ b/agent_workflows/status_set.py
-@@ -1052,8 +1052,19 @@ def validate_transition_allowed(
+@@ -232,10 +232,30 @@ _META_TYPE_TO_RECORD_TYPE: dict[str, str] = {
+ }
+ 
+ 
++def _meta_context_for_repo(repo_root: Path) -> Any:
++    """Resolve `artifact_meta` context for `repo_root`, falling back to `legacy_context` on bare repos."""
++    from agent_workflows import artifact_meta as _meta
++    from agent_workflows import project_context as _proj_ctx
++
++    root = Path(repo_root)
++    ctx = _proj_ctx.resolve_project_context(target_repo=str(root))
++    records_root = Path(ctx.logical_roots["records"])
++    in_tree_records = root / ".aw" / "records"
++    if in_tree_records.is_dir():
++        if not records_root.is_dir():
++            return _meta.legacy_context(root)
++        if (
++            in_tree_records.resolve() != records_root.resolve()
++            and not (records_root / "meta").is_dir()
++            and (in_tree_records / "meta").is_dir()
++        ):
++            return _meta.legacy_context(root)
++    return ctx
++
++
+ def _cached_states_by_path(repo_root: Path) -> dict[Path, Any]:
+     """Query `artifact_meta` for cached states keyed by resolved Path."""
+     from agent_workflows import artifact_meta as _meta
+-    from agent_workflows import project_context as _proj_ctx
+     from agent_workflows import selectors as _selectors
+ 
+     scan_cache = _selectors.current_scan_cache()
+@@ -251,7 +271,7 @@ def _cached_states_by_path(repo_root: Path) -> dict[Path, Any]:
+         except OSError:
+             cache_key = None
+ 
+-    ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
++    ctx = _meta_context_for_repo(repo_root)
+     records_root = Path(ctx.logical_roots["records"])
+     scan_repo = _meta._scan_repo_root(ctx, records_root)
+     has_tree = records_root.is_dir() or (
+@@ -302,7 +322,6 @@ def _cached_state_for_path(
+ ) -> Any | None:
+     """Resolve `path` through `artifact_meta` (`resolve`/`query`/`read`), or None if uncached."""
+     from agent_workflows import artifact_meta as _meta
+-    from agent_workflows import project_context as _proj_ctx
+     from agent_workflows import selectors as _selectors
+ 
+     try:
+@@ -316,13 +335,13 @@ def _cached_state_for_path(
+         if st is None:
+             return None
+         if load_fields and st.id6:
+-            ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
++            ctx = _meta_context_for_repo(repo_root)
+             with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
+                 with contextlib.suppress(Exception):
+                     return _meta.read(st.id6, project_context=ctx)
+         return st
+ 
+-    ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
++    ctx = _meta_context_for_repo(repo_root)
+     records_root = Path(ctx.logical_roots["records"])
+     scan_repo = _meta._scan_repo_root(ctx, records_root)
+     has_tree = records_root.is_dir() or (
+@@ -763,7 +782,6 @@ def _is_log_format_record(rec: ArtifactRecord, repo_root: Path) -> bool:
+ def _state_for_record(rec: ArtifactRecord, repo_root: Path | None = None) -> Any:
+     """Return `artifact_meta.State` (with per-type `fields`) for `rec`."""
+     from agent_workflows import artifact_meta as _meta
+-    from agent_workflows import project_context as _proj_ctx
+ 
+     eff_root = repo_root if repo_root is not None else _repo_root_of(rec.path)
+     try:
+@@ -773,7 +791,7 @@ def _state_for_record(rec: ArtifactRecord, repo_root: Path | None = None) -> Any
+ 
+     if rec.id6:
+         try:
+-            ctx = _proj_ctx.resolve_project_context(target_repo=str(eff_root))
++            ctx = _meta_context_for_repo(eff_root)
+             records_root = Path(ctx.logical_roots["records"])
+             scan_repo = _meta._scan_repo_root(ctx, records_root)
+             has_tree = records_root.is_dir() or (
+@@ -1052,8 +1070,19 @@ def validate_transition_allowed(
                      False,
                      f"Setting research status to '{target_status}' is not supported via aw set; use 'aw research promote {target_id} --to {target_status}' instead.",
                  )
@@ -17438,7 +17723,7 @@ index fe7f5d6a4..b76d6f14d 100644
              or "- Kind: research-prompt" in rec.raw_text
              or "kind: research-prompt" in rec.raw_text
          )
-@@ -1539,7 +1550,7 @@ def _build_event_actor(
+@@ -1539,7 +1568,7 @@ def _build_event_actor(
                      raise ValueError(
                          f"actor.attempt must be an integer, got {val!r}"
                      ) from exc
@@ -17447,7 +17732,7 @@ index fe7f5d6a4..b76d6f14d 100644
          elif not kv_started:
              tool_tokens.append(tok)
  
-@@ -2038,47 +2049,43 @@ def _prepare_status_change(
+@@ -2038,47 +2067,43 @@ def _prepare_status_change(
      dest_path = _placement.resolve_transition_path(
          rec.record_type, rec.path, norm_status, repo_root=repo_root
      )
@@ -17522,7 +17807,7 @@ index fe7f5d6a4..b76d6f14d 100644
  
      # The SATISFIED close records its evidence; the close verdict judges the rendered item text.
      if rec.record_type == "backlog":
-@@ -2091,7 +2098,7 @@ def _prepare_status_change(
+@@ -2091,7 +2116,7 @@ def _prepare_status_change(
                  rec.path,
                  norm_status,
                  evidence=getattr(args, "evidence", None),
@@ -17531,7 +17816,7 @@ index fe7f5d6a4..b76d6f14d 100644
                  prior_priority=current_state.get("priority"),
                  lane_carrier_ref=effective_lane_carrier_ref,
                  lane_carrier_path=effective_lane_carrier_path,
-@@ -2223,62 +2230,20 @@ def apply_status_change(
+@@ -2223,62 +2248,20 @@ def apply_status_change(
      dest_path = prep.dest_path
      moving = dest_path.resolve() != rec.path.resolve()
  
@@ -17541,7 +17826,7 @@ index fe7f5d6a4..b76d6f14d 100644
 +    # carried by the `transition` event's `path` (spec 4.3).
      from agent_workflows import artifact_meta as _am
 -    from agent_workflows import lane_containment as _lc
- 
+-
 -    staged_root = _lc.companion_staged_records_root(repo_root)
 -    in_staged_lane = False
 -    if staged_root is not None:
@@ -17550,7 +17835,7 @@ index fe7f5d6a4..b76d6f14d 100644
 -            in_staged_lane = True
 -        except (OSError, ValueError):
 -            in_staged_lane = False
--
+ 
 -    sidecar = None
 -    if (
 -        not in_staged_lane
@@ -17600,7 +17885,7 @@ index fe7f5d6a4..b76d6f14d 100644
  
      rewritten_citations: list[str] = []
      if (
-@@ -3676,18 +3641,11 @@ def run_set_command(
+@@ -3676,18 +3659,11 @@ def run_set_command(
      from agent_workflows import artifact_meta as _am
      from agent_workflows import check_engine as _ce
  
@@ -17624,7 +17909,7 @@ index fe7f5d6a4..b76d6f14d 100644
  
      backlog_close_verdicts: dict[Path, _ce.CloseVerdict] = {}
      for rec in matched_records:
-@@ -3701,7 +3659,7 @@ def run_set_command(
+@@ -3701,7 +3677,7 @@ def run_set_command(
          # Compute gate-relevant post-mutation item text for the predicate (E-02).
          # Ensures same-call de-gating (`--blocks-release -`) and same-call gate defaulting
          # are judged against the state the item will actually carry.
@@ -17633,7 +17918,7 @@ index fe7f5d6a4..b76d6f14d 100644
          if getattr(args, "priority", None) is not None:
              item_text = _render_gate_fields(
                  item_text, {"priority": getattr(args, "priority", None)}
-@@ -3753,7 +3711,7 @@ def run_set_command(
+@@ -3753,7 +3729,7 @@ def run_set_command(
              rec.path,
              norm_target,
              evidence=ev_arg,
@@ -17642,7 +17927,7 @@ index fe7f5d6a4..b76d6f14d 100644
              prior_priority=prior_prio,
              lane_carrier_ref=lane_carrier_ref,
              lane_carrier_path=lane_carrier_path,
-@@ -3965,7 +3923,9 @@ def run_set_command(
+@@ -3965,7 +3941,9 @@ def run_set_command(
                  continue
              if orch_rec.record_type != "plans":
                  continue
@@ -17653,7 +17938,7 @@ index fe7f5d6a4..b76d6f14d 100644
              orch_kind = (orch_doc.meta_fields.get("Kind") or "").strip().lower()
              if orch_kind != "orchestrator":
                  continue
-@@ -3987,7 +3947,10 @@ def run_set_command(
+@@ -3987,7 +3965,10 @@ def run_set_command(
                  if other_rec.path in refused_paths:
                      continue
                  if other_rec.record_type == "plans":
@@ -17665,7 +17950,7 @@ index fe7f5d6a4..b76d6f14d 100644
                      other_set_raw = (other_doc.meta_fields.get("Set") or "").strip()
                      other_setid = (
                          other_set_raw.split("(")[0].strip().split()[0].strip()
-@@ -4114,7 +4077,7 @@ def run_set_command(
+@@ -4114,7 +4095,7 @@ def run_set_command(
              return 0
          from agent_workflows import ipd_lint as _ipd_lint_sort
  
@@ -17674,7 +17959,7 @@ index fe7f5d6a4..b76d6f14d 100644
          return (
              1
              if (doc.meta_fields.get("Kind") or "").strip().lower() == "orchestrator"
-@@ -4445,8 +4408,28 @@ def run_set_command(
+@@ -4445,8 +4426,28 @@ def run_set_command(
              orchestrator_next_actions.append(NextAction(command="", description=hint))
              continue
  
@@ -17704,7 +17989,7 @@ index fe7f5d6a4..b76d6f14d 100644
              proc = subprocess.run(
                  [
                      "git",
-@@ -4454,7 +4437,7 @@ def run_set_command(
+@@ -4454,7 +4455,7 @@ def run_set_command(
                      "status",
                      "--porcelain",
                      "--",
@@ -17713,7 +17998,7 @@ index fe7f5d6a4..b76d6f14d 100644
                  ],
                  cwd=repo_root,
                  capture_output=True,
-@@ -4484,12 +4467,10 @@ def run_set_command(
+@@ -4484,12 +4485,10 @@ def run_set_command(
          if _actor_problem is not None:
              raise ValueError(_actor_problem)
          msg = getattr(args, "message", None) or f"status set to {norm_stat}"
@@ -17730,7 +18015,7 @@ index fe7f5d6a4..b76d6f14d 100644
              [
                  {
                      "op": "note",
-@@ -4502,18 +4483,30 @@ def run_set_command(
+@@ -4502,18 +4501,30 @@ def run_set_command(
                  run_id=getattr(args, "run_id", None),
              ),
              by_human=bool(getattr(args, "by_human", False)),
@@ -18349,7 +18634,7 @@ index 02bf00b3c..bdef581a7 100644
    }
  ]
 diff --git a/tests/record_builder.py b/tests/record_builder.py
-index 924169c59..a17cb0dc2 100644
+index 924169c59..2c23a298c 100644
 --- a/tests/record_builder.py
 +++ b/tests/record_builder.py
 @@ -1,27 +1,38 @@
@@ -19539,7 +19824,7 @@ index 924169c59..a17cb0dc2 100644
          _require_legacy_format()
          eff_id = _validate_id(id6)
          ymd = _validate_day(when)
-@@ -1043,10 +1308,10 @@ class RecordBuilder:
+@@ -1043,23 +1308,23 @@ class RecordBuilder:
              topic_list = [str(t).strip() for t in topic if str(t).strip()]
              topic_label = ", ".join(topic_list)
  
@@ -19550,9 +19835,11 @@ index 924169c59..a17cb0dc2 100644
 -            "order": order,
 +            "order": int(order),
              "topic": topic_list,
-             "model": model,
+-            "model": model,
++            "model": model or None,
              "research_kind": eff_kind,
-@@ -1055,11 +1320,11 @@ class RecordBuilder:
+             "outcome": outcome,
+             "summary": summary,
              "consumed_by": list(consumed_by) if consumed_by is not None else [],
          }
          if status is not None:
@@ -25261,6 +25548,634 @@ index 000000000..0df1c5f0c
 +    rc_adv_meta, msgs_adv_meta = dep_gate.check(repo)
 +    assert rc_adv_meta == 1
 +    assert any("check.ipd-dependency-unresolved" in m for m in msgs_adv_meta)
+diff --git a/tests/test_cutover_log_cli_creators_and_find.py b/tests/test_cutover_log_cli_creators_and_find.py
+new file mode 100644
+index 000000000..81a33369a
+--- /dev/null
++++ b/tests/test_cutover_log_cli_creators_and_find.py
+@@ -0,0 +1,622 @@
++"""Core behavioral tests for CLI creator log fields and bare-repo context alignment (IPD 6cltab)."""
++
++from __future__ import annotations
++
++import io
++import json
++import subprocess
++from contextlib import redirect_stderr, redirect_stdout
++from pathlib import Path
++
++import pytest
++
++from agent_workflows import artifact_meta as meta
++from agent_workflows import check_engine, cli, selectors, status_set
++from agent_workflows import project_context as proj_ctx
++from tests import repo_template
++from tests.record_builder import RecordBuilder
++
++pytestmark = pytest.mark.core
++
++
++def _bare_records_repo(base: Path) -> Path:
++    """Create a bare temporary git repository with `.aw/records/` and no `.aw/config/`."""
++    repo = repo_template.copy_template_repo(base)
++    for sub in (
++        "plans/pending",
++        "specs/draft",
++        "backlog/open",
++        "backlog/done",
++        "research",
++        "releases",
++        "prompts/pending",
++        "walkthroughs",
++        "reviews",
++    ):
++        (repo / ".aw" / "records" / sub).mkdir(parents=True, exist_ok=True)
++    return repo
++
++
++def _run_cli_in_repo(
++    repo: Path, argv: list[str], monkeypatch: pytest.MonkeyPatch
++) -> tuple[int, str, str]:
++    monkeypatch.chdir(repo)
++    out, err = io.StringIO(), io.StringIO()
++    with redirect_stdout(out), redirect_stderr(err):
++        try:
++            rc = cli.main(argv)
++        except SystemExit as exc:
++            rc = int(exc.code or 0)
++    return rc, out.getvalue(), err.getvalue()
++
++
++def _single_state(repo: Path, record_type: str, *, ctx=None) -> meta.State:
++    eff_ctx = ctx if ctx is not None else meta.legacy_context(repo)
++    rows = meta.query(type=record_type, project_context=eff_ctx).rows
++    assert len(rows) == 1, f"expected 1 {record_type} row, got {rows}"
++    return meta.read(rows[0].id6, project_context=eff_ctx)
++
++
++def test_cli_creators_populate_log_fields(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    """E-02 (0b3ynm): ipd scaffold, specs new, releases new, and prompts new write title/set/order."""
++    aw_home = tmp_path / "aw_home"
++    aw_home.mkdir()
++    monkeypatch.setenv("AW_HOME", str(aw_home))
++
++    # 1. aw ipd scaffold --apply populates title, set_id, and order_nn
++    r_ipd = _bare_records_repo(tmp_path / "ipd_repo")
++    rc, _out, err = _run_cli_in_repo(
++        r_ipd,
++        [
++            "ipd",
++            "scaffold",
++            "--kind",
++            "child",
++            "--title",
++            "Scaffolded Plan Title",
++            "--set",
++            "demo",
++            "--order",
++            "3",
++            "--author",
++            "tester",
++            "--priority",
++            "high",
++            "--work-kind",
++            "bug",
++            "--summary",
++            "Plan summary",
++            "--apply",
++        ],
++        monkeypatch,
++    )
++    assert rc == 0, err
++    ipd_st = _single_state(r_ipd, "ipd")
++    assert ipd_st.title == "Scaffolded Plan Title"
++    assert ipd_st.set_id == "demo"
++    assert ipd_st.order_nn == 3
++
++    # 2. aw specs new --apply populates title, set_id=id6, and order_nn=1
++    r_spec = _bare_records_repo(tmp_path / "spec_repo")
++    rc, _out, err = _run_cli_in_repo(
++        r_spec,
++        [
++            "specs",
++            "new",
++            "--title",
++            "New Spec Title",
++            "--slug",
++            "new-spec",
++            "--summary",
++            "Spec summary",
++            "--date",
++            "2026-11-27",
++            "--apply",
++        ],
++        monkeypatch,
++    )
++    assert rc == 0, err
++    spec_st = _single_state(r_spec, "spec")
++    assert spec_st.title == "New Spec Title"
++    assert spec_st.set_id == spec_st.id6
++    assert spec_st.order_nn == 1
++
++    # 3. aw releases new --apply populates title, set_id=id6, and order_nn=1
++    r_rel = _bare_records_repo(tmp_path / "rel_repo")
++    rc, _out, err = _run_cli_in_repo(
++        r_rel,
++        [
++            "releases",
++            "new",
++            "--version",
++            "2.4.0",
++            "--summary",
++            "Release summary",
++            "--status",
++            "planned",
++            "--apply",
++        ],
++        monkeypatch,
++    )
++    assert rc == 0, err
++    rel_st = _single_state(r_rel, "release")
++    assert rel_st.title == "Release: 2.4.0"
++    assert rel_st.set_id == rel_st.id6
++    assert rel_st.order_nn == 1
++
++    # 4. aw prompts new --apply populates order_nn matching next_order_for_set
++    r_prm = _bare_records_repo(tmp_path / "prm_repo")
++    rc, _out, err = _run_cli_in_repo(
++        r_prm,
++        [
++            "prompts",
++            "new",
++            "--slug",
++            "first-prompt",
++            "--set",
++            "demo",
++            "--kind",
++            "run-once",
++            "--status",
++            "pending",
++            "--summary",
++            "First prompt",
++            "--date",
++            "2026-11-27",
++            "--apply",
++        ],
++        monkeypatch,
++    )
++    assert rc == 0, err
++    prm_st_1 = _single_state(r_prm, "prompt")
++    assert prm_st_1.set_id == "demo"
++    assert prm_st_1.order_nn == 1
++
++    rc, _out, err = _run_cli_in_repo(
++        r_prm,
++        [
++            "prompts",
++            "new",
++            "--slug",
++            "second-prompt",
++            "--set",
++            "demo",
++            "--kind",
++            "run-once",
++            "--status",
++            "pending",
++            "--summary",
++            "Second prompt",
++            "--date",
++            "2026-11-27",
++            "--apply",
++        ],
++        monkeypatch,
++    )
++    assert rc == 0, err
++    prm_ctx = meta.legacy_context(r_prm)
++    prm_rows = meta.query(type="prompt", project_context=prm_ctx).rows
++    orders = sorted(
++        meta.read(r.id6, project_context=prm_ctx).order_nn for r in prm_rows
++    )
++    assert orders == [1, 2]
++
++
++@pytest.mark.parametrize("create_empty_aw_home_records", [False, True])
++def test_aw_find_bare_repo_returns_all_eight_types_including_research(
++    tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
++    create_empty_aw_home_records: bool,
++) -> None:
++    """E-03 (2etrjf): aw find -p on a bare repo finds all 8 record types without dropping research."""
++    aw_home = tmp_path / "aw_home"
++    aw_home.mkdir()
++    monkeypatch.setenv("AW_HOME", str(aw_home))
++
++    repo = _bare_records_repo(tmp_path / "bare_find_repo")
++    if create_empty_aw_home_records:
++        resolved = proj_ctx.resolve_project_context(target_repo=str(repo))
++        Path(resolved.logical_roots["records"]).mkdir(parents=True, exist_ok=True)
++
++    rb = RecordBuilder(repo)
++    rb.plan(id6="p10001", set="vis", order=1, status="draft")
++    rb.spec(id6="s10001", set="vis", order=1, status="draft")
++    rb.backlog(id6="b10001", set="vis", order=1, status="open")
++    research_path = rb.research(id6="q10001", set="vis", order=1, status="reference")
++    rb.release(id6="l10001", set="vis", order=1, status="planned")
++    rb.prompt(id6="m10001", set="vis", order=1, status="pending")
++    rb.walkthrough(id6="w10001", set="vis", order=1, target_id="p10001")
++    rb.review("p10001", set="vis", order=1)
++
++    rc, out, err = _run_cli_in_repo(repo, ["find", "-p"], monkeypatch)
++    assert rc == 0, err
++    paths = [line.strip() for line in out.splitlines() if line.strip()]
++    assert len(paths) == 8, paths
++    assert any(Path(research_path).name in p for p in paths), paths
++
++
++@pytest.mark.parametrize("create_empty_aw_home_records", [False, True])
++def test_status_set_and_check_engine_bare_repo_reads_log_fields_and_dates(
++    tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
++    create_empty_aw_home_records: bool,
++) -> None:
++    """E-03 (3pxjya): status_set and check_engine read full JSONL log fields on bare repos."""
++    aw_home = tmp_path / "aw_home"
++    aw_home.mkdir()
++    monkeypatch.setenv("AW_HOME", str(aw_home))
++
++    repo = _bare_records_repo(tmp_path / "bare_meta_repo")
++    if create_empty_aw_home_records:
++        resolved = proj_ctx.resolve_project_context(target_repo=str(repo))
++        Path(resolved.logical_roots["records"]).mkdir(parents=True, exist_ok=True)
++
++    rb = RecordBuilder(repo)
++    grad_backlog_path = Path(
++        rb.backlog(
++            id6="b10001",
++            set="bset",
++            order=1,
++            status="graduated",
++            blocks_release="next",
++            gate_kind="external",
++            gate_ref="ticket-42",
++            gate_summary="Wait for upstream",
++            history=[
++                {
++                    "op": "legacy",
++                    "line": "- 2026-11-20 graduated (tester): handed off",
++                    "observed_day": "2026-11-20",
++                }
++            ],
++        )
++    )
++    rb.backlog(
++        id6="b10002",
++        set="bset",
++        order=2,
++        status="done",
++        disposition="done",
++        history=[
++            {
++                "op": "legacy",
++                "line": "- 2099-11-22 done (tester): completed",
++                "observed_day": "2099-11-22",
++            }
++        ],
++    )
++    plan_path = Path(
++        rb.plan(
++            id6="p10001",
++            set="pset",
++            order=1,
++            status="approved",
++            from_backlog="b10001",
++            blocks_release="next",
++        )
++    )
++    rb.spec(
++        id6="s10001",
++        set="sset",
++        order=1,
++        status="implementing",
++        from_backlog="b10001",
++        history=[
++            {
++                "op": "legacy",
++                "line": "- 2026-11-21 implementing (tester): started implementation",
++                "observed_day": "2026-11-21",
++            }
++        ],
++    )
++
++    # status_set._cached_states_by_path
++    by_path = status_set._cached_states_by_path(repo)
++    assert grad_backlog_path.resolve() in by_path
++    assert plan_path.resolve() in by_path
++    assert by_path[grad_backlog_path.resolve()].set_id == "bset"
++    assert by_path[plan_path.resolve()].set_id == "pset"
++
++    # status_set._cached_state_for_path (uncached branch)
++    uncached_bk = status_set._cached_state_for_path(
++        grad_backlog_path, repo, load_fields=True
++    )
++    assert uncached_bk is not None
++    assert uncached_bk.set_id == "bset"
++    assert uncached_bk.fields["blocks_release"] == "next"
++    assert uncached_bk.fields["gate_summary"] == "Wait for upstream"
++
++    # status_set._cached_state_for_path (scan_cache load_fields branch)
++    with selectors.scan_once():
++        cached_bk = status_set._cached_state_for_path(
++            grad_backlog_path, repo, load_fields=True
++        )
++        assert cached_bk is not None
++        assert cached_bk.set_id == "bset"
++        assert cached_bk.fields["blocks_release"] == "next"
++        assert cached_bk.fields["gate_summary"] == "Wait for upstream"
++
++    # status_set._state_for_record
++    bk_rec = status_set.ArtifactRecord(
++        path=grad_backlog_path,
++        record_type="backlog",
++        id6="b10001",
++        set_id=None,
++        status="graduated",
++        raw_text=grad_backlog_path.read_text(encoding="utf-8"),
++    )
++    bk_st = status_set._state_for_record(bk_rec, repo_root=repo)
++    assert bk_st.set_id == "bset"
++    assert bk_st.fields["blocks_release"] == "next"
++    assert bk_st.fields["gate_summary"] == "Wait for upstream"
++
++    plan_rec = status_set.ArtifactRecord(
++        path=plan_path,
++        record_type="plans",
++        id6="p10001",
++        set_id=None,
++        status="approved",
++        raw_text=plan_path.read_text(encoding="utf-8"),
++    )
++    plan_st = status_set._state_for_record(plan_rec, repo_root=repo)
++    assert plan_st.set_id == "pset"
++    assert plan_st.fields["from_backlog"] == "b10001"
++    assert plan_st.fields["blocks_release"] == "next"
++
++    # check_engine._meta_state_for_path and _meta_state_map
++    ce_bk_st = check_engine._meta_state_for_path(
++        repo, grad_backlog_path, meta_type="backlog"
++    )
++    assert ce_bk_st is not None
++    assert ce_bk_st.set_id == "bset"
++    assert ce_bk_st.fields["blocks_release"] == "next"
++    assert ce_bk_st.fields["gate_summary"] == "Wait for upstream"
++
++    ce_map = check_engine._meta_state_map(repo, "backlog", load_fields=True)
++    assert grad_backlog_path.resolve() in ce_map
++    assert ce_map[grad_backlog_path.resolve()].fields["gate_summary"] == (
++        "Wait for upstream"
++    )
++
++    # check_engine._meta_records_with_fields
++    ipd_records = check_engine._meta_records_with_fields(repo, "ipd")
++    assert len(ipd_records) == 1
++    assert ipd_records[0][1].set_id == "pset"
++    assert ipd_records[0][1].fields["from_backlog"] == "b10001"
++    assert ipd_records[0][1].fields["blocks_release"] == "next"
++
++    # check_engine.build_graduation_reverse_index
++    grad_idx = check_engine.build_graduation_reverse_index(repo)
++    linked_ids = {item.id6 for item in grad_idx.get(("backlog", "b10001"), ())}
++    assert {"p10001", "s10001"} <= linked_ids
++
++    # check_engine history date readers
++    assert (
++        check_engine._item_close_date(repo_root=repo, item_id6="b10002") == "20991122"
++    )
++    assert (
++        check_engine._item_graduated_date(repo_root=repo, item_id6="b10001")
++        == "20261120"
++    )
++    assert (
++        check_engine._spec_implementing_date(repo_root=repo, spec_id6="s10001")
++        == "20261121"
++    )
++
++
++def test_check_engine_history_readers_do_not_create_index_db_in_uninitialized_bare_repo(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    """E-03 (F-05): read-only date checks never create stray `.aw/state/index.db` on bare repos."""
++    aw_home = tmp_path / "aw_home"
++    aw_home.mkdir()
++    monkeypatch.setenv("AW_HOME", str(aw_home))
++
++    repo = _bare_records_repo(tmp_path / "uninit_repo")
++    assert not (repo / ".aw" / "state").exists()
++    assert not (repo / ".aw" / "records" / "meta").exists()
++
++    assert check_engine._item_close_date(repo_root=repo, item_id6="b99999") is None
++    assert check_engine._item_graduated_date(repo_root=repo, item_id6="b99999") is None
++    assert (
++        check_engine._spec_implementing_date(repo_root=repo, spec_id6="s99999") is None
++    )
++    assert not (repo / ".aw" / "state" / "index.db").exists()
++
++
++def test_git_read_at_context_bare_repo_under_git_aw_home_and_agents_fallback(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    """E-03 (3pxjya): _git_read_at_context resolves in-tree records even if AW_HOME is inside git."""
++    outer_git = repo_template.copy_template_repo(tmp_path / "outer_git")
++    aw_home = outer_git / "aw_home"
++    aw_home.mkdir()
++    monkeypatch.setenv("AW_HOME", str(aw_home))
++
++    # Case 1: bare repo with .aw/records/ and absent AW_HOME records dir inside outer_git
++    repo = _bare_records_repo(tmp_path / "bare_git_repo")
++    ctx = check_engine._git_read_at_context(repo)
++    assert (
++        Path(ctx.logical_roots["records"]).resolve()
++        == (repo / ".aw" / "records").resolve()
++    )
++    assert getattr(ctx, "target_repo", None) == str(repo.resolve())
++
++    # Case 2: empty AW_HOME records dir exists inside outer_git while in-tree meta/ exists
++    resolved = proj_ctx.resolve_project_context(target_repo=str(repo))
++    Path(resolved.logical_roots["records"]).mkdir(parents=True, exist_ok=True)
++    (repo / ".aw" / "records" / "meta").mkdir(parents=True, exist_ok=True)
++    ctx_empty = check_engine._git_read_at_context(repo)
++    assert (
++        Path(ctx_empty.logical_roots["records"]).resolve()
++        == (repo / ".aw" / "records").resolve()
++    )
++    assert getattr(ctx_empty, "target_repo", None) == str(repo.resolve())
++
++    # Case 3: legacy .agents/ fallback preserved
++    agents_repo = repo_template.copy_template_repo(tmp_path / "agents_repo")
++    (agents_repo / ".agents" / "plans").mkdir(parents=True, exist_ok=True)
++    ctx_agents = check_engine._git_read_at_context(
++        agents_repo, rel_path=".agents/plans/example.md"
++    )
++    assert (
++        Path(ctx_agents.logical_roots["records"]).resolve()
++        == (agents_repo / ".agents").resolve()
++    )
++    assert getattr(ctx_agents, "target_repo", None) == str(agents_repo.resolve())
++
++
++def test_configured_companion_and_home_layouts_preserved(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    """E-03: configured `.aw/config/project.json` home and companion layouts remain intact."""
++    aw_home = tmp_path / "aw_home"
++    aw_home.mkdir()
++    monkeypatch.setenv("AW_HOME", str(aw_home))
++
++    # 1. Home-backed project
++    home_repo = repo_template.copy_template_repo(tmp_path / "home_repo")
++    (home_repo / ".aw" / "config").mkdir(parents=True, exist_ok=True)
++    (home_repo / ".aw" / "config" / "project.json").write_text(
++        json.dumps({"delivery_mode": "clean-delta", "records_backend": "home"}) + "\n",
++        encoding="utf-8",
++    )
++    home_ctx = proj_ctx.resolve_project_context(target_repo=str(home_repo))
++    home_records = Path(home_ctx.logical_roots["records"])
++    for sub in ("backlog/open", "research"):
++        (home_records / sub).mkdir(parents=True, exist_ok=True)
++    # Seed records via artifact_meta directly in the configured home records root
++    home_bk = meta.create(
++        "hb1001",
++        "backlog",
++        {
++            "status": "open",
++            "set": "hset",
++            "priority": "high",
++            "work_kind": "bug",
++            "summary": "Home backlog item",
++            "blocks_release": "next",
++        },
++        "",
++        destination="backlog/open/20261127-hset-01-hb1001-home-item.backlog.md",
++        dry_run=False,
++        project_context=home_ctx,
++        actor={"tool": "test"},
++    )
++    home_bk_path = Path(home_bk["destination"])
++    home_rs = meta.create(
++        "hr1001",
++        "research",
++        {
++            "created": "20261127",
++            "set": "hset",
++            "order": 1,
++            "topic": ["home"],
++            "model": None,
++            "research_kind": "research-report",
++            "status": "reference",
++            "outcome": "informational",
++            "summary": "Home research",
++            "consumed_by": [],
++        },
++        "# Home Research\n",
++        destination="research/20261127-hset-01-hr1001-home-res.research-report.md",
++        dry_run=False,
++        project_context=home_ctx,
++        actor={"tool": "test"},
++    )
++    home_rs_path = Path(home_rs["destination"])
++
++    # Even with an unrelated empty in-tree .aw/records dir, configured home layout wins
++    (home_repo / ".aw" / "records").mkdir(parents=True, exist_ok=True)
++
++    rc, out, err = _run_cli_in_repo(home_repo, ["find", "-p"], monkeypatch)
++    assert rc == 0, err
++    assert home_rs_path.name in out
++    assert home_bk_path.name in out
++
++    home_rec = status_set.ArtifactRecord(
++        path=home_bk_path,
++        record_type="backlog",
++        id6="hb1001",
++        set_id=None,
++        status="open",
++        raw_text=home_bk_path.read_text(encoding="utf-8"),
++    )
++    st_home = status_set._state_for_record(home_rec, repo_root=home_repo)
++    assert st_home.set_id == "hset"
++    assert st_home.fields["blocks_release"] == "next"
++
++    ce_home = check_engine._meta_state_for_path(
++        home_repo, home_bk_path, meta_type="backlog"
++    )
++    assert ce_home is not None
++    assert ce_home.set_id == "hset"
++    assert ce_home.fields["blocks_release"] == "next"
++
++    # 2. Companion-backed project (default sibling `<target_repo>.aw`)
++    target_repo = repo_template.copy_template_repo(tmp_path / "companion_target_repo")
++    comp_repo = repo_template.copy_template_repo(tmp_path / "companion_target_repo.aw")
++    for sub in ("records/backlog/open", "records/research"):
++        (comp_repo / sub).mkdir(parents=True, exist_ok=True)
++    (target_repo / ".aw" / "config").mkdir(parents=True, exist_ok=True)
++    (target_repo / ".aw" / "config" / "project.json").write_text(
++        json.dumps(
++            {
++                "delivery_mode": "clean-delta",
++                "records_backend": "companion",
++            }
++        )
++        + "\n",
++        encoding="utf-8",
++    )
++    comp_ctx = proj_ctx.resolve_project_context(target_repo=str(target_repo))
++    assert (
++        Path(comp_ctx.logical_roots["records"]).resolve()
++        == (comp_repo / "records").resolve()
++    )
++    comp_bk = meta.create(
++        "cb1001",
++        "backlog",
++        {
++            "status": "open",
++            "set": "cset",
++            "priority": "medium",
++            "work_kind": "chore",
++            "summary": "Companion backlog item",
++            "blocks_release": "next",
++        },
++        "",
++        destination="backlog/open/20261127-cset-01-cb1001-comp-item.backlog.md",
++        dry_run=False,
++        project_context=comp_ctx,
++        actor={"tool": "test"},
++    )
++    comp_bk_path = Path(comp_bk["destination"])
++    subprocess.run(["git", "add", "-A"], cwd=comp_repo, check=True)
++    subprocess.run(
++        ["git", "commit", "-q", "-m", "seed companion"], cwd=comp_repo, check=True
++    )
++
++    rc, out, err = _run_cli_in_repo(target_repo, ["find", "-p"], monkeypatch)
++    assert rc == 0, err
++    assert comp_bk_path.name in out
++
++    by_path_comp = status_set._cached_states_by_path(target_repo)
++    assert comp_bk_path.resolve() in by_path_comp
++    assert by_path_comp[comp_bk_path.resolve()].set_id == "cset"
++
++    ce_comp = check_engine._meta_state_for_path(
++        target_repo, comp_bk_path, meta_type="backlog"
++    )
++    assert ce_comp is not None
++    assert ce_comp.set_id == "cset"
++    assert ce_comp.fields["blocks_release"] == "next"
++
++    git_ctx_comp = check_engine._git_read_at_context(target_repo)
++    assert (
++        Path(git_ctx_comp.logical_roots["records"]).resolve()
++        == (comp_repo / "records").resolve()
++    )
 diff --git a/tests/test_cutover_log_lifecycle_and_hooks.py b/tests/test_cutover_log_lifecycle_and_hooks.py
 new file mode 100644
 index 000000000..da1713901
