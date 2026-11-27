@@ -4,7 +4,7 @@
 - Subject-Type: ipd
 - Reviewed-At: 2026-11-27
 - Reviewer: antigravity/gemini
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
 
@@ -119,3 +119,101 @@ AW-TIER: complex
 | D-1 | How should `aw exec` avoid hitting `"--action execute is not implemented yet"`? | Enable `"execute"` in `runner_shared.ACTION_IMPLEMENTED` (accepting derived `execute` and `orchestrate` in `enforce_requested_action`) and update `tests/test_oc_runipd.py:5583-5606`. | Omit `--action execute` from `aw exec` (rejected: would allow `aw exec <to-review-id6>` to review a plan instead of refusing, violating `ogd2nv` R-13 and spec `25kzda` 2.6). | `agent_workflows/runner_shared.py:39646,40580-40599`; `tests/test_oc_runipd.py:5581-5606`. | yes |
 | D-2 | How should `aw review`/`exec`/`plan`/`validate` parse options in `cli.py`? | Register `add_help=False` + `argparse.REMAINDER` parsers and intercept in `_dispatch` before `parse_args`, peeling only `--host` and `--as` and forwarding the rest verbatim to `run_dispatch.dispatch_for_state`. | Register `selectors.add_selector_args` and `--model`/`--variant` in `cli.py` (rejected: duplicates driver parsing, collides with OpenCode `--agent`, and breaks `REMAINDER` leading options). | `agent_workflows/cli.py:1624-1631,21469-21565`; `agent_workflows/run_dispatch.py:24-30`; `m7jcis` E-05; `e36q6r` E-02. | yes |
 | D-3 | How should `aw approve` handle selector-only invocations like `aw approve -s reviewed --sid <set>` and R-16 non-TTY rules? | Enforce R-16 (`--by-human` + non-empty `--message` on non-TTY/`--agent`/`--json`; auto `--by-human` on TTY) up front, and expand selector-only flags across plans and specs before calling `status_set.run_set_command`. | Pass empty targets to `run_set_command` (rejected: exits 2 with `"at least one target selector is required"`) or rely on `status_set`'s spec-only TTY check (rejected: does not cover plans or require `--message`). | `agent_workflows/status_set.py:1117-1134,3235-3455`; `mnlaoa` E-09; `ogd2nv` R-16. | yes |
+
+
+## Round 2
+
+Round 2 incorporated the maintainer's two 2026-11-27 terminal rulings on the parked Round 1 blocking questions (`03-xocj8i-a1-q-validate-runner-backend` -> `OQ-01` and `03-xocj8i-a1-q-agy-dispatch-adapter-scope` -> `OQ-02`), filed follow-up backlog carrier `2hssxe` via `aw backlog new --apply` for standalone `--action validate` (`/verify-execution` on executed plans) and top-level `aw validate` (`ogd2nv` R-15), omitted `aw validate` from `xocj8i`, expanded `xocj8i` with `E-06`/`V-06` for the Antigravity (`agy`) dispatch adapter and `agy_runipd.py` `as <profile>` support, and caught and fixed one additional `MEDIUM` finding (`PR-009`) on `aw exec`/`aw plan` selector defaults and `agy_runipd` `host_options` test parity (`tests/test_runner_shared.py:2389`). All Round 1 and Round 2 findings (`PR-001`, `PR-002`, `PR-009`) are now `FIXED`, `OQ-01` and `OQ-02` are `resolved` (`- Owner: maintainer`), and the lane outcome JSON records `{"questions": []}`. No production or test code was modified.
+
+### Step T
+
+1. Yes; the plan now delivers both the Antigravity (`agy`) dispatch adapter (`_dispatch_antigravity` + `agy_runipd.py` `as <profile>` / profile resolution) and four top-level public CLI commands (`review`/`rev`, `exec`, `plan`/`grad`/`graduate`, `approve`), plus `--action execute` enablement, completions, command declarations, docs, and `CHANGELOG.md`.
+2. Yes; `aw approve` enforces `ogd2nv` R-16 human approval attestation (`--by-human` + `--message` vs TTY auto-attestation), and `E-06` touches `agy_runipd.py`'s verification decision and launch-profile boundary.
+3. Yes; spans 6 E-items across 15 work Scope-Paths and coordinates Set `cliverbs` (`m7jcis`, `p06t7i`, `xocj8i`) and Set `selectors` (`e36q6r`).
+4. Yes; `- Scope-Paths:` expanded to 16 entries (15 work paths + plan) to cover `agent_workflows/agy_runipd.py`, `tests/test_agy_runipd_cli.py`, and `tests/test_runner_profiles_verbs.py`.
+5. Yes; an error in `agy_runipd` profile resolution, `aw exec` selector forwarding, or `aw approve` attestation could launch the wrong model, run unintended plans, or bypass approval gates.
+
+AW-TIER: complex
+
+### Step R1
+
+- Checked: `agent_workflows/agy_runipd.py` (module import of `runner_profiles` line 658, `resolve_verification_decision` lines 2198-2218, `initialize_run` lines 2220-2253, `build_parser` `start` lines 4184-4356, `main` lines 4556-4660, `main_prompt` profile resolution lines 5104-5126), `agent_workflows/oc_runipd.py` (`extract_profile_clause` lines 5674-5734, `main` lines 5799-5840), `agent_workflows/run_dispatch.py` (`_dispatch_opencode` and `RUNNER_ADAPTERS` lines 79-148), `agent_workflows/runner_shared.py` (`expand_selectors` `"all"` behavior lines 18224-18334, `resolve_verification_decision` lines 21817-21855, `ACTION_IMPLEMENTED` and `enforce_requested_action` lines 39645-39646, 40537-40621), `agent_workflows/runner_profiles.py` (`RUNNER_REGISTRY["agy"]` lines 476-483, `resolve` lines 1520-1640), `tests/test_runner_shared.py` (`assertNotIn("launch_profile", ...)` line 2389), `tests/test_agy_runipd_cli.py` (`AgyActionLegalityTests` lines 1855-1895), `m7jcis` E-04(d)/E-05, `e36q6r` E-01/E-02, and newly filed backlog `2hssxe`.
+- Found:
+  - `agy_runipd.py` already imports `runner_profiles` and resolves `agy` profiles in `main_prompt`; adding shared `extract_profile_clause` in `runner_shared.py` plus `as <profile>` and `runner_profiles.resolve` in `agy_runipd.py` enables `_dispatch_antigravity` cleanly without touching `oc_runipd.py` (`PR-002` fixed).
+  - `tests/test_runner_shared.py:2389` explicitly asserts `assertNotIn("launch_profile", self.frozen("agy_runipd", [], None))`, and `runner_shared.expand_selectors` expands `"all"` using `manifest_entry_is_sweepable` (which includes `to-review` plans alongside `approved` plans), so `aw exec` must not synthesize `"all"` when no positional selector is given (`PR-009` fixed).
+
+### Step R2
+
+- Checked: E/V bijection (upgraded to `6/6` with `- Highest E allocated: 06`, preserving stable IDs `E-01..E-05`/`V-01..V-05` and adding `E-06`/`V-06`), dependency chain (`E-06 -> E-01 -> E-02 -> E-03 -> E-04 -> E-05`), runtime-demonstration reachability (all six V-items now trace to implemented or in-plan code paths; unreachable `aw validate` removed and deferred to `2hssxe`), `- Scope-Paths:` completeness (15 work paths + plan), durable carriers (`2hssxe`, `pqqqzf`, declined legacy removal), and execution gate.
+- Found: All runtime demonstrations are reachable; zero uncarried obligations; `PR-001`, `PR-002`, and `PR-009` fixed in place.
+
+### Step R3
+
+- Checked (full form, `complex` tier):
+  - `agy_runipd.py` profile resolution resolves once before any run directory is created, refuses unknown/wrong-runner/misplaced `as <profile>` and `as <profile>` on `resume`/`status`/`report`/`stop`/`integrate`/`audit` with exit 2, and passes `profile=getattr(args, "profile", None)` into `resolve_verification_decision` so a profile's `validate` setting and explicit `--validate`/`--no-validate`/`--no-verify` flags remain honored without bypassing verification (`E-06`).
+  - `aw exec` and `aw plan`/`grad`/`graduate` require an explicit selector rather than synthesizing `"all"`, preventing accidental whole-repo execution on a bare invocation (`PR-009`).
+  - `aw approve` R-16 attestation and `status_set` guards remain intact (`E-02`).
+
+### Step R4
+
+- Checked: architecture (shared `runner_shared.extract_profile_clause` avoids duplicating the `as <profile>` parser in `agy_runipd.py` while leaving `oc_runipd.py` untouched), anti-regression (`tests/test_runner_shared.py:2389`, `m7jcis` `tests/test_runner_profiles_verbs.py` E-04(d) update, `tests/test_agy_runipd_cli.py`, `tests/test_oc_runipd.py`), right-sizing (6 focused E-items across 3 task groups), KISS, and `## Spec / documentation sync` noting `ogd2nv` R-15 deferral to `2hssxe`.
+- Found: `PR-009` (fixed in place); `PR-001` and `PR-002` resolved and fixed in place.
+
+### Step R5
+
+- Checked through all eight reviewer personas:
+  - **QA/QC & Testing/regression:** Caught `tests/test_runner_shared.py:2389`'s `assertNotIn("launch_profile", ...)` guard on `agy_runipd`, `m7jcis` E-04(d)'s `"no dispatch adapter"` assertion in `tests/test_runner_profiles_verbs.py`, and `"all"` including `to-review` plans in `expand_selectors` (`PR-009`).
+  - **UI/UX, Power user, Novice:** Both `agy` and `oc` users get working verb-first commands (`aw rev`, `aw exec`, `aw plan`, `aw approve`) and `aw agy run as <profile>`; bare `aw exec` cannot accidentally execute every approved plan in the repository; `aw validate` is cleanly omitted rather than shipping a dead stub.
+  - **Architect & Software engineer:** Placing `extract_profile_clause` in `runner_shared.py` keeps the grammar shared without widening edits into `oc_runipd.py`; preserving `E-01..E-05` IDs while allocating `E-06`/`V-06` maintains clean audit traceability.
+  - **Stakeholder:** Both maintainer rulings (`OQ-01` and `OQ-02`) are implemented faithfully, with durable backlog carrier `2hssxe` filed for `ogd2nv` R-15.
+
+### Step R6
+
+- Checked: Whether `E-06` (`agy` dispatch adapter) should be split into a separate child plan vs kept in `xocj8i`.
+- Finding: Keeping `E-06` in `xocj8i` (6 E-items total, matching approved sibling `m7jcis`'s 6 E-items) is explicitly authorized by the maintainer ("Add a prerequisite child plan (or expand xocj8i) for the `agy` dispatch adapter so both `agy` and `oc` work"), avoids mutating sibling orchestrator `lmlji2` during `xocj8i`'s review lane, and lets `xocj8i` reach `go-pending-approval` immediately without stranding Set `cliverbs` on an unreviewed child plan (`D-5`).
+
+### Step R7
+
+- Checked: Set `cliverbs` (`lmlji2`, approved `m7jcis`, reviewed `p06t7i`, `xocj8i`), Set `selectors` (`e36q6r`), spec `ogd2nv`, and new backlog carrier `2hssxe`.
+- Found:
+  - `m7jcis` E-04(d) adds a test expecting `"no dispatch adapter"` for `"agy"` in `tests/test_runner_profiles_verbs.py`; `xocj8i` (`Item-Dependencies: executed:m7jcis`) cleanly updates that assertion in `E-06` while keeping `"no dispatch adapter"` coverage via patched `RUNNER_ADAPTERS`.
+  - Orchestrator `lmlji2` and spec `ogd2nv` (both `to-review`, outside this lane's scope) should align their `aw validate` / `E-05` / `E-06` references to `2hssxe` during their own reviews.
+
+### Step S5
+
+- Checked: Both Round 1 blocking questions (`OQ-01` and `OQ-02`) were answered by the maintainer on 2026-11-27. Both are now marked `- Status: resolved` with `- Owner: maintainer` and exact rationale in `xocj8i`; their corresponding Round 1 `BLOCKER` findings (`PR-001` and `PR-002`) are marked `FIXED` in this Round 2 table (escalation return path). Follow-up obligation for `aw validate` / `ogd2nv` R-15 is tracked by new durable backlog carrier `2hssxe` (`- Carrier: 2hssxe` in `## Deferred / out of scope`). Two reversible technical decisions (`D-4`, `D-5`) are recorded below. Zero open questions remain.
+
+### Pass 2
+
+- Trigger: `E-06`/`V-06` added (`- Highest E allocated: 06`), `- Scope-Paths:` expanded to 16 entries, `aw validate` removed throughout, and `OQ-01`/`OQ-02` resolved.
+- Re-checked the complete revised `xocj8i` end to end: verified `6/6` E/V bijection, zero stale claims that `xocj8i` implements `aw validate`, zero em or en dashes, `OQ-01` and `OQ-02` marked `- Status: resolved` with `- Owner: maintainer`, `- Carrier: 2hssxe` valid on disk, and `aw ipd lint --phase review-finalize --agent` returning `clean` (exit 0, zero errors).
+- `AW-REVIEW: DONE`
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|---|---|---|---|---|---|---|---|---|
+| PR-001 | BLOCKER | IN-SCOPE | R1 / R2 / Unreachable `aw validate` (`/verify-execution` runner action does not exist) | agent_workflows/runner_shared.py:39645-39646 (`ACTION_CHOICES`, `ACTION_IMPLEMENTED`); `.aw/records/backlog/open/20261127-cliverbs-01-2hssxe-standalone-validate-runner-action-and-aw-validate.backlog.md`; `xocj8i` `OQ-01` | Round 1 `BLOCKER` on missing standalone `--action validate` backend for `aw validate` (`ogd2nv` R-15). | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Maintainer resolved `OQ-01` on 2026-11-27 choosing Option 1. Filed durable follow-up backlog carrier `2hssxe`, omitted `aw validate` from `xocj8i` (title, front matter, flowchart, `E-01`/`E-03`/`E-04`/`V-01`/`V-03`/`V-04`), recorded `- Carrier: 2hssxe` in `## Deferred / out of scope`, and documented the `ogd2nv` R-15 deferral in `## Spec / documentation sync`. Recommendation strength: very strong. |
+| PR-002 | BLOCKER | IN-SCOPE | R1 / R7 / OpenCode-only `RUNNER_ADAPTERS` (`m7jcis` OQ-01 carrier handoff) | agent_workflows/run_dispatch.py:101-148 (`RUNNER_ADAPTERS`); agent_workflows/agy_runipd.py:658,2198-2253,4556-4660,5104-5126; `m7jcis` E-04(d)/E-05; `xocj8i` `OQ-02` | Round 1 `BLOCKER` on missing Antigravity (`agy`) dispatch adapter and `agy_runipd.py` `as <profile>` support. | C:Low; U:Low; S:Low; F:Medium; Overall:Medium | FIXED | Maintainer resolved `OQ-02` on 2026-11-27 choosing Option 1. Expanded `xocj8i` with `E-06`/`V-06` adding shared `runner_shared.extract_profile_clause`, `agy_runipd.py` `as <profile>` + `runner_profiles.resolve` support, `_dispatch_antigravity` in `run_dispatch.RUNNER_ADAPTERS`, and updated tests in `tests/test_runner_profiles_verbs.py` and `tests/test_agy_runipd_cli.py`. Recommendation strength: very strong. |
+| PR-009 | MEDIUM | IN-SCOPE | R1 / R3 / `aw exec`/`aw plan` default selector safety and `agy_runipd` `host_options` invariant | agent_workflows/runner_shared.py:18281-18333 (`expand_selectors` `"all"`); tests/test_runner_shared.py:2389 (`assertNotIn("launch_profile", ...)`); `xocj8i` E-01, E-06 | Round 1 `E-01` allowed `aw exec` to default to `"all"` when no positional selector preceded flags, which both collides with `to-review` plans in `expand_selectors("all")` and risks unintended whole-repo execution on bare `aw exec`; meanwhile adding `"launch_profile"` to `agy_runipd` `host_options` would break `tests/test_runner_shared.py:2389`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Updated `E-01`/`V-01` so `aw exec` and `aw plan`/`grad`/`graduate` forward `tail` verbatim (requiring an explicit selector, unlike `aw review` which defaults to `"reviews"`), and specified in `E-06`/`V-06` that `agy_runipd` `host_options` omits `"launch_profile"` so `tests/test_runner_shared.py:2389` remains green (`D-4`). Recommendation strength: very strong. |
+
+### Proofreading
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| Title, Front matter (`Concern`, `Scope`, `Scope-Paths`, `Readiness`, `Short-Description`, `Highest E allocated`) | Included `aw validate`, 13 Scope-Paths, 5 E-items, `- Readiness: no-go` | Removed `aw validate` (deferred to `2hssxe`), added `agy` dispatch adapter (`agy_runipd.py`, `test_agy_runipd_cli.py`, `test_runner_profiles_verbs.py`, 16 Scope-Paths total), `- Highest E allocated: 06`, `- Readiness: go-pending-approval` | PR-001, PR-002 |
+| `## Goal`, Mermaid flowchart, `E-06`, `E-01..E-05`, `V-01..V-06` | `aw validate` gated on `OQ-01`, `agy` gated on `OQ-02`, `aw exec` defaulting to `"all"` | Added `E-06`/`V-06` for `agy` dispatch adapter + `agy_runipd` `as <profile>` (preserving `test_runner_shared.py:2389`), removed `aw validate` throughout, required explicit selector on `aw exec`/`aw plan`, updated Mermaid flowchart and `path::Symbol` citations | PR-001, PR-002, PR-009 |
+| `## Deferred / out of scope`, `## Open questions`, `## Spec / documentation sync`, `## Approval and execution gate` | `OQ-01`/`OQ-02` open and blocking; no `aw validate` carrier | Marked `OQ-01` and `OQ-02` `resolved` (`- Owner: maintainer`), added `- Carrier: 2hssxe` in `## Deferred / out of scope` for `aw validate` / `ogd2nv` R-15, updated `## Approval and execution gate` cohesion rationale and resolved-questions summary | PR-001, PR-002 |
+
+#### Issues
+
+None.
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-4 | Should bare/flag-only `aw exec` or `aw plan` synthesize `"all"` as a default selector, and should `agy_runipd.initialize_run` freeze a `"launch_profile"` key in `host_options`? | Forward `tail` verbatim on `aw exec` and `aw plan`/`grad`/`graduate` (requiring an explicit selector, while `aw review`/`rev` keeps its `"reviews"` default); omit `"launch_profile"` from `agy_runipd` `host_options`. | Synthesize `"all"` on bare `aw exec` (rejected: `expand_selectors("all")` includes `to-review` plans, causing `--action execute` refusal, and risks accidental whole-repo execution); add `"launch_profile"` to `agy_runipd` `host_options` (rejected: breaks `tests/test_runner_shared.py:2389` and `agy_runipd.write_report` has no `render_launch_identity`). | `agent_workflows/runner_shared.py:18281-18333`; `agent_workflows/agy_runipd.py:2290`; `tests/test_runner_shared.py:2389`. | yes |
+| D-5 | Under the maintainer's `OQ-02` ruling ("Add a prerequisite child plan (or expand xocj8i)"), should the `agy` dispatch adapter be added as `E-06` inside `xocj8i` or as a separate new child IPD? | Expand `xocj8i` with `E-06`/`V-06` (placing shared `extract_profile_clause` in `runner_shared.py` and wiring `agy_runipd.py` + `run_dispatch.py`). | Create a new unreviewed child IPD and edit orchestrator `lmlji2` during `xocj8i`'s review lane (rejected: mutates a sibling plan outside `xocj8i`'s lane and delays `xocj8i` approval behind an extra review cycle, whereas `agy_runipd.py` already imports `runner_profiles` and the adapter fits in one focused E-item). | 2026-11-27 maintainer ruling on `03-xocj8i-a1-q-agy-dispatch-adapter-scope`; `agent_workflows/agy_runipd.py:658,5104-5126`; `agent_workflows/runner_shared.py:5345-5360`. | yes |
