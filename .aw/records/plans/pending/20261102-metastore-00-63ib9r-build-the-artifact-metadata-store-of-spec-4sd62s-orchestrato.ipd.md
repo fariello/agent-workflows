@@ -10,8 +10,8 @@
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
 - Coverage: pass
-- Coverage-Fingerprint: c43b7eb71194391b0f4e9858cfcda7dd003ee9418eac80282802cf63b5a198f5
-- Coverage-Checked: 2026-11-26 by uri/its_direct/pt3-claude-opus-5.5-1m-us
+- Coverage-Fingerprint: 48a208fc592df5379060a2e2a955c6dc7809ccf4acd33da5daed170559fb6786
+- Coverage-Checked: 2026-11-27 by host-default
 - Work-Kind: feature
 - Priority: high
 - Blocks-Release: next
@@ -26,6 +26,7 @@
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-27 coverage pass (aw agy run): fingerprint 48a208fc592d, model by host-default
 - 2026-11-26 note (antigravity/gemini): split Order 321 (3e0vfy, make plan_readiness, status_set, artifact_refs, and artifact_adopt log-aware in the cutover code patch) ahead of x3mig6 per maintainer answer to run-20261126T055808Z-863961 question 06-x3mig6-a1-batch-f-production-log-aware-gaps; E-233 confirms 3e0vfy; E-225 (x3mig6) depends on E-233; E-179 (x1mmdp) and E-13 (cxxmyv) depend on E-233.
 - 2026-11-26 note (antigravity/gemini): split Orders 319 (j1f454, make selectors status matching, typed-subject ownership, and artifact_rename to-id6 log-aware in the cutover code patch) and 320 (lec341, make research_cmd create, research_refs renames, and research_archive moves log-aware in the cutover code patch) ahead of qi0kl6 per maintainer answer to run-20261126T055808Z-863961 question 05-qi0kl6-a1-batch-e-production-log-aware-gaps; E-231 confirms j1f454; E-232 confirms lec341; E-224 (qi0kl6) depends on E-232; E-179 (x1mmdp) and E-13 (cxxmyv) depend on E-231 and E-232.
 - 2026-11-26 note (antigravity/gemini): split Orders 317 (p109wy, make review mirrors, prompt metadata, and check_engine priority log-aware in the cutover code patch) and 318 (q6fiws, make coverage_record, readiness, runner, and review-sequence evaluators log-aware in the cutover code patch) ahead of e0g2gt per maintainer answer to run-20261126T055808Z-863961 question 04-e0g2gt-a1-batch-d-production-log-aware-gaps; E-229 confirms p109wy; E-230 confirms q6fiws; E-223 (e0g2gt) depends on E-230; E-179 (x1mmdp) and E-13 (cxxmyv) depend on E-229 and E-230.
