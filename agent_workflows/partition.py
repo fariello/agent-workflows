@@ -78,14 +78,18 @@ class BlockedMember:
     status: str
     cause: str
     fix: str
+    unsatisfied_dependencies: Tuple[str, ...] = ()
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        payload: Dict[str, Any] = {
             "id6": self.id6,
             "status": self.status,
             "cause": self.cause,
             "fix": agent_schema.redact_home_paths(self.fix),
         }
+        if self.unsatisfied_dependencies:
+            payload["unsatisfied_dependencies"] = list(self.unsatisfied_dependencies)
+        return payload
 
 
 @dataclass(frozen=True)
@@ -628,7 +632,6 @@ def classify_sets(
     active_runnable_ids: Set[str] = {
         mid for cs in classifications.values() for mid in cs.runnable
     }
-    unsatisfied_targets: Dict[str, List[str]] = {}
 
     changed = True
     while changed:
@@ -656,9 +659,36 @@ def classify_sets(
                 if not can_satisfy:
                     active_runnable_ids.remove(mid)
                     changed = True
-                    if target_id:
-                        unsatisfied_targets.setdefault(mid, []).append(target_id)
                     break
+
+    # Collect ALL unsatisfied dependency targets for each blocked member once active_runnable_ids has converged.
+    unsatisfied_targets: Dict[str, List[str]] = {}
+    for mid, edges in member_edges.items():
+        if mid in active_runnable_ids:
+            continue
+        seen_targets: Set[str] = set()
+        targets_for_mid: List[str] = []
+        for edge in edges:
+            sat_disk, _ = is_edge_satisfied_on_disk(
+                repo_root,
+                edge,
+                consumer_action=action_flag or "execute",
+                review_unreviewed_deps=review_unreviewed_deps,
+            )
+            if sat_disk:
+                continue
+            target_id = getattr(edge, "id6", "")
+            can_satisfy = False
+            if edge.kind == "executed" or (
+                edge.kind == "state" and getattr(edge, "target_type", "") == "ipd"
+            ):
+                if target_id and target_id in active_runnable_ids:
+                    can_satisfy = True
+            if not can_satisfy and target_id and target_id not in seen_targets:
+                seen_targets.add(target_id)
+                targets_for_mid.append(target_id)
+        if targets_for_mid:
+            unsatisfied_targets[mid] = targets_for_mid
 
     for setid, cs in list(classifications.items()):
         new_runnable = list(cs.runnable)
@@ -669,9 +699,11 @@ def classify_sets(
                 m_info = members_by_id.get(mid)
                 m_status = m_info[1].status if m_info else "approved"
                 targets = unsatisfied_targets.get(mid, [])
-                if targets:
-                    targets_str = ", ".join(sorted(set(targets)))
-                    fix_clause = f"run with --with-dependencies, or execute prerequisite {targets_str} first"
+                if len(targets) == 1:
+                    fix_clause = f"run with --with-dependencies, or execute prerequisite {targets[0]} first"
+                elif targets:
+                    targets_str = ", ".join(targets)
+                    fix_clause = f"run with --with-dependencies, or execute prerequisites {targets_str} first"
                 else:
                     fix_clause = "satisfy declared item-dependencies before scheduling"
                 new_blocked.append(
@@ -680,6 +712,7 @@ def classify_sets(
                         status=m_status,
                         cause="unsatisfied-dependency",
                         fix=fix_clause,
+                        unsatisfied_dependencies=tuple(targets),
                     )
                 )
         classifications[setid] = SetClassification(
@@ -723,7 +756,13 @@ def render_set_block(
     for b in cs.blocked:
         b_id = term.colorize(b.id6, "bold")
         cause_text = b.cause.replace("-", " ")
-        blocked_items.append(f"{b_id} ({b.status}, {cause_text})")
+        if b.unsatisfied_dependencies:
+            deps_str = ", ".join(b.unsatisfied_dependencies)
+            blocked_items.append(
+                f"{b_id} ({b.status}, {cause_text}) [needs: {deps_str}]"
+            )
+        else:
+            blocked_items.append(f"{b_id} ({b.status}, {cause_text})")
     lines.append(f"  blocked: {', '.join(blocked_items)}")
 
     # Fix line
@@ -787,10 +826,37 @@ def render_set_block(
         ids_str = " ".join(b.id6 for b in running)
         fix_clauses.append(f"wait for active run to finish {ids_str}")
 
+    all_unsat_deps: List[str] = []
     if unsatisfied:
+        unsat_member_ids = {b.id6 for b in unsatisfied}
+        root_deps: List[str] = []
+        cascading_deps: List[str] = []
+        seen_deps: Set[str] = set()
+        fallback_fixes: List[str] = []
         for b in unsatisfied:
-            if b.fix not in fix_clauses:
-                fix_clauses.append(b.fix)
+            if b.unsatisfied_dependencies:
+                for dep_id in b.unsatisfied_dependencies:
+                    if dep_id in seen_deps:
+                        continue
+                    seen_deps.add(dep_id)
+                    if dep_id not in unsat_member_ids:
+                        root_deps.append(dep_id)
+                    else:
+                        cascading_deps.append(dep_id)
+            elif b.fix not in fallback_fixes:
+                fallback_fixes.append(b.fix)
+        all_unsat_deps = root_deps + cascading_deps
+        if len(all_unsat_deps) == 1:
+            fix_clauses.append(
+                f"run with --with-dependencies, or execute prerequisite {all_unsat_deps[0]} first"
+            )
+        elif all_unsat_deps:
+            fix_clauses.append(
+                f"run with --with-dependencies, or execute prerequisites {', '.join(all_unsat_deps)} first"
+            )
+        for fb in fallback_fixes:
+            if fb not in fix_clauses:
+                fix_clauses.append(fb)
 
     if other:
         for b in other:
@@ -820,6 +886,15 @@ def render_set_block(
         else:
             full_fix = base_fix
         lines.append(f"  fix:     {full_fix}")
+
+    if unsatisfied and all_unsat_deps:
+        missing_dep_ids = [b.id6 for b in unsatisfied]
+        dep_cmd = term.colorize(f"aw att {' '.join(all_unsat_deps)}", "cyan")
+        missing_cmd = term.colorize(f"aw att {' '.join(missing_dep_ids)}", "cyan")
+        lines.append(
+            f"  inspect: for more info on dependencies, run: {dep_cmd}\n"
+            f"           for more info on items missing those dependencies, run: {missing_cmd}"
+        )
 
     return lines
 

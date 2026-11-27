@@ -1816,3 +1816,145 @@ def test_partition_action_review_admits_explicit_rereview_ids_and_guards_sets_an
     cap_orch_skip = capsys.readouterr()
     assert "orchestrator plan" in cap_orch_skip.err and "skipping" in cap_orch_skip.err
     assert cap_orch_skip.out.strip() == "rrch01"
+
+
+def test_unsatisfied_dependency_lists_prereqs_and_inspect_commands(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Unsatisfied-dependency refusals list all missing dependency id6s per blocked item,
+    collapse repeated prerequisite fix clauses, emit aw att inspect commands, and expose
+    unsatisfied_dependencies in --json output.
+    """
+    repo = tmp_path / "repo_unsat_inspect"
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+
+    # External prerequisite not selected
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "child",
+        "approved",
+        "setext",
+        "External Prereq",
+        1,
+        "pext01",
+        "External Prerequisite",
+    )
+
+    table_u = (
+        ("01", "uchl01", "Child 1"),
+        ("02", "uchl02", "Child 2"),
+        ("03", "uchl03", "Child 3"),
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "orchestrator",
+        "approved",
+        "setu",
+        "Set U",
+        0,
+        "uorch0",
+        "Set U Orchestrator",
+        child_orders=table_u,
+        item_dependencies="executed:uchl01, executed:uchl02, executed:uchl03",
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "child",
+        "approved",
+        "setu",
+        "Set U",
+        1,
+        "uchl01",
+        "Child 1",
+        item_dependencies="executed:pext01",
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "child",
+        "approved",
+        "setu",
+        "Set U",
+        2,
+        "uchl02",
+        "Child 2",
+        item_dependencies="executed:uchl01",
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261010",
+        "child",
+        "approved",
+        "setu",
+        "Set U",
+        3,
+        "uchl03",
+        "Child 3",
+    )
+
+    code = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "setu",
+            "--run",
+            "none",
+            "--no-color",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert code == 2
+    cap = capsys.readouterr()
+    assert cap.out == ""
+    assert (
+        "error: Set 'setu' cannot finish in this batch, so nothing was scheduled."
+        in cap.err
+    )
+    assert "uchl01 (approved, unsatisfied dependency) [needs: pext01]" in cap.err
+    assert "uchl02 (approved, unsatisfied dependency) [needs: uchl01]" in cap.err
+    assert (
+        "uorch0 (approved, unsatisfied dependency) [needs: uchl01, uchl02]" in cap.err
+    )
+    assert (
+        "run with --with-dependencies, or execute prerequisites pext01, uchl01, uchl02 first"
+        in cap.err
+    )
+    assert cap.err.count("run with --with-dependencies") == 1
+    assert "for more info on dependencies, run: aw att pext01 uchl01 uchl02" in cap.err
+    assert (
+        "for more info on items missing those dependencies, run: aw att uorch0 uchl01 uchl02"
+        in cap.err
+    )
+
+    # JSON output includes structured unsatisfied_dependencies per blocked member
+    code_json = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "setu",
+            "--run",
+            "none",
+            "--json",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert code_json == 2
+    cap_json = capsys.readouterr()
+    payload = json.loads(cap_json.out)
+    blocked_by_id = {b["id6"]: b for b in payload["blocked_sets"][0]["blocked"]}
+    assert blocked_by_id["uchl01"]["unsatisfied_dependencies"] == ["pext01"]
+    assert blocked_by_id["uchl02"]["unsatisfied_dependencies"] == ["uchl01"]
+    assert blocked_by_id["uorch0"]["unsatisfied_dependencies"] == ["uchl01", "uchl02"]
