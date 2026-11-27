@@ -5,8 +5,9 @@
 - Concern: After the cutover commit, `cxxmyv` must demonstrate about fifteen acceptance criteria of spec `4sd62s` on the real migrated repository (its E-11) and measure AC-13 (its E-12). Writing and debugging those probes during the attended turn is the largest remaining load on it. The probes can be WRITTEN before the cutover as an inert script, and REHEARSED on the migrated rehearsal clone by `5qyba0`, without changing `main`'s on-disk format (C10a). Round-3 split, research `nj8zdp`.
 - Scope: Write `.aw/system/cutover/metastore-acceptance-demo.sh`, a script that prints one labelled block per criterion: read-only checks on the checkout it is pointed at, probes that commit or edit inside a throwaway `git clone --no-hardlinks`, and the AC-13 after-measurements. `cxxmyv` runs it after the cutover and deletes it in its last commit. Nothing runs it on `main` before the cutover except its syntax check.
 - Scope-Paths: .aw/records/plans/pending/20261109-metastore-259-33vxoi-write-the-post-cutover-acceptance-demonstration-script.ipd.md, .aw/system/cutover/metastore-acceptance-demo.sh
+- Scope-Exceeded: .aw/records/backlog/open/20261127-metastore-01-o97nzp-display-current-filenames-for-renamed-legacy-citat.backlog.md (defect-report backlog carrier o97nzp filed per runner prompt auto-reconciled by aw agy run)
 - Item-Dependencies: executed:1ajqaa, executed:87rvs2, executed:90iqr1, executed:aqc3m6, executed:clors0, executed:dcerjg, executed:g5hpbb, executed:iog3cw, executed:rdg0qv, executed:w13bkp, executed:ya4ee4, executed:zgyna1, executed:tub3ir
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: 4sd62s
@@ -18,11 +19,11 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 33vxoi
-- Approval: 2026-11-16, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-27 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: 33vxoi verified (set metastore, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261127-metastore-01-o97nzp-display-current-filenames-for-renamed-legacy-citat.backlog.md: defect-report backlog carrier o97nzp filed per runner prompt (auto-reconciled by aw agy run)]
 - 2026-11-16 approved (aw set): status set to approved
 
 - 2026-11-14 reviewed (antigravity): plan-review verified E/V bijection, Scope-Paths, script structure and dry-run safety, and execution gate; marked reviewed and go-pending-approval.
