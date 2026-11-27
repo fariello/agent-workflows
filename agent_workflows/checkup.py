@@ -524,7 +524,7 @@ def perform_checkup(
                 .strip()
                 .upper()
             )
-            if prev_status == "FAILING":
+            if prev_status in ("FAILING", "PASSING"):
                 return prev_rec
 
     write_checkup_record(root, record)
@@ -614,6 +614,42 @@ def is_checkup_warning(
 # --------------------------------------------------------------------------------------
 
 
+def _upstream_advanced_past_record(repo: Path, rec_commit: str, branch: str) -> bool:
+    """Return True if the remote tracking ref for ``branch`` moved strictly ahead of ``rec_commit``."""
+    refs: list[str] = []
+    if branch and branch.strip():
+        refs.append(f"origin/{branch.strip()}")
+    refs.append("@{u}")
+    for ref in refs:
+        try:
+            ver = subprocess.run(
+                ["git", "rev-parse", "--verify", "--quiet", ref],
+                cwd=str(repo),
+                capture_output=True,
+                text=True,
+                timeout=5.0,
+            )
+            if ver.returncode != 0 or not ver.stdout.strip():
+                continue
+            upstream_sha = ver.stdout.strip()
+            if upstream_sha == rec_commit:
+                return False
+            anc = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", rec_commit, upstream_sha],
+                cwd=str(repo),
+                capture_output=True,
+                timeout=5.0,
+            )
+            if anc.returncode == 0:
+                ahead = _count_commits_since(repo, rec_commit, upstream_sha)
+                if ahead is not None and ahead > 0:
+                    return True
+            return False
+        except Exception:
+            continue
+    return False
+
+
 def _is_checkup_due(repo: Path, branch: str, interval: int) -> bool:
     """Check if main has advanced at least interval commits or record is stale/absent."""
     if interval == 0:
@@ -641,6 +677,17 @@ def _is_checkup_due(repo: Path, branch: str, interval: int) -> bool:
     ci_status = str(ci.get("status") or ci.get("health") or "").strip().upper()
     if ci_status == "FAILING" and count > 0:
         return True
+    # If the remote tracking branch moved past the cached checkup commit (a push occurred
+    # since last.json was written), refresh so remote CI passes on the pushed tip are picked up.
+    if _upstream_advanced_past_record(repo, rec_commit, branch):
+        return True
+    # If the cached last_passing_commit has now crossed the red-CI threshold after new local
+    # commits, refresh CI before firing RUN-RED-CI on potentially stale data.
+    last_pass = ci.get("last_passing_commit") or ci.get("last_pass_commit")
+    if count > 0 and isinstance(last_pass, str) and last_pass.strip():
+        since_pass = _count_commits_since(repo, last_pass.strip(), branch)
+        if since_pass is not None and since_pass > interval:
+            return True
     return count >= interval
 
 

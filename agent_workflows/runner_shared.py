@@ -26440,14 +26440,14 @@ def _resolve_commit_timestamp_iso(repo: Path, commit_sha: str | None) -> str | N
 
 
 def _count_unpushed_commits(repo: Path, branch: str | None = None) -> int | None:
-    """Return count of local commits ahead of upstream, or None if no upstream exists."""
+    """Return count of first-parent local commits ahead of upstream, or None if no upstream exists."""
     refs = ["@{u}..HEAD"]
     if branch and branch.strip():
         refs.append(f"origin/{branch.strip()}..HEAD")
     for spec in refs:
         try:
             res = subprocess.run(
-                ["git", "rev-list", "--count", spec],
+                ["git", "rev-list", "--count", "--first-parent", spec],
                 cwd=str(repo),
                 capture_output=True,
                 text=True,

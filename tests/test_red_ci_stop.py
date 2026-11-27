@@ -1071,3 +1071,34 @@ def test_report_red_ci_warning_backfills_timestamp_and_age_when_info_absent(
     plain_git = term.strip_ansi("\n".join(lines_git))
     assert "ago (" in plain_git
     assert pass_short in plain_git
+
+
+def test_count_unpushed_commits_uses_first_parent(tmp_path: Path) -> None:
+    """`_count_unpushed_commits` counts first-parent mainline commits to match `Since pass`."""
+    from agent_workflows import checkup
+
+    repo, _first_sha, tip_sha, _ = _setup_repo(tmp_path, interval=10, extra_commits=0)
+    bare = tmp_path / "origin.git"
+    subprocess.run(
+        ["git", "init", "--bare", "-b", "main", str(bare)],
+        check=True,
+        capture_output=True,
+    )
+    _git(repo, "remote", "add", "origin", str(bare))
+    _git(repo, "push", "-u", "origin", "main")
+
+    # Create a side branch with 2 commits and merge it with --no-ff (3 raw commits, 1 first-parent).
+    _git(repo, "checkout", "-b", "feature")
+    for idx in (1, 2):
+        (repo / f"side_{idx}.txt").write_text(f"{idx}\n", encoding="utf-8")
+        _git(repo, "add", f"side_{idx}.txt")
+        _git(repo, "commit", "-m", f"side {idx}")
+    _git(repo, "checkout", "main")
+    _git(repo, "merge", "--no-ff", "feature", "-m", "merge feature")
+
+    raw_count = int(_git(repo, "rev-list", "--count", "origin/main..HEAD"))
+    assert raw_count == 3
+    unpushed = runner_shared._count_unpushed_commits(repo, branch="main")
+    since_pass = checkup._count_commits_since(repo, tip_sha, "main")
+    assert unpushed == 1
+    assert unpushed == since_pass

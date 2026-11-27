@@ -857,3 +857,106 @@ def test_custom_workflow_and_branch_reach_gh_argv(tmp_path, gh_env):
     assert "--branch" in argv
     br_idx = argv.index("--branch")
     assert argv[br_idx + 1] == "dev-branch"
+
+
+def test_is_checkup_due_refreshes_on_stale_pass_crossing_interval_and_upstream_push(
+    tmp_path,
+):
+    """Checkup refreshes when cached last_passing_commit crosses interval OR upstream advances."""
+    from unittest import mock
+
+    repo = _init_repo(tmp_path / "repo")
+    bare = tmp_path / "origin.git"
+    subprocess.run(
+        ["git", "init", "--bare", "-b", "main", str(bare)],
+        check=True,
+        capture_output=True,
+    )
+    _run_git(repo, "remote", "add", "origin", str(bare))
+
+    c0 = _run_git(repo, "rev-parse", "HEAD")
+    _run_git(repo, "push", "-u", "origin", "main")
+
+    # Add 2 local commits (c1, c2) and write a PASSING record at c2 whose last_passing_commit is c0.
+    for i in range(1, 3):
+        (repo / f"a_{i}.txt").write_text(f"{i}\n", encoding="utf-8")
+        _run_git(repo, "add", f"a_{i}.txt")
+        _run_git(repo, "commit", "-qm", f"c{i}")
+    c2 = _run_git(repo, "rev-parse", "HEAD")
+
+    rec_c2 = {
+        "schema_version": 1,
+        "commit": c2,
+        "time": "2026-11-25T16:26:58Z",
+        "ci": {
+            "status": "PASSING",
+            "health": "PASSING",
+            "last_passing_commit": c0,
+            "commits_since_last_pass": 2,
+        },
+        "slow_checks": {"status": "PASSING", "finding_counts": {}, "total_findings": 0},
+    }
+    checkup.save_checkup_record(rec_c2, repo)
+
+    # Scenario 1: At c2 (2 commits since c0, interval=4, origin/main still at c0) -> not due.
+    assert not checkup.is_checkup_due(repo, interval=4, branch="main")
+
+    # Add 3 more commits (c3..c5): c2..c5 = 3 < 4, but c0..c5 = 5 > 4 -> DUE!
+    for i in range(3, 6):
+        (repo / f"a_{i}.txt").write_text(f"{i}\n", encoding="utf-8")
+        _run_git(repo, "add", f"a_{i}.txt")
+        _run_git(repo, "commit", "-qm", f"c{i}")
+    c5 = _run_git(repo, "rev-parse", "HEAD")
+    assert checkup.is_checkup_due(repo, interval=4, branch="main")
+
+    # Offline UNKNOWN refresh preserves the prior PASSING record instead of erasing last_passing_commit.
+    ev_offline = tmp_path / "events_offline.jsonl"
+    with mock.patch.object(
+        checkup,
+        "read_ci_status",
+        return_value=checkup.CIRunResult(status="UNKNOWN", reason="gh offline"),
+    ), mock.patch.object(
+        checkup,
+        "run_slow_checks",
+        return_value=checkup.SlowChecksResult(status="PASSING"),
+    ):
+        checkup.run_start_checkup(
+            repo, events_path=ev_offline, config={"ci_checkup_interval_commits": 4}
+        )
+    preserved = checkup.read_checkup_record(repo)
+    assert preserved is not None
+    assert preserved["ci"]["status"] == "PASSING"
+    assert preserved["ci"]["last_passing_commit"] == c0
+
+    # Scenario 2: Even with a large interval (250), pushing to origin/main makes checkup DUE
+    # because origin/main moved strictly ahead of the cached record commit (c2).
+    assert not checkup.is_checkup_due(repo, interval=250, branch="main")
+    _run_git(repo, "push", "origin", "main")
+    assert checkup.is_checkup_due(repo, interval=250, branch="main")
+    assert not checkup.is_checkup_due(repo, interval=0, branch="main")
+
+    # Once run_start_checkup refreshes at c5, origin/main == rec_commit -> no longer due!
+    ev_ok = tmp_path / "events_ok.jsonl"
+    with mock.patch.object(
+        checkup,
+        "read_ci_status",
+        return_value=checkup.CIRunResult(
+            status="PASSING",
+            conclusion="success",
+            latest_commit=c5,
+            last_passing_commit=c5,
+            commits_since_last_pass=0,
+        ),
+    ), mock.patch.object(
+        checkup,
+        "run_slow_checks",
+        return_value=checkup.SlowChecksResult(status="PASSING"),
+    ):
+        checkup.run_start_checkup(
+            repo, events_path=ev_ok, config={"ci_checkup_interval_commits": 250}
+        )
+    refreshed = checkup.read_checkup_record(repo)
+    assert refreshed is not None
+    assert refreshed["commit"] == c5
+    assert refreshed["ci"]["last_passing_commit"] == c5
+    assert not checkup.is_checkup_due(repo, interval=250, branch="main")
