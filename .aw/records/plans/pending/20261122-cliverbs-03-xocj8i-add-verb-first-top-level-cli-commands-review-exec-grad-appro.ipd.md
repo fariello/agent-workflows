@@ -6,7 +6,7 @@
 - Scope: Add `_dispatch_antigravity` in `agent_workflows/run_dispatch.py` and positional `as <profile>` + `runner_profiles.resolve` support in `agent_workflows/agy_runipd.py` (via shared `runner_shared.extract_profile_clause`), updating `tests/test_runner_profiles_verbs.py` and `tests/test_agy_runipd_cli.py`; register top-level `review` (alias `rev`), `exec`, `plan` (aliases `grad`, `graduate`), and `approve` (TTY auto-attest vs non-TTY `--by-human --message`) in `agent_workflows/cli.py`, `agent_workflows/run_dispatch.py`, `agent_workflows/runner_shared.py`, and `agent_workflows/status_set.py`; enable `"execute"` in `runner_shared.ACTION_IMPLEMENTED` (and update `tests/test_oc_runipd.py`) so `aw exec` does not fail with `"--action execute is not implemented yet"`; preserve existing `aw run`, `aw oc`, `aw agy`, and `aw set` commands unbroken; update `agent_workflows/completion.py`, `agent_workflows/command_surface.py`, `tests/conformance_matrix.py`, `docs/cli-output-contract.md`, and `CHANGELOG.md`; add behavioral tests in `tests/test_cli_verbs.py`, update `tests/test_completion.py`, and run whole-Set verification. EXCLUDES standalone `--action validate` (`/verify-execution` on executed plans) and top-level `aw validate` (deferred to backlog `2hssxe` per 2026-11-27 maintainer ruling on `OQ-01`), removing `aw oc`/`aw agy`/`aw run`/`aw set`, relocating `aw reviews record` (`pqqqzf`), and `aw show`/`reviews` command-surface parity (`p06t7i`).
 - Scope-Paths: agent_workflows/agy_runipd.py, agent_workflows/cli.py, agent_workflows/run_dispatch.py, agent_workflows/runner_shared.py, agent_workflows/status_set.py, agent_workflows/completion.py, agent_workflows/command_surface.py, docs/cli-output-contract.md, CHANGELOG.md, tests/conformance_matrix.py, tests/test_cli_verbs.py, tests/test_completion.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_profiles_verbs.py, .aw/records/plans/pending/20261122-cliverbs-03-xocj8i-add-verb-first-top-level-cli-commands-review-exec-grad-appro.ipd.md
 - Item-Dependencies: executed:m7jcis, executed:p06t7i, executed:e36q6r
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - Short-Description: Wire aw rev/review, aw exec, aw plan/grad/graduate, aw approve, and agy dispatch adapter with selectors, completions, and tests
@@ -19,11 +19,13 @@
 - Highest E allocated: 06
 - Author: antigravity
 - Id: xocj8i
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-27 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002 (FIXED in Round 2 per maintainer rulings), PR-009 (FIXED); review record .aw/records/reviews/20261122-cliverbs-03-xocj8i-add-verb-first-top-level-cli-commands-review-exec-grad-appro.review.md
 - 2026-11-27 reviewed (aw set): plan-review: REVIEWED - OPEN QUESTIONS; PR-001, PR-002 (OPEN/blocking), PR-003..PR-008 (FIXED)
 - 2026-11-27 /plan-review (antigravity/gemini): REVIEWED - OPEN QUESTIONS; PR-001 (BLOCKER, OPEN -> OQ-01), PR-002 (BLOCKER, OPEN -> OQ-02), PR-003..PR-008 (FIXED); review record .aw/records/reviews/20261122-cliverbs-03-xocj8i-add-verb-first-top-level-cli-commands-review-exec-grad-appro.review.md

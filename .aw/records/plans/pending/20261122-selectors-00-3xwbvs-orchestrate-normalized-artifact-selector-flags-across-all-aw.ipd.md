@@ -6,7 +6,7 @@
 - Scope: Coordinate Orders 01 through 03 of Set `selectors`: Order 01 (`bzsoai`, approved) builds the shared selector spec, flag builder, range/date/time parser, durable git/history timestamp engine, and aligned `agent_workflows/attention.py` mtime/ctime sorting; Order 02 (`mnlaoa`, approved) extends the builder with `dest_prefix` and `selectors.selector_records`, wires the normalized flags into query and mutation CLI commands (`att`/`next`, `find`, `search`, `partition`, `show`, `set`, `group`, `rename`, `archive`, `index`, `ipd board`), resolves short-flag and mutation-date collisions (`--details`/`--desc`, `--paths`, `--short`, `--new-date`, `--history-date`, hiding `--arcive-state`), and amends spec `ogd2nv` R-05/R-06/AC-03; Order 03 (`e36q6r`, approved) adds the queue-filter seam in `agent_workflows/runner_shared.py`, wires normalized selectors (`include_types=False`, keeping the runner `--type` of spec `25kzda` Section 2.1) into `oc_runipd`/`agy_runipd`, moves `aw agy exec -p` to `--prompt`, updates shell completions, `command_surface.py` `legacy_flags`, spec `ogd2nv` R-06/AC-03, `docs/cli-output-contract.md` Section 16, and `CHANGELOG.md`, and executes whole-Set parity verification. This orchestrator performs no code edits itself.
 - Scope-Paths: .aw/records/plans/pending/20261122-selectors-00-3xwbvs-orchestrate-normalized-artifact-selector-flags-across-all-aw.ipd.md
 - Item-Dependencies: executed:bzsoai, executed:mnlaoa, executed:e36q6r
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: orchestrator
 - Coverage: pass
@@ -22,11 +22,13 @@
 - Highest E allocated: 03
 - Author: antigravity
 - Id: 3xwbvs
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-27 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-27 coverage pass (aw oc run): fingerprint 4b12392b5adb, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-27 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004 FIXED; review record .aw/records/reviews/20261122-selectors-00-3xwbvs-orchestrate-normalized-artifact-selector-flags-across-all-aw.review.md

@@ -6,7 +6,7 @@
 - Scope: Coordinate Orders 01 through 03 of Set `cliverbs`: Order 01 (`m7jcis`) adds per-state default profile routing, single-host `PATH` fallback, and host-neutral `aw profile`; Order 02 (`p06t7i`) unifies read-only views under `aw show` (`stale-reviews`, `review-decisions`, `graduation`, `board`, `history` matching durable `aw show <id6> --history`, `runs`, `artifact`) and removes `aw reviews decisions` while keeping `aw reviews record` intact through `metastore` cutover `cxxmyv` (full `aw reviews` retirement deferred to `pqqqzf`); Order 03 (`xocj8i`) adds the Antigravity (`agy`) dispatch adapter and `agy_runipd.py` `as <profile>` support (`E-06`), enables `--action execute`, adds the four verb-first top-level CLI commands (`rev`/`review`, `exec`, `plan`/`grad`/`graduate`, `approve`), updates completions/declarations/conformance/docs/`CHANGELOG.md`, and performs whole-Set verification (`E-05`/`V-05`; standalone `--action validate` and `aw validate` deferred to backlog `2hssxe`). This orchestrator performs no code edits itself.
 - Scope-Paths: .aw/records/plans/pending/20261122-cliverbs-00-lmlji2-orchestrate-verb-first-top-level-cli-commands-and-unified-aw.ipd.md
 - Item-Dependencies: executed:m7jcis, executed:p06t7i, executed:xocj8i
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: orchestrator
 - Coverage: pass
@@ -22,11 +22,13 @@
 - Highest E allocated: 03
 - Author: antigravity
 - Id: lmlji2
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-27 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002 (FIXED)
 - 2026-11-27 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002 (FIXED); review record .aw/records/reviews/20261122-cliverbs-00-lmlji2-orchestrate-verb-first-top-level-cli-commands-and-unified-aw.review.md
 - 2026-11-27 coverage pass (aw oc run): fingerprint 9f52ff957505, model uri/its_direct/pt3-claude-opus-5.5-1m-us

@@ -6,7 +6,7 @@
 - Scope: Replace the single-positional `p_show` parser in `agent_workflows/cli.py` with a hybrid subparser router (`_ShowViewOrArtifactSubParsersAction` + `_ShowArgumentParser`, modeled on `_ViewerOrLeafSubParsersAction` and `_RunsArgumentParser`) dispatching the seven reserved leaves (`stale-reviews`, `review-decisions`, `graduation`, `board`, `history`, `runs`, `artifact`) while preserving bare `aw show <id6|setid|status>` fallback and normalized selector flags (`mnlaoa`, transitive via `e36q6r`); wire normalized selector filtering into `show stale-reviews` (building on `9ifwdx`), `show review-decisions` (`agent_workflows/reviews.py::run_decisions`), and `show graduation`; route `show history <id6>` to durable tracked workflow and metadata history (`agent_workflows/cli.py::_run_show_meta`, matching `aw show <id6> --history`) while leaving `aw record-history <id6>` intact for the machine-local gitignored sidecar; keep `_runs_viewer_flags` isolated on `show runs` to avoid flag collisions; remove `aw reviews decisions` from `agent_workflows/cli.py` while keeping top-level `aw reviews` solely for `aw reviews record` (`724acb` / approved spec `4sd62s`) until post-cutover backlog `pqqqzf`; update `agent_workflows/check_engine.py`, `agent_workflows/command_surface.py`, `tests/conformance_matrix.py`, `tests/test_usage_refusal_agent_record.py`, `tests/test_read_verb_zero_match_refusal.py`, `tests/test_review_decisions.py`, `tests/test_cli_show.py`, `docs/cli-output-contract.md`, `docs/artifact-lifecycles.md`, `.aw/records/reviews/README.md`, `.aw/system/workflows/plan-review/steps/s5-questions.md`, `.aw/system/workflows/plan-review-long/03-resolve-and-finalize.md`, and `CHANGELOG.md`; add behavioral tests in `tests/test_show_views.py`. EXCLUDES verb-first operational commands and shell completion updates (`xocj8i`), and relocating `aw reviews record` / removing top-level `aw reviews` (`pqqqzf`).
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/reviews.py, agent_workflows/check_engine.py, agent_workflows/command_surface.py, docs/cli-output-contract.md, docs/artifact-lifecycles.md, .aw/records/reviews/README.md, .aw/system/workflows/plan-review/steps/s5-questions.md, .aw/system/workflows/plan-review-long/03-resolve-and-finalize.md, CHANGELOG.md, tests/conformance_matrix.py, tests/test_usage_refusal_agent_record.py, tests/test_read_verb_zero_match_refusal.py, tests/test_review_decisions.py, tests/test_cli_show.py, tests/test_show_views.py, .aw/records/plans/pending/20261122-cliverbs-02-p06t7i-unify-read-only-views-under-aw-show-and-remove-aw-reviews-fo.ipd.md
 - Item-Dependencies: executed:e36q6r, executed:9ifwdx
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - Short-Description: Add reserved aw show views (stale-reviews, review-decisions, graduation, board, history, runs, artifact escape) and retire aw reviews decisions
@@ -19,11 +19,13 @@
 - Highest E allocated: 05
 - Author: antigravity
 - Id: p06t7i
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-27 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; OQ-01 and OQ-02 resolved by maintainer (terminal channel); PR-001, PR-002 FIXED (Round 2); review record .aw/records/reviews/20261122-cliverbs-02-p06t7i-unify-read-only-views-under-aw-show-and-remove-aw-reviews-fo.review.md
 - 2026-11-27 reviewed (aw set): plan-review: REVIEWED - OPEN QUESTIONS; PR-001, PR-002 (OPEN/blocking), PR-003..PR-008 (FIXED)
 - 2026-11-27 /plan-review (antigravity/gemini): REVIEWED - OPEN QUESTIONS; PR-001 (BLOCKER, OPEN -> OQ-01), PR-002 (HIGH, OPEN -> OQ-02), PR-003..PR-008 (FIXED); review record .aw/records/reviews/20261122-cliverbs-02-p06t7i-unify-read-only-views-under-aw-show-and-remove-aw-reviews-fo.review.md
