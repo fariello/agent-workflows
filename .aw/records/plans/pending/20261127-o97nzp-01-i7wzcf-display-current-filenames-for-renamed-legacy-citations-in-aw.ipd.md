@@ -9,7 +9,7 @@
 - From-Spec: 4sd62s
 - From-Backlog: o97nzp
 - Blocks-Release: next
-- Status: reviewed
+- Status: approved
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - Short-Description: Resolve renamed legacy artifact filenames to current clustered names in aw show --history (spec 4sd62s AC-41 case 4)
@@ -20,11 +20,13 @@
 - Highest E allocated: 04
 - Author: antigravity/gemini
 - Id: i7wzcf
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-27 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-27 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005; review record .aw/records/reviews/20261127-o97nzp-01-i7wzcf-display-current-filenames-for-renamed-legacy-citations-in-aw.review.md
 - 2026-11-27 to-review (antigravity/gemini): authored review-ready plan graduating backlog o97nzp for spec 4sd62s AC-41 case 4.

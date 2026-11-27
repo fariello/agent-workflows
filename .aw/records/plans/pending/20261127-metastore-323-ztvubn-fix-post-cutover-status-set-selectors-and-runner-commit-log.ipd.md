@@ -6,7 +6,7 @@
 - Scope: Work inside an isolated scratch worktree `.aw/state/ztvubn/scratch` with both cutover patches applied, sequenced after executed plans `6cltab` (Order 322) and `cugg3w` (Order 308) and ahead of Order 324 (`639g02`) and test batch B (`psm9ac`). Fix all four defects inside `.aw/system/cutover/metastore-code.cutover.patch`: (1) unset cleared keys instead of writing literal `"-"` in `agent_workflows/status_set.py::run_set_command._render_gate_fields` (`2zknl8`); (2) compare full pre-mutation and post-mutation metadata fields in `agent_workflows/status_set.py::_prepare_status_change` and include metadata-log byte changes in `agent_workflows/status_set.py::run_set_command`'s `changed` flag so same-status field-only updates append and report `changed=True` while true no-ops remain unchanged (`kj0neb`); (3) add the bare-repository in-tree `artifact_meta.legacy_context` fallback (handling both nonexistent `records_root` and an empty `AW_HOME` `records/` directory without `meta/`, recomputing `records_root`, `scan_repo`, and `state_root`) in `agent_workflows/selectors.py::_cached_states_by_path` (`nwz9nd`); and (4) include companion `.aw/records/meta/<id6>.jsonl` logs in `agent_workflows/runner_shared.py::commit_spec_production_output`, `commit_spec_transition_output`, `commit_backlog_production_output`, and `commit_backlog_transition_output` while keeping unrelated paths, unrelated meta logs, and `.aw/state/` paths out of scope or uncommitted (`tjfc7p`). Add and pass core behavioral tests in `tests/test_cutover_log_setter_selectors_runner_commits.py`, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. Make no live code or test changes outside `- Scope-Paths:`.
 - Scope-Paths: .aw/records/plans/pending/20261127-metastore-323-ztvubn-fix-post-cutover-status-set-selectors-and-runner-commit-log.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:cugg3w
-- Status: reviewed
+- Status: approved
 - Review-Depth: complex
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -19,11 +19,13 @@
 - Highest E allocated: 05
 - Author: antigravity/gemini
 - Id: ztvubn
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-27 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-27 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005; review record .aw/records/reviews/20261127-metastore-323-ztvubn-fix-post-cutover-status-set-selectors-and-runner-commit-log.review.md
 - 2026-11-27 to-review (antigravity/gemini): authored as Order 323 ahead of Order 324 (639g02) and psm9ac for verified batch B production defects 2zknl8, kj0neb, nwz9nd, and tjfc7p from run-20261127T195325Z-3081649.
