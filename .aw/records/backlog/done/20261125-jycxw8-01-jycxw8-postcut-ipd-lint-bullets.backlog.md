@@ -1,5 +1,5 @@
 - Id: jycxw8
-- Status: graduated
+- Status: done
 - Set: jycxw8
 - Work-Kind: bug
 - Priority: high
@@ -10,6 +10,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-27 done (aw backlog): closed by aw agy run: IPD hdwqex executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261125-metastore-305-hdwqex-make-ipd-lint-and-ipd-scaffold-log-aware-in-the-cutover-code.ipd.md); evidence .aw/records/plans/executed/20261125-metastore-305-hdwqex-make-ipd-lint-and-ipd-scaffold-log-aware-in-the-cutover-code.ipd.md
 - 2026-11-26 graduated (aw backlog): Carried by metastore Order 305 (hdwqex) per maintainer answer to run-20261125T162650Z-1337442 question 06-x1mmdp-a1-Q-01
 - 2026-11-25 created (aw backlog): Post-cutover ipd lint and ipd scaffold still assume the bullet block and Workflow history H2
 

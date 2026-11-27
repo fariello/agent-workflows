@@ -1,8 +1,8 @@
 diff --git a/agent_workflows/agy_run.py b/agent_workflows/agy_run.py
-index e27581fec..35d9d9b13 100755
+index b166b011b..7eaf0dbe8 100755
 --- a/agent_workflows/agy_run.py
 +++ b/agent_workflows/agy_run.py
-@@ -332,7 +332,7 @@ def _candidate_plans(root: Path, states: Iterable[str]) -> list[Path]:
+@@ -336,7 +336,7 @@ def _candidate_plans(root: Path, states: Iterable[str]) -> list[Path]:
      # than re-implementing a recursive walk. Non-recursion in the previous glob masked
      # the lack of an ignored-path filter; plans_index.plan_files couples the recursive walk,
      # the mandatory ignored-path filter (artifact_core.is_ignored_path), the exclusion
@@ -11,7 +11,7 @@ index e27581fec..35d9d9b13 100755
      # We import locally to avoid introducing top-level package imports in agy_run.
      from agent_workflows import plans_index
      from agent_workflows.project_context import project_records_dir
-@@ -435,7 +435,7 @@ def resolve_spec(root: Path, value: str) -> Path:
+@@ -439,7 +439,7 @@ def resolve_spec(root: Path, value: str) -> Path:
      # than re-implementing a recursive walk. Non-recursion in the previous glob masked
      # the lack of an ignored-path filter; specs._spec_files couples the recursive walk,
      # the mandatory ignored-path filter (artifact_core.is_ignored_path), the exclusion
@@ -21,10 +21,10 @@ index e27581fec..35d9d9b13 100755
      from agent_workflows import specs
  
 diff --git a/agent_workflows/artifact_adopt.py b/agent_workflows/artifact_adopt.py
-index a85d35a70..3e3f29ac5 100644
+index d1243dd02..b2cfb9167 100644
 --- a/agent_workflows/artifact_adopt.py
 +++ b/agent_workflows/artifact_adopt.py
-@@ -1015,13 +1015,7 @@ def apply_adoption(
+@@ -1109,13 +1109,7 @@ def apply_adoption(
              overwrite=overwrite,
              migration_import=plan.leaks.has_fail,
              project_context=ctx,
@@ -40,7 +40,7 @@ index a85d35a70..3e3f29ac5 100644
      except Exception as exc:  # noqa: BLE001
          return None, f"destination write failed (original left in place): {exc}"
 diff --git a/agent_workflows/artifact_core.py b/agent_workflows/artifact_core.py
-index 6b9a5999d..e3e50887d 100644
+index 3f605a290..015ff87c3 100644
 --- a/agent_workflows/artifact_core.py
 +++ b/agent_workflows/artifact_core.py
 @@ -367,8 +367,8 @@ def normalize_artifact_markdown(text: str) -> str:
@@ -55,7 +55,7 @@ index 6b9a5999d..e3e50887d 100644
  
      THE MARKDOWN HARD-LINE-BREAK TRADEOFF IS DELIBERATE AND OWNED HERE. A per-line rstrip destroys
 diff --git a/agent_workflows/artifact_meta.py b/agent_workflows/artifact_meta.py
-index 4d8b2b01b..8805728bc 100644
+index 45334de53..344832b6d 100644
 --- a/agent_workflows/artifact_meta.py
 +++ b/agent_workflows/artifact_meta.py
 @@ -26,12 +26,10 @@ import subprocess
@@ -110,7 +110,7 @@ index 4d8b2b01b..8805728bc 100644
          sort_keys=True,
      ).encode("utf-8")
      return hashlib.sha256(canon_bytes).hexdigest()
-@@ -3497,11 +3482,6 @@ def _parse_yaml_front_matter(text: str) -> Tuple[Dict[str, str], Optional[str]]:
+@@ -3559,11 +3544,6 @@ def _parse_yaml_front_matter(text: str) -> Tuple[Dict[str, str], Optional[str]]:
      return data, title
  
  
@@ -122,7 +122,7 @@ index 4d8b2b01b..8805728bc 100644
  def stored_path(
      abs_path: Union[str, Path],
      records_root: Union[str, Path],
-@@ -3568,520 +3548,6 @@ def _scan_repo_root(ctx: Any, records_root: Path) -> Optional[Path]:
+@@ -3630,520 +3610,6 @@ def _scan_repo_root(ctx: Any, records_root: Path) -> Optional[Path]:
      return _proj_ctx.record_git_root(records_root)
  
  
@@ -643,7 +643,7 @@ index 4d8b2b01b..8805728bc 100644
  def load_legacy_review(
      path: Path,
      records_root: Path,
-@@ -4215,109 +3681,6 @@ def _delete_artifact_projection(conn: sqlite3.Connection, id6: str) -> None:
+@@ -4277,109 +3743,6 @@ def _delete_artifact_projection(conn: sqlite3.Connection, id6: str) -> None:
      conn.execute("DELETE FROM field_changes WHERE id6 = ?", (id6,))
  
  
@@ -753,7 +753,7 @@ index 4d8b2b01b..8805728bc 100644
  def _load_sources(
      conn: sqlite3.Connection,
      changed_sources: List[Dict[str, Any]],
-@@ -4345,54 +3708,6 @@ def _load_sources(
+@@ -4407,54 +3770,6 @@ def _load_sources(
          dig_i = hashlib.sha256(raw_b).hexdigest()
          pre_reads[p_s] = (st_i, dig_i, raw_b)
  
@@ -808,7 +808,7 @@ index 4d8b2b01b..8805728bc 100644
      # Track (id6 <-> path) in memory across this batch so legacy loading does not run an
      # O(N^2) `SELECT id6 FROM artifacts WHERE path != ?` full table scan on every file.
      _art_id_by_path: Dict[str, str] = {}
-@@ -4820,124 +4135,45 @@ def _load_sources(
+@@ -4882,124 +4197,45 @@ def _load_sources(
                      )
  
              elif role in ("artifact", "walkthrough"):
@@ -967,7 +967,7 @@ index 4d8b2b01b..8805728bc 100644
  
  
  def _require_schema(project_context: Any, records_root: Path) -> None:
-@@ -5129,11 +4365,7 @@ def check_freshness(
+@@ -5191,11 +4427,7 @@ def check_freshness(
                      ):
                          subdirs.append((entry.path, f"{rel_prefix}{fname}"))
                      continue
@@ -980,7 +980,7 @@ index 4d8b2b01b..8805728bc 100644
                      continue
                  rel_f = f"{rel_prefix}{fname}"
                  current_files_set.add(rel_f)
-@@ -5196,12 +4428,7 @@ def check_freshness(
+@@ -5258,12 +4490,7 @@ def check_freshness(
                      dirty_dirs.append((dir_stored, current_mtime))
  
                  for fname in files:
@@ -994,7 +994,7 @@ index 4d8b2b01b..8805728bc 100644
                          continue
                      fpath = root_p / fname
                      try:
-@@ -5875,24 +5102,17 @@ def history(id6: str, *, project_context: Any = None) -> List[Dict[str, Any]]:
+@@ -5968,24 +5195,17 @@ def history(id6: str, *, project_context: Any = None) -> List[Dict[str, Any]]:
                      )
              return res
  
@@ -1022,7 +1022,7 @@ index 4d8b2b01b..8805728bc 100644
          # (4.1a), appended after the history lines in file order, with no inferred ordering.
          for rv in conn.execute(
              """SELECT r.seq, r.round, r.review_kind, r.verdict, r.legacy_verdict, r.observed_day,
-@@ -6413,65 +5633,35 @@ def resolve_id_at(
+@@ -6506,65 +5726,35 @@ def resolve_id_at(
      return declared
  
  
@@ -1108,7 +1108,7 @@ index 4d8b2b01b..8805728bc 100644
  
  
  def read_path_at(
-@@ -6505,27 +5695,18 @@ def read_path_at(
+@@ -6598,27 +5788,18 @@ def read_path_at(
                  kind="invalid-revision", error=f"invalid revision {rev!r}"
              )
  
@@ -1142,7 +1142,7 @@ index 4d8b2b01b..8805728bc 100644
  
  
  def read_at(
-@@ -6627,121 +5808,8 @@ def read_at(
+@@ -6720,121 +5901,8 @@ def read_at(
              except Exception as exc:
                  return ReadAtResult(kind="corrupt", error=str(exc))
  
@@ -1266,7 +1266,7 @@ index 4d8b2b01b..8805728bc 100644
          return ReadAtResult(
              kind="absent", error=f"record {id6} not found in revision {rev}"
          )
-@@ -6994,58 +6062,6 @@ def _journal_dir(state_root: Path) -> Path:
+@@ -7087,58 +6155,6 @@ def _journal_dir(state_root: Path) -> Path:
      return d
  
  
@@ -1325,7 +1325,7 @@ index 4d8b2b01b..8805728bc 100644
  @dataclasses.dataclass
  class WritePreview:
      """What a write WOULD do: the rendered text, its destination and whether anything changes."""
-@@ -7055,25 +6071,9 @@ class WritePreview:
+@@ -7148,25 +6164,9 @@ class WritePreview:
      source: Path
      changed: bool
      events: List[Dict[str, Any]]
@@ -1354,7 +1354,7 @@ index 4d8b2b01b..8805728bc 100644
  
  
  #: `status_set` plural record types -> registry types (walkthroughs/roadmaps/other have no registry
-@@ -7090,86 +6090,10 @@ _LEGACY_PLURAL_TO_TYPE: Dict[str, str] = {
+@@ -7183,86 +6183,10 @@ _LEGACY_PLURAL_TO_TYPE: Dict[str, str] = {
  
  _TYPE_TO_PLURAL: Dict[str, str] = {v: k for k, v in _LEGACY_PLURAL_TO_TYPE.items()}
  
@@ -1441,7 +1441,7 @@ index 4d8b2b01b..8805728bc 100644
  def metadata_region(text: str) -> str:
      """Return the leading METADATA REGION of a record: where it DECLARES its own identity."""
  
-@@ -7230,20 +6154,6 @@ def _normalize_legacy_types(
+@@ -7323,20 +6247,6 @@ def _normalize_legacy_types(
      return "ipd", "plans"
  
  
@@ -1462,7 +1462,7 @@ index 4d8b2b01b..8805728bc 100644
  def legacy_context(repo_root: Union[str, Path]) -> Any:
      """The `project_context` a phase-B setter passes for ``repo_root``: the records root every record
      verb reads (`project_context.project_records_dir`) and the repository's own `.aw/state`.
-@@ -7286,10 +6196,6 @@ def _storage_format(records_root: Path, target: Any) -> str:
+@@ -7392,10 +6302,6 @@ def _storage_format(records_root: Path, target: Any) -> str:
      return "legacy"
  
  
@@ -1473,7 +1473,7 @@ index 4d8b2b01b..8805728bc 100644
  def _check_owned_fields(
      record_type: str, events: List[Dict[str, Any]], from_status: Optional[str]
  ) -> None:
-@@ -7364,504 +6270,6 @@ def _check_owned_fields(
+@@ -7470,504 +6376,6 @@ def _check_owned_fields(
          )
  
  
@@ -1978,7 +1978,7 @@ index 4d8b2b01b..8805728bc 100644
  def _split_prompt_comment(first_line: str) -> Optional[Tuple[str, str, str, str]]:
      """Return `(prefix, fields_part, trailer_part, suffix)` for an `<!-- aw-prompt: ... -->` line."""
      m = re.match(r"^(<!--\s*aw-prompt:\s*)(.*?)(\s*-->)\s*$", first_line)
-@@ -7883,871 +6291,6 @@ def _split_prompt_comment(first_line: str) -> Optional[Tuple[str, str, str, str]
+@@ -7989,871 +6397,6 @@ def _split_prompt_comment(first_line: str) -> Optional[Tuple[str, str, str, str]
      return prefix, inner, "", suffix
  
  
@@ -2850,7 +2850,7 @@ index 4d8b2b01b..8805728bc 100644
  def validate_actor_string(
      field_name: str,
      value: str,
-@@ -8763,143 +6306,6 @@ def validate_actor_string(
+@@ -8869,143 +6412,6 @@ def validate_actor_string(
      return resolved_ruleset
  
  
@@ -2994,7 +2994,7 @@ index 4d8b2b01b..8805728bc 100644
  def _git_target_root(path: Path, repo_root: Path) -> Path:
      """The git root a move is staged in: the companion records repository when it owns the record."""
      owner = _proj_ctx.record_owner_root(path)
-@@ -8913,202 +6319,28 @@ def _git_target_root(path: Path, repo_root: Path) -> Path:
+@@ -9019,202 +6425,28 @@ def _git_target_root(path: Path, repo_root: Path) -> Path:
      return repo_root
  
  
@@ -3214,7 +3214,7 @@ index 4d8b2b01b..8805728bc 100644
      events: List[Dict[str, Any]],
      *,
      expect_seq: Optional[int] = None,
-@@ -9120,64 +6352,14 @@ def append(
+@@ -9226,64 +6458,14 @@ def append(
      overrides: Optional[List[str]] = None,
      migration_import: bool = False,
      _from_create: bool = False,
@@ -3287,7 +3287,7 @@ index 4d8b2b01b..8805728bc 100644
      validate_id6(id6)
      ctx = project_context or _proj_ctx.resolve_project_context()
      records_root = Path(ctx.logical_roots["records"])
-@@ -9205,6 +6387,11 @@ def append(
+@@ -9311,6 +6493,11 @@ def append(
              if existing_lines:
                  last_ev = decode_line(existing_lines[-1])
                  current_seq = last_ev["seq"]
@@ -3299,7 +3299,7 @@ index 4d8b2b01b..8805728bc 100644
  
          if expect_seq is not None and current_seq != expect_seq:
              raise ValueError(
-@@ -9261,10 +6448,45 @@ def append(
+@@ -9367,10 +6554,45 @@ def append(
              records_root=records_root,
              migration_import=migration_import,
          )
@@ -3346,7 +3346,7 @@ index 4d8b2b01b..8805728bc 100644
  
          # Step 1: Write log via temp file, fsync, os.replace (THE COMMIT POINT)
          log_content = "".join(all_lines)
-@@ -9275,17 +6497,30 @@ def append(
+@@ -9381,17 +6603,30 @@ def append(
  
          # After step 1: Change is recorded. Subsequent steps are best effort/recovery
          try:
@@ -3387,7 +3387,7 @@ index 4d8b2b01b..8805728bc 100644
  
              # Step 4: Cache update
              conn = open_cache(records_root, state_root)
-@@ -9306,7 +6541,12 @@ def append(
+@@ -9412,7 +6647,12 @@ def append(
              finally:
                  conn.close()
  
@@ -3401,7 +3401,7 @@ index 4d8b2b01b..8805728bc 100644
  
          except Exception as step_exc:
              return {
-@@ -9325,70 +6565,17 @@ def create(
+@@ -9431,70 +6671,17 @@ def create(
      dry_run: bool = False,
      project_context: Any = None,
      actor: Optional[Dict[str, Any]] = None,
@@ -3481,7 +3481,7 @@ index 4d8b2b01b..8805728bc 100644
      ctx = project_context or _proj_ctx.resolve_project_context()
      records_root = Path(ctx.logical_roots["records"])
      state_root = Path(ctx.logical_roots["state"])
-@@ -9406,6 +6593,35 @@ def create(
+@@ -9512,6 +6699,35 @@ def create(
              )
          except (OSError, ValueError):
              pass
@@ -3517,7 +3517,7 @@ index 4d8b2b01b..8805728bc 100644
  
      # Retain operation journal before step 1
      j_dir = _journal_dir(state_root)
-@@ -9420,35 +6636,29 @@ def create(
+@@ -9526,35 +6742,29 @@ def create(
      j_file.write_text(json.dumps(journal_data, indent=2), encoding="utf-8")
  
      try:
@@ -3559,7 +3559,7 @@ index 4d8b2b01b..8805728bc 100644
      except Exception:
          # Journal remains on failure
 diff --git a/agent_workflows/artifact_refs.py b/agent_workflows/artifact_refs.py
-index f93dfb555..77357b561 100644
+index 5a1fcbc7b..843786725 100644
 --- a/agent_workflows/artifact_refs.py
 +++ b/agent_workflows/artifact_refs.py
 @@ -61,7 +61,6 @@ facet (F-09).
@@ -3570,7 +3570,7 @@ index f93dfb555..77357b561 100644
  
  
  class RefEdit(NamedTuple):
-@@ -419,18 +418,8 @@ def plan_reference_rewrites_with_warnings(
+@@ -427,18 +426,8 @@ def plan_reference_rewrites_with_warnings(
  
      edits: List[RefEdit] = []
      for f in _core.iter_scan_files(repo_root, scan_roots, suffixes=suffixes):
@@ -3591,7 +3591,7 @@ index f93dfb555..77357b561 100644
          try:
              raw_text = f.read_text(encoding="utf-8")
          except (OSError, UnicodeDecodeError):
-@@ -967,11 +956,13 @@ def plan_scope_path_reference_rewrites(
+@@ -975,11 +964,13 @@ def plan_scope_path_reference_rewrites(
  
      for plan_file, file_edits in pending_edits.items():
          try:
@@ -3609,7 +3609,7 @@ index f93dfb555..77357b561 100644
          if raw_sp is None:
              continue
  
-@@ -1018,7 +1009,7 @@ def apply_scope_path_reference_rewrites(
+@@ -1026,7 +1017,7 @@ def apply_scope_path_reference_rewrites(
  ) -> List[Path]:
      """Apply planned Scope-Paths reference rewrites to pending plans.
  
@@ -3618,7 +3618,7 @@ index f93dfb555..77357b561 100644
      and `ipd_schema.parse_scope_paths`, leaving prose mentions and fenced blocks elsewhere in
      the file byte-identical and appending no workflow history entry.
      """
-@@ -1032,11 +1023,13 @@ def apply_scope_path_reference_rewrites(
+@@ -1040,11 +1031,13 @@ def apply_scope_path_reference_rewrites(
      modified_files: List[Path] = []
      for plan_file, file_edits in by_file.items():
          try:
@@ -3636,7 +3636,7 @@ index f93dfb555..77357b561 100644
          if raw_sp is None:
              continue
  
-@@ -1054,20 +1047,16 @@ def apply_scope_path_reference_rewrites(
+@@ -1062,20 +1055,16 @@ def apply_scope_path_reference_rewrites(
          if new_declared == declared_paths:
              continue
  
@@ -3802,10 +3802,10 @@ index 5624badf2..b8d44152a 100644
          dst_rel = dst.relative_to(repo_root).as_posix()
          if emit_human:
 diff --git a/agent_workflows/attention.py b/agent_workflows/attention.py
-index 811b1f959..6ffbc8425 100644
+index 532e10b86..99e92c507 100644
 --- a/agent_workflows/attention.py
 +++ b/agent_workflows/attention.py
-@@ -1142,7 +1142,7 @@ def _order_key(
+@@ -1177,7 +1177,7 @@ def _order_key(
          # `release_blockers`, `_resolve_release_version` and the render-time flag all exclude `"-"`.
          #
          # LATENT, recorded so nobody over-claims the impact: the `artifact_meta` writer
@@ -4049,7 +4049,7 @@ index 5395ccb00..d44f32213 100644
      from agent_workflows.artifact_types import EXIT_CANNOT_RUN
      from agent_workflows.project_context import (
 diff --git a/agent_workflows/check_engine.py b/agent_workflows/check_engine.py
-index c46e7b4e2..10c0df173 100644
+index c46e7b4e2..db1ce2b0a 100644
 --- a/agent_workflows/check_engine.py
 +++ b/agent_workflows/check_engine.py
 @@ -1975,27 +1975,10 @@ def validate_prompt_content(
@@ -4084,8 +4084,37 @@ index c46e7b4e2..10c0df173 100644
  
          m = _naming.parse_clustered(path.name)
          if m and not _re.fullmatch(r"\d{4}", m.group("set")):
+@@ -4245,7 +4228,7 @@ def check_ipd_draft_ready(
+     from agent_workflows import ipd_authoring as _authoring
+ 
+     drift: List[_core.Drift] = []
+-    state_map = _meta_state_map(repo_root, "ipd")
++    state_map = _meta_state_map(repo_root, "ipd", load_fields=True)
+     for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
+         # Only nudge a plan that is actually in a pending lane (not executed/superseded/etc.).
+         if "pending" not in p.parts:
+@@ -4261,7 +4244,7 @@ def check_ipd_draft_ready(
+                 text = p.read_text(encoding="utf-8")
+             except OSError:
+                 continue
+-        if not _authoring.authoring_placeholders_resolved(text):
++        if not _authoring.authoring_placeholders_resolved(text, state=st_obj):
+             continue  # still a stub: stay silent
+         id6 = _meta_declared_id6(st_obj) or p.stem
+         recovery = f"aw ipd set to-review {id6}"
+@@ -5873,6 +5856,10 @@ def _meta_state_map(
+ 
+     ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+     records_root = Path(ctx.logical_roots["records"])
++    in_tree_records = repo_root / ".aw" / "records"
++    if not records_root.is_dir() and in_tree_records.is_dir():
++        ctx = _meta.legacy_context(repo_root)
++        records_root = Path(ctx.logical_roots["records"])
+     scan_repo = _meta._scan_repo_root(ctx, records_root)
+     has_tree = records_root.is_dir() or (
+         scan_repo is not None
 diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
-index f7a03b5cf..eaae8e240 100644
+index c706cda21..044eed972 100644
 --- a/agent_workflows/cli.py
 +++ b/agent_workflows/cli.py
 @@ -600,9 +600,9 @@ _DESCRIPTIONS = {
@@ -4121,7 +4150,7 @@ index f7a03b5cf..eaae8e240 100644
          ),
      )
      p_record_history.add_argument(
-@@ -14552,7 +14552,6 @@ def _run_describe(
+@@ -14567,7 +14567,6 @@ def _run_describe(
      args: argparse.Namespace, term: Term, context: Optional[Any] = None
  ) -> int:
      """Preview, set, or clear short_description on a single existing record via artifact_meta."""
@@ -4129,7 +4158,7 @@ index f7a03b5cf..eaae8e240 100644
      import shlex
  
      from agent_workflows import artifact_core as _core
-@@ -14680,7 +14679,6 @@ def _run_describe(
+@@ -14695,7 +14694,6 @@ def _run_describe(
          text = raw_bytes.decode("utf-8")
      except (OSError, UnicodeDecodeError) as exc:
          return _emit_error(f"cannot read target record: {exc}")
@@ -4137,7 +4166,7 @@ index f7a03b5cf..eaae8e240 100644
  
      id6: Optional[str] = None
      if record_type == "prompts" and _meta.has_prompt_metadata_comment(text):
-@@ -14714,40 +14712,14 @@ def _run_describe(
+@@ -14729,40 +14727,14 @@ def _run_describe(
          ]
  
      apply = bool(getattr(args, "apply", False))
@@ -4217,7 +4246,7 @@ index 9f69cef67..deaa68e3c 100644
          )
      except Exception as exc:
 diff --git a/agent_workflows/engine.py b/agent_workflows/engine.py
-index 2129ed795..32ec823cf 100755
+index 114c25e5c..ffd2e7832 100755
 --- a/agent_workflows/engine.py
 +++ b/agent_workflows/engine.py
 @@ -6679,9 +6679,6 @@ _AW_GITIGNORE_TEMPLATE = """\
@@ -4348,7 +4377,7 @@ index 248703373..270a517ec 100644
  
  def _count_record_files(root: Path) -> int:
 diff --git a/agent_workflows/ipd_authoring.py b/agent_workflows/ipd_authoring.py
-index 6b02552f7..badac51d8 100644
+index 6b02552f7..ee5f14e88 100644
 --- a/agent_workflows/ipd_authoring.py
 +++ b/agent_workflows/ipd_authoring.py
 @@ -21,7 +21,7 @@ import re
@@ -4360,7 +4389,224 @@ index 6b02552f7..badac51d8 100644
  
  from agent_workflows import artifact_core as _core
  from agent_workflows import ipd_lint as LINT
-@@ -686,11 +686,6 @@ def run_scaffold(args: argparse.Namespace) -> int:
+@@ -146,18 +146,13 @@ def _gate_body() -> str:
+ # Authoring-placeholder predicate (agentadhere Phase 1, IPD uisjns E-03; catalog invariant I-12).
+ # --------------------------------------------------------------------------------------
+ 
+-# The ANCHORED scaffold placeholder markers emitted by `scaffold_text` above (OQ-02: match the
+-# LITERAL scaffold tokens, NOT a bare `TODO` substring, so legitimate prose containing the word
+-# "TODO" never false-positives). Each entry is a substring that appears in the scaffold output and
+-# is meant to be REPLACED by the author. Kept in lock-step with the scaffold helpers above; if a
+-# scaffold placeholder string changes, update it here (and the E-03 test pins this coupling).
++# The ANCHORED scaffold placeholder markers emitted by `build_skeleton` above (OQ-02: match the
++# LITERAL scaffold tokens, NOT a bare `TODO` or `TODO.` substring, so legitimate prose containing
++# the word "TODO" never false-positives). Each entry is a substring that appears in the post-cutover
++# body skeleton and is meant to be REPLACED by the author. Metadata-log placeholders (`scope_paths`
++# starting with `TODO`, or `item_dependencies`/`priority`/`work_kind` equal to `unresolved`) are
++# checked against `artifact_meta.State` in `authoring_placeholders_resolved`.
+ _AUTHORING_PLACEHOLDERS = (
+-    "- Concern: TODO.",
+-    "- Scope: TODO.",
+-    "- Scope-Paths: TODO",
+-    "- Item-Dependencies: unresolved",
+-    "- Work-Kind: unresolved",
+-    "- Priority: unresolved",
+     _SECTION_BODY[
+         S.H_GOAL
+     ],  # "TODO: one or two sentences on what this plan achieves and why."
+@@ -173,18 +168,57 @@ _AUTHORING_PLACEHOLDERS = (
+ )
+ 
+ 
+-def authoring_placeholders_resolved(plan_text: str) -> bool:
+-    """True iff a plan's text contains NONE of the anchored scaffold authoring placeholders.
++def _is_todo_scope_placeholder(value: Any) -> bool:
++    """True when a logged ``scope_paths`` value still carries a scaffold ``TODO`` placeholder."""
++    if isinstance(value, str):
++        s = value.strip()
++        return s == "TODO" or s.startswith(("TODO ", "TODO(", "TODO:"))
++    if isinstance(value, list):
++        return any(_is_todo_scope_placeholder(item) for item in value)
++    return False
+ 
+-    A freshly scaffolded IPD is peppered with literal `TODO.`/`unresolved`/`E-NEW`/placeholder-body
+-    markers (see `scaffold_text`). While ANY of them remains, the plan is still a stub and MUST NOT
+-    be nudged toward `to-review`. When ALL are replaced by real authored content, the draft is
+-    "ready" and the `check.ipd-draft-ready-to-review` rule may nudge the author to advance it.
+ 
+-    Conservative and anchored (OQ-02): it matches the exact scaffold marker strings, so narrative
+-    prose that merely contains the word "TODO" does not count as an unresolved placeholder.
++def authoring_placeholders_resolved(
++    plan_text: str, *, state: Optional[Any] = None
++) -> bool:
++    """True iff a plan has NONE of the anchored scaffold authoring placeholders.
++
++    Checks both the body text (literal anchored scaffold markers, never bare ``TODO``/``TODO.``)
++    and, when ``state`` (an ``artifact_meta.State``) is supplied, unresolved metadata-log
++    placeholders (``scope_paths`` starting with ``TODO``, or ``item_dependencies``, ``priority``,
++    or ``work_kind`` equal to ``unresolved``). While ANY placeholder remains, the plan is still a
++    stub and MUST NOT be nudged toward ``to-review``.
+     """
+-    return not any(marker in plan_text for marker in _AUTHORING_PLACEHOLDERS)
++    if any(marker in plan_text for marker in _AUTHORING_PLACEHOLDERS):
++        return False
++    if state is not None:
++        st_fields = getattr(state, "fields", None)
++        if isinstance(st_fields, dict):
++            if _is_todo_scope_placeholder(st_fields.get("scope_paths")):
++                return False
++            dep = st_fields.get("item_dependencies")
++            if (
++                isinstance(dep, str)
++                and dep.strip().lower() == S.ITEM_DEPENDENCIES_UNRESOLVED
++            ):
++                return False
++            if (dep is None or (isinstance(dep, list) and not dep)) and str(
++                st_fields.get("dependency_declaration") or ""
++            ).strip().lower() == S.ITEM_DEPENDENCIES_UNRESOLVED:
++                return False
++            prio = st_fields.get("priority")
++            if (
++                prio is not None
++                and str(prio).strip().lower() == S.PLAN_PRIORITY_UNRESOLVED
++            ):
++                return False
++            wk = st_fields.get("work_kind")
++            if (
++                wk is not None
++                and str(wk).strip().lower() == S.PLAN_WORK_KIND_UNRESOLVED
++            ):
++                return False
++    return True
+ 
+ 
+ def normalize_author(author: str) -> str:
+@@ -242,89 +276,36 @@ def build_skeleton(
+     history_date: Optional[str] = None,
+     history_record: bool = True,
+ ) -> str:
+-    """Return a conformant IPD skeleton for ``kind`` from the schema's H2 order.
+-
+-    ``priority``/``work_kind`` are the decided values (planprio lkexaw). When omitted the skeleton
+-    carries the ``unresolved`` sentinel, which is what the byte-pinned templates contain and what the
+-    ready-to-execute gate refuses; ``aw ipd scaffold`` itself never omits them (it refuses instead).
+-    ``from_backlog``/``blocks_release`` are written only when given.
+-
+-    ``history_date`` stamps the ``draft`` history record under ``## Workflow history`` and defaults
+-    to ``when`` if omitted. The history date is recorded in UTC per spec ``4sd62s`` Section 4.2b
+-    ("One clock for each stored value"), whereas the ``- Date:`` metadata field (and the artifact's
+-    filename) remain machine-local per ``DECISIONS.md`` D55 ("Human-facing timestamps use LOCAL
+-    time, not UTC").
+-
+-    ``plan_id`` is the stable ``- Id:`` handle (6-char base36); when omitted a fresh one is
+-    generated. Deterministic output for tests can pin ``plan_id``.
+-
+-    The author is NORMALIZED through :func:`normalize_author` (plan fn2l1u E-05), which covers BOTH
+-    places it lands - the ``- Author:`` field and the ``draft`` history line - so a parenthesized
+-    ``--author`` can no longer put an unparseable record into a brand-new plan.
++    """Return a conformant post-cutover IPD body skeleton for ``kind`` from ``ipd_schema``.
++
++    Under spec ``4sd62s`` Section 4.1, plan metadata and workflow history live in
++    ``.aw/records/meta/<id6>.jsonl`` and the two-key YAML mirror is prepended by
++    ``artifact_meta.create``. This function therefore emits NO metadata bullet block and NO
++    ``## Workflow history`` section, starting its H2 sequence at ``## Goal`` to match
++    ``ipd_schema.H2_ORDER_BY_KIND[kind]`` and the post-cutover templates ``ipd.md`` and
++    ``orchestrator-ipd.md``.
++
++    The full parameter signature is kept backward-compatible for existing callers; metadata
++    parameters (``set_name``, ``order``, ``plan_id``, ``priority``, ``work_kind``,
++    ``from_backlog``, ``blocks_release``, ``history_date``, ``history_record``) are accepted
++    without emitting legacy bullets into the body.
+     """
+-    if plan_id is None:
+-        # IPD sk7ggr E-02. REACHABILITY, MEASURED: no PRODUCTION path reaches this branch today.
+-        # `build_skeleton` is the only holder of the old `generate_id6(set())`, and its single
+-        # production caller (`run_scaffold`, below) always passes `plan_id=plan_id` explicitly; every
+-        # other caller is under `tests/`. So this was a LATENT TRAP, not a live minting bug.
+-        #
+-        # It is fixed rather than merely documented because unreachability is exactly the property a
+-        # future caller can change silently, and the failure mode is invisible: `generate_id6(set())`
+-        # checks a candidate against NOTHING, so any id6 it returns is "unique" by vacuous truth and a
+-        # duplicate is only discovered once the plan is written and cited. Minting against the
+-        # repository-wide set costs one scan on a path that writes a file anyway.
+-        #
+-        # A caller that wants determinism must PIN `plan_id` (the documented contract above); it must
+-        # not rely on this default being unchecked.
+-        plan_id = _core.mint_id6(_core.repo_root_of(Path.cwd()))
++    _ = (
++        set_name,
++        order,
++        plan_id,
++        priority,
++        work_kind,
++        from_backlog,
++        blocks_release,
++        history_date,
++        history_record,
++    )
+     author = normalize_author(author)
+-    hist_date = history_date if history_date is not None else when
+     order_seq = S.H2_ORDER_BY_KIND[kind]
+     lines: List[str] = []
+     lines.append(f"# IPD: {title}")
+     lines.append("")
+-    # Metadata block.
+-    lines.append(f"- Date: {when}")
+-    lines.append(f"- Kind: {kind}")
+-    lines.append("- Concern: TODO.")
+-    lines.append("- Scope: TODO.")
+-    # Scope-Paths (Order oorry1): the machine-readable allowlist of repo-relative paths this plan
+-    # may change. Replace the TODO with a comma-separated list of literal paths or bounded
+-    # pathspecs (e.g. `agent_workflows/foo.py, tests/test_foo.py`), or the reserved sentinel
+-    # `grandfathered` for a pre-cutoff plan. REQUIRED at the ready-to-execute gate (pre-execution /
+-    # approved), OPTIONAL while drafting. Absolute paths, `..` escapes, and repo-wide globs are
+-    # rejected; the plan's own lifecycle artifacts under .aw/records/plans/** are implicit.
+-    lines.append(
+-        "- Scope-Paths: TODO (comma-separated repo-relative paths or pathspecs)"
+-    )
+-    # Item-Dependencies (ipddeps Order g69y23; spec 25kzda 2.7): the machine-readable, id6-grounded
+-    # cross-IPD prerequisite statement. Scaffold emits the reserved `unresolved` sentinel (NEVER
+-    # blank, NEVER `none`) so a freshly scaffolded plan is an HONEST not-ready draft: `unresolved`
+-    # is a declared-but-not-triaged marker distinct from `none` (an explicit assertion of zero
+-    # cross-IPD dependencies). Replace it with `none` or a comma-separated edge list
+-    # (`executed:<id6>` | `exists:<type>:<id6>` | `state:<type>:<status>:<id6>`) via
+-    # `aw ipd dependencies set`. Positioned immediately after `Scope-Paths` (spec 2.7). DIFFERENT
+-    # from the intra-plan `Depends on:` E-item ordering.
+-    lines.append("- Item-Dependencies: unresolved")
+-    lines.append("- Status: draft")
+-    # Priority and Work-Kind (planprio lkexaw E-01/E-10; spec 20260802 Section 4.4/9.2). They are
+-    # DECIDED AT FIRST RECORDING (maintainer ruling 2026-09-24): inherited from the backlog item when
+-    # the plan graduates from one, otherwise supplied when the plan is first drafted. The `unresolved`
+-    # sentinel survives only as the no-argument default (the byte-pinned templates, hand authoring),
+-    # where the ready-to-execute gate refuses it. Positioned immediately after `- Status:` to match
+-    # where shipped writers anchor.
+-    lines.append(f"- Work-Kind: {work_kind or S.PLAN_WORK_KIND_UNRESOLVED}")
+-    lines.append(f"- Priority: {priority or S.PLAN_PRIORITY_UNRESOLVED}")
+-    if from_backlog:
+-        lines.append(f"- From-Backlog: {from_backlog}")
+-    if blocks_release:
+-        lines.append(f"- Blocks-Release: {blocks_release}")
+-    lines.append(f"- Set: {set_name}")
+-    lines.append(f"- Order: {order}")
+-    lines.append("- Highest E allocated: 01")
+-    lines.append(f"- Author: {author}")
+-    lines.append(f"- Id: {plan_id}")
+-    lines.append("")
+     lines.append(_core.writing_standard_pointer("plan"))
+     lines.append("")
+     for h in order_seq:
+@@ -347,10 +328,6 @@ def build_skeleton(
+             lines.append("- Resolution or deferral rationale: TODO.")
+         elif h == S.H_APPROVAL_GATE:
+             lines.append(_gate_body())
+-        elif h == S.H_WORKFLOW_HISTORY:
+-            if history_record:
+-                body = _SECTION_BODY.get(h, "TODO.")
+-                lines.append(body.format(date=hist_date, author=author))
+         else:
+             if kind == S.KIND_ORCHESTRATOR and h in _ORCH_SECTION_BODY:
+                 body = _ORCH_SECTION_BODY[h]
+@@ -686,11 +663,6 @@ def run_scaffold(args: argparse.Namespace) -> int:
      if short_description:
          fields["short_description"] = short_description
  
@@ -4372,7 +4618,7 @@ index 6b02552f7..badac51d8 100644
      meta_ctx = _meta.legacy_context(repo_root)
      records_root = Path(meta_ctx.logical_roots["records"]).resolve()
      resolved_path = path.resolve()
-@@ -714,47 +709,30 @@ def run_scaffold(args: argparse.Namespace) -> int:
+@@ -714,47 +686,30 @@ def run_scaffold(args: argparse.Namespace) -> int:
          print(f"error: scaffold write failed: {exc}")
          return 2
  
@@ -4444,7 +4690,28 @@ index 6b02552f7..badac51d8 100644
  
      if not apply:
          if ctx.is_agent or ctx.is_json:
-@@ -1054,7 +1032,7 @@ def _run_bulk_id_backfill(args: argparse.Namespace, targets: List[str]) -> int:
+@@ -812,13 +767,18 @@ class SyncResult:
+         self.new_watermark: Optional[str] = None
+ 
+ 
+-def compute_sync(text: str, *, directory: Optional[str]) -> SyncResult:
++def compute_sync(
++    text: str,
++    *,
++    directory: Optional[str],
++    state: Optional[Any] = None,
++) -> SyncResult:
+     """Compute the sync result for ``text``. Pure: returns new text + assigned ids + errors."""
+     res = SyncResult()
+ 
+     # Preflight with the linter's parser and refuse on any structural error EXCEPT the presence of
+     # unassigned E-NEW leaves (which is exactly what we are here to fix).
+-    doc = LINT.parse(text)
++    doc = LINT.parse(text, state=state)
+     status = doc.meta_fields.get("Status", "")
+     # Refuse structural change once execution has begun or approval is granted (Section 6.1).
+     if status in ("approved", "auto-approved"):
+@@ -1054,7 +1014,7 @@ def _run_bulk_id_backfill(args: argparse.Namespace, targets: List[str]) -> int:
          paths = sorted(
              p
              for p in plans_root.rglob("*.md")
@@ -4453,7 +4720,7 @@ index 6b02552f7..badac51d8 100644
          )
      for t in targets:
          p = Path(t)
-@@ -1161,6 +1139,9 @@ def run_sync(args: argparse.Namespace) -> int:
+@@ -1161,6 +1121,9 @@ def run_sync(args: argparse.Namespace) -> int:
          print(f"error: not a file: {target}")
          return 2
      id_only_notes: List[str] = []
@@ -4463,7 +4730,19 @@ index 6b02552f7..badac51d8 100644
      try:
          text = path.read_text(encoding="utf-8")
          # Backfill a missing stable `Id` first (plans-adopter Order 02), then sync E/V leaves.
-@@ -1188,22 +1169,19 @@ def run_sync(args: argparse.Namespace) -> int:
+@@ -1170,7 +1133,10 @@ def run_sync(args: argparse.Namespace) -> int:
+             text,
+             _existing_plan_ids(path) | _core.global_id6s(_core.repo_root_of(path)),
+         )
+-        res = compute_sync(text_after_id, directory=LINT._dir_of(path))
++        tracked_state, tracked_ctx = LINT._lookup_tracked_state(path)
++        res = compute_sync(
++            text_after_id, directory=LINT._dir_of(path), state=tracked_state
++        )
+         # AN ID BACKFILL IS NOT A STRUCTURAL CHANGE. compute_sync refuses on an approved or
+         # in-flight plan because assigning E/V ids would rewrite the reviewed contract. A missing
+         # `- Id:` is different: it is the plan's identity handle, which every lifecycle verb
+@@ -1188,22 +1154,24 @@ def run_sync(args: argparse.Namespace) -> int:
              from agent_workflows import artifact_meta as _meta
  
              sync_repo_root = _core.repo_root_of(path.parent)
@@ -4488,8 +4767,13 @@ index 6b02552f7..badac51d8 100644
 +            watermark_ev = [
 +                {"op": "set", "fields": {"highest_e_allocated": res.new_watermark}}
 +            ]
-+            watermark_ctx = _meta.legacy_context(sync_repo_root)
-+            watermark_id6 = _meta.file_id6(path)
++            watermark_ctx = tracked_ctx or _meta.legacy_context(sync_repo_root)
++            watermark_id6 = (
++                getattr(tracked_state, "id6", None)
++                if tracked_state is not None
++                and not getattr(tracked_state, "id_derived", False)
++                else None
++            ) or _meta.file_id6(path)
 +            _meta.append(
 +                watermark_id6,
 +                watermark_ev,
@@ -4499,7 +4783,7 @@ index 6b02552f7..badac51d8 100644
              )
      except Exception as exc:
          print(f"error: sync failed to run: {exc}")
-@@ -1287,6 +1265,15 @@ def run_sync(args: argparse.Namespace) -> int:
+@@ -1287,6 +1255,15 @@ def run_sync(args: argparse.Namespace) -> int:
  
      try:
          _atomic_write(path, res.new_text)
@@ -4515,11 +4799,779 @@ index 6b02552f7..badac51d8 100644
      except Exception as exc:
          if ctx.is_agent or ctx.is_json:
              res_cmd = CommandResult(
+diff --git a/agent_workflows/ipd_lint.py b/agent_workflows/ipd_lint.py
+index fda535307..3b73e936d 100644
+--- a/agent_workflows/ipd_lint.py
++++ b/agent_workflows/ipd_lint.py
+@@ -220,6 +220,7 @@ class ParsedDoc(NamedTuple):
+     size_assessment: Optional[str]
+     history_lines: List[Tuple[int, str]]
+     gate_lines: List[Tuple[int, str]] = []
++    log_format: bool = False
+ 
+ 
+ _FENCE_RE = re.compile(r"^(\s*)(```|~~~)")
+@@ -414,7 +415,11 @@ def _read_state_status(
+ ) -> Optional[str]:
+     """Read the raw status string from ``artifact_meta.State`` (or ``doc.meta_fields`` when absent)."""
+     if state is not None:
+-        if fence_guard and "Status" not in doc.meta_fields:
++        if (
++            fence_guard
++            and not getattr(doc, "log_format", False)
++            and "Status" not in doc.meta_fields
++        ):
+             return None
+         raw = getattr(state, "legacy_raw_status", None)
+         if raw is None:
+@@ -496,6 +501,7 @@ def _structural_lines(text: str) -> List[Tuple[int, str]]:
+ _STATE_FIELD_TO_META: Tuple[Tuple[str, str], ...] = (
+     ("plan_role", "Kind"),
+     ("author", "Author"),
++    ("highest_e_allocated", S.META_WATERMARK),
+     ("approval", S.META_APPROVAL),
+     ("scope_paths", S.META_SCOPE_PATHS),
+     ("item_dependencies", S.META_ITEM_DEPENDENCIES),
+@@ -514,6 +520,158 @@ _STATE_FIELD_TO_META: Tuple[Tuple[str, str], ...] = (
+     ("short_description", S.META_SHORT_DESCRIPTION),
+ )
+ 
++_COMPACT_DATE_RE = re.compile(r"^(\d{4})(\d{2})(\d{2})$")
++_FILENAME_DATE_PREFIX_RE = re.compile(r"^(\d{4})(\d{2})(\d{2})(?:[-_.]|$)")
++_YAML_MIRROR_KEY_RE = re.compile(r"^(id|status)\s*:\s*(.*)$")
++
++
++def _has_yaml_mirror(text: str) -> bool:
++    """True when ``text`` opens with a YAML front-matter block carrying ``id`` or ``status``."""
++    lines = (text or "").splitlines()
++    if not lines or lines[0].strip() != "---":
++        return False
++    has_key = False
++    for line in lines[1:]:
++        if line.strip() == "---":
++            return has_key
++        if _YAML_MIRROR_KEY_RE.match(line.strip()):
++            has_key = True
++    return False
++
++
++def _normalize_date_candidate(raw: Any) -> Optional[str]:
++    """Normalize a date string (converting compact ``YYYYMMDD`` to ``YYYY-MM-DD``), or None."""
++    if raw is None:
++        return None
++    s = str(raw).strip()
++    if not s:
++        return None
++    m = _COMPACT_DATE_RE.match(s)
++    if m:
++        return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
++    return s
++
++
++def _date_from_filename(raw_path: Any) -> Optional[str]:
++    """Extract a leading ``YYYYMMDD`` filename prefix formatted as ``YYYY-MM-DD``, or None."""
++    if raw_path is None:
++        return None
++    name = Path(str(raw_path)).name
++    m = _FILENAME_DATE_PREFIX_RE.match(name)
++    if not m:
++        return None
++    return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
++
++
++def _resolve_state_date(
++    state: Optional[Any], *, path: Optional[Path] = None
++) -> Optional[str]:
++    """Resolve a plan's logical ``Date`` from ``artifact_meta.State`` and optional ``path``.
++
++    Fallback order (post-cutover plans carry no ``created_day`` or ``filename_date``):
++    ``state.created_day`` -> ``state.fields.get("date")`` -> ``state.filename_date`` ->
++    filename ``YYYYMMDD`` prefix from ``state.path`` or ``path`` -> ``state.created_at[:10]``.
++    """
++    if state is None:
++        return _date_from_filename(path)
++    cand = _normalize_date_candidate(getattr(state, "created_day", None))
++    if cand is not None:
++        return cand
++    st_fields = getattr(state, "fields", None)
++    if isinstance(st_fields, dict):
++        cand = _normalize_date_candidate(st_fields.get("date"))
++        if cand is not None:
++            return cand
++    cand = _normalize_date_candidate(getattr(state, "filename_date", None))
++    if cand is not None:
++        return cand
++    cand = _date_from_filename(getattr(state, "path", None))
++    if cand is not None:
++        return cand
++    cand = _date_from_filename(path)
++    if cand is not None:
++        return cand
++    created_at = getattr(state, "created_at", None)
++    if isinstance(created_at, str):
++        s = created_at.strip()
++        if len(s) >= 10:
++            return s[:10]
++    return None
++
++
++def _format_dep_entry(entry: Any) -> str:
++    """Format one structured ``item_dependencies`` edge dict or token as canonical edge text."""
++    if isinstance(entry, dict):
++        raw = entry.get("raw")
++        if raw:
++            return str(raw)
++        cond = entry.get("condition")
++        tid6 = entry.get("target_id6")
++        ttype = entry.get("target_type")
++        req_st = entry.get("required_status")
++        if cond == "executed" and tid6:
++            return f"executed:{tid6}"
++        if cond == "exists" and ttype and tid6:
++            return f"exists:{ttype}:{tid6}"
++        if cond == "state" and ttype and req_st and tid6:
++            return f"state:{ttype}:{req_st}:{tid6}"
++    return str(entry)
++
++
++def _format_state_meta_value(
++    st_key: str, val: Any, st_fields: Dict[str, Any]
++) -> Optional[str]:
++    """Convert a ``State.fields`` value to its logical metadata string, or None when absent."""
++    if st_key == "item_dependencies":
++        if val is None:
++            dep_decl = st_fields.get("dependency_declaration")
++            if dep_decl in (S.ITEM_DEPENDENCIES_NONE, S.ITEM_DEPENDENCIES_UNRESOLVED):
++                return str(dep_decl)
++            return None
++        if isinstance(val, list):
++            if not val:
++                dep_decl = st_fields.get("dependency_declaration")
++                if dep_decl in (
++                    S.ITEM_DEPENDENCIES_NONE,
++                    S.ITEM_DEPENDENCIES_UNRESOLVED,
++                ):
++                    return str(dep_decl)
++                return ""
++            return ", ".join(_format_dep_entry(x) for x in val)
++        if isinstance(val, str):
++            return val
++        return str(val)
++    if val is None:
++        return None
++    if isinstance(val, str):
++        return val
++    if isinstance(val, list):
++        return ", ".join(str(x) for x in val)
++    return str(val)
++
++
++def _extract_body_section_text(
++    struct: Sequence[Tuple[int, str]], heading_title: str
++) -> Optional[str]:
++    """Return joined non-empty structural lines under ``## <heading_title>``, or None."""
++    collecting = False
++    collected: List[str] = []
++    for _lineno, raw in struct:
++        mh = _H2_RE.match(raw)
++        if mh:
++            if collecting:
++                break
++            if mh.group(1).strip() == heading_title:
++                collecting = True
++            continue
++        if collecting:
++            stripped = raw.strip()
++            if stripped:
++                collected.append(stripped)
++    if not collected:
++        return None
++    return " ".join(collected)
++
+ 
+ def _parse_metadata_slice(
+     meta_slice: Sequence[str],
+@@ -534,12 +692,16 @@ def _overlay_state_into_meta_fields(
+     state: Any,
+     *,
+     authoritative_keys_only: bool = False,
++    allow_yaml_mirror: bool = False,
++    path: Optional[Path] = None,
+ ) -> Dict[str, str]:
+     """Overlay ``artifact_meta.State`` fields onto parsed ``meta_fields``.
+ 
+     When ``authoritative_keys_only`` is True (in-memory ``read_text`` fallback), only keys
+     already recognized in the fence-aware structural metadata slice are overwritten so fenced
+-    or YAML-front-matter bullets cannot leak into structure. For a tracked cached ``State`` or
++    or YAML-front-matter bullets cannot leak into structure — except that when
++    ``allow_yaml_mirror`` is True (a post-cutover YAML front-matter mirror with no bullet block),
++    the two-key mirror's ``id`` and ``status`` are overlaid. For a tracked cached ``State`` or
+     an explicit caller-supplied ``State``, all non-None fields carried by ``state`` apply.
+     """
+     if state is None:
+@@ -553,37 +715,39 @@ def _overlay_state_into_meta_fields(
+         if authoritative_keys_only and meta_key not in out:
+             continue
+         val = st_fields.get(st_key)
+-        if val is None:
++        formatted = _format_state_meta_value(st_key, val, st_fields)
++        if formatted is None:
+             continue
+-        if isinstance(val, str):
+-            out[meta_key] = val
+-        elif isinstance(val, list):
+-            out[meta_key] = ", ".join(str(x) for x in val)
+-        else:
+-            out[meta_key] = str(val)
++        out[meta_key] = formatted
+ 
+     raw_status = getattr(state, "legacy_raw_status", None)
+     if raw_status is None:
+         raw_status = getattr(state, "status", None)
+-    if raw_status is not None and (not authoritative_keys_only or "Status" in out):
++    if raw_status is not None and (
++        not authoritative_keys_only or allow_yaml_mirror or "Status" in out
++    ):
+         out["Status"] = str(raw_status)
+ 
+     st_id6 = getattr(state, "id6", None)
+     if st_id6 and not getattr(state, "id_derived", False):
+-        if not authoritative_keys_only or "Id" in out:
++        if not authoritative_keys_only or allow_yaml_mirror or "Id" in out:
+             if "Id" not in out or S._core.is_valid_id6(out["Id"].strip()):
+                 out["Id"] = str(st_id6)
+ 
+     if not authoritative_keys_only:
+-        st_date = st_fields.get("date")
+-        if st_date is not None:
+-            out["Date"] = str(st_date)
++        resolved_date = _resolve_state_date(state, path=path)
++        if resolved_date is not None:
++            out["Date"] = resolved_date
+         raw_set = getattr(state, "legacy_raw_set", None)
+         if "Set" not in out:
+             if raw_set is not None:
+                 out["Set"] = str(raw_set)
+-            elif not meta_fields and getattr(state, "set_id", None):
+-                out["Set"] = str(state.set_id)
++            elif not meta_fields:
++                set_val = getattr(state, "set_id", None)
++                if set_val is None:
++                    set_val = st_fields.get("set")
++                if set_val is not None and str(set_val).strip():
++                    out["Set"] = str(set_val)
+         if "Order" not in out and not meta_fields:
+             ord_val = getattr(state, "order_nn", None)
+             if ord_val is None:
+@@ -617,6 +781,10 @@ def _meta_context_and_state_map(
+ 
+     ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+     records_root = Path(ctx.logical_roots["records"])
++    in_tree_records = repo_root / ".aw" / "records"
++    if not records_root.is_dir() and in_tree_records.is_dir():
++        ctx = _meta.legacy_context(repo_root)
++        records_root = Path(ctx.logical_roots["records"])
+     scan_repo = _meta._scan_repo_root(ctx, records_root)
+     has_tree = records_root.is_dir() or (
+         scan_repo is not None
+@@ -682,6 +850,31 @@ def _lookup_tracked_state(path: Path) -> Tuple[Optional[Any], Optional[Any]]:
+         st = state_map.get(resolved)
+         if st is not None:
+             return st, ctx
++        in_tree_records = repo_root / ".aw" / "records"
++        if in_tree_records.is_dir():
++            in_tree_res = in_tree_records.resolve()
++            ctx_rec_res = (
++                Path(ctx.logical_roots["records"]).resolve() if ctx is not None else None
++            )
++            if ctx_rec_res != in_tree_res and resolved.is_relative_to(in_tree_res):
++                from agent_workflows import artifact_meta as _meta
++
++                leg_ctx = _meta.legacy_context(repo_root)
++                with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++                    res = _meta.query(
++                        type="ipd", project_context=leg_ctx, include_fields=True
++                    )
++                    for cand_st in res.rows:
++                        if not cand_st.path or not cand_st.id6:
++                            continue
++                        try:
++                            cand_p = _meta.source_path(
++                                cand_st.path, in_tree_res, repo_root.resolve()
++                            ).resolve()
++                        except Exception:
++                            continue
++                        if cand_p == resolved:
++                            return cand_st, leg_ctx
+     except Exception:
+         return None, None
+     return None, None
+@@ -739,6 +932,7 @@ def parse(
+     *,
+     state: Optional[Any] = None,
+     _state_from_read_text: bool = False,
++    path: Optional[Path] = None,
+ ) -> ParsedDoc:
+     """Parse an IPD into its structural pieces, fence-aware. Never raises on ordinary content."""
+     raw_lines = (text or "").splitlines()
+@@ -760,11 +954,31 @@ def parse(
+             first_h2_seen = True
+         if not first_h2_seen:
+             meta_slice.append(raw)
+-    meta_fields, meta_errors = _parse_metadata_slice(meta_slice)
++    raw_meta_fields, meta_errors = _parse_metadata_slice(meta_slice)
++    has_bullets = bool(raw_meta_fields)
++    has_yaml_mirror = _has_yaml_mirror(text)
++    allow_yaml_mirror = (not has_bullets) and has_yaml_mirror
++    is_log_format = (not has_bullets) and (
++        (state is not None and not _state_from_read_text) or has_yaml_mirror
++    )
++    meta_fields = raw_meta_fields
+     if state is not None:
+         meta_fields = _overlay_state_into_meta_fields(
+-            meta_fields, state, authoritative_keys_only=_state_from_read_text
++            raw_meta_fields,
++            state,
++            authoritative_keys_only=_state_from_read_text,
++            allow_yaml_mirror=allow_yaml_mirror,
++            path=path,
+         )
++    # Extract optional post-cutover ## Concern / ## Scope body sections AFTER State overlay
++    # so `raw_meta_fields` remains empty during overlay and Set/Order overlay from
++    # state.set_id / state.order_nn stays intact.
++    if not has_bullets:
++        for section_name in ("Concern", "Scope"):
++            if section_name not in meta_fields:
++                body_val = _extract_body_section_text(struct, section_name)
++                if body_val is not None:
++                    meta_fields[section_name] = body_val
+ 
+     for lineno, raw in struct:
+         mh = _H2_RE.match(raw)
+@@ -941,6 +1155,7 @@ def parse(
+         size_assessment=size_assessment,
+         history_lines=history_lines,
+         gate_lines=gate_lines,
++        log_format=is_log_format,
+     )
+ 
+ 
+@@ -1063,7 +1278,11 @@ def check_metadata(doc: ParsedDoc, directory: Optional[str]) -> List[Diagnostic]
+             else (C_META_UNKNOWN if me.message == "unknown field" else C_META_FIELD)
+         )
+         diags.append(Diagnostic(0, 0, code, f"{me.field}: {me.message}"))
+-    for me in S.validate_metadata(doc.meta_fields, directory=directory):
++    for me in S.validate_metadata(
++        doc.meta_fields,
++        directory=directory,
++        log_format=getattr(doc, "log_format", False),
++    ):
+         code = (
+             C_META_MISSING
+             if "missing" in me.message
+@@ -1556,14 +1775,21 @@ CITATION_ANCHOR_PROXIMITY_WINDOW = 80
+ CITATION_ANCHOR_WINDOW = CITATION_ANCHOR_PROXIMITY_WINDOW
+ 
+ 
+-def _citation_anchor_applies(doc: ParsedDoc, *, state: Optional[Any] = None) -> bool:
++def _citation_anchor_applies(
++    doc: ParsedDoc,
++    *,
++    state: Optional[Any] = None,
++    path: Optional[Path] = None,
++) -> bool:
+     """True when this plan is POST-cutover and therefore subject to the citation-anchor advisory.
+ 
+     A plan with NO parseable `- Date:` is treated as PRE-cutover (suppressed). That direction is
+     copied from the carrier precedent and for its stated reason: `IPD-M101` already owns the
+     missing-`Date` complaint, so this rule must not invent a second consequence for the same defect.
+     """
+-    raw = _read_state_field(state, "date", doc, "Date", allow_doc_fallback=True)
++    raw = _resolve_state_date(state, path=path) if state is not None else None
++    if not raw:
++        raw = doc.meta_fields.get("Date")
+     if not raw:
+         return False
+     m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", str(raw).strip())
+@@ -1670,6 +1896,7 @@ def check_citation_anchors(
+     *,
+     include_pre_cutover: bool = False,
+     state: Optional[Any] = None,
++    path: Optional[Path] = None,
+ ) -> List[Diagnostic]:
+     """Advisory: a code citation with no durable anchor beside it (spec Section 10.2, `IPD-C801`).
+ 
+@@ -1685,7 +1912,9 @@ def check_citation_anchors(
+     ``_group_logical_units``) within a proximity window (``CITATION_ANCHOR_PROXIMITY_WINDOW``),
+     curing continuation-line false positives while ensuring candidate anchors accompany the citation.
+     """
+-    if not include_pre_cutover and not _citation_anchor_applies(doc, state=state):
++    if not include_pre_cutover and not _citation_anchor_applies(
++        doc, state=state, path=path
++    ):
+         return []
+     out: List[Diagnostic] = []
+     for lineno, unit_text in _group_logical_units(_structural_lines(text)):
+@@ -1894,13 +2123,19 @@ def check_coverage_record(
+     )
+     remedy_msg = f"Fix it with `aw ipd coverage {id6}`."
+ 
+-    if not (has_cov and has_fp and has_chk):
++    events = _get_history_events(doc, history_loader)
++    has_structured_cov_event = any(ev.get("op") == "coverage" for ev in events)
++    # Post-cutover `op: "coverage"` events record `coverage` and `coverage_fingerprint`
++    # without migration-only `coverage_checked` (the timestamp lives on the event envelope).
++    require_checked = not (getattr(doc, "log_format", False) or has_structured_cov_event)
++
++    if not (has_cov and has_fp and (has_chk or not require_checked)):
+         missing = []
+         if not has_cov:
+             missing.append(S.META_COVERAGE)
+         if not has_fp:
+             missing.append(S.META_COVERAGE_FINGERPRINT)
+-        if not has_chk:
++        if require_checked and not has_chk:
+             missing.append(S.META_COVERAGE_CHECKED)
+         return [
+             Diagnostic(
+@@ -1936,7 +2171,6 @@ def check_coverage_record(
+ 
+     fp_clean = str(fp).strip()
+     prefix = fp_clean[:12] if len(fp_clean) >= 12 else fp_clean
+-    events = _get_history_events(doc, history_loader)
+ 
+     matched = False
+     for ev in events:
+@@ -2198,8 +2432,33 @@ def _scope_paths_gate_applies(checkpoint: str, status: str) -> bool:
+     return checkpoint == "pre-execution" or status in S.READY_TO_EXECUTE
+ 
+ 
++def _read_formatted_state_meta(
++    state: Optional[Any],
++    st_key: str,
++    doc: ParsedDoc,
++    meta_key: str,
++    *,
++    fence_guard: bool = False,
++) -> Optional[str]:
++    """Read and format a logical metadata field from ``State`` with ``doc.meta_fields`` fallback."""
++    if state is not None:
++        if fence_guard and meta_key not in doc.meta_fields:
++            return None
++        st_fields = getattr(state, "fields", None)
++        if isinstance(st_fields, dict):
++            formatted = _format_state_meta_value(st_key, st_fields.get(st_key), st_fields)
++            if formatted is not None:
++                return formatted
++    return doc.meta_fields.get(meta_key)
++
++
+ def check_scope_paths(
+-    doc: ParsedDoc, checkpoint: str, directory: Optional[str]
++    doc: ParsedDoc,
++    checkpoint: str,
++    directory: Optional[str],
++    *,
++    state: Optional[Any] = None,
++    _fence_guard: bool = False,
+ ) -> Tuple[List[Diagnostic], List[Diagnostic]]:
+     """Conditional Scope-Paths enforcement (Order oorry1). Returns (blocking, advisory).
+ 
+@@ -2211,10 +2470,13 @@ def check_scope_paths(
+     """
+     blocking: List[Diagnostic] = []
+     advisory: List[Diagnostic] = []
+-    status = doc.meta_fields.get("Status", "")
++    status = _read_state_status(state, doc, fence_guard=_fence_guard) or ""
+     if not _scope_paths_gate_applies(checkpoint, status):
+         return blocking, advisory
+-    if S.META_SCOPE_PATHS not in doc.meta_fields:
++    value = _read_formatted_state_meta(
++        state, "scope_paths", doc, S.META_SCOPE_PATHS, fence_guard=_fence_guard
++    )
++    if value is None:
+         blocking.append(
+             Diagnostic(
+                 0,
+@@ -2225,7 +2487,6 @@ def check_scope_paths(
+             )
+         )
+         return blocking, advisory
+-    value = doc.meta_fields.get(S.META_SCOPE_PATHS, "")
+     _paths, is_grandfathered, errors = S.parse_scope_paths(value)
+     if is_grandfathered:
+         advisory.append(
+@@ -2244,7 +2505,12 @@ def check_scope_paths(
+ 
+ 
+ def check_plan_priority(
+-    doc: ParsedDoc, checkpoint: str, directory: Optional[str]
++    doc: ParsedDoc,
++    checkpoint: str,
++    directory: Optional[str],
++    *,
++    state: Optional[Any] = None,
++    _fence_guard: bool = False,
+ ) -> Tuple[List[Diagnostic], List[Diagnostic]]:
+     """Conditional Priority enforcement at ready-to-execute gate (planprio lkexaw E-03).
+ 
+@@ -2256,10 +2522,13 @@ def check_plan_priority(
+     """
+     blocking: List[Diagnostic] = []
+     advisory: List[Diagnostic] = []
+-    status = doc.meta_fields.get("Status", "")
++    status = _read_state_status(state, doc, fence_guard=_fence_guard) or ""
+     if not _scope_paths_gate_applies(checkpoint, status):
+         return blocking, advisory
+-    if S.META_PRIORITY not in doc.meta_fields:
++    value = _read_formatted_state_meta(
++        state, "priority", doc, S.META_PRIORITY, fence_guard=_fence_guard
++    )
++    if value is None:
+         blocking.append(
+             Diagnostic(
+                 0,
+@@ -2270,7 +2539,6 @@ def check_plan_priority(
+             )
+         )
+         return blocking, advisory
+-    value = doc.meta_fields.get(S.META_PRIORITY, "")
+     _prio, is_grandfathered, err = S.parse_plan_priority(value)
+     if is_grandfathered:
+         advisory.append(
+@@ -2289,7 +2557,12 @@ def check_plan_priority(
+ 
+ 
+ def check_plan_work_kind(
+-    doc: ParsedDoc, checkpoint: str, directory: Optional[str]
++    doc: ParsedDoc,
++    checkpoint: str,
++    directory: Optional[str],
++    *,
++    state: Optional[Any] = None,
++    _fence_guard: bool = False,
+ ) -> Tuple[List[Diagnostic], List[Diagnostic]]:
+     """Conditional Work-Kind enforcement at ready-to-execute gate (planprio lkexaw E-03).
+ 
+@@ -2301,10 +2574,13 @@ def check_plan_work_kind(
+     """
+     blocking: List[Diagnostic] = []
+     advisory: List[Diagnostic] = []
+-    status = doc.meta_fields.get("Status", "")
++    status = _read_state_status(state, doc, fence_guard=_fence_guard) or ""
+     if not _scope_paths_gate_applies(checkpoint, status):
+         return blocking, advisory
+-    if S.META_WORK_KIND not in doc.meta_fields:
++    value = _read_formatted_state_meta(
++        state, "work_kind", doc, S.META_WORK_KIND, fence_guard=_fence_guard
++    )
++    if value is None:
+         blocking.append(
+             Diagnostic(
+                 0,
+@@ -2315,7 +2591,6 @@ def check_plan_work_kind(
+             )
+         )
+         return blocking, advisory
+-    value = doc.meta_fields.get(S.META_WORK_KIND, "")
+     _wk, is_grandfathered, err = S.parse_plan_work_kind(value)
+     if is_grandfathered:
+         advisory.append(
+@@ -2344,7 +2619,12 @@ _DEP_BLOCKING_CHECKPOINTS = frozenset(
+ 
+ 
+ def check_item_dependencies(
+-    doc: ParsedDoc, checkpoint: str, directory: Optional[str]
++    doc: ParsedDoc,
++    checkpoint: str,
++    directory: Optional[str],
++    *,
++    state: Optional[Any] = None,
++    _fence_guard: bool = False,
+ ) -> Tuple[List[Diagnostic], List[Diagnostic]]:
+     """Pure SYNTAX-level Item-Dependencies enforcement. Returns (blocking, advisory).
+ 
+@@ -2356,7 +2636,13 @@ def check_item_dependencies(
+     blocking: List[Diagnostic] = []
+     advisory: List[Diagnostic] = []
+     is_blocking_phase = checkpoint in _DEP_BLOCKING_CHECKPOINTS
+-    raw = doc.meta_fields.get(S.META_ITEM_DEPENDENCIES)
++    raw = _read_formatted_state_meta(
++        state,
++        "item_dependencies",
++        doc,
++        S.META_ITEM_DEPENDENCIES,
++        fence_guard=_fence_guard,
++    )
+     if raw is None:
+         # MISSING-statement mandatoriness is CUTOVER-conditional (spec 2.11) and lint_text is PURE
+         # (no repo -> cannot know the cutover). Emitting a finding here would either mass-fail /
+@@ -2812,9 +3098,16 @@ def _m105_terminal_date_applies(raw_date: Optional[str]) -> bool:
+     return "{0}{1}{2}".format(*m.groups()) >= M105_TERMINAL_CUTOVER_DATE
+ 
+ 
+-def _m105_terminal_applies(doc: ParsedDoc, *, state: Optional[Any] = None) -> bool:
++def _m105_terminal_applies(
++    doc: ParsedDoc,
++    *,
++    state: Optional[Any] = None,
++    path: Optional[Path] = None,
++) -> bool:
+     """True when this plan is POST-cutover and subject to terminal path/status checking."""
+-    raw = _read_state_field(state, "date", doc, "Date", allow_doc_fallback=True)
++    raw = _resolve_state_date(state, path=path) if state is not None else None
++    if not raw:
++        raw = doc.meta_fields.get("Date")
+     return _m105_terminal_date_applies(str(raw) if raw is not None else None)
+ 
+ 
+@@ -2851,11 +3144,16 @@ def lint_text(
+         state = _meta.read_text(text, record_type="ipd")
+         state_from_read_text = True
+     if doc is None:
+-        doc = parse(text, state=state, _state_from_read_text=state_from_read_text)
++        doc = parse(
++            text,
++            state=state,
++            _state_from_read_text=state_from_read_text,
++            path=path,
++        )
+     # Legacy/grandfathered: a terminal-dir file evaluated without migration.
+     # At post-transition, the just-transitioned plan is evaluated for S405 history agreement.
+     if _is_terminal_dir(directory) and not legacy and checkpoint != "post-transition":
+-        if _m105_terminal_applies(doc, state=state):
++        if _m105_terminal_applies(doc, state=state, path=path):
+             status = _plans._status_from_state(state)
+             if status is None and getattr(state, "status", None):
+                 status = _plans.normalize_status(state.status)
+@@ -2905,13 +3203,21 @@ def lint_text(
+         _fence_guard=state_from_read_text,
+     )
+     diags += check_orchestrator_rows(doc, text, checkpoint)
+-    scope_blocking, scope_advisory = check_scope_paths(doc, checkpoint, directory)
++    scope_blocking, scope_advisory = check_scope_paths(
++        doc, checkpoint, directory, state=state, _fence_guard=state_from_read_text
++    )
+     diags += scope_blocking
+-    prio_blocking, prio_advisory = check_plan_priority(doc, checkpoint, directory)
++    prio_blocking, prio_advisory = check_plan_priority(
++        doc, checkpoint, directory, state=state, _fence_guard=state_from_read_text
++    )
+     diags += prio_blocking
+-    wk_blocking, wk_advisory = check_plan_work_kind(doc, checkpoint, directory)
++    wk_blocking, wk_advisory = check_plan_work_kind(
++        doc, checkpoint, directory, state=state, _fence_guard=state_from_read_text
++    )
+     diags += wk_blocking
+-    dep_blocking, dep_advisory = check_item_dependencies(doc, checkpoint, directory)
++    dep_blocking, dep_advisory = check_item_dependencies(
++        doc, checkpoint, directory, state=state, _fence_guard=state_from_read_text
++    )
+     diags += dep_blocking
+     disposition = S.DISPOSITION_CONFORMING if not diags else S.DISPOSITION_ERROR
+     advisories = (
+@@ -2919,14 +3225,14 @@ def lint_text(
+     )
+     # research `nj8zdp` / spec 8.2: followability guidance, ADVISORY-ONLY (maintainer 2026-11-08).
+     advisories += check_followability(doc)
+-    advisories += _draft_ready_advisory(doc, text, checkpoint)
++    advisories += _draft_ready_advisory(doc, text, checkpoint, state=state)
+     advisories += _review_stale_advisory(doc, path, checkpoint)
+     # citeanchor `mzc019` E-03/E-04: ADVISORY-ONLY by construction. It is appended to `advisories`
+     # and NEVER to `diags`, so `disposition` (computed above) cannot see it and the exit status cannot
+     # move. Date-gated inside the check itself, so a pre-cutover plan contributes nothing unless
+     # requested on demand via `citation_anchors` (plan `cscv0c` E-03).
+     advisories += check_citation_anchors(
+-        doc, text, include_pre_cutover=citation_anchors, state=state
++        doc, text, include_pre_cutover=citation_anchors, state=state, path=path
+     )
+     advisories += check_prose_dashes(text)
+     return LintResult(disposition, diags, advisories)
+@@ -2939,7 +3245,9 @@ C_DRAFT_READY = "check.ipd-draft-ready-to-review"
+ C_REVIEW_STALE = "check.ipd-review-may-be-stale"
+ 
+ 
+-def _draft_ready_advisory(doc, text: str, checkpoint: str) -> List[Diagnostic]:
++def _draft_ready_advisory(
++    doc, text: str, checkpoint: str, *, state: Optional[Any] = None
++) -> List[Diagnostic]:
+     if checkpoint != "author":
+         return []
+     status = (doc.meta_fields.get("Status") or "").strip().lower()
+@@ -2948,7 +3256,7 @@ def _draft_ready_advisory(doc, text: str, checkpoint: str) -> List[Diagnostic]:
+     try:
+         from agent_workflows import ipd_authoring as _authoring
+ 
+-        if not _authoring.authoring_placeholders_resolved(text):
++        if not _authoring.authoring_placeholders_resolved(text, state=state):
+             return []
+     except Exception:
+         return []
+@@ -3140,7 +3448,7 @@ def _lint_file_impl(
+     # Parse ONCE and share the parse with the pure linter below, so the repo-aware checks that follow
+     # consume the already-parsed document instead of re-parsing the same text.
+     tracked_state, tracked_ctx = _lookup_tracked_state(path)
+-    doc = parse(text, state=tracked_state)
++    doc = parse(text, state=tracked_state, path=path)
+ 
+     _history_cache: Dict[str, Optional[List[Dict[str, Any]]]] = {}
+ 
 diff --git a/agent_workflows/ipd_schema.py b/agent_workflows/ipd_schema.py
-index fdec178d7..dd0715f8c 100644
+index fdec178d7..fb29464a8 100644
 --- a/agent_workflows/ipd_schema.py
 +++ b/agent_workflows/ipd_schema.py
-@@ -190,7 +190,7 @@ SCOPE_PATHS_GRANDFATHERED = "grandfathered"
+@@ -42,13 +42,12 @@ KIND_ORCHESTRATOR = "orchestrator"
+ KINDS: FrozenSet[str] = frozenset((KIND_CHILD, KIND_ORCHESTRATOR))
+ 
+ # --------------------------------------------------------------------------------------
+-# H2 heading orders per kind (spec Section 4.3), matching the live templates under
++# H2 heading orders per kind (spec Section 4.3), matching the post-cutover templates under
+ # `.aw/system/workflows/assess/templates/`. Post-cutover (spec `4sd62s` 4.1), records carry no
+ # `## Workflow history` section (`aw show <id6> --history` renders the event log); `H_WORKFLOW_HISTORY`
+-# is retained here as the historical heading constant until the cutover code switch updates the
+-# tuple directly. In BOTH kinds the execution checklist is the H2 immediately after "## Goal" and
+-# the validation checklist is the H2 immediately before "## Approval and execution gate"
+-# (spec Section 4.2).
++# is retained here as the historical heading constant for legacy callers and `m0001`. In BOTH kinds
++# the execution checklist is the H2 immediately after "## Goal" and the validation checklist is the
++# H2 immediately before "## Approval and execution gate" (spec Section 4.2).
+ # --------------------------------------------------------------------------------------
+ 
+ H_WORKFLOW_HISTORY = "Workflow history"
+@@ -76,7 +75,6 @@ H_COMPLETION = "Completion criteria (the whole Set is done only when)"
+ H_CROSS_IPD = "Cross-IPD validation"
+ 
+ CHILD_H2_ORDER: Tuple[str, ...] = (
+-    H_WORKFLOW_HISTORY,
+     H_GOAL,
+     H_EXECUTION,
+     H_PROJECT_CONVENTIONS,
+@@ -92,7 +90,6 @@ CHILD_H2_ORDER: Tuple[str, ...] = (
+ )
+ 
+ ORCHESTRATOR_H2_ORDER: Tuple[str, ...] = (
+-    H_WORKFLOW_HISTORY,
+     H_GOAL,
+     H_EXECUTION,
+     H_CHILD_IPDS,
+@@ -157,6 +154,16 @@ META_REQUIRED: Tuple[str, ...] = (
+     "Author",
+     "Id",
+ )
++# Post-cutover log-format required logical metadata fields (spec `4sd62s` 4.1 and patched
++# ipd-structure-and-linting spec Section 4.4): Concern and Scope live as optional body sections
++# rather than required metadata bullets. META_REQUIRED above stays unchanged for legacy bullet calls.
++META_REQUIRED_LOG: Tuple[str, ...] = (
++    "Date",
++    "Kind",
++    "Status",
++    "Author",
++    "Id",
++)
+ # Fields REQUIRED together (all-or-none groups):
+ META_PAIRED_SET_ORDER: Tuple[str, ...] = ("Set", "Order")
+ META_QUARANTINE_TRIO: Tuple[str, ...] = (
+@@ -190,7 +197,7 @@ SCOPE_PATHS_GRANDFATHERED = "grandfathered"
  # resolution, and the DAG (dangling / cycle / ambiguity) live in child 02's shared predicate + the
  # phased `aw ipd lint` / `aw check` rules, NOT here. Positioned immediately after `Scope-Paths`
  # (spec 2.7). The canonical field position for the write primitive is enforced in
@@ -4528,6 +5580,33 @@ index fdec178d7..dd0715f8c 100644
  META_ITEM_DEPENDENCIES = "Item-Dependencies"
  # The reserved scaffold sentinel: a freshly scaffolded plan carries `Item-Dependencies: unresolved`
  # (never blank, never `none`) so a not-yet-triaged plan is an HONEST not-ready draft. `unresolved`
+@@ -469,16 +476,23 @@ def read_readiness(text: str) -> Optional[str]:
+ 
+ 
+ def validate_metadata(
+-    fields: Dict[str, str], *, directory: Optional[str] = None
++    fields: Dict[str, str],
++    *,
++    directory: Optional[str] = None,
++    log_format: bool = False,
+ ) -> List[MetaError]:
+     """Validate a parsed metadata field map against the spec Section 4.4 contract.
+ 
+     ``directory`` is the plan's disposition directory name (e.g. ``pending``, ``executed``) when
+-    known, used for the path/status combination checks; pass None to skip those.
++    known, used for the path/status combination checks; pass None to skip those. When
++    ``log_format`` is True, validates required fields against ``META_REQUIRED_LOG``
++    (``Date``, ``Kind``/``plan_role``, ``Status``, ``Author``, ``Id``), omitting ``Concern`` and
++    ``Scope`` which live as optional body sections post-cutover.
+     """
+     errors: List[MetaError] = []
+     # Required fields present.
+-    for req in META_REQUIRED:
++    required_fields = META_REQUIRED_LOG if log_format else META_REQUIRED
++    for req in required_fields:
+         if req not in fields:
+             errors.append(
+                 MetaError(
 diff --git a/agent_workflows/lane_containment.py b/agent_workflows/lane_containment.py
 index cf7c12910..81ca5324b 100644
 --- a/agent_workflows/lane_containment.py
@@ -4576,7 +5655,7 @@ index d4be00e56..293ffaa54 100644
  _EXCLUDED_FILENAMES = frozenset({"README.md", "STATUS.md"})
  _EXCLUDED_DIRNAMES = frozenset({"comms", "prompt-library"})
 diff --git a/agent_workflows/migrations/m0001_convert.py b/agent_workflows/migrations/m0001_convert.py
-index 5e5680c4e..2ae019f0a 100644
+index 4f3998e8a..f8edf079e 100644
 --- a/agent_workflows/migrations/m0001_convert.py
 +++ b/agent_workflows/migrations/m0001_convert.py
 @@ -54,6 +54,15 @@ PROSE_BODY_FIELDS: Tuple[str, ...] = (
@@ -4595,7 +5674,7 @@ index 5e5680c4e..2ae019f0a 100644
  _BULLET_LINE_RE = re.compile(r"^-\s*([A-Za-z][A-Za-z0-9 /-]*?):\s*(.*)$")
  _PROMPT_COMMENT_RE = re.compile(r"\A<!--\s*aw-prompt:\s*(.*?)\s*-->", re.DOTALL)
  _FENCE_RE = re.compile(r"^[ \t]*(`{3,}|~{3,})")
-@@ -1054,7 +1063,7 @@ def build_record_log(
+@@ -1180,7 +1189,7 @@ def build_record_log(
      rel_path = record_path.relative_to(records_root).as_posix()
  
      if art_row is None:
@@ -4604,7 +5683,7 @@ index 5e5680c4e..2ae019f0a 100644
              record_path, records_root, text=text
          )
      id6 = str(art_row["id6"])
-@@ -1188,7 +1197,7 @@ def build_record_log(
+@@ -1312,7 +1321,7 @@ def build_record_log(
                  fields["item_dependencies"] = []
              continue
          if key == "Scope-Exceeded":
@@ -4613,7 +5692,7 @@ index 5e5680c4e..2ae019f0a 100644
              fields["scope_result"] = "exceeded"
              fields["out_of_scope_paths"] = parsed_oos
              fields["scope_exceeded_raw"] = val
-@@ -1752,7 +1761,7 @@ def convert_records(
+@@ -1876,7 +1885,7 @@ def convert_records(
          orig_text = rec_path.read_text(encoding="utf-8")
  
          # Determine id6 first so we can attach sidecar and review events for that id6.
@@ -4623,10 +5702,10 @@ index 5e5680c4e..2ae019f0a 100644
          )
          id6_probe = str(art_probe["id6"])
 diff --git a/agent_workflows/migrations/m0001_metadata_v2.py b/agent_workflows/migrations/m0001_metadata_v2.py
-index e0466c6db..3eac131ed 100644
+index 2011a1586..2b7321e09 100644
 --- a/agent_workflows/migrations/m0001_metadata_v2.py
 +++ b/agent_workflows/migrations/m0001_metadata_v2.py
-@@ -2591,3 +2591,579 @@ def rollback(repo: Union[str, Path]) -> Dict[str, Any]:
+@@ -2595,3 +2595,579 @@ def rollback(repo: Union[str, Path]) -> Dict[str, Any]:
          }
      finally:
          mgr._release_lock()
@@ -5207,7 +6286,7 @@ index e0466c6db..3eac131ed 100644
 +
 +    return artifact_row, hist_rows
 diff --git a/agent_workflows/migrations/m0001_renames.py b/agent_workflows/migrations/m0001_renames.py
-index 41d041361..24ca79209 100644
+index 69c458175..fade2ba3c 100644
 --- a/agent_workflows/migrations/m0001_renames.py
 +++ b/agent_workflows/migrations/m0001_renames.py
 @@ -57,6 +57,10 @@ OQ02_EXCLUDED_DIRNAMES: frozenset[str] = m0001_discover.EXCLUDED_DIRNAMES
@@ -5241,7 +6320,7 @@ index 41d041361..24ca79209 100644
          f_res = fpath.resolve()
          if f_res == sidecar_resolved:
 diff --git a/agent_workflows/migrations/m0001_verify.py b/agent_workflows/migrations/m0001_verify.py
-index ca1b89bb7..303c4694e 100644
+index a5d4d3389..b978d1414 100644
 --- a/agent_workflows/migrations/m0001_verify.py
 +++ b/agent_workflows/migrations/m0001_verify.py
 @@ -26,6 +26,15 @@ from agent_workflows import (
@@ -5269,7 +6348,7 @@ index ca1b89bb7..303c4694e 100644
                  rec_path, converted_records_root, text=text
              )
              id6 = str(art_row["id6"])
-@@ -269,7 +278,7 @@ def build_field_census(
+@@ -261,7 +270,7 @@ def build_field_census(
      for rec_path in target_files:
          rel_path = rec_path.relative_to(legacy_root).as_posix()
          text = rec_path.read_text(encoding="utf-8")
@@ -5311,7 +6390,7 @@ index 1a49a542a..014ebca73 100644
  
  
 diff --git a/agent_workflows/plan_readiness.py b/agent_workflows/plan_readiness.py
-index e9a9d9829..5ee7b9297 100644
+index 409fc31c0..dad31dbd2 100644
 --- a/agent_workflows/plan_readiness.py
 +++ b/agent_workflows/plan_readiness.py
 @@ -1338,25 +1338,25 @@ def recheck_readiness(
@@ -5354,10 +6433,10 @@ index e9a9d9829..5ee7b9297 100644
          written == target_readiness
      ), "the re-check may write ONLY {0}; refusing to write {1!r}".format(
 diff --git a/agent_workflows/plans_index.py b/agent_workflows/plans_index.py
-index 94067ebe9..eb8d3b79e 100644
+index 62d84576c..583ad780d 100644
 --- a/agent_workflows/plans_index.py
 +++ b/agent_workflows/plans_index.py
-@@ -27,7 +27,7 @@ from agent_workflows import plans as _plans
+@@ -28,7 +28,7 @@ from agent_workflows import plans as _plans
  
  # (The former module-level `PLANS_DIR = ".agents/plans"` was dead - resolution is via `_dirs()` /
  # `resolve_record_path` - and was removed in Order 05, S5-DC01.)
@@ -5366,7 +6445,7 @@ index 94067ebe9..eb8d3b79e 100644
  
  
  class PlanEntry(NamedTuple):
-@@ -264,7 +264,7 @@ def plan_files(
+@@ -287,7 +287,7 @@ def plan_files(
      the ignored-path filter returns box-local `untracked/` plans that are never committed.
      (See backlog item `mlcbk9` and `specs._spec_files` docstring recording the same lesson.)
  
@@ -6083,7 +7162,7 @@ index 072b9a342..7167a2641 100644
  
  def _outcome_update_fields(
 diff --git a/agent_workflows/research_index.py b/agent_workflows/research_index.py
-index ba28c013d..763bafaa9 100644
+index 14e480bd9..9a585d8a0 100644
 --- a/agent_workflows/research_index.py
 +++ b/agent_workflows/research_index.py
 @@ -23,9 +23,6 @@ from agent_workflows import attention_contract as A
@@ -6213,10 +7292,10 @@ index ebb9bb13f..25e4416c3 100644
          touched.append(dst_rel)
          if has_comp:
 diff --git a/agent_workflows/review_findings.py b/agent_workflows/review_findings.py
-index 5bb71e34c..31278f54c 100644
+index 142df8fa4..b99f4406b 100644
 --- a/agent_workflows/review_findings.py
 +++ b/agent_workflows/review_findings.py
-@@ -768,7 +768,7 @@ def iter_review_files(repo_root):
+@@ -769,7 +769,7 @@ def iter_review_files(repo_root):
      seen = set()
      for base in review_dirs(repo_root):
          for p in sorted(base.rglob("*.review.md")):
@@ -6225,7 +7304,7 @@ index 5bb71e34c..31278f54c 100644
                  continue
              try:
                  key = str(p.resolve())
-@@ -948,7 +948,7 @@ def _cached_subject_review_files(
+@@ -949,7 +949,7 @@ def _cached_subject_review_files(
              ):
                  continue
              for p in sorted(base.rglob("*.review.md")):
@@ -6271,7 +7350,7 @@ index 743de8176..8a3a3f5e5 100644
  
  def check_S6(
 diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
-index 8b040b136..9ec8b7eda 100644
+index 4ebd8eff5..c477223ac 100644
 --- a/agent_workflows/runner_shared.py
 +++ b/agent_workflows/runner_shared.py
 @@ -6290,7 +6290,7 @@ def apply_records_only_rederivation(
@@ -6357,7 +7436,7 @@ index 8b040b136..9ec8b7eda 100644
                  raise DriverError(
                      f"Refusing {configured!r} for IPD {id6}: it is {what}, not an IPD plan"
                  )
-@@ -33872,21 +33865,14 @@ def run_review_sequence(
+@@ -34378,21 +34371,14 @@ def run_review_sequence(
              from agent_workflows import artifact_core as _core
              from agent_workflows import artifact_meta as _am
  
@@ -6387,7 +7466,7 @@ index 8b040b136..9ec8b7eda 100644
              )
          save_state(run_dir, state)
          return 1, s_id, last_log, last_argv
-@@ -55627,35 +55613,40 @@ def _collect_lane_added_open_backlogs(
+@@ -56448,35 +56434,40 @@ def _collect_lane_added_open_backlogs(
      return candidates, skipped
  
  
@@ -6443,7 +7522,7 @@ index 8b040b136..9ec8b7eda 100644
  
  
  _PROPOSAL_SUMMARY_STRIP_CHARS = " .,;:!?-_/([{'\""
-@@ -55825,7 +55816,6 @@ def perform_coordinator_proposal_file(
+@@ -56646,7 +56637,6 @@ def perform_coordinator_proposal_file(
          skipped_backlog_reasons: tuple[tuple[str, str], ...] = (),
      ) -> ProposalFilingResult:
          from agent_workflows import artifact_core as _core
@@ -6451,7 +7530,7 @@ index 8b040b136..9ec8b7eda 100644
  
          proposals_dir = run_dir / "proposals"
          proposals_dir.mkdir(parents=True, exist_ok=True)
-@@ -55844,23 +55834,16 @@ def perform_coordinator_proposal_file(
+@@ -56665,23 +56655,16 @@ def perform_coordinator_proposal_file(
                  f"- Id: {item_id6}\n\n"
                  f"{body_text}\n"
              )
@@ -6485,7 +7564,7 @@ index 8b040b136..9ec8b7eda 100644
              )
          else:
              base_content = (
-@@ -55870,26 +55853,14 @@ def perform_coordinator_proposal_file(
+@@ -56691,26 +56674,14 @@ def perform_coordinator_proposal_file(
                  f"- Summary: Proposal from {item_id6}: {clean_summary}\n\n"
                  f"{body_text}\n"
              )
@@ -6520,7 +7599,7 @@ index 8b040b136..9ec8b7eda 100644
              )
          _core.atomic_write(fallback_file, fallback_content)
          rel_path = str(fallback_file)
-@@ -56091,17 +56062,15 @@ def perform_coordinator_proposal_file(
+@@ -56912,17 +56883,15 @@ def perform_coordinator_proposal_file(
                              f"needs-attended: the proposing plan could not be resolved: {exc}",
                              skipped_backlog_reasons=tuple(lane_pre_skipped),
                          )
@@ -6542,7 +7621,7 @@ index 8b040b136..9ec8b7eda 100644
                          commit_msg = f"plan({item_id6}): mark Attended: required (agent proposal)"
                  elif size == "small":
                      setid = f"prop-{item_id6}"
-@@ -56174,25 +56143,27 @@ def perform_coordinator_proposal_file(
+@@ -56995,25 +56964,27 @@ def perform_coordinator_proposal_file(
                      created_path = created_plan
                      created_is_new = True
                      plan_content = created_plan.read_text(encoding="utf-8")
@@ -6581,7 +7660,7 @@ index 8b040b136..9ec8b7eda 100644
                          )
                      commit_msg = (
                          f"Scaffold draft plan for agent proposal from {item_id6}"
-@@ -56311,6 +56282,14 @@ def perform_coordinator_proposal_file(
+@@ -57132,6 +57103,14 @@ def perform_coordinator_proposal_file(
                      if needs_attended_unchanged
                      else [new_record_rel, *recovered_paths]
                  )
@@ -6596,7 +7675,7 @@ index 8b040b136..9ec8b7eda 100644
                  commit_sha = None
                  commit_exc = None
                  try:
-@@ -56427,19 +56406,17 @@ def perform_coordinator_proposal_file(
+@@ -57248,19 +57227,17 @@ def perform_coordinator_proposal_file(
                                  f"needs-attended: the proposing plan could not be resolved: {exc}",
                                  skipped_backlog_reasons=tuple(lane_pre_skipped),
                              )
@@ -6620,7 +7699,7 @@ index 8b040b136..9ec8b7eda 100644
                              commit_msg = f"plan({item_id6}): mark Attended: required (agent proposal)"
                      elif size == "small":
                          setid = f"prop-{item_id6}"
-@@ -56502,7 +56479,9 @@ def perform_coordinator_proposal_file(
+@@ -57323,7 +57300,9 @@ def perform_coordinator_proposal_file(
                          created_plan = matching[0]
                          plan_content = created_plan.read_text(encoding="utf-8")
                          record_id6 = (
@@ -6631,7 +7710,7 @@ index 8b040b136..9ec8b7eda 100644
                          )
  
                          from agent_workflows import artifact_core as _core
-@@ -56510,23 +56489,21 @@ def perform_coordinator_proposal_file(
+@@ -57331,23 +57310,21 @@ def perform_coordinator_proposal_file(
  
                          plan_content = plan_content.rstrip() + "\n\n" + body_text
                          _core.atomic_write(created_plan, plan_content)
@@ -6663,7 +7742,7 @@ index 8b040b136..9ec8b7eda 100644
                              )
                          new_record_rel = str(
                              created_plan.relative_to(coord.path)
-@@ -56624,6 +56601,20 @@ def perform_coordinator_proposal_file(
+@@ -57445,6 +57422,20 @@ def perform_coordinator_proposal_file(
                          if needs_attended_unchanged
                          else [new_record_rel, *recovered_paths]
                      )
@@ -7694,6 +8773,1100 @@ index fca7a471c..abd5f69e4 100644
          (
              "the raw-drop inbox",
              "/inbox/*",
+diff --git a/tests/test_ipd_log_format.py b/tests/test_ipd_log_format.py
+new file mode 100644
+index 000000000..7070588a2
+--- /dev/null
++++ b/tests/test_ipd_log_format.py
+@@ -0,0 +1,1088 @@
++"""Standalone core behavioral tests for log-aware IPD schema, lint, scaffold, and sync.
++
++IPD hdwqex (backlog jycxw8, spec 4sd62s Section 4.1, patched ipd-structure-and-linting spec
++Sections 4.3-4.4). Uses stdlib, pytest, and ``agent_workflows.*`` only (no ``tests.record_builder``
++or ``tests.support`` imports) so it runs cleanly on the cutover scratch tree ahead of ``89mtbl``.
++"""
++
++from __future__ import annotations
++
++import argparse
++import json
++from pathlib import Path
++from typing import Any, Dict, List, Optional
++
++import pytest
++
++from agent_workflows import artifact_meta as _meta
++from agent_workflows import check_engine as _ce
++from agent_workflows import ipd_authoring as _auth
++from agent_workflows import ipd_lint as _lint
++from agent_workflows import ipd_schema as _schema
++
++
++pytestmark = pytest.mark.core
++
++REPO_ROOT = Path(__file__).resolve().parents[1]
++TEMPLATES_DIR = REPO_ROOT / ".aw" / "system" / "workflows" / "assess" / "templates"
++
++
++def _init_temp_repo(tmp_path: Path) -> Path:
++    """Create a minimal in-repo ``.aw/records/`` layout for behavioral tests."""
++    (tmp_path / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
++    (tmp_path / ".aw" / "records" / "plans" / "executed").mkdir(parents=True)
++    (tmp_path / ".aw" / "records" / "meta").mkdir(parents=True)
++    (tmp_path / ".aw" / "state").mkdir(parents=True)
++    return tmp_path
++
++
++def _clean_child_body(
++    *,
++    title: str = "Sample log plan",
++    extra_before_goal: str = "",
++    e_checked: bool = False,
++    e_state: str = "pending",
++    v_checked: bool = False,
++    v_result: str = "pending",
++    v_obs: str = "",
++    goal_text: str = "Implement the target behavior cleanly.",
++) -> str:
++    e_box = "x" if e_checked else " "
++    v_box = "x" if v_checked else " "
++    obs_line = f"  - Observed evidence: {v_obs}" if v_obs else "  - Observed evidence:"
++    return (
++        f"# IPD: {title}\n\n"
++        "> Write and proofread this plan per the technical writing standard.\n\n"
++        f"{extra_before_goal}"
++        "## Goal\n\n"
++        f"{goal_text}\n\n"
++        "## Detailed Implementation Checklist (TODO)\n\n"
++        "### Task group 1: core\n\n"
++        f"- [{e_box}] E-01 Update target behavior in `agent_workflows/example.py`.\n"
++        "  - Depends on: none\n"
++        "  - Expected outcome: target behavior passes checks.\n"
++        f"  - Execution state: {e_state}\n\n"
++        "## Project conventions discovered (Step 0)\n\n"
++        "- Follow stdlib-only conventions.\n\n"
++        "## Findings\n\n"
++        "None.\n\n"
++        "## Proposed changes (ordered, validatable)\n\n"
++        "1. E-01 updates target behavior.\n\n"
++        "## Deferred / out of scope (with reason)\n\n"
++        "None.\n\n"
++        "## Scope check\n\n"
++        "- Over-scope: none.\n"
++        "- Under-scope: none.\n\n"
++        "## Required tests / validation\n\n"
++        "Run unit checks for `agent_workflows/example.py`.\n\n"
++        "## Spec / documentation sync\n\n"
++        "N/A, internal implementation only.\n\n"
++        "## Open questions\n\n"
++        "None open.\n\n"
++        "## Validation and cross-check (verify before reporting done)\n\n"
++        f"- [{v_box}] V-01 validates E-01\n"
++        "  - Required evidence: paste test output for `agent_workflows/example.py`.\n"
++        f"{obs_line}\n"
++        f"  - Result: {v_result}\n\n"
++        "## Approval and execution gate\n\n"
++        "- Size assessment: standard\n"
++        "- Cohesion rationale: not required\n\n"
++        "Execute after approval and finalize via `aw ipd finalize`.\n"
++    )
++
++
++def _clean_orchestrator_body(
++    *,
++    title: str = "Sample orchestrator",
++    child_id6: str = "ch1ld1",
++    extra_before_goal: str = "",
++) -> str:
++    return (
++        f"# IPD: {title}\n\n"
++        "> Write and proofread this plan per the technical writing standard.\n\n"
++        f"{extra_before_goal}"
++        "## Goal\n\n"
++        "Coordinate the sample Set.\n\n"
++        "## Detailed Implementation Checklist (TODO)\n\n"
++        "### Task group 1: children\n\n"
++        f"- [ ] E-01 CONFIRM {child_id6} REACHED executed\n"
++        "  - Depends on: none\n"
++        "  - Expected outcome: child reaches executed.\n"
++        "  - Execution state: pending\n\n"
++        "## Child IPDs, sequence, and dependencies\n\n"
++        "| Order | Id | File | What it does | Depends on |\n"
++        "|---|---|---|---|---|\n"
++        f"| 01 | `{child_id6}` | `20261125-demo-01-{child_id6}-child.ipd.md` | Does the work. | none |\n\n"
++        "## Completion criteria (the whole Set is done only when)\n\n"
++        f"- Work is validated. Owner: {child_id6}\n\n"
++        "## Cross-IPD validation\n\n"
++        f"- Child `{child_id6}` runs the full check.\n\n"
++        "## Deferred / out of scope (with reason)\n\n"
++        "None.\n\n"
++        "## Scope check\n\n"
++        "- Over-scope: none.\n"
++        "- Under-scope: none.\n\n"
++        "## Required tests / validation\n\n"
++        f"Child `{child_id6}` runs the checks.\n\n"
++        "## Open questions\n\n"
++        "None open.\n\n"
++        "## Validation and cross-check (verify before reporting the Set complete)\n\n"
++        "- [ ] V-01 validates E-01\n"
++        f"  - Required evidence: paste `aw find plans {child_id6}` output.\n"
++        "  - Observed evidence:\n"
++        "  - Result: pending\n\n"
++        "## Approval and execution gate\n\n"
++        "- Size assessment: standard\n"
++        "- Cohesion rationale: not required\n\n"
++        "Finalize via `aw ipd finalize`.\n"
++    )
++
++
++def _legacy_bullet_child(
++    *,
++    omit_fields: Optional[List[str]] = None,
++    extra_bullets: Optional[List[str]] = None,
++) -> str:
++    omit = set(omit_fields or [])
++    bullets = [
++        ("Date", "2026-11-25"),
++        ("Kind", "child"),
++        ("Concern", "Legacy bullet parity check."),
++        ("Scope", "Keep legacy bullet parsing intact."),
++        ("Scope-Paths", "agent_workflows/example.py"),
++        ("Item-Dependencies", "none"),
++        ("Status", "draft"),
++        ("Work-Kind", "bug"),
++        ("Priority", "high"),
++        ("Set", "demo"),
++        ("Order", "1"),
++        ("Highest E allocated", "01"),
++        ("Author", "tester/model"),
++        ("Id", "leg001"),
++    ]
++    bullet_lines = [f"- {k}: {v}" for k, v in bullets if k not in omit]
++    if extra_bullets:
++        bullet_lines.extend(extra_bullets)
++    return (
++        "# IPD: Legacy bullet plan\n\n"
++        + "\n".join(bullet_lines)
++        + "\n\n"
++        "## Workflow history\n\n"
++        "- 2026-11-25 draft (tester/model): created.\n\n"
++        "## Goal\n\n"
++        "Keep legacy bullet format working.\n\n"
++        "## Detailed Implementation Checklist (TODO)\n\n"
++        "### Task group 1: core\n\n"
++        "- [ ] E-01 Verify legacy bullet parsing.\n"
++        "  - Depends on: none\n"
++        "  - Expected outcome: legacy plan lints cleanly.\n"
++        "  - Execution state: pending\n\n"
++        "## Project conventions discovered (Step 0)\n\n"
++        "- Legacy format.\n\n"
++        "## Findings\n\n"
++        "None.\n\n"
++        "## Proposed changes (ordered, validatable)\n\n"
++        "1. E-01.\n\n"
++        "## Deferred / out of scope (with reason)\n\n"
++        "None.\n\n"
++        "## Scope check\n\n"
++        "- Over-scope: none.\n"
++        "- Under-scope: none.\n\n"
++        "## Required tests / validation\n\n"
++        "Run lint check.\n\n"
++        "## Spec / documentation sync\n\n"
++        "N/A.\n\n"
++        "## Open questions\n\n"
++        "None open.\n\n"
++        "## Validation and cross-check (verify before reporting done)\n\n"
++        "- [ ] V-01 validates E-01\n"
++        "  - Required evidence: paste lint output.\n"
++        "  - Observed evidence:\n"
++        "  - Result: pending\n\n"
++        "## Approval and execution gate\n\n"
++        "- Size assessment: standard\n"
++        "- Cohesion rationale: not required\n\n"
++        "Finalize via `aw ipd finalize`.\n"
++    )
++
++
++def _create_log_plan(
++    repo: Path,
++    *,
++    id6: str,
++    rel_dest: str,
++    fields: Dict[str, Any],
++    body: str,
++) -> Path:
++    ctx = _meta.legacy_context(repo)
++    _meta.create(
++        id6,
++        "ipd",
++        fields,
++        body,
++        destination=rel_dest,
++        project_context=ctx,
++        actor={"tool": "test"},
++        message="created.",
++    )
++    return repo / ".aw" / "records" / rel_dest
++
++
++# --------------------------------------------------------------------------------------
++# 1. ipd_schema: H2 orders vs patched templates + log_format validate_metadata
++# --------------------------------------------------------------------------------------
++
++
++def test_schema_h2_orders_match_patched_templates() -> None:
++    child_template = (TEMPLATES_DIR / "ipd.md").read_text(encoding="utf-8")
++    orch_template = (TEMPLATES_DIR / "orchestrator-ipd.md").read_text(encoding="utf-8")
++
++    child_titles = tuple(h.title for h in _lint.parse(child_template).h2)
++    orch_titles = tuple(h.title for h in _lint.parse(orch_template).h2)
++
++    assert _schema.H_WORKFLOW_HISTORY not in _schema.CHILD_H2_ORDER
++    assert _schema.H_WORKFLOW_HISTORY not in _schema.ORCHESTRATOR_H2_ORDER
++    assert _schema.CHILD_H2_ORDER[0] == _schema.H_GOAL
++    assert _schema.ORCHESTRATOR_H2_ORDER[0] == _schema.H_GOAL
++    assert child_titles == _schema.CHILD_H2_ORDER
++    assert orch_titles == _schema.ORCHESTRATOR_H2_ORDER
++
++
++def test_schema_validate_metadata_log_format_vs_legacy() -> None:
++    log_fields = {
++        "Date": "2026-11-25",
++        "Kind": "child",
++        "Status": "draft",
++        "Author": "tester/model",
++        "Id": "abc123",
++    }
++    assert _schema.validate_metadata(log_fields, directory="pending", log_format=True) == []
++
++    # Legacy default keeps Concern and Scope required in META_REQUIRED.
++    legacy_errs = _schema.validate_metadata(log_fields, directory="pending")
++    missing_fields = {e.field for e in legacy_errs if "missing" in e.message}
++    assert missing_fields == {"Concern", "Scope"}
++    assert "Concern" in _schema.META_REQUIRED
++    assert "Scope" in _schema.META_REQUIRED
++    assert _schema.META_REQUIRED_LOG == ("Date", "Kind", "Status", "Author", "Id")
++
++    # Missing a log-format required field is still rejected when log_format=True.
++    incomplete = dict(log_fields)
++    del incomplete["Author"]
++    errs = _schema.validate_metadata(incomplete, directory="pending", log_format=True)
++    assert any(e.field == "Author" and "missing" in e.message for e in errs)
++
++
++# --------------------------------------------------------------------------------------
++# 2. ipd_lint: checkpoints, Date resolution, gates, coverage, body sections, legacy parity
++# --------------------------------------------------------------------------------------
++
++
++def test_lint_file_log_format_child_author_and_pre_execution(tmp_path: Path) -> None:
++    repo = _init_temp_repo(tmp_path)
++    id6 = "logch1"
++    rel_dest = f"plans/pending/20261125-demo-01-{id6}-sample-log-plan.ipd.md"
++    plan_path = _create_log_plan(
++        repo,
++        id6=id6,
++        rel_dest=rel_dest,
++        fields={
++            "status": "draft",
++            "plan_role": "child",
++            "set": "demo",
++            "order": 1,
++            "work_kind": "bug",
++            "priority": "high",
++            "scope_paths": "agent_workflows/example.py",
++            "item_dependencies": "none",
++            "author": "tester/model",
++            "highest_e_allocated": "01",
++        },
++        body=_clean_child_body(),
++    )
++
++    # Confirm created_day and filename_date are absent on newly created post-cutover plan.
++    ctx = _meta.legacy_context(repo)
++    st_before = _meta.read(id6, project_context=ctx)
++    assert st_before.created_day is None
++    assert st_before.filename_date is None
++
++    res_author = _lint.lint_file(plan_path, checkpoint="author")
++    assert res_author.disposition == _schema.DISPOSITION_CONFORMING, res_author.diagnostics
++    assert res_author.diagnostics == []
++
++    # Advance to approved with review + approval events and check pre-execution gate.
++    _meta.append(
++        id6,
++        [{"op": "transition", "from": "draft", "to": "to-review"}],
++        project_context=ctx,
++        actor={"tool": "test"},
++    )
++    _meta.append(
++        id6,
++        [
++            {
++                "op": "review",
++                "review_kind": "gate",
++                "verdict": "APPROVE",
++                "readiness": "go-pending-approval",
++                "review_depth": "standard",
++                "round": 1,
++                "review_ref": f"reviews/20261125-demo-01-{id6}-sample.review.md",
++            },
++            {"op": "transition", "from": "to-review", "to": "reviewed"},
++        ],
++        project_context=ctx,
++        actor={"tool": "plan-review", "model": "test-model"},
++    )
++    _meta.append(
++        id6,
++        [
++            {"op": "transition", "from": "reviewed", "to": "approved"},
++            {"op": "set", "fields": {"approval": "2026-11-25, approved by maintainer"}},
++        ],
++        project_context=ctx,
++        actor={"tool": "aw set"},
++        by_human=True,
++    )
++
++    res_pre_exec = _lint.lint_file(plan_path, checkpoint="pre-execution")
++    assert (
++        res_pre_exec.disposition == _schema.DISPOSITION_CONFORMING
++    ), res_pre_exec.diagnostics
++    assert res_pre_exec.diagnostics == []
++
++
++def test_lint_file_log_format_pre_transition_and_post_transition(tmp_path: Path) -> None:
++    repo = _init_temp_repo(tmp_path)
++    id6 = "logtr1"
++    rel_dest = f"plans/pending/20261125-demo-01-{id6}-transition-plan.ipd.md"
++    ctx = _meta.legacy_context(repo)
++    plan_path = _create_log_plan(
++        repo,
++        id6=id6,
++        rel_dest=rel_dest,
++        fields={
++            "status": "draft",
++            "plan_role": "child",
++            "set": "demo",
++            "order": 1,
++            "work_kind": "feature",
++            "priority": "medium",
++            "scope_paths": "agent_workflows/example.py",
++            "item_dependencies": "none",
++            "author": "tester/model",
++            "highest_e_allocated": "01",
++        },
++        body=_clean_child_body(
++            e_checked=True,
++            e_state="performed",
++            v_checked=True,
++            v_result="pass",
++            v_obs="1 passed in 0.01s",
++        ),
++    )
++    _meta.append(
++        id6,
++        [{"op": "transition", "from": "draft", "to": "to-review"}],
++        project_context=ctx,
++        actor={"tool": "test"},
++    )
++    _meta.append(
++        id6,
++        [
++            {
++                "op": "review",
++                "review_kind": "gate",
++                "verdict": "APPROVE",
++                "readiness": "go-pending-approval",
++                "review_depth": "standard",
++                "round": 1,
++                "review_ref": f"reviews/20261125-demo-01-{id6}-transition.review.md",
++            },
++            {"op": "transition", "from": "to-review", "to": "reviewed"},
++        ],
++        project_context=ctx,
++        actor={"tool": "plan-review", "model": "test-model"},
++    )
++    _meta.append(
++        id6,
++        [
++            {"op": "transition", "from": "reviewed", "to": "approved"},
++            {"op": "set", "fields": {"approval": "2026-11-25, approved"}},
++        ],
++        project_context=ctx,
++        actor={"tool": "aw set"},
++        by_human=True,
++    )
++
++    res_pre = _lint.lint_file(plan_path, checkpoint="pre-transition")
++    assert res_pre.disposition == _schema.DISPOSITION_CONFORMING, res_pre.diagnostics
++
++    # Transition to executed with non-generic actor + message and move to executed/.
++    exec_rel = f"plans/executed/20261125-demo-01-{id6}-transition-plan.ipd.md"
++    _meta.append(
++        id6,
++        [
++            {
++                "op": "transition",
++                "from": "approved",
++                "to": "executed",
++                "path": exec_rel,
++            },
++            {"op": "unset", "fields": ["approval"]},
++        ],
++        project_context=ctx,
++        actor={"tool": "aw ipd finalize", "model": "test-model"},
++        message="executed and verified.",
++    )
++    exec_path = repo / ".aw" / "records" / exec_rel
++    assert exec_path.is_file()
++
++    res_post = _lint.lint_file(exec_path, checkpoint="post-transition")
++    assert res_post.disposition == _schema.DISPOSITION_CONFORMING, res_post.diagnostics
++
++
++def test_date_resolution_precedence_and_consumers() -> None:
++    body = _clean_child_body(
++        goal_text="See agent_workflows/example.py:12 for the unanchored citation."
++    )
++    mirror = "---\nid: dt0001\nstatus: draft\n---\n" + body
++
++    # 1. created_day takes precedence over fields["date"], filename_date, path, created_at
++    st_cd = _meta.State(
++        id6="dt0001",
++        type="ipd",
++        status="draft",
++        path="plans/pending/20261120-demo-01-dt0001-x.ipd.md",
++        created_day="2026-10-01",
++        filename_date="20261115",
++        created_at="2026-11-25T12:00:00Z",
++        set_id="demo",
++        order_nn=1,
++        fields={
++            "date": "2026-10-05",
++            "plan_role": "child",
++            "author": "tester/model",
++            "highest_e_allocated": "01",
++        },
++    )
++    assert _lint.parse(mirror, state=st_cd).meta_fields["Date"] == "2026-10-01"
++
++    # 2. filename YYYYMMDD prefix from state.path when created_day/date/filename_date absent
++    st_path = _meta.State(
++        id6="dt0001",
++        type="ipd",
++        status="draft",
++        path="plans/pending/20261120-demo-01-dt0001-x.ipd.md",
++        created_at="2026-11-25T12:00:00Z",
++        set_id="demo",
++        order_nn=1,
++        fields={
++            "plan_role": "child",
++            "author": "tester/model",
++            "highest_e_allocated": "01",
++        },
++    )
++    assert _lint.parse(mirror, state=st_path).meta_fields["Date"] == "2026-11-20"
++    res_cit = _lint.lint_text(mirror, checkpoint="author", state=st_path)
++    assert res_cit.disposition == _schema.DISPOSITION_CONFORMING
++    assert any(a.code == _lint.C_CITATION_ANCHOR for a in res_cit.advisories)
++
++    # 3. created_at[:10] fallback when filename has no YYYYMMDD prefix
++    st_created = _meta.State(
++        id6="dt0001",
++        type="ipd",
++        status="draft",
++        path="plans/pending/custom-name.ipd.md",
++        created_at="2026-11-25T12:00:00Z",
++        set_id="demo",
++        order_nn=1,
++        fields={
++            "plan_role": "child",
++            "author": "tester/model",
++            "highest_e_allocated": "01",
++        },
++    )
++    assert _lint.parse(mirror, state=st_created).meta_fields["Date"] == "2026-11-25"
++
++    # 4. _m105_terminal_applies honors created_at[:10] on a terminal mismatch
++    st_term = _meta.State(
++        id6="dt0001",
++        type="ipd",
++        status="draft",
++        path="plans/executed/custom-name.ipd.md",
++        created_at="2026-11-25T12:00:00Z",
++        fields={"plan_role": "child", "author": "tester/model"},
++    )
++    res_m105 = _lint.lint_text(
++        mirror, checkpoint="author", directory="executed", state=st_term
++    )
++    assert res_m105.disposition == _schema.DISPOSITION_ERROR
++    assert any(d.code == _lint.C_META_PATH for d in res_m105.diagnostics)
++
++
++def test_ready_to_execute_gates_and_watermark_read_overlaid_state() -> None:
++    mirror = "---\nid: gate01\nstatus: approved\n---\n" + _clean_child_body()
++    # Missing Scope-Paths, Priority, Work-Kind, unresolved Item-Dependencies (via [] +
++    # dependency_declaration="unresolved"), and missing highest_e_allocated.
++    bad_state = _meta.State(
++        id6="gate01",
++        type="ipd",
++        status="approved",
++        created_at="2026-11-25T00:00:00Z",
++        set_id="demo",
++        order_nn=1,
++        fields={
++            "plan_role": "child",
++            "author": "tester/model",
++            "approval": "2026-11-25, approved",
++            "readiness": "go-pending-approval",
++            "item_dependencies": [],
++            "dependency_declaration": "unresolved",
++        },
++    )
++    res_bad = _lint.lint_text(
++        mirror,
++        checkpoint="pre-execution",
++        directory="pending",
++        state=bad_state,
++        _history_loader=lambda: [{"op": "review", "verdict": "APPROVE"}],
++    )
++    codes = {d.code for d in res_bad.diagnostics}
++    assert _lint.C_SCOPE_PATHS in codes
++    assert _lint.C_PRIORITY in codes
++    assert _lint.C_WORK_KIND in codes
++    assert _schema.RULE_IPD_DEP_UNRESOLVED in codes
++    assert _lint.C_WATERMARK in codes
++
++    # Now supply valid overlaid fields including structured edge dicts & list scope_paths.
++    good_state = _meta.State(
++        id6="gate01",
++        type="ipd",
++        status="approved",
++        created_at="2026-11-25T00:00:00Z",
++        set_id="demo",
++        order_nn=1,
++        fields={
++            "plan_role": "child",
++            "author": "tester/model",
++            "approval": "2026-11-25, approved",
++            "readiness": "go-pending-approval",
++            "scope_paths": ["agent_workflows/example.py", "tests/test_example.py"],
++            "priority": "high",
++            "work_kind": "bug",
++            "item_dependencies": [
++                {
++                    "condition": "executed",
++                    "target_type": "ipd",
++                    "required_status": None,
++                    "target_id6": "2k5t16",
++                    "raw": "executed:2k5t16",
++                }
++            ],
++            "dependency_declaration": "listed",
++            "highest_e_allocated": "01",
++        },
++    )
++    res_good = _lint.lint_text(
++        mirror,
++        checkpoint="pre-execution",
++        directory="pending",
++        state=good_state,
++        _history_loader=lambda: [{"op": "review", "verdict": "APPROVE"}],
++    )
++    assert res_good.disposition == _schema.DISPOSITION_CONFORMING, res_good.diagnostics
++
++    # Empty item_dependencies [] with dependency_declaration="none" also passes pre-execution.
++    none_state = _meta.State(
++        id6="gate01",
++        type="ipd",
++        status="approved",
++        created_at="2026-11-25T00:00:00Z",
++        set_id="demo",
++        order_nn=1,
++        fields={
++            **good_state.fields,
++            "item_dependencies": [],
++            "dependency_declaration": "none",
++        },
++    )
++    res_none = _lint.lint_text(
++        mirror,
++        checkpoint="pre-execution",
++        directory="pending",
++        state=none_state,
++        _history_loader=lambda: [{"op": "review", "verdict": "APPROVE"}],
++    )
++    assert res_none.disposition == _schema.DISPOSITION_CONFORMING, res_none.diagnostics
++
++    # Incompatible status at pre-execution triggers IPD-S404 from State.
++    draft_state = _meta.State(
++        id6="gate01",
++        type="ipd",
++        status="draft",
++        created_at="2026-11-25T00:00:00Z",
++        set_id="demo",
++        order_nn=1,
++        fields={
++            "plan_role": "child",
++            "author": "tester/model",
++            "scope_paths": ["agent_workflows/example.py"],
++            "priority": "high",
++            "work_kind": "bug",
++            "item_dependencies": [],
++            "dependency_declaration": "none",
++            "highest_e_allocated": "01",
++        },
++    )
++    res_s404 = _lint.lint_text(
++        "---\nid: gate01\nstatus: draft\n---\n" + _clean_child_body(),
++        checkpoint="pre-execution",
++        directory="pending",
++        state=draft_state,
++    )
++    assert any(d.code == _lint.C_CHECKPOINT for d in res_s404.diagnostics)
++
++
++def test_optional_concern_scope_sections_and_post_cutover_coverage(
++    tmp_path: Path,
++) -> None:
++    repo = _init_temp_repo(tmp_path)
++    orch_id = "orch01"
++    child_id = "ch1ld1"
++    # Create the referenced child so orchestrator readiness resolves cleanly.
++    _create_log_plan(
++        repo,
++        id6=child_id,
++        rel_dest=f"plans/pending/20261125-demo-01-{child_id}-child.ipd.md",
++        fields={
++            "status": "draft",
++            "plan_role": "child",
++            "set": "demo",
++            "order": 1,
++            "work_kind": "feature",
++            "priority": "medium",
++            "scope_paths": "agent_workflows/example.py",
++            "item_dependencies": "none",
++            "author": "tester/model",
++            "highest_e_allocated": "01",
++        },
++        body=_clean_child_body(title="Child"),
++    )
++    extra_sections = (
++        "## Concern\n\n"
++        "Migrated concern prose lives in a body section.\n\n"
++        "## Scope\n\n"
++        "Migrated scope prose lives in a body section.\n\n"
++    )
++    orch_path = _create_log_plan(
++        repo,
++        id6=orch_id,
++        rel_dest=f"plans/pending/20261125-demo-00-{orch_id}-orchestrator.ipd.md",
++        fields={
++            "status": "draft",
++            "plan_role": "orchestrator",
++            "set": "demo",
++            "order": 0,
++            "work_kind": "feature",
++            "priority": "medium",
++            "scope_paths": "agent_workflows/example.py",
++            "item_dependencies": "none",
++            "author": "tester/model",
++            "highest_e_allocated": "01",
++        },
++        body=_clean_orchestrator_body(
++            child_id6=child_id, extra_before_goal=extra_sections
++        ),
++    )
++
++    # Append a post-cutover op: "coverage" event (no migration-only coverage_checked).
++    ctx = _meta.legacy_context(repo)
++    _meta.append(
++        orch_id,
++        [
++            {
++                "op": "coverage",
++                "coverage": "pass",
++                "coverage_fingerprint": "a1b2c3d4e5f60123",
++            }
++        ],
++        project_context=ctx,
++        actor={"tool": "aw ipd coverage", "model": "test-model"},
++    )
++    st = _meta.read(orch_id, project_context=ctx)
++    assert st.fields.get("coverage_checked") is None
++
++    doc = _lint.parse(
++        orch_path.read_text(encoding="utf-8"), state=st, path=orch_path
++    )
++    assert doc.meta_fields["Concern"] == "Migrated concern prose lives in a body section."
++    assert doc.meta_fields["Scope"] == "Migrated scope prose lives in a body section."
++    assert doc.meta_fields["Set"] == "demo"
++    assert doc.meta_fields["Order"] == "0"
++
++    res = _lint.lint_file(orch_path, checkpoint="author")
++    assert res.disposition == _schema.DISPOSITION_CONFORMING, res.diagnostics
++    assert not any(d.code == _lint.C_COVERAGE_RECORD for d in res.diagnostics)
++
++    # Incomplete coverage record (missing coverage_fingerprint) still triggers IPD-M112.
++    bad_cov_state = _meta.State(
++        id6=orch_id,
++        type="ipd",
++        status="draft",
++        created_at="2026-11-25T00:00:00Z",
++        set_id="demo",
++        order_nn=0,
++        fields={
++            "plan_role": "orchestrator",
++            "author": "tester/model",
++            "highest_e_allocated": "01",
++            "coverage": "pass",
++        },
++    )
++    res_bad_cov = _lint.lint_text(
++        orch_path.read_text(encoding="utf-8"),
++        checkpoint="author",
++        state=bad_cov_state,
++    )
++    assert any(d.code == _lint.C_COVERAGE_RECORD for d in res_bad_cov.diagnostics)
++
++
++def test_yaml_mirror_in_memory_and_fence_protection() -> None:
++    # YAML mirror without external state overlays id and status, not Concern/Scope.
++    mirror_only = "---\nid: yml001\nstatus: draft\n---\n" + _clean_child_body()
++    res_yml = _lint.lint_text(mirror_only, checkpoint="author", directory="pending")
++    missing_fields = {
++        d.message.split(":", 1)[0]
++        for d in res_yml.diagnostics
++        if d.code == _lint.C_META_MISSING
++    }
++    assert "Id" not in missing_fields
++    assert "Status" not in missing_fields
++    assert "Concern" not in missing_fields
++    assert "Scope" not in missing_fields
++    assert not any(d.code == _lint.C_CHECKPOINT for d in res_yml.diagnostics)
++
++    # Fenced bullets in a plan with no bullet block and no YAML mirror must NOT leak.
++    fenced = (
++        "# IPD: Fenced bullets test\n\n"
++        "```markdown\n"
++        "- Status: approved\n"
++        "- Id: fnc001\n"
++        "- Readiness: go\n"
++        "```\n\n"
++        "## Goal\n\n"
++        "Ensure fenced bullets never leak.\n"
++    )
++    res_fenced = _lint.lint_text(fenced, checkpoint="author")
++    fenced_doc = _lint.parse(
++        fenced,
++        state=_meta.read_text(fenced, record_type="ipd"),
++        _state_from_read_text=True,
++    )
++    assert "Status" not in fenced_doc.meta_fields
++    assert "Id" not in fenced_doc.meta_fields
++    assert "Readiness" not in fenced_doc.meta_fields
++    assert any(d.code == _lint.C_META_MISSING and d.message.startswith("Status:") for d in res_fenced.diagnostics)
++
++
++def test_legacy_bullet_format_parity() -> None:
++    legacy_ok = _legacy_bullet_child()
++    res_ok = _lint.lint_text(legacy_ok, checkpoint="author", directory="pending")
++    assert res_ok.disposition == _schema.DISPOSITION_CONFORMING, res_ok.diagnostics
++
++    legacy_missing_concern = _legacy_bullet_child(omit_fields=["Concern"])
++    res_miss = _lint.lint_text(
++        legacy_missing_concern, checkpoint="author", directory="pending"
++    )
++    assert res_miss.disposition == _schema.DISPOSITION_ERROR
++    assert any(
++        d.code == _lint.C_META_MISSING and d.message.startswith("Concern:")
++        for d in res_miss.diagnostics
++    )
++
++    # Legacy bullet plan carrying Coverage + Coverage-Fingerprint without Coverage-Checked
++    # still triggers IPD-M112.
++    legacy_partial_cov = _legacy_bullet_child(
++        extra_bullets=[
++            "- Coverage: pass",
++            "- Coverage-Fingerprint: a1b2c3d4e5f6",
++        ]
++    )
++    res_cov = _lint.lint_text(
++        legacy_partial_cov, checkpoint="author", directory="pending"
++    )
++    assert any(
++        d.code == _lint.C_COVERAGE_RECORD and "Coverage-Checked" in d.message
++        for d in res_cov.diagnostics
++    )
++
++
++# --------------------------------------------------------------------------------------
++# 3. ipd_authoring: build_skeleton, run_scaffold --apply, run_sync --apply, placeholders
++# --------------------------------------------------------------------------------------
++
++
++def test_build_skeleton_post_cutover_shape_child_and_orchestrator() -> None:
++    child_skel = _auth.build_skeleton(
++        kind="child",
++        title="Child skeleton",
++        author="tester/model",
++        when="2026-11-25",
++        set_name="demo",
++        order=1,
++        plan_id="skc001",
++        priority="high",
++        work_kind="bug",
++        from_backlog="bklg01",
++        blocks_release="next",
++        history_date="2026-11-25",
++        history_record=True,
++    )
++    head_before_goal = child_skel.split("## Goal", 1)[0]
++    assert "- Date:" not in head_before_goal
++    assert "- Kind:" not in head_before_goal
++    assert "- Status:" not in head_before_goal
++    assert "- Id:" not in head_before_goal
++    assert "## Workflow history" not in child_skel
++    child_h2 = tuple(h.title for h in _lint.parse(child_skel).h2)
++    assert child_h2 == _schema.CHILD_H2_ORDER
++
++    orch_skel = _auth.build_skeleton(
++        kind="orchestrator",
++        title="Orchestrator skeleton",
++        author="tester/model",
++        when="2026-11-25",
++        set_name="demo",
++        order=0,
++        plan_id="sko001",
++        priority="medium",
++        work_kind="feature",
++    )
++    assert "- Date:" not in orch_skel
++    assert "## Workflow history" not in orch_skel
++    orch_h2 = tuple(h.title for h in _lint.parse(orch_skel).h2)
++    assert orch_h2 == _schema.ORCHESTRATOR_H2_ORDER
++
++
++def test_run_scaffold_apply_lint_and_sync_apply(tmp_path: Path) -> None:
++    repo = _init_temp_repo(tmp_path)
++    args = argparse.Namespace(
++        dir=str(repo),
++        kind="child",
++        title="Log format scaffold test",
++        set="demo",
++        order=1,
++        author="tester/model",
++        priority="high",
++        work_kind="bug",
++        from_backlog=None,
++        summary="Test scaffold and sync on log format",
++        path=None,
++        legacy_name=False,
++        overwrite=False,
++        apply=True,
++        agent=False,
++        json=False,
++    )
++    rc = _auth.run_scaffold(args)
++    assert rc == 0
++
++    pending_files = list((repo / ".aw" / "records" / "plans" / "pending").glob("*.ipd.md"))
++    assert len(pending_files) == 1
++    plan_path = pending_files[0]
++    written_text = plan_path.read_text(encoding="utf-8")
++
++    # Verify post-cutover shape: YAML mirror, aw-managed banner, H1, writing pointer, ## Goal.
++    lines = written_text.splitlines()
++    assert lines[0] == "---"
++    assert lines[1].startswith("id: ")
++    plan_id = lines[1].split(": ", 1)[1].strip()
++    assert lines[2] == "status: draft"
++    assert lines[3] == "---"
++    assert lines[4].startswith("<!-- aw-managed: metadata lives in .aw/records/meta/")
++    assert lines[5] == "# IPD: Log format scaffold test"
++    assert "- Date:" not in written_text
++    assert "## Workflow history" not in written_text
++    assert "## Goal" in written_text
++
++    log_path = repo / ".aw" / "records" / "meta" / f"{plan_id}.jsonl"
++    assert log_path.is_file()
++
++    # Freshly scaffolded plan lints conforming at author checkpoint.
++    lint_res = _lint.lint_file(plan_path, checkpoint="author")
++    assert lint_res.disposition == _schema.DISPOSITION_CONFORMING, lint_res.diagnostics
++
++    # Add an E-NEW leaf and run sync --apply; verify E-02/V-02 and highest_e_allocated bump.
++    with_new_leaf = written_text.replace(
++        "  - Execution state: pending\n",
++        "  - Execution state: pending\n\n"
++        "- [ ] E-NEW Second observable step.\n"
++        "  - Depends on: E-01\n"
++        "  - Expected outcome: second step succeeds.\n"
++        "  - Execution state: pending\n",
++        1,
++    )
++    plan_path.write_text(with_new_leaf, encoding="utf-8")
++
++    sync_args = argparse.Namespace(
++        path=[str(plan_path)],
++        all=False,
++        dir=str(repo),
++        apply=True,
++        agent=False,
++        json=False,
++    )
++    sync_rc = _auth.run_sync(sync_args)
++    assert sync_rc == 0
++
++    synced_text = plan_path.read_text(encoding="utf-8")
++    assert "- [ ] E-02 Second observable step." in synced_text
++    assert "- [ ] V-02 validates E-02" in synced_text
++
++    ctx = _meta.legacy_context(repo)
++    st_after = _meta.read(plan_id, project_context=ctx)
++    assert st_after.fields.get("highest_e_allocated") == "02"
++    log_events = [json.loads(ln) for ln in log_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
++    assert any(
++        ev.get("op") == "set" and (ev.get("fields") or {}).get("highest_e_allocated") == "02"
++        for ev in log_events
++    )
++
++    # Synced plan still lints conforming at author.
++    lint_after_sync = _lint.lint_file(plan_path, checkpoint="author")
++    assert (
++        lint_after_sync.disposition == _schema.DISPOSITION_CONFORMING
++    ), lint_after_sync.diagnostics
++
++    # Transition to approved in the log and verify sync refuses on approved log-format plan.
++    _meta.append(
++        plan_id,
++        [{"op": "transition", "from": "draft", "to": "to-review"}],
++        project_context=ctx,
++        actor={"tool": "test"},
++    )
++    _meta.append(
++        plan_id,
++        [
++            {
++                "op": "review",
++                "review_kind": "gate",
++                "verdict": "APPROVE",
++                "readiness": "go-pending-approval",
++                "review_depth": "standard",
++                "round": 1,
++                "review_ref": f"reviews/20261125-demo-01-{plan_id}-sample.review.md",
++            },
++            {"op": "transition", "from": "to-review", "to": "reviewed"},
++        ],
++        project_context=ctx,
++        actor={"tool": "plan-review", "model": "test-model"},
++    )
++    _meta.append(
++        plan_id,
++        [
++            {"op": "transition", "from": "reviewed", "to": "approved"},
++            {"op": "set", "fields": {"approval": "2026-11-25, approved"}},
++        ],
++        project_context=ctx,
++        actor={"tool": "aw set"},
++        by_human=True,
++    )
++    refused_rc = _auth.run_sync(sync_args)
++    assert refused_rc == 1
++
++
++def test_authoring_placeholders_resolved_body_state_and_advisories(
++    tmp_path: Path,
++) -> None:
++    clean_body = _clean_child_body(
++        goal_text="Document ordinary prose mentioning TODO. without triggering false positives."
++    )
++    assert _auth.authoring_placeholders_resolved(clean_body) is True
++
++    # Anchored body placeholder still returns False.
++    stub_body = _clean_child_body(
++        goal_text="TODO: one or two sentences on what this plan achieves and why."
++    )
++    assert _auth.authoring_placeholders_resolved(stub_body) is False
++
++    # Log-field placeholders checked when state is passed.
++    base_fields = {
++        "plan_role": "child",
++        "author": "tester/model",
++        "highest_e_allocated": "01",
++        "scope_paths": "agent_workflows/example.py",
++        "item_dependencies": "none",
++        "priority": "high",
++        "work_kind": "bug",
++    }
++    resolved_state = _meta.State(
++        id6="plh001", type="ipd", status="draft", fields=dict(base_fields)
++    )
++    assert _auth.authoring_placeholders_resolved(clean_body, state=resolved_state) is True
++
++    for key, bad_val in (
++        ("scope_paths", "TODO (comma-separated repo-relative paths or pathspecs)"),
++        ("scope_paths", ["TODO: list paths"]),
++        ("item_dependencies", "unresolved"),
++        ("priority", "unresolved"),
++        ("work_kind", "unresolved"),
++    ):
++        fields = dict(base_fields)
++        fields[key] = bad_val
++        st = _meta.State(id6="plh001", type="ipd", status="draft", fields=fields)
++        assert _auth.authoring_placeholders_resolved(clean_body, state=st) is False
++
++    # Empty list item_dependencies with dependency_declaration="unresolved" is unresolved.
++    st_decl_unres = _meta.State(
++        id6="plh001",
++        type="ipd",
++        status="draft",
++        fields={
++            **base_fields,
++            "item_dependencies": [],
++            "dependency_declaration": "unresolved",
++        },
++    )
++    assert _auth.authoring_placeholders_resolved(clean_body, state=st_decl_unres) is False
++
++    # End-to-end check: ipd_lint._draft_ready_advisory and check_engine.check_ipd_draft_ready
++    # stay silent while scope_paths is a TODO placeholder and nudge once resolved.
++    repo = _init_temp_repo(tmp_path)
++    id6 = "drf001"
++    plan_path = _create_log_plan(
++        repo,
++        id6=id6,
++        rel_dest=f"plans/pending/20261125-demo-01-{id6}-draft-ready.ipd.md",
++        fields={
++            "status": "draft",
++            "plan_role": "child",
++            "set": "demo",
++            "order": 1,
++            "work_kind": "bug",
++            "priority": "high",
++            "scope_paths": "TODO (comma-separated repo-relative paths or pathspecs)",
++            "item_dependencies": "none",
++            "author": "tester/model",
++            "highest_e_allocated": "01",
++        },
++        body=clean_body,
++    )
++    res_stub = _lint.lint_file(plan_path, checkpoint="author")
++    assert not any(a.code == _lint.C_DRAFT_READY for a in res_stub.advisories)
++    assert _ce.check_ipd_draft_ready(repo, include_untracked=True) == []
++
++    ctx = _meta.legacy_context(repo)
++    _meta.append(
++        id6,
++        [{"op": "set", "fields": {"scope_paths": ["agent_workflows/example.py"]}}],
++        project_context=ctx,
++        actor={"tool": "aw set"},
++    )
++    res_ready = _lint.lint_file(plan_path, checkpoint="author")
++    assert any(a.code == _lint.C_DRAFT_READY for a in res_ready.advisories)
++    drifts = _ce.check_ipd_draft_ready(repo, include_untracked=True)
++    assert len(drifts) == 1
++    assert drifts[0].rule == "check.ipd-draft-ready-to-review"
 diff --git a/tests/test_legacy_finalize.py b/tests/test_legacy_finalize.py
 index 12a41a59c..596f0c1af 100644
 --- a/tests/test_legacy_finalize.py

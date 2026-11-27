@@ -124,6 +124,7 @@ flowchart TD
 
 - Making `ipd_lint`, `ipd_schema`, and `ipd_authoring` log-aware in the cutover code patch: prerequisite production fix.
   - Carrier: hdwqex
+  - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-305-hdwqex-make-ipd-lint-and-ipd-scaffold-log-aware-in-the-cutover-code.ipd.md
 - Making backlog (`fljn9b`), specs/releases/spec-link/dep-gate (`szykgd`), and `ipd_lifecycle`/`partition`/`plans`/untooled-range/hooks/`meta repair` (`otin36`) log-aware: prerequisite production fixes ahead of batches A-C.
   - Carrier: otin36
 - Making review mirrors/prompt metadata/priority (`p109wy`) and coverage/readiness/runner/review-sequence (`q6fiws`) log-aware: prerequisite production fixes ahead of batch D.
