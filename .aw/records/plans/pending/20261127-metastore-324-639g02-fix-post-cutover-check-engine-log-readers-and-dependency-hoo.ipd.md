@@ -127,6 +127,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Sibling `status_set.py`, `selectors.py`, and `runner_shared.py` defects (`2zknl8`, `kj0neb`, `nwz9nd`, `tjfc7p`): owned by prerequisite Order 323.
   - Carrier: ztvubn
+  - Carrier-Evidence: .aw/records/plans/executed/20261127-metastore-323-ztvubn-fix-post-cutover-status-set-selectors-and-runner-commit-log.ipd.md
 - Converting batch B test modules (`tests/test_backlog_handoff_close.py` through `tests/test_ipd_dependency_statement_gate.py`): owned by Order 309 (`psm9ac`), which runs immediately after this plan.
   - Carrier: psm9ac
 - Applying the cutover patches on the real tree: attended cutover commit.
