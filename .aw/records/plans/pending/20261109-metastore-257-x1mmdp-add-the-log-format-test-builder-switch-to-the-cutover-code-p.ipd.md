@@ -122,6 +122,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-314-fljn9b-make-backlog-validation-and-readers-log-aware-in-the-cutover.ipd.md
 - Making `specs.py`, `releases.py`, `check_engine.py` spec-link checks, `cli._run_search`, and `hooks/ipd_dependency_statement_gate.py` log-aware in the cutover code patch (`psm9ac` OQ-01, maintainer answer 2026-11-26).
   - Carrier: szykgd
+  - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-315-szykgd-make-specs-releases-spec-link-search-and-dep-gate-log-aware.ipd.md
 - Making `ipd_lifecycle.py`, `partition.py`/`plans.py`, `check_engine.py::check_status_untooled_range`, `executed_transition_gate.py`/`backlog_blocking_close_gate.py` marker ordering, and `meta_cli.py::meta_repair` log-aware in the cutover code patch (`x8id25` OQ-01, recovered 2026-11-26).
   - Carrier: otin36
 - Making spec `4sd62s` Section 4.1a review mirrors, `has_prompt_metadata_comment`/`validate_prompt_content`, and `check_engine.py::check_plan_priority_required` log-aware in the cutover code patch (`e0g2gt` OQ-01, maintainer answer 2026-11-26).

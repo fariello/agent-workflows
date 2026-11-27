@@ -6,7 +6,7 @@
 - Scope: In an isolated scratch worktree with both cutover patches applied (including prerequisite plans `hdwqex`, `89mtbl`, `nv3upa`, `fljn9b`, and `cugg3w`), make `agent_workflows/specs.py` (and its `check_engine`/`runner_shared` callers), `agent_workflows/releases.py` (and its `check_engine` caller), `agent_workflows/check_engine.py::parse_cited_spec_ids`/`check_plan_spec_link_missing`, `agent_workflows/cli.py::_run_search`, and `agent_workflows/hooks/ipd_dependency_statement_gate.py::_staged_ipd_overlay` log-aware while preserving legacy bullet-format parity. Add and pass core behavioral test module `tests/test_cutover_log_checkers.py` in the scratch worktree, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. Make no live code changes outside the cutover code patch.
 - Scope-Paths: .aw/records/plans/pending/20261125-metastore-315-szykgd-make-specs-releases-spec-link-search-and-dep-gate-log-aware.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:fljn9b
-- Status: approved
+- Status: executed
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -19,12 +19,12 @@
 - Highest E allocated: 05
 - Author: antigravity/gemini
 - Id: szykgd
-- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: szykgd verified (set metastore, attempt 1).
 - 2026-11-27 same-status (aw set): Option 2 re-chain (igbr4f): run prod-fix chain szykgd..3e0vfy ahead of 6cltab and test batches
 - 2026-11-27 approved (aw set): status set to approved
 - 2026-11-26 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-006, PR-007, PR-008; review record .aw/records/reviews/20261125-metastore-315-szykgd-make-specs-releases-spec-link-search-and-dep-gate-log-aware.review.md
@@ -44,14 +44,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: scratch worktree
 
-- [ ] E-01 Create the scratch worktree following the SCRATCH PROCEDURE of executed plan `2k5t16` (Step 0): run `git worktree add --detach .aw/state/szykgd/scratch HEAD`; inside `.aw/state/szykgd/scratch`, run `git apply --index .aw/system/cutover/metastore-docs.cutover.patch`, record `BASE=$(git write-tree)` in F-01, and then run `git apply --index .aw/system/cutover/metastore-code.cutover.patch`. If either patch rejects, stop and report.
+- [x] E-01 Create the scratch worktree following the SCRATCH PROCEDURE of executed plan `2k5t16` (Step 0): run `git worktree add --detach .aw/state/szykgd/scratch HEAD`; inside `.aw/state/szykgd/scratch`, run `git apply --index .aw/system/cutover/metastore-docs.cutover.patch`, record `BASE=$(git write-tree)` in F-01, and then run `git apply --index .aw/system/cutover/metastore-code.cutover.patch`. If either patch rejects, stop and report.
   - Depends on: none
   - Expected outcome: `.aw/state/szykgd/scratch` holds HEAD plus both patches staged, and F-01 records the base tree id.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: log-aware checkers, search, and dep-gate (scratch worktree only)
 
-- [ ] E-02 Make `agent_workflows/specs.py`, `agent_workflows/releases.py`, and their `check_engine.py` / `runner_shared.py` callers log-aware in `.aw/state/szykgd/scratch` while keeping legacy bullet-format parity intact:
+- [x] E-02 Make `agent_workflows/specs.py`, `agent_workflows/releases.py`, and their `check_engine.py` / `runner_shared.py` callers log-aware in `.aw/state/szykgd/scratch` while keeping legacy bullet-format parity intact:
   1. In `agent_workflows/specs.py`:
      - Extend `validate_spec(path, text, *, state=None, has_history=None, repo_root=None)` with a shared companion-log resolver that derives `records_root` from `path` (supporting `.aw/records/specs/...`, legacy `.agents/docs/specs/...`, and companion/home roots via `project_context.record_owner_root`) or `repo_root`, extracts `id6` via `agent_workflows/artifact_meta.py::read_mirror_id6(text)` (never crashing on pure-text or legacy calls), and reads `artifact_meta.read` + `artifact_meta.history` inside `artifact_meta.ephemeral_if_uninitialized()` when `records_root / "meta" / f"{id6}.jsonl"` exists (avoiding stray `.aw/state/index.db` creation on uninitialized directories). Let `MetadataSchemaError` propagate untouched (spec `4sd62s` AC-11); catch corrupt-log `ValueError` fail-closed as an `attention.unreadable` drift finding. When `state` is supplied or loaded from a companion log, validate via `validate_spec_state(path, state, has_history=has_history)`; when `text` starts with a YAML mirror (`---`), parse it via `artifact_meta.parse_artifact_mirror` and emit registered rules (`attention.missing-status` or `attention.unknown-status`) if the mirror is malformed or its `id`/`status` contradicts `state`; keep `spec.metadata-bullet-repeated` only when leading metadata bullets appear in `text`, and fall back to legacy bullet validation when no companion log exists.
      - Update `specs._review_attestation_refusal` and `specs._deferred_ids_refusal` to read `id6` via `artifact_meta.read_mirror_id6(text)` before falling back to `artifact_meta.read_loose_id(text)` so post-cutover `to-review -> reviewed` and `-> implemented` spec transitions resolve the spec's `id6`.
@@ -65,9 +65,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
      - Pass `repo_root=repo_root` (or `state`) from `agent_workflows/check_engine.py::check_content` (`record_type == "releases"`).
   - Depends on: E-01
   - Expected outcome: in a throwaway repository on `.aw/state/szykgd/scratch`, `aw specs new --apply` followed by `aw specs check` exits 0 and `_review_attestation_refusal` resolves mirror `id6`; `releases.create_release` followed by `releases.validate_release`, `resolve_release(repo, version)`, `describe_planned_release`, `list_releases`, and `check_engine.check_content(..., "releases")` succeed; `run_new` dry-run returns populated `version`; and `releases.check_from_backlog`, `check_graduated_to`, `count_blocks_release_sentinel`, `check_blocks_release`, and `get_release_blockers` see log-stored links and gates.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make `check_plan_spec_link_missing`, `aw search`, and `ipd_dependency_statement_gate` log-aware in `.aw/state/szykgd/scratch`:
+- [x] E-03 Make `check_plan_spec_link_missing`, `aw search`, and `ipd_dependency_statement_gate` log-aware in `.aw/state/szykgd/scratch`:
   1. In `agent_workflows/check_engine.py`, extend `parse_cited_spec_ids(plan_text, known_spec_ids, *, state=None)` to scan `## Concern` and `## Scope` body sections (respecting fenced code blocks) and `state.fields.get("scope_paths")` (accepting both `list[str]` and `str`) when present, in addition to legacy `- Concern:`/`- Scope:`/`- Scope-Paths:` bullets. In `check_plan_spec_link_missing`, pass `state=st_obj` to `parse_cited_spec_ids` and read `scope_paths` from `st_obj.fields.get("scope_paths")` (normalizing a `list[str]` into path strings directly or joining before `_ipd_schema.parse_scope_paths`, because `parse_scope_paths` expects a `str` and calls `.strip()`; falling back to `_declared_bullet_fields(text).get("scope_paths")`) for the spec-edit exemption.
   2. In `agent_workflows/cli.py::_run_search`:
      - Populate `cached_by_path` via `artifact_meta.query(project_context=search_ctx, include_fields=True)` whenever `search_has_tree` is true (not only when status filters are set).
@@ -77,9 +77,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   4. Record the verified caller and behavior audit across all five areas (including `agent_workflows/attention.py` release/spec readers) in F-02.
   - Depends on: E-02
   - Expected outcome: `check_plan_spec_link_missing` detects spec citations in log-format plans and honors list-valued log-stored `scope_paths` exemptions; `aw search` matches banner-preceded `# <Title>` and log-stored metadata in both default and `-F` modes while excluding body-only tokens without `-F`; and `ipd_dependency_statement_gate.check` catches staged `meta/<id6>.jsonl` dependency violations.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add and run core behavioral test module `tests/test_cutover_log_checkers.py` (`pytestmark = pytest.mark.core`) in `.aw/state/szykgd/scratch` (asserting real outputs, exit codes, and side effects; no code-pinning tests):
+- [x] E-04 Add and run core behavioral test module `tests/test_cutover_log_checkers.py` (`pytestmark = pytest.mark.core`) in `.aw/state/szykgd/scratch` (asserting real outputs, exit codes, and side effects; no code-pinning tests):
   1. Cover `aw specs new --apply` -> `aw specs check` clean, `specs._review_attestation_refusal` and `_deferred_ids_refusal` resolving YAML mirror `id6`, negative `specs.validate_spec` log-format cases (deferred missing gate, invalid priority/work_kind, empty history, corrupt log failing closed, mirror/log mismatch), read-only `validate_spec` not creating `.aw/state/index.db` on an uninitialized directory, `check_engine.check_content(..., "specs")`, `runner_shared.check_review_lane_artifacts` (worktree and branch-only spec), and `runner_shared.enforce_freeze_time_refusal` cache invalidation when `meta/<id6>.jsonl` is added, modified, or deleted.
   2. Cover `releases.create_release` and `aw releases new` (dry-run and `--apply` with `--json`) -> `releases.validate_release`, `parse_release`, `resolve_release(repo, version)`, `describe_planned_release`, `list_releases`, and `check_engine.check_content(..., "releases")` clean and negative cases, plus `releases.check_from_backlog` (`malformed` and `dangling`), `releases.check_graduated_to` (verifying `check_engine.build_plan_setid_index` populates log-format plan setids and `check_graduated_to` detects dangling, malformed, and repeated entries on list-valued log-stored `graduated_to` without passing explicit `plan_setids`), `releases.count_blocks_release_sentinel`, `releases.check_blocks_release`, and `releases.get_release_blockers` on log-format fixtures.
   3. Cover `check_engine.parse_cited_spec_ids` and `check_plan_spec_link_missing` on log-format plans citing a known spec in `## Concern` / `## Scope` / list-valued log-stored `scope_paths` (including spec-edit exemption via list-valued log-stored `scope_paths`).
@@ -88,14 +88,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   6. Run `python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_checkers.py` in `.aw/state/szykgd/scratch` and confirm every test passes.
   - Depends on: E-03
   - Expected outcome: `tests/test_cutover_log_checkers.py` passes every test in `.aw/state/szykgd/scratch`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: package
 
-- [ ] E-05 In `.aw/state/szykgd/scratch`, run `git add -A` and write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch` in the executing checkout; remove the scratch worktree (`git worktree remove --force .aw/state/szykgd/scratch`); run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout; verify `git status --short` shows only `- Scope-Paths:` modified; and commit through `aw commit szykgd -- .aw/records/plans/pending/20261125-metastore-315-szykgd-make-specs-releases-spec-link-search-and-dep-gate-log-aware.ipd.md .aw/system/cutover/metastore-code.cutover.patch`; never push.
+- [x] E-05 In `.aw/state/szykgd/scratch`, run `git add -A` and write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch` in the executing checkout; remove the scratch worktree (`git worktree remove --force .aw/state/szykgd/scratch`); run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout; verify `git status --short` shows only `- Scope-Paths:` modified; and commit through `aw commit szykgd -- .aw/records/plans/pending/20261125-metastore-315-szykgd-make-specs-releases-spec-link-search-and-dep-gate-log-aware.ipd.md .aw/system/cutover/metastore-code.cutover.patch`; never push.
   - Depends on: E-04
   - Expected outcome: `.aw/system/cutover/metastore-code.cutover.patch` contains all prior code-patch hunks plus this plan's changes; `tests/test_metastore_cutover_code_patch.py` passes; scratch worktree is removed; one path-scoped commit is created.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -110,8 +110,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-01 | (written by E-01) | Base tree id after applying `.aw/system/cutover/metastore-docs.cutover.patch`. |
-| F-02 | (written by E-03) | Caller and behavior audit across `specs.py`, `releases.py`, `check_engine.py`, `cli.py`, `runner_shared.py`, `attention.py`, and `hooks/ipd_dependency_statement_gate.py`. |
+| F-01 | E-01, 2026-11-27: `git apply --index .aw/system/cutover/metastore-docs.cutover.patch` (exit 0) in `.aw/state/szykgd/scratch` on HEAD `acbc29dc3f466997d9e68c2580bdc8a44ba6ed07`, followed by `git write-tree`. | Base tree id after applying `.aw/system/cutover/metastore-docs.cutover.patch`: `eb37b700717348ac9ec2a931ccad56b85c0453cf`. |
+| F-02 | E-03 caller and behavior audit via `rg` across `agent_workflows/` in `.aw/state/szykgd/scratch`, `mypy` (`0` issues across all 6 edited modules), and `tests/test_cutover_log_checkers.py` (`8 passed`): (1) `agent_workflows/specs.py`: `validate_spec`, `read_spec_state`, `companion_log_path`, `run_check`, `_existing_spec_ids`, `_review_attestation_refusal`, and `_deferred_ids_refusal` are log-aware with `ephemeral_if_uninitialized()`/`scan_once()` and legacy bullet fallback; callers `check_engine.check_content` (`specs`), `runner_shared.check_review_lane_artifacts` (worktree + branch-only via `read_at`, with `(drift.severity or "error") == "error"` so default-severity drifts block), and `runner_shared.enforce_freeze_time_refusal` (with companion log digest in `_FREEZE_GATE_CACHE`) updated; `status_set.py` skips `validate_spec` on log-format records via `_is_log_format_record` and calls `_review_attestation_refusal`/`_deferred_ids_refusal`; (2) `agent_workflows/releases.py`: `validate_release_state`, `validate_release`, `parse_release`, `resolve_release_outcome`, `resolve_release`, `describe_planned_release`, `list_releases`, `get_release`, `_existing_ids`, `run_new` (dry-run and `--apply`), `_declared_blocks_release`, `count_blocks_release_sentinel`, `check_blocks_release`, `check_from_backlog`, and `check_graduated_to` (using `artifact_meta.parse_graduated_to` + `check_engine.build_plan_setid_index` with `legacy_raw_set or set_id`) are log-aware; `check_engine.check_content` (`releases`) updated; unchanged callers `attention._release_record` (uses cached `state`), `attention._spec_record` (uses `validate_spec_state` when log-backed), `attention._resolve_release_version` (delegates to `releases.resolve_release`/`parse_release`/`describe_planned_release`/`get_release`), `completion.py`, `backlog.py`, `cli.py`, `artifact_meta.py`, and `runner_shared.py` (`resolve_release`/`resolve_release_outcome`) receive log-backed values through E-02; adjacent gap noted in `check_engine.read_source_graduated_to` (still calls text-only `releases.parse_graduated_to(text)`); (3) `agent_workflows/check_engine.py`: `parse_cited_spec_ids` scans `## Concern`/`## Scope` (skipping fenced code blocks) plus `state.fields["scope_paths"]` and legacy bullets; `check_plan_spec_link_missing` passes `state=st_obj`, reads list/str log-stored `scope_paths`, and maps spec files via `_meta_state_map`; (4) `agent_workflows/cli.py::_run_search` loads `cached_by_path` whenever `search_has_tree` (with in-tree `.aw/records` fallback), matches banner-preceded `# <Title>`, and matches log-stored metadata in both default and `-F` modes with deduplicated `line: 0` hits; (5) `agent_workflows/hooks/ipd_dependency_statement_gate.py::_staged_ipd_overlay` inspects staged `<records_rel>/meta/<id6>.jsonl` via `read_at(..., ":0:")` and `artifact_meta.source_path`, preserving already-staged `.ipd.md` entries. | Verified caller and behavior audit across all five production areas and `attention.py` readers; all scoped paths pass behavioral tests and mypy with zero errors, and one adjacent gap (`check_engine.read_source_graduated_to`) is recorded in the turn defect report. |
 | F-03 | `psm9ac` F-05 and direct probes: `specs.validate_spec` on a log-format spec returned `[('attention.history-missing', ...)]`; `releases.validate_release` on a log-format release returned `[('release.version-missing', ...)]`; `releases.check_from_backlog` calls `_meta.read_text(text).fields.get("from_backlog")`; `check_engine.parse_cited_spec_ids` on a log-format plan with `## Concern` returned `[]`; `cli._run_search` non-`--full` mode scans only YAML fence + H1; `hooks/ipd_dependency_statement_gate.py::_staged_ipd_overlay` skips staged `meta/<id6>.jsonl`. | Five verified non-backlog production cutover gaps in `.aw/system/cutover/metastore-code.cutover.patch` block `psm9ac` (batch B) and later test batches. |
 | F-04 | `agent_workflows/releases.py` (`resolve_release_outcome`, `describe_planned_release`, `list_releases`, `get_release`, `_declared_blocks_release`, `count_blocks_release_sentinel`, `check_graduated_to`, `run_new`); `agent_workflows/check_engine.py::build_plan_setid_index`; `agent_workflows/specs.py` (`_review_attestation_refusal`, `_deferred_ids_refusal`); `agent_workflows/runner_shared.py::check_review_lane_artifacts` and `enforce_freeze_time_refusal`; `agent_workflows/cli.py::_run_search`; `agent_workflows/ipd_schema.py::parse_scope_paths`; `agent_workflows/artifact_meta.py::render_in_file_mirror`, `read_at`, `parse_graduated_to`, `scan_once`, and `ephemeral_if_uninitialized`. | Additional concrete cutover hazards verified during review: (1) six additional `releases.py` readers (`resolve_release_outcome`, `describe_planned_release`, `list_releases`, `get_release`, `count_blocks_release_sentinel`, `_declared_blocks_release`) and `run_new` dry-run/`--apply` still read text-only (with `artifact_meta.create` returning `"state"` only on `dry_run=True`); (2) `check_engine.build_plan_setid_index` reads only `st_obj.legacy_raw_set` (which is `None` on log-format plans, silently returning `{}` and causing `releases.check_graduated_to` to bail out with 0 findings), and `check_graduated_to` must parse list/string `graduated_to` through `artifact_meta.parse_graduated_to`; (3) `specs._review_attestation_refusal` and `_deferred_ids_refusal` call bullet-only `read_loose_id`, and read-only `specs.py`/`releases.py` lookups and walks need `ephemeral_if_uninitialized()` and `scan_once()`; (4) `cli._run_search` `m_h1` is blocked by `<!-- aw-managed: ... -->` and needs log-metadata search in `--full` mode too to keep `--full` a superset; (5) `ipd_schema.parse_scope_paths` expects `str` while log `state.fields["scope_paths"]` is `list[str]`; (6) `ipd_dependency_statement_gate._staged_ipd_overlay` must resolve records-root-relative `res.state.path` through `artifact_meta.source_path`. |
 
@@ -170,26 +170,80 @@ None open.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git worktree add --detach .aw/state/szykgd/scratch HEAD` command, both `git apply --index` commands (for `.aw/system/cutover/metastore-docs.cutover.patch` and `.aw/system/cutover/metastore-code.cutover.patch`) with exit status 0, and the base tree id recorded in F-01.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    ```text
+    $ mkdir -p .aw/state/szykgd && git worktree add --detach .aw/state/szykgd/scratch HEAD
+    Preparing worktree (detached HEAD acbc29dc3)
+    HEAD is now at acbc29dc3 chore(backlog): set status done
+    $ (cd .aw/state/szykgd/scratch && git apply --index .aw/system/cutover/metastore-docs.cutover.patch && BASE=$(git write-tree) && echo "BASE=$BASE" && git apply --index .aw/system/cutover/metastore-code.cutover.patch && echo "PATCHES_OK=1")
+    BASE=eb37b700717348ac9ec2a931ccad56b85c0453cf
+    PATCHES_OK=1
+    Command exited with code 0.
+    ```
+    F-01 records base tree id `eb37b700717348ac9ec2a931ccad56b85c0453cf`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste a throwaway-repository run on `.aw/state/szykgd/scratch` (code paths updated by E-02) showing `aw specs new --apply` followed by `aw specs check` exiting 0 with zero findings, `specs._review_attestation_refusal` resolving YAML mirror `id6` on a reviewed log-format spec, `specs.validate_spec` catching negative log-format spec cases (for example deferred without gate, corrupt log, or empty history) without creating `.aw/state/index.db` on an uninitialized directory, `releases.create_release` and `aw releases new` dry-run and `--apply` (`--json`) followed by `releases.validate_release`, `resolve_release(repo, version)`, `describe_planned_release`, `list_releases`, and `check_engine.check_content(..., "releases")` succeeding, `releases.check_from_backlog` reporting `check.from-backlog-malformed` and `check.from-backlog-dangling`, and `releases.check_graduated_to` (using `check_engine.build_plan_setid_index` without an explicit `plan_setids` override) detecting dangling, malformed, and repeated entries on log-format fixtures.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    Throwaway-repository smoke run on `.aw/state/szykgd/scratch` (with `PYTHONPATH=.`):
+    ```text
+    === V-02 SMOKE ===
+    aw specs new --apply: exit=0 id=bylyg0; aw specs check: exit=0 status=clean checked=1 violations=0
+    specs._review_attestation_refusal: unreviewed_names_id6=True reviewed_refusal=None
+    validate_spec negatives: deferred_no_gate=['attention.gate-missing'] corrupt=['attention.unreadable'] empty_hist=['attention.history-missing'] index_db_created=False
+    aw releases new dry_run: exit=0 ver=3.0.0 status=planned hist_len=1
+    aw releases new --apply: exit=0 ver=3.0.0 status=planned hist_len=1
+    releases checks: validate=[] resolve_by_ver=20261127-xp62m8-01-xp62m8-3-0-0.release.md describe=('xp62m8', '3.0.0') list_vers=['3.0.0'] check_content=[]
+    check_from_backlog=['check.from-backlog-dangling', 'check.from-backlog-malformed'] check_graduated_to=['check.graduated-to-dangling', 'check.graduated-to-malformed', 'check.graduated-to-repeated'] sentinel_count=1
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste F-02 (audit across all five areas including `attention.py`) and observed outputs on `.aw/state/szykgd/scratch` (code paths updated by E-03) showing `check_engine.check_plan_spec_link_missing` flagging a log-format plan citing a known spec in `## Concern` (and exempting it when list-valued log-stored `scope_paths` lists that spec), `aw search` without `-F` matching banner-preceded `# <Title>` and a log-stored backlog/research summary while excluding a body-only token (and `-F` matching both metadata and body), and `ipd_dependency_statement_gate.check` returning exit 1 when only `meta/<id6>.jsonl` is staged with a cyclic or dangling dependency.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    F-02 records the complete caller and behavior audit across `specs.py`, `releases.py`, `check_engine.py`, `cli.py`, `runner_shared.py`, `attention.py`, and `hooks/ipd_dependency_statement_gate.py`. Throwaway-repository smoke output on `.aw/state/szykgd/scratch`:
+    ```text
+    === V-03 SMOKE ===
+    check_plan_spec_link_missing: flagged=['20261125-alpha-03-pl0003-cites.ipd.md'] rules=['check.plan-spec-link-missing']
+    aw search: banner_h1(def)=rc:0/n:1 log_summary(def)=rc:0/n:1 body_only(def)=rc:1/n:0 body_only(-F)=rc:0/n:1 log_summary(-F)=rc:0/n:1
+    ipd_dependency_statement_gate (meta-only staged): exit=1 msgs=['check.ipd-dependency-dangling: executed:zzzz99: no ipd artifact has id6 zzzz99']
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste the full `python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_checkers.py` output in `.aw/state/szykgd/scratch` showing every test PASSED across specs, releases, spec-link checks, `aw search`, and `ipd_dependency_statement_gate`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    ```text
+    $ (cd .aw/state/szykgd/scratch && python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_checkers.py)
+    collected 8 items
+
+    tests/test_cutover_log_checkers.py::test_releases_crud_validation_resolution_and_dry_run PASSED [ 12%]
+    tests/test_cutover_log_checkers.py::test_parse_cited_spec_ids_and_plan_spec_link_missing_log_format PASSED [ 25%]
+    tests/test_cutover_log_checkers.py::test_runner_shared_spec_review_lane_and_freeze_cache PASSED [ 37%]
+    tests/test_cutover_log_checkers.py::test_ipd_dependency_statement_gate_staged_meta_logs PASSED [ 50%]
+    tests/test_cutover_log_checkers.py::test_releases_links_graduated_to_sentinels_and_blockers PASSED [ 62%]
+    tests/test_cutover_log_checkers.py::test_specs_new_check_and_transition_refusals PASSED [ 75%]
+    tests/test_cutover_log_checkers.py::test_specs_validate_negatives_legacy_parity_and_no_index_db PASSED [ 87%]
+    tests/test_cutover_log_checkers.py::test_aw_search_banner_h1_and_log_metadata_superset PASSED [100%]
+    ============================== SLOW TESTS REPORT ===============================
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 8 passed in 5.88s ===============================
+    ```
+    Sibling regression check in `.aw/state/szykgd/scratch`: `python3 -m pytest -o addopts="" -m '' tests/test_backlog_log_format.py` -> `12 passed in 6.85s`; `mypy` on all 6 edited modules -> `0` issues.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste `git apply --stat .aw/system/cutover/metastore-code.cutover.patch`, the `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` run showing every guard test PASSED (docs + code patch apply cleanly, patch touches files, and a broken patch is refused), `git worktree list` showing `.aw/state/szykgd/scratch` removed, `git status --short` confirming no live edits outside `- Scope-Paths:`, and the `aw commit szykgd` output naming the commit hash.
   - Observed evidence:
-  - Result: pending
+    - `git apply --stat .aw/system/cutover/metastore-code.cutover.patch`: `76 files changed, 8694 insertions(+), 8488 deletions(-)` (exit 0; includes `agent_workflows/specs.py` 441, `agent_workflows/releases.py` 1083, `agent_workflows/check_engine.py` 236, `agent_workflows/cli.py` 104, `agent_workflows/runner_shared.py` 598, `agent_workflows/hooks/ipd_dependency_statement_gate.py` 106, `tests/test_cutover_log_checkers.py` 891).
+    - `python3 -m pytest -o addopts="" -v tests/test_metastore_cutover_code_patch.py`:
+      - `tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_check_refuses_a_patch_that_no_longer_applies PASSED`
+      - `tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_code_patch_touches_files PASSED`
+      - `tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_code_patch_applies_after_docs_patch PASSED`
+      - Summary: `3 passed in 0.68s` (exit 0).
+    - `git worktree list`: `.aw/state/szykgd/scratch` removed (no scratch worktree listed).
+    - `git status --short`: `M .aw/system/cutover/metastore-code.cutover.patch` before commit (only declared `- Scope-Paths:` modified; zero live code or test edits).
+    - `aw commit szykgd -- .aw/system/cutover/metastore-code.cutover.patch`: `aw commit: committed 1 path(s): c9d274e4ff0f7d99e6599a88c1aac7c8ada72da7`.
+  - Result: pass
 
 ## Approval and execution gate
 
