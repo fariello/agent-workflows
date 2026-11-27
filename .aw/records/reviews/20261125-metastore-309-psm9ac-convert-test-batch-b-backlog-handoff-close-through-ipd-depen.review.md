@@ -2,7 +2,7 @@
 
 - Subject-Id: psm9ac
 - Subject-Type: ipd
-- Reviewed-At: 2026-11-26
+- Reviewed-At: 2026-11-27
 - Reviewer: antigravity/gemini
 - Verdict: APPROVE WITH REVISIONS APPLIED
 
@@ -279,3 +279,89 @@ AW-TIER: standard
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 |---|---|---|---|---|---|
 | D-1 | How to apply Option 1 re-chaining across already-`approved` sibling plans without inducing `[stale-review]` on unchanged execution checklists? | Updated `- Item-Dependencies:` via `aw ipd dependencies set` across all 9 affected plans (leaving `frozen_region_digest` unchanged on already-`approved` plans) and updated `otin36` (`to-review`) and `psm9ac` prose in full. | Rewrite `- Scope:` prose on all 7 already-`approved` plans (rejected: modifies `frozen_region_digest` and invalidates human approval unnecessarily when only the dependency edge moved). | Maintainer Option 1 answer (2026-11-26); `agent_workflows/ipd_lifecycle.py::frozen_region_digest`; `agent_workflows/plan_readiness.py::review_staleness_from_texts`. | yes |
+
+
+
+## Round 5
+
+This re-review ran in an isolated review-sweep lane worktree (`review-sweep-run-20261127T041632Z-1918738`) after `psm9ac` was demoted `reviewed -> to-review` via `aw agy review` following Round 4 and the follow-up reviews of prerequisites `fljn9b` (`f709b0b27`), `szykgd` (`f9aaab507`), and `otin36` (`91dbc96c2`). The only uncommitted working-tree diff at start was the runner's `reviewed -> to-review` demotion (stripping `- Readiness:`), so no separate pre-review snapshot commit was made. Before edits, `aw ipd lint --phase author --agent` returned `clean` (exit 0, 0 findings). The re-review audited all 18 batch B test modules (`tests/test_backlog_handoff_close.py` through `tests/test_ipd_dependency_statement_gate.py`), the full serial prerequisite chain (`hdwqex` -> `89mtbl` -> `nv3upa` -> `fljn9b` -> `cugg3w` -> `szykgd` -> `otin36` -> `p109wy` -> `q6fiws` -> `j1f454` -> `lec341` -> `3e0vfy` -> `psm9ac` -> `x8id25` -> `e0g2gt` -> `qi0kl6` -> `x3mig6` -> `x1mmdp` -> `0zylig`), `tests/test_metastore_cutover_code_patch.py`, `tests/repo_template.py`, and production implementations (`check_engine.py`, `meta_cli.py`, `ipd_lint.py`, `hooks/ipd_dependency_statement_gate.py`). It identified three `HIGH` plan-local test-conversion trap findings (`PR-009`..`PR-011`) and one `LOW` scope-sync finding (`PR-012`), all `Overall:Low` remediation risk and all fixed in place. No production code or test code was modified.
+
+### Step T
+
+1. No - the plan converts 18 test modules inside `.aw/system/cutover/metastore-code.cutover.patch` and does not change a spec or public contract.
+2. Yes - it regenerates `.aw/system/cutover/metastore-code.cutover.patch`, which patches commit/hook gates (`executed_transition_gate`, `meta_log_append_gate`, `ipd_dependency_statement_gate`) and `runner_shared.py`.
+3. Yes - it converts 18 test modules across `E-02`..`E-04` spanning backlog close, release gates, check_engine, check_meta, search, companion roots, cutover log gates/readers, overrides, index aliases/rebuild, graduation coverage, in-lane retirement, and dependency statement gates.
+4. Yes - `- Scope-Paths:` lists the plan file and `.aw/system/cutover/metastore-code.cutover.patch`.
+5. Yes - a mistake regenerating the cumulative code patch or mis-converting test fixtures/assertions could silently weaken regression coverage or fail execution across 18 test modules.
+
+AW-TIER: standard
+
+### Step R1
+
+- Checked: `psm9ac`, all 18 batch B test modules (`tests/test_backlog_handoff_close.py` through `tests/test_ipd_dependency_statement_gate.py`), the entire serial dependency chain (`hdwqex`, `89mtbl`, `nv3upa`, `fljn9b`, `cugg3w`, `szykgd`, `otin36`, `p109wy`, `q6fiws`, `j1f454`, `lec341`, `3e0vfy`, `psm9ac`, `x8id25`, `e0g2gt`, `qi0kl6`, `x3mig6`, `x1mmdp`, `0zylig`, `63ib9r`, `cxxmyv`), spec `4sd62s` (`.aw/records/specs/approved/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md`, pre-cutover date `20260925`), executed `2k5t16`, `tests/test_metastore_cutover_code_patch.py`, `tests/repo_template.py`, `tests/test_runner_shared.py::_passing_suite`, `agent_workflows/check_engine.py` (`_check_untooled_plan_transition`, `evaluate_blocking_close`, `check_release_gate_consistency`, `_meta_records_with_fields`, `check_spec_criteria_uncovered`), `agent_workflows/meta_cli.py::index_rebuild`, `agent_workflows/ipd_lint.py::run_lint`, and `agent_workflows/hooks/ipd_dependency_statement_gate.py`.
+- Confirmed: `- Item-Dependencies: executed:3e0vfy` sits cleanly at the end of all production-fix plans (`hdwqex`..`3e0vfy`) with zero remaining production log-awareness inversions across all 18 batch B modules.
+- Found concrete per-module conversion traps missed in `E-02`..`E-04`:
+  - `tests/test_inlane_retirement_lands.py`: prepending `"RETIRED 2026-09-27: premise spent.\n\n"` before line-1 `---` corrupts the YAML mirror; `tooled=False` must hand-edit only the mirror `status:` line (not call `artifact_meta.append`) and align the `untooled_status_refusal` assertion with `otin36` E-03 item 2; `_setup_repo_and_carriers` needs `RecordBuilder(repo)` materialization; line 273 imports `_passing_suite` from unconverted `tests/test_runner_shared.py` (`PR-009`).
+  - `tests/test_backlog_handoff_close.py` (`test_case_6b` bullet-strip no-op on log-backed `close_evidence`, `test_case_6c` `text_only=True` after unlink), `tests/test_blocks_release_reader_bounding.py` (`test_loose_blocks_release_cases` Case 1 needing legacy bullet input, six body-quote tests placing `- Blocks-Release:` inside `history=` instead of `body=`), `tests/test_check_engine_from_spec_missing.py` (`_create_plan` using `raw_fields` instead of `## Concern`/`## Scope` body sections, `test_cited_in_scope_paths`/`test_deduplication_across_bullets` passing `text_only=True` with no `state=`), and `tests/test_check_engine_spec_criteria.py` (`test_counterfactual_pin_matches_motivating_defect_set` calling `check_spec_criteria_uncovered` on unmigrated commit `516eb661` bullet files without running `aw migrate metadata` first; `test_plan_gaining_from_spec_edge_uncovers_criteria` regex-stripping `- From-Spec:`) (`PR-010`).
+  - `tests/test_from_backlog_cardinality.py` (`test_cross_reader_parity_matrix` feeding `text_only=True` to pure-text legacy readers and leaking `meta/tstpln.jsonl` across subtest iterations; 5-char `"valid"` id and non-enum `Status: pending`), `tests/test_gradcover_end_to_end.py` (text-only `coverage_record.is_current(orch_txt_a)` missing `plan_path`/`repo`, inline `- Coverage:`/`read_text` checks), and `tests/test_index_aliases.py` (`_completed_plan("al0005")` written text-only without `meta/al0005.jsonl`) (`PR-011`).
+  - `## Deferred / out of scope` omitted the six re-chained production-fix plans `otin36`..`3e0vfy` (`PR-012`).
+
+### Step R2
+
+- Checked: E/V bijection (`5/5`: `E-01..E-05` to `V-01..V-05`, `- Highest E allocated: 05`), `- Scope-Paths:` (2 tracked paths), `- Item-Dependencies: executed:3e0vfy`, `OQ-01` (resolved) and `OQ-02` (resolved), `V-01..V-05` concrete evidence demands (exact `rg -n` patterns, both-tier pytest commands, guard-test behavioral outcomes with no hardcoded test counts), runtime-demonstration reachability (all `V-*` items are reachable by construction), durable carriers (`fljn9b`, `szykgd`, `3e0vfy`, `x8id25`, `x1mmdp`, `cxxmyv`), and `## Approval and execution gate` execution contract (scope-fence declaration without stop-on-scope-question, hard-MUST honesty rule, `aw commit psm9ac`, never-push, conditional managed-runner vs. hand-run `aw ipd finalize`).
+- Found: all checks pass after applying `PR-009`..`PR-012`.
+
+### Step R3
+
+- Checked (full form, `standard` tier):
+  - Workspace containment and isolation: all code/test edits occur solely in gitignored `.aw/state/psm9ac/scratch`, removed before committing; `E-05`/`V-05` verify `git status --short` shows only `- Scope-Paths:` modified.
+  - Anti-regression / gate integrity: surfacing `PR-009`..`PR-011` prevents an executor from accidentally weakening untooled-retirement, close-evidence, body-quote, or coverage-cache assertions when converting the 18 batch B modules.
+  - Secrets/trust boundaries: no secrets, credentials, outbound calls, or privileged bypasses; path-scoped `aw commit psm9ac`, never push.
+
+### Step R4
+
+- Checked: correctness, architecture/reuse, anti-regression, testing/verification, KISS, right-sizing and conceptual density (`5` E-items, `3` task groups, `2` Scope-Paths, 6 contiguous modules per conversion step matching the maintainer-approved `x1mmdp` split), technical writing standard (including requirement 12 Mermaid flowchart parity and `path::Symbol` citations), and `## Spec / documentation sync`.
+- Verified: all four findings (`PR-009`..`PR-012`) are `Overall:Low` remediation risk and fixed in place.
+
+### Step S5
+
+- Checked: `OQ-01` and `OQ-02` remain resolved (2026-11-26, maintainer). Zero new human decisions arose; all four findings (`PR-009`..`PR-012`) are settled by repository code evidence (`Reversible: yes`, recorded in `### Decisions` `D-1..D-3`). Wrote `"questions": []` to `.aw/state/lane-submissions/run-20261127T041632Z-1918738/01-psm9ac/attempt-1/outcomes/01-psm9ac.json`.
+
+### Pass 2
+
+- Re-read revised `.aw/records/plans/pending/20261125-metastore-309-psm9ac-convert-test-batch-b-backlog-handoff-close-through-ipd-depen.ipd.md` in full: verified `- Status: reviewed`, `- Review-Depth: standard`, `- Readiness: go-pending-approval`, `## Workflow history` leading with `APPROVE WITH REVISIONS APPLIED`, all `PR-009`..`PR-012` revisions in `E-02`..`E-04` and `## Deferred / out of scope`, `E-01..E-05` / `V-01..V-05` 1:1 bijection, and Mermaid diagram parity.
+- Ran `aw ipd lint --phase review-finalize --agent` on `psm9ac` (exit 0, `clean`, 0 findings).
+- `AW-REVIEW: DONE`
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|---|---|---|---|---|---|---|---|---|
+| PR-009 | HIGH | IN-SCOPE | R1 / R2 / `E-04` item 5 (`tests/test_inlane_retirement_lands.py`) | `tests/test_inlane_retirement_lands.py::_fake_agent_retires_in_lane:89-118`, `test_hand_retirement_receives_fix_it_turn:207-232`, `test_retired_lane_reintegrates_and_is_marked_retired:273`, `_setup_repo_and_carriers:346-375`; `otin36` E-03 item 2 | `E-04` item 5 missed four concrete log-format traps in `tests/test_inlane_retirement_lands.py`: prepending `"RETIRED 2026-09-27: premise spent.\n\n"` before line-1 `---` destroys the YAML mirror; `tooled=False` must hand-edit only the YAML mirror `status:` line (not call `artifact_meta.append`) and update its `"Workflow history"` assertion to match `otin36` E-03 item 2's mirror-vs-log refusal; `_setup_repo_and_carriers` writes `text_only=True` fixtures; and line 273 still imports `_passing_suite` from unconverted batch E `tests/test_runner_shared.py`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Updated `E-04` item 5 to specify post-mirror retirement-note insertion, mirror-only `tooled=False` hand-edit and updated refusal assertion, `RecordBuilder(repo)` materialization in `_setup_repo_and_carriers`, and localization of `_passing_suite` alongside the other imported helpers (`D-1`). Recommendation strength: very strong. |
+| PR-010 | HIGH | IN-SCOPE | R1 / R2 / `E-02` items 1, 2, 4, 5 (first-third conversion traps) | `tests/test_backlog_handoff_close.py:888-928`; `tests/test_blocks_release_reader_bounding.py:62-74,123,195,296,380,431,503`; `tests/test_check_engine_from_spec_missing.py:107-150,170-178,206-217`; `tests/test_check_engine_spec_criteria.py:338-424,455-457`; `agent_workflows/check_engine.py::evaluate_blocking_close`, `check_spec_criteria_uncovered` | Four first-third modules in `E-02` carried unmentioned log-format traps: `test_backlog_handoff_close.py` (`test_case_6b` stripping `- Close-Evidence:` from `.backlog.md` is a no-op against `meta/item01.jsonl`, `test_case_6c` writes `text_only=True` after unlinking `item_path`); `test_blocks_release_reader_bounding.py` (`test_loose_blocks_release_cases` Case 1 needs literal legacy bullet input, and six body-quote tests put `- Blocks-Release:` in `history=` instead of `body=`); `test_check_engine_from_spec_missing.py` (`_create_plan` uses `raw_fields` instead of `## Concern`/`## Scope` body sections, and two `parse_cited_spec_ids` tests omit `state=` on `text_only=True`); and `test_check_engine_spec_criteria.py` (`test_counterfactual_pin_matches_motivating_defect_set` runs `check_spec_criteria_uncovered` on unmigrated commit `516eb661` bullet files without `aw migrate metadata`, and `test_plan_gaining_from_spec_edge_uncovers_criteria` regex-strips `- From-Spec:`). | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added explicit per-module log-format conversion instructions to `E-02` items 1, 2, 4, and 5 (`D-2`). Recommendation strength: very strong. |
+| PR-011 | HIGH | IN-SCOPE | R1 / R2 / `E-03` item 6 and `E-04` items 2, 3 (`from_backlog_cardinality`, `gradcover_end_to_end`, `index_aliases`) | `tests/test_from_backlog_cardinality.py:96-162,299-351,427`; `tests/test_gradcover_end_to_end.py:544-548,613-616,995-998,1292-1293,1316-1317`; `tests/test_index_aliases.py:243-260,305-307`; `q6fiws` E-02 item 1 | Three modules in `E-03` and `E-04` had unmentioned traps: `test_from_backlog_cardinality.py` passes `text_only=True` to pure-text legacy readers, leaks `meta/tstpln.jsonl` across subtest iterations when unlinking only `plan_file`, uses 5-char `"valid"` id, and sets non-enum `Status: pending`; `test_gradcover_end_to_end.py` calls text-only `coverage_record.is_current(orch_txt_a)` without `plan_path`/`repo` and asserts inline `- Coverage:` / `read_text` readiness instead of `artifact_meta.read`/`history`; and `test_index_aliases.py` writes `_completed_plan("al0005")` text-only without `meta/al0005.jsonl`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added explicit per-module instructions to `E-03` item 6 and `E-04` items 2 and 3 (`D-3`). Recommendation strength: very strong. |
+| PR-012 | LOW | IN-SCOPE | Check P / R2 / `## Deferred / out of scope` sync with `OQ-02` Option 1 | `psm9ac` `## Deferred / out of scope`, `F-06`, `OQ-02` | `## Deferred / out of scope` listed `fljn9b` and `szykgd` (from `OQ-01`) but omitted the six re-chained production log-awareness plans `otin36`..`3e0vfy` (from `OQ-02` Option 1). | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added the `otin36`..`3e0vfy` entry carrying `- Carrier: 3e0vfy` to `## Deferred / out of scope`. Recommendation strength: strong. |
+
+### Proofreading
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| `E-02` items 1, 2, 4, 5 | High-level per-module conversion notes omitting `test_case_6b`/`6c`, `history=` body-quote placement, `## Concern`/`## Scope` body sections, and `516eb661` migration | Explicit log-format conversion instructions covering each verified trap | PR-010 |
+| `E-03` item 6 & `E-04` items 2, 3, 5 | Omitted subtest `meta/tstpln.jsonl` cleanup, `coverage_record.is_current(plan_path=, repo=)`, `_completed_plan("al0005")` materialization, post-mirror retirement note placement, mirror-only `tooled=False` hand-edit, and `_passing_suite` localization | Added exact per-module rules for every verified trap | PR-009, PR-011 |
+| `## Deferred / out of scope` | Listed `fljn9b` and `szykgd` only | Added `otin36`..`3e0vfy` (`- Carrier: 3e0vfy`) matching `OQ-02` Option 1 | PR-012 |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| (none) | (none) | No unresolved proofreading issues remain. | None | None | very strong |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | How should `tests/test_inlane_retirement_lands.py` handle the retirement note, `tooled=False` hand-edit simulation, `_setup_repo_and_carriers`, and `_passing_suite` import on the post-cutover log format? | Insert the retirement note after the YAML mirror/banner, simulate `tooled=False` by hand-editing only the YAML mirror `status:` line (matching `otin36` E-03 item 2's mirror-vs-log `check.status-untooled` refusal), materialize `_setup_repo_and_carriers` via `RecordBuilder(repo)`, and localize `_passing_suite` alongside the other imported helpers. | Prepend text before `---` or call `artifact_meta.append` for `tooled=False` (rejected: corrupts the YAML mirror or creates a tooled transition that never triggers `check.status-untooled`); keep importing `_passing_suite` from unconverted `tests/test_runner_shared.py` (rejected: unnecessary cross-batch import). | `tests/test_inlane_retirement_lands.py:89-118,207-232,273,346-375`; `otin36` E-03 item 2. | yes |
+| D-2 | How should `E-02` handle the log-format fixture and legacy-input traps in `test_backlog_handoff_close.py`, `test_blocks_release_reader_bounding.py`, `test_check_engine_from_spec_missing.py`, and `test_check_engine_spec_criteria.py`? | Unset `close_evidence` via `artifact_meta.append` in `test_case_6b`; keep literal legacy bullet input in `test_loose_blocks_release_cases` Case 1 and move body-quoted `- Blocks-Release:` lines from `history=` into `body=`; emit `## Concern`/`## Scope` body sections in `_create_plan` and pass `state=`/`## Concern`/`## Scope` or legacy bullet text in `parse_cited_spec_ids` unit tests; run `aw migrate metadata` on the commit `516eb661` temp repo in `test_counterfactual_pin_matches_motivating_defect_set`. | Leave generic `RecordBuilder(repo)` wording (rejected: each of those four cases would fail or silently test the wrong thing on log-format fixtures). | `tests/test_backlog_handoff_close.py:888-928`; `tests/test_blocks_release_reader_bounding.py:62-74,123,195,296,380,431,503`; `tests/test_check_engine_from_spec_missing.py:107-150,170-178,206-217`; `tests/test_check_engine_spec_criteria.py:338-424,455-457`; `agent_workflows/check_engine.py::evaluate_blocking_close`, `check_spec_criteria_uncovered`. | yes |
+| D-3 | How should `E-03` item 6 and `E-04` items 2 and 3 handle `test_from_backlog_cardinality.py`, `test_gradcover_end_to_end.py`, and `test_index_aliases.py`? | Use explicit legacy bullet strings for pure-text legacy readers in `test_cross_reader_parity_matrix` and unlink `meta/tstpln.jsonl` between subtests (with valid 6-char id6s and post-cutover IPD statuses); pass `plan_path`/`repo` to `coverage_record.is_current` and read coverage/readiness via `artifact_meta.read`/`history` in `test_gradcover_end_to_end.py`; materialize `_completed_plan("al0005")` via `RecordBuilder(repo)` in `test_index_aliases.py`. | Leave `text_only=True` or text-only `coverage_record.is_current` calls unchanged (rejected: causes guaranteed failures on log-format records). | `tests/test_from_backlog_cardinality.py:96-162,299-351,427`; `tests/test_gradcover_end_to_end.py:544-548,613-616,995-998,1292-1293,1316-1317`; `tests/test_index_aliases.py:243-260,305-307`; `q6fiws` E-02 item 1. | yes |
