@@ -146,6 +146,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-315-szykgd-make-specs-releases-spec-link-search-and-dep-gate-log-aware.ipd.md
 - Making `ipd_lifecycle`/`partition`/`plans`/`check_status_untooled*`/hooks/`meta_repair`, `.review.md`/prompt mirrors/`check_engine` priority, `coverage_record`/`readiness`/`runner`/`review_sequence`, `selectors`/`artifact_rename`, `research_cmd`/`research_refs`, and `plan_readiness`/`status_set`/`artifact_refs`/`artifact_adopt` log-aware in the cutover code patch (OQ-02 Option 1, maintainer answer 2026-11-26): six prerequisite child plans (`otin36` -> `p109wy` -> `q6fiws` -> `j1f454` -> `lec341` -> `3e0vfy`) re-chained ahead of `psm9ac`.
   - Carrier: 3e0vfy
+  - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-321-3e0vfy-make-plan-readiness-status-set-artifact-refs-and-artifact-ad.ipd.md
 - Modules outside batch B: the other batch children (`x8id25`, `e0g2gt`, `qi0kl6`, `x3mig6`).
   - Carrier: x8id25
 - The final refusal list across all batches and the full-suite runs: the narrowed parent step.

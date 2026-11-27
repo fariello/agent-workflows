@@ -123,6 +123,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-320-lec341-make-research-cmd-create-research-refs-renames-and-research.ipd.md
 - The four batch F production cutover gaps (`plan_readiness.py`/`readiness_recheck.py`, `status_set.py`, `artifact_refs.py`, `artifact_adopt.py`, recorded in F-05): split into prerequisite Order 321 (`3e0vfy`, `- Item-Dependencies: executed:qi0kl6`) per resolved `OQ-01`.
   - Carrier: 3e0vfy
+  - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-321-3e0vfy-make-plan-readiness-status-set-artifact-refs-and-artifact-ad.ipd.md
 - Modules outside batch F (batches A through E): owned by earlier batch children (`nv3upa`, `cugg3w`, `psm9ac`, `x8id25`, `e0g2gt`, `qi0kl6`).
   - Carrier: qi0kl6
 - The final refusal list across all batches and the full-suite runs: owned by the narrowed capstone plan.
