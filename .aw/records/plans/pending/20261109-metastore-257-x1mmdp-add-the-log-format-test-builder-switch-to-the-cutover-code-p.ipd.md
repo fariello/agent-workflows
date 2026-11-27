@@ -128,6 +128,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-316-otin36-make-ipd-lifecycle-partition-plans-untooled-range-hooks-and.ipd.md
 - Making spec `4sd62s` Section 4.1a review mirrors, `has_prompt_metadata_comment`/`validate_prompt_content`, and `check_engine.py::check_plan_priority_required` log-aware in the cutover code patch (`e0g2gt` OQ-01, maintainer answer 2026-11-26).
   - Carrier: p109wy
+  - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-317-p109wy-make-review-mirrors-prompt-metadata-and-check-engine-priorit.ipd.md
 - Making `coverage_record.py`, `orchestrator_readiness.py::review_readiness`, `plan_readiness.py`, `runner_shared.py`, and `review_tier.py`/`review_sequence.py`/`review_rereview.py` log-aware in the cutover code patch (`e0g2gt` OQ-01, maintainer answer 2026-11-26).
   - Carrier: q6fiws
 - Making `selectors.py` status matching and typed-subject ownership and `artifact_rename.py` `--to-id6` log-aware in the cutover code patch (`qi0kl6` OQ-01, maintainer answer 2026-11-26).

@@ -138,6 +138,7 @@ flowchart TD
 
 - Making spec `4sd62s` Section 4.1a `.review.md` mirrors, `has_prompt_metadata_comment`, and `check_engine.check_plan_priority_required` log-aware: prerequisite Order 317 plan that executes immediately before this plan.
   - Carrier: p109wy
+  - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-317-p109wy-make-review-mirrors-prompt-metadata-and-check-engine-priorit.ipd.md
 - Converting batch D's 10 test modules (`tests/test_prose_dash_advisory.py` through `tests/test_readers_runner.py`): runs immediately after this plan executes.
   - Carrier: e0g2gt
 - Making `plan_readiness` approval/recheck gates (`_declared_id6`, `approval_refusals`, `recheck_conditions`, `recheck_readiness`), `status_set`, `artifact_refs`, and `artifact_adopt` log-aware: later prerequisite Order 321 plan ahead of batch F.
