@@ -5,7 +5,7 @@
 - Concern: Backlog `ldfefd`: on the switched tree (HEAD plus both cutover patches), these 8 test modules (batch A, alphabetical slice from `test_artifact_meta_cache` to `test_backlog`) fail due to legacy bullet/YAML fixtures (`MetadataSchemaError` or orphan errors), removed Phase-B legacy loader and `read_at` behaviors, removed API calls (`backlog._render_item`), and post-cutover `artifact_meta.append` dry-run contract changes (the `agent_workflows/backlog.py` log-awareness gap documented in F-05 is fixed ahead of this plan by prerequisite Order 314 `fljn9b` per OQ-01). Historical attempt-1 core census provenance (`x1mmdp` attempt-1, 2026-11-25) counted 52 failing core tests across these 8 modules; execution starts from `89mtbl` F-04 after the builder switch.
 - Scope: In an isolated scratch worktree with both cutover patches applied (including `hdwqex`, `89mtbl`, `nv3upa`, and `fljn9b`), convert the batch A test modules under the shared conversion rules and per-module rules in E-02 and E-03, run them on both tiers, record deleted legacy-behavior tests in F-02 and any remaining refusal of this repository's own unmigrated records in F-03, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. No live code changes outside the cutover code patch.
 - Scope-Paths: .aw/records/plans/pending/20261125-metastore-308-cugg3w-convert-test-batch-a-artifact-meta-through-backlog-in-the-cu.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
-- Item-Dependencies: executed:fljn9b
+- Item-Dependencies: executed:6cltab
 - Status: approved
 - Review-Depth: standard
 - Readiness: go-pending-approval
@@ -25,6 +25,7 @@
 
 ## Workflow history
 
+- 2026-11-27 same-status (aw set): Option 2 re-chain (igbr4f): run batch A after prod-fix chain and 6cltab (2etrjf + 3pxjya)
 - 2026-11-27 approved (aw set): status set to approved
 - 2026-11-26 auto-approved (aw agy run --full-auto): auto-approved by --full-auto: review readiness cleared (not human approval)
 - 2026-11-26 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-007, PR-008, PR-009, PR-010; review record .aw/records/reviews/20261125-metastore-308-cugg3w-convert-test-batch-a-artifact-meta-through-backlog-in-the-cu.review.md
