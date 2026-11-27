@@ -44,21 +44,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: scratch worktree
 
-- [ ] E-01 Create the scratch worktree following the SCRATCH PROCEDURE of executed plan `2k5t16` (Step 0): run `git worktree add --detach .aw/state/otin36/scratch HEAD`; inside `.aw/state/otin36/scratch`, run `git apply --index .aw/system/cutover/metastore-docs.cutover.patch`, record `BASE=$(git write-tree)` in F-01, and then run `git apply --index .aw/system/cutover/metastore-code.cutover.patch`. If either patch rejects, stop and report.
+- [x] E-01 Create the scratch worktree following the SCRATCH PROCEDURE of executed plan `2k5t16` (Step 0): run `git worktree add --detach .aw/state/otin36/scratch HEAD`; inside `.aw/state/otin36/scratch`, run `git apply --index .aw/system/cutover/metastore-docs.cutover.patch`, record `BASE=$(git write-tree)` in F-01, and then run `git apply --index .aw/system/cutover/metastore-code.cutover.patch`. If either patch rejects, stop and report.
   - Depends on: none
   - Expected outcome: `.aw/state/otin36/scratch` holds HEAD plus both patches staged, and F-01 records the base tree id.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: log-aware lifecycle, partition/plans, untooled-range, hooks, and meta_repair (scratch worktree only)
 
-- [ ] E-02 Make `agent_workflows/ipd_lifecycle.py` log-aware in `.aw/state/otin36/scratch` while keeping legacy bullet-format parity intact:
+- [x] E-02 Make `agent_workflows/ipd_lifecycle.py` log-aware in `.aw/state/otin36/scratch` while keeping legacy bullet-format parity intact:
   1. Add a shared helper that resolves optional companion `artifact_meta.State` for a plan path (via `artifact_meta.read_mirror_id6(text)` and the records root inside `artifact_meta.ephemeral_if_uninitialized()`, letting `MetadataSchemaError` propagate and returning `None` for unlogged legacy text), and pass `state=` to `_lint.parse(...)` at all 10 bare `_lint.parse` sites in `agent_workflows/ipd_lifecycle.py` (`_extract_plan_id`, `_requirements_from_plan`, `_frozen_scope_paths`, `_is_grandfathered_scope`, `begin`, `finalize_precheck`, `retire_orchestrator` x2, `finalize`, and scope-reason loading). Because `_requirements_from_plan`, `_frozen_scope_paths`, and `_is_grandfathered_scope` currently accept only `text: str`, add an optional `state=None` (or `doc=None`) parameter to each and pass the resolved `State` from their callers (`begin`, `finalize_precheck`, `finalize`, `_check_scope_widening`) so log-format plans yield accurate `Id`, `Status`, `Kind`/`Order`, and `Scope-Paths`.
   2. Update `agent_workflows/ipd_lifecycle.py::_finalize_transaction` across all three `owned_paths` construction points (non-git / `companion-lane-staged`, initial journal preparation + `git_index_entries`, and coordinator-worktree staging before `git add`) so when a companion log `.aw/records/meta/<plan_id>.jsonl` (or `.agents/meta/<plan_id>.jsonl` or companion-repo `meta/<plan_id>.jsonl`) exists for the finalized plan, its repo-relative path `meta_rel` is included in `owned_paths` alongside `tx_plan_rel` and `dest_rel`. Ensure the appended `executed` log event is staged and committed in the atomic finalize transaction rather than dropped on worktree teardown; in the non-git / `companion-lane-staged` branch (which mutates `plan_root` directly rather than a detached coordinator worktree), snapshot `meta_rel` and its pre-mutation bytes into the finalize journal and atomically restore them in `_rollback_precommit` on pre-commit fault (never deleting a pre-existing `meta/<plan_id>.jsonl`); and update `_assert_rollup_touched_only_owned_paths` to also reject uncommitted changes to the orchestrator's companion `meta/<plan_id>.jsonl` before rollup retirement.
   - Depends on: E-01
   - Expected outcome: in a throwaway log-format repository on `.aw/state/otin36/scratch`, `aw ipd begin` and `aw ipd finalize` succeed, freeze and reconcile log-stored `Scope-Paths`, move the plan to `.aw/records/plans/executed/`, and commit both the moved plan file and `.aw/records/meta/<plan_id>.jsonl` with the `executed` event.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make `agent_workflows/partition.py`, `agent_workflows/plans.py`, `agent_workflows/check_engine.py`, `agent_workflows/hooks/executed_transition_gate.py`, `agent_workflows/hooks/backlog_blocking_close_gate.py`, and `agent_workflows/meta_cli.py` log-aware in `.aw/state/otin36/scratch`:
+- [x] E-03 Make `agent_workflows/partition.py`, `agent_workflows/plans.py`, `agent_workflows/check_engine.py`, `agent_workflows/hooks/executed_transition_gate.py`, `agent_workflows/hooks/backlog_blocking_close_gate.py`, and `agent_workflows/meta_cli.py` log-aware in `.aw/state/otin36/scratch`:
   1. In `agent_workflows/partition.py` (`_is_orchestrator_plan`, both `_selectors._read_setid` call sites, and `classify_sets`'s `runner_shared._read_item_dependencies` fallback for Set members not in `cand_by_id`) and `agent_workflows/plans.py` (`_status_from_state`, `read_set`, and `scan`):
      - Fix `plans._status_from_state` to read `getattr(st, "status", None)` before falling back to `getattr(st, "legacy_raw_status", None)` (which is `None` on log-format `State` rows).
      - Update `plans.scan` to read `set_id` and `order` from the cached `State` (`st.set_id`, `st.order_nn`) with fallback to `read_set(f)`, and make `plans.read_set` resolve companion `meta/<id6>.jsonl` inside `artifact_meta.ephemeral_if_uninitialized()` when called directly (falling back to `artifact_meta.read_text` for unlogged legacy text).
@@ -70,9 +70,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   5. Record the verified caller and behavior audit across all five areas in F-02.
   - Depends on: E-02
   - Expected outcome: `partition` and `plans.read_set`/`scan` return accurate `status`, `plan_role`, `set`, `order`, and member `item_dependencies` on log-format plans; `check_status_untooled` and `check_status_untooled_range` catch hand-edited YAML mirror status flips while accepting tooled transitions; both pre-commit hooks accept valid `m0001` migration markers on unstamped legacy repos and still refuse mismatched or corrupt markers; and `meta_cli.meta_repair` returns exit 2 naming `aw migrate metadata` on unmigrated legacy repos.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add and run core behavioral test module `tests/test_cutover_log_lifecycle_and_hooks.py` (`pytestmark = pytest.mark.core`) in `.aw/state/otin36/scratch` (asserting real outputs, exit codes, and side effects; no code-pinning tests):
+- [x] E-04 Add and run core behavioral test module `tests/test_cutover_log_lifecycle_and_hooks.py` (`pytestmark = pytest.mark.core`) in `.aw/state/otin36/scratch` (asserting real outputs, exit codes, and side effects; no code-pinning tests):
   1. Cover `ipd_lifecycle.begin`, `finalize_precheck`, `finalize`, and `retire_orchestrator` on log-format plans, verifying `Scope-Paths` freezing/reconciliation, dirty companion-log refusal in rollup retirement, pre-commit fault rollback restoring pre-mutation `meta/<plan_id>.jsonl` bytes in the non-git / `companion-lane-staged` branch without deleting the log, and verifying the finalize commit includes both the moved plan file and `.aw/records/meta/<plan_id>.jsonl` with `status == "executed"`.
   2. Cover `partition._is_orchestrator_plan`, `partition.classify_sets` (including Set-id resolution and non-candidate member `item_dependencies`), `plans.read_set`, and `plans.scan` (`status`, `set_id`, `order`) on log-format orchestrator and child plans.
   3. Cover `check_engine.check_status_untooled` and `check_engine.check_status_untooled_range` catching a hand-edited YAML mirror `status:` flip (intermediate and `executed`) while accepting a tooled `artifact_meta.append` / `aw ipd set` transition that updates both log and mirror.
@@ -81,14 +81,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   6. Run `python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_lifecycle_and_hooks.py` in `.aw/state/otin36/scratch` and confirm every test passes.
   - Depends on: E-03
   - Expected outcome: `tests/test_cutover_log_lifecycle_and_hooks.py` passes every test in `.aw/state/otin36/scratch`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: package
 
-- [ ] E-05 In `.aw/state/otin36/scratch`, run `git add -A` and write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch` in the executing checkout; remove the scratch worktree (`git worktree remove --force .aw/state/otin36/scratch`); run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout; verify `git status --short` shows only `- Scope-Paths:` modified; and commit through `aw commit otin36 -- .aw/records/plans/pending/20261126-metastore-316-otin36-make-ipd-lifecycle-partition-plans-untooled-range-hooks-and.ipd.md .aw/system/cutover/metastore-code.cutover.patch`; never push.
+- [x] E-05 In `.aw/state/otin36/scratch`, run `git add -A` and write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch` in the executing checkout; remove the scratch worktree (`git worktree remove --force .aw/state/otin36/scratch`); run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout; verify `git status --short` shows only `- Scope-Paths:` modified; and commit through `aw commit otin36 -- .aw/records/plans/pending/20261126-metastore-316-otin36-make-ipd-lifecycle-partition-plans-untooled-range-hooks-and.ipd.md .aw/system/cutover/metastore-code.cutover.patch`; never push.
   - Depends on: E-04
   - Expected outcome: `.aw/system/cutover/metastore-code.cutover.patch` contains all prior code-patch hunks plus this plan's changes; `tests/test_metastore_cutover_code_patch.py` passes; scratch worktree is removed; one path-scoped commit is created.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -102,8 +102,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-01 | (written by E-01) | Base tree id after applying `.aw/system/cutover/metastore-docs.cutover.patch`. |
-| F-02 | (written by E-03) | Caller and behavior audit across `ipd_lifecycle.py`, `partition.py`, `plans.py`, `check_engine.py`, `hooks/executed_transition_gate.py`, `hooks/backlog_blocking_close_gate.py`, and `meta_cli.py`. |
+| F-01 | E-01, 2026-11-27: `git apply --index .aw/system/cutover/metastore-docs.cutover.patch` (exit 0) in `.aw/state/otin36/scratch` on HEAD `362775448529c63b9eeafed2468f91d9bcd86f02`, followed by `git write-tree`. | Base tree id after applying `.aw/system/cutover/metastore-docs.cutover.patch`: `261e100ad49f8c560daf7dd84c7955813a4e7d52`. |
+| F-02 | E-03 caller and behavior audit across all five areas in `.aw/state/otin36/scratch`, `mypy` (`0` issues across all 7 edited modules), `tests/test_cutover_log_lifecycle_and_hooks.py` (`7 passed`), and sibling regression check (`tests/test_cutover_log_checkers.py` + `tests/test_backlog_log_format.py`: `20 passed`): (1) `agent_workflows/ipd_lifecycle.py`: added `_resolve_plan_records_roots`, `_records_context`, `_resolve_plan_state` (via `artifact_meta.read_mirror_id6` inside `ephemeral_if_uninitialized()`, letting `MetadataSchemaError` propagate), `_companion_meta_log_path`, and `_companion_meta_log_rel`; updated all 10 `_lint.parse` call sites (`_extract_plan_id`, `_requirements_from_plan`, `_frozen_scope_paths`, `_plan_is_grandfathered`, `begin`, `refreeze_receipt`, `finalize_precheck`, `retire_orchestrator` x2, `finalize`) and threaded `state=` through `frozen_region_digest`, `_frozen_region_payload`, `receipt_is_current`, `frozen_region_comparison`, `DerivedBaseline`/`derive_baseline`/`_synthetic_receipt`; updated `_finalize_transaction` at all three `owned_paths` construction points (non-git / `companion-lane-staged` with journal snapshot + atomic `_rollback_precommit` restore that never deletes pre-existing logs, initial git journal + `git_index_entries`, and coordinator-worktree staging before `git add`); updated `_assert_rollup_touched_only_owned_paths` to reject dirty companion `meta/<plan_id>.jsonl` before rollup retirement; (2) `agent_workflows/plans.py` and `agent_workflows/partition.py`: `plans._status_from_state` reads `state.status` before `legacy_raw_status`, `_cached_states_by_path` queries with `include_fields=True`, `plans.read_set` and `plans.scan` resolve companion logs inside `ephemeral_if_uninitialized()` with legacy `read_text` fallback; `partition._read_plan_state` and `_read_plan_setid` resolve companion logs inside `scan_once()` + `ephemeral_if_uninitialized()` for `_is_orchestrator_plan`, `expand_candidates_with_dependencies`, `classify_sets` set-id collection, and `classify_sets._parse_edges_for_item` (extracting structured dependencies via `attention._extract_item_dependencies(state=st)` with legacy `runner_shared._read_item_dependencies` fallback); (3) `agent_workflows/check_engine.py`: `_check_untooled_plan_transition` accepts `old_mirror_status`/`new_mirror_status` and checks mirror-vs-log consistency before `is_in_executed` early returns (catching hand-edited intermediate, retirement, `executed`, and already-`executed/` mirror flips while accepting tooled log+mirror transitions and legacy bullet parity); `check_status_untooled` and `check_status_untooled_range` pass `artifact_meta.resolve_mirror_at` statuses for both revisions, and `check_status_untooled_range` uses `_read_plan_state_at_checked` to emit `check.status-untooled` on corrupt metadata; (4) `agent_workflows/hooks/executed_transition_gate.py::check` and `agent_workflows/hooks/backlog_blocking_close_gate.py::check`: moved `_migration_marker_accepts(root)` ahead of all metadata reads and release-gate queries so unstamped legacy repos short-circuit cleanly on a matching `m0001` marker while mismatched, wrong-id, or corrupt markers still fall through to standard fail-closed checks; (5) `agent_workflows/meta_cli.py::meta_repair`: catches `MetadataSchemaError` around `_meta.resolve` and both `_meta.repair` calls via `_meta_repair_schema_refusal`, returning structured `CommandResult(command="meta repair", status="cannot-run", exit_code=2, ...)` naming `aw migrate metadata`. Two adjacent out-of-scope cutover gaps were observed and recorded in the turn defect report: `check_engine.py::check_scope_drift` calls `ipd_lifecycle._frozen_scope_paths(text)` without passing `state=st_obj`, and `ipd_lint.py::_lookup_tracked_state` calls `artifact_meta.legacy_context(repo_root)` (which still resolves `companion_records_dir` under `records_backend == "companion"`) when attempting to query lane-staged `in_tree_records`. | Verified caller and behavior audit across all five production areas; all 7 edited modules pass `mypy` (0 issues) and behavioral/regression tests (`7 passed` + `20 passed`), with two adjacent out-of-scope gaps recorded in the defect report. |
 | F-03 | `x8id25` F-05 and static audit of `.aw/system/cutover/metastore-code.cutover.patch` and live modules: 10 bare `_lint.parse(...)` calls and `owned_paths` in `ipd_lifecycle.py::_finalize_transaction`; `partition.py::_is_orchestrator_plan` and `_selectors._read_setid` calls plus `plans.py::read_set`/`scan`; `check_engine.py::check_status_untooled_range`; `_migration_marker_accepts` placement in `hooks/executed_transition_gate.py::check` and `hooks/backlog_blocking_close_gate.py::check`; and uncaught `MetadataSchemaError` in `meta_cli.py::meta_repair`. | Five verified production cutover gaps in `.aw/system/cutover/metastore-code.cutover.patch` block `x8id25` (batch C) and downstream cutover execution. |
 | F-04 | `agent_workflows/ipd_lifecycle.py` (`_requirements_from_plan`, `_frozen_scope_paths`, `_is_grandfathered_scope`, `_rollback_precommit`, `_assert_rollup_touched_only_owned_paths`, `_finalize_transaction` lines 6065/6123/6155/6317); `agent_workflows/plans.py::_status_from_state` and `read_set`; `agent_workflows/partition.py::classify_sets` (`_read_item_dependencies` fallback); `agent_workflows/check_engine.py::check_status_untooled`, `check_status_untooled_range`, and `_check_untooled_plan_transition`; `agent_workflows/artifact_meta.py::scan_once` and `ephemeral_if_uninitialized`; `agent_workflows/meta_cli.py::meta_repair`. | Additional co-located cutover hazards verified during review: (1) `_requirements_from_plan`, `_frozen_scope_paths`, and `_is_grandfathered_scope` accept only `text: str` and need optional `state=` threaded from callers, `_finalize_transaction` builds `owned_paths` at three sites and mutates `meta/<plan_id>.jsonl` in place on the non-git / `companion-lane-staged` branch (needing journal snapshot + `_rollback_precommit` restore on fault), and `_assert_rollup_touched_only_owned_paths` checks only `plan_rel`; (2) `plans._status_from_state` reads only `legacy_raw_status` (returning `None` for every log-format plan/prompt), `partition.classify_sets` reads member `item_dependencies` from `.md` text only, and read-only companion-log lookups need `ephemeral_if_uninitialized()` / `scan_once()`; (3) `check_status_untooled` shares the mirror-flip blind spot with `check_status_untooled_range`, mirror-vs-log checks must run before `is_in_executed` early returns, and `check_status_untooled_range` must emit `check.status-untooled` when `_read_plan_state_at_checked` reports corrupt metadata. |
 
@@ -168,26 +168,80 @@ None open.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git worktree add --detach .aw/state/otin36/scratch HEAD` command, both `git apply --index` commands (for `.aw/system/cutover/metastore-docs.cutover.patch` and `.aw/system/cutover/metastore-code.cutover.patch`) with exit status 0, and the base tree id recorded in F-01.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    ```text
+    $ git worktree add --detach .aw/state/otin36/scratch HEAD && (cd .aw/state/otin36/scratch && git apply --index .aw/system/cutover/metastore-docs.cutover.patch && echo "DOCS_APPLY_EXIT=$?" && BASE=$(git write-tree) && echo "BASE=$BASE" && git apply --index .aw/system/cutover/metastore-code.cutover.patch && echo "CODE_APPLY_EXIT=$?")
+    Preparing worktree (detached HEAD 362775448)
+    HEAD is now at 362775448 integrate(aw agy run): merge verified lane szykgd to main
+    DOCS_APPLY_EXIT=0
+    BASE=261e100ad49f8c560daf7dd84c7955813a4e7d52
+    CODE_APPLY_EXIT=0
+    Command exited with code 0.
+    ```
+    F-01 records base tree id `261e100ad49f8c560daf7dd84c7955813a4e7d52`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste a throwaway-repository run on `.aw/state/otin36/scratch` (code paths updated by E-02) showing `aw ipd begin` and `aw ipd finalize` succeeding on a log-format plan (with frozen log-stored `Scope-Paths`), moving it to `.aw/records/plans/executed/`, and `git show --name-only HEAD` listing both the moved plan file and `.aw/records/meta/<plan_id>.jsonl` with `status == "executed"`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    Throwaway-repository CLI run on `.aw/state/otin36/scratch` (with `PYTHONPATH=.`):
+    ```text
+    === V-02 SMOKE ===
+    aw ipd begin: exit=0 status=clean frozen_scope_paths=['src/app.py']
+    aw ipd finalize: exit=0 status=clean commit=3fca754ebac5
+    git show --name-only HEAD: ['.aw/records/meta/sm0001.jsonl', '.aw/records/plans/executed/20261127-demo-01-sm0001-smoke.ipd.md']
+    replayed meta/sm0001.jsonl status: 'executed' moved_exists=True
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste F-02 (audit across all five areas) and observed outputs on `.aw/state/otin36/scratch` (code paths updated by E-03) showing `partition._is_orchestrator_plan`, `partition.classify_sets`, `plans.read_set`, and `plans.scan` returning log-stored `status`, `plan_role`, `set`, `order`, and member `item_dependencies`, `check_engine.check_status_untooled` and `check_status_untooled_range` flagging a hand-edited YAML mirror `status:` flip while accepting a tooled transition, `executed_transition_gate.check` and `backlog_blocking_close_gate.check` returning exit 0 on a valid `m0001` migration marker commit in an unstamped schema-1 repo (and exit 1 on an unmarkered or mismatched-marker violation on a schema-2 repo), and `meta_cli.meta_repair` returning exit 2 naming `aw migrate metadata` on an unmigrated legacy repo.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    F-02 records the complete caller and behavior audit across `ipd_lifecycle.py`, `partition.py`, `plans.py`, `check_engine.py`, `hooks/executed_transition_gate.py`, `hooks/backlog_blocking_close_gate.py`, and `meta_cli.py`. Throwaway-repository smoke output on `.aw/state/otin36/scratch`:
+    ```text
+    === V-03 SMOKE ===
+    partition._is_orchestrator_plan: orch=True child=False
+    partition.classify_sets[beta]: orch=or1000 blocked=[('ch1002', 'unsatisfied-dependency', ('zz9999',))]
+    plans.read_set(ch1)=('beta', 1) plans.scan={'20261127-beta-00-or1000-orch.ipd.md': ('approved', 'beta', None), '20261127-beta-01-ch1001-one.ipd.md': ('approved', 'beta', 1), '20261127-beta-02-ch1002-two.ipd.md': ('approved', 'beta', 2)}
+    check_status_untooled: flip_staged=['check.status-untooled'] flip_range=['check.status-untooled'] tooled_staged=[] tooled_range=[]
+    hooks: legacy_valid_marker=(exec:0, bklg:0) s2_unmarkered=(1, 1) s2_mismatched=(1, 1)
+    meta_repair(legacy): exit=2 status=cannot-run names_migrate=True next=['aw migrate metadata']
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste the full `python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_lifecycle_and_hooks.py` output in `.aw/state/otin36/scratch` showing every test PASSED across `ipd_lifecycle`, `partition`/`plans`, `check_status_untooled`/`check_status_untooled_range`, both migration-marker hooks, and `meta_cli.meta_repair`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    ```text
+    $ (cd .aw/state/otin36/scratch && python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_lifecycle_and_hooks.py)
+    collected 7 items
+
+    tests/test_cutover_log_lifecycle_and_hooks.py::test_ipd_lifecycle_retire_orchestrator_dirty_log_and_commit PASSED [ 14%]
+    tests/test_cutover_log_lifecycle_and_hooks.py::test_migration_marker_hooks_legacy_short_circuit_and_schema2_refusal PASSED [ 28%]
+    tests/test_cutover_log_lifecycle_and_hooks.py::test_ipd_lifecycle_begin_finalize_and_legacy_parity PASSED [ 42%]
+    tests/test_cutover_log_lifecycle_and_hooks.py::test_ipd_lifecycle_nongit_precommit_fault_restores_companion_log PASSED [ 57%]
+    tests/test_cutover_log_lifecycle_and_hooks.py::test_meta_repair_unmigrated_legacy_repo_returns_structured_exit_2 PASSED [ 71%]
+    tests/test_cutover_log_lifecycle_and_hooks.py::test_partition_and_plans_log_aware_readers PASSED [ 85%]
+    tests/test_cutover_log_lifecycle_and_hooks.py::test_check_status_untooled_and_range_detect_mirror_flips PASSED [100%]
+    ============================== SLOW TESTS REPORT ===============================
+
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 7 passed in 5.05s ===============================
+    ```
+    Sibling regression check in `.aw/state/otin36/scratch`: `python3 -m pytest -o addopts="" -m '' tests/test_cutover_log_checkers.py tests/test_backlog_log_format.py` -> `20 passed in 12.26s`; `mypy` on all 7 edited modules -> `Success: no issues found in 7 source files`.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste `git apply --stat .aw/system/cutover/metastore-code.cutover.patch`, the `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` run showing every guard test PASSED (docs + code patch apply cleanly, patch touches files, and a broken patch is refused), `git worktree list` showing `.aw/state/otin36/scratch` removed, `git status --short` confirming no live edits outside `- Scope-Paths:`, and the `aw commit otin36` output naming the commit hash.
   - Observed evidence:
-  - Result: pending
+    - `git apply --stat .aw/system/cutover/metastore-code.cutover.patch`: `82 files changed, 10478 insertions(+), 8589 deletions(-)` (exit 0; includes `agent_workflows/ipd_lifecycle.py` 420, `agent_workflows/partition.py` 149, `agent_workflows/plans.py` 101, `agent_workflows/check_engine.py` 310, `agent_workflows/hooks/executed_transition_gate.py` 6, `agent_workflows/hooks/backlog_blocking_close_gate.py` 17, `agent_workflows/meta_cli.py` 55, `tests/test_cutover_log_lifecycle_and_hooks.py` 1067).
+    - `python3 -m pytest -o addopts="" -v tests/test_metastore_cutover_code_patch.py`:
+      - `tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_code_patch_applies_after_docs_patch PASSED [ 33%]`
+      - `tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_code_patch_touches_files PASSED [ 66%]`
+      - `tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_check_refuses_a_patch_that_no_longer_applies PASSED [100%]`
+      - Summary: `3 passed in 0.44s` (exit 0).
+    - `git worktree list`: `.aw/state/otin36/scratch` removed (only primary checkout, `cugg3w`, and `otin36` listed).
+    - `git status --short`: ` M .aw/system/cutover/metastore-code.cutover.patch` before commit (only declared `- Scope-Paths:` modified; zero live code or test edits).
+    - `aw commit otin36 -- .aw/system/cutover/metastore-code.cutover.patch`: `aw commit: committed 1 path(s): 02c262986d7fcd61ea6f6196ab113cbca090c597`.
+  - Result: pass
 
 ## Approval and execution gate
 
