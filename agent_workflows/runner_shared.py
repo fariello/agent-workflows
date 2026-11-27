@@ -19736,6 +19736,34 @@ RUN_POLICY_FLAGS: tuple = (
         resume_rule=RESUME_REFUSE,
         metavar="DURATION",
     ),
+    RunPolicyFlag(
+        flag="--pre-prompt",
+        dest="pre_prompt",
+        kind="str",
+        implemented=True,
+        owner="runner_shared.apply_operator_prompt_wrappers",
+        help=(
+            "Prepend TEXT before the full prompt sent to the primary agent turn (applies to "
+            "initial and fresh-session recovery/retry turns; skipped on same-session answer "
+            "continuations and never sent to the independent verifier)"
+        ),
+        resume_rule=RESUME_NONE_DEFAULT,
+        metavar="TEXT",
+    ),
+    RunPolicyFlag(
+        flag="--post-prompt",
+        dest="post_prompt",
+        kind="str",
+        implemented=True,
+        owner="runner_shared.apply_operator_prompt_wrappers",
+        help=(
+            "Append TEXT after the full prompt sent to the primary agent turn (alias: --prompt; "
+            "applies to initial and fresh-session recovery/retry turns; skipped on same-session "
+            "answer continuations and never sent to the independent verifier)"
+        ),
+        resume_rule=RESUME_NONE_DEFAULT,
+        metavar="TEXT",
+    ),
 )
 
 #: `{flag: RunPolicyFlag}`, for a caller that has a spelling and wants the row.
@@ -19912,7 +19940,10 @@ def register_run_policy_flags(
                 str_kwargs["type"] = _non_empty_red_ci_reason
             elif row.dest == "allow_failed_checks":
                 str_kwargs["type"] = _non_empty_failed_checks_reason
-            parser.add_argument(row.flag, **str_kwargs)
+            if row.dest == "post_prompt":
+                parser.add_argument(row.flag, "--prompt", **str_kwargs)
+            else:
+                parser.add_argument(row.flag, **str_kwargs)
         else:  # pragma: no cover - the table is closed; a new kind is a programming error
             raise ValueError(
                 f"unknown run policy flag kind {row.kind!r} for {row.flag}"
@@ -34440,6 +34471,7 @@ def run_review_sequence(
             facts_md=facts_md,
             lane_notice=lane_notice,
         )
+        p1_text = apply_operator_prompt_wrappers(p1_text, state)
         p1_prompt_path = write_prompt(run_dir, item, p1_text, attempt_no)
 
         exit_code, session_id, log_path, argv = spawn_executor(
@@ -38455,6 +38487,30 @@ def sync_receipt_into_worktree(repo: Path, worktree: Path, id6: str) -> None:
     "restore" the copy into, and the hazard research says the copy must not come back.
     """
     return None
+
+
+def apply_operator_prompt_wrappers(
+    prompt_text: str,
+    state: Mapping[str, Any] | None,
+) -> str:
+    """Wrap a primary agent prompt with optional operator ``--pre-prompt`` / ``--post-prompt`` text.
+
+    Reads ``options.pre_prompt`` and ``options.post_prompt`` (aliased from ``--prompt``) from run
+    ``state``. Intended for full primary agent prompts (initial attempt and fresh-session
+    recovery/retry turns); callers must skip same-session answer continuations and independent
+    verifier/audit prompts. Returns ``prompt_text`` unchanged when both options are empty.
+    """
+    options = state.get("options") if isinstance(state, Mapping) else None
+    if not isinstance(options, Mapping):
+        return prompt_text
+    pre = str(options.get("pre_prompt") or "").strip()
+    post = str(options.get("post_prompt") or "").strip()
+    result = prompt_text
+    if pre:
+        result = f"## Operator pre-prompt instructions\n\n{pre}\n\n{result}"
+    if post:
+        result = f"{result}\n\n## Operator post-prompt instructions\n\n{post}"
+    return result
 
 
 def write_prompt(
@@ -47772,17 +47828,24 @@ def execute_item_core(
             notice = build_answer_notice(consumed_answers)
             if notice:
                 prompt_text = f"{notice}\n\n{prompt_text}"
+        prompt_text = apply_operator_prompt_wrappers(prompt_text, state)
     elif is_spec_production:
-        prompt_text = apply_production_correction_notice(
-            build_spec_production_prompt(item, state, run_dir, plan_path, repo),
-            item,
-            recovery,
+        prompt_text = apply_operator_prompt_wrappers(
+            apply_production_correction_notice(
+                build_spec_production_prompt(item, state, run_dir, plan_path, repo),
+                item,
+                recovery,
+            ),
+            state,
         )
     elif is_backlog_production:
-        prompt_text = apply_production_correction_notice(
-            build_backlog_production_prompt(item, state, run_dir, plan_path, repo),
-            item,
-            recovery,
+        prompt_text = apply_operator_prompt_wrappers(
+            apply_production_correction_notice(
+                build_backlog_production_prompt(item, state, run_dir, plan_path, repo),
+                item,
+                recovery,
+            ),
+            state,
         )
     else:
         parked_sid = None
@@ -47804,16 +47867,22 @@ def execute_item_core(
                 routing=routing,
                 labels=host_labels,
             )
-            prompt_text = f"{notice}\n\n{normal_p}" if notice else normal_p
-        else:
-            prompt_text = build_prompt(
-                item,
+            prompt_text = apply_operator_prompt_wrappers(
+                f"{notice}\n\n{normal_p}" if notice else normal_p,
                 state,
-                run_dir,
-                plan_path,
-                recovery=recovery,
-                routing=routing,
-                labels=host_labels,
+            )
+        else:
+            prompt_text = apply_operator_prompt_wrappers(
+                build_prompt(
+                    item,
+                    state,
+                    run_dir,
+                    plan_path,
+                    recovery=recovery,
+                    routing=routing,
+                    labels=host_labels,
+                ),
+                state,
             )
 
     prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
@@ -48791,17 +48860,23 @@ def execute_item_core(
                 routing=routing,
                 labels=host_labels,
             )
-            prompt_text = f"{notice}\n\n{normal_p}" if notice else normal_p
-        else:
-            prompt_text = build_prompt(
-                item,
+            prompt_text = apply_operator_prompt_wrappers(
+                f"{notice}\n\n{normal_p}" if notice else normal_p,
                 state,
-                run_dir,
-                lane_plan_path,
-                recovery=recovery,
-                lane_root=lane_root,
-                routing=routing,
-                labels=host_labels,
+            )
+        else:
+            prompt_text = apply_operator_prompt_wrappers(
+                build_prompt(
+                    item,
+                    state,
+                    run_dir,
+                    lane_plan_path,
+                    recovery=recovery,
+                    lane_root=lane_root,
+                    routing=routing,
+                    labels=host_labels,
+                ),
+                state,
             )
         prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
         attempt["prompt"] = str(prompt_path)
@@ -48949,6 +49024,7 @@ def execute_item_core(
             notice = build_answer_notice(consumed_answers)
             if notice:
                 prompt_text = f"{notice}\n\n{prompt_text}"
+        prompt_text = apply_operator_prompt_wrappers(prompt_text, state)
         prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
         attempt["prompt"] = str(prompt_path)
         attempt["prompt_sha256"] = sha256_file(prompt_path)
@@ -48987,20 +49063,26 @@ def execute_item_core(
         if staged_prod_art is not None:
             lane_art_path = staged_prod_art
         if is_spec_production:
-            prompt_text = apply_production_correction_notice(
-                build_spec_production_prompt(
-                    item, state, run_dir, lane_art_path, repo, lane_root=lane_root
+            prompt_text = apply_operator_prompt_wrappers(
+                apply_production_correction_notice(
+                    build_spec_production_prompt(
+                        item, state, run_dir, lane_art_path, repo, lane_root=lane_root
+                    ),
+                    item,
+                    recovery,
                 ),
-                item,
-                recovery,
+                state,
             )
         elif is_backlog_production:
-            prompt_text = apply_production_correction_notice(
-                build_backlog_production_prompt(
-                    item, state, run_dir, lane_art_path, repo, lane_root=lane_root
+            prompt_text = apply_operator_prompt_wrappers(
+                apply_production_correction_notice(
+                    build_backlog_production_prompt(
+                        item, state, run_dir, lane_art_path, repo, lane_root=lane_root
+                    ),
+                    item,
+                    recovery,
                 ),
-                item,
-                recovery,
+                state,
             )
         prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
         attempt["prompt"] = str(prompt_path)
