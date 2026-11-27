@@ -136,6 +136,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-319-j1f454-make-selectors-status-matching-typed-subject-ownership-and-a.ipd.md
 - Making `research_cmd.py` create, `research_refs.py` renames, and `research_archive.py` moves log-aware (`OQ-01` Option 2, Order 320): second prerequisite production fix ahead of batch E.
   - Carrier: lec341
+  - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-320-lec341-make-research-cmd-create-research-refs-renames-and-research.ipd.md
 - Modules outside batch E: the other batch children.
   - Carrier: x3mig6
 - The final refusal list across all batches and the full-suite runs: the narrowed parent step.

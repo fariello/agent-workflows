@@ -134,6 +134,7 @@ flowchart TD
 
 - Prior prerequisite production fixes (`hdwqex`, `fljn9b`, `szykgd`, `otin36`, `p109wy`, `q6fiws`, `j1f454`, `lec341`): already owned by Orders 305 and 314-320.
   - Carrier: lec341
+  - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-320-lec341-make-research-cmd-create-research-refs-renames-and-research.ipd.md
 - Converting batch F's 8 test modules (`tests/test_spec_review_gate_kind.py` through `tests/test_writers_scope_fields.py`): runs immediately after this plan executes.
   - Carrier: x3mig6
 - Final refusal list and full-suite runs across all converted batches: owned by the narrowed capstone plan.

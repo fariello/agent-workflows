@@ -137,6 +137,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-319-j1f454-make-selectors-status-matching-typed-subject-ownership-and-a.ipd.md
 - Making `research_cmd.py` create, `research_refs.py` renames, and `research_archive.py` moves log-aware in the cutover code patch (`qi0kl6` OQ-01, maintainer answer 2026-11-26).
   - Carrier: lec341
+  - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-320-lec341-make-research-cmd-create-research-refs-renames-and-research.ipd.md
 - Making `plan_readiness.py`/`readiness_recheck.py`, `status_set.py`, `artifact_refs.py`, and `artifact_adopt.py` log-aware in the cutover code patch (`x3mig6` OQ-01, maintainer answer 2026-11-26).
   - Carrier: 3e0vfy
 - Populating missing CLI creator log fields (`ipd_authoring.py::run_scaffold`, `specs.py::run_new`, `releases.py::_create_release_via_meta`, `prompts.py::run_new`, backlog `0b3ynm`) and aligning `cli.py::_find_type_records` with `artifact_meta.legacy_context` on bare repos (backlog `2etrjf`) in the cutover code patch (`89mtbl` OQ-01, maintainer answer 2026-11-27).
