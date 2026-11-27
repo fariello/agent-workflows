@@ -7,7 +7,7 @@
 - Scope-Paths: .aw/records/plans/pending/20261127-reviewgateux-01-55tt85-gate-unreviewed-plan-approval-in-aw-set-and-group-actionable.ipd.md, agent_workflows/status_set.py, agent_workflows/artifact_meta.py, agent_workflows/cli.py, agent_workflows/runner_shared.py, tests/test_plan_transition_gate.py, tests/test_freeze_time_refusal.py, tests/test_status_set.py, tests/test_*.py
 - Item-Dependencies: none
 - From-Spec: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Refuse approving unreviewed plans without --allow-unreviewed and group actionable IPD-M113/IPD-S408 preflight errors
@@ -18,12 +18,12 @@
 - Highest E allocated: 05
 - Author: antigravity/gemini
 - Id: 55tt85
-- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: 55tt85 verified (set reviewgateux, attempt 1).
 - 2026-11-27 approved (aw set): status set to approved
 - 2026-11-27 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED
 - 2026-11-27 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Reviewed at tier `standard` in an isolated review-sweep lane; plan was committed and unchanged, so pre-review snapshot skipped. Fixed all 6 findings in place: registered `"allow-unreviewed"` in `agent_workflows/artifact_meta.py::SUPPORTED_OVERRIDES` and added `agent_workflows/artifact_meta.py` to `Scope-Paths` (PR-001); skipped same-status updates in step `(e2)`, defined structured `--json`/`--agent` override warnings, preserved step `(a)` negative-verdict precedence, and enforced repo-path-free hint tokens (PR-002); ordered non-collapsed IPD preflight findings ahead of collapsed orchestrator `IPD-S408` summaries, keyed `IPD-M113` grouping on normalized `(code, status.lower())`, and aligned ANSI ID highlighting (PR-003); added durable carriers (`- Carrier-Declined:` / `- Carrier: oxv48x`) to `## Deferred / out of scope` to pass `check.ipd-uncarried-obligation` (PR-004); corrected parser-uniformity, spec, and `test_case_d` citations plus added missing execution-contract elements in `## Approval and execution gate` (PR-005); tightened prose, first-use glosses, code citations, and Mermaid flowchart synchronization (PR-006).
