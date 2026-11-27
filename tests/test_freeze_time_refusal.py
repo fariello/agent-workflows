@@ -1028,5 +1028,414 @@ class TestFreezeRefusalColorStyling(unittest.TestCase):
             self.assertIn("depaa1 is auto-approved and is not in this run", msg)
 
 
+class TestGroupedPreflightDiagnostics(unittest.TestCase):
+    """Behavioral tests for grouped IPD-M113 and collapsed IPD-S408 freeze-time preflight (IPD 55tt85 E-03, E-04)."""
+
+    @staticmethod
+    def _strip_readiness_line(path: Path) -> None:
+        lines = [
+            ln
+            for ln in path.read_text(encoding="utf-8").splitlines()
+            if not ln.startswith("- Readiness:")
+        ]
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    @staticmethod
+    def _write_orchestrator(
+        repo: Path,
+        id6: str,
+        *,
+        setid: str,
+        child_ids: list[str],
+        with_readiness: bool = True,
+    ) -> Path:
+        rows = "\n".join(
+            f"| {i:02d} | {cid} | pending | .aw/records/plans/pending/20260927-{setid}-{i:02d}-{cid}-plan.ipd.md | none |"
+            for i, cid in enumerate(child_ids, start=1)
+        )
+        e_items = "\n".join(
+            f"- [ ] E-{i:02d} CONFIRM {cid} REACHED executed\n"
+            "  - Depends on: none\n"
+            "  - Expected outcome: done\n"
+            "  - Execution state: pending"
+            for i, cid in enumerate(child_ids, start=1)
+        )
+        v_items = "\n\n".join(
+            f"- [ ] V-{i:02d} validates E-{i:02d}\n"
+            "  - Required evidence: done\n"
+            "  - Observed evidence:\n"
+            "  - Result: pending"
+            for i, _cid in enumerate(child_ids, start=1)
+        )
+        body = (
+            f"## Goal\nOrchestrate {setid}.\n\n"
+            f"## Detailed Implementation Checklist (TODO)\n{e_items}\n\n"
+            f"## Child IPDs, sequence, and dependencies\n"
+            f"| Order | Id | Status | Plan | Depends on |\n"
+            f"|---|---|---|---|---|\n{rows}\n\n"
+            "## Completion criteria (the whole Set is done only when)\n- None.\n\n"
+            "## Cross-IPD validation\n- None.\n\n"
+            "## Deferred / out of scope (with reason)\n- None.\n\n"
+            "## Scope check\n- None.\n\n"
+            "## Required tests / validation\n- None.\n\n"
+            "## Open questions\n- None.\n\n"
+            f"## Validation and cross-check (verify before reporting the Set complete)\n{v_items}\n\n"
+            "## Approval and execution gate\n"
+            "- Size assessment: standard\n"
+            "- Cohesion rationale: not required"
+        )
+        p = Path(
+            RecordBuilder(repo).plan(
+                id6=id6,
+                plan_role="orchestrator",
+                title=f"Orchestrator {id6}",
+                when="2026-09-27",
+                set=setid,
+                order=0,
+                slug="orch",
+                status="approved",
+                scope_paths="none",
+                item_dependencies="none",
+                priority="medium",
+                work_kind="feature",
+                readiness="go-pending-approval" if with_readiness else None,
+                approval="2026-09-27, test",
+                highest_e_allocated=f"{len(child_ids):02d}",
+                history=[
+                    "- 2026-09-27 approved (tester): approved",
+                    "- 2026-09-27 /plan-review (tester): APPROVE",
+                ],
+                raw_fields={"Concern": "Test.", "Scope": "Test."},
+                body=body,
+            )
+        )
+        from agent_workflows import coverage_record
+
+        coverage_record.write(p, "pass", model="fixture", tool="test")
+        return p
+
+    def test_multi_plan_ipd_m113_grouped_including_mixed_case_status(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = _init_repo(Path(td))
+            p1 = _write_plan(repo, "m11301", status="approved", order=1, setid="m113s")
+            p2 = _write_plan(repo, "m11302", status="approved", order=2, setid="m113s")
+            p3 = _write_plan(repo, "m11303", status="approved", order=3, setid="m113s")
+            for p in (p1, p2, p3):
+                self._strip_readiness_line(p)
+            # Queue carries mixed-case APPROVED for p2 to prove grouping normalizes (code, status.lower()).
+            queue = [
+                {
+                    "id6": "m11301",
+                    "artifact_type": "ipd",
+                    "status": "queued",
+                    "initial_status": "approved",
+                    "action": "execute",
+                    "configured_file": str(p1.relative_to(repo)),
+                },
+                {
+                    "id6": "m11302",
+                    "artifact_type": "ipd",
+                    "status": "queued",
+                    "initial_status": "APPROVED",
+                    "action": "execute",
+                    "configured_file": str(p2.relative_to(repo)),
+                },
+                {
+                    "id6": "m11303",
+                    "artifact_type": "ipd",
+                    "status": "queued",
+                    "initial_status": "approved",
+                    "action": "execute",
+                    "configured_file": str(p3.relative_to(repo)),
+                },
+            ]
+            for host in ("oc", "agy"):
+                for color in (False, True):
+                    with self.subTest(host=host, color=color):
+                        with self.assertRaises(runner_shared.DriverError) as cm:
+                            runner_shared.enforce_freeze_time_refusal(
+                                queue, repo=repo, host=host, color=color
+                            )
+                        msg = str(cm.exception)
+                        self.assertEqual(msg.count("[RUN-STRUCTURE-PREFLIGHT]"), 1)
+                        self.assertIn(
+                            "3 ipd plan(s) in status approved violate IPD-M113", msg
+                        )
+                        if color:
+                            ids_csv = "\033[1;33mm11301\033[0m, \033[1;33mm11302\033[0m, \033[1;33mm11303\033[0m"
+                            ids_cmd = "\033[1;33mm11301\033[0m \033[1;33mm11302\033[0m \033[1;33mm11303\033[0m"
+                        else:
+                            ids_csv = "m11301, m11302, m11303"
+                            ids_cmd = "m11301 m11302 m11303"
+                            self.assertNotIn("\033[", msg)
+                        self.assertIn(f"Plans:   {ids_csv}", msg)
+                        self.assertIn(
+                            f'aw set plan to-review {ids_cmd} -m "needs /plan-review before approval"',
+                            msg,
+                        )
+                        self.assertIn(f"aw {host} review {ids_cmd}", msg)
+                        self.assertNotIn("fix the issue above", msg)
+
+    def test_single_plan_ipd_m113_emits_actionable_recovery_commands(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = _init_repo(Path(td))
+            p1 = _write_plan(repo, "sg1131", status="approved", order=1, setid="sg113")
+            self._strip_readiness_line(p1)
+            queue = [
+                {
+                    "id6": "sg1131",
+                    "artifact_type": "ipd",
+                    "status": "queued",
+                    "initial_status": "approved",
+                    "action": "execute",
+                    "configured_file": str(p1.relative_to(repo)),
+                }
+            ]
+            for host in ("oc", "agy"):
+                for color in (False, True):
+                    with self.subTest(host=host, color=color):
+                        with self.assertRaises(runner_shared.DriverError) as cm:
+                            runner_shared.enforce_freeze_time_refusal(
+                                queue, repo=repo, host=host, color=color
+                            )
+                        msg = str(cm.exception)
+                        self.assertEqual(msg.count("[RUN-STRUCTURE-PREFLIGHT]"), 1)
+                        tok = "\033[1;33msg1131\033[0m" if color else "sg1131"
+                        self.assertIn(f"ipd {tok} (", msg)
+                        self.assertIn("violates IPD-M113:", msg)
+                        self.assertIn(
+                            f'aw set plan to-review {tok} -m "needs /plan-review before approval"',
+                            msg,
+                        )
+                        self.assertIn(f"aw {host} review {tok}", msg)
+                        self.assertNotIn("fix the issue above", msg)
+
+    def test_orchestrator_s408_child_lint_collapses_after_children_even_when_orch_first(
+        self,
+    ):
+        from agent_workflows import orchestrator_readiness
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = _init_repo(Path(td))
+            orch = self._write_orchestrator(
+                repo,
+                "orc900",
+                setid="clps1",
+                child_ids=["chd901", "chd902"],
+                with_readiness=False,
+            )
+            c1 = _write_plan(repo, "chd901", status="approved", order=1, setid="clps1")
+            c2 = _write_plan(repo, "chd902", status="approved", order=2, setid="clps1")
+            self._strip_readiness_line(c1)
+            self._strip_readiness_line(c2)
+            fake_readiness = orchestrator_readiness.ReviewReadiness(
+                applies=True,
+                ready=False,
+                findings=(
+                    orchestrator_readiness.Finding(
+                        code=orchestrator_readiness.CODE_CHILD_LINT,
+                        subject="chd901",
+                        detail="child chd901 fails author lint: IPD-M113 missing Readiness",
+                        remedy=orchestrator_readiness.REMEDY_CHILD_LINT,
+                    ),
+                    orchestrator_readiness.Finding(
+                        code=orchestrator_readiness.CODE_CHILD_LINT,
+                        subject="chd902",
+                        detail="child chd902 fails author lint: IPD-M113 missing Readiness",
+                        remedy=orchestrator_readiness.REMEDY_CHILD_LINT,
+                    ),
+                ),
+                id6="orc900",
+                setid="clps1",
+            )
+            # Place orchestrator FIRST in queue to verify collapsed summary still emits AFTER child findings.
+            queue = [
+                {
+                    "id6": "orc900",
+                    "artifact_type": "ipd",
+                    "status": "queued",
+                    "initial_status": "approved",
+                    "action": "orchestrate",
+                    "configured_file": str(orch.relative_to(repo)),
+                },
+                {
+                    "id6": "chd901",
+                    "artifact_type": "ipd",
+                    "status": "queued",
+                    "initial_status": "approved",
+                    "action": "execute",
+                    "configured_file": str(c1.relative_to(repo)),
+                },
+                {
+                    "id6": "chd902",
+                    "artifact_type": "ipd",
+                    "status": "queued",
+                    "initial_status": "approved",
+                    "action": "execute",
+                    "configured_file": str(c2.relative_to(repo)),
+                },
+            ]
+            for color in (False, True):
+                with self.subTest(color=color):
+                    with mock.patch(
+                        "agent_workflows.orchestrator_readiness.review_readiness",
+                        return_value=fake_readiness,
+                    ):
+                        with self.assertRaises(runner_shared.DriverError) as cm:
+                            runner_shared.enforce_freeze_time_refusal(
+                                queue, repo=repo, host="agy", color=color
+                            )
+                    msg = str(cm.exception)
+                    # Exactly 2 blocks total: 1 grouped IPD-M113 + 1 collapsed IPD-S408
+                    self.assertEqual(msg.count("[RUN-STRUCTURE-PREFLIGHT]"), 2)
+                    m113_pos = msg.index("violate IPD-M113")
+                    s408_pos = msg.index("violates IPD-S408:")
+                    self.assertLess(m113_pos, s408_pos)
+                    if color:
+                        self.assertIn(
+                            "child-lint-failing for 2 child plan(s) already reported above (\033[1;33mchd901\033[0m, \033[1;33mchd902\033[0m).",
+                            msg,
+                        )
+                        self.assertIn(
+                            "resolve the child plan findings above, then re-run: aw agy run \033[1;33morc900\033[0m",
+                            msg,
+                        )
+                    else:
+                        self.assertIn(
+                            "child-lint-failing for 2 child plan(s) already reported above (chd901, chd902).",
+                            msg,
+                        )
+                        self.assertIn(
+                            "resolve the child plan findings above, then re-run: aw agy run orc900",
+                            msg,
+                        )
+
+    def test_standalone_s408_preserved_for_coverage_stale_and_out_of_queue_child(self):
+        from agent_workflows import orchestrator_readiness
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = _init_repo(Path(td))
+            orch = self._write_orchestrator(
+                repo,
+                "orc910",
+                setid="stnd1",
+                child_ids=["inq911", "out912"],
+                with_readiness=True,
+            )
+            in_q = _write_plan(
+                repo, "inq911", status="approved", order=1, setid="stnd1"
+            )
+            self._strip_readiness_line(in_q)
+            fake_readiness = orchestrator_readiness.ReviewReadiness(
+                applies=True,
+                ready=False,
+                findings=(
+                    orchestrator_readiness.Finding(
+                        code=orchestrator_readiness.CODE_COVERAGE_STALE,
+                        subject="orc910",
+                        detail="plan changed since check; run `aw ipd coverage orc910`",
+                        remedy=orchestrator_readiness.REMEDY_COVERAGE_RECORD,
+                    ),
+                    orchestrator_readiness.Finding(
+                        code=orchestrator_readiness.CODE_CHILD_LINT,
+                        subject="out912",
+                        detail="child out912 fails author lint: IPD-M113 missing Readiness",
+                        remedy=orchestrator_readiness.REMEDY_CHILD_LINT,
+                    ),
+                    orchestrator_readiness.Finding(
+                        code=orchestrator_readiness.CODE_CHILD_LINT,
+                        subject="inq911",
+                        detail="child inq911 fails author lint: IPD-M113 missing Readiness",
+                        remedy=orchestrator_readiness.REMEDY_CHILD_LINT,
+                    ),
+                ),
+                id6="orc910",
+                setid="stnd1",
+            )
+            queue = [
+                {
+                    "id6": "orc910",
+                    "artifact_type": "ipd",
+                    "status": "queued",
+                    "initial_status": "approved",
+                    "action": "orchestrate",
+                    "configured_file": str(orch.relative_to(repo)),
+                },
+                {
+                    "id6": "inq911",
+                    "artifact_type": "ipd",
+                    "status": "queued",
+                    "initial_status": "approved",
+                    "action": "execute",
+                    "configured_file": str(in_q.relative_to(repo)),
+                },
+            ]
+            with mock.patch(
+                "agent_workflows.orchestrator_readiness.review_readiness",
+                return_value=fake_readiness,
+            ):
+                with self.assertRaises(runner_shared.DriverError) as cm:
+                    runner_shared.enforce_freeze_time_refusal(
+                        queue, repo=repo, host="oc", color=False
+                    )
+            msg = str(cm.exception)
+            # 4 blocks: standalone coverage-record-stale, standalone out912 child-lint-failing,
+            # single inq911 IPD-M113, and collapsed IPD-S408 summary for inq911 last.
+            self.assertEqual(msg.count("[RUN-STRUCTURE-PREFLIGHT]"), 4)
+            self.assertIn("coverage-record-stale (orc910):", msg)
+            self.assertIn("child-lint-failing (out912):", msg)
+            self.assertIn(
+                "child-lint-failing for 1 child plan(s) already reported above (inq911).",
+                msg,
+            )
+            self.assertLess(
+                msg.index("violates IPD-M113:"),
+                msg.index("already reported above (inq911)"),
+            )
+
+    def test_other_identical_ipd_diagnostics_group_across_multiple_plans(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = _init_repo(Path(td))
+            p1 = _write_plan(repo, "grp801", status="approved", order=1, setid="grpd1")
+            p2 = _write_plan(repo, "grp802", status="approved", order=2, setid="grpd1")
+            for p in (p1, p2):
+                p.write_text(
+                    p.read_text(encoding="utf-8").replace(
+                        "- Priority: medium\n", "", 1
+                    ),
+                    encoding="utf-8",
+                )
+            queue = [
+                {
+                    "id6": "grp801",
+                    "artifact_type": "ipd",
+                    "status": "queued",
+                    "initial_status": "approved",
+                    "action": "execute",
+                    "configured_file": str(p1.relative_to(repo)),
+                },
+                {
+                    "id6": "grp802",
+                    "artifact_type": "ipd",
+                    "status": "queued",
+                    "initial_status": "approved",
+                    "action": "execute",
+                    "configured_file": str(p2.relative_to(repo)),
+                },
+            ]
+            with self.assertRaises(runner_shared.DriverError) as cm:
+                runner_shared.enforce_freeze_time_refusal(
+                    queue, repo=repo, host="oc", color=False
+                )
+            msg = str(cm.exception)
+            self.assertEqual(msg.count("[RUN-STRUCTURE-PREFLIGHT]"), 1)
+            self.assertIn("2 ipd plan(s) in status approved violate IPD-M110:", msg)
+            self.assertIn("Plans:   grp801, grp802", msg)
+            self.assertIn(
+                "fix the issue above, run aw check plans grp801 grp802, then: aw oc run grp801 grp802",
+                msg,
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

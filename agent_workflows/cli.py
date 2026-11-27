@@ -2559,6 +2559,19 @@ def _build_parser_impl(_only_cmd: Optional[str] = None) -> argparse.ArgumentPars
         "not-executed), recording the override in its history. Prefer a corrective IPD; use this "
         "only when a plan reached a terminal state in error.",
     )
+    # reviewgateux 55tt85 E-02: named override on the unreviewed-plan approval gate, declared
+    # uniformly across all four `set` parsers (`p_ipd_set`, `p_set`, `p_backlog_set`, `p_specs_set`)
+    # matching `--allow-terminal-reopen`. Deliberately NOT `--force`, which already means "act on
+    # all of an ambiguous multi-match" on the `set` path.
+    p_ipd_set.add_argument(
+        "--allow-unreviewed",
+        "--ignore-review-error",
+        dest="allow_unreviewed",
+        action="store_true",
+        default=False,
+        help="Override the unreviewed-plan approval refusal and record the override in workflow "
+        "history. Does not write '- Readiness:' and does not prevent IPD-M113 at lint or run time.",
+    )
     p_ipd_set.add_argument(
         "--allow-unresolvable-release-sentinel",
         dest="allow_unresolvable_release_sentinel",
@@ -5860,6 +5873,17 @@ def _build_parser_impl(_only_cmd: Optional[str] = None) -> argparse.ArgumentPars
         "not-executed), recording the override in its history. Prefer a corrective IPD; use this "
         "only when a plan reached a terminal state in error.",
     )
+    # reviewgateux 55tt85 E-02: same named override as `aw ipd set`, on the untyped surface too
+    # (never overloading `--force`, which disambiguates ambiguous multi-matches).
+    p_set.add_argument(
+        "--allow-unreviewed",
+        "--ignore-review-error",
+        dest="allow_unreviewed",
+        action="store_true",
+        default=False,
+        help="Override the unreviewed-plan approval refusal and record the override in workflow "
+        "history. Does not write '- Readiness:' and does not prevent IPD-M113 at lint or run time.",
+    )
     p_set.add_argument(
         "--allow-unresolvable-release-sentinel",
         dest="allow_unresolvable_release_sentinel",
@@ -7395,6 +7419,19 @@ def _build_parser_impl(_only_cmd: Optional[str] = None) -> argparse.ArgumentPars
         help="Move a PLAN backwards out of a terminal disposition (executed/superseded/"
         "not-executed), recording the override in its history. Inert for backlog items.",
     )
+    # reviewgateux 55tt85 E-02: declared uniformly across all four `set` parsers matching
+    # `--allow-terminal-reopen`. The gate keys on `record_type == "plans"`, so this flag is inert
+    # for backlog items; generic `--force` is never overloaded for review overrides.
+    p_backlog_set.add_argument(
+        "--allow-unreviewed",
+        "--ignore-review-error",
+        dest="allow_unreviewed",
+        action="store_true",
+        default=False,
+        help="Override the unreviewed-plan approval refusal and record the override in workflow "
+        "history. Does not write '- Readiness:' and does not prevent IPD-M113 at lint or run time. "
+        "Inert for backlog items.",
+    )
     p_backlog_set.add_argument(
         "--gate-kind",
         dest="gate_kind",
@@ -7816,6 +7853,19 @@ def _build_parser_impl(_only_cmd: Optional[str] = None) -> argparse.ArgumentPars
         help="Move a PLAN backwards out of a terminal disposition (executed/superseded/"
         "not-executed), recording the override in its history. Inert for specs (they have their own "
         "transition table).",
+    )
+    # reviewgateux 55tt85 E-02: declared uniformly across all four `set` parsers matching
+    # `--allow-terminal-reopen`. The gate keys on `record_type == "plans"`, so this flag is inert
+    # for specs; generic `--force` is never overloaded for review overrides.
+    p_specs_set.add_argument(
+        "--allow-unreviewed",
+        "--ignore-review-error",
+        dest="allow_unreviewed",
+        action="store_true",
+        default=False,
+        help="Override the unreviewed-plan approval refusal and record the override in workflow "
+        "history. Does not write '- Readiness:' and does not prevent IPD-M113 at lint or run time. "
+        "Inert for specs.",
     )
     p_specs_set.add_argument(
         "--gate-kind",

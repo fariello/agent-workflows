@@ -92,6 +92,7 @@ SUPPORTED_OVERRIDES: FrozenSet[str] = frozenset(
     (
         "allow-open-questions",
         "allow-terminal-reopen",
+        "allow-unreviewed",
         "allow-unresolvable-release-sentinel",
     )
 )

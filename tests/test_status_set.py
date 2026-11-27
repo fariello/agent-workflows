@@ -66,6 +66,7 @@ class StatusSetTestBase(unittest.TestCase):
         disposition: str = "pending",
         *,
         approval: str | None = None,
+        readiness: str | None = None,
         history: list[str] | None = None,
         body: str | None = None,
     ) -> Path:
@@ -85,6 +86,7 @@ class StatusSetTestBase(unittest.TestCase):
                 order=1,
                 id6=id6,
                 approval=approval,
+                readiness=readiness,
                 history=(
                     history
                     if history is not None
@@ -307,7 +309,11 @@ class StatusSetTestBase(unittest.TestCase):
 class TestStatusSetCommands(StatusSetTestBase):
     def test_set_plan_status_by_id6(self):
         plan = self.create_plan(
-            "20260822-testset-01-pl0001-test-plan.ipd.md", "pl0001", "testset", "draft"
+            "20260822-testset-01-pl0001-test-plan.ipd.md",
+            "pl0001",
+            "testset",
+            "reviewed",
+            readiness="go-pending-approval",
         )
         rc = cli.main(
             ["set", "approved", "pl0001", "--yes", "--dir", str(self.repo_root)]
@@ -404,7 +410,11 @@ class TestStatusSetCommands(StatusSetTestBase):
 
     def test_ipd_set_command(self):
         plan = self.create_plan(
-            "20260822-testset-01-pl0003-test-plan.ipd.md", "pl0003", "testset", "draft"
+            "20260822-testset-01-pl0003-test-plan.ipd.md",
+            "pl0003",
+            "testset",
+            "reviewed",
+            readiness="go-pending-approval",
         )
         rc = cli.main(
             ["ipd", "set", "approved", "pl0003", "--yes", "--dir", str(self.repo_root)]
@@ -414,7 +424,11 @@ class TestStatusSetCommands(StatusSetTestBase):
 
     def test_set_with_explicit_type_noun_syntax(self):
         plan = self.create_plan(
-            "20260822-testset-01-pl0021-test-plan.ipd.md", "pl0021", "testset", "draft"
+            "20260822-testset-01-pl0021-test-plan.ipd.md",
+            "pl0021",
+            "testset",
+            "reviewed",
+            readiness="go-pending-approval",
         )
         rc = cli.main(
             [
@@ -713,7 +727,11 @@ class TestStatusSetCommands(StatusSetTestBase):
 
     def test_set_with_mixed_types_scoped_command_limits_to_scoped_type(self):
         plan = self.create_plan(
-            "20260822-mixedset-01-pl0009-plan.ipd.md", "pl0009", "mixedset", "draft"
+            "20260822-mixedset-01-pl0009-plan.ipd.md",
+            "pl0009",
+            "mixedset",
+            "reviewed",
+            readiness="go-pending-approval",
         )
         spec = self.create_spec(
             "20260822-0005-01-test-spec.spec.md", "sp0005", "mixedset", "draft"
@@ -773,7 +791,11 @@ class TestStatusSetCommands(StatusSetTestBase):
 
     def test_custom_message_and_by_human_attestation(self):
         plan = self.create_plan(
-            "20260822-custommsg-01-pl0022-plan.ipd.md", "pl0022", "custommsg", "draft"
+            "20260822-custommsg-01-pl0022-plan.ipd.md",
+            "pl0022",
+            "custommsg",
+            "reviewed",
+            readiness="go-pending-approval",
         )
         rc = cli.main(
             [
@@ -870,18 +892,26 @@ class TestStatusSetCommands(StatusSetTestBase):
 
     def test_dry_run_mode(self):
         plan = self.create_plan(
-            "20260822-dryrun-01-pl0011-plan.ipd.md", "pl0011", "dryrun", "draft"
+            "20260822-dryrun-01-pl0011-plan.ipd.md",
+            "pl0011",
+            "dryrun",
+            "reviewed",
+            readiness="go-pending-approval",
         )
         rc = cli.main(
             ["set", "approved", "pl0011", "--dry-run", "--dir", str(self.repo_root)]
         )
         self.assertEqual(rc, 0)
         # File unchanged
-        assert_field(plan, "status", "draft")
+        assert_field(plan, "status", "reviewed")
 
     def test_json_output_mode(self):
         self.create_plan(
-            "20260822-json-01-pl0012-plan.ipd.md", "pl0012", "jsonset", "draft"
+            "20260822-json-01-pl0012-plan.ipd.md",
+            "pl0012",
+            "jsonset",
+            "reviewed",
+            readiness="go-pending-approval",
         )
         buf = io.StringIO()
         with patch("sys.stdout", buf):
@@ -911,7 +941,11 @@ class TestStatusSetCommands(StatusSetTestBase):
 
     def test_agent_output_mode(self):
         self.create_plan(
-            "20260822-agent-01-pl0013-plan.ipd.md", "pl0013", "agentset", "draft"
+            "20260822-agent-01-pl0013-plan.ipd.md",
+            "pl0013",
+            "agentset",
+            "reviewed",
+            readiness="go-pending-approval",
         )
         buf = io.StringIO()
         with patch("sys.stdout", buf):
@@ -945,7 +979,11 @@ class TestApprovedWritesApprovalField(StatusSetTestBase):
 
     def test_set_approved_inserts_approval_field(self):
         plan = self.create_plan(
-            "20260822-apxset-01-ap0001-test-plan.ipd.md", "ap0001", "apxset", "reviewed"
+            "20260822-apxset-01-ap0001-test-plan.ipd.md",
+            "ap0001",
+            "apxset",
+            "reviewed",
+            readiness="go-pending-approval",
         )
         rc = cli.main(
             [
@@ -972,7 +1010,11 @@ class TestApprovedWritesApprovalField(StatusSetTestBase):
 
     def test_approval_field_stripped_when_leaving_approved(self):
         plan = self.create_plan(
-            "20260822-apxset-01-ap0002-test-plan.ipd.md", "ap0002", "apxset", "reviewed"
+            "20260822-apxset-01-ap0002-test-plan.ipd.md",
+            "ap0002",
+            "apxset",
+            "reviewed",
+            readiness="go-pending-approval",
         )
         cli.main(
             [
@@ -1003,7 +1045,11 @@ class TestApprovedWritesApprovalField(StatusSetTestBase):
 
     def test_auto_approved_does_not_get_approval_field(self):
         plan = self.create_plan(
-            "20260822-apxset-01-ap0003-test-plan.ipd.md", "ap0003", "apxset", "reviewed"
+            "20260822-apxset-01-ap0003-test-plan.ipd.md",
+            "ap0003",
+            "apxset",
+            "reviewed",
+            readiness="go-pending-approval",
         )
         rc = cli.main(
             ["set", "auto-approved", "ap0003", "--yes", "--dir", str(self.repo_root)]
@@ -1210,10 +1256,18 @@ class BlocksReleaseSetterTests(StatusSetTestBase):
         # A setid shared across plans, backlog, and specs
         shared_set = "sharedset"
         plan1 = self.create_plan(
-            "20260822-sharedset-01-pl0101-p1.ipd.md", "pl0101", shared_set, "draft"
+            "20260822-sharedset-01-pl0101-p1.ipd.md",
+            "pl0101",
+            shared_set,
+            "reviewed",
+            readiness="go-pending-approval",
         )
         plan2 = self.create_plan(
-            "20260822-sharedset-02-pl0102-p2.ipd.md", "pl0102", shared_set, "draft"
+            "20260822-sharedset-02-pl0102-p2.ipd.md",
+            "pl0102",
+            shared_set,
+            "reviewed",
+            readiness="go-pending-approval",
         )
         spec = self.create_spec(
             "20260822-0101-01-test-spec.spec.md", "sp0101", shared_set, "draft"
@@ -1246,7 +1300,11 @@ class BlocksReleaseSetterTests(StatusSetTestBase):
 
     def test_status_set_att_style_output_format(self):
         plan = self.create_plan(
-            "20260822-fmtset-01-pl0201-p1.ipd.md", "pl0201", "fmtset", "reviewed"
+            "20260822-fmtset-01-pl0201-p1.ipd.md",
+            "pl0201",
+            "fmtset",
+            "reviewed",
+            readiness="go-pending-approval",
         )
         buf = io.StringIO()
         with patch("sys.stdout", buf):
@@ -1519,6 +1577,7 @@ class ApprovalGateTests(StatusSetTestBase):
             id6,
             set_id,
             "reviewed",
+            readiness=None if record == self.REJECT_RECORD else "go-pending-approval",
             history=[record, "- 2026-08-22 draft (author): initial draft."],
             body="## Goal\nTest goal." + extra,
         )
@@ -1696,12 +1755,25 @@ class ApprovalGateTests(StatusSetTestBase):
         assert_field(plan, "approval", _approval_value(plan))
 
     def test_plan_with_no_review_at_all_still_approves(self):
-        """Absent review is SILENT by design: gating on absence would block author-then-approve."""
+        """Review-verdict gate (step a) stays silent on absent review; step (e2) requires --allow-unreviewed."""
         plan = self.create_plan(
             "20260830-gatenorev-01-nr0001-plan.ipd.md", "nr0001", "gatenorev", "draft"
         )
-        rc = cli.main(
+        rc_bare = cli.main(
             ["set", "approved", "nr0001", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc_bare, 2)
+        assert_field(plan, "status", "draft")
+        rc = cli.main(
+            [
+                "set",
+                "approved",
+                "nr0001",
+                "--allow-unreviewed",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
         )
         self.assertEqual(rc, 0)
         assert_field(plan, "status", "approved")
@@ -1924,12 +1996,14 @@ class SharedSetidCrossTypeResolutionTests(StatusSetTestBase):
             "sh0001",
             self.SETID,
             "reviewed",
+            readiness="go-pending-approval",
         )
         plan2 = self.create_plan(
             "20260921-shartop-02-sh0002-topic-plan-two.ipd.md",
             "sh0002",
             self.SETID,
             "reviewed",
+            readiness="go-pending-approval",
         )
         item = self.create_backlog(
             "20260921-shartop-01-sh0003-topic-item.backlog.md",
@@ -2449,10 +2523,18 @@ class FlaglessConfirmationRefusalTests(StatusSetTestBase):
 
     def _two_plan_set(self) -> tuple[Path, Path]:
         a = self.create_plan(
-            "20260910-guardset-01-gd0001-a.ipd.md", "gd0001", "guardset", "to-review"
+            "20260910-guardset-01-gd0001-a.ipd.md",
+            "gd0001",
+            "guardset",
+            "reviewed",
+            readiness="go-pending-approval",
         )
         b = self.create_plan(
-            "20260910-guardset-02-gd0002-b.ipd.md", "gd0002", "guardset", "to-review"
+            "20260910-guardset-02-gd0002-b.ipd.md",
+            "gd0002",
+            "guardset",
+            "reviewed",
+            readiness="go-pending-approval",
         )
         return a, b
 
@@ -2645,6 +2727,7 @@ class TerminalReopenRefusalTests(StatusSetTestBase):
             "reopen5",
             "executed",
             disposition="executed",
+            readiness="go-pending-approval",
         )
         rc = cli.main(
             [
@@ -2672,7 +2755,11 @@ class TerminalReopenRefusalTests(StatusSetTestBase):
 
     def test_a_nonterminal_plan_still_advances(self):
         plan = self.create_plan(
-            "20260910-fwd-01-fw0001-a.ipd.md", "fw0001", "fwd", "to-review"
+            "20260910-fwd-01-fw0001-a.ipd.md",
+            "fw0001",
+            "fwd",
+            "to-review",
+            readiness="go-pending-approval",
         )
         self.assertEqual(
             cli.main(
@@ -3418,6 +3505,7 @@ class SetterRefusalRetryCommandTests(StatusSetTestBase):
             "retryset4",
             "executed",
             disposition="executed",
+            readiness="go-pending-approval",
         )
         buf = io.StringIO()
         with patch("sys.stdout", buf):
@@ -4627,14 +4715,15 @@ class RefusalMessagePolishAndGateTests(StatusSetTestBase):
                 id6="orc001",
                 set="tstset",
                 order=0,
-                status="to-review",
+                status="reviewed",
+                readiness="go-pending-approval",
                 priority="medium",
                 work_kind="chore",
                 author="test",
                 highest_e_allocated="01",
                 scope_paths="none",
                 item_dependencies="none",
-                history=["- 2026-10-04 to-review (test): created."],
+                history=["- 2026-10-04 reviewed (test): reviewed."],
                 body="## Goal\nGoal.\n\n## Detailed Implementation Checklist (TODO)\n- [ ] E-01 CONFIRM chd001 REACHED executed\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: pending\n\n## Child IPDs, sequence, and dependencies\n| Order | Id | Status | Plan | Depends on |\n|---|---|---|---|---|\n| 01 | chd001 | pending | .aw/records/plans/pending/20261004-tstset-01-chd001-test.ipd.md | none |\n\n## Validation and cross-check (verify before reporting the Set complete)\n- [ ] V-01 validates E-01\n  - Required evidence: c.\n  - Observed evidence:\n  - Result: pending\n\n## Approval and execution gate\n- None.",
                 text_only=True,
             ),

@@ -203,7 +203,12 @@ class TestOrchestratorStatusGate(unittest.TestCase):
         for target in ("to-review", "reviewed", "approved", "auto-approved"):
             with tempfile.TemporaryDirectory() as td:
                 repo = _init_repo(Path(td))
-                _make_orchestrator(repo, status="draft")
+                if target in ("approved", "auto-approved"):
+                    _make_orchestrator(
+                        repo, status="reviewed", readiness="go-pending-approval"
+                    )
+                else:
+                    _make_orchestrator(repo, status="draft")
                 # child chd001 is missing on disk
                 proc = _run_cli(repo, ["ipd", "set", target, "orc001", "--yes"])
                 self.assertEqual(
@@ -546,14 +551,20 @@ class TestOrchestratorStatusGate(unittest.TestCase):
             self.assertIn("coverage-record-absent", p1.stdout + p1.stderr)
             self.assertIn("aw ipd coverage orc001", p1.stdout + p1.stderr)
 
-            # 2. aw set auto-approved
-            p2 = _run_cli(
-                repo,
-                ["set", "auto-approved", "orc001", "--actor", "full-auto", "--yes"],
-            )
-            self.assertEqual(p2.returncode, 1)
-            self.assertIn("coverage-record-absent", p2.stdout + p2.stderr)
-            self.assertIn("aw ipd coverage orc001", p2.stdout + p2.stderr)
+            # 2. aw set auto-approved (on a reviewed orchestrator with Readiness attestation)
+            with tempfile.TemporaryDirectory() as td2:
+                repo2 = _init_repo(Path(td2))
+                _make_orchestrator(
+                    repo2, status="reviewed", readiness="go-pending-approval"
+                )
+                _make_child(repo2, id6="chd001", status="to-review")
+                p2 = _run_cli(
+                    repo2,
+                    ["set", "auto-approved", "orc001", "--actor", "full-auto", "--yes"],
+                )
+                self.assertEqual(p2.returncode, 1)
+                self.assertIn("coverage-record-absent", p2.stdout + p2.stderr)
+                self.assertIn("aw ipd coverage orc001", p2.stdout + p2.stderr)
 
     def test_scaffold_orchestrator_dry_run_emits_draft(self):
         """Case 11: aw ipd scaffold --kind orchestrator dry-run still emits Status: draft."""

@@ -25210,6 +25210,16 @@ def enforce_orchestrator_probe_gate(
 
 
 _FREEZE_GATE_CACHE: dict[tuple[Path, str, str], Any] = {}
+_S408_CHILD_LINT_RE = re.compile(r"^child-lint-failing \(([^)]+)\):")
+
+
+class _IpdPreflightDiag(NamedTuple):
+    id6: str
+    styled_id6: str
+    rel_path: str
+    status: str
+    code: str
+    message: str
 
 
 def enforce_freeze_time_refusal(
@@ -25247,6 +25257,7 @@ def enforce_freeze_time_refusal(
     pal = Palette(enabled_color)
 
     findings: list[str] = []
+    ipd_diags: list[_IpdPreflightDiag] = []
     waitable_external_deps: list[tuple[str, str, str, str]] = []
     waitable_findings: list[str] = []
     queue_by_id = {str(entry.get("id6")): entry for entry in queue if entry.get("id6")}
@@ -25342,7 +25353,7 @@ def enforce_freeze_time_refusal(
                 if action in ("review", "execute", "orchestrate"):
                     checkpoint = (
                         "pre-execution"
-                        if status in ("approved", "auto-approved")
+                        if status.strip().lower() in ("approved", "auto-approved")
                         else "author"
                     )
                     try:
@@ -25359,13 +25370,15 @@ def enforce_freeze_time_refusal(
                         if lint_res.disposition == "error":
                             if lint_res.diagnostics:
                                 for d in lint_res.diagnostics:
-                                    styled_detail = _highlight_id6_token(
-                                        d.message, id6, styled_id6
-                                    )
-                                    findings.append(
-                                        f"[RUN-STRUCTURE-PREFLIGHT] ipd {styled_id6} ({rel_path}) in status {status} violates {d.code}:\n"
-                                        f"  Problem: {styled_detail}\n"
-                                        f"  Next:    fix the issue above, run aw check plans {styled_id6}, then: aw {host} run {styled_id6}"
+                                    ipd_diags.append(
+                                        _IpdPreflightDiag(
+                                            id6=id6,
+                                            styled_id6=styled_id6,
+                                            rel_path=rel_path,
+                                            status=status,
+                                            code=d.code,
+                                            message=d.message,
+                                        )
                                     )
                             else:
                                 findings.append(
@@ -25605,6 +25618,98 @@ def enforce_freeze_time_refusal(
                         waitable_findings.append(finding_msg)
                     else:
                         findings.append(finding_msg)
+
+    if ipd_diags:
+        failing_ipd_ids = {rec.id6 for rec in ipd_diags if rec.code != "IPD-S408"}
+        remaining_ipd_diags: list[_IpdPreflightDiag] = []
+        collapsed_s408_by_orch: dict[str, tuple[_IpdPreflightDiag, list[str]]] = {}
+
+        for rec in ipd_diags:
+            if rec.code == "IPD-S408":
+                match = _S408_CHILD_LINT_RE.match(rec.message)
+                if match is not None:
+                    child_id6 = match.group(1).strip()
+                    if child_id6 in failing_ipd_ids:
+                        if rec.id6 not in collapsed_s408_by_orch:
+                            collapsed_s408_by_orch[rec.id6] = (rec, [child_id6])
+                        else:
+                            _, cids = collapsed_s408_by_orch[rec.id6]
+                            if child_id6 not in cids:
+                                cids.append(child_id6)
+                        continue
+            remaining_ipd_diags.append(rec)
+
+        grouped_ipd: dict[tuple[str, ...], list[_IpdPreflightDiag]] = {}
+        grouped_seen_ids: dict[tuple[str, ...], set[str]] = {}
+        for rec in remaining_ipd_diags:
+            norm_st = rec.status.strip().lower()
+            if rec.code == "IPD-M113" and norm_st in ("approved", "auto-approved"):
+                gkey: tuple[str, ...] = (rec.code, norm_st)
+            else:
+                gkey = (rec.code, norm_st, rec.message)
+            if gkey not in grouped_ipd:
+                grouped_ipd[gkey] = []
+                grouped_seen_ids[gkey] = set()
+            if rec.id6 not in grouped_seen_ids[gkey]:
+                grouped_seen_ids[gkey].add(rec.id6)
+                grouped_ipd[gkey].append(rec)
+
+        ipd_findings: list[str] = []
+        for gkey, group in grouped_ipd.items():
+            code = gkey[0]
+            norm_st = gkey[1]
+            styled_id_csv = ", ".join(r.styled_id6 for r in group)
+            styled_id_cmd = " ".join(r.styled_id6 for r in group)
+            if code == "IPD-M113" and norm_st in ("approved", "auto-approved"):
+                if len(group) == 1:
+                    r0 = group[0]
+                    ipd_findings.append(
+                        f"[RUN-STRUCTURE-PREFLIGHT] ipd {r0.styled_id6} ({r0.rel_path}) in status {r0.status} violates IPD-M113:\n"
+                        f"  Problem: This plan was set to {norm_st} without running /plan-review, so it has no '- Readiness:' attestation and cannot execute yet.\n"
+                        f"  Next:    return it to to-review, then run /plan-review:\n"
+                        f'           aw set plan to-review {styled_id_cmd} -m "needs /plan-review before approval"\n'
+                        f"           aw {host} review {styled_id_cmd}"
+                    )
+                else:
+                    ipd_findings.append(
+                        f"[RUN-STRUCTURE-PREFLIGHT] {len(group)} ipd plan(s) in status {norm_st} violate IPD-M113 (missing - Readiness: review attestation):\n"
+                        f"  Plans:   {styled_id_csv}\n"
+                        f"  Problem: These plans were set to {norm_st} without running /plan-review, so they have no '- Readiness:' attestation and cannot execute yet.\n"
+                        f"  Next:    return them to to-review, then run /plan-review:\n"
+                        f'           aw set plan to-review {styled_id_cmd} -m "needs /plan-review before approval"\n'
+                        f"           aw {host} review {styled_id_cmd}"
+                    )
+            elif len(group) >= 2:
+                r0 = group[0]
+                styled_detail = r0.message
+                for r in group:
+                    styled_detail = _highlight_id6_token(
+                        styled_detail, r.id6, r.styled_id6
+                    )
+                ipd_findings.append(
+                    f"[RUN-STRUCTURE-PREFLIGHT] {len(group)} ipd plan(s) in status {norm_st} violate {code}:\n"
+                    f"  Plans:   {styled_id_csv}\n"
+                    f"  Problem: {styled_detail}\n"
+                    f"  Next:    fix the issue above, run aw check plans {styled_id_cmd}, then: aw {host} run {styled_id_cmd}"
+                )
+            else:
+                r0 = group[0]
+                styled_detail = _highlight_id6_token(r0.message, r0.id6, r0.styled_id6)
+                ipd_findings.append(
+                    f"[RUN-STRUCTURE-PREFLIGHT] ipd {r0.styled_id6} ({r0.rel_path}) in status {r0.status} violates {r0.code}:\n"
+                    f"  Problem: {styled_detail}\n"
+                    f"  Next:    fix the issue above, run aw check plans {r0.styled_id6}, then: aw {host} run {r0.styled_id6}"
+                )
+
+        for _orch_id6, (orch_rec, child_ids) in collapsed_s408_by_orch.items():
+            styled_children = ", ".join(pal(cid, "bold", "yellow") for cid in child_ids)
+            ipd_findings.append(
+                f"[RUN-STRUCTURE-PREFLIGHT] ipd {orch_rec.styled_id6} ({orch_rec.rel_path}) in status {orch_rec.status} violates IPD-S408:\n"
+                f"  Problem: child-lint-failing for {len(child_ids)} child plan(s) already reported above ({styled_children}).\n"
+                f"  Next:    resolve the child plan findings above, then re-run: aw {host} run {orch_rec.styled_id6}"
+            )
+
+        findings.extend(ipd_findings)
 
     if findings:
         all_findings = findings + waitable_findings
