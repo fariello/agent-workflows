@@ -6,7 +6,7 @@
 - Scope: IN: (1) update `tools/fixture_codemod.py::_is_body_or_oq_kwarg`, `tools/fixture_codemod.py::_plan_site`, and add `tools/fixture_codemod.py::_looks_like_full_record_literal` so `open_questions=` remains `body prose`, non-record-literal `body=` content (including H2 sections such as `## Notes` and `## Workflow history`, non-record H1 headings followed by prose, and prose after a record H1 before metadata bullets) remains `body prose`, and full record literals passed via `body=` proceed through `_plan_site` to rewrite or classify as `hand`; (2) extend `tools/fixture_codemod.py::_collect_record_builder_var_names` to track `ast.AnnAssign` bindings (`builder: RecordBuilder = RecordBuilder()`); (3) add fixture `tests/fixtures/fixture_codemod/body_kwarg_full_record.py.txt`, fast in-process core-tier behavioral tests in `tests/test_fixture_codemod.py` (keeping serial runtime under 10 seconds), and a subprocess `--apply` equivalence test in `tests/test_fixture_codemod_slow.py` listed in `tests/slow_allowlist.txt`; and (4) run `python3 tools/fixture_codemod.py --apply --format json tests/test_attention.py` to convert the three misclassified `_mk_plan(..., body=...)` sites in `tests/test_attention.py` onto `RecordBuilder().plan(..., text_only=True)`. OUT: changing `tests/record_builder.py::RecordBuilder`, altering `tools/fixture_codemod.py::F01_PATTERN` or `tools/fixture_codemod.py::_is_body_prose_text` outside `body=` handling, converting `tests/test_readers_check_engine.py` (its 5 `body=` sites are genuine `## Open questions` / `## Notes` body prose that stay `legacy-kept`; its other sites are unrelated to `body=` handling), or addressing sibling codemod backlog items `b1j6bl` and `e0wwtc`.
 - Scope-Paths: tools/fixture_codemod.py, tests/test_fixture_codemod.py, tests/test_fixture_codemod_slow.py, tests/fixtures/fixture_codemod/body_kwarg_full_record.py.txt, tests/slow_allowlist.txt, tests/test_attention.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Fix fixture_codemod._is_body_or_oq_kwarg so full record literals passed via body= to non-RecordBuilder helpers rewrite or classify as hand instead of body prose (legacy-kept).
@@ -19,11 +19,13 @@
 - Highest E allocated: 05
 - Author: antigravity/gemini-4-hydrogen-xhigh
 - Id: svpml2
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-24 /plan-review (uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 FIXED; review record .aw/records/reviews/20261121-lufe6m-01-svpml2-distinguish-full-record-literals-from-body-prose-in-fixture.review.md
 - 2026-11-24 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-010 fixed
 - 2026-11-21 to-review (aw set): Authored review-ready child plan graduated from backlog lufe6m

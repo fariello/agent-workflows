@@ -6,7 +6,7 @@
 - Scope: Add one queue-filter seam in `agent_workflows/runner_shared.py` (`_initialize_run_core_once`) that narrows the expanded selection with `selectors.filter_records`; register `selectors.add_selector_args(start, include_types=False)` on the `start` subparser of both drivers (`agent_workflows/oc_runipd.py`, `agent_workflows/agy_runipd.py`), keeping the runner's own run-type `--type` (spec `25kzda` Section 2.1); drop `-p` from `aw agy exec` (`agent_workflows/agy_run.py`, its tests, and `tools/README.md`); teach `agent_workflows/completion.py` the runner selector flags and `--not-status`, and update stale `legacy_flags` in `agent_workflows/command_surface.py`; amend spec `ogd2nv` R-06/AC-03 for the runner type exception; document the selector flags in `docs/cli-output-contract.md` Section 16 and `CHANGELOG.md`; add whole-Set parity tests. EXCLUDES verb-first top-level commands (`cliverbs` Set), every non-runner command surface (owned by `mnlaoa`), and `tests/test_record_builder_slow.py` (owned by `mnlaoa` E-04).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/agy_run.py, agent_workflows/completion.py, agent_workflows/command_surface.py, agent_workflows/selectors.py, docs/cli-output-contract.md, CHANGELOG.md, tools/README.md, .aw/records/specs/to-review/20261122-ogd2nv-01-ogd2nv-normalized-selectors-show-and-verb-first-cli.spec.md, tests/test_runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_run.py, tests/test_agy_tools_graduation.py, tests/test_completion.py, tests/test_command_surface_declarations.py, tests/test_normalized_selectors.py, .aw/records/plans/pending/20261122-selectors-03-e36q6r-wire-normalized-artifact-selectors-into-runner-clis-shell-co.ipd.md
 - Item-Dependencies: executed:mnlaoa
-- Status: reviewed
+- Status: approved
 - Short-Description: Filter agy/oc run queues with the shared selector flags, move agy exec -p to --prompt, and update completions and docs
 - Work-Kind: feature
 - Priority: medium
@@ -19,11 +19,13 @@
 - Highest E allocated: 05
 - Author: antigravity
 - Id: e36q6r
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-25 reviewed (aw set): status set to reviewed
 - 2026-11-25 /plan-review (uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-011 FIXED; PR-012 DEFERRED (advisory IPD-Z603); D-1 keeps the runner --type (include_types=False) with an ogd2nv R-06/AC-03 amendment; review record .aw/records/reviews/20261122-selectors-03-e36q6r-wire-normalized-artifact-selectors-into-runner-clis-shell-co.review.md
 - 2026-11-23 to-review (aw set): status set to to-review

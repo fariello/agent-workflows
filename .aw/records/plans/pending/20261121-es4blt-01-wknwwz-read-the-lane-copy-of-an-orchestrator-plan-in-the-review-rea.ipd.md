@@ -6,7 +6,7 @@
 - Scope: In `agent_workflows/runner_shared.py::handle_review_orchestrator_readiness`, map the companion `plan_path` to the lane copy through the existing read-only helper `ipd_lifecycle._resolve_staged_companion_lane_plan` before falling back to the companion copy, so readiness, the coverage write, the status read, and the existing demotion all act on the lane copy. Add behavioral regression tests in `tests/test_review_orch_readiness_companion.py` and one CHANGELOG bullet. EXCLUDES `agent_workflows/cli.py::_run_plans` (`aw ipd board`), Set membership lookup in `orchestrator_readiness.review_readiness`, the demotion command's selector, and companion commit routing.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_review_orch_readiness_companion.py, CHANGELOG.md, .aw/records/plans/pending/20261121-es4blt-01-wknwwz-read-the-lane-copy-of-an-orchestrator-plan-in-the-review-rea.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Make the orchestrator review readiness gate read the lane copy of a companion-stored plan, not the stale companion copy
@@ -19,11 +19,13 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: wknwwz
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-24 reviewed (/plan-review model=claude-opus-5.5): APPROVE WITH REVISIONS APPLIED; F1..F7 FIXED; review record .aw/records/reviews/20261121-es4blt-01-wknwwz-read-the-lane-copy-of-an-orchestrator-plan-in-the-review-rea.review.md
 - 2026-11-22 to-review (aw set): ready for review: authored for backlog es4blt
 - 2026-11-22 draft (opencode its_direct/pt3-claude-opus-5.5-1m-us): created.

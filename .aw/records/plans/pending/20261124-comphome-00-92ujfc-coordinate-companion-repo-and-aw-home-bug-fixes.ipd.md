@@ -6,7 +6,7 @@
 - Scope: Coordinate six right-sized child IPDs (`ywl7uc`, `7gverp`, `mmuv3v`, `7eivm2`, `7hfx7r`, `4vnd36`) that remediate every confirmed companion and `~/.aw/` bug with behavioral regression coverage. This orchestrator performs no code edits of its own and retires once all six children reach `executed/`.
 - Scope-Paths: .aw/records/plans/pending/20261124-comphome-00-92ujfc-coordinate-companion-repo-and-aw-home-bug-fixes.ipd.md
 - Item-Dependencies: executed:4vnd36, executed:7eivm2, executed:7gverp, executed:7hfx7r, executed:mmuv3v, executed:ywl7uc
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: orchestrator
 - Coverage: pass
@@ -19,12 +19,14 @@
 - Order: 0
 - Highest E allocated: 6
 - Id: 92ujfc
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 - Author: antigravity
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-25 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003
 - 2026-11-25 coverage pass (aw oc run): fingerprint 1be5a065843f, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-25 /plan-review (antigravity/Gemini 4 Neon (High)): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003

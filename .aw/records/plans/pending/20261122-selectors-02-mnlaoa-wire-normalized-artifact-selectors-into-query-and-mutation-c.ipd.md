@@ -6,7 +6,7 @@
 - Scope: Attach `selectors.add_selector_args`, `selectors.parse_selector_namespace`, and `selectors.filter_records` (all from `bzsoai`) for `aw att`/`next`, `aw find`/`search`, `aw partition`, `aw show`, `aw set`, `aw group`, `aw rename`, `aw archive`, `aw index`, and `aw ipd board`, REPLACING each command's existing overlapping registrations; add a `dest_prefix` keyword to `add_selector_args`/`parse_selector_namespace` so `aw set` selector values never reach the write paths that read `args.priority`/`args.status`/`args.date`; move `aw att -d` (`--details`) to `--details`/`--desc`/`-desc`; hide the misspelled `--arcive-state` spelling; rename `aw specs set --date` (the only history-date write override; top-level `aw set` has no `--date`) to `--history-date` and add `--history-date` to top-level `aw set`; rename the `aw group`/`aw rename` mutation date option from `--date` to `--new-date` (dest unchanged); drop the `-p` short form of `--paths` on `aw find` and `aw search` and the `-S` short form of `--short` on `aw search`; stop `_reconstruct_apply_command` from dropping a selector `-d` value; amend spec `ogd2nv` R-05/R-06 to match; update every test that uses a moved short flag. EXCLUDES runner CLIs (`agy`, `oc`), shell completions, and docs (`e36q6r`), and leaves `aw check`, `aw specs note --date`, and `aw specs migrate --date` unchanged.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/attention.py, agent_workflows/partition.py, agent_workflows/status_set.py, agent_workflows/selectors.py, .aw/records/specs/to-review/20261122-ogd2nv-01-ogd2nv-normalized-selectors-show-and-verb-first-cli.spec.md, tests/test_attention.py, tests/test_cli_find.py, tests/test_find_filters.py, tests/test_index_aliases.py, tests/test_record_builder_slow.py, tests/test_cli_search.py, tests/test_partition.py, tests/test_status_set.py, tests/test_event_overrides.py, tests/test_cli_show.py, tests/test_plans_archive_selectors.py, tests/test_artifact_group.py, tests/test_artifact_rename.py, tests/test_plans_rename_selectors.py, tests/test_plans_board.py, .aw/records/plans/pending/20261122-selectors-02-mnlaoa-wire-normalized-artifact-selectors-into-query-and-mutation-c.ipd.md
 - Item-Dependencies: executed:bzsoai
-- Status: reviewed
+- Status: approved
 - Short-Description: Adopt shared selector flags across att, find, search, partition, show, set, group, rename, archive, index, and ipd board
 - Work-Kind: feature
 - Priority: medium
@@ -19,11 +19,13 @@
 - Highest E allocated: 10
 - Author: antigravity
 - Id: mnlaoa
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-25 /plan-review (uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; OQ-01 resolved by maintainer (option A, --new-date); PR-004 FIXED; PR-018 FIXED; review record .aw/records/reviews/20261122-selectors-02-mnlaoa-wire-normalized-artifact-selectors-into-query-and-mutation-c.review.md
 - 2026-11-25 reviewed (aw set): status set to reviewed
 - 2026-11-24 /plan-review (uri/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001..PR-003, PR-005..PR-016 FIXED; PR-004 ESCALATED as blocking OQ-01; PR-017 DEFERRED (advisory); review record .aw/records/reviews/20261122-selectors-02-mnlaoa-wire-normalized-artifact-selectors-into-query-and-mutation-c.review.md

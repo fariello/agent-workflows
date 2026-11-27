@@ -6,7 +6,7 @@
 - Scope: Fix all eight bugs across `agent_workflows/hooks/executed_transition_gate.py`, `agent_workflows/hooks/meta_log_append_gate.py`, `agent_workflows/hooks/ipd_dependency_statement_gate.py`, `agent_workflows/check_engine.py`, `agent_workflows/runners_monitor.py`, `agent_workflows/run_viewer.py`, `agent_workflows/checkup.py`, `agent_workflows/artifact_adopt.py`, `agent_workflows/attention.py`, and `agent_workflows/set_records.py`, with behavioral tests covering companion, `~/.aw/`, and `clean-delta` repositories.
 - Scope-Paths: agent_workflows/hooks/executed_transition_gate.py, agent_workflows/hooks/meta_log_append_gate.py, agent_workflows/hooks/ipd_dependency_statement_gate.py, agent_workflows/check_engine.py, agent_workflows/runners_monitor.py, agent_workflows/run_viewer.py, agent_workflows/checkup.py, agent_workflows/artifact_adopt.py, agent_workflows/attention.py, agent_workflows/set_records.py, tests/test_companion_doctor_and_carriers.py, tests/test_home_isolation.py, .aw/records/plans/pending/20261124-comphome-05-7hfx7r-fix-pre-commit-hooks-staged-gates-runners-monitor-run-viewer.ipd.md
 - Item-Dependencies: executed:ywl7uc
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - Priority: high
@@ -16,12 +16,14 @@
 - Order: 5
 - Highest E allocated: 6
 - Id: 7hfx7r
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 - Author: antigravity
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-25 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 - 2026-11-25 /plan-review (antigravity/Gemini 4 Neon (High)): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 - 2026-11-24 to-review (antigravity): authored Order 05 child IPD for `/assess-bugs` (Set `comphome`).

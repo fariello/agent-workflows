@@ -6,7 +6,7 @@
 - Scope: Update `agent_workflows/migrations/m0001_metadata_v2.py::_ensure_state_gitignored_via_exclude` (and its docstring) so `apply=True` resolves the git root of `lock_path` via `agent_workflows/project_context.py::record_git_root(lock_path)` and excludes the relative `lock_path.parent` directory via `<git_common_dir>/info/exclude` when `git check-ignore` reports it unignored; add behavioral tests in `tests/test_m0001_layout_stage.py`; tighten the `companion_backend` `git status` assertion in `tests/test_m0001_any_repo.py::test_ac42_corpus_shapes_end_to_end_migration` by removing `--untracked-files=no`; and add one `- Fixed:` entry in `CHANGELOG.md`. EXCLUDES: modifying `agent_workflows/runner_shared.py::integration_lock_path`, `agent_workflows/project_context.py::record_git_root`, `agent_workflows/migrations/m0001_preflight.py::acquire_apply_integration_lock`, `aw install`, or `.gitignore` templates in tracked repositories.
 - Scope-Paths: agent_workflows/migrations/m0001_metadata_v2.py, tests/test_m0001_layout_stage.py, tests/test_m0001_any_repo.py, CHANGELOG.md, .aw/records/plans/pending/20261119-9bg1uk-01-dvxh1p-ignore-companion-records-runs-via-git-info-exclude-in-m0001.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Resolve the integration lock git root via project_context.record_git_root and exclude its relative runs directory via info/exclude when unignored
@@ -19,11 +19,13 @@
 - Highest E allocated: 04
 - Author: antigravity/gemini
 - Id: dvxh1p
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 - 2026-11-19 to-review (aw set): Authored review-ready plan graduated from backlog 9bg1uk

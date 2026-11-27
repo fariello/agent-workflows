@@ -6,7 +6,7 @@
 - Scope: Preserve completed review visibility in AW RUN SUMMARY, accept auto-approved pre-terminal status in aw runs artifact audit, and record phase-advance transitions for reviewed-to-queued handoff in run_state_check
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/render_stream.py, agent_workflows/artifact_audit.py, tests/test_runwire_state_translation.py, tests/test_run_summary_table.py, tests/test_artifact_audit.py, tests/test_runner_fullauto_and_sweep_fixes.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Preserve completed review visibility in AW RUN SUMMARY, recognize auto-approved status in aw runs, and map reviewed->queued in run_state_check
@@ -19,11 +19,13 @@
 - Highest E allocated: 05
 - Author: antigravity
 - Id: feol8w
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-25 reviewed (uri/its_direct/pt3-claude-opus-5.5-1m-us): plan-review (uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 fixed (frozen initial_status kept, auto-approved pre-terminal pair instead of audit/viewer threading, no banner change, display fields, lifecycle finalize clause, check-all baseline, reachable V-02, behm9r orchestrate compatibility, uonrjg citation); review record .aw/records/reviews/20261121-b0en28-01-feol8w-preserve-completed-review-phase-across-full-auto-approval-an.review.md
 - 2026-11-21 to-review (antigravity): Authored review-ready child plan for backlog b0en28 covering summary phase rendering, auto-approved artifact auditing, and reviewed-to-queued state transition recording.
 - 2026-11-21 draft (antigravity): created.

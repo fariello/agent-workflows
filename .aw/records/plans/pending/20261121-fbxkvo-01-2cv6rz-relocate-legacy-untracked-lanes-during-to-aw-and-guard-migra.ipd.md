@@ -6,7 +6,7 @@
 - Scope: IN: (1) add `MigrationManager._relocate_legacy_untracked_lanes` in `agent_workflows/layout_migration.py` to move files and symlinks from `.agents/prompts/untracked/` and `.agents/comms/untracked/` into `<records_root>/prompts/untracked/` and `<records_root>/comms/untracked/` without clobbering existing destinations, prune emptied legacy directories bottom-up, wire the helper into `MigrationManager.execute_migration` and `MigrationManager.apply_embedded_stage_one` before `_handle_leftovers`, and reverse recorded moves in `MigrationManager.rollback_migration` and `MigrationManager.rollback_embedded_stage_one`; (2) update `agent_workflows/engine.py::migrate_local_lanes_to_untracked` so canonical `.aw/` repositories (where `resolve_target_layout(repo_root) == "aw"`) never invoke `_ensure_untracked_gitignore` for a lane base under `.agents/`, while keeping `agent_workflows/engine.py::_lane_bases` unchanged (so the both-layout `local/`-to-`untracked/` rename from executed plan `njfyjt` still applies) and preserving legacy `.agents/` behavior and external (companion/home) records-root behavior; and (3) add behavioral regression tests in `tests/test_layout_migration.py` and `tests/test_engine_restored_behavior.py`, registering any full-install `@pytest.mark.slow` test node ID in `tests/slow_allowlist.txt`. OUT: un-pruning ignored directories in `agent_workflows/layout_inventory.py::_walk`, relocating legacy `.agents/{prompts,comms}/local/` lanes inside `layout_migration.py` (which `tests/test_layout_migration.py::LeftoverDispositionTests.test_remove_preserves_untracked_ignored_local_lanes` requires to remain preserved), changing `workflow-artifacts/` or `.agents/docs/README.md` migration rules (tracked separately in backlog `ujxi56`), or modifying `aw install` commit-staging behavior for `.aw/.gitignore`.
 - Scope-Paths: agent_workflows/layout_migration.py, agent_workflows/engine.py, tests/test_layout_migration.py, tests/test_engine_restored_behavior.py, tests/slow_allowlist.txt
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Relocate .agents/prompts/untracked/ and .agents/comms/untracked/ during --to-aw and stop migrate_local_lanes_to_untracked from recreating legacy .gitignore files on canonical .aw/ repos
@@ -19,11 +19,13 @@
 - Highest E allocated: 04
 - Author: antigravity/gemini-4-neon-high
 - Id: 2cv6rz
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-24 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED
 - 2026-11-24 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008
 - 2026-11-22 to-review (aw set): Authored review-ready child plan graduated from backlog fbxkvo

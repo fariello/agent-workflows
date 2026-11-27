@@ -6,7 +6,7 @@
 - Scope: IN: (1) add helper `tools/fixture_codemod.py::_extract_leading_h1` and update `tools/fixture_codemod.py::_plan_site` so non-empty H1 titles on bullet-dialect backlog fixtures map to `summary` when no explicit `- Summary:` bullet is present, non-empty H1 titles on bullet-dialect prompt fixtures map to `short_description` when no explicit `- Short-Description:` bullet is present, and bullet-dialect prompt fixtures with a non-empty `body` that lacks a leading `# ` heading prepend the original H1 line ahead of `body`; (2) preserve explicit `- Summary:` and `- Short-Description:` bullet precedence, titleless `# Backlog` / `# Backlog item` / `# Prompt` headings, and `<!-- aw-prompt: ... -->` comment-dialect prompt fixtures; (3) add fixture module `tests/fixtures/fixture_codemod/backlog_prompt_h1_title.py.txt` (E-02) and fast in-process core-tier behavioral tests in `tests/test_fixture_codemod.py` (E-05, keeping serial `-n 0` wall time under 10 seconds); and (4) add a subprocess `--apply` equivalence and rewritten-suite test in `tests/test_fixture_codemod_slow.py` with its node ID documented in `tests/slow_allowlist.txt`. OUT: modifying `tests/record_builder.py`, widening `tools/fixture_codemod.py::_HEADING_TO_RECORD_TYPE` to match uncolonized `# Prompt <words>` headings, changing `tools/fixture_codemod.py::F01_PATTERN`, modifying `tests/test_cli_search.py` (already converted in `jjvnhb`), converting other repository test modules (`59aiyh` and its chunk plans), or addressing sibling codemod plans `kbh055` and `svpml2`.
 - Scope-Paths: tools/fixture_codemod.py, tests/test_fixture_codemod.py, tests/test_fixture_codemod_slow.py, tests/fixtures/fixture_codemod/backlog_prompt_h1_title.py.txt, tests/slow_allowlist.txt
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Map H1 heading titles on backlog and prompt fixtures to summary and short_description in fixture_codemod._plan_site instead of dropping them.
@@ -19,11 +19,13 @@
 - Highest E allocated: 05
 - Author: antigravity/gemini
 - Id: osq7nu
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Written and proofread per `.aw/system/workflows/technical-writing/technical-writing.md`, including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-24 reviewed (/plan-review model=claude-opus-5.5): APPROVE WITH REVISIONS APPLIED; F1..F6 FIXED; review record .aw/records/reviews/20261121-e0wwtc-01-osq7nu-map-h1-heading-titles-on-backlog-and-prompt-fixtures-in-fixt.review.md
 - 2026-11-22 to-review (aw set): Authored review-ready child plan graduated from backlog e0wwtc
 - 2026-11-22 draft (antigravity/gemini): created.

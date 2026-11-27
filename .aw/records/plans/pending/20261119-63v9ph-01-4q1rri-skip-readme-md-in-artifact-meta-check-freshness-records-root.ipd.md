@@ -6,7 +6,7 @@
 - Scope: Update `agent_workflows/artifact_meta.py::check_freshness` so its `records_root` `os.scandir` filter skips `_layout.RECORD_SCAN_SKIP_NAMES` (`README.md`, `INDEX.md`, `STATUS.md`, using the already-imported `layout as _layout`) alongside dotfiles and `INDEX.*`; verify `agent_workflows/artifact_meta.py::_load_sources`'s existing `if role == "removed" or not abs_p.exists():` branch evicts pre-existing cached `README.md` rows in `files` and `artifacts` cleanly even while the file remains on disk; add behavioral tests in `tests/test_artifact_meta_cache.py` and `tests/test_m0001_any_repo.py`; and record one `CHANGELOG.md` entry. EXCLUDES: modifying `artifact_core.iter_scan_files` citation scans (which intentionally scan `README.md`), modifying `m0001` migration conversion or layout movement rules, and changing non-`README.md` exclusions such as `notes/scratch.md` in the `idless_prose` fixture or research companion files.
 - Scope-Paths: agent_workflows/artifact_meta.py, tests/test_artifact_meta_cache.py, tests/test_m0001_any_repo.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Skip README.md in artifact_meta.check_freshness records_root walk so README files are not indexed as id-less artifacts
@@ -19,11 +19,13 @@
 - Highest E allocated: 04
 - Author: antigravity/gemini
 - Id: 4q1rri
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 (review record: .aw/records/reviews/20261121-63v9ph-01-4q1rri-skip-readme-md-in-artifact-meta-check-freshness-records-root.review.md)
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 (review record: .aw/records/reviews/20261121-63v9ph-01-4q1rri-skip-readme-md-in-artifact-meta-check-freshness-records-root.review.md)
 - 2026-11-19 to-review (aw set): Authored review-ready plan graduated from backlog 63v9ph

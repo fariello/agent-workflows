@@ -6,7 +6,7 @@
 - Scope: Add one guard at the top of `agent_workflows/runner_shared.py::expand_selectors`. The guard refuses a selector list that holds a status selector token (`reviews`, `review`, `to-review`, `all`) together with any other selector, and names the host's correct commands. Add function-level and CLI-level tests for both hosts, and one CHANGELOG bullet.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_reviews_selector_hint.py, CHANGELOG.md, .aw/records/plans/pending/20261121-dogfood-bugs-06-d8b9rp-emit-actionable-action-review-hint-when-reviews-is-combined.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Refuse a status selector combined with another selector and name the correct review or run command
@@ -19,11 +19,13 @@
 - Highest E allocated: 04
 - Author: antigravity
 - Id: d8b9rp
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-24 reviewed (/plan-review model=claude-opus-5.5): APPROVE WITH REVISIONS APPLIED; F1..F7 FIXED, F8 DEFERRED; review record .aw/records/reviews/20261121-dogfood-bugs-06-d8b9rp-emit-actionable-action-review-hint-when-reviews-is-combined.review.md
 - 2026-11-21 to-review (aw set): Review-ready child plans for dogfood-bugs
 - 2026-11-21 draft (antigravity): created.

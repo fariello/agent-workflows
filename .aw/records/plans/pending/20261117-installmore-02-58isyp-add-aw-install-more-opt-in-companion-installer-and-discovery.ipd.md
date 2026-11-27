@@ -6,7 +6,7 @@
 - Scope: Add `agent_workflows/install_more.py` defining an extensible catalog of optional companion tools (starting with `gemini-quota` from `z403j4`), user bin directory resolution (`$XDG_BIN_HOME` else `~/.local/bin`, overridable with `--bin-dir`), sentinel-guarded executable launcher generation (POSIX and Windows), and install/status/uninstall helpers; wire `aw install more` (with ask-first confirmation, `--dry-run`, `--yes`, `--bin-dir`, `--agent`/`--json`) and the once-per-invocation discovery tip (`_install_more_tip`) into `agent_workflows/cli.py` and `agent_workflows/command_surface.py`; document `aw install more` in `README.md`; add behavioral tests in `tests/test_install_more.py` (including `command_surface` declaration coverage for `--bin-dir`). EXCLUDES `gemini_quota.py` implementation (`z403j4`) and shell dotfile editing.
 - Scope-Paths: agent_workflows/install_more.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_install_more.py, README.md, .aw/records/plans/pending/20261117-installmore-02-58isyp-add-aw-install-more-opt-in-companion-installer-and-discovery.ipd.md
 - Item-Dependencies: executed:z403j4
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Implement install_more catalog and launcher installer, wire aw install more confirmation flow and command surface, and print discovery tip after aw install
@@ -17,11 +17,13 @@
 - Highest E allocated: 05
 - Author: antigravity
 - Id: 58isyp
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-18 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005
 - 2026-11-18 /plan-review (antigravity/gemini-4-hydrogen-high): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005; review record .aw/records/reviews/20261117-installmore-02-58isyp-add-aw-install-more-opt-in-companion-installer-and-discovery.review.md
 - 2026-11-18 to-review (aw set): status set to to-review

@@ -6,7 +6,7 @@
 - Scope: Unify `artifact_meta` metadata state-root resolution (used for `locks/meta-<key>.lock`, `operation_journal/`, and `index.db`) across `agent_workflows/artifact_meta.py::legacy_context`, all 13 `agent_workflows/artifact_meta.py` entry points (`read`, `history`, `resolve`, `query`, `query_lineage`, `review_rows`, `resolve_mirror_at`, `read_path_at`, `read_at`, `write_legacy`, `append`, `create`, `repair`), and `agent_workflows/meta_cli.py::meta_context`: honor any explicit `local.json` `state_root` override first, route default `<repo>/.aw/state` to `<AW_HOME>/projects/<project_id>/state` when `records_backend` resolves to stored `home`, preserve `<companion>/state` (`records_res.parent / "state"`) for external `companion` records roots when no explicit `state_root` override exists (preserving commit `5ca9a65a2`'s clean-target protection), keep `agent_workflows/project_context.py::resolve_project_context` unchanged for `spec 20260810-1447-01` Section 5, keep unconfigured (`builtin_defaults`) and `repository`/`repository-untracked` repositories unchanged, and expand `tests/test_records_root_accessor.py` to pin lock/cache placement, `meta_context`/`legacy_context` parity, direct `ProjectContext` callers, and clean-target behavior.
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/meta_cli.py, tests/test_records_root_accessor.py, .aw/records/plans/pending/20261119-vo0y6q-01-rntx9a-route-artifact-meta-state-and-lock-paths-to-aw-home-when-rec.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Route artifact_meta state and meta locks under AW_HOME when records_backend resolves to home
@@ -19,11 +19,13 @@
 - Highest E allocated: 04
 - Author: antigravity/gemini
 - Id: rntx9a
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005 FIXED; review record .aw/records/reviews/20261121-vo0y6q-01-rntx9a-route-artifact-meta-state-and-lock-paths-to-aw-home-when-rec.review.md
 - 2026-11-19 to-review (aw set): authored review-ready plan from backlog vo0y6q

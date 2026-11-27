@@ -6,7 +6,7 @@
 - Scope: IN: (1) replace the hardcoded `item["action"] = "execute"` in the `--full-auto` post-review auto-approval block of `agent_workflows/runner_shared.py::execute_item_core` with `kind = item.get("kind") or plan_kind_from_file(plan_curr)` and `item["action"] = action_for(kind, "auto-approved")`; (2) update the adjacent `if auto_approved:` progress log line in `agent_workflows/runner_shared.py::execute_item_core` so `item["action"] == "orchestrate"` logs `"progressing to orchestrator retirement"`, `item["action"] == "review"` logs `"holding at auto-approved (--action review)"`, and `item["action"] == "execute"` preserves `"progressing to execution"`; and (3) add fast `@pytest.mark.core` behavioral regression tests in `tests/test_runner_fullauto_and_sweep_fixes.py` covering `execute_item_core` action derivation and progress log wording (`Kind: orchestrator` with `item["kind"]` present and absent, `Kind: child`, `Kind: standard`, and `--action review`) plus end-to-end `run_queue` execution across both `oc_runipd` and `agy_runipd` showing a `to-review` orchestrator retire via `retire_orchestrator` with zero `execute` agent turns. OUT: modifying `agent_workflows/runner_shared.py::initialize_run` (which already derives actions via `action_for`), modifying `agent_workflows/runner_shared.py::finish_integrated_review_item` (deferred review integration does not auto-approve any IPD kind), or modifying `agent_workflows/oc_runipd.py` or `agent_workflows/agy_runipd.py` (both already delegate item turns to `execute_item_core` and already short-circuit `action == "orchestrate"` to `dispatch_orchestrator_item`).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_fullauto_and_sweep_fixes.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Derive next action via action_for(kind, 'auto-approved') instead of hardcoding execute in execute_item_core
@@ -19,11 +19,13 @@
 - Highest E allocated: 04
 - Author: antigravity/gemini-4-hydrogen-xhigh
 - Id: behm9r
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-25 reviewed (aw set): plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed (spawn-layer stubbing in E-03, ready orchestrator fixtures, host-binding drive in E-02, isolate_worktree off, one test per host, import pytest, reached_success comment); review record .aw/records/reviews/20261121-diobl2-01-behm9r-route-auto-approved-orchestrator-ipds-to-orchestrate-instead.review.md
 - 2026-11-21 to-review (aw set): Authored review-ready child plan for backlog diobl2
 - 2026-11-21 draft (antigravity/gemini-4-hydrogen-xhigh): created.

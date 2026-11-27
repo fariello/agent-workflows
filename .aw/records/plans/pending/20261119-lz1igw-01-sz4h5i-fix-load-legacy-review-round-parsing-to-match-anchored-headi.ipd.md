@@ -6,7 +6,7 @@
 - Scope: Update `agent_workflows/artifact_meta.py::load_legacy_review` to derive `rounds` from `agent_workflows/review_findings.py::parse_review_text` (matching anchored `## Round <n>` headings outside fenced code blocks), deduplicate and sort `rounds` ascending (`sorted(set(parsed_rounds))` with `[1]` fallback when empty), set `round_count = len(rounds)` and `last_round = max(rounds)`, and emit one `reviews` row per observed round in `rounds` using contiguous 1-based `seq` values and attaching `Verdict`, `Reviewer`, `Reviewed-At`, `Readiness`, `Review-Depth`, and `Findings` only when `r == last_round`; align `agent_workflows/meta_cli.py::check_meta` to extract review file rounds via `agent_workflows/review_findings.py::parse_review_text` (replacing `_ROUND_HEADING_RE`) and update `tests/test_check_meta.py::test_drift_review_rounds` (which previously depended on phantom round synthesis); add behavioral unit tests in `tests/test_artifact_meta_legacy.py` and end-to-end cache and CLI history tests in `tests/test_show_history.py`; and add one `- Fixed:` entry in `CHANGELOG.md`. EXCLUDES: modifying `agent_workflows/review_sequence.py::_extract_last_round_text` or `agent_workflows/review_tier.py::parse_tier_answers` (which slice prose sections for Step P and Step T rather than populating `review_files` or `reviews`), changing the SQLite `reviews` table primary key `(subject_id6, seq)` for multi-file subjects, and modifying `agent_workflows/migrations/m0001_convert.py`.
 - Scope-Paths: agent_workflows/artifact_meta.py, agent_workflows/meta_cli.py, tests/test_artifact_meta_legacy.py, tests/test_show_history.py, tests/test_check_meta.py, CHANGELOG.md, .aw/records/plans/pending/20261119-lz1igw-01-sz4h5i-fix-load-legacy-review-round-parsing-to-match-anchored-headi.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Use review_findings.parse_review_text in load_legacy_review and preserve sparse round numbers instead of range(1, max+1)
@@ -19,11 +19,13 @@
 - Highest E allocated: 05
 - Author: antigravity/gemini
 - Id: sz4h5i
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004
 - 2026-11-19 to-review (aw set): Authored review-ready plan graduated from backlog lz1igw

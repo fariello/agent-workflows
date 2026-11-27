@@ -6,7 +6,7 @@
 - Scope: Fix all six installer, wizard, policy-alignment, and leak-allowlist bugs across `agent_workflows/engine.py`, `agent_workflows/install_wizard.py`, `agent_workflows/cli.py`, `agent_workflows/project_context.py`, `agent_workflows/project_schema.py`, `agent_workflows/placement_switch.py`, and `agent_workflows/leak_sanitizer.py`, update existing tests that pinned the overruled `public-target-private-companion` unstaged/`untrack` behavior, and add end-to-end behavioral tests across `tracked`+`home`, `public-target-private-companion`, and `clean-delta`.
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/install_wizard.py, agent_workflows/cli.py, agent_workflows/project_context.py, agent_workflows/project_schema.py, agent_workflows/placement_switch.py, agent_workflows/leak_sanitizer.py, tests/test_home_isolation.py, tests/test_companion_containment_and_storage.py, tests/test_leak_sanitizer.py, tests/test_installer.py, tests/test_placement_switch_companion_plan.py, tests/test_placement_switch_companion_execute.py, tests/test_placement_switch_companion_cli.py, .aw/records/plans/pending/20261124-comphome-02-7gverp-fix-installer-clean-delta-hijack-companion-project-policy-di.ipd.md
 - Item-Dependencies: executed:ywl7uc
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - Priority: high
@@ -16,12 +16,14 @@
 - Order: 2
 - Highest E allocated: 5
 - Id: 7gverp
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 - Author: antigravity
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-25 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 - 2026-11-25 /plan-review (antigravity/Gemini 4 Neon (High)): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 - 2026-11-24 to-review (antigravity): authored Order 02 child IPD for `/assess-bugs` (Set `comphome`).

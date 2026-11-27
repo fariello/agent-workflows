@@ -6,7 +6,7 @@
 - Scope: Extend `agent_workflows/runner_profiles.py` with a top-level `states` map (per-state default profiles for `graduate`/`plan`, `review`, `execute`, `validate`), a schema bump to version 3, and `resolve_for_state` implementing spec `ogd2nv` R-07 precedence including the `AW_HOST` override and single-host `PATH` fallback (`opencode` vs `agy`); add `run_dispatch.dispatch_for_state`, which resolves only the runner and profile name and forwards to the existing adapter; register a host-neutral top-level `aw profile` (`list`, `show`, `add`, `remove`, `default`, `default-runner`, `set-state`, `clear-state`) in `agent_workflows/cli.py` and declare its leaves in `agent_workflows/command_surface.py` and `tests/conformance_matrix.py`; update `docs/runner-profiles.md`; add behavioral tests in `tests/test_runner_profiles_verbs.py` and update the schema-constant tests in `tests/test_runner_profiles.py`. EXCLUDES `aw show` consolidation (`p06t7i`), verb-first CLI commands (`xocj8i`), and an Antigravity (`agy`) dispatch adapter (see OQ-01).
 - Scope-Paths: agent_workflows/runner_profiles.py, agent_workflows/run_dispatch.py, agent_workflows/cli.py, agent_workflows/command_surface.py, docs/runner-profiles.md, tests/test_runner_profiles_verbs.py, tests/test_runner_profiles.py, tests/conformance_matrix.py, .aw/records/plans/pending/20261122-cliverbs-01-m7jcis-add-per-state-runner-profile-routing-path-host-fallback-and.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Extend runner_profiles and run_dispatch with per-verb/per-state default profiles, single-host PATH fallback, and aw profile
@@ -19,11 +19,13 @@
 - Highest E allocated: 06
 - Author: antigravity
 - Id: m7jcis
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-24 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-016 FIXED
 - 2026-11-24 /plan-review (uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-016 FIXED; review record .aw/records/reviews/20261122-cliverbs-01-m7jcis-add-per-state-runner-profile-routing-path-host-fallback-and.review.md
 - 2026-11-23 to-review (aw set): status set to to-review

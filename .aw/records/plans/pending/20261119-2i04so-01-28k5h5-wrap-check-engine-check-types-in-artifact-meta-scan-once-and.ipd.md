@@ -6,7 +6,7 @@
 - Scope: Verify `agent_workflows/check_engine.py::_with_scan_once` already decorates `agent_workflows/check_engine.py::check_types` and `agent_workflows/check_engine.py::check_type` (landed in `5ca9a65a2`, requiring no redundant inner `with` block in `check_engine.py`), and add behavioral outcome tests in `tests/test_check_engine_scan_once.py` covering uninitialized cache single-build reuse (`in_memory=True`), initialized cache reuse (`in_memory=False`), consecutive-call freshness, nested `scan_once` compatibility, single-type `check_type` reuse, `Drift` output parity, mutation sensitivity (`check_types.__wrapped__`), and `cli.main` execution. EXCLUDES changing `artifact_meta.scan_once`, `artifact_meta.ephemeral_if_uninitialized`, `selectors.scan_once`, modifying `agent_workflows/check_engine.py` unless `E-02` exposes an actual cache-reuse regression, or wrapping standalone `check_engine.check_release_gates` callers (`aw check release-gates`).
 - Scope-Paths: tests/test_check_engine_scan_once.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Pin check_engine.check_types artifact_meta.scan_once and ephemeral_if_uninitialized reuse with behavioral regression tests
@@ -19,11 +19,13 @@
 - Highest E allocated: 03
 - Author: antigravity/gemini
 - Id: 28k5h5
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 (review record: .aw/records/reviews/20261121-2i04so-01-28k5h5-wrap-check-engine-check-types-in-artifact-meta-scan-once-and.review.md)
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 (review record: .aw/records/reviews/20261121-2i04so-01-28k5h5-wrap-check-engine-check-types-in-artifact-meta-scan-once-and.review.md)
 - 2026-11-19 to-review (aw set): ready for review: authored for backlog 2i04so

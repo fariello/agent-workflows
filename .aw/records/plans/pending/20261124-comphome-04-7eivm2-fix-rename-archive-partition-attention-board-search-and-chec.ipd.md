@@ -6,7 +6,7 @@
 - Scope: Fix all nine bugs across `agent_workflows/artifact_rename.py`, `agent_workflows/research_refs.py`, `agent_workflows/plans_archive.py`, `agent_workflows/research_archive.py`, `agent_workflows/partition.py`, `agent_workflows/attention.py`, `agent_workflows/plan_readiness.py`, `agent_workflows/check_engine.py`, `agent_workflows/artifact_refs.py`, `agent_workflows/ipd_authoring.py`, and `agent_workflows/cli.py`, with behavioral tests covering companion and `~/.aw/` modes.
 - Scope-Paths: agent_workflows/artifact_rename.py, agent_workflows/research_refs.py, agent_workflows/plans_archive.py, agent_workflows/research_archive.py, agent_workflows/partition.py, agent_workflows/attention.py, agent_workflows/plan_readiness.py, agent_workflows/check_engine.py, agent_workflows/artifact_refs.py, agent_workflows/ipd_authoring.py, agent_workflows/cli.py, tests/test_companion_doctor_and_carriers.py, tests/test_research_companion.py, .aw/records/plans/pending/20261124-comphome-04-7eivm2-fix-rename-archive-partition-attention-board-search-and-chec.ipd.md
 - Item-Dependencies: executed:ywl7uc
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - Priority: high
@@ -16,12 +16,14 @@
 - Order: 4
 - Highest E allocated: 6
 - Id: 7eivm2
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 - Author: antigravity
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-25 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 - 2026-11-25 /plan-review (antigravity/Gemini 4 Neon (High)): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 - 2026-11-24 to-review (antigravity): authored Order 04 child IPD for `/assess-bugs` (Set `comphome`).

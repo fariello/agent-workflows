@@ -6,7 +6,7 @@
 - Scope: IN: (1) update `tools/fixture_codemod.py::_plan_site` to preserve `Concern` and `Scope` bullets on `inferred_type == "ipd"` fixtures by emitting canonical `"Concern"` and `"Scope"` entries into `raw_fields` without setting `has_invalid_input` (keeping `rewrite_class == "standard"` when no invalid field is present); (2) add a fixture module `tests/fixtures/fixture_codemod/ipd_concern_scope.py.txt` containing static and f-string IPD `Concern` and `Scope` fixtures exercised against `authoring_placeholders_resolved`, `ipd_lint.lint_text`, and `- Scope:` text preservation; (3) add fast core-tier behavioral tests in `tests/test_fixture_codemod.py` covering `--dry-run --format json` output, rendered `RecordBuilder().plan` output, lowercase label normalization, single-variable f-string expressions, coexistence with invalid fields, and non-IPD record isolation while keeping `tests/test_fixture_codemod.py` under its 10-second serial wall-time limit; and (4) add a subprocess `--apply` equivalence and rewritten-suite pytest test in `tests/test_fixture_codemod_slow.py` with its node ID documented in `tests/slow_allowlist.txt`. OUT: changing `tests/record_builder.py::RecordBuilder.plan` or `agent_workflows/ipd_authoring.py::build_skeleton`, adding `- Concern:` or `- Scope:` to `tools/fixture_codemod.py::F01_PATTERN`, rewriting repository test modules (`59aiyh` and batch plans), or addressing sibling backlog items `e0wwtc` and `lufe6m`.
 - Scope-Paths: tools/fixture_codemod.py, tests/test_fixture_codemod.py, tests/test_fixture_codemod_slow.py, tests/fixtures/fixture_codemod/ipd_concern_scope.py.txt, tests/slow_allowlist.txt
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Preserve IPD Concern and Scope bullets via raw_fields in fixture_codemod._plan_site instead of dropping them to build_skeleton TODO placeholders.
@@ -19,11 +19,13 @@
 - Highest E allocated: 04
 - Author: antigravity/gemini
 - Id: kbh055
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-25 reviewed (uri/its_direct/pt3-claude-opus-5.5-1m-us): plan-review (standard): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed; review record .aw/records/reviews/20261121-b1j6bl-01-kbh055-preserve-concern-and-scope-bullets-in-fixture-codemod-plan-s.review.md
 - 2026-11-21 to-review (aw set): Authored review-ready child plan graduated from backlog b1j6bl
 - 2026-11-21 draft (antigravity/gemini): created.

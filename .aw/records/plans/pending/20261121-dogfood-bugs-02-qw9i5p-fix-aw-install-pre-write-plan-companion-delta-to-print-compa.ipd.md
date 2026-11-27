@@ -6,7 +6,7 @@
 - Scope: In `agent_workflows/install_wizard.py::render_pre_write_plan`, print the companion records directory in `Companion Delta:` from the same resolved `records` path the `Resolved Physical Classes` section prints, and drop the unsupported "and config" claim. Add a core-tier behavioral regression test module and one CHANGELOG bullet. EXCLUDES what `aw install` writes into the companion, and the `config_project` preview owned by `ippuby`.
 - Scope-Paths: agent_workflows/install_wizard.py, tests/test_install_wizard_companion_preview.py, CHANGELOG.md, .aw/records/plans/pending/20261121-dogfood-bugs-02-qw9i5p-fix-aw-install-pre-write-plan-companion-delta-to-print-compa.ipd.md
 - Item-Dependencies: executed:gftvh6
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Replace obsolete .aw/records decoy path with records/ in render_pre_write_plan Companion Delta
@@ -19,11 +19,13 @@
 - Highest E allocated: 03
 - Author: antigravity
 - Id: qw9i5p
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-24 reviewed (/plan-review model=claude-opus-5.5): APPROVE WITH REVISIONS APPLIED; F1..F5 FIXED, F6 DEFERRED; review record .aw/records/reviews/20261121-dogfood-bugs-02-qw9i5p-fix-aw-install-pre-write-plan-companion-delta-to-print-compa.review.md
 - 2026-11-21 to-review (aw set): Review-ready child plans for dogfood-bugs
 - 2026-11-21 draft (antigravity): created.

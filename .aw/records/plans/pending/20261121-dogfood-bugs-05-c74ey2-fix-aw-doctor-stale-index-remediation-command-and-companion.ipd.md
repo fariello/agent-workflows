@@ -6,7 +6,7 @@
 - Scope: Add behavioral regression tests in `tests/test_doctor_companion_paths.py` proving that `aw doctor` on a companion install keeps logical `.aw/records/<type>/...` directories for record findings and never emits a bare `aw index` command. Change `agent_workflows/doctor.py` only if one of those tests fails on unmodified HEAD.
 - Scope-Paths: tests/test_doctor_companion_paths.py, agent_workflows/doctor.py, .aw/records/plans/pending/20261121-dogfood-bugs-05-c74ey2-fix-aw-doctor-stale-index-remediation-command-and-companion.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Lock in companion-path and no-bare-aw-index doctor behavior with regression tests
@@ -19,11 +19,13 @@
 - Highest E allocated: 03
 - Author: antigravity
 - Id: c74ey2
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-24 reviewed (/plan-review model=claude-opus-5.5): APPROVE WITH REVISIONS APPLIED; F1..F6 FIXED, F7 DEFERRED; review record .aw/records/reviews/20261121-dogfood-bugs-05-c74ey2-fix-aw-doctor-stale-index-remediation-command-and-companion.review.md
 - 2026-11-21 to-review (aw set): Review-ready child plans for dogfood-bugs
 - 2026-11-21 draft (antigravity): created.

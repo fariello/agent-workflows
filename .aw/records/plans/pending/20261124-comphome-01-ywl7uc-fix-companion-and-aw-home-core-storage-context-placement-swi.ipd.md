@@ -6,7 +6,7 @@
 - Scope: Fix all 14 core storage, context, and placement bugs in `agent_workflows/project_context.py`, `agent_workflows/config.py`, `agent_workflows/project_registry.py`, `agent_workflows/storage.py`, `agent_workflows/placement_switch.py`, `agent_workflows/record_placement.py`, `agent_workflows/artifact_core.py`, and `agent_workflows/project_layout.py`, with behavioral tests covering both companion and `~/.aw/` modes. Excludes installer (`7gverp`), `status_set`/finalize (`mmuv3v`), CLI record verbs (`7eivm2`), hooks (`7hfx7r`), and runner lanes (`4vnd36`).
 - Scope-Paths: agent_workflows/project_context.py, agent_workflows/config.py, agent_workflows/project_registry.py, agent_workflows/storage.py, agent_workflows/placement_switch.py, agent_workflows/record_placement.py, agent_workflows/artifact_core.py, agent_workflows/project_layout.py, tests/test_companion_containment_and_storage.py, tests/test_home_isolation.py, tests/test_placement_switch_companion_execute.py, .aw/records/plans/pending/20261124-comphome-01-ywl7uc-fix-companion-and-aw-home-core-storage-context-placement-swi.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - Priority: high
@@ -16,12 +16,14 @@
 - Order: 1
 - Highest E allocated: 6
 - Id: ywl7uc
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 - Author: antigravity
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-25 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010
 - 2026-11-25 /plan-review (antigravity/Gemini 4 Neon (High)): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010
 - 2026-11-24 to-review (antigravity): authored Order 01 child IPD for `/assess-bugs` (Set `comphome`).

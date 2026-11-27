@@ -6,7 +6,7 @@
 - Scope: Amend spec `6kwd2e` (R9.2, R9.5, A42) to permit explicit replacement of an unconsumed answer (`status == "open"` and not yet consumed) while keeping first-answer-wins as the default for concurrent unflagged callers; add `replace: bool = False` to `agent_workflows/question_inbox.py::write_answer` and `agent_workflows/question_inbox.py::write_group_answer` with an `answer-replaced` event in `events.jsonl` and mark `preflight_parked` questions `"answered"` on consumption in `agent_workflows/runner_shared.py::consume_answers`; expose `--replace` on `aw runs answer` (`agent_workflows/cli.py`, `agent_workflows/run_cli.py`) and show any pending unconsumed answer before prompting interactively; add behavioral tests in `tests/test_runs_answer.py` and `tests/test_question_resume.py`. EXCLUDES replacing answers already consumed by a resumed turn or preflight commit (`status != "open"` or `answer-consumed` logged), modifying `open_questions` pre-flight sweep answers committed to git, and remote notification adapters (Telegram).
 - Scope-Paths: .aw/records/specs/implemented/20260912-6kwd2e-01-6kwd2e-midrun-question-surfacing.spec.md, agent_workflows/question_inbox.py, agent_workflows/runner_shared.py, agent_workflows/cli.py, agent_workflows/run_cli.py, tests/test_runs_answer.py, tests/test_question_resume.py, .aw/records/plans/pending/20261117-reanswer-01-04ygpo-support-replacing-or-updating-unconsumed-answers-in-aw-runs.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Add explicit replace support for unconsumed question_inbox answers and surface existing answers before re-prompting in aw runs answer
@@ -20,11 +20,13 @@
 - Highest E allocated: 05
 - Author: antigravity
 - Id: 04ygpo
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-18 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 - 2026-11-18 /plan-review (antigravity/gemini-4-hydrogen-high): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007; review record .aw/records/reviews/20261117-reanswer-01-04ygpo-support-replacing-or-updating-unconsumed-answers-in-aw-runs.review.md
 - 2026-11-18 to-review (aw set): status set to to-review

@@ -6,7 +6,7 @@
 - Scope: Fix all nine bugs across `agent_workflows/status_set.py`, `agent_workflows/git_commit_helper.py`, `agent_workflows/commit_lock.py`, `agent_workflows/ipd_lifecycle.py`, `agent_workflows/selectors.py`, and `agent_workflows/artifact_meta.py`, with behavioral tests covering companion (sibling and custom `--dir`) and `~/.aw/` (`home`) modes.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/git_commit_helper.py, agent_workflows/commit_lock.py, agent_workflows/ipd_lifecycle.py, agent_workflows/selectors.py, agent_workflows/artifact_meta.py, tests/test_companion_ipd_lifecycle.py, tests/test_home_isolation.py, .aw/records/plans/pending/20261124-comphome-03-mmuv3v-fix-metadata-selectors-self-commit-routing-companion-locking.ipd.md
 - Item-Dependencies: executed:ywl7uc
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - Priority: high
@@ -16,12 +16,14 @@
 - Order: 3
 - Highest E allocated: 5
 - Id: mmuv3v
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 - Author: antigravity
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-25 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 - 2026-11-25 /plan-review (antigravity/Gemini 4 Neon (High)): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 - 2026-11-24 to-review (antigravity): authored Order 03 child IPD for `/assess-bugs` (Set `comphome`).

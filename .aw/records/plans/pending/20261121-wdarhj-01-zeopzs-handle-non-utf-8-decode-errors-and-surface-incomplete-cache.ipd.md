@@ -6,7 +6,7 @@
 - Scope: IN: (1) add behavioral regression tests in `tests/test_readers_selectors_find.py` and extend `tests/test_readers_cache_parity.py::test_invalid_replacement_reported_not_omitted_or_stale` to pin both defects before editing production code; (2) replace `agent_workflows/cli.py::_find_type_records`'s `_query_by_path` with `_query_cache` (returning `(state_by_path, incomplete_ids)`), extract a shared fallback/validation helper catching `(OSError, UnicodeDecodeError)` across all three `_find_type_records` branches (`plans`, `research`, and `all other types`), suppress markdown fallback rows when a cache-backed record's `id6` is in `QueryResult.incomplete`, and carry structured `_FindInvalidRecord` diagnostics on `_FindTypeResult` (keeping 3-tuple unpacking intact); (3) surface `"find.unreadable-record"` and `"find.incomplete-record"` warnings (plus unmatched log-only `incomplete` IDs for `norm == "all"` or explicit matching selectors) in `agent_workflows/cli.py::_run_find_impl` across `--agent`, `--json`, `--paths`, and human output modes while keeping `find`'s declared `exit_contract=(0, 2)`, and report a withheld-record answer as `complete: false` / `outcome: "partial"` rather than `clean`. OUT: altering `agent_workflows/artifact_meta.py` (`query`, `_load_sources`), altering `agent_workflows/selectors.py::_cached_states_by_path`, altering `agent_workflows/renderers.py`, changing `find`'s `exit_contract` from `(0, 2)` to `(0, 1, 2)`, or modifying sibling `except OSError:` file reads in `agent_workflows/cli.py::_run_search` (`aw search`) and `agent_workflows/plans.py::scan` (`aw ipd board`), which backlog `t5t02b` carries.
 - Scope-Paths: agent_workflows/cli.py, tests/test_readers_selectors_find.py, tests/test_readers_cache_parity.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Handle non-UTF-8 decode errors and surface incomplete cache records in aw find instead of crashing or serving markdown fallback
@@ -19,11 +19,13 @@
 - Highest E allocated: 05
 - Author: antigravity/gemini-4-hydrogen-xhigh
 - Id: zeopzs
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-24 /plan-review (uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH) and PR-002..PR-011 FIXED; filed carrier backlog t5t02b for the aw search / aw ipd board decode crashes; review record .aw/records/reviews/20261121-wdarhj-01-zeopzs-handle-non-utf-8-decode-errors-and-surface-incomplete-cache.review.md
 - 2026-11-24 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-011 fixed
 - 2026-11-21 to-review (aw set): Authored review-ready plan for backlog wdarhj

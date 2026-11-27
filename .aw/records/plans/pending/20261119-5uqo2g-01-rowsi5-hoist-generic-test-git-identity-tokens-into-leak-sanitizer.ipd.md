@@ -6,7 +6,7 @@
 - Scope: Move the generic test-fixture git identity tokens into `agent_workflows/leak_sanitizer.py::_GENERIC_DERIVED_TOKENS`, remove `_GENERIC_FIXTURE_GIT_TOKENS` and its git-identity filter branch from `agent_workflows/artifact_meta.py::_writer_ruleset`, and add behavioral regression and non-vacuous control tests in `tests/test_local_leaks.py` and `tests/test_artifact_meta_write.py`. EXCLUDES modifying `tests/support.py::init_repo` or inline `git config user.name` / `user.email` fixtures across existing test files, and excludes altering the unconditional `reason == "sibling checkout dir name"` filter in `agent_workflows/artifact_meta.py::_writer_ruleset`.
 - Scope-Paths: agent_workflows/leak_sanitizer.py, agent_workflows/artifact_meta.py, tests/test_local_leaks.py, tests/test_artifact_meta_write.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Hoist synthetic test git identity tokens from artifact_meta._writer_ruleset into leak_sanitizer._GENERIC_DERIVED_TOKENS
@@ -19,11 +19,13 @@
 - Highest E allocated: 04
 - Author: Gemini 4 Hydrogen
 - Id: rowsi5
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 (review record: .aw/records/reviews/20261121-5uqo2g-01-rowsi5-hoist-generic-test-git-identity-tokens-into-leak-sanitizer.review.md)
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 (review record: .aw/records/reviews/20261121-5uqo2g-01-rowsi5-hoist-generic-test-git-identity-tokens-into-leak-sanitizer.review.md)
 - 2026-11-19 to-review (aw set): authored plan for backlog 5uqo2g

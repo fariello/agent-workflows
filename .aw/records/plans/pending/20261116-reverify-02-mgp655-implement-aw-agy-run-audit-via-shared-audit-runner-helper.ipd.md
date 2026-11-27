@@ -6,7 +6,7 @@
 - Scope: Lift the host-neutral audit orchestration from `agent_workflows/oc_runipd.py::handle_audit_command` into `agent_workflows/runner_shared.py::handle_audit_command` and parameterize `agent_workflows/runner_shared.py::plan_audit_target` with the host command label; keep `agent_workflows/oc_runipd.py::handle_audit_command` as a thin wrapper; update `agent_workflows/agy_runipd.py::build_verifier_prompt` to forward `audit` and `diff_basis`; implement `agent_workflows/agy_runipd.py::handle_audit_command` and `agent_workflows/agy_runipd.py::_audit_launch_options` delegating to the same shared helper and launching `agent_workflows/agy_runipd.py::run_agy_turn`; update `tests/test_runner_bare_verb_shim.py` and add end-to-end Antigravity audit and OpenCode delegation parity behavioral coverage in `tests/test_agy_runipd_audit.py`; update `i4gpto` (`R-10`, Section 10 AC-9, `Implemented-by:`, and `## Workflow history`) to record dual-host support. EXCLUDES: changing per-host in-run verification defaults (`RUNNER_REGISTRY` rows owned by `tm2cz8`/`ybkmzp`), adding `--model`/`--profile` CLI flags to `add_audit_parser` (audit reuses the host verifier/default launch configuration per `i4gpto` Section 9), or changing `aw runs verify-ledger`.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_bare_verb_shim.py, tests/test_agy_runipd_audit.py, .aw/records/specs/**/20260920-i4gpto-01-i4gpto-standalone-executed-plan-audit.spec.md
 - Item-Dependencies: executed:mp289j
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - From-Spec: i4gpto
@@ -17,11 +17,13 @@
 - Highest E allocated: 04
 - Author: Antigravity
 - Id: mgp655
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 (review record: .aw/records/reviews/20261121-reverify-02-mgp655-implement-aw-agy-run-audit-via-shared-audit-runner-helper.review.md)
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 (review record: .aw/records/reviews/20261121-reverify-02-mgp655-implement-aw-agy-run-audit-via-shared-audit-runner-helper.review.md)
 - 2026-11-16 to-review (Antigravity): authored review-ready child plan `reverify-02` (`mgp655`) to lift `handle_audit_command` into `runner_shared` and wire `aw agy run audit`.

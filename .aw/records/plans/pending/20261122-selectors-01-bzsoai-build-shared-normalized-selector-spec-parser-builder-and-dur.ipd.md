@@ -6,7 +6,7 @@
 - Scope: Add `SelectorSpec`, `add_selector_args`, `parse_selector_namespace`, `parse_date_expr`, `parse_time_expr`, `batched_artifact_timestamps`, and `filter_records` in `agent_workflows/selectors.py`; move the existing `aw att` filter-token parsing and `matches_status`/`matches_priority`/`matches_readiness` semantics into `selectors.py` as the single authority, leaving `agent_workflows/attention.py` names as thin delegates; align `aw att --order-by mtime|ctime` in `agent_workflows/attention.py` to compute `selectors.batched_artifact_timestamps` once per sort; correct the stale "filesystem time" comments on `ctime`/`mtime` in `agent_workflows/attention_contract.py::ORDER_KEYS`; add behavioral tests in `tests/test_normalized_selectors.py` and `tests/test_attention.py`. EXCLUDES wiring CLI subcommands in `agent_workflows/cli.py` and the `--details`/`--desc` move (`mnlaoa`), and runner CLIs/completions (`e36q6r`).
 - Scope-Paths: agent_workflows/selectors.py, agent_workflows/attention.py, agent_workflows/attention_contract.py, tests/test_normalized_selectors.py, tests/test_attention.py, .aw/records/plans/pending/20261122-selectors-01-bzsoai-build-shared-normalized-selector-spec-parser-builder-and-dur.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Implement shared selector flag builder, SelectorSpec, range/prefix/relative time parser, and batched git/history mtime/ctime engine
@@ -19,11 +19,13 @@
 - Highest E allocated: 04
 - Author: antigravity
 - Id: bzsoai
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-24 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-013 FIXED
 - 2026-11-24 /plan-review (uri/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-013 FIXED; review record .aw/records/reviews/20261122-selectors-01-bzsoai-build-shared-normalized-selector-spec-parser-builder-and-dur.review.md
 - 2026-11-23 to-review (aw set): status set to to-review

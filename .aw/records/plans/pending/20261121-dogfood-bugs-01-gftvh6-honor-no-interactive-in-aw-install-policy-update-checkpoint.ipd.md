@@ -6,7 +6,7 @@
 - Scope: Add behavioral regression tests in `tests/test_install_no_interactive_tty.py` that run `aw install --no-interactive` (with and without `--dry-run`) on a simulated TTY and on a real PTY, and assert that it never prompts, finishes, and exits 0. Change `agent_workflows/install_wizard.py` or `agent_workflows/cli.py` only if one of those tests fails on unmodified HEAD. Add one CHANGELOG bullet for the user-visible fix.
 - Scope-Paths: tests/test_install_no_interactive_tty.py, agent_workflows/install_wizard.py, agent_workflows/cli.py, CHANGELOG.md, .aw/records/plans/pending/20261121-dogfood-bugs-01-gftvh6-honor-no-interactive-in-aw-install-policy-update-checkpoint.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Lock in that aw install --no-interactive never prompts on a TTY or PTY, with regression tests
@@ -19,11 +19,13 @@
 - Highest E allocated: 04
 - Author: antigravity
 - Id: gftvh6
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-24 reviewed (/plan-review model=claude-opus-5.5): APPROVE WITH REVISIONS APPLIED; F1..F5 FIXED, F6 and F7 DEFERRED; review record .aw/records/reviews/20261121-dogfood-bugs-01-gftvh6-honor-no-interactive-in-aw-install-policy-update-checkpoint.review.md
 - 2026-11-21 to-review (aw set): Review-ready child plans for dogfood-bugs
 - 2026-11-21 draft (antigravity): created.

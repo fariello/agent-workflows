@@ -6,7 +6,7 @@
 - Scope: Coordinate child plans `gftvh6` (Order 01), `qw9i5p` (Order 02), `5q8whb` (Order 03), `p0hq1k` (Order 04), `c74ey2` (Order 05), and `d8b9rp` (Order 06), retiring this orchestrator once all six children reach `executed`.
 - Scope-Paths: .aw/records/plans/pending/20261121-dogfood-bugs-00-p2zmjs-coordinate-six-dogfooding-bug-fixes-across-install-checkup-c.ipd.md
 - Item-Dependencies: executed:gftvh6, executed:qw9i5p, executed:5q8whb, executed:p0hq1k, executed:c74ey2, executed:d8b9rp
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: orchestrator
 - Coverage: pass
@@ -21,11 +21,13 @@
 - Highest E allocated: 06
 - Author: antigravity
 - Id: p2zmjs
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-25 reviewed (/plan-review model=gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED; review record .aw/records/reviews/20261121-dogfood-bugs-00-p2zmjs-coordinate-six-dogfooding-bug-fixes-across-install-checkup-c.review.md
 - 2026-11-25 coverage pass (aw oc run): fingerprint 271adafc3ddd, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-21 to-review (aw set): Review-ready orchestrator for dogfood-bugs

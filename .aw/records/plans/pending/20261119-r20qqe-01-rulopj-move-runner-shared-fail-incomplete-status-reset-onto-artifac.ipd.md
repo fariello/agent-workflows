@@ -6,7 +6,7 @@
 - Scope: Move the `- Status: to-review` reset write inside `agent_workflows/runner_shared.py::run_review_sequence._fail_incomplete` onto `agent_workflows/artifact_meta.py::append` (using `agent_workflows/artifact_meta.py::LegacyTarget`, `agent_workflows/artifact_meta.py::LegacyRender` with `history=False`, `agent_workflows/artifact_meta.py::legacy_context`, `agent_workflows/artifact_core.py::utc_history_date`, and `agent_workflows/ipd_lifecycle.py::_LEGAL_BACKWARD_EDGES`), handling backward transitions to `to-review` by unsetting `readiness` and unsetting `approval` when leaving `approved` or when a stale `Approval` bullet is present so `agent_workflows/artifact_meta.py::_check_owned_fields` passes; add `@pytest.mark.core` behavioral regression tests in `tests/test_review_sequence_runner.py` exercising incomplete review sequences whose restored plan is not `to-review`. EXCLUDES: changing the snapshot restoration (`snap_p` / `plan_text_initial`) above the status check in `_fail_incomplete`, modifying other `agent_workflows/runner_shared.py` helpers already moved by `7yr827` (`mark_plan_attended`, `rederive_front_matter`, `perform_coordinator_proposal_file`), and post-cutover removal of `LegacyTarget` / `LegacyRender` (`2k5t16` / `cxxmyv`).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_review_sequence_runner.py, .aw/records/plans/pending/20261119-r20qqe-01-rulopj-move-runner-shared-fail-incomplete-status-reset-onto-artifac.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Move run_review_sequence._fail_incomplete status reset onto artifact_meta with a regression test
@@ -19,11 +19,13 @@
 - Highest E allocated: 03
 - Author: antigravity/gemini
 - Id: rulopj
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-21 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-21 /plan-review (antigravity/gemini-4-neon-high): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004 FIXED; review record .aw/records/reviews/20261121-r20qqe-01-rulopj-move-runner-shared-fail-incomplete-status-reset-onto-artifac.review.md
 - 2026-11-19 to-review (aw set): authored review-ready for backlog r20qqe

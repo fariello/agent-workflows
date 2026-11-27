@@ -6,7 +6,7 @@
 - Scope: Update the review-staleness baseline (`agent_workflows/plan_readiness.py`), human approval and re-affirmation (`agent_workflows/status_set.py`), local review-basis clearing (`agent_workflows/review_basis.py`), host-aware re-review hints at all three hint sites (`agent_workflows/check_engine.py`, `agent_workflows/ipd_lint.py`, `agent_workflows/status_set.py`), the read-only `aw show stale-reviews [--diff]` view (`agent_workflows/cli.py`, `agent_workflows/command_surface.py`), the `aw att --stale-review` filter and legend (`agent_workflows/attention.py`, `agent_workflows/cli.py`), behavioral tests (`tests/test_review_staleness_advisory.py`), the CHANGELOG, and the two specs that define the staleness baseline and the basis-record deletion rule. EXCLUDES `aw partition --action review` explicit re-review support (shipped separately in this session), verb-first top-level CLI routing and the `aw show artifact <selector>` escape hatch (`i8dc07`), and normalized selector flag unification (`1iojci`).
 - Scope-Paths: agent_workflows/plan_readiness.py, agent_workflows/status_set.py, agent_workflows/review_basis.py, agent_workflows/check_engine.py, agent_workflows/ipd_lint.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/attention.py, tests/test_review_staleness_advisory.py, CHANGELOG.md, .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/plans/pending/20261122-rereviewux-01-9ifwdx-clear-review-staleness-on-human-approval-and-add-aw-show-sta.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Short-Description: Clear self-stale and basis-stale warnings on human approval, add aw show stale-reviews --diff, and add aw att --stale-review
 - Work-Kind: feature
 - Priority: medium
@@ -17,11 +17,13 @@
 - Highest E allocated: 08
 - Author: antigravity
 - Id: 9ifwdx
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-23 reviewed (/plan-review model=claude-opus-5.5): APPROVE WITH REVISIONS APPLIED; F1..F11 FIXED; review record .aw/records/reviews/20261122-rereviewux-01-9ifwdx-clear-review-staleness-on-human-approval-and-add-aw-show-sta.review.md
 - 2026-11-22 to-review (aw set): status set to to-review
 - 2026-11-22 draft (antigravity): created from `/assess-ui-ux` review-staleness assessment after maintainer selected Option A on Question 1 (human approval clears staleness with bulk-approval guard) and directed `aw show` as the read-only inspection surface.

@@ -6,7 +6,7 @@
 - Scope: IN: (1) verify commit `0cb279ae0` is an ancestor of `HEAD`, inspect `aw meta repair --help`, and run the slow-marked `tests/test_cli.py` suite including `SubcommandDescriptionTests.test_every_subparser_has_fuller_description` with `-o addopts=""`; (2) run `tests/test_usage_refusal_agent_record.py`, `tests/test_meta_repair_cli.py`, and the `meta repair` case in `tests/test_shared_flag_honored.py::test_parser_usage_refusal_fields_honored_required_leaves`; and (3) run bare `python3 -m pytest`, `aw ipd lint`, and `aw sanitize --agent` with zero source modifications. OUT: modifying `agent_workflows/cli.py` or `tests/test_usage_refusal_agent_record.py` (already fixed by `0cb279ae0`; if any check fails, the executor stops and reports rather than expanding scope), running a full 10-minute `aw suite --thorough` sweep across unrelated slow failures (such as `rryabb`), and updating pre-existing stale leaf-count comments outside `test_exclusion_set_size_and_members`.
 - Scope-Paths: .aw/records/plans/pending/20261121-517n5n-01-mx7azn-verify-aw-meta-repair-subparser-description-and-required-lea.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: simple
 - Short-Description: Verify commit 0cb279ae0 fixed the meta repair subparser description and REQUIRED_LEAVES count for backlog 517n5n
@@ -19,11 +19,13 @@
 - Highest E allocated: 03
 - Author: antigravity/gemini-4-hydrogen-xhigh
 - Id: mx7azn
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-25 reviewed (uri/its_direct/pt3-claude-opus-5.5-1m-us): plan-review (simple): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed; review record .aw/records/reviews/20261121-517n5n-01-mx7azn-verify-aw-meta-repair-subparser-description-and-required-lea.review.md
 - 2026-11-21 to-review (aw set): Authored review-ready verification plan for backlog 517n5n
 - 2026-11-21 draft (antigravity/gemini-4-hydrogen-xhigh): created.

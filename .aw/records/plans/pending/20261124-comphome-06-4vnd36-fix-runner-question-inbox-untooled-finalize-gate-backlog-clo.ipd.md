@@ -6,7 +6,7 @@
 - Scope: Fix all nine runner, question-inbox, review-findings, and lane-containment bugs in `agent_workflows/runner_shared.py`, `agent_workflows/question_inbox.py`, `agent_workflows/review_findings.py`, `agent_workflows/lane_containment.py`, and `agent_workflows/ipd_lifecycle.py`, with behavioral tests covering companion and `~/.aw/` (`home`) runners across both `oc_runipd` and `agy_runipd`.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/question_inbox.py, agent_workflows/review_findings.py, agent_workflows/lane_containment.py, agent_workflows/ipd_lifecycle.py, tests/test_companion_runner_integration.py, tests/test_companion_ipd_lifecycle.py, tests/test_question_inbox.py, tests/test_home_isolation.py, .aw/records/plans/pending/20261124-comphome-06-4vnd36-fix-runner-question-inbox-untooled-finalize-gate-backlog-clo.ipd.md
 - Item-Dependencies: executed:7hfx7r, executed:mmuv3v, executed:ywl7uc
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: complex
 - Priority: high
@@ -16,12 +16,14 @@
 - Order: 6
 - Highest E allocated: 5
 - Id: 4vnd36
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 - Author: antigravity
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-25 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 - 2026-11-25 /plan-review (antigravity/Gemini 4 Neon (High)): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007
 - 2026-11-24 to-review (antigravity): authored Order 06 child IPD for `/assess-bugs` (Set `comphome`).

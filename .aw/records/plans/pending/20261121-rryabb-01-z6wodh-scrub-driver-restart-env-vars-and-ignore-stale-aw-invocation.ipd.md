@@ -6,7 +6,7 @@
 - Scope: IN: (1) add `runner_shared.DRIVER_RESTART_ENV_VARS` and `runner_shared.scrub_driver_restart_env` in `agent_workflows/runner_shared.py`, apply it in `runner_shared.run_attended_turn`, and gate `AW_INVOCATION_START_WALL` in `runner_shared.resolve_invocation_start` behind `require_restart_env: bool = False` (passed as `True` by `runner_shared.track_startup_timings` and both drivers); (2) scrub driver-restart env vars via `runner_shared.scrub_driver_restart_env` in `agent_workflows/agy_runipd.py` (`run_agy_turn`) and `agent_workflows/oc_runipd.py` (`run_opencode`), and call `runner_shared.resolve_invocation_start(require_restart_env=True)` in both `main` entry points; (3) scrub `AW_DRIVER_RESTART` and `AW_INVOCATION_START_WALL` in `conftest.py` at session import and around each test in `_restore_home_sandbox`; and (4) harden `tests/test_runner_resume_clears_stop.py` with a shared `_manual_resume_env` helper and regression tests covering stale `AW_INVOCATION_START_WALL` on manual resume and the gated `resolve_invocation_start` (E-04), plus agent child-env scrubbing and pytest session scrubbing (E-06). OUT: changing `runner_shared.resolve_invocation_start_mono` default behavior when passed an explicit dict without `AW_DRIVER_RESTART` (preserves `tests/test_statusline_behavior.py` `TestCwdBadgeAndOptionARunId.test_resolve_invocation_start_mono_preserves_script_start`), changing `agent_workflows/suite_cache.py` cache-key env vars, or changing `runner_stop.clear_stop_request_on_manual_resume` mtime comparison semantics.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/agy_runipd.py, agent_workflows/oc_runipd.py, conftest.py, tests/test_runner_resume_clears_stop.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Scrub AW_DRIVER_RESTART and AW_INVOCATION_START_WALL at agent/test boundaries and ignore stale AW_INVOCATION_START_WALL on non-restart runner invocations
@@ -19,11 +19,13 @@
 - Highest E allocated: 06
 - Author: antigravity/gemini-4-hydrogen-xhigh
 - Id: z6wodh
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-24 reviewed (uri/its_direct/pt3-claude-opus-5.5-1m-us): plan-review (standard): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed; review record .aw/records/reviews/20261121-rryabb-01-z6wodh-scrub-driver-restart-env-vars-and-ignore-stale-aw-invocation.review.md
 - 2026-11-21 to-review (aw set): Authored review-ready plan for backlog rryabb
 - 2026-11-21 draft (antigravity/gemini-4-hydrogen-xhigh): created.

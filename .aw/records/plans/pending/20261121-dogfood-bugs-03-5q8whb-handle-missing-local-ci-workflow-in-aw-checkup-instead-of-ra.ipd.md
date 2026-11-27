@@ -6,7 +6,7 @@
 - Scope: Detect an absent local workflow file in `agent_workflows/checkup.py::read_ci_status` before invoking `gh`, return a clear actionable `reason` without asking GitHub for a guaranteed 404, add setup guidance in `.aw/system/workflows/setup-repo/setup-repo.md`, add behavioral tests, update the existing `tests/test_checkup.py` fixture so its `gh`-parsing tests keep reaching `gh`, and document the behavior in `README.md` and `CHANGELOG.md`.
 - Scope-Paths: agent_workflows/checkup.py, .aw/system/workflows/setup-repo/setup-repo.md, tests/test_checkup_missing_workflow.py, tests/test_checkup.py, README.md, CHANGELOG.md, .aw/records/plans/pending/20261121-dogfood-bugs-03-5q8whb-handle-missing-local-ci-workflow-in-aw-checkup-instead-of-ra.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Detect absent local CI workflow in checkup and add setup-repo workflow configuration guidance
@@ -19,11 +19,13 @@
 - Highest E allocated: 05
 - Author: antigravity
 - Id: 5q8whb
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-24 reviewed (/plan-review model=claude-opus-5.5): APPROVE WITH REVISIONS APPLIED; F1..F8 FIXED; review record .aw/records/reviews/20261121-dogfood-bugs-03-5q8whb-handle-missing-local-ci-workflow-in-aw-checkup-instead-of-ra.review.md
 - 2026-11-21 to-review (aw set): Review-ready child plans for dogfood-bugs
 - 2026-11-21 draft (antigravity): created.

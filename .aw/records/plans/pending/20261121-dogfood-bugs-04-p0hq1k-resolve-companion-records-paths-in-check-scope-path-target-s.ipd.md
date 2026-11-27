@@ -6,7 +6,7 @@
 - Scope: Resolve `.aw/records/...` entries in `agent_workflows/check_engine.py::stale_record_scope_paths` against `project_context.project_records_dir(repo_root)`, render every resolved hit (including the hits the declared-move check compares) in logical `.aw/records/<rel>` form, never as an absolute filesystem path, add behavioral tests, and add one CHANGELOG bullet.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_scope_path_stale_companion.py, CHANGELOG.md, .aw/records/plans/pending/20261121-dogfood-bugs-04-p0hq1k-resolve-companion-records-paths-in-check-scope-path-target-s.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Resolve .aw/records/ Scope-Paths against companion records root and never recommend machine-local absolute paths
@@ -19,11 +19,13 @@
 - Highest E allocated: 04
 - Author: antigravity
 - Id: p0hq1k
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-24 reviewed (/plan-review model=claude-opus-5.5): APPROVE WITH REVISIONS APPLIED; F1..F6 FIXED; review record .aw/records/reviews/20261121-dogfood-bugs-04-p0hq1k-resolve-companion-records-paths-in-check-scope-path-target-s.review.md
 - 2026-11-21 to-review (aw set): Review-ready child plans for dogfood-bugs
 - 2026-11-21 draft (antigravity): created.

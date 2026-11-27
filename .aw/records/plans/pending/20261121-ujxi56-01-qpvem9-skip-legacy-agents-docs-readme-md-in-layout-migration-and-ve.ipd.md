@@ -6,7 +6,7 @@
 - Scope: IN: (1) update `agent_workflows/layout_inventory.py::classify_item` to classify `agents:docs/README.md` and `agents:records/docs/README.md` with `ownership: "doc"`, `lifecycle_class: "doc"`, `expected_destination_class: "doc"`, `disposition: "regenerate"`, and `destination_relpath_override: "records/README.md"` (matching `.agents/README.md`'s existing `regenerate` pattern), and update `agent_workflows/layout_inventory.py::build_migration_map` so `disposition == "regenerate"` entries do not trigger cross-item `destination-collision` errors; (2) add fast behavioral tests in `tests/test_layout_inventory.py` covering `classify_item`, `build_migration_map` coexistence with `.agents/README.md` and doc-family subtrees, `MigrationManager.execute_migration` across `remove` (tracked unmodified vs. locally modified/untracked), `defer`, and `keep` leftover dispositions, and `MigrationManager.project_stage_one_to_scratch`; and (3) add an end-to-end `@pytest.mark.slow` behavioral test in `tests/test_layout_migration.py` (registered in `tests/slow_allowlist.txt`) driving `aw install --to-aw --yes` on a legacy repository containing both `workflow-artifacts/assess-bugs/...` and `.agents/docs/README.md` and asserting that `aw attention --check` exits `0` with zero `attention.uninventoried-tree` findings. OUT: duplicating the `workflow-artifacts/` classification and untracked-relocation implementation owned by dependency `0hdqbw`, editing `agent_workflows/layout_migration.py`, altering `agent_workflows/attention.py` or `agent_workflows/attention_contract.py`, or dropping arbitrary user-authored files other than `README.md` placed directly under `.agents/docs/`.
 - Scope-Paths: agent_workflows/layout_inventory.py, tests/test_layout_inventory.py, tests/test_layout_migration.py, tests/slow_allowlist.txt
 - Item-Dependencies: executed:0hdqbw
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Classify legacy .agents/docs/README.md for regeneration instead of migrating to .aw/records/docs/ and verify aw install --to-aw leaves aw attention --check valid
@@ -19,11 +19,13 @@
 - Highest E allocated: 04
 - Author: antigravity/gemini-4-neon-high
 - Id: qpvem9
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-25 reviewed (uri/its_direct/pt3-claude-opus-5.5-1m-us): plan-review (standard): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed; review record .aw/records/reviews/20261121-ujxi56-01-qpvem9-skip-legacy-agents-docs-readme-md-in-layout-migration-and-ve.review.md
 - 2026-11-22 to-review (aw set): Authored review-ready child plan graduated from backlog ujxi56
 - 2026-11-22 draft (antigravity/gemini-4-neon-high): created.

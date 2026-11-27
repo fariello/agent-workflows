@@ -6,7 +6,7 @@
 - Scope: IN: (1) add `_aw_state_is_gitignored` and `home_state_project_root` in `agent_workflows/ipd_lifecycle.py` and route `agent_workflows/ipd_lifecycle.py::control_state_dir` through `home_state_project_root` so clean-delta repositories, legacy `.agents/` repositories without canonical `.aw/` layout, and explicitly configured `Backend: home` repositories whose `.aw/state/` is not gitignored all store runtime state under `<AW_HOME>/projects/<project_id>/state/`; (2) update `agent_workflows/checkup.py::run_checkup_cli` to relativize `Saved record:` via `ipd_lifecycle.home_state_project_root` as `<project home>/state/checkup/last.json` instead of printing a raw absolute machine path, and update `agent_workflows/checkup.py::checkup_dir` and `CHECKUP_STATE_REL` documentation; and (3) add behavioral outcome tests in `tests/test_checkup_legacy_state_routing.py`. OUT: changing `agent_workflows/ipd_lifecycle.py::clean_delta_control_root` or `checkout_control_root` semantics, creating `.aw/.gitignore` or editing `.git/info/exclude` during `aw checkup`, changing `agent_workflows/project_context.py::resolve_project_context` precedence rules, or altering `aw checkup --agent` / `--json` schemas.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/checkup.py, tests/test_checkup_legacy_state_routing.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Route control_state_dir to AW_HOME for legacy .agents/ and unignored Backend: home repositories
@@ -19,11 +19,13 @@
 - Highest E allocated: 04
 - Author: antigravity
 - Id: 53z4se
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-24 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 - 2026-11-24 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
 - 2026-11-22 to-review (aw set): Authored review-ready child plan graduated from backlog 2vj8w3
