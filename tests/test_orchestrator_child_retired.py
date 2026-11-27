@@ -47,6 +47,7 @@ def _make_orchestrator(
     id6: str = "orc001",
     setid: str = "tstset",
     status: str = "to-review",
+    readiness: str | None = None,
     child_rows: list[tuple[str, str, str]] | None = None,
     checklist_item: str = "- [ ] E-01 CONFIRM chd001 REACHED executed\n  - Depends on: none\n  - Expected outcome: done\n  - Execution state: pending",
 ) -> Path:
@@ -121,6 +122,7 @@ Test orchestrator goal.
             set=setid,
             order=0,
             status=status,
+            readiness=readiness,
             disposition="pending",
             priority="medium",
             work_kind="chore",
@@ -672,6 +674,8 @@ class TestOrchestratorChildRetired(unittest.TestCase):
                 repo,
                 id6="orc001",
                 setid="tstset",
+                status="reviewed",
+                readiness="go-pending-approval",
                 child_rows=[
                     (
                         "01",

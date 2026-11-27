@@ -169,7 +169,7 @@ def test_w16_approval_lands_directly_after_id(repo: Path) -> None:
     p = _rec(
         repo,
         "plans/pending/20260101-apx-01-ap0001-x.ipd.md",
-        "# IPD: A\n\n- Date: 2026-01-01\n- Status: reviewed\n- Work-Kind: chore\n"
+        "# IPD: A\n\n- Date: 2026-01-01\n- Status: reviewed\n- Readiness: go-pending-approval\n- Work-Kind: chore\n"
         "- Priority: low\n- Set: apx\n- Id: ap0001\n- Author: t\n\n"
         "## Workflow history\n- 2026-01-01 reviewed (a): c\n\n## Goal\nG\n",
     )
@@ -178,7 +178,7 @@ def test_w16_approval_lands_directly_after_id(repo: Path) -> None:
     )
     assert rc == 0
     assert p.read_text(encoding="utf-8") == (
-        "# IPD: A\n\n- Date: 2026-01-01\n- Status: approved\n- Work-Kind: chore\n"
+        "# IPD: A\n\n- Date: 2026-01-01\n- Status: approved\n- Readiness: go-pending-approval\n- Work-Kind: chore\n"
         "- Priority: low\n- Set: apx\n- Id: ap0001\n"
         f"- Approval: {DAY}, recorded via aw ipd set: go\n- Author: t\n\n"
         "## Workflow history\n"
@@ -284,6 +284,7 @@ _CACHE_PLAN = RecordBuilder().plan(
     title="C",
     when="2026-01-01",
     status="reviewed",
+    readiness="go-pending-approval",
     work_kind="chore",
     priority="low",
     set="cch",

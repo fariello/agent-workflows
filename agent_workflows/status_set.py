@@ -1412,6 +1412,7 @@ class StatusChangeResult(tuple):
         norm_status: str,
         rewritten_paths: list[str] | None = None,
         warning: str | None = None,
+        unreviewed_overridden: bool = False,
     ):
         return super().__new__(cls, (dest_path, norm_status))
 
@@ -1421,11 +1422,13 @@ class StatusChangeResult(tuple):
         norm_status: str,
         rewritten_paths: list[str] | None = None,
         warning: str | None = None,
+        unreviewed_overridden: bool = False,
     ) -> None:
         self.dest_path = dest_path
         self.norm_status = norm_status
         self.rewritten_paths = list(rewritten_paths or [])
         self.warning = warning
+        self.unreviewed_overridden = bool(unreviewed_overridden)
 
 
 def inherited_backlog_release_gate(
@@ -1483,6 +1486,27 @@ def _record_state(rec: ArtifactRecord, repo_root: Path) -> dict[str, Any]:
             raw = field_map.get(field)
             state[field] = raw if isinstance(raw, str) and raw.strip() else None
     return state
+
+
+def _plan_missing_review_attestation(
+    rec: ArtifactRecord, repo_root: Path
+) -> tuple[bool, str]:
+    """Return ``(True, reason)`` when a plan has not completed ``/plan-review`` or lacks ``- Readiness:``."""
+    cur_status = normalize_target_status(rec.status or "draft", "plans").strip().lower()
+    readiness = str(_record_state(rec, repo_root).get("readiness") or "").strip()
+    if cur_status in ("draft", "to-review"):
+        if not readiness:
+            return (
+                True,
+                f"still '{cur_status}' (not yet reviewed; '- Readiness:' is missing)",
+            )
+        return (
+            True,
+            f"still '{cur_status}' (not yet reviewed)",
+        )
+    if not readiness:
+        return (True, "missing '- Readiness:' review attestation")
+    return (False, "")
 
 
 _EVENT_ACTOR_STR_KEYS = frozenset(("ace", "host", "model", "variant", "run_id"))
@@ -1559,6 +1583,7 @@ class _PreparedStatusChange:
         default_factory=lambda: {"tool": "aw set"}
     )
     event_overrides: list[str] = dataclasses.field(default_factory=list)
+    unreviewed_overridden: bool = False
 
 
 def _prepare_status_change(
@@ -1780,6 +1805,18 @@ def _prepare_status_change(
         if _was_terminal and norm_status.strip().lower() not in _terminal_statuses:
             actor = f"{actor}, --allow-terminal-reopen"
             event_overrides.append("allow-terminal-reopen")
+    _unreviewed_overridden = False
+    if (
+        getattr(args, "allow_unreviewed", False)
+        and rec.record_type == "plans"
+        and not is_same_status
+        and norm_status in _ipd_schema.READY_TO_EXECUTE
+    ):
+        _missing_rev, _ = _plan_missing_review_attestation(rec, repo_root)
+        if _missing_rev:
+            actor = f"{actor}, --allow-unreviewed"
+            event_overrides.append("allow-unreviewed")
+            _unreviewed_overridden = True
 
     _sentinel_override = getattr(args, "allow_unresolvable_release_sentinel", None)
     if _sentinel_override is not None:
@@ -2114,6 +2151,7 @@ def _prepare_status_change(
         source_digest=_am._compute_digest(rec.path) if rec.path.is_file() else None,
         event_actor=event_actor,
         event_overrides=event_overrides,
+        unreviewed_overridden=_unreviewed_overridden,
     )
 
 
@@ -2160,7 +2198,11 @@ def apply_status_change(
         and not prep.write_history_anyway
     ):
         return StatusChangeResult(
-            rec.path, prep.norm_status, [], warning=prep.demotion_warning
+            rec.path,
+            prep.norm_status,
+            [],
+            warning=prep.demotion_warning,
+            unreviewed_overridden=prep.unreviewed_overridden,
         )
 
     # Fail-closed backstop for specs conformance (E-01), judged on the rendered preview text.
@@ -2273,7 +2315,11 @@ def apply_status_change(
         )
 
     return StatusChangeResult(
-        dest_path, prep.norm_status, rewritten_citations, warning=prep.demotion_warning
+        dest_path,
+        prep.norm_status,
+        rewritten_citations,
+        warning=prep.demotion_warning,
+        unreviewed_overridden=prep.unreviewed_overridden,
     )
 
 
@@ -2307,6 +2353,7 @@ _RETRY_FLAG_ALLOWLIST: tuple[tuple[str, str, bool], ...] = (
     ("gate_summary", "--gate-summary", True),
     ("force", "--force", False),
     ("allow_open_questions", "--allow-open-questions", False),
+    ("allow_unreviewed", "--allow-unreviewed", False),
     ("no_commit", "--no-commit", False),
     ("commit", "--commit", False),
     ("status", "--status", True),
@@ -2712,6 +2759,28 @@ def _render_refuse_batch(
     max_exit = max(r.exit_code for r in refusals)
     norm_plans_target = normalize_target_status(target_status, "plans").strip().lower()
 
+    def _repo_path_free_raw_args() -> list[str]:
+        by_path: dict[str, str] = {}
+        for m in matched_records:
+            tok_id = m.id6 or m.path.name
+            by_path[str(m.path)] = tok_id
+            by_path[str(m.path.resolve())] = tok_id
+            by_path[m.path.name] = tok_id
+        safe: list[str] = []
+        for tok in raw_args:
+            if "/" in tok or "\\" in tok:
+                p = Path(tok)
+                resolved_key = str(p.resolve()) if p.exists() else tok
+                safe.append(
+                    by_path.get(tok)
+                    or by_path.get(resolved_key)
+                    or by_path.get(p.name)
+                    or p.name
+                )
+            else:
+                safe.append(tok)
+        return safe
+
     if ctx.is_agent or ctx.is_json:
         if all(r.rule == "status.orchestrator_not_ready" for r in refusals):
             _unready_results = [
@@ -2838,6 +2907,57 @@ def _render_refuse_batch(
                         ),
                         description="Specify --message with the demotion reason",
                     )
+                ],
+                verified=False,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+
+        if all(r.rule == "status.unreviewed_approval_refused" for r in refusals):
+            id_tokens = list(
+                dict.fromkeys(r.record.id6 or r.record.path.name for r in refusals)
+            )
+            sel_str = " ".join(id_tokens)
+            _summary = (
+                f"refusing to set {len(refusals)} unreviewed plan(s) to '{norm_plans_target}' "
+                "without /plan-review ('- Readiness:' review attestation). Runners refuse to "
+                "execute plans without '- Readiness:' (IPD-M113). Run /plan-review first, or "
+                "pass --allow-unreviewed to record an explicit override."
+            )
+            res = CommandResult(
+                command="set",
+                status="cannot-run",
+                exit_code=2,
+                summary=_summary,
+                diagnostics=[
+                    Diagnostic(
+                        location=_agent_schema.normalize_repo_path(
+                            str(r.record.path), repo_root
+                        ),
+                        rule="status.unreviewed_approval_refused",
+                        detail=r.reason,
+                        severity="error",
+                    )
+                    for r in refusals
+                ],
+                next_actions=[
+                    NextAction(
+                        command=f"aw agy review {sel_str}",
+                        description="Review plans with Antigravity so /plan-review writes '- Readiness:'",
+                    ),
+                    NextAction(
+                        command=f"aw oc review {sel_str}",
+                        description="Review plans with OpenCode so /plan-review writes '- Readiness:'",
+                    ),
+                    NextAction(
+                        command=_retry_command(
+                            args,
+                            _repo_path_free_raw_args(),
+                            scoped_type=scoped_type,
+                            extra=["--allow-unreviewed", "--yes"],
+                        ),
+                        description="Override: approve without review (recorded in history; does not write '- Readiness:')",
+                    ),
                 ],
                 verified=False,
                 complete=False,
@@ -3017,6 +3137,7 @@ def _render_refuse_batch(
         elif r.rule in (
             "status.terminal_reopen_refused",
             "status.backward_plan_message_required",
+            "status.unreviewed_approval_refused",
         ):
             pass
         else:
@@ -3070,6 +3191,37 @@ def _render_refuse_batch(
             f"{_err_summary} explaining why the plan was demoted; refusing before making changes:\n"
             + "\n".join(_demoted_lines)
             + f"\nRetry with:\n  {_retry_cmd}",
+        )
+
+    unreviewed = [r for r in refusals if r.rule == "status.unreviewed_approval_refused"]
+    if unreviewed:
+        id_tokens = list(
+            dict.fromkeys(r.record.id6 or r.record.path.name for r in unreviewed)
+        )
+        sel_str = " ".join(id_tokens)
+        _unrev_lines = [
+            f"  - {r.record.id6 or r.record.path.name}: "
+            f"{normalize_target_status(r.record.status or 'draft', 'plans').strip().lower()} "
+            f"-> {norm_plans_target} ({r.reason})"
+            for r in unreviewed
+        ]
+        _retry_unrev_cmd = _retry_command(
+            args,
+            _repo_path_free_raw_args(),
+            scoped_type=scoped_type,
+            extra=["--allow-unreviewed"],
+        )
+        term.status(
+            "fail",
+            f"Refusing to set {len(unreviewed)} unreviewed plan(s) to '{norm_plans_target}' "
+            "before making changes:\n"
+            + "\n".join(_unrev_lines)
+            + "\nApproving unreviewed plans skips /plan-review and leaves '- Readiness:' unset, "
+            "so runners will refuse to execute them with IPD-M113.\n"
+            "Next:\n"
+            f"  - Review first: aw agy review {sel_str} (or aw oc review {sel_str})\n"
+            f"  - Review and execute end-to-end: aw agy run --full-auto {sel_str} (or aw oc run --full-auto {sel_str})\n"
+            f"  - Override anyway (records --allow-unreviewed in history; does not write '- Readiness:'): {_retry_unrev_cmd}",
         )
 
     if has_passing:
@@ -3765,6 +3917,41 @@ def run_set_command(
                     )
                     refused_paths.add(rec.path)
 
+    # (e2) reviewgateux 55tt85 E-01: Refuse approving unreviewed plans (draft/to-review or missing
+    # '- Readiness:') unless --allow-unreviewed (alias --ignore-review-error) is explicitly passed.
+    # Runs after step (a) so negative review verdicts and unresolved blocking open questions remain
+    # un-overridable by --allow-unreviewed, and before step (f) so an unreviewed Set fails in one
+    # grouped refusal instead of a secondary orchestrator readiness error. Same-status metadata
+    # edits (cur_status == norm_plans_target) are skipped so dependency/priority updates keep working.
+    norm_plans_target = normalize_target_status(target_status, "plans").strip().lower()
+    if norm_plans_target in _ipd_schema.READY_TO_EXECUTE and not getattr(
+        args, "allow_unreviewed", False
+    ):
+        for rec in matched_records:
+            if rec.path in refused_paths:
+                continue
+            if rec.record_type != "plans":
+                continue
+            _cur_status = (
+                normalize_target_status(rec.status or "draft", "plans").strip().lower()
+            )
+            if _cur_status == norm_plans_target:
+                continue
+            _missing_rev, _missing_reason = _plan_missing_review_attestation(
+                rec, repo_root
+            )
+            if _missing_rev:
+                refusals.append(
+                    _Refusal(
+                        record=rec,
+                        rule="status.unreviewed_approval_refused",
+                        exit_code=2,
+                        reason=_missing_reason,
+                        remedy="Run /plan-review (aw agy review / aw oc review) first, or pass --allow-unreviewed",
+                    )
+                )
+                refused_paths.add(rec.path)
+
     # (f) E-01 / E-02 / E-03: Orchestrator review readiness gate.
     from agent_workflows import orchestrator_readiness as _orch_readiness
     from agent_workflows import ipd_lint as _ipd_lint
@@ -3772,7 +3959,6 @@ def run_set_command(
     _ready_forward_targets = frozenset(
         {"to-review", "reviewed", "approved", "auto-approved"}
     )
-    norm_plans_target = normalize_target_status(target_status, "plans").strip().lower()
     if norm_plans_target in _ready_forward_targets:
         for orch_rec in matched_records:
             if orch_rec.path in refused_paths:
@@ -4146,6 +4332,7 @@ def run_set_command(
     results: list[tuple[Path, str, ArtifactRecord, bool]] = []
     touched_paths: list[str] = []
     demotion_warnings: list[tuple[Path, str]] = []
+    unreviewed_overrides: list[tuple[Path, str]] = []
     for rec in matched_records:
         old_text = rec.raw_text
         log_p = _log_path_for_record(rec, repo_root)
@@ -4163,6 +4350,8 @@ def run_set_command(
         dest_path, norm_stat = res
         if getattr(res, "warning", None):
             demotion_warnings.append((dest_path, res.warning))
+        if getattr(res, "unreviewed_overridden", False):
+            unreviewed_overrides.append((dest_path, rec.id6 or dest_path.name))
         new_text = dest_path.read_text(encoding="utf-8") if dest_path.exists() else ""
         changed = (old_text != new_text) or (dest_path.resolve() != rec.path.resolve())
         results.append((dest_path, norm_stat, rec, changed))
@@ -4367,8 +4556,65 @@ def run_set_command(
             target_status,
             scoped_type_canonical,
         )
+        unreviewed_warn_items = [
+            (
+                dest_path,
+                (
+                    f"approved unreviewed plan {plan_id} with --allow-unreviewed; "
+                    "'- Readiness:' was not written, so `aw check plans` and `aw agy|oc run` "
+                    "will refuse execution with IPD-M113 until /plan-review runs."
+                ),
+            )
+            for dest_path, plan_id in unreviewed_overrides
+        ]
         if skipped_refusals:
             cmd_str = "ipd set" if scoped_type_canonical == "plans" else "set"
+            skip_diags = [
+                {
+                    "location": _agent_schema.normalize_repo_path(
+                        str(r.record.path), repo_root
+                    ),
+                    "rule": r.rule,
+                    "detail": r.reason,
+                    "severity": "error",
+                }
+                for r in skipped_refusals
+            ] + [
+                {
+                    "location": _agent_schema.normalize_repo_path(
+                        str(dest_path), repo_root
+                    ),
+                    "rule": "status.unreviewed_approval_overridden",
+                    "detail": w,
+                    "severity": "warning",
+                }
+                for dest_path, w in unreviewed_warn_items
+            ]
+            skip_data: dict[str, Any] = {
+                "items": [
+                    {
+                        "path": _agent_schema.normalize_repo_path(str(dest), repo_root),
+                        "type": rec.record_type,
+                        "old_status": rec.status,
+                        "new_status": norm_stat,
+                        "changed": changed,
+                    }
+                    for dest, norm_stat, rec, changed in results
+                ],
+                "skipped": [
+                    {
+                        "path": _agent_schema.normalize_repo_path(
+                            str(r.record.path), repo_root
+                        ),
+                        "id6": r.record.id6 or r.record.path.stem,
+                        "rule": r.rule,
+                        "reason": r.reason,
+                    }
+                    for r in skipped_refusals
+                ],
+            }
+            if unreviewed_warn_items:
+                skip_data["warnings"] = [w for _, w in unreviewed_warn_items]
             rec_payload = {
                 "schema": "aw.agent/v1",
                 "kind": "result",
@@ -4386,42 +4632,8 @@ def run_set_command(
                     }
                     for dest, norm_stat, rec, changed in results
                 ],
-                "diagnostics": [
-                    {
-                        "location": _agent_schema.normalize_repo_path(
-                            str(r.record.path), repo_root
-                        ),
-                        "rule": r.rule,
-                        "detail": r.reason,
-                        "severity": "error",
-                    }
-                    for r in skipped_refusals
-                ],
-                "data": {
-                    "items": [
-                        {
-                            "path": _agent_schema.normalize_repo_path(
-                                str(dest), repo_root
-                            ),
-                            "type": rec.record_type,
-                            "old_status": rec.status,
-                            "new_status": norm_stat,
-                            "changed": changed,
-                        }
-                        for dest, norm_stat, rec, changed in results
-                    ],
-                    "skipped": [
-                        {
-                            "path": _agent_schema.normalize_repo_path(
-                                str(r.record.path), repo_root
-                            ),
-                            "id6": r.record.id6 or r.record.path.stem,
-                            "rule": r.rule,
-                            "reason": r.reason,
-                        }
-                        for r in skipped_refusals
-                    ],
-                },
+                "diagnostics": skip_diags,
+                "data": skip_data,
             }
             if ctx.is_json:
                 print(json.dumps(rec_payload, indent=2))
@@ -4437,6 +4649,14 @@ def run_set_command(
                 severity="warning",
             )
             for path, w in demotion_warnings
+        ] + [
+            Diagnostic(
+                location=_agent_schema.normalize_repo_path(str(path), repo_root),
+                rule="status.unreviewed_approval_overridden",
+                detail=w,
+                severity="warning",
+            )
+            for path, w in unreviewed_warn_items
         ]
         res_data: dict[str, Any] = {
             "items": [
@@ -4450,8 +4670,11 @@ def run_set_command(
                 for dest, norm_stat, rec, changed in results
             ]
         }
-        if demotion_warnings:
-            res_data["warnings"] = [w for _, w in demotion_warnings]
+        all_warnings = [w for _, w in demotion_warnings] + [
+            w for _, w in unreviewed_warn_items
+        ]
+        if all_warnings:
+            res_data["warnings"] = all_warnings
         res = CommandResult(
             command="set",
             status="clean",
@@ -4468,6 +4691,16 @@ def run_set_command(
 
     for _, w in demotion_warnings:
         sys.stderr.write(f"{w}\n")
+
+    if unreviewed_overrides:
+        overridden_ids = list(dict.fromkeys(pid for _, pid in unreviewed_overrides))
+        id_list = ", ".join(overridden_ids)
+        term.status(
+            "warn",
+            f"Approved {len(overridden_ids)} unreviewed plan(s) with --allow-unreviewed ({id_list}). "
+            "'- Readiness:' was not written, so `aw check plans` and `aw agy|oc run` will refuse "
+            "execution with IPD-M113 until /plan-review runs.",
+        )
 
     for dest, norm_stat, rec, changed in results:
         term.line(
