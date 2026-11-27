@@ -6,7 +6,7 @@
 - Scope: In an isolated scratch worktree `.aw/state/p109wy/scratch` with both cutover patches applied (including earlier prerequisite and test-batch plans `hdwqex`, `89mtbl`, `nv3upa`, `fljn9b`, `cugg3w`, `szykgd`, `psm9ac`, `otin36`, and `x8id25`), make spec `4sd62s` Section 4.1a `.review.md` YAML mirror parsing and SQLite review projection (`artifact_meta.py`, `review_findings.py`, `check_engine.py`), staged-prompt mirror detection and parsing (`artifact_meta.py`, `check_engine.py::validate_prompt_content`), and `check_engine.py` log-backed plan checks (`check_plan_priority_required`, `stale_record_scope_paths`, `evaluate_carrier_ungated`, `find_obligations_carried_by`) log-aware while keeping legacy parity intact. Add and pass core behavioral test module `tests/test_cutover_log_reviews_prompts_and_checks.py` in the scratch worktree, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. Make no live code changes outside `- Scope-Paths:`.
 - Scope-Paths: .aw/records/plans/pending/20261126-metastore-317-p109wy-make-review-mirrors-prompt-metadata-and-check-engine-priorit.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:otin36
-- Status: approved
+- Status: executed
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -19,12 +19,12 @@
 - Highest E allocated: 05
 - Author: antigravity/gemini
 - Id: p109wy
-- Approval: 2026-11-26, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: p109wy verified (set metastore, attempt 1).
 - 2026-11-26 same-status (aw set): OQ-02 Option 1: re-chain production-fix plans otin36..3e0vfy ahead of test batches psm9ac..x3mig6
 - 2026-11-26 approved (aw set): status set to approved
 - 2026-11-26 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
