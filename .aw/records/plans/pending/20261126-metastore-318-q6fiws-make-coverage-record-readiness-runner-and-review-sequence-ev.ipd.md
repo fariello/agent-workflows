@@ -41,14 +41,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: scratch worktree
 
-- [ ] E-01 Create the scratch worktree following the SCRATCH PROCEDURE of executed plan `2k5t16` (Step 0): run `git worktree add --detach .aw/state/q6fiws/scratch HEAD`; inside `.aw/state/q6fiws/scratch`, run `git apply --index .aw/system/cutover/metastore-docs.cutover.patch`, record `BASE=$(git write-tree)` in F-01, and then run `git apply --index .aw/system/cutover/metastore-code.cutover.patch`. If either patch rejects, stop and report.
+- [x] E-01 Create the scratch worktree following the SCRATCH PROCEDURE of executed plan `2k5t16` (Step 0): run `git worktree add --detach .aw/state/q6fiws/scratch HEAD`; inside `.aw/state/q6fiws/scratch`, run `git apply --index .aw/system/cutover/metastore-docs.cutover.patch`, record `BASE=$(git write-tree)` in F-01, and then run `git apply --index .aw/system/cutover/metastore-code.cutover.patch`. If either patch rejects, stop and report.
   - Depends on: none
   - Expected outcome: `.aw/state/q6fiws/scratch` holds HEAD plus both patches staged, and F-01 records the base tree id.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: log-aware coverage, readiness, runner helpers, and review-sequence evaluators (scratch worktree only)
 
-- [ ] E-02 Make `agent_workflows/coverage_record.py`, `agent_workflows/orchestrator_readiness.py::review_readiness`, `agent_workflows/plan_readiness.py`, and `agent_workflows/runner_shared.py` (`hold_attended_plan`, `plan_kind_from_file`, and `probe_orchestrator`) log-aware in `.aw/state/q6fiws/scratch` while keeping legacy parity intact:
+- [x] E-02 Make `agent_workflows/coverage_record.py`, `agent_workflows/orchestrator_readiness.py::review_readiness`, `agent_workflows/plan_readiness.py`, and `agent_workflows/runner_shared.py` (`hold_attended_plan`, `plan_kind_from_file`, and `probe_orchestrator`) log-aware in `.aw/state/q6fiws/scratch` while keeping legacy parity intact:
   1. In `agent_workflows/coverage_record.py`, `agent_workflows/orchestrator_readiness.py::review_readiness`, and `agent_workflows/runner_shared.py::probe_orchestrator`:
      - Add optional keyword parameters `state: Any = None`, `history: Sequence[Mapping[str, Any]] | None = None`, `plan_path: Path | str | None = None`, and `repo: Path | str | None = None` to `coverage_record.read` and `coverage_record.is_current`. When a log-backed `artifact_meta.State` is supplied or resolved from `plan_path`/`repo`, read `coverage` and `coverage_fingerprint` from `state.fields`; read `date` and `model` from `state.fields.get("coverage_checked")` if present (migrated legacy records), or derive `date` (`observed_day` or `at[:10]`) and `model` (`actor.model`, defaulting to `"by host-default"` when empty or `"host-default"`) from the newest `op == "coverage"` event in log history (`history` or `artifact_meta.history(id6, project_context=ctx)`), because `coverage_checked` is migration-only in `artifact_meta.replay`. Continue parsing `## Coverage findings` quotes from `plan_text` (spec `4sd62s` N3), and fall back to `artifact_meta.read_text` when no log state exists.
      - In `coverage_record.write`, resolve `id6` once via `_meta.file_id6(path, _meta.read_mirror_id6(plan_text) or _meta.read_loose_id(plan_text))` and reuse it for both `_meta.append` and the commit message. Resolve the companion log path through `ctx = _meta.legacy_context(resolved_repo)` as `Path(ctx.logical_roots["records"]) / "meta" / f"{id6}.jsonl"` (computing `log_rel` relative to `git_repo` when inside `git_repo`). When `commit=True`, check `git status --porcelain` on BOTH `rel_path` and `log_rel` before writing (writing without committing if either path already has uncommitted changes), check that `_meta.append` returned `committed=True`, and stage and commit `log_rel` alongside `rel_path` (restoring all staged paths if `git commit` fails) so pass-only and fail `op: "coverage"` events are committed rather than left unstaged.
@@ -62,9 +62,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
      - Update `plan_kind_from_file(path)` (keeping its 1-argument public signature backwards-compatible) to resolve `owner_root` and companion `artifact_meta.State` via `_read_state_for_path(owner_root, Path(path), record_type="ipd")` and read normalized `state.fields.get("plan_role")` (`.strip().lower()`) before falling back to `_read_text_with_loose(text, record_type="ipd")`.
   - Depends on: E-01
   - Expected outcome: coverage reads (including log-event `date`/`model`), writes, commits, cache checks, and orchestrator Condition 3 row conformance work on log-format orchestrators; `is_plan_review_approved`, `review_staleness_from_texts`, `review_staleness_index`, `hold_attended_plan`, and `plan_kind_from_file` read authoritative log state on log-format plans while preserving legacy fallback parity.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make `agent_workflows/review_tier.py`, `agent_workflows/review_sequence.py`, `agent_workflows/review_rereview.py`, and `agent_workflows/runner_shared.py::run_review_sequence` log-aware in `.aw/state/q6fiws/scratch` while keeping legacy parity intact:
+- [x] E-03 Make `agent_workflows/review_tier.py`, `agent_workflows/review_sequence.py`, `agent_workflows/review_rereview.py`, and `agent_workflows/runner_shared.py::run_review_sequence` log-aware in `.aw/state/q6fiws/scratch` while keeping legacy parity intact:
   1. In `agent_workflows/review_tier.py::tier_facts(plan_text, *, state=None)`, accept optional `state: Any = None` and pass `state=state` into `ipd_lint.parse(plan_text or "", state=state)` (using `state` instead of `artifact_meta.read_text` when provided). Handle BOTH `list`/`tuple` `scope_paths` (as stored in log-backed `State.fields["scope_paths"]`) and legacy comma-separated string `scope_paths` (applying the same `TODO` exclusion to both) so `kind`, `scope_paths`, `names_spec`, `e_items`, `task_groups`, `exceeds_size`, and `in_set` are accurate on log-format plans.
   2. In `agent_workflows/review_sequence.py`:
      - Update `structural_diff(before, after, *, state_before=None, state_after=None)` to pass optional `state_before` and `state_after` into `ipd_lint.parse` and `_state_to_front_matter` (falling back to `artifact_meta.read_text` when omitted).
@@ -78,23 +78,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   4. In `agent_workflows/runner_shared.py::run_review_sequence`, add a local helper that resolves companion log `(state, history)` for `plan_file` inside `target_root` (falling back safely to `(None, None)` when unlogged), and thread those values into `ipd_lint.parse` (initial `kind`/`in_set`/`cur_depth` and `_fail_incomplete` status check), `review_tier.tier_facts`, `review_sequence.verdict_outputs` (baseline and pre-S7 MD-15 guard), `review_sequence.structural_diff` (Proofreading step P and re-ask), `review_sequence.check_S5`, `review_rereview.run_rereview_loop` (`pass_start_state`, `after_r_state`, `read_state`), `review_sequence.check_S7` (initial and re-ask), and `review_rereview.check_limit_s7` (initial and re-ask). Record the verified caller audit in F-02.
   - Depends on: E-02
   - Expected outcome: review tier facts, structural diff, S5 escalation check, MD-15 pre-S7 verdict guard, S7 postcondition checks, re-review triggers and loop, and limit-S7 checks work on log-format plans while keeping legacy text calls unchanged; F-02 records the verified caller audit.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add and run core behavioral test module `tests/test_cutover_log_readiness_runner_and_review_seq.py` (`pytestmark = pytest.mark.core`) in `.aw/state/q6fiws/scratch` (asserting real outputs, exit codes, and side effects; no code-pinning tests):
+- [x] E-04 Add and run core behavioral test module `tests/test_cutover_log_readiness_runner_and_review_seq.py` (`pytestmark = pytest.mark.core`) in `.aw/state/q6fiws/scratch` (asserting real outputs, exit codes, and side effects; no code-pinning tests):
   1. Cover `coverage_record.write` (`commit=True` on both pass and fail verdicts, `commit=False`, and dirty companion-log refusal), `coverage_record.read` (including log-event `date` and `model` derivation when `coverage_checked` is absent), `coverage_record.is_current`, `orchestrator_readiness.review_readiness` (verifying both cached coverage recognition and Condition 3 `CODE_ROW_NONCONFORMING` firing on a nonconforming log-format orchestrator), and `runner_shared.probe_orchestrator`: verify `git show --name-only HEAD` includes `.aw/records/meta/<id6>.jsonl`, current coverage hits cache (0 model calls), and a body edit invalidates the fingerprint.
   2. Cover `plan_readiness.is_plan_review_approved` (True on log-backed `readiness=go-pending-approval` with gate `op: "review"` provenance, False when only `recheck-readiness` or `refinement` or non-review events exist, False on `no-go` or out-of-vocab, and fallback arm inspecting `events[-1]` in `ORDER BY seq ASC`), `plan_readiness.review_staleness_from_texts` / `review_staleness_index` (clean vs. stale after a log-only `Scope-Paths` mutation without touching `.ipd.md`, proving `_STALENESS_CACHE` invalidates on log mtime and log-only `plan-review:` commits are found), `runner_shared.hold_attended_plan` (holds headless and marks interactive on a log-format `attended=required` plan), and `runner_shared.plan_kind_from_file` (reads `orchestrator` and `child` from log state).
   3. Cover `review_tier.tier_facts` (including `list[str]` `scope_paths` with `.spec.md` setting `names_spec=True` and `TODO` exclusion), `review_sequence.structural_diff`, `review_sequence.check_S5` (YAML mirror `id:` lookup without `plan_path` and spec-4.1a YAML review mirror preserved without injected legacy bullets), `review_sequence.verdict_outputs`, `review_sequence.check_S7` (passing on a reviewed log-format plan with `state_after` and `history_after` without triggering `IPD-M107`), `review_rereview.rereview_triggers`, `review_rereview.run_rereview_loop` (detecting a log-only `Scope-Paths` edit during re-review via `read_state`), and `review_rereview.check_limit_s7` on log-format plans plus legacy inline text parity.
   4. Run `python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_readiness_runner_and_review_seq.py` in `.aw/state/q6fiws/scratch` and confirm every test passes.
   - Depends on: E-03
   - Expected outcome: `tests/test_cutover_log_readiness_runner_and_review_seq.py` passes every test in `.aw/state/q6fiws/scratch`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: package
 
-- [ ] E-05 In `.aw/state/q6fiws/scratch`, run `git add -A` and write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch` in the executing checkout; remove the scratch worktree (`git worktree remove --force .aw/state/q6fiws/scratch`); run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout; verify `git status --short` shows only `- Scope-Paths:` modified; and commit through `aw commit q6fiws -- .aw/records/plans/pending/20261126-metastore-318-q6fiws-make-coverage-record-readiness-runner-and-review-sequence-ev.ipd.md .aw/system/cutover/metastore-code.cutover.patch`; never push.
+- [x] E-05 In `.aw/state/q6fiws/scratch`, run `git add -A` and write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch` in the executing checkout; remove the scratch worktree (`git worktree remove --force .aw/state/q6fiws/scratch`); run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout; verify `git status --short` shows only `- Scope-Paths:` modified; and commit through `aw commit q6fiws -- .aw/records/plans/pending/20261126-metastore-318-q6fiws-make-coverage-record-readiness-runner-and-review-sequence-ev.ipd.md .aw/system/cutover/metastore-code.cutover.patch`; never push.
   - Depends on: E-04
   - Expected outcome: `.aw/system/cutover/metastore-code.cutover.patch` contains all prior code-patch hunks plus this plan's changes; `tests/test_metastore_cutover_code_patch.py` passes; scratch worktree is removed; no live files outside `- Scope-Paths:` are modified; one path-scoped commit is created.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -111,8 +111,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-01 | (written by E-01) | Base tree id after applying `.aw/system/cutover/metastore-docs.cutover.patch`. |
-| F-02 | (written by E-03) | Caller and behavior audit across `coverage_record.py`, `orchestrator_readiness.py`, `plan_readiness.py`, `runner_shared.py`, `review_tier.py`, `review_sequence.py`, and `review_rereview.py`. |
+| F-01 | E-01, 2026-11-27: `git apply --index .aw/system/cutover/metastore-docs.cutover.patch` (exit 0) in `.aw/state/q6fiws/scratch` on HEAD `40115379e80f9f2258711cdc7fb388df224c9684`, followed by `git write-tree`. | Base tree id after applying `.aw/system/cutover/metastore-docs.cutover.patch`: `b71dacb10391a10041b78d9443e460d63495cd30`. |
+| F-02 | E-03 caller and behavior audit in `.aw/state/q6fiws/scratch` (`tests/test_cutover_log_readiness_runner_and_review_seq.py`: `7 passed in 2.12s`; sibling cutover suite `test_cutover_log_reviews_prompts_and_checks.py` + `test_backlog_log_format.py` + `test_cutover_log_checkers.py` + `test_cutover_log_lifecycle_and_hooks.py`: `36 passed in 18.28s`; `ruff check --select F`: all checks passed across all 8 edited files; `mypy`: `Success: no issues found in 6 source files`): (1) `agent_workflows/coverage_record.py`: `read` and `is_current` accept `state=`, `history=`, `plan_path=`, `repo=`, resolve companion log state/history via `artifact_meta.read`/`history`, derive `date`/`model` from `coverage_checked` when present or newest `op == "coverage"` event (`observed_day` or `at[:10]`, `actor.model` defaulting to `"by host-default"`), preserve `## Coverage findings` parsing, and fall back to `artifact_meta.read_text`; `write` resolves `id6` once via `file_id6(path, read_mirror_id6 or read_loose_id)`, resolves `meta/<id6>.jsonl`, checks `git status --porcelain` on both plan and log before writing, verifies `append()["committed"]`, and stages/commits/restores both paths; (2) `agent_workflows/orchestrator_readiness.py::review_readiness`: passes `state=plan_state` to `_ipd_lint.parse` (enabling Condition 3 `orchestrator_row_conformance` on log orchestrators) and `state=plan_state, plan_path=path, repo=repo_path` to `coverage_record.read`/`is_current`; (3) `agent_workflows/plan_readiness.py`: `is_plan_review_approved` (consumed by `oc_runipd`, `agy_runipd`, `runner_shared`) loads companion log state/history and enforces the three-way rule (gate `op == "review"` excluding `aw ipd recheck-readiness` or review-tagged `transition`/`status` to `reviewed`; out-of-vocab fails closed; absent readiness checks `events[-1]` in `ORDER BY seq ASC` + `not has_unresolved_blocking_question`); `review_staleness_from_texts` adds optional `reviewed_scope_paths`/`current_scope_paths` without short-circuiting on identical text when normalized non-grandfathered scope paths differ; `review_staleness_index` (consumed by `attention.py`, `check_engine.py`, `ipd_lint.py`, `status_set.py`) reads companion log state inside `scan_once()`/`ephemeral_if_uninitialized()`, keys `_STALENESS_CACHE` with companion log `(mtime_ns, size)`, includes `meta/<id6>.jsonl` in `git log --grep=^plan-review:`, and reads reviewed `scope_paths` via `artifact_meta.read_at`; (4) `agent_workflows/runner_shared.py`: `probe_orchestrator` passes `plan_path=target.path, repo=Path(repo)` to `coverage_record.read`/`is_current`; `hold_attended_plan` and `plan_kind_from_file` (re-exported by `oc_runipd` and `agy_runipd`) resolve owner root and read `_read_state_for_path` before text fallback; `run_review_sequence` defines `_read_plan_log_state_and_history` and threads `(state, history)` into initial `ipd_lint.parse`, `frozen_region_digest`, `tier_facts`, `verdict_outputs` (baseline + `_check_verdict_guard`), `_fail_incomplete`, `structural_diff` (P + re-ask), `check_S5` (main + re-ask + rereview + re-ask), `run_rereview_loop` (`pass_start_state`, `after_r_state`, `read_state`), `check_S7` (initial + re-ask), and `check_limit_s7` (initial + re-ask); (5) `agent_workflows/review_tier.py::tier_facts`: accepts `state=`, threads it to `ipd_lint.parse`, and handles both `list`/`tuple` and comma-separated string `scope_paths` with `TODO` exclusion; (6) `agent_workflows/review_sequence.py`: `structural_diff` accepts `state_before`/`state_after`; `check_S5` accepts `state_after`, checks `read_mirror_id6`, and catches `ValueError` around `parse_review_mirror` so spec-4.1a YAML review mirrors are preserved without prepended bullets; `count_verdict_bearing_entries` and `verdict_outputs` read log `state`/`history` newest-first; `check_S7` threads `state_before`/`state_after` and `_history_loader` into `ipd_lint.lint_text` to prevent false `IPD-M107`; (7) `agent_workflows/review_rereview.py`: `rereview_triggers`, `run_rereview_loop`, and `check_limit_s7` accept and thread log states across re-review passes while keeping `ReviewSequenceContext` backwards-compatible. | Complete verified caller and behavior audit across all 7 production modules (`coverage_record.py`, `orchestrator_readiness.py`, `plan_readiness.py`, `runner_shared.py`, `review_tier.py`, `review_sequence.py`, `review_rereview.py`) and their callers (`oc_runipd`, `agy_runipd`, `attention`, `check_engine`, `ipd_lint`, `status_set`). |
 | F-03 | `e0g2gt` F-05 and static audit of `.aw/system/cutover/metastore-code.cutover.patch`: `coverage_record.py::read`, `is_current`, `write`; `orchestrator_readiness.py::review_readiness`; `plan_readiness.py::is_plan_review_approved`, `review_staleness_index`; `runner_shared.py::hold_attended_plan`, `plan_kind_from_file`, `run_review_sequence`, `probe_orchestrator`; `review_tier.py::tier_facts`; `review_sequence.py::structural_diff`, `verdict_outputs`, `check_S7`; `review_rereview.py::rereview_triggers`, `check_limit_s7` | Three verified production cutover gaps (items 3, 4, and 6 of `e0g2gt` F-05) block `tests/test_readers_review_modules.py`, `tests/test_readers_runner.py`, and post-cutover runner/readiness/coverage workflows; split into Order 318 (`q6fiws`) after Order 317 (`p109wy`) and ahead of `e0g2gt` per maintainer decision on `run-20261126T055808Z-863961` question `04-e0g2gt-a1-batch-d-production-log-aware-gaps`. |
 | F-04 | Plan-review static audit of post-patch `artifact_meta.py` (`REGISTRY`, `replay`, `history`, `read_at`), `coverage_record.py::write`, `orchestrator_readiness.py::review_readiness`, `ipd_lint.py` (`orchestrator_row_conformance`, `check_readiness_attestation`), `plan_readiness.py` (`is_plan_review_approved`, `review_staleness_from_texts`, `review_staleness_index`), `review_tier.py::tier_facts`, `review_sequence.py` (`check_S5`, `verdict_outputs`, `count_verdict_bearing_entries`, `check_S7`), `review_rereview.py::run_rereview_loop`, and `runner_shared.py` (`hold_attended_plan`, `plan_kind_from_file`, `run_review_sequence`) | Verified nine additional log-format defects folded into E-02 through E-04: (1) `coverage_checked` is migration-only in `artifact_meta.replay`, so `coverage_record.read` must derive `date`/`model` from the newest `op: "coverage"` log event; (2) `orchestrator_readiness.review_readiness` calls bare `_ipd_lint.parse(text)`, causing Condition 3 `orchestrator_row_conformance` to silently skip log-format orchestrators; (3) `coverage_record.write(..., commit=True)` must dirty-check and stage/commit `records_root / "meta" / f"{id6}.jsonl"` alongside `rel_path`; (4) `review_staleness_index`'s `_STALENESS_CACHE` key omits companion log mtime, `review_staleness_from_texts` short-circuits on `reviewed_text == current_text`, and `git log --grep=^plan-review:` omits companion log paths; (5) `artifact_meta.history` is `ORDER BY seq ASC` (oldest-first) and gate review provenance must exclude `refinement` and `aw ipd recheck-readiness` events; (6) `review_tier.tier_facts` stringifies `list[str]` `scope_paths`, breaking `names_spec`; (7) `review_sequence.check_S5` misses `read_mirror_id6` and prepends legacy bullets above spec-4.1a YAML review mirrors; (8) `review_sequence.check_S7` must pass `_history_loader` to `ipd_lint.lint_text` or `IPD-M107` falsely fires on every log-format reviewed plan; and (9) `review_rereview.run_rereview_loop` is the sole caller of `rereview_triggers` and must thread log state across re-review passes. |
 
@@ -172,26 +172,81 @@ None open.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git worktree add --detach .aw/state/q6fiws/scratch HEAD` command, both `git apply --index` commands (for `.aw/system/cutover/metastore-docs.cutover.patch` and `.aw/system/cutover/metastore-code.cutover.patch`) with exit status 0, and the base tree id recorded in F-01.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    ```text
+    $ git worktree add --detach .aw/state/q6fiws/scratch HEAD && (cd .aw/state/q6fiws/scratch && git apply --index .aw/system/cutover/metastore-docs.cutover.patch && BASE=$(git write-tree) && echo "BASE=$BASE" && git apply --index .aw/system/cutover/metastore-code.cutover.patch && echo "CODE_PATCH_EXIT=$?")
+    Preparing worktree (detached HEAD 40115379e)
+    HEAD is now at 40115379e chore(plans): record Carrier-Evidence for executed p109wy in x1mmdp, e0g2gt, and q6fiws
+    BASE=b71dacb10391a10041b78d9443e460d63495cd30
+    CODE_PATCH_EXIT=0
+    Command exited with code 0.
+    ```
+    F-01 records base tree id `b71dacb10391a10041b78d9443e460d63495cd30`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste observed outputs on `.aw/state/q6fiws/scratch` (code paths updated by E-02) showing `coverage_record.write(..., commit=True)` committing `.aw/records/meta/<id6>.jsonl` (`git show --name-only HEAD`) and refusing to commit when the companion log is already dirty, `coverage_record.read`/`is_current` returning the recorded `verdict`, `fingerprint`, `date`, and `model` from log state/history, `orchestrator_readiness.review_readiness` recognizing cached log coverage and firing Condition 3 `CODE_ROW_NONCONFORMING` on a nonconforming log-format orchestrator, `plan_readiness.is_plan_review_approved` returning `True` on a log-format gate-reviewed plan (and `False` when only `recheck-readiness` or non-review history exists), `plan_readiness.review_staleness_index` flagging a log-only `Scope-Paths` mutation after review without editing `.ipd.md`, `runner_shared.hold_attended_plan` holding a log-format attended plan headless, and `runner_shared.plan_kind_from_file` returning the log-stored `plan_role`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    Throwaway-repository smoke output on `.aw/state/q6fiws/scratch`:
+    ```text
+    === V-02 SMOKE ===
+    coverage.write(commit=True): written=True committed=True head_files=['.aw/records/meta/or9001.jsonl']
+    coverage.write(dirty_log): written=True committed=False
+    coverage.read/is_current: verdict=pass fp_len=64 date=2026-11-27 model=m-smoke current=True
+    review_readiness: ok=(ready=True, cached=True, calls=0) bad_codes=['orchestrator-row-nonconforming', 'coverage-record-absent']
+    is_plan_review_approved: gate=True recheck_only=False
+    review_staleness_index: before=[] after_log_only_scope_edit={'.aw/records/plans/pending/20261126-demo-01-st9001-p.ipd.md': ('substantive-edit',)}
+    hold_attended_plan: held=True status=not-run code=attended-session-required; plan_kind_from_file=('orchestrator', 'child')
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste F-02 (verified caller audit) and observed outputs on `.aw/state/q6fiws/scratch` (code paths updated by E-03) showing `review_tier.tier_facts` handling `list[str]` `scope_paths` (including `names_spec=True` for `.spec.md`), `review_sequence.structural_diff`, `review_sequence.check_S5` (with YAML mirror `id:` and spec-4.1a YAML `.review.md` preserved), `review_sequence.verdict_outputs`, `review_sequence.check_S7` (passing on a log-format reviewed plan without false `IPD-M107`), `review_rereview.rereview_triggers`, `review_rereview.run_rereview_loop` (detecting a log-only `Scope-Paths` change), and `review_rereview.check_limit_s7` returning accurate results on log-format plans (and keeping legacy text parity when state/history are omitted).
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    F-02 records the complete verified caller and behavior audit across all 7 touched production modules and their callers. Throwaway-repository smoke output on `.aw/state/q6fiws/scratch`:
+    ```text
+    === V-03 SMOKE ===
+    tier_facts: kind=child names_spec=True scope_paths=['a.py', 'foo.spec.md']
+    structural_diff refused=["Front-matter field 'Scope-Paths' changed from '.aw/records/plans/pending/20261126-demo-01-ch9001-p.ipd.md' to 'a.py, foo.spec.md'"]
+    check_S5: unescalated=True escalated=None
+    verdict_outputs=('go-pending-approval', 'reviewed', 'seq=1 op=review round=1 verdict=APPROVE readiness=go-pending-approval') check_S7=None
+    rereview_triggers=["Scope-Paths changed from ['.aw/records/plans/pending/20261126-demo-01-ch9001-p.ipd.md'] to ['a.py', 'foo.spec.md']"] run_rereview_loop=(outcome=done, passes=2) check_limit_s7=None
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste the full `python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_readiness_runner_and_review_seq.py` output in `.aw/state/q6fiws/scratch` showing every test PASSED across `coverage_record`/`orchestrator_readiness`, `plan_readiness`, `runner_shared`, and `review_tier`/`review_sequence`/`review_rereview`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    ```text
+    $ (cd .aw/state/q6fiws/scratch && python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_readiness_runner_and_review_seq.py)
+    collected 7 items
+
+    tests/test_cutover_log_readiness_runner_and_review_seq.py::test_review_tier_sequence_and_rereview_log_aware_and_legacy_parity PASSED [ 14%]
+    tests/test_cutover_log_readiness_runner_and_review_seq.py::test_orchestrator_readiness_and_probe_orchestrator_on_log_format PASSED [ 28%]
+    tests/test_cutover_log_readiness_runner_and_review_seq.py::test_hold_attended_plan_and_plan_kind_from_file_on_log_and_legacy PASSED [ 42%]
+    tests/test_cutover_log_readiness_runner_and_review_seq.py::test_coverage_record_write_read_is_current_and_dirty_log_refusal PASSED [ 57%]
+    tests/test_cutover_log_readiness_runner_and_review_seq.py::test_review_staleness_log_only_scope_paths_and_cache_invalidation PASSED [ 71%]
+    tests/test_cutover_log_readiness_runner_and_review_seq.py::test_run_review_sequence_threads_log_state_end_to_end PASSED [ 85%]
+    tests/test_cutover_log_readiness_runner_and_review_seq.py::test_is_plan_review_approved_log_provenance_three_way_and_fallback PASSED [100%]
+    ============================== SLOW TESTS REPORT ===============================
+
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 7 passed in 2.12s ===============================
+    ```
+    Sibling regression check in `.aw/state/q6fiws/scratch`: `python3 -m pytest -o addopts="" -m '' tests/test_cutover_log_reviews_prompts_and_checks.py tests/test_cutover_log_checkers.py tests/test_cutover_log_lifecycle_and_hooks.py tests/test_backlog_log_format.py` -> `36 passed in 18.28s`; `ruff check --select F` on all 8 touched files -> `All checks passed!`; `mypy` on `coverage_record.py`, `orchestrator_readiness.py`, `plan_readiness.py`, `review_tier.py`, `review_sequence.py`, `review_rereview.py` -> `Success: no issues found in 6 source files`.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste `git apply --stat .aw/system/cutover/metastore-code.cutover.patch`, the `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` run showing every guard behavior (docs+code patch apply check, non-empty numstat, bad-patch refusal) PASSED, `git worktree list` showing `.aw/state/q6fiws/scratch` removed, `git status --short` confirming no live edits outside `- Scope-Paths:`, and the `aw commit q6fiws` output naming the commit hash.
   - Observed evidence:
-  - Result: pending
+    - `git apply --stat .aw/system/cutover/metastore-code.cutover.patch`: `86 files changed, 13878 insertions(+), 9003 deletions(-)` (exit 0; includes `agent_workflows/coverage_record.py` 253, `agent_workflows/orchestrator_readiness.py` 8, `agent_workflows/plan_readiness.py` 565, `agent_workflows/review_rereview.py` 82, `agent_workflows/review_sequence.py` 236, `agent_workflows/review_tier.py` 52, `agent_workflows/runner_shared.py` 766, `tests/test_cutover_log_readiness_runner_and_review_seq.py` 1199).
+    - `python3 -m pytest -o addopts="" -v tests/test_metastore_cutover_code_patch.py`:
+      - `tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_code_patch_touches_files PASSED [ 33%]`
+      - `tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_check_refuses_a_patch_that_no_longer_applies PASSED [ 66%]`
+      - `tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_code_patch_applies_after_docs_patch PASSED [100%]`
+      - Summary: `3 passed in 0.50s` (exit 0).
+    - `git worktree list`: `.aw/state/q6fiws/scratch` removed (only primary checkout `[main]`, lane `cugg3w`, and lane `q6fiws` listed).
+    - `git status --short`: ` M .aw/system/cutover/metastore-code.cutover.patch` before commit (only declared `- Scope-Paths:` modified; zero live code or test edits).
+    - `aw commit q6fiws -- .aw/system/cutover/metastore-code.cutover.patch`: `aw commit: committed 1 path(s): e58b16225d55a13cca4d94c83a44d079c2c9a073`.
+  - Result: pass
 
 ## Approval and execution gate
 
