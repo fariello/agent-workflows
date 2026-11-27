@@ -4135,7 +4135,7 @@ index 5a1fcbc7b..843786725 100644
  
      return modified_files
 diff --git a/agent_workflows/artifact_rename.py b/agent_workflows/artifact_rename.py
-index 5624badf2..b8d44152a 100644
+index 5624badf2..66ba05b26 100644
 --- a/agent_workflows/artifact_rename.py
 +++ b/agent_workflows/artifact_rename.py
 @@ -22,7 +22,6 @@ from agent_workflows.plans_refs import (
@@ -4166,7 +4166,229 @@ index 5624badf2..b8d44152a 100644
          rel_path,
      )
  
-@@ -613,16 +612,6 @@ def _group_set_fields(set_id: str, order: Optional[int]) -> dict:
+@@ -407,6 +406,12 @@ def _id6_write_message(
+             _src_text = src.read_text(encoding="utf-8")
+         except OSError:
+             _src_text = ""
++        if _meta.read_mirror_id6(_src_text):
++            verb = "would write" if preview else "wrote"
++            return (
++                f"{verb} YAML mirror 'id: {id6}' and metadata log meta/{id6}.jsonl "
++                f"for {target_name}"
++            )
+         _src_bullets = _metadata_bullets(_src_text)
+         if not (_src_bullets.get("Status") or _src_bullets.get("Date")):
+             # a88210: mirrors `run_rename_generic`'s metadata write, which writes no bullet into a
+@@ -426,14 +431,17 @@ def _read_existing_id6(
+ ) -> Optional[str]:
+     """Return the id6 a file already declares, or None (IPD ha55fi E-04 idempotence read).
+ 
+-    ``artifact_type`` (IPD `ubac5n` E-04): a PROMPT declares its id6 inside the single
+-    `<!-- aw-prompt: ... -->` comment rather than in a `- Id:` bullet, so the reader must match the
+-    writer or a `--to-id6` re-run would re-mint over an identity the file already holds.
++    Checks post-cutover in-file mirrors (YAML and ``<!-- aw-managed-prompt: ... -->`` via
++    ``artifact_meta.read_mirror_id6``) first, then falls back to legacy ``<!-- aw-prompt: ... -->``
++    comments for prompts and ``- Id:`` bullets for other record types.
+     """
+     try:
+         text = file_path.read_text(encoding="utf-8")
+     except OSError:
+         return None
++    mirror_id = _meta.read_mirror_id6(text)
++    if mirror_id:
++        return mirror_id
+     if artifact_type == "prompts":
+         if not _meta.has_prompt_metadata_comment(text):
+             return None
+@@ -588,8 +596,10 @@ def find_unrewritable_path_citations(
+ def _existing_type_id6s(repo_root: Path, artifact_type: str) -> set:
+     """Every id6 already used by any artifact of ``artifact_type`` (mint collision set, E-04).
+ 
+-    Scans that type's on-disk names for a clustered id6 AND each file's ``- Id:`` metadata bullet,
+-    so a freshly minted id6 never collides with an existing standalone/legacy-with-Id artifact.
++    Scans that type's on-disk names for a clustered id6 AND each file's declared identity
++    (post-cutover YAML/staged-prompt mirrors via ``artifact_meta.read_mirror_id6``, legacy
++    ``aw-prompt`` comments for prompts, and legacy ``- Id:`` metadata bullets), so a freshly
++    minted id6 never collides with an existing artifact.
+     """
+     ids: set = set()
+     try:
+@@ -597,14 +607,171 @@ def _existing_type_id6s(repo_root: Path, artifact_type: str) -> set:
+             m_name = _UNIFORM_RE.match(p.name)
+             if m_name:
+                 ids.add(m_name.group("id6"))
+-            declared = _bullet_id6(text)
+-            if declared:
+-                ids.add(declared)
++            mirror_id = _meta.read_mirror_id6(text)
++            if mirror_id:
++                ids.add(mirror_id)
++                continue
++            if artifact_type == "prompts":
++                if _meta.has_prompt_metadata_comment(text):
++                    declared = _meta.read_text(
++                        text.split("\n", 1)[0], record_type="prompt"
++                    ).id6
++                    if declared and _core.ID6_RE.fullmatch(declared):
++                        ids.add(declared)
++            else:
++                declared = _bullet_id6(text)
++                if declared:
++                    ids.add(declared)
+     except Exception:
+         pass
+     return ids
+ 
+ 
++_META_BULLET_LINE_RE = re.compile(r"^- [A-Za-z][A-Za-z0-9 _/-]*:(?:\s.*)?$")
++_HEADING_H2_PLUS_RE = re.compile(r"^#{2,}\s")
++
++
++def _has_to_id6_metadata(text: str, artifact_type: str, plural: str) -> bool:
++    """True when an unlogged file carries metadata bullets or a prompt metadata comment."""
++    if artifact_type == "prompts" or plural == "prompts":
++        return _meta.has_prompt_metadata_comment(text)
++    bullets = _metadata_bullets(text)
++    return bool(bullets.get("Status") or bullets.get("Date"))
++
++
++def _strip_legacy_metadata_for_create(text: str, registry_type: str) -> str:
++    """Strip legacy metadata bullets or leading prompt comment so ``body`` holds clean prose."""
++    clean = (text or "").lstrip("\ufeff")
++    if registry_type == "prompt":
++        return _meta._LEADING_PROMPT_COMMENT_LINE_RE.sub("", clean, count=1)
++    clean = _meta._strip_leading_yaml_mirror(clean)
++    lines = clean.splitlines(keepends=True)
++    pre: List[str] = []
++    rest: List[str] = []
++    in_stripped_bullet = False
++    hit_h2 = False
++    for line in lines:
++        if hit_h2:
++            rest.append(line)
++            continue
++        stripped = line.rstrip("\r\n")
++        if _HEADING_H2_PLUS_RE.match(stripped):
++            hit_h2 = True
++            rest.append(line)
++            continue
++        if _META_BULLET_LINE_RE.match(stripped):
++            in_stripped_bullet = True
++            continue
++        if in_stripped_bullet and (line.startswith(" ") or line.startswith("\t")) and stripped.strip():
++            continue
++        in_stripped_bullet = False
++        pre.append(line)
++    # Collapse excess blank lines left behind where the bullet block was removed.
++    collapsed: List[str] = []
++    prev_blank = False
++    for line in pre:
++        is_blank = not line.strip()
++        if is_blank and (not collapsed or prev_blank):
++            continue
++        collapsed.append(line)
++        prev_blank = is_blank
++    return "".join(collapsed + rest)
++
++
++def _fields_for_to_id6_create(
++    text: str,
++    registry_type: str,
++    *,
++    inject_id6: str,
++    new_set: Optional[str],
++    new_order: Optional[int],
++) -> dict:
++    """Map parsed legacy metadata into registry-valid ``artifact_meta.create`` fields."""
++    reg = _meta.REGISTRY.get(registry_type, {})
++    parsed = _meta.read_text(text, record_type=registry_type)
++    fields: dict = {}
++
++    if parsed.title and "title" in reg:
++        fields["title"] = parsed.title
++
++    if "status" in reg:
++        status_val = parsed.status
++        if not status_val and parsed.legacy_raw_status:
++            toks = parsed.legacy_raw_status.strip().split()
++            if toks:
++                status_val = toks[0].lower()
++        if status_val:
++            fields["status"] = status_val
++        else:
++            fields["status"] = "pending" if registry_type == "prompt" else "draft"
++
++    kind_target = {
++        "prompt": "prompt_kind",
++        "ipd": "plan_role",
++        "backlog": "work_kind",
++        "research": "research_kind",
++    }.get(registry_type)
++
++    for raw_k, raw_v in (parsed.fields or {}).items():
++        if raw_v is None:
++            continue
++        fk = raw_k
++        if fk in ("date", "created") and "created_day" in reg:
++            fk = "created_day"
++        elif fk == "kind" and kind_target and kind_target in reg:
++            fk = kind_target
++        if fk in ("id", "type", "status", "path") or fk in fields:
++            continue
++        fdef = reg.get(fk)
++        if fdef is None or fdef.ownership == "path-event":
++            continue
++        if fdef.value_type == "integer":
++            try:
++                fields[fk] = int(str(raw_v).strip())
++            except (ValueError, TypeError):
++                continue
++        elif fdef.value_type == "string list":
++            if isinstance(raw_v, list):
++                vals = [str(x).strip() for x in raw_v if str(x).strip()]
++            else:
++                vals = [t.strip() for t in str(raw_v).split(",") if t.strip()]
++            if vals:
++                fields[fk] = vals
++        elif fdef.value_type == "closed enum":
++            cand = str(raw_v).strip().lower()
++            if cand and (fdef.allowed_values is None or cand in fdef.allowed_values):
++                fields[fk] = cand
++        elif fdef.value_type == "structured dependency list":
++            if isinstance(raw_v, list):
++                fields[fk] = raw_v
++            else:
++                sval = str(raw_v).strip()
++                if sval:
++                    fields[fk] = sval
++        else:
++            sval = str(raw_v).strip()
++            if sval:
++                fields[fk] = sval
++
++    if "set" in reg:
++        if new_set:
++            fields["set"] = _core.kebab(new_set)
++        elif parsed.set_id:
++            fields["set"] = parsed.set_id
++        else:
++            fields["set"] = inject_id6
++
++    if "order" in reg:
++        if new_order is not None:
++            fields["order"] = int(new_order)
++        elif parsed.order_nn is not None:
++            fields["order"] = int(parsed.order_nn)
++        elif "order" not in fields:
++            fields["order"] = 1
++
++    return fields
++
++
+ def _group_set_fields(set_id: str, order: Optional[int]) -> dict:
+     """The `op: "set"` fields a regroup writes: the Set, plus the Order when one was resolved."""
+     fields: dict = {"set": str(set_id)}
+@@ -613,16 +780,6 @@ def _group_set_fields(set_id: str, order: Optional[int]) -> dict:
      return fields
  
  
@@ -4183,10 +4405,20 @@ index 5624badf2..b8d44152a 100644
  def _mutation_ref_edits(repo_root: Path, edits: List[RefEdit]) -> Tuple:
      return tuple(
          MutationRefEdit(
-@@ -1091,15 +1080,6 @@ def run_rename_generic(
+@@ -1085,29 +1242,21 @@ def run_rename_generic(
+ 
+     # Apply changes
+     touched: List[str] = []
+-    if src.resolve() != dst.resolve():
+-        src_rel = src.relative_to(repo_root).as_posix()
+-        dst_rel = dst.relative_to(repo_root).as_posix()
++    moved = src.resolve() != dst.resolve()
++    src_rel = src.relative_to(repo_root).as_posix() if moved else _rel_to_repo(src, repo_root)
++    dst_rel = dst.relative_to(repo_root).as_posix() if moved else _rel_to_repo(dst, repo_root)
++    if moved:
          _core.git_mv(repo_root, src_rel, dst_rel)
-         if emit_human:
-             print(f"renamed {src_rel} -> {dst_rel}")
+-        if emit_human:
+-            print(f"renamed {src_rel} -> {dst_rel}")
 -        # IPD 52zgqr: additive, failure-isolated rename ledger record (never breaks the rename).
 -        _rh.record_rename(
 -            repo_root,
@@ -4199,13 +4431,35 @@ index 5624badf2..b8d44152a 100644
          touched.append(src_rel)
          touched.append(dst_rel)
      else:
-@@ -1127,17 +1107,10 @@ def run_rename_generic(
+-        touched.append(_rel_to_repo(dst, repo_root))
++        touched.append(dst_rel)
+ 
+     applied_notes: List[str] = []
+     if new_set is not None or new_order is not None or inject_id6 is not None:
+-        # IPD ha55fi E-04: same atomic transaction writes Set/Order AND injects the minted `- Id:`.
++        # IPD ha55fi E-04 / j1f454 E-03: initialize log + mirror via artifact_meta.create when
++        # minting an id6 for a metadata-bearing unlogged record; keep bulletless/commentless files
++        # filename-only without mutating body bytes or creating a log.
+         try:
+             dst_text: Optional[str] = dst.read_text(encoding="utf-8")
+         except OSError:
+@@ -1116,33 +1265,89 @@ def run_rename_generic(
+             m_rroot, m_ctx, m_type, m_target, m_rel = _meta_target_for_file(
+                 dst, artifact_type, repo_root=repo_root, fallback_id6=inject_id6
              )
-             if m_events:
-                 _meta.append(
+-            m_events = _rename_metadata_events(
+-                dst_text,
+-                m_type,
+-                m_rel,
+-                existing_id6=_read_existing_id6(dst, m_type),
+-                set_id=_core.kebab(new_set) if new_set else None,
+-                order=new_order,
+-                id6=inject_id6,
+-            )
+-            if m_events:
+-                _meta.append(
 -                    m_target,
-+                    _meta.file_id6(dst, m_target),
-                     m_events,
+-                    m_events,
 -                    legacy_render=_meta.LegacyRender(
 -                        "rename",
 -                        _core.utc_history_date(),
@@ -4214,12 +4468,105 @@ index 5624badf2..b8d44152a 100644
 -                        is_prompt=(m_type == "prompts"),
 -                    ),
 -                    repo_root=m_rroot,
-                     project_context=m_ctx,
-+                    actor={"tool": "aw rename"},
+-                    project_context=m_ctx,
++            if inject_id6 is not None:
++                records_root = Path(m_ctx.logical_roots["records"])
++                registry_type, plural = _meta._normalize_legacy_types(
++                    artifact_type, dst, records_root
                  )
++                if registry_type == "roadmaps":
++                    registry_type = "roadmap"
++                if _has_to_id6_metadata(dst_text, artifact_type, plural):
++                    if not registry_type or registry_type not in _meta.REGISTRY:
++                        if moved:
++                            _core.git_mv(repo_root, dst_rel, src_rel)
++                        return _log_refusal(
++                            src.name,
++                            ValueError(
++                                f"unknown artifact registry type {registry_type!r} for {artifact_type!r}"
++                            ),
++                            emit_human,
++                        )
++                    create_fields = _fields_for_to_id6_create(
++                        dst_text,
++                        registry_type,
++                        inject_id6=inject_id6,
++                        new_set=new_set,
++                        new_order=new_order,
++                    )
++                    clean_body = _strip_legacy_metadata_for_create(
++                        dst_text, registry_type
++                    )
++                    try:
++                        create_res = _meta.create(
++                            inject_id6,
++                            registry_type,
++                            create_fields,
++                            clean_body,
++                            destination=m_rel,
++                            dry_run=False,
++                            overwrite=True,
++                            project_context=m_ctx,
++                            actor={"tool": "aw rename"},
++                        )
++                    except Exception as exc:
++                        if moved:
++                            _core.git_mv(repo_root, dst_rel, src_rel)
++                        return _log_refusal(src.name, exc, emit_human)
++                    if not (isinstance(create_res, dict) and create_res.get("committed")):
++                        if moved:
++                            _core.git_mv(repo_root, dst_rel, src_rel)
++                        err_msg = (
++                            create_res.get("error")
++                            if isinstance(create_res, dict)
++                            else None
++                        ) or f"log creation for {inject_id6} did not commit"
++                        return _log_refusal(
++                            src.name, RuntimeError(str(err_msg)), emit_human
++                        )
++                    touched.append(
++                        _rel_to_repo(
++                            records_root / "meta" / f"{inject_id6}.jsonl", repo_root
++                        )
++                    )
++            else:
++                m_events = _rename_metadata_events(
++                    dst_text,
++                    m_type,
++                    m_rel,
++                    existing_id6=_read_existing_id6(dst, m_type),
++                    set_id=_core.kebab(new_set) if new_set else None,
++                    order=new_order,
++                    id6=inject_id6,
++                )
++                if m_events:
++                    _meta.append(
++                        _meta.file_id6(dst, m_target),
++                        m_events,
++                        project_context=m_ctx,
++                        actor={"tool": "aw rename"},
++                    )
++        if moved and emit_human:
++            print(f"renamed {src_rel} -> {dst_rel}")
          if inject_id6 is not None:
              # Read `dst` (post-write) rather than `src` (already moved away): for a prompt WITH a
-@@ -1457,18 +1430,17 @@ def run_group_generic(
+-            # comment the id6 is now in it, and for one WITHOUT the file is untouched, so the message
+-            # reflects what is actually on disk in both cases.
++            # comment or a metadata-bearing record the mirror is now on disk, and for a
++            # bulletless/commentless file the body is untouched, so the message matches disk state.
+             msg = _id6_write_message(
+                 artifact_type, inject_id6, dst.name, preview=False, src=dst
+             )
+@@ -1150,6 +1355,8 @@ def run_rename_generic(
+                 print(msg)
+             applied_notes.append(msg)
+         touched.append(_rel_to_repo(dst, repo_root))
++    elif moved and emit_human:
++        print(f"renamed {src_rel} -> {dst_rel}")
+ 
+     for w in warnings:
+         if emit_human:
+@@ -1457,18 +1664,17 @@ def run_group_generic(
              notes=tuple(group_notes),
          )
  
@@ -4241,7 +4588,7 @@ index 5624badf2..b8d44152a 100644
                  dry_run=True,
              )
          except ValueError as exc:
-@@ -1536,15 +1508,6 @@ def run_group_generic(
+@@ -1536,15 +1742,6 @@ def run_group_generic(
              _core.git_mv(repo_root, src_rel, dst_rel)
              if emit_human:
                  print(f"renamed {src_rel} -> {dst_rel}")
@@ -4257,7 +4604,7 @@ index 5624badf2..b8d44152a 100644
              touched.append(src_rel)
              touched.append(dst_rel)
              applied_targets.append(
-@@ -1560,11 +1523,10 @@ def run_group_generic(
+@@ -1560,11 +1757,10 @@ def run_group_generic(
              dst, artifact_type, repo_root=repo_root
          )
          _meta.append(
@@ -14844,6 +15191,200 @@ index 461caf32a..420a31914 100644
                                  message=commit_msg,
                                  assume_yes=True,
                                  interactive=False,
+diff --git a/agent_workflows/selectors.py b/agent_workflows/selectors.py
+index 651a63cff..53290f728 100644
+--- a/agent_workflows/selectors.py
++++ b/agent_workflows/selectors.py
+@@ -441,7 +441,11 @@ def _is_yaml_front_matter(text: str) -> bool:
+ def _read_id(text: str) -> str | None:
+     from agent_workflows import artifact_meta as _meta
+ 
+-    region = _meta.metadata_region(text)
++    mirror_id = _meta.read_mirror_id6(text)
++    if mirror_id:
++        return mirror_id
++    clean = text.lstrip("\ufeff") if text else ""
++    region = _meta.metadata_region(clean)
+     st = _meta.read_text(region)
+     if not st.id6:
+         return None
+@@ -458,11 +462,22 @@ def _read_status(text: str) -> str | None:
+     from agent_workflows import artifact_meta as _meta
+     from agent_workflows import plans as _plans
+ 
+-    st = _meta.read_text(_meta.metadata_region(text))
+-    raw = st.legacy_raw_status
++    clean = text.lstrip("\ufeff") if text else ""
++    if clean.startswith("<!--"):
++        try:
++            parsed_prompt = _meta.parse_staged_prompt_mirror(clean)
++            p_status = str(parsed_prompt.get("status") or "").strip()
++            if p_status:
++                return p_status
++        except ValueError:
++            pass
++    st = _meta.read_text(_meta.metadata_region(clean))
++    raw = getattr(st, "status", None) or getattr(st, "legacy_raw_status", None)
+     if not raw:
+         return None
+-    toks = raw.split()
++    toks = str(raw).strip().split()
++    if not toks:
++        return None
+     if len(toks) > 1:
+         return _plans.normalize_status(toks[0])
+     return toks[0]
+@@ -915,10 +930,10 @@ def _state_set_for_resolve(st: Any) -> Optional[str]:
+ def _state_matches_status(st: Any, tok: str, record_type: str) -> bool:
+     if not st:
+         return False
+-    raw = getattr(st, "legacy_raw_status", None)
++    raw = getattr(st, "status", None) or getattr(st, "legacy_raw_status", None)
+     if not raw:
+         return False
+-    toks = raw.strip().split()
++    toks = str(raw).strip().split()
+     if not toks:
+         return False
+     if record_type == "plans":
+@@ -1004,10 +1019,16 @@ def resolve(
+             out = []
+             for p in cands:
+                 st = by_path.get(p)
++                if st is None:
++                    with contextlib.suppress(OSError):
++                        st = by_path.get(p.resolve())
+                 if st is None:
+                     hdr = _read_header(p)
+                     if hdr is not None:
+-                        st = _meta.read_text(_meta.metadata_region(hdr))
++                        st = _meta.read_text(
++                            _meta.metadata_region(hdr.lstrip("\ufeff")),
++                            record_type=_META_TYPE_FOR_RECORD.get(record_type),
++                        )
+                 if st is not None:
+                     out.append((p, st))
+             states = out
+@@ -1207,14 +1228,79 @@ def id6_ownership(path: Path, id6: str) -> str:
+     if declared == id6:
+         return OWNERSHIP_DECLARED
+     if declared is not None:
++        if _declares_typed_subject(path, id6):
++            return OWNERSHIP_REFERENCE
+         return OWNERSHIP_FOREIGN_ID
+     if filename_slot_id6(path) == id6 and not _declares_typed_subject(path, id6):
+         return OWNERSHIP_SLOT_ONLY
+     return OWNERSHIP_REFERENCE
+ 
+ 
++_TYPED_SUBJECT_FIELDS: Tuple[str, ...] = (
++    "subject_id",
++    "target_id",
++    "references",
++    "from_backlog",
++    "from_spec",
++    "reviewed_id",
++)
++
++
++def _owner_root_for_record(path: Path) -> Optional[Path]:
++    """Resolve the repository root that owns ``path`` without defaulting to process CWD."""
++    from agent_workflows import project_context as _proj_ctx
++
++    try:
++        resolved = path.resolve()
++    except OSError:
++        return None
++    owner = _proj_ctx.record_owner_root(resolved)
++    if owner is not None:
++        return owner
++    for anc in resolved.parents:
++        if (
++            (anc / ".aw").is_dir()
++            or (anc / ".agents").is_dir()
++            or (anc / ".git").exists()
++        ):
++            return anc
++    return None
++
++
++def _value_references_id6(value: Any, id6: str) -> bool:
++    """True iff a typed-reference field value names ``id6`` as a scalar, link, or list entry."""
++    if value is None:
++        return False
++    if isinstance(value, str):
++        raw = value.strip()
++        if not raw:
++            return False
++        if raw.strip("`\"'") == id6:
++            return True
++        if f"[{id6}]" in raw:
++            return True
++        for part in re.split(r"[\s,;]+", raw):
++            if part.strip("`\"'[]()<>") == id6:
++                return True
++        return False
++    if isinstance(value, (list, tuple, set)):
++        return any(_value_references_id6(item, id6) for item in value)
++    if isinstance(value, dict):
++        for k in ("id6", "id", "target_id6", "target_id", "subject_id", "ref"):
++            if k in value and _value_references_id6(value[k], id6):
++                return True
++        return False
++    return False
++
++
++def _fields_reference_id6(fields: Any, id6: str) -> bool:
++    if not isinstance(fields, dict):
++        return False
++    return any(_value_references_id6(fields.get(k), id6) for k in _TYPED_SUBJECT_FIELDS)
++
++
+ def _declares_typed_subject(path: Path, id6: str) -> bool:
+-    """True iff the file names ``id6`` through a TYPED reference field in its metadata region."""
++    """True iff the file (or its companion metadata log) names ``id6`` through a TYPED reference field."""
+ 
+     if not id6 or not _core.ID6_RE.fullmatch(id6):
+         return False
+@@ -1224,18 +1310,26 @@ def _declares_typed_subject(path: Path, id6: str) -> bool:
+         return False
+     from agent_workflows import artifact_meta as _meta
+ 
+-    st = _meta.read_text(_meta.metadata_region(text))
+-    return any(
+-        st.fields.get(k) == id6
+-        for k in (
+-            "subject_id",
+-            "target_id",
+-            "references",
+-            "from_backlog",
+-            "from_spec",
+-            "reviewed_id",
+-        )
+-    )
++    if _meta.read_review_subject_id(text) == id6:
++        return True
++
++    own_id6 = _meta.read_mirror_id6(text)
++    if own_id6:
++        owner = _owner_root_for_record(path)
++        if owner is not None:
++            try:
++                ctx = _meta.legacy_context(owner)
++                records_root = Path(ctx.logical_roots["records"])
++                if (records_root / "meta" / f"{own_id6}.jsonl").is_file():
++                    with _meta.ephemeral_if_uninitialized():
++                        log_st = _meta.read(own_id6, project_context=ctx)
++                    if _fields_reference_id6(log_st.fields, id6):
++                        return True
++            except Exception:
++                pass
++
++    st = _meta.read_text(_meta.metadata_region(text.lstrip("\ufeff")))
++    return _fields_reference_id6(st.fields, id6)
+ 
+ 
+ # ----------------------------------------------------------------------------------------------
 diff --git a/agent_workflows/set_records.py b/agent_workflows/set_records.py
 index 3d9f3bc0f..bd310e41a 100644
 --- a/agent_workflows/set_records.py
@@ -26492,6 +27033,708 @@ index 000000000..dd583b70c
 +    # find_obligations_carried_by resolves plan_id6 from YAML mirrors
 +    carried = check_engine.find_obligations_carried_by(repo, "bk1001")
 +    assert {c.plan_id6 for c in carried} == {"pl5001", "pl5002"}
+diff --git a/tests/test_cutover_log_selectors_and_rename.py b/tests/test_cutover_log_selectors_and_rename.py
+new file mode 100644
+index 000000000..97522b6f0
+--- /dev/null
++++ b/tests/test_cutover_log_selectors_and_rename.py
+@@ -0,0 +1,696 @@
++"""Core behavioral tests for log-aware selectors and artifact_rename --to-id6 (j1f454)."""
++
++from __future__ import annotations
++
++import argparse
++import io
++import json
++import subprocess
++from contextlib import redirect_stderr, redirect_stdout
++from pathlib import Path
++
++import pytest
++
++from agent_workflows import artifact_meta as meta
++from agent_workflows import artifact_rename, cli, selectors
++
++pytestmark = pytest.mark.core
++
++
++def _init_log_repo(tmp_path: Path, *, name: str = "repo", git: bool = False) -> Path:
++    repo = tmp_path / name
++    for sub in (
++        ".aw/config",
++        ".aw/state",
++        ".aw/records/meta",
++        ".aw/records/plans/pending",
++        ".aw/records/plans/executed",
++        ".aw/records/specs/to-review",
++        ".aw/records/specs/approved",
++        ".aw/records/backlog/open",
++        ".aw/records/research",
++        ".aw/records/releases",
++        ".aw/records/prompts/pending",
++        ".aw/records/walkthroughs",
++        ".aw/records/reviews",
++    ):
++        (repo / sub).mkdir(parents=True, exist_ok=True)
++    (repo / ".aw" / "config" / "project.json").write_text(
++        json.dumps(
++            {
++                "metadata_schema": 2,
++                "records_backend": "repository",
++                "placements": {"records": "target-tracked"},
++            }
++        )
++        + "\n",
++        encoding="utf-8",
++    )
++    if git:
++        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
++        subprocess.run(["git", "config", "user.email", "t@e.com"], cwd=repo, check=True)
++        subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
++    return repo
++
++
++def _git_commit_all(repo: Path, msg: str = "fixture") -> None:
++    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
++    subprocess.run(["git", "commit", "-q", "-m", msg], cwd=repo, check=True)
++
++
++def _create_log_record(
++    repo: Path,
++    id6: str,
++    art_type: str,
++    rel_path: str,
++    fields: dict,
++    body: str,
++    *,
++    bom: bool = False,
++) -> Path:
++    ctx = meta.legacy_context(repo)
++    res = meta.create(
++        id6,
++        art_type,
++        fields,
++        body,
++        destination=rel_path,
++        dry_run=False,
++        overwrite=True,
++        project_context=ctx,
++        actor={"tool": "test"},
++    )
++    assert res.get("committed") is True, res
++    path = repo / ".aw" / "records" / rel_path
++    if bom:
++        path.write_text("\ufeff" + path.read_text(encoding="utf-8"), encoding="utf-8")
++    return path
++
++
++def _run_cli(repo: Path, argv: list[str]) -> tuple[int, str, str]:
++    out, err = io.StringIO(), io.StringIO()
++    with redirect_stdout(out), redirect_stderr(err):
++        try:
++            rc = cli.main([*argv, "--dir", str(repo)])
++        except SystemExit as exc:
++            rc = int(exc.code or 0)
++    return rc, out.getvalue(), err.getvalue()
++
++
++def test_selectors_resolve_and_aw_find_status_across_log_format_types(
++    tmp_path: Path,
++) -> None:
++    repo = _init_log_repo(tmp_path)
++
++    p_plan = _create_log_record(
++        repo,
++        "pln101",
++        "ipd",
++        "plans/pending/20261126-alph01-01-pln101-first-plan.ipd.md",
++        {
++            "status": "approved",
++            "plan_role": "child",
++            "set": "alph01",
++            "order": 1,
++            "title": "First Plan",
++        },
++        "# IPD: First Plan\n\n## Goal\n\nTest plan.\n",
++        bom=True,
++    )
++    p_spec = _create_log_record(
++        repo,
++        "spc101",
++        "spec",
++        "specs/to-review/20261126-spc101-01-spc101-core.spec.md",
++        {
++            "status": "to-review",
++            "set": "spc101",
++            "order": 1,
++            "title": "Core Spec",
++        },
++        "# Spec: Core Spec\n\n## Overview\n\nSpec body.\n",
++    )
++    p_backlog = _create_log_record(
++        repo,
++        "bkl101",
++        "backlog",
++        "backlog/open/20261126-bklset-01-bkl101-bug.backlog.md",
++        {
++            "status": "open",
++            "set": "bklset",
++            "priority": "high",
++            "work_kind": "bug",
++            "title": "Open Bug",
++        },
++        "# Open Bug\n\nDetails.\n",
++    )
++    p_research = _create_log_record(
++        repo,
++        "res101",
++        "research",
++        "research/20261126-resset-01-res101-study.research-report.md",
++        {
++            "status": "reference",
++            "set": "resset",
++            "order": 1,
++            "research_kind": "research-report",
++            "title": "Study",
++        },
++        "# Study\n\nFindings.\n",
++    )
++    p_release = _create_log_record(
++        repo,
++        "rel101",
++        "release",
++        "releases/20261126-relset-01-rel101-v1.release.md",
++        {
++            "status": "planned",
++            "set": "relset",
++            "order": 1,
++            "title": "v1.0",
++        },
++        "# Release v1.0\n\nNotes.\n",
++    )
++    p_prompt = _create_log_record(
++        repo,
++        "prm101",
++        "prompt",
++        "prompts/pending/20261126-prmset-01-prm101-ask.prompt.md",
++        {
++            "status": "pending",
++            "set": "prmset",
++            "order": 1,
++            "prompt_kind": "research",
++            "title": "Ask",
++        },
++        "# Research Prompt\n\nInvestigate.\n",
++    )
++
++    cases = [
++        ("plans", "approved", "pln101", "alph01", p_plan),
++        ("specs", "to-review", "spc101", "spc101", p_spec),
++        ("backlog", "open", "bkl101", "bklset", p_backlog),
++        ("research", "reference", "res101", "resset", p_research),
++        ("releases", "planned", "rel101", "relset", p_release),
++        ("prompts", "pending", "prm101", "prmset", p_prompt),
++    ]
++    for rec_type, status_tok, id6, setid, expected_path in cases:
++        res_st = selectors.resolve(repo, rec_type, status_tok)
++        assert res_st.kind == selectors.MATCH_STATUS, (rec_type, res_st)
++        assert res_st.paths == [expected_path.resolve()], (rec_type, res_st)
++
++        res_id = selectors.resolve(repo, rec_type, id6)
++        assert res_id.kind == selectors.MATCH_ID6, (rec_type, res_id)
++        assert res_id.paths == [expected_path.resolve()], (rec_type, res_id)
++
++        if setid != id6:
++            res_set = selectors.resolve(repo, rec_type, setid)
++            assert res_set.kind == selectors.MATCH_SETID, (rec_type, res_set)
++            assert res_set.paths == [expected_path.resolve()], (rec_type, res_set)
++
++        rc, out, err = _run_cli(repo, ["find", rec_type, status_tok, "--paths"])
++        assert rc == 0, (rec_type, status_tok, out, err)
++        assert expected_path.name in out, (rec_type, out)
++
++    # _read_status on BOM-prefixed YAML mirror, managed prompt mirror, and legacy multi-word status
++    assert selectors._read_status(p_plan.read_text(encoding="utf-8")) == "approved"
++    assert selectors._read_status(p_prompt.read_text(encoding="utf-8")) == "pending"
++    legacy_multi = (
++        "# IPD: Old\n\n"
++        "- Id: old101\n"
++        "- Status: EXECUTED (approved by maintainer)\n\n"
++        "## Goal\n\nLegacy.\n"
++    )
++    assert selectors._read_status(legacy_multi) == "executed"
++    assert (
++        selectors._read_status(
++            "---\nKind: session-handoff\nStatus: draft\n---\n\n# Handoff\n"
++        )
++        is None
++    )
++
++
++def test_selectors_uncached_staged_prompt_fallback_and_legacy_multiword_plan(
++    tmp_path: Path,
++) -> None:
++    # Repo without meta/ or index.db forces resolve._states() onto its read_text fallback.
++    repo = tmp_path / "uncached_repo"
++    prompts_dir = repo / ".aw" / "records" / "prompts" / "pending"
++    plans_dir = repo / ".aw" / "records" / "plans" / "executed"
++    prompts_dir.mkdir(parents=True)
++    plans_dir.mkdir(parents=True)
++
++    p_prompt = prompts_dir / "20261126-prset1-01-pr7701-staged.prompt.md"
++    p_prompt.write_text(
++        meta.render_in_file_mirror("pr7701", "prompt", "pending")
++        + "# Prompt body\n\nAsk away.\n",
++        encoding="utf-8",
++    )
++    p_legacy = plans_dir / "20260710-oldset-01-lg7701-old.ipd.md"
++    p_legacy.write_text(
++        "# IPD: Old\n\n- Id: lg7701\n- Status: EXECUTED (approved)\n\n## Goal\n\nDone.\n",
++        encoding="utf-8",
++    )
++
++    res_pid = selectors.resolve(repo, "prompts", "pr7701")
++    assert res_pid.kind == selectors.MATCH_ID6
++    assert res_pid.paths == [p_prompt.resolve()]
++
++    res_pst = selectors.resolve(repo, "prompts", "pending")
++    assert res_pst.kind == selectors.MATCH_STATUS
++    assert res_pst.paths == [p_prompt.resolve()]
++
++    res_leg = selectors.resolve(repo, "plans", "executed")
++    assert res_leg.kind == selectors.MATCH_STATUS
++    assert res_leg.paths == [p_legacy.resolve()]
++
++
++def test_selectors_declared_id6_and_id6_ownership_on_mirrors_reviews_and_log_refs(
++    tmp_path: Path,
++) -> None:
++    repo = _init_log_repo(tmp_path)
++
++    p_plan = _create_log_record(
++        repo,
++        "ab12cd",
++        "ipd",
++        "plans/pending/20261126-demo-01-ab12cd-target.ipd.md",
++        {"status": "to-review", "plan_role": "child", "set": "demo", "order": 1},
++        "# IPD: Target\n\n## Goal\n\nTarget.\n",
++        bom=True,
++    )
++    p_prompt = _create_log_record(
++        repo,
++        "pr12cd",
++        "prompt",
++        "prompts/pending/20261126-demo-01-pr12cd-staged.prompt.md",
++        {"status": "pending", "set": "demo", "order": 1},
++        "# Staged Prompt\n\nRun checks.\n",
++    )
++    p_foreign = _create_log_record(
++        repo,
++        "fg34hi",
++        "ipd",
++        "plans/pending/20261126-demo-02-fg34hi-other.ipd.md",
++        {"status": "draft", "plan_role": "child", "set": "demo", "order": 2},
++        "# IPD: Other\n\nMentions ab12cd in prose only.\n",
++    )
++
++    # Staged prompt and BOM-prefixed YAML mirror declare their own id6 -> OWNERSHIP_DECLARED
++    assert selectors.declared_id6(p_prompt) == "pr12cd"
++    assert selectors.declares_id6(p_prompt, "pr12cd") is True
++    assert selectors.id6_ownership(p_prompt, "pr12cd") == selectors.OWNERSHIP_DECLARED
++
++    assert selectors.declared_id6(p_plan) == "ab12cd"
++    assert selectors.id6_ownership(p_plan, "ab12cd") == selectors.OWNERSHIP_DECLARED
++
++    # Foreign mirror with no typed reference -> OWNERSHIP_FOREIGN_ID
++    assert selectors.id6_ownership(p_foreign, "ab12cd") == selectors.OWNERSHIP_FOREIGN_ID
++
++    # Spec 4sd62s Section 4.1a .review.md YAML mirror -> OWNERSHIP_REFERENCE (not SLOT_ONLY)
++    p_review = (
++        repo / ".aw" / "records" / "reviews" / "20261126-demo-01-ab12cd-target.review.md"
++    )
++    p_review.write_text(
++        "\ufeff"
++        + meta.render_review_mirror("ab12cd", "ipd", review_ref="20261126-demo-01")
++        + "# Plan Review\n\n## Round 1\n",
++        encoding="utf-8",
++    )
++    assert selectors.declared_id6(p_review) is None
++    assert selectors._declares_typed_subject(p_review, "ab12cd") is True
++    assert selectors.id6_ownership(p_review, "ab12cd") == selectors.OWNERSHIP_REFERENCE
++
++    # Unmirrored file with foreign id6 in filename slot and no typed subject -> OWNERSHIP_SLOT_ONLY
++    p_slot_only = (
++        repo / ".aw" / "records" / "walkthroughs" / "20261126-demo-01-ab12cd-stray.walkthrough.md"
++    )
++    p_slot_only.write_text("# Stray note\n\nNo mirror, no subject.\n", encoding="utf-8")
++    assert selectors.id6_ownership(p_slot_only, "ab12cd") == selectors.OWNERSHIP_SLOT_ONLY
++
++    # Log-backed typed references under tmp_path (resolved from path's owning repo, not CWD)
++    p_wt_ref = _create_log_record(
++        repo,
++        "wk56jk",
++        "walkthrough",
++        "walkthroughs/20261126-demo-01-wk56jk-walk.walkthrough.md",
++        {"set": "demo", "order": 1, "target_id": "[ab12cd](plans/pending/target.ipd.md)"},
++        "# Walkthrough\n\nNotes.\n",
++    )
++    assert selectors._declares_typed_subject(p_wt_ref, "ab12cd") is True
++    assert selectors.id6_ownership(p_wt_ref, "ab12cd") == selectors.OWNERSHIP_REFERENCE
++    assert selectors._declares_typed_subject(p_wt_ref, "fg34hi") is False
++    assert selectors.id6_ownership(p_wt_ref, "fg34hi") == selectors.OWNERSHIP_FOREIGN_ID
++
++    p_plan_from_spec = _create_log_record(
++        repo,
++        "pl78mn",
++        "ipd",
++        "plans/pending/20261126-demo-03-pl78mn-child.ipd.md",
++        {
++            "status": "draft",
++            "plan_role": "child",
++            "set": "demo",
++            "order": 3,
++            "from_spec": "ab12cd",
++        },
++        "# IPD: Child\n\n## Goal\n\nImplements spec.\n",
++    )
++    assert selectors._declares_typed_subject(p_plan_from_spec, "ab12cd") is True
++    assert (
++        selectors.id6_ownership(p_plan_from_spec, "ab12cd")
++        == selectors.OWNERSHIP_REFERENCE
++    )
++
++
++def test_artifact_rename_to_id6_spec_walkthrough_prompt_and_idempotence(
++    tmp_path: Path,
++) -> None:
++    repo = _init_log_repo(tmp_path, git=True)
++    specs_dir = repo / ".aw" / "records" / "specs"
++    wt_dir = repo / ".aw" / "records" / "walkthroughs"
++    prompts_dir = repo / ".aw" / "records" / "prompts" / "pending"
++
++    # 1. Legacy spec with bullets
++    legacy_spec = specs_dir / "20260701-1200-01-legacy-spec.spec.md"
++    legacy_spec.write_text(
++        "# Spec: Legacy Spec\n\n"
++        "- Date: 2026-07-01\n"
++        "- Status: reviewed\n"
++        "- Author: reviewer\n\n"
++        "## Overview\n\n"
++        "Spec body stays intact.\n",
++        encoding="utf-8",
++    )
++
++    # 2. Dated walkthrough with bullets
++    dated_wt = wt_dir / "20260821-probe-rescope.walkthrough.md"
++    dated_wt.write_text(
++        "# Probe Walkthrough\n\n"
++        "- Date: 2026-08-21\n"
++        "- Author: tester\n\n"
++        "## Why\n\n"
++        "Walkthrough body.\n",
++        encoding="utf-8",
++    )
++
++    # 3. Bulletless walkthrough
++    bulletless_body = "# Decision Log\n\nAuthor: tester\nDate: 2026-08-23\n\n## Decisions\n\nx\n"
++    bulletless_wt = wt_dir / "20260823-bulletless-notes.walkthrough.md"
++    bulletless_wt.write_text(bulletless_body, encoding="utf-8")
++
++    # 4. Legacy prompt with aw-prompt comment
++    legacy_prompt = prompts_dir / "20260701-1200-01-legacy-ask.prompt.md"
++    legacy_prompt.write_text(
++        "<!-- aw-prompt: Kind: research | Status: pending | Created: 2026-07-01 . "
++        + meta.PROMPT_METADATA_TRAILER
++        + " -->\n# Prompt Title\n\nPrompt instructions.\n",
++        encoding="utf-8",
++    )
++
++    # 5. Commentless prompt
++    commentless_body = "# Bare Prompt\n\nJust prose.\n"
++    commentless_prompt = prompts_dir / "20260701-1200-02-bare-ask.prompt.md"
++    commentless_prompt.write_text(commentless_body, encoding="utf-8")
++
++    # 6. Already-clustered log-format spec
++    clustered_spec = _create_log_record(
++        repo,
++        "o3bq8p",
++        "spec",
++        "specs/20260701-o3bq8p-01-o3bq8p-already.spec.md",
++        {"status": "reviewed", "set": "o3bq8p", "order": 1, "title": "Already"},
++        "# Spec: Already\n\n## Overview\n\nUnchanged.\n",
++    )
++    clustered_before = clustered_spec.read_text(encoding="utf-8")
++    clustered_log_before = (
++        repo / ".aw" / "records" / "meta" / "o3bq8p.jsonl"
++    ).read_text(encoding="utf-8")
++
++    _git_commit_all(repo)
++
++    # Preview on legacy spec prints "would inject" and makes no changes
++    rc, out, err = _run_cli(repo, ["rename", "specs", legacy_spec.name, "--to-id6"])
++    assert rc == 0, out + err
++    assert "would inject" in out
++    assert legacy_spec.exists()
++
++    # Apply on legacy spec via run_rename_generic to inspect MutationResult.touched_paths + output
++    buf = io.StringIO()
++    with redirect_stdout(buf):
++        spec_res = artifact_rename.run_rename_generic(
++            argparse.Namespace(
++                dir=str(repo),
++                id=legacy_spec.name,
++                to_id6=True,
++                apply=True,
++                no_refs=False,
++                yes=True,
++                emit_human=True,
++            ),
++            "specs",
++        )
++    spec_out = buf.getvalue()
++    assert spec_res.rc == 0, (spec_res, spec_out)
++    assert "FILENAME ONLY" not in spec_out
++    assert not legacy_spec.exists()
++    spec_id6 = spec_res.targets[0].id6
++    assert spec_id6
++    new_spec = specs_dir / f"20260701-{spec_id6}-01-{spec_id6}-legacy-spec.spec.md"
++    assert new_spec.is_file()
++    new_spec_text = new_spec.read_text(encoding="utf-8")
++    assert meta.read_mirror_id6(new_spec_text) == spec_id6
++    assert "\n- Date:" not in new_spec_text
++    assert "\n- Status:" not in new_spec_text
++    assert "\n- Author:" not in new_spec_text
++    assert "Spec body stays intact." in new_spec_text
++    spec_log_rel = f".aw/records/meta/{spec_id6}.jsonl"
++    assert spec_log_rel in spec_res.touched_paths
++    spec_log = repo / spec_log_rel
++    assert spec_log.is_file()
++    spec_state = meta.read(spec_id6, project_context=meta.legacy_context(repo))
++    assert spec_state.type == "spec"
++    assert spec_state.status == "reviewed"
++    assert spec_state.fields.get("author") == "reviewer"
++
++    # Apply on dated bulleted walkthrough: creates type == "walkthrough" with NO status field
++    buf = io.StringIO()
++    with redirect_stdout(buf):
++        wt_res = artifact_rename.run_rename_generic(
++            argparse.Namespace(
++                dir=str(repo),
++                id=str(dated_wt),
++                to_id6=True,
++                apply=True,
++                no_refs=False,
++                yes=True,
++                emit_human=True,
++            ),
++            "walkthroughs",
++        )
++    wt_out = buf.getvalue()
++    assert wt_res.rc == 0, (wt_res, wt_out)
++    assert "FILENAME ONLY" not in wt_out
++    wt_id6 = wt_res.targets[0].id6
++    new_wt = wt_dir / f"20260821-{wt_id6}-01-{wt_id6}-probe-rescope.walkthrough.md"
++    assert new_wt.is_file()
++    new_wt_text = new_wt.read_text(encoding="utf-8")
++    assert meta.read_mirror_id6(new_wt_text) == wt_id6
++    assert "status:" not in new_wt_text.split("---", 2)[1]
++    assert "\n- Date:" not in new_wt_text
++    assert "\n- Author:" not in new_wt_text
++    assert "Walkthrough body." in new_wt_text
++    wt_log_rel = f".aw/records/meta/{wt_id6}.jsonl"
++    assert wt_log_rel in wt_res.touched_paths
++    wt_state = meta.read(wt_id6, project_context=meta.legacy_context(repo))
++    assert wt_state.type == "walkthrough"
++    assert wt_state.status is None
++    assert "status" not in wt_state.fields
++
++    # Bulletless walkthrough: prints FILENAME ONLY, renames filename-only, no body edit, no log
++    rc, bl_prev, err = _run_cli(repo, ["rename", "walkthroughs", str(bulletless_wt), "--to-id6"])
++    assert rc == 0, bl_prev + err
++    assert "FILENAME ONLY" in bl_prev
++    assert "would inject" not in bl_prev
++
++    buf = io.StringIO()
++    with redirect_stdout(buf):
++        bl_res = artifact_rename.run_rename_generic(
++            argparse.Namespace(
++                dir=str(repo),
++                id=str(bulletless_wt),
++                to_id6=True,
++                apply=True,
++                no_refs=False,
++                yes=True,
++                emit_human=True,
++            ),
++            "walkthroughs",
++        )
++    bl_out = buf.getvalue()
++    assert bl_res.rc == 0, (bl_res, bl_out)
++    assert "FILENAME ONLY" in bl_out
++    bl_id6 = bl_res.targets[0].id6
++    new_bl = wt_dir / f"20260823-{bl_id6}-01-{bl_id6}-bulletless-notes.walkthrough.md"
++    assert new_bl.is_file()
++    assert new_bl.read_text(encoding="utf-8") == bulletless_body
++    assert not (repo / ".aw" / "records" / "meta" / f"{bl_id6}.jsonl").exists()
++
++    # Legacy prompt with aw-prompt comment: initializes log, replaces comment cleanly (no duplicate)
++    buf = io.StringIO()
++    with redirect_stdout(buf):
++        pr_res = artifact_rename.run_rename_generic(
++            argparse.Namespace(
++                dir=str(repo),
++                id=legacy_prompt.name,
++                to_id6=True,
++                apply=True,
++                no_refs=False,
++                yes=True,
++                emit_human=True,
++            ),
++            "prompts",
++        )
++    assert pr_res.rc == 0, (pr_res, buf.getvalue())
++    pr_id6 = pr_res.targets[0].id6
++    new_pr = prompts_dir / f"20260701-{pr_id6}-01-{pr_id6}-legacy-ask.prompt.md"
++    assert new_pr.is_file()
++    new_pr_text = new_pr.read_text(encoding="utf-8")
++    assert meta.read_mirror_id6(new_pr_text) == pr_id6
++    assert new_pr_text.count("<!--") == 1
++    assert "Prompt instructions." in new_pr_text
++    assert f".aw/records/meta/{pr_id6}.jsonl" in pr_res.touched_paths
++    pr_state = meta.read(pr_id6, project_context=meta.legacy_context(repo))
++    assert pr_state.type == "prompt"
++    assert pr_state.status == "pending"
++
++    # Commentless prompt: filename-only, body untouched, no log created
++    buf = io.StringIO()
++    with redirect_stdout(buf):
++        cp_res = artifact_rename.run_rename_generic(
++            argparse.Namespace(
++                dir=str(repo),
++                id=commentless_prompt.name,
++                to_id6=True,
++                apply=True,
++                no_refs=False,
++                yes=True,
++                emit_human=True,
++            ),
++            "prompts",
++        )
++    assert cp_res.rc == 0, (cp_res, buf.getvalue())
++    assert "FILENAME ONLY" in buf.getvalue()
++    cp_id6 = cp_res.targets[0].id6
++    new_cp = prompts_dir / f"20260701-{cp_id6}-01-{cp_id6}-bare-ask.prompt.md"
++    assert new_cp.read_text(encoding="utf-8") == commentless_body
++    assert not (repo / ".aw" / "records" / "meta" / f"{cp_id6}.jsonl").exists()
++
++    # Already-clustered log-format spec: preview reports "no re-mint", apply leaves files unchanged
++    rc, idemp_prev, err = _run_cli(repo, ["rename", "specs", "o3bq8p", "--to-id6"])
++    assert rc == 0, idemp_prev + err
++    assert "no re-mint" in idemp_prev
++    rc, idemp_apply, err = _run_cli(
++        repo, ["rename", "specs", "o3bq8p", "--to-id6", "--apply", "--no-commit"]
++    )
++    assert rc == 0, idemp_apply + err
++    assert clustered_spec.read_text(encoding="utf-8") == clustered_before
++    assert (
++        repo / ".aw" / "records" / "meta" / "o3bq8p.jsonl"
++    ).read_text(encoding="utf-8") == clustered_log_before
++
++
++def test_artifact_rename_to_id6_rolls_back_git_mv_on_create_failure(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    repo = _init_log_repo(tmp_path, git=True)
++    specs_dir = repo / ".aw" / "records" / "specs"
++    legacy_spec = specs_dir / "20260701-1200-01-rollback-spec.spec.md"
++    orig_text = (
++        "# Spec: Rollback\n\n- Date: 2026-07-01\n- Status: draft\n\n## Overview\n\nKeep me.\n"
++    )
++    legacy_spec.write_text(orig_text, encoding="utf-8")
++    _git_commit_all(repo)
++
++    # Case 1: artifact_meta.create raises an exception -> git_mv is rolled back, exit 2
++    def _raise_create(*_args, **_kwargs):
++        raise ValueError("simulated log refusal")
++
++    monkeypatch.setattr(meta, "create", _raise_create)
++    res_exc = artifact_rename.run_rename_generic(
++        argparse.Namespace(
++            dir=str(repo),
++            id=legacy_spec.name,
++            to_id6=True,
++            apply=True,
++            no_refs=True,
++            yes=True,
++            emit_human=False,
++        ),
++        "specs",
++    )
++    assert res_exc.rc == 2
++    assert res_exc.diagnostics[0].rule == "meta-validation-error"
++    assert legacy_spec.is_file()
++    assert legacy_spec.read_text(encoding="utf-8") == orig_text
++    assert list(specs_dir.glob("*.spec.md")) == [legacy_spec]
++
++    # Case 2: artifact_meta.create returns committed=False -> git_mv is rolled back, exit 2
++    monkeypatch.setattr(
++        meta, "create", lambda *_a, **_kw: {"committed": False, "error": "busy"}
++    )
++    res_uncommitted = artifact_rename.run_rename_generic(
++        argparse.Namespace(
++            dir=str(repo),
++            id=legacy_spec.name,
++            to_id6=True,
++            apply=True,
++            no_refs=True,
++            yes=True,
++            emit_human=False,
++        ),
++        "specs",
++    )
++    assert res_uncommitted.rc == 2
++    assert res_uncommitted.diagnostics[0].rule == "meta-validation-error"
++    assert legacy_spec.is_file()
++    assert list(specs_dir.glob("*.spec.md")) == [legacy_spec]
++
++
++def test_artifact_rename_existing_type_id6s_and_read_existing_id6_cover_mirrors(
++    tmp_path: Path,
++) -> None:
++    repo = _init_log_repo(tmp_path)
++    specs_dir = repo / ".aw" / "records" / "specs"
++    prompts_dir = repo / ".aw" / "records" / "prompts" / "pending"
++
++    # Unclustered filenames whose only id6 declaration is in the YAML or managed-prompt mirror
++    sp_yaml = specs_dir / "20260701-1200-01-yaml-only.spec.md"
++    sp_yaml.write_text(
++        "\ufeff" + meta.render_in_file_mirror("ym1234", "spec", "draft") + "# Spec\n",
++        encoding="utf-8",
++    )
++    sp_bullet = specs_dir / "20260701-1200-02-bullet-only.spec.md"
++    sp_bullet.write_text("# Spec\n\n- Id: bl5678\n- Status: draft\n", encoding="utf-8")
++
++    pr_managed = prompts_dir / "20260701-1200-01-managed.prompt.md"
++    pr_managed.write_text(
++        meta.render_in_file_mirror("pm1234", "prompt", "pending") + "# Prompt\n",
++        encoding="utf-8",
++    )
++    pr_legacy = prompts_dir / "20260701-1200-02-legacy.prompt.md"
++    pr_legacy.write_text(
++        "<!-- aw-prompt: Kind: research | Id: pl5678 | Status: pending -->\n# Prompt\n",
++        encoding="utf-8",
++    )
++
++    assert artifact_rename._read_existing_id6(sp_yaml, "specs") == "ym1234"
++    assert artifact_rename._read_existing_id6(sp_bullet, "specs") == "bl5678"
++    assert artifact_rename._read_existing_id6(pr_managed, "prompts") == "pm1234"
++    assert artifact_rename._read_existing_id6(pr_legacy, "prompts") == "pl5678"
++
++    spec_ids = artifact_rename._existing_type_id6s(repo, "specs")
++    assert {"ym1234", "bl5678"}.issubset(spec_ids)
++
++    prompt_ids = artifact_rename._existing_type_id6s(repo, "prompts")
++    assert {"pm1234", "pl5678"}.issubset(prompt_ids)
 diff --git a/tests/test_history_date_clock_sidecar.py b/tests/test_history_date_clock_sidecar.py
 index f046ad08e..99b89945a 100644
 --- a/tests/test_history_date_clock_sidecar.py
