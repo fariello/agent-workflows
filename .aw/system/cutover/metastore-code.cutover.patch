@@ -12942,7 +12942,7 @@ index 4651ab385..69fbde857 100644
          "repo_root": str(repo_root),
          "release": _record_dict(repo_root, rec),
 diff --git a/agent_workflows/research_archive.py b/agent_workflows/research_archive.py
-index 2aa9e1960..f18bf5622 100644
+index 2aa9e1960..4e22de023 100644
 --- a/agent_workflows/research_archive.py
 +++ b/agent_workflows/research_archive.py
 @@ -26,7 +26,7 @@ from datetime import date, datetime
@@ -12963,7 +12963,16 @@ index 2aa9e1960..f18bf5622 100644
              continue
          if R.companion_owner_stem(p, research_root) is not None:
              continue
-@@ -357,21 +357,22 @@ def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> List
+@@ -334,6 +334,8 @@ def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> List
+ 
+     renames: Dict[str, str] = {}
+     touched: List[str] = []
++    meta_ctx = artifact_meta.legacy_context(repo_root)
++    meta_records = Path(meta_ctx.logical_roots["records"])
+     states = RI._cached_research_states(
+         research_root, repo_root=repo_root, include_fields=True
+     )
+@@ -357,27 +359,61 @@ def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> List
          event: Dict[str, object] = {"op": "transition", "to": m.new_status}
          if current_status:
              event["from"] = current_status
@@ -12971,12 +12980,12 @@ index 2aa9e1960..f18bf5622 100644
 -            artifact_meta.LegacyTarget(m.old_path, "research", m.id6 or None),
 +        # Spec 4.3: the move is the `transition` event's `path`; `append` writes the log and the
 +        # in-file mirror, then moves the file as a tracked rename.
-+        meta_ctx = artifact_meta.legacy_context(repo_root)
++        meta_id6 = artifact_meta.file_id6(m.old_path, m.id6 or None)
 +        event["path"] = artifact_meta.stored_path(
-+            m.new_path, Path(meta_ctx.logical_roots["records"]), repo_root
++            m.new_path, meta_records, repo_root
 +        )
 +        res = artifact_meta.append(
-+            artifact_meta.file_id6(m.old_path, m.id6 or None),
++            meta_id6,
              [event],
 -            legacy_render=artifact_meta.LegacyRender(
 -                tag=m.new_status,
@@ -12987,21 +12996,229 @@ index 2aa9e1960..f18bf5622 100644
 -            repo_root=repo_root,
 +            project_context=meta_ctx,
 +            actor={"tool": "aw research"},
++        )
++        if not res.get("committed") or res.get("warning"):
++            raise RuntimeError(
++                str(
++                    res.get("error")
++                    or res.get("warning")
++                    or f"{m.old_path}: the metadata write failed"
++                )
++            )
++        try:
++            src_rel = m.old_path.relative_to(repo_root).as_posix()
++        except ValueError:
++            src_rel = m.old_path.resolve().relative_to(repo_root.resolve()).as_posix()
++        try:
++            dst_rel = m.new_path.relative_to(repo_root).as_posix()
++        except ValueError:
++            dst_rel = m.new_path.resolve().relative_to(repo_root.resolve()).as_posix()
++        log_path = meta_records / "meta" / f"{meta_id6}.jsonl"
++        try:
++            log_rel: Optional[str] = (
++                log_path.resolve().relative_to(repo_root.resolve()).as_posix()
++            )
++        except ValueError:
++            log_rel = None
++        if log_rel is not None:
++            touched.append(log_rel)
++        # Move companion directory if present and the file actually relocated (E-05).
++        path_changed = (
++            m.old_path != m.new_path
++            and m.old_path.resolve() != m.new_path.resolve()
          )
 -        # Move as a tracked rename.
-+        if not res.get("committed"):
-+            raise RuntimeError(str(res.get("error") or f"{m.old_path}: the metadata write failed"))
-         src_rel = m.old_path.relative_to(repo_root).as_posix()
-         dst_rel = m.new_path.relative_to(repo_root).as_posix()
+-        src_rel = m.old_path.relative_to(repo_root).as_posix()
+-        dst_rel = m.new_path.relative_to(repo_root).as_posix()
 -        RF._git_mv(repo_root, src_rel, dst_rel)
-         # Move companion directory if present (E-05).
+-        # Move companion directory if present (E-05).
          comp = R.companion_dir_for(m.old_path)
-         if comp.is_dir():
+-        if comp.is_dir():
++        if comp.is_dir() and path_changed:
+             comp_dst = R.companion_dir_for(m.new_path)
+-            src_comp_rel = comp.relative_to(repo_root).as_posix()
+-            dst_comp_rel = comp_dst.relative_to(repo_root).as_posix()
++            try:
++                src_comp_rel = comp.relative_to(repo_root).as_posix()
++            except ValueError:
++                src_comp_rel = comp.resolve().relative_to(repo_root.resolve()).as_posix()
++            try:
++                dst_comp_rel = comp_dst.relative_to(repo_root).as_posix()
++            except ValueError:
++                dst_comp_rel = (
++                    comp_dst.resolve().relative_to(repo_root.resolve()).as_posix()
++                )
+             RF._git_mv(repo_root, src_comp_rel, dst_comp_rel)
+             for f in comp_dst.rglob("*"):
+                 if f.is_file():
 diff --git a/agent_workflows/research_cmd.py b/agent_workflows/research_cmd.py
-index 072b9a342..7167a2641 100644
+index 072b9a342..b0b561df0 100644
 --- a/agent_workflows/research_cmd.py
 +++ b/agent_workflows/research_cmd.py
-@@ -554,14 +554,9 @@ def _render_research_create(
+@@ -16,7 +16,7 @@ import argparse
+ from datetime import date, datetime
+ from pathlib import Path
+ import re
+-from typing import List, NamedTuple, Optional, Tuple
++from typing import Any, Dict, List, NamedTuple, Optional, Tuple
+ 
+ from agent_workflows import artifact_core as _core
+ from agent_workflows import attention_contract as A
+@@ -150,10 +150,12 @@ def _set_date_for_set(research_root: Path, set_id: str, default: str) -> str:
+     return default
+ 
+ 
+-# A planned document: its resolved path and its starter content.
++# A planned document: its resolved path, starter content, optional structured fields, and id6.
+ class PlannedFile(NamedTuple):
+     path: Path
+     content: str
++    fields: Optional[Dict[str, Any]] = None
++    id6: Optional[str] = None
+ 
+ 
+ def _refuse_unsafe_descriptive(
+@@ -302,6 +304,17 @@ def plan_new(
+     )
+     filename = R.format_name(name)
+     dest_path = research_root / filename
++    fields = _build_research_create_fields(
++        created=today,
++        set_id=derived_set,
++        order=order_n,
++        topic=topic or [],
++        model=model,
++        kind=kind,
++        summary=summary,
++        short_description=short_description,
++        priority=priority,
++    )
+     try:
+         content = _render_research_create(
+             research_root=research_root,
+@@ -316,10 +329,11 @@ def plan_new(
+             summary=summary,
+             short_description=short_description,
+             priority=priority,
++            fields=fields,
+         )
+     except ValueError as exc:
+         return None, str(exc)
+-    return [PlannedFile(dest_path, content)], None
++    return [PlannedFile(dest_path, content, fields=dict(fields), id6=id6)], None
+ 
+ 
+ def _compose_comparison_summary(user_summary: str, role: str) -> str:
+@@ -405,6 +419,15 @@ def plan_new_comparison(
+             kind=kind,
+         )
+         dest_path = research_root / R.format_name(name)
++        fields = _build_research_create_fields(
++            created=today,
++            set_id=derived_set,
++            order=order_n,
++            topic=topic or [],
++            model=model,
++            kind=kind,
++            summary=sm,
++        )
+         content = _render_research_create(
+             research_root=research_root,
+             dest_path=dest_path,
+@@ -416,8 +439,9 @@ def plan_new_comparison(
+             model=model,
+             kind=kind,
+             summary=sm,
++            fields=fields,
+         )
+-        return PlannedFile(dest_path, content)
++        return PlannedFile(dest_path, content, fields=dict(fields), id6=id6)
+ 
+     try:
+         # 00 = originating prompt
+@@ -508,11 +532,8 @@ def _research_root_for_file(target: Path, args: Optional[argparse.Namespace]) ->
+     return resolved_parent
+ 
+ 
+-def _render_research_create(
++def _build_research_create_fields(
+     *,
+-    research_root: Path,
+-    dest_path: Path,
+-    id6: str,
+     created: str,
+     set_id: str,
+     order: int,
+@@ -522,14 +543,9 @@ def _render_research_create(
+     summary: str,
+     short_description: Optional[str] = None,
+     priority: Optional[str] = None,
+-) -> str:
+-    """Render a new research document via ``artifact_meta.create(..., dry_run=True)``."""
+-    from agent_workflows import artifact_meta as _meta
+-
+-    ctx = _research_legacy_context(research_root)
+-    records_root = Path(ctx.logical_roots["records"])
+-    rel_dest = dest_path.resolve().relative_to(records_root).as_posix()
+-    fields: dict = {
++) -> Dict[str, Any]:
++    """Build the validated log field dictionary for a new research record."""
++    fields: Dict[str, Any] = {
+         "created": created,
+         "set": set_id,
+         "order": int(order),
+@@ -546,22 +562,59 @@ def _render_research_create(
+         fields["priority"] = priority
+     if short_description and short_description.strip():
+         fields["short_description"] = short_description
++    return fields
++
++
++def _render_research_create(
++    *,
++    research_root: Path,
++    dest_path: Path,
++    id6: str,
++    created: str,
++    set_id: str,
++    order: int,
++    topic: List[str],
++    model: Optional[str],
++    kind: str,
++    summary: str,
++    short_description: Optional[str] = None,
++    priority: Optional[str] = None,
++    fields: Optional[Dict[str, Any]] = None,
++) -> str:
++    """Render a new research document via ``artifact_meta.create(..., dry_run=True)``."""
++    from agent_workflows import artifact_meta as _meta
++
++    ctx = _research_legacy_context(research_root)
++    records_root = Path(ctx.logical_roots["records"])
++    rel_dest = dest_path.resolve().relative_to(records_root).as_posix()
++    create_fields = (
++        dict(fields)
++        if fields is not None
++        else _build_research_create_fields(
++            created=created,
++            set_id=set_id,
++            order=order,
++            topic=topic,
++            model=model,
++            kind=kind,
++            summary=summary,
++            short_description=short_description,
++            priority=priority,
++        )
++    )
++    if "status" in create_fields and create_fields["status"] is None:
++        del create_fields["status"]
+     preview = _meta.create(
+         id6,
+         "research",
+-        fields,
++        create_fields,
+         "",
          destination=rel_dest,
          dry_run=True,
          project_context=ctx,
@@ -13018,7 +13235,63 @@ index 072b9a342..7167a2641 100644
  
  
  def _write_planned_research_file(
-@@ -632,12 +627,7 @@ def _write_planned_research_file(
+@@ -576,22 +629,22 @@ def _write_planned_research_file(
+     ctx = _research_legacy_context(research_root)
+     records_root = Path(ctx.logical_roots["records"])
+     rel_dest = planned.path.resolve().relative_to(records_root).as_posix()
+-    fm = _meta.front_matter_mapping(planned.content)
+-    body = ""
+-    if fm is not None:
+-        lines = planned.content.splitlines(keepends=True)
+-        for i in range(1, len(lines)):
+-            if lines[i].strip() == "---":
+-                body = "".join(lines[i + 1 :])
+-                break
+-    else:
+-        body = planned.content
++    content_no_bom = planned.content.lstrip("\ufeff")
++    body = _meta._strip_leading_yaml_mirror(content_no_bom)
++    fm = _meta.front_matter_mapping(content_no_bom) if planned.fields is None else None
+     parsed_name, _ = R.parse_name(planned.path.name)
+-    id6 = (str(fm.get("id") or "") if fm is not None else "") or (
+-        parsed_name.id6 if parsed_name is not None else ""
+-    )
+-    fields: dict = {}
+-    if fm is not None:
++    id6 = planned.id6 or _meta.read_mirror_id6(planned.content) or ""
++    if not id6:
++        fm_for_id = fm if fm is not None else _meta.front_matter_mapping(content_no_bom)
++        id6 = (str(fm_for_id.get("id") or "") if fm_for_id is not None else "") or (
++            parsed_name.id6 if parsed_name is not None else ""
++        )
++    fields: Dict[str, Any] = {}
++    if planned.fields is not None:
++        fields = dict(planned.fields)
++        if "status" in fields and fields["status"] is None:
++            del fields["status"]
++    elif fm is not None:
+         if "created" in fm:
+             fields["created"] = fm["created"]
+         if "set" in fm:
+@@ -609,7 +662,7 @@ def _write_planned_research_file(
+             fields["model"] = fm["model"] or None
+         if "kind" in fm:
+             fields["research_kind"] = fm["kind"]
+-        if "status" in fm:
++        if "status" in fm and fm["status"] is not None:
+             fields["status"] = fm["status"]
+         if "outcome" in fm:
+             fields["outcome"] = fm["outcome"]
+@@ -623,7 +676,7 @@ def _write_planned_research_file(
+             fields["short_description"] = fm["short-description"]
+         if "ace" in fm:
+             fields["ace"] = fm["ace"]
+-    _meta.create(
++    res = _meta.create(
+         id6,
+         "research",
+         fields,
+@@ -632,13 +685,12 @@ def _write_planned_research_file(
          dry_run=False,
          overwrite=overwrite,
          project_context=ctx,
@@ -13030,9 +13303,14 @@ index 072b9a342..7167a2641 100644
 -        ),
 +        actor={"tool": "aw research"},
      )
++    if not res.get("committed"):
++        raise RuntimeError(
++            str(res.get("error") or f"{planned.path}: the metadata write failed")
++        )
  
  
-@@ -834,19 +824,18 @@ def _apply_research_meta_events(
+ def _research_root(args: argparse.Namespace) -> Path:
+@@ -834,19 +886,18 @@ def _apply_research_meta_events(
  
      ctx = _research_legacy_context(research_root, repo_root=repo_root)
      target_id6 = _resolved_research_id6(target, requested_id)
@@ -13085,7 +13363,7 @@ index 14e480bd9..9a585d8a0 100644
          or R.companion_owner_stem(p, research_root) is not None
      ):
 diff --git a/agent_workflows/research_refs.py b/agent_workflows/research_refs.py
-index ebb9bb13f..25e4416c3 100644
+index ebb9bb13f..70d249f66 100644
 --- a/agent_workflows/research_refs.py
 +++ b/agent_workflows/research_refs.py
 @@ -25,7 +25,6 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
@@ -13118,18 +13396,176 @@ index ebb9bb13f..25e4416c3 100644
  def _refuse_uncontained_destination(
      repo_root: Path, plans: List[RenamePlan]
  ) -> Optional[str]:
-@@ -597,31 +581,34 @@ def _apply_renames(
+@@ -554,41 +538,139 @@ def _apply_renames(
+         except ValueError:
+             return path.as_posix()
+ 
++    def _rel_in_repo(path: Path) -> Optional[str]:
++        try:
++            return path.resolve().relative_to(repo_root.resolve()).as_posix()
++        except ValueError:
++            return None
++
++    meta_ctx = artifact_meta.legacy_context(repo_root)
++    meta_records = Path(meta_ctx.logical_roots["records"])
++
++    # Pre-validate every plan in a first pass (while old_path still exists on disk) so a
++    # multi-id set-assign batch never half-applies (aligned with plans_refs.apply_renames).
++    prepared: List[
++        Tuple[
++            RenamePlan,
++            str,
++            Optional[R.ResearchName],
++            Optional[str],
++            List[dict],
++            bool,
++        ]
++    ] = []
+     for p in plans:
+-        src_rel = p.old_path.relative_to(repo_root).as_posix()
+-        dst_rel = p.new_path.relative_to(repo_root).as_posix()
+-        _git_mv(repo_root, src_rel, dst_rel)
+-        if emit_human:
+-            print(f"renamed {src_rel} -> {dst_rel}")
+         parsed, parse_err = R.parse_name(p.new_path.name)
+         target_id6 = parsed.id6 if parsed else ""
+-        targets_applied.append(
+-            MutationTarget(
+-                old_path=src_rel,
+-                new_path=dst_rel,
+-                id6=target_id6,
+-                kind="rename",
+-                detail=f"-> {p.new_path.name}",
+-            )
++        meta_id6 = artifact_meta.file_id6(p.old_path, target_id6 or None)
++        path_changed = (
++            p.old_path != p.new_path
++            and p.old_path.resolve() != p.new_path.resolve()
+         )
++        events: List[dict] = []
++        if path_changed:
++            # Spec 4.2/4.3: record path changes with `op: "rename"` and let `append`
++            # Step 2/Step 3 update the mirror and execute the tracked git_mv.
++            events.append(
++                {
++                    "op": "rename",
++                    "verb": verb,
++                    "path": artifact_meta.stored_path(
++                        p.new_path, meta_records, repo_root
++                    ),
++                }
++            )
++        if parsed is not None:
++            updates = _planned_frontmatter_updates(parsed)
++            cur = artifact_meta.read(meta_id6, project_context=meta_ctx).fields or {}
++            event_fields: Dict[str, object] = {}
++            for u_key, f_key in (
++                ("set", "set"),
++                ("order", "order"),
++                ("model", "model"),
++                ("kind", "research_kind"),
++            ):
++                if u_key not in updates:
++                    continue
++                val: object = (
++                    int(updates[u_key]) if u_key == "order" else updates[u_key]
++                )
++                if cur.get(f_key) != val:
++                    event_fields[f_key] = val
++            if event_fields:
++                events.append({"op": "set", "fields": event_fields})
++        if events:
++            artifact_meta.append(
++                meta_id6,
++                events,
++                dry_run=True,
++                project_context=meta_ctx,
++                actor={"tool": f"aw {verb}"},
++            )
++        prepared.append((p, meta_id6, parsed, parse_err, events, path_changed))
++
++    for p, meta_id6, parsed, parse_err, events, path_changed in prepared:
++        src_rel = _rel(p.old_path)
++        dst_rel = _rel(p.new_path)
++        target_id6 = parsed.id6 if parsed else ""
+         old_comp = R.companion_dir_for(p.old_path)
+         has_comp = old_comp.is_dir()
+-        if has_comp:
+-            new_comp = R.companion_dir_for(p.new_path)
+-            src_comp_rel = old_comp.relative_to(repo_root).as_posix()
+-            dst_comp_rel = new_comp.relative_to(repo_root).as_posix()
+-            _git_mv(repo_root, src_comp_rel, dst_comp_rel)
++        new_comp = R.companion_dir_for(p.new_path) if has_comp else None
++
++        if events:
++            res = artifact_meta.append(
++                meta_id6,
++                events,
++                project_context=meta_ctx,
++                actor={"tool": f"aw {verb}"},
++            )
++            if not res.get("committed") or res.get("warning"):
++                raise RuntimeError(
++                    str(
++                        res.get("error")
++                        or res.get("warning")
++                        or f"log append for {meta_id6} failed"
++                    )
++                )
++            log_rel = _rel_in_repo(meta_records / "meta" / f"{meta_id6}.jsonl")
++            if log_rel is not None:
++                touched.append(log_rel)
++
++        if path_changed:
+             if emit_human:
+-                print(f"renamed {src_comp_rel} -> {dst_comp_rel}")
++                print(f"renamed {src_rel} -> {dst_rel}")
+             targets_applied.append(
+                 MutationTarget(
+-                    old_path=src_comp_rel,
+-                    new_path=dst_comp_rel,
++                    old_path=src_rel,
++                    new_path=dst_rel,
+                     id6=target_id6,
+                     kind="rename",
+-                    detail=f"-> {new_comp.name}",
++                    detail=f"-> {p.new_path.name}",
+                 )
+             )
++            touched.append(src_rel)
++            touched.append(dst_rel)
++            if has_comp and new_comp is not None:
++                src_comp_rel = _rel(old_comp)
++                dst_comp_rel = _rel(new_comp)
++                _git_mv(repo_root, src_comp_rel, dst_comp_rel)
++                if emit_human:
++                    print(f"renamed {src_comp_rel} -> {dst_comp_rel}")
++                targets_applied.append(
++                    MutationTarget(
++                        old_path=src_comp_rel,
++                        new_path=dst_comp_rel,
++                        id6=target_id6,
++                        kind="rename",
++                        detail=f"-> {new_comp.name}",
++                    )
++                )
++                for f in new_comp.rglob("*"):
++                    if f.is_file():
++                        sub = f.relative_to(new_comp).as_posix()
++                        touched.append(f"{src_comp_rel}/{sub}")
++                        touched.append(f"{dst_comp_rel}/{sub}")
++
+         if parsed is None:
+             msg = f"warning: destination '{p.new_path.name}' is not a conformant research document: {parse_err}"
+             if emit_human:
+@@ -596,65 +678,17 @@ def _apply_renames(
+             notes_list.append(msg)
          else:
              updates = _planned_frontmatter_updates(parsed)
-             try:
+-            try:
 -                old_text = p.new_path.read_text(encoding="utf-8")
 -                present_keys = _first_frontmatter_keys(old_text)
-+                # Post-cutover (spec 4.1, 4.2) the fields live in the record's log, so a `set`
-+                # carries only the values the destination name changes.
-+                meta_ctx = artifact_meta.legacy_context(repo_root)
-+                meta_id6 = artifact_meta.file_id6(p.new_path, target_id6 or None)
-+                cur = artifact_meta.read(meta_id6, project_context=meta_ctx).fields or {}
-                 event_fields: Dict[str, object] = {}
+-                event_fields: Dict[str, object] = {}
 -                if "set" in updates and "set" in present_keys:
 -                    event_fields["set"] = updates["set"]
 -                if "order" in updates and "order" in present_keys:
@@ -13138,27 +13574,12 @@ index ebb9bb13f..25e4416c3 100644
 -                    event_fields["model"] = updates["model"]
 -                if "kind" in updates and "kind" in present_keys:
 -                    event_fields["research_kind"] = updates["kind"]
-+                for u_key, f_key in (
-+                    ("set", "set"),
-+                    ("order", "order"),
-+                    ("model", "model"),
-+                    ("kind", "research_kind"),
-+                ):
-+                    if u_key not in updates:
-+                        continue
-+                    val: object = (
-+                        int(updates[u_key]) if u_key == "order" else updates[u_key]
-+                    )
-+                    if cur.get(f_key) != val:
-+                        event_fields[f_key] = val
-                 if event_fields:
+-                if event_fields:
 -                    artifact_meta.append(
 -                        artifact_meta.LegacyTarget(
 -                            p.new_path, "research", target_id6 or None
 -                        ),
-+                    res = artifact_meta.append(
-+                        meta_id6,
-                         [{"op": "set", "fields": event_fields}],
+-                        [{"op": "set", "fields": event_fields}],
 -                        legacy_render=artifact_meta.LegacyRender(
 -                            tag=verb,
 -                            day=_core.utc_history_date(),
@@ -13166,18 +13587,32 @@ index ebb9bb13f..25e4416c3 100644
 -                            history=False,
 -                        ),
 -                        repo_root=repo_root,
-+                        project_context=meta_ctx,
-+                        actor={"tool": f"aw {verb}"},
-                     )
-+                    if not res.get("committed"):
-+                        raise RuntimeError(str(res.get("error") or "the metadata write failed"))
-                 if emit_human:
-                     print(f"set metadata {'/'.join(updates.keys())} in {dst_rel}")
-                 targets_applied.append(
-@@ -638,15 +625,6 @@ def _apply_renames(
-                 if emit_human:
-                     print(msg)
-                 notes_list.append(msg)
+-                    )
+-                if emit_human:
+-                    print(f"set metadata {'/'.join(updates.keys())} in {dst_rel}")
+-                targets_applied.append(
+-                    MutationTarget(
+-                        old_path=dst_rel,
+-                        new_path=dst_rel,
+-                        id6=target_id6,
+-                        kind="update",
+-                        detail=f"set metadata {'/'.join(updates.keys())}",
+-                    )
++            if emit_human:
++                print(f"set metadata {'/'.join(updates.keys())} in {dst_rel}")
++            targets_applied.append(
++                MutationTarget(
++                    old_path=dst_rel,
++                    new_path=dst_rel,
++                    id6=target_id6,
++                    kind="update" if events else "noop",
++                    detail=f"set metadata {'/'.join(updates.keys())}",
+                 )
+-            except Exception as e:
+-                msg = f"warning: could not update frontmatter in '{dst_rel}': {e}"
+-                if emit_human:
+-                    print(msg)
+-                notes_list.append(msg)
 -        # IPD 52zgqr: additive, failure-isolated rename ledger record (never breaks the rename).
 -        _rh.record_rename(
 -            repo_root,
@@ -13187,9 +13622,98 @@ index ebb9bb13f..25e4416c3 100644
 -            from_name=p.old_path.name,
 -            to_name=p.new_path.name,
 -        )
-         touched.append(src_rel)
-         touched.append(dst_rel)
-         if has_comp:
+-        touched.append(src_rel)
+-        touched.append(dst_rel)
+-        if has_comp:
+-            for f in new_comp.rglob("*"):
+-                if f.is_file():
+-                    sub = f.relative_to(new_comp).as_posix()
+-                    touched.append(f"{src_comp_rel}/{sub}")
+-                    touched.append(f"{dst_comp_rel}/{sub}")
++            )
+     for w in warnings:
+         if emit_human:
+             print(w)
+@@ -788,14 +822,30 @@ def run_set_assign(
+                 ),
+             ),
+         )
+-    res = _apply_renames(
+-        repo_root,
+-        plans or [],
+-        getattr(args, "apply", False),
+-        yes=bool(getattr(args, "yes", False)),
+-        notes=tuple(notes_from_run),
+-        emit_human=emit_human,
+-    )
++    try:
++        res = _apply_renames(
++            repo_root,
++            plans or [],
++            getattr(args, "apply", False),
++            yes=bool(getattr(args, "yes", False)),
++            notes=tuple(notes_from_run),
++            emit_human=emit_human,
++        )
++    except (RuntimeError, ValueError) as exc:
++        msg = f"error: {exc}"
++        if emit_human:
++            print(msg)
++        return MutationResult(
++            2,
++            diagnostics=(
++                MutationDiagnostic(
++                    location="metadata",
++                    rule="metadata-write-error",
++                    detail=msg,
++                    severity="error",
++                ),
++            ),
++        )
+     if res is None:
+         containment_err = _refuse_uncontained_destination(repo_root, plans or [])
+         collision_err = _refuse_destination_companion_collision(repo_root, plans or [])
+@@ -881,15 +931,31 @@ def run_mv(
+                 ),
+             ),
+         )
+-    res = _apply_renames(
+-        repo_root,
+-        [plan] if plan else [],
+-        getattr(args, "apply", False),
+-        verb="rename",
+-        yes=bool(getattr(args, "yes", False)),
+-        notes=tuple(notes_from_run),
+-        emit_human=emit_human,
+-    )
++    try:
++        res = _apply_renames(
++            repo_root,
++            [plan] if plan else [],
++            getattr(args, "apply", False),
++            verb="rename",
++            yes=bool(getattr(args, "yes", False)),
++            notes=tuple(notes_from_run),
++            emit_human=emit_human,
++        )
++    except (RuntimeError, ValueError) as exc:
++        msg = f"error: {exc}"
++        if emit_human:
++            print(msg)
++        return MutationResult(
++            2,
++            diagnostics=(
++                MutationDiagnostic(
++                    location="metadata",
++                    rule="metadata-write-error",
++                    detail=msg,
++                    severity="error",
++                ),
++            ),
++        )
+     if res is None:
+         containment_err = _refuse_uncontained_destination(
+             repo_root, [plan] if plan else []
 diff --git a/agent_workflows/review_findings.py b/agent_workflows/review_findings.py
 index 142df8fa4..d20a01048 100644
 --- a/agent_workflows/review_findings.py
@@ -26257,6 +26781,732 @@ index 000000000..7c8d660c6
 +    assert attempt["review_tier_facts"]["names_spec"] is True
 +    assert item["status"] != "fail-gate"
 +
+diff --git a/tests/test_cutover_log_research_writers.py b/tests/test_cutover_log_research_writers.py
+new file mode 100644
+index 000000000..69be15ce6
+--- /dev/null
++++ b/tests/test_cutover_log_research_writers.py
+@@ -0,0 +1,720 @@
++"""Core behavioral tests for log-aware research_cmd, research_refs, and research_archive (lec341)."""
++
++from __future__ import annotations
++
++import io
++import json
++import subprocess
++from contextlib import redirect_stderr, redirect_stdout
++from pathlib import Path
++from typing import List, Tuple
++
++import pytest
++
++from agent_workflows import artifact_meta as meta
++from agent_workflows import cli
++from agent_workflows import research_archive as ra
++from agent_workflows import research_cmd as rcmd
++from agent_workflows import research_contract as R
++from agent_workflows import research_index as ri
++from agent_workflows import research_refs as rrefs
++
++pytestmark = pytest.mark.core
++
++
++def _init_log_repo(tmp_path: Path, *, name: str = "repo", git: bool = True) -> Path:
++    repo = tmp_path / name
++    for sub in (
++        ".aw/config",
++        ".aw/state",
++        ".aw/records/meta",
++        ".aw/records/research",
++    ):
++        (repo / sub).mkdir(parents=True, exist_ok=True)
++    (repo / ".aw" / "config" / "project.json").write_text(
++        json.dumps(
++            {
++                "metadata_schema": 2,
++                "records_backend": "repository",
++                "placements": {"records": "target-tracked"},
++            }
++        )
++        + "\n",
++        encoding="utf-8",
++    )
++    if git:
++        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
++        subprocess.run(
++            ["git", "config", "user.email", "test@example.com"], cwd=repo, check=True
++        )
++        subprocess.run(
++            ["git", "config", "user.name", "Test User"], cwd=repo, check=True
++        )
++        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
++        subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, check=True)
++    return repo
++
++
++def _git_commit_all(repo: Path, msg: str = "seed") -> None:
++    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
++    subprocess.run(["git", "commit", "-q", "-m", msg], cwd=repo, check=True)
++
++
++def _git_last_commit_files(repo: Path) -> List[str]:
++    proc = subprocess.run(
++        ["git", "log", "-1", "--name-only", "--pretty=format:"],
++        cwd=repo,
++        capture_output=True,
++        text=True,
++        check=True,
++    )
++    return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
++
++
++def _run_cli(repo: Path, argv: List[str]) -> Tuple[int, str, str]:
++    out, err = io.StringIO(), io.StringIO()
++    if len(argv) >= 2 and argv[0] == "research" and argv[1] in ("new", "new-comparison"):
++        full_argv = [argv[0], argv[1], str(repo), *argv[2:]]
++    else:
++        full_argv = [*argv, "--dir", str(repo)]
++    with redirect_stdout(out), redirect_stderr(err):
++        try:
++            rc = cli.main(full_argv)
++        except SystemExit as exc:
++            rc = int(exc.code or 0)
++    return rc, out.getvalue(), err.getvalue()
++
++
++def _find_research_doc(repo: Path, id6: str) -> Path:
++    rroot = repo / ".aw" / "records" / "research"
++    matches = [
++        p
++        for p in rroot.rglob(f"*{id6}*.md")
++        if p.is_file() and R.companion_owner_stem(p, rroot) is None
++    ]
++    assert len(matches) == 1, f"expected 1 research doc for {id6}, got {matches}"
++    return matches[0]
++
++
++def test_research_new_and_new_comparison_persist_complete_log_metadata(
++    tmp_path: Path,
++) -> None:
++    repo = _init_log_repo(tmp_path, name="create-repo")
++    rroot = repo / ".aw" / "records" / "research"
++    ctx = meta.legacy_context(repo)
++
++    # Status-bearing findings record via CLI
++    rc, out, err = _run_cli(
++        repo,
++        [
++            "research",
++            "new",
++            "--kind",
++            "findings",
++            "--slug",
++            "cache-latency",
++            "--summary",
++            "Benchmark cache latency across tiers",
++            "--set",
++            "bench01",
++            "--order",
++            "2",
++            "--topic",
++            "perf,cache",
++            "--priority",
++            "high",
++            "--model",
++            "gpt-56",
++            "--date",
++            "20261126",
++            "--apply",
++        ],
++    )
++    assert rc == 0, f"findings create failed: {out}\n{err}"
++
++    # Statusless research-prompt record via CLI
++    rc_p, out_p, err_p = _run_cli(
++        repo,
++        [
++            "research",
++            "new",
++            "--kind",
++            "research-prompt",
++            "--slug",
++            "cache-prompt",
++            "--summary",
++            "Prompt for cache latency study",
++            "--set",
++            "bench01",
++            "--order",
++            "0",
++            "--topic",
++            "perf",
++            "--date",
++            "20261126",
++            "--apply",
++        ],
++    )
++    assert rc_p == 0, f"prompt create failed: {out_p}\n{err_p}"
++
++    # Multi-model comparison scaffold via CLI
++    rc_c, out_c, err_c = _run_cli(
++        repo,
++        [
++            "research",
++            "new-comparison",
++            "--set",
++            "cmp01",
++            "--slug",
++            "storage-engine",
++            "--models",
++            "gpt-56,sonnet5",
++            "--summary",
++            "Compare storage engines",
++            "--topic",
++            "storage,db",
++            "--date",
++            "20261126",
++            "--apply",
++        ],
++    )
++    assert rc_c == 0, f"new-comparison failed: {out_c}\n{err_c}"
++
++    entries, scan_drift = ri._scan_docs(rroot)
++    assert scan_drift == [], f"unexpected scan drift: {scan_drift}"
++    assert len(entries) == 6  # 2 from new + 4 from new-comparison (00, 01, 02, 03)
++
++    by_slug_kind = {(e.set_id, e.order, e.kind): e for e in entries}
++
++    # Check status-bearing findings record
++    e_find = by_slug_kind[("bench01", "02", "findings")]
++    assert e_find.status == "todo"
++    assert e_find.priority == "high"
++    assert e_find.topic == ["perf", "cache"]
++    assert e_find.model == "gpt56"
++    assert e_find.outcome == "none-yet"
++    assert e_find.summary == "Benchmark cache latency across tiers"
++    assert e_find.created == "20261126"
++
++    st_find = meta.read(e_find.id6, project_context=ctx)
++    assert st_find.status == "todo"
++    assert st_find.fields["created"] == "20261126"
++    assert st_find.fields["set"] == "bench01"
++    assert st_find.fields["order"] == 2
++    assert st_find.fields["topic"] == ["perf", "cache"]
++    assert st_find.fields["model"] == "gpt56"
++    assert st_find.fields["research_kind"] == "findings"
++    assert st_find.fields["outcome"] == "none-yet"
++    assert st_find.fields["summary"] == "Benchmark cache latency across tiers"
++    assert st_find.fields["consumed_by"] == []
++    assert st_find.fields["priority"] == "high"
++    assert st_find.fields["short_description"] == "Benchmark cache latency across tiers"
++
++    find_text = (rroot / e_find.path).read_text(encoding="utf-8")
++    assert find_text.count("aw-managed:") == 1
++    parsed_find_mirror = meta.parse_artifact_mirror(find_text, allow_statusless=True)
++    assert parsed_find_mirror == {"id": e_find.id6, "status": "todo"}
++
++    # Check statusless research-prompt keeps 1-key id-only mirror and zero duplicate banner
++    e_prompt = by_slug_kind[("bench01", "00", "research-prompt")]
++    assert e_prompt.status == ""
++    assert e_prompt.topic == ["perf"]
++    assert e_prompt.summary == "Prompt for cache latency study"
++    st_prompt = meta.read(e_prompt.id6, project_context=ctx)
++    assert st_prompt.status is None
++    prompt_create_fields = meta.history(e_prompt.id6, project_context=ctx)[0]["fields"]
++    assert "status" not in prompt_create_fields
++    assert st_prompt.fields["research_kind"] == "research-prompt"
++    assert st_prompt.fields["created"] == "20261126"
++
++    prompt_text = (rroot / e_prompt.path).read_text(encoding="utf-8")
++    assert prompt_text.count("aw-managed:") == 1
++    assert "status:" not in prompt_text
++    parsed_prompt_mirror = meta.parse_artifact_mirror(
++        prompt_text, allow_statusless=True
++    )
++    assert parsed_prompt_mirror == {"id": e_prompt.id6, "status": None}
++
++    # Check comparison set records (00 prompt, 01/02 model reports, 03 reconciliation)
++    e_cmp0 = by_slug_kind[("cmp01", "00", "research-prompt")]
++    e_cmp1 = by_slug_kind[("cmp01", "01", "research-report")]
++    e_cmp2 = by_slug_kind[("cmp01", "02", "research-report")]
++    e_cmp3 = by_slug_kind[("cmp01", "03", "reconciliation-report")]
++    assert e_cmp0.status == ""
++    assert e_cmp1.status == "todo"
++    assert e_cmp2.status == "todo"
++    assert e_cmp3.status == "todo"
++    assert e_cmp1.topic == ["storage", "db"]
++    assert e_cmp3.model == "reconciliation"
++    assert "Compare storage engines" in e_cmp3.summary
++
++    # Full check_drift passes clean
++    drift = ri.check_drift(repo, rroot)
++    assert drift == [], f"check_drift reported unexpected drift: {drift}"
++
++
++def test_planned_file_compat_bom_status_none_and_uncommitted_error(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    repo = _init_log_repo(tmp_path, name="compat-repo")
++    rroot = repo / ".aw" / "records" / "research"
++    ctx = meta.legacy_context(repo)
++
++    # plan_new and plan_new_comparison populate PlannedFile.fields and PlannedFile.id6
++    planned_list, err = rcmd.plan_new(
++        research_root=rroot,
++        kind="findings",
++        slug="alpha-study",
++        summary="Alpha study summary",
++        short_description="Alpha short desc",
++        set_id="salpha",
++        model="gpt-56",
++        topic=["alpha"],
++        date_str="20261126",
++        priority="medium",
++        order=1,
++    )
++    assert err is None and planned_list is not None and len(planned_list) == 1
++    pf = planned_list[0]
++    assert pf.id6 is not None and len(pf.id6) == 6
++    assert pf.fields is not None
++    assert pf.fields["created"] == "20261126"
++    assert pf.fields["set"] == "salpha"
++    assert pf.fields["order"] == 1
++    assert pf.fields["topic"] == ["alpha"]
++    assert pf.fields["model"] == "gpt56"
++    assert pf.fields["research_kind"] == "findings"
++    assert pf.fields["status"] == "todo"
++    assert pf.fields["priority"] == "medium"
++    assert pf.fields["short_description"] == "Alpha short desc"
++
++    cmp_list, cmp_err = rcmd.plan_new_comparison(
++        research_root=rroot,
++        set_id="scmp",
++        slug="beta",
++        models=["gpt-56"],
++        summary="Beta compare",
++        topic=["beta"],
++        date_str="20261126",
++    )
++    assert cmp_err is None and cmp_list is not None and len(cmp_list) == 3
++    assert all(p.fields is not None and p.id6 is not None for p in cmp_list)
++    assert "status" not in (cmp_list[0].fields or {})
++
++    # 2-arg PlannedFile(path, content) backward compatibility with UTF-8 BOM + full frontmatter
++    legacy_path = rroot / "20261126-leg01-01-leg101-legacy-compat.notes.md"
++    legacy_fm = rcmd.build_frontmatter(
++        id6="leg101",
++        created="20261126",
++        set_id="leg01",
++        order="01",
++        topic=["compat"],
++        model=None,
++        kind="notes",
++        status="todo",
++        outcome="none-yet",
++        summary="Legacy two-arg caller",
++        consumed_by=[],
++        priority="low",
++    )
++    two_arg = rcmd.PlannedFile(legacy_path, "\ufeff" + legacy_fm + "# Body\nHello.\n")
++    assert two_arg.fields is None and two_arg.id6 is None
++    rcmd._write_planned_research_file(two_arg, research_root=rroot, overwrite=False)
++    st_leg = meta.read("leg101", project_context=ctx)
++    assert st_leg.status == "todo"
++    assert st_leg.fields["set"] == "leg01"
++    assert st_leg.fields["order"] == 1
++    assert st_leg.fields["priority"] == "low"
++    assert st_leg.fields["summary"] == "Legacy two-arg caller"
++    leg_text = legacy_path.read_text(encoding="utf-8")
++    assert leg_text.count("aw-managed:") == 1
++    assert "# Body\nHello.\n" in leg_text
++
++    # PlannedFile with explicit status: None and leading BOM + existing mirror/banner
++    prompt_path = rroot / "20261126-prm01-00-prm202-bom-prompt.research-prompt.md"
++    raw_fields = {
++        "created": "20261126",
++        "set": "prm01",
++        "order": 0,
++        "topic": ["bom"],
++        "model": None,
++        "research_kind": "research-prompt",
++        "status": None,
++        "outcome": "none-yet",
++        "summary": "Statusless prompt with None status key",
++        "consumed_by": [],
++    }
++    bom_mirror = (
++        "\ufeff---\nid: prm202\n---\n"
++        "<!-- aw-managed: metadata lives in .aw/records/meta/prm202.jsonl; do not edit front matter by hand -->\n"
++        "# Prompt Body\n"
++    )
++    pf_none = rcmd.PlannedFile(prompt_path, bom_mirror, fields=raw_fields, id6="prm202")
++    rcmd._write_planned_research_file(pf_none, research_root=rroot, overwrite=False)
++    # Caller's original dict was copied, not mutated
++    assert "status" in raw_fields
++    st_prm = meta.read("prm202", project_context=ctx)
++    assert st_prm.status is None
++    prm_create_fields = meta.history("prm202", project_context=ctx)[0]["fields"]
++    assert "status" not in prm_create_fields
++    prm_text = prompt_path.read_text(encoding="utf-8")
++    assert prm_text.count("aw-managed:") == 1
++    assert "status:" not in prm_text
++    assert prm_text.endswith("# Prompt Body\n")
++
++    # Uncommitted _meta.create must raise RuntimeError (and exit non-zero through _emit_and_write)
++    monkeypatch.setattr(
++        meta,
++        "create",
++        lambda *a, **kw: {"committed": False, "error": "simulated write refusal"},
++    )
++    with pytest.raises(RuntimeError, match="simulated write refusal"):
++        rcmd._write_planned_research_file(pf, research_root=rroot, overwrite=False)
++    rc_fail = rcmd._emit_and_write([pf], apply=True, overwrite=False)
++    assert rc_fail == 2
++
++
++def test_research_mv_and_set_assign_atomic_rename_companion_and_commit(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    repo = _init_log_repo(tmp_path, name="refs-repo")
++    rroot = repo / ".aw" / "records" / "research"
++    ctx = meta.legacy_context(repo)
++
++    # Seed two research records through aw research new --apply
++    rc1, o1, e1 = _run_cli(
++        repo,
++        [
++            "research",
++            "new",
++            "--kind",
++            "notes",
++            "--slug",
++            "orig-one",
++            "--summary",
++            "First research note",
++            "--set",
++            "oldset",
++            "--order",
++            "1",
++            "--topic",
++            "t1",
++            "--date",
++            "20261120",
++            "--apply",
++        ],
++    )
++    assert rc1 == 0, f"{o1}\n{e1}"
++    rc2, o2, e2 = _run_cli(
++        repo,
++        [
++            "research",
++            "new",
++            "--kind",
++            "findings",
++            "--slug",
++            "orig-two",
++            "--summary",
++            "Second research note",
++            "--set",
++            "oldset",
++            "--order",
++            "2",
++            "--topic",
++            "t2",
++            "--date",
++            "20261120",
++            "--apply",
++        ],
++    )
++    assert rc2 == 0, f"{o2}\n{e2}"
++
++    entries, drift = ri._scan_docs(rroot)
++    assert drift == []
++    by_order = {e.order: e for e in entries}
++    id1 = by_order["01"].id6
++    id2 = by_order["02"].id6
++
++    # Attach a companion directory to doc 2 before committing seed state
++    doc2 = _find_research_doc(repo, id2)
++    comp2 = R.companion_dir_for(doc2)
++    comp2.mkdir(parents=True)
++    (comp2 / "figure.txt").write_text("chart data\n", encoding="utf-8")
++    _git_commit_all(repo, "seed research records")
++
++    # 1. Slug-only rename (empty event_fields): must still emit op="rename" and update state.path
++    p_slug, err_slug = rrefs.plan_mv(
++        rroot, id1, slug="renamed-slug", repo_root=repo
++    )
++    assert err_slug is None and p_slug is not None
++    mr_slug = rrefs._apply_renames(
++        repo, [p_slug], apply=True, verb="rename", emit_human=False
++    )
++    assert mr_slug is not None and mr_slug.rc == 0
++    assert f".aw/records/meta/{id1}.jsonl" in mr_slug.touched_paths
++    assert not p_slug.old_path.exists() and p_slug.new_path.exists()
++    st1 = meta.read(id1, project_context=ctx)
++    assert st1.path == f"research/{p_slug.new_path.name}"
++    hist1 = meta.history(id1, project_context=ctx)
++    rename_evs = [ev for ev in hist1 if ev.get("op") == "rename"]
++    assert len(rename_evs) == 1
++    assert rename_evs[0]["path"] == f"research/{p_slug.new_path.name}"
++
++    # 2. Same-path no-op rename: must NOT append op="rename" and touched_paths stays empty
++    p_noop, err_noop = rrefs.plan_mv(
++        rroot, id1, slug="renamed-slug", repo_root=repo
++    )
++    assert err_noop is None and p_noop is not None
++    assert p_noop.old_path == p_noop.new_path
++    mr_noop = rrefs._apply_renames(
++        repo, [p_noop], apply=True, verb="rename", emit_human=False
++    )
++    assert mr_noop is not None and mr_noop.rc == 0
++    assert mr_noop.touched_paths == ()
++    hist1_after_noop = meta.history(id1, project_context=ctx)
++    assert len([ev for ev in hist1_after_noop if ev.get("op") == "rename"]) == 1
++
++    # 3. aw research mv --model --kind --apply, then aw rename research --order --apply
++    rc_mv, o_mv, e_mv = _run_cli(
++        repo,
++        [
++            "research",
++            "mv",
++            id1,
++            "--model",
++            "gpt-56",
++            "--kind",
++            "research-report",
++            "--apply",
++            "--no-commit",
++        ],
++    )
++    assert rc_mv == 0, f"mv failed: {o_mv}\n{e_mv}"
++    rc_ord, o_ord, e_ord = _run_cli(
++        repo,
++        [
++            "rename",
++            "research",
++            id1,
++            "--order",
++            "5",
++            "--apply",
++            "--no-commit",
++        ],
++    )
++    assert rc_ord == 0, f"rename --order failed: {o_ord}\n{e_ord}"
++    doc1_new = _find_research_doc(repo, id1)
++    st1_mv = meta.read(id1, project_context=ctx)
++    assert st1_mv.path == f"research/{doc1_new.name}"
++    assert st1_mv.order_nn == 5
++    assert st1_mv.fields["model"] == "gpt56"
++    assert st1_mv.fields["research_kind"] == "research-report"
++
++    # Zero name-frontmatter-mismatch drift after mv
++    _, drift_mv = ri._scan_docs(rroot)
++    assert drift_mv == [], f"drift after mv: {drift_mv}"
++    _git_commit_all(repo, "commit mv changes")
++
++    # 4. aw research set-assign --set --order --date --apply --commit (with companion dir)
++    rc_sa, o_sa, e_sa = _run_cli(
++        repo,
++        [
++            "research",
++            "set-assign",
++            id1,
++            id2,
++            "--set",
++            "newset",
++            "--order",
++            "10",
++            "--date",
++            "20261126",
++            "--apply",
++            "--commit",
++        ],
++    )
++    assert rc_sa == 0, f"set-assign failed: {o_sa}\n{e_sa}"
++
++    doc1_sa = _find_research_doc(repo, id1)
++    doc2_sa = _find_research_doc(repo, id2)
++    st1_sa = meta.read(id1, project_context=ctx)
++    st2_sa = meta.read(id2, project_context=ctx)
++    assert st1_sa.set_id == "newset" and st1_sa.order_nn == 10
++    assert st1_sa.path == f"research/{doc1_sa.name}"
++    assert st2_sa.set_id == "newset" and st2_sa.order_nn == 11
++    assert st2_sa.path == f"research/{doc2_sa.name}"
++    # Companion directory moved alongside doc 2
++    new_comp2 = R.companion_dir_for(doc2_sa)
++    assert not comp2.exists()
++    assert (new_comp2 / "figure.txt").read_text(encoding="utf-8") == "chart data\n"
++    # Companion logs committed by --commit
++    committed = _git_last_commit_files(repo)
++    assert f".aw/records/meta/{id1}.jsonl" in committed
++    assert f".aw/records/meta/{id2}.jsonl" in committed
++    # Clean index scan
++    _, drift_sa = ri._scan_docs(rroot)
++    assert drift_sa == [], f"drift after set-assign: {drift_sa}"
++
++    # 5. Pre-validation atomicity on multi-id set-assign: if the 2nd item fails dry_run,
++    # the 1st item is completely untouched (file, log, and companion dir).
++    plans_batch, err_batch = rrefs.plan_set_assign(
++        rroot, [id1, id2], "atomset", "20261126", start_order=20, repo_root=repo
++    )
++    assert err_batch is None and plans_batch is not None and len(plans_batch) == 2
++    orig_append = meta.append
++
++    def _fail_second_dry_run(id6_arg, events_arg, **kwargs):
++        if kwargs.get("dry_run") and id6_arg == id2:
++            raise ValueError("simulated pre-validation failure on second item")
++        return orig_append(id6_arg, events_arg, **kwargs)
++
++    monkeypatch.setattr(meta, "append", _fail_second_dry_run)
++    with pytest.raises(ValueError, match="simulated pre-validation failure"):
++        rrefs._apply_renames(
++            repo, plans_batch, apply=True, verb="group", emit_human=False
++        )
++    # Neither file nor companion dir moved
++    assert doc1_sa.exists() and doc2_sa.exists()
++    assert not plans_batch[0].new_path.exists() and not plans_batch[1].new_path.exists()
++    assert meta.read(id1, project_context=ctx).set_id == "newset"
++
++    # 6. Non-swallowed append warning/failure in _apply_renames
++    p_bad1, _ = rrefs.plan_mv(rroot, id1, slug="should-not-move", repo_root=repo)
++    assert p_bad1 is not None
++
++    def _warn_append(id6_arg, events_arg, **kwargs):
++        if kwargs.get("dry_run"):
++            return orig_append(id6_arg, events_arg, **kwargs)
++        return {"committed": True, "warning": "change recorded; run repair (step 3 failed)"}
++
++    monkeypatch.setattr(meta, "append", _warn_append)
++    with pytest.raises(RuntimeError, match="step 3 failed"):
++        rrefs._apply_renames(
++            repo, [p_bad1], apply=True, verb="rename", emit_human=False
++        )
++    # File was not duplicate-moved
++    assert p_bad1.old_path.exists()
++    assert not p_bad1.new_path.exists()
++
++
++def test_research_archive_commit_promote_and_hot_companion_guard(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    repo = _init_log_repo(tmp_path, name="archive-repo")
++    rroot = repo / ".aw" / "records" / "research"
++    ctx = meta.legacy_context(repo)
++
++    # Seed three status-bearing docs
++    for slug, order in (("to-archive", "1"), ("to-reference", "2"), ("to-active", "3")):
++        rc, o, e = _run_cli(
++            repo,
++            [
++                "research",
++                "new",
++                "--kind",
++                "findings",
++                "--slug",
++                slug,
++                "--summary",
++                f"Summary for {slug}",
++                "--set",
++                "arch01",
++                "--order",
++                order,
++                "--topic",
++                "archive",
++                "--date",
++                "20261110",
++                "--apply",
++            ],
++        )
++        assert rc == 0, f"create {slug} failed: {o}\n{e}"
++
++    entries, drift = ri._scan_docs(rroot)
++    assert drift == []
++    by_order = {e.order: e for e in entries}
++    id_arch = by_order["01"].id6
++    id_ref = by_order["02"].id6
++    id_act = by_order["03"].id6
++
++    # Add companion directories to the archive doc and the hot-to-hot active doc
++    doc_arch = _find_research_doc(repo, id_arch)
++    comp_arch = R.companion_dir_for(doc_arch)
++    comp_arch.mkdir(parents=True)
++    (comp_arch / "raw.csv").write_text("a,b\n1,2\n", encoding="utf-8")
++
++    doc_act = _find_research_doc(repo, id_act)
++    comp_act = R.companion_dir_for(doc_act)
++    comp_act.mkdir(parents=True)
++    (comp_act / "notes.txt").write_text("hot companion\n", encoding="utf-8")
++
++    _git_commit_all(repo, "seed archive fixtures")
++
++    # 1. aw archive research <id> --apply --commit
++    rc_a, o_a, e_a = _run_cli(
++        repo,
++        ["archive", "research", id_arch, "--apply", "--commit"],
++    )
++    assert rc_a == 0, f"archive failed: {o_a}\n{e_a}"
++
++    st_arch = meta.read(id_arch, project_context=ctx)
++    assert st_arch.status == "archive"
++    assert st_arch.path == f"research/archive/202611/{doc_arch.name}"
++    arch_dst = rroot / "archive" / "202611" / doc_arch.name
++    assert arch_dst.is_file() and not doc_arch.exists()
++    assert meta.parse_artifact_mirror(
++        arch_dst.read_text(encoding="utf-8"), allow_statusless=True
++    ) == {"id": id_arch, "status": "archive"}
++    assert (R.companion_dir_for(arch_dst) / "raw.csv").is_file()
++    committed = _git_last_commit_files(repo)
++    assert f".aw/records/meta/{id_arch}.jsonl" in committed
++    assert f".aw/records/research/archive/202611/{doc_arch.name}" in committed
++
++    # 2. aw research promote <id> --to reference --apply
++    rc_r, o_r, e_r = _run_cli(
++        repo,
++        ["research", "promote", id_ref, "--to", "reference", "--apply"],
++    )
++    assert rc_r == 0, f"promote reference failed: {o_r}\n{e_r}"
++    st_ref = meta.read(id_ref, project_context=ctx)
++    ref_dst = _find_research_doc(repo, id_ref)
++    assert st_ref.status == "reference"
++    assert st_ref.path == f"research/reference/202611/{ref_dst.name}"
++    assert meta.parse_artifact_mirror(
++        ref_dst.read_text(encoding="utf-8"), allow_statusless=True
++    ) == {"id": id_ref, "status": "reference"}
++
++    # 3. Hot-to-hot todo -> active promote WITH companion directory via apply_moves
++    mv_act, err_act = ra.plan_transition(rroot, id_act, "active")
++    assert err_act is None and mv_act is not None
++    assert mv_act.old_path == mv_act.new_path
++    touched_act = ra.apply_moves(repo, rroot, [mv_act])
++    assert f".aw/records/meta/{id_act}.jsonl" in touched_act
++    st_act = meta.read(id_act, project_context=ctx)
++    assert st_act.status == "active"
++    assert st_act.path == f"research/{doc_act.name}"
++    assert meta.parse_artifact_mirror(
++        doc_act.read_text(encoding="utf-8"), allow_statusless=True
++    ) == {"id": id_act, "status": "active"}
++    assert (comp_act / "notes.txt").read_text(encoding="utf-8") == "hot companion\n"
++
++    # Zero drift across all archived, promoted, and active docs
++    _, drift_final = ri._scan_docs(rroot)
++    assert drift_final == [], f"drift after archive/promote: {drift_final}"
++
++    # 4. Step-3 warning from append must raise RuntimeError and NOT move companion dir
++    mv_warn, err_warn = ra.plan_transition(rroot, id_act, "archive")
++    assert err_warn is None and mv_warn is not None
++    monkeypatch.setattr(
++        meta,
++        "append",
++        lambda *a, **kw: {
++            "committed": True,
++            "warning": "change recorded; run repair (simulated move failure)",
++        },
++    )
++    with pytest.raises(RuntimeError, match="simulated move failure"):
++        ra.apply_moves(repo, rroot, [mv_warn])
++    # Companion directory must stay at its original hot location
++    assert (comp_act / "notes.txt").is_file()
++    assert not R.companion_dir_for(mv_warn.new_path).exists()
 diff --git a/tests/test_cutover_log_reviews_prompts_and_checks.py b/tests/test_cutover_log_reviews_prompts_and_checks.py
 new file mode 100644
 index 000000000..dd583b70c
