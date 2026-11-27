@@ -1,5 +1,5 @@
 - Id: 0b3ynm
-- Status: graduated
+- Status: done
 - Graduated-To: metastore
 - Set: metastore
 - Work-Kind: bug
@@ -11,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-27 done (aw backlog): closed by aw agy run: IPD 6cltab executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261127-metastore-322-6cltab-populate-cli-creator-log-fields-and-align-aw-find-bare-repo.ipd.md); evidence .aw/records/plans/executed/20261127-metastore-322-6cltab-populate-cli-creator-log-fields-and-align-aw-find-bare-repo.ipd.md
 - 2026-11-27 graduated (aw set): graduated to Order 322 (6cltab) in Set metastore
 - 2026-11-27 created (aw backlog): Post-cutover CLI creators (ipd_authoring, specs, releases, prompts) omit title, set, or order in artifact_meta.create fields
 
