@@ -130,6 +130,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-316-otin36-make-ipd-lifecycle-partition-plans-untooled-range-hooks-and.ipd.md
 - Making review mirrors/prompt metadata/priority (`p109wy`) and coverage/readiness/runner/review-sequence (`q6fiws`) log-aware: prerequisite production fixes ahead of batch D.
   - Carrier: q6fiws
+  - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-318-q6fiws-make-coverage-record-readiness-runner-and-review-sequence-ev.ipd.md
 - Making `selectors.py` status matching/typed-subject ownership and `artifact_rename.py` `--to-id6` log-aware (`OQ-01` Option 2, Order 319): first prerequisite production fix ahead of batch E.
   - Carrier: j1f454
 - Making `research_cmd.py` create, `research_refs.py` renames, and `research_archive.py` moves log-aware (`OQ-01` Option 2, Order 320): second prerequisite production fix ahead of batch E.

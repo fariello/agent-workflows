@@ -129,6 +129,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-317-p109wy-make-review-mirrors-prompt-metadata-and-check-engine-priorit.ipd.md
 - Making `coverage_record`, `orchestrator_readiness.review_readiness`, `plan_readiness`, `runner_shared`, and `review_tier`/`review_sequence`/`review_rereview` log-aware in the cutover code patch (`OQ-01` Option 2, Order 318): second prerequisite production fix ahead of batch D.
   - Carrier: q6fiws
+  - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-318-q6fiws-make-coverage-record-readiness-runner-and-review-sequence-ev.ipd.md
 - Modules outside batch D: the other batch children.
   - Carrier: qi0kl6
 - The final refusal list across all batches and the full-suite runs: the narrowed parent step.

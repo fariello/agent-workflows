@@ -124,6 +124,7 @@ flowchart TD
   - Carrier: qi0kl6
 - Prior prerequisite production fixes (`hdwqex`, `fljn9b`, `szykgd`, `otin36`, `p109wy`, `q6fiws`): already owned by Orders 305 and 314-318.
   - Carrier: q6fiws
+  - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-318-q6fiws-make-coverage-record-readiness-runner-and-review-sequence-ev.ipd.md
 - Applying the cutover patches on the real tree: attended cutover commit.
   - Carrier: cxxmyv
 

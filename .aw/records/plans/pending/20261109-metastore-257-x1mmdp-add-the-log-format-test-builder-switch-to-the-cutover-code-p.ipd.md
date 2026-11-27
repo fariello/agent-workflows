@@ -131,6 +131,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-317-p109wy-make-review-mirrors-prompt-metadata-and-check-engine-priorit.ipd.md
 - Making `coverage_record.py`, `orchestrator_readiness.py::review_readiness`, `plan_readiness.py`, `runner_shared.py`, and `review_tier.py`/`review_sequence.py`/`review_rereview.py` log-aware in the cutover code patch (`e0g2gt` OQ-01, maintainer answer 2026-11-26).
   - Carrier: q6fiws
+  - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-318-q6fiws-make-coverage-record-readiness-runner-and-review-sequence-ev.ipd.md
 - Making `selectors.py` status matching and typed-subject ownership and `artifact_rename.py` `--to-id6` log-aware in the cutover code patch (`qi0kl6` OQ-01, maintainer answer 2026-11-26).
   - Carrier: j1f454
 - Making `research_cmd.py` create, `research_refs.py` renames, and `research_archive.py` moves log-aware in the cutover code patch (`qi0kl6` OQ-01, maintainer answer 2026-11-26).
