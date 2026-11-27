@@ -136,6 +136,7 @@ flowchart TD
 
 - Making `agent_workflows/backlog.py` (including the `backlog.run_new` writing-standard pointer) log-aware: already owned by Order 314 ahead of `cugg3w`.
   - Carrier: fljn9b
+  - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-314-fljn9b-make-backlog-validation-and-readers-log-aware-in-the-cutover.ipd.md
 - Remaining production log-awareness fixes (`otin36` -> `p109wy` -> `q6fiws` -> `j1f454` -> `lec341` -> `3e0vfy`): chained immediately after this plan (`otin36` depends on `executed:szykgd`) and ahead of test batches B through F per `psm9ac` OQ-02 Option 1.
   - Carrier: otin36
 - Converting batch B's 18 test modules (`test_backlog_handoff_close` through `test_ipd_dependency_statement_gate`): runs after `3e0vfy` lands the remaining production log-awareness fixes.

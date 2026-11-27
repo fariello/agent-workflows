@@ -3828,10 +3828,507 @@ index faea97ac4..23295873c 100644
      if lower.endswith("-template.md") or lower.endswith("-index.md"):
          return True
 diff --git a/agent_workflows/backlog.py b/agent_workflows/backlog.py
-index 5395ccb00..d44f32213 100644
+index 5395ccb00..30e193203 100644
 --- a/agent_workflows/backlog.py
 +++ b/agent_workflows/backlog.py
-@@ -805,83 +805,6 @@ def _refuse_unsafe_descriptive(
+@@ -61,7 +61,7 @@ import datetime
+ import re
+ import sys
+ from pathlib import Path
+-from typing import Dict, List, Optional, Tuple
++from typing import Any, Dict, List, Optional, Tuple
+ 
+ from agent_workflows import artifact_core as core
+ from agent_workflows import attention_contract as A
+@@ -250,8 +250,9 @@ def find_duplicate_candidates_in_items(
+                 )
+             )
+             continue
+-        # 2. Co-occurrence of >= 2 distinctive tokens in full text
+-        shared_all = {tok for tok in in_all_tokens if tok in text}
++        # 2. Co-occurrence of >= 2 distinctive tokens in full text (summary + body)
++        search_text = f"{item_summary}\n{text}"
++        shared_all = {tok for tok in in_all_tokens if tok in search_text}
+         if len(shared_all) >= 2:
+             candidates.append(
+                 CandidateDuplicate(
+@@ -272,13 +273,17 @@ def find_duplicate_candidates(
+     body: str = "",
+ ) -> List[CandidateDuplicate]:
+     """Scan the repo's backlog items for potential duplicates of a proposed filing."""
++    from agent_workflows import artifact_meta as _meta
++
++    root = Path(repo_root)
+     items_data: List[Tuple[Path, BacklogItem, str]] = []
+-    for f in _iter_items(repo_root):
+-        try:
+-            text = f.read_text(encoding="utf-8")
+-        except OSError:
+-            continue
+-        items_data.append((f, item_from_text(text), text))
++    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++        for f in _iter_items(root):
++            try:
++                text = f.read_text(encoding="utf-8")
++            except OSError:
++                continue
++            items_data.append((f, _read_backlog_item(f, text, repo_root=root), text))
+     return find_duplicate_candidates_in_items(items_data, summary=summary, body=body)
+ 
+ 
+@@ -329,6 +334,164 @@ def _nonempty(value: object) -> Optional[str]:
+     return s or None
+ 
+ 
++def item_from_state(state: Any) -> BacklogItem:
++    """Build a :class:`BacklogItem` from an ``artifact_meta.State``.
++
++    Reads ``id``, ``status``, and ``set`` from ``state.id6``, ``state.status``, and
++    ``state.set_id`` with fallback to ``state.fields``, and reads ``summary`` from
++    ``state.fields.get("summary")`` with fallback to ``state.short_description`` and
++    ``state.fields.get("short_description")`` so log-format items without legacy
++    ``summary`` populate all fields cleanly.
++    """
++    fields = getattr(state, "fields", None) or {}
++    item = BacklogItem()
++    item.id = _single_token(getattr(state, "id6", None) or fields.get("id"))
++    item.status = _single_token(getattr(state, "status", None) or fields.get("status"))
++    item.set = _single_token(getattr(state, "set_id", None) or fields.get("set"))
++    item.priority = _single_token(fields.get("priority"))
++    item.kind = _single_token(fields.get("work_kind"))
++    item.summary = (
++        _nonempty(fields.get("summary"))
++        or _nonempty(getattr(state, "short_description", None))
++        or _nonempty(fields.get("short_description"))
++    )
++    item.gate_kind = _single_token(fields.get("gate_kind"))
++    item.gate_ref = _nonempty(fields.get("gate_ref"))
++    item.blocks_release = _single_token(fields.get("blocks_release"))
++    item.release_exempt_kind = _single_token(fields.get("release_exempt_kind"))
++    item.release_exempt_ref = _nonempty(fields.get("release_exempt_ref"))
++    item.close_evidence = _nonempty(fields.get("close_evidence"))
++    return item
++
++
++def _resolve_item_roots(
++    path: Path, *, repo_root: Optional[Path] = None
++) -> Tuple[Optional[Path], Optional[Path]]:
++    """Return ``(records_root, owner_repo_root)`` for a backlog item path.
++
++    Resolves ``records_root`` from ``path`` itself whenever ``path`` sits under
++    ``<records_root>/backlog/<status>/<file>`` (covering ``.aw/records/``, ``.agents/``,
++    companion, and home backends under spec 4sd62s AC-18), falling back to
++    ``_resolve_backlog_root(repo_root).parent`` when ``repo_root`` is supplied and
++    resolving the owning repository via ``project_context.record_owner_root`` when
++    ``repo_root`` is omitted.
++    """
++    from agent_workflows import project_context as _proj_ctx
++
++    p = Path(path)
++    if not p.is_absolute() and repo_root is not None:
++        p = Path(repo_root) / p
++
++    records_root: Optional[Path] = None
++    if p.parent.name in STATUSES and p.parent.parent.name == "backlog":
++        records_root = p.parent.parent.parent
++    elif repo_root is not None:
++        records_root = _resolve_backlog_root(Path(repo_root)).parent
++
++    owner: Optional[Path] = Path(repo_root).resolve() if repo_root is not None else None
++    if owner is None:
++        owner = _proj_ctx.record_owner_root(p)
++    if owner is None and records_root is not None:
++        rr = records_root.resolve()
++        if rr.name == "records" and rr.parent.name == ".aw":
++            owner = rr.parent.parent
++        elif rr.name == ".agents":
++            owner = rr.parent
++        else:
++            owner = rr
++    if records_root is None and owner is not None:
++        records_root = _resolve_backlog_root(owner).parent
++
++    return records_root, owner
++
++
++def _records_context(records_root: Path, owner: Optional[Path]) -> Any:
++    """Build a LegacyContext pointing ``records`` at ``records_root``."""
++    from agent_workflows import artifact_meta as _meta
++
++    rr = records_root.resolve()
++    repo = owner.resolve() if owner is not None else rr
++    base_ctx = _meta.legacy_context(repo)
++    return type(
++        "LegacyContext",
++        (),
++        {
++            "logical_roots": {
++                "records": str(rr),
++                "state": base_ctx.logical_roots["state"],
++            },
++            "repo_root": repo,
++        },
++    )()
++
++
++def companion_log_path(
++    path: Path, text: str, *, repo_root: Optional[Path] = None
++) -> Optional[Path]:
++    """Return the companion ``<records_root>/meta/<id6>.jsonl`` path for ``path``, or ``None``.
++
++    Extracts ``id6`` via ``artifact_meta.read_mirror_id6(text)`` without raising on legacy or
++    in-memory inputs. Does not require the log file to exist on disk so callers (such as the
++    freeze-time refusal cache) can distinguish absent vs present companion logs.
++    """
++    from agent_workflows import artifact_meta as _meta
++
++    id6 = _meta.read_mirror_id6(text)
++    if not id6 or not core.is_valid_id6(id6):
++        return None
++    records_root, _owner = _resolve_item_roots(path, repo_root=repo_root)
++    if records_root is None:
++        return None
++    return records_root / "meta" / f"{id6}.jsonl"
++
++
++def read_item_state(
++    path: Path,
++    text: str,
++    *,
++    repo_root: Optional[Path] = None,
++) -> Tuple[Any, Optional[bool], Optional[str]]:
++    """Load a backlog item's ``(state, has_history, log_error)`` log-first with legacy fallback.
++
++    When ``text`` declares a valid mirror id6 and ``<records_root>/meta/<id6>.jsonl`` exists,
++    reads ``artifact_meta.read`` and ``artifact_meta.history`` inside
++    ``artifact_meta.ephemeral_if_uninitialized()``. ``MetadataSchemaError`` propagates
++    untouched (spec 4sd62s AC-11). A corrupt or invalid companion log returns
++    ``(None, False, <error detail>)`` so validators fail closed cleanly.
++
++    When no companion log exists on disk, falls back to
++    ``artifact_meta.read_text(text, record_type="backlog")`` with ``has_history=None`` and
++    ``log_error=None``.
++    """
++    from agent_workflows import artifact_meta as _meta
++
++    id6 = _meta.read_mirror_id6(text)
++    if id6 and core.is_valid_id6(id6):
++        records_root, owner = _resolve_item_roots(path, repo_root=repo_root)
++        if records_root is not None:
++            log_path = records_root / "meta" / f"{id6}.jsonl"
++            if log_path.is_file():
++                ctx = _records_context(records_root, owner)
++                try:
++                    with _meta.ephemeral_if_uninitialized():
++                        st = _meta.read(id6, project_context=ctx)
++                        events = _meta.history(id6, project_context=ctx)
++                    return st, bool(events), None
++                except ValueError as exc:
++                    return None, False, str(exc)
++    return _meta.read_text(text, record_type="backlog"), None, None
++
++
++def _read_backlog_item(
++    path: Path, text: str, *, repo_root: Optional[Path] = None
++) -> BacklogItem:
++    """Read a :class:`BacklogItem` from companion log state when available, else from ``text``."""
++    st, log_has_history, log_error = read_item_state(path, text, repo_root=repo_root)
++    if log_error is None and log_has_history is not None and st is not None:
++        return item_from_state(st)
++    return item_from_text(text)
++
++
+ def item_from_text(text: str) -> BacklogItem:
+     """A :class:`BacklogItem` whose metadata fields are read through ``artifact_meta.read_text``.
+ 
+@@ -394,34 +557,14 @@ def prose_dash_advisories(path: Path, text: str) -> List[core.Drift]:
+     return out
+ 
+ 
+-def validate_item(path: Path, text: str) -> List[core.Drift]:
+-    """Validate one backlog item fail-closed. Returns Drift records (empty == conformant)."""
+-
+-    rel = drift_location(path)
++def _validate_backlog_fields(
++    rel: str,
++    path: Path,
++    item: BacklogItem,
++    gate_summary: Optional[str],
++) -> List[core.Drift]:
++    """Validate all backlog field invariants shared by log-backed and legacy items."""
+     drift: List[core.Drift] = []
+-    item = item_from_text(text)
+-
+-    # Duplicate-bullet rule (IPD 7ohskw E-02): walk the leading bullet block using the retired
+-    # parse_item's boundary and canonicalize the legacy Kind spelling.
+-    from agent_workflows import artifact_meta as _meta
+-
+-    gate_summary = _nonempty(
+-        (_meta.read_text(text, record_type="backlog").fields or {}).get("gate_summary")
+-    )
+-    key_counts: Dict[str, int] = {}
+-    for k, _ in _meta.list_metadata_bullets(text, leading_block_only=True):
+-        canon_k = "Work-Kind" if k == "Kind" else k
+-        key_counts[canon_k] = key_counts.get(canon_k, 0) + 1
+-
+-    for k, count in key_counts.items():
+-        if count > 1:
+-            drift.append(
+-                core.Drift(
+-                    rel,
+-                    "backlog.metadata-bullet-repeated",
+-                    f"metadata bullet - {k}: appears {count} times",
+-                )
+-            )
+ 
+     if not item.id or not core.is_valid_id6(item.id):
+         drift.append(
+@@ -570,10 +713,6 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
+             )
+ 
+     # gateatrest f7igdu E-02: validate close_evidence shape fail-closed.
+-    # gh409m byzkr7 E-05/E-06: with check_engine._META_CLOSE_EVIDENCE_RE widened to (.+?) matching
+-    # the retired backlog._CLOSE_EVIDENCE_RE, any value that passes attention_contract.is_safe_descriptive (single bounded
+-    # control-char-free line) is readable by both parser and predicate reader. Resolvability is not checked
+-    # here (f7igdu design constraint: shape checker with no repo root). No new drift rule is required.
+     if item.close_evidence is not None and not A.is_safe_descriptive(
+         item.close_evidence
+     ):
+@@ -585,8 +724,151 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
+             )
+         )
+ 
++    return drift
++
++
++def _duplicate_leading_bullet_drift(rel: str, text: str) -> List[core.Drift]:
++    """Emit ``backlog.metadata-bullet-repeated`` when leading metadata bullets repeat a key."""
++    from agent_workflows import artifact_meta as _meta
++
++    drift: List[core.Drift] = []
++    key_counts: Dict[str, int] = {}
++    for k, _ in _meta.list_metadata_bullets(text, leading_block_only=True):
++        canon_k = "Work-Kind" if k == "Kind" else k
++        key_counts[canon_k] = key_counts.get(canon_k, 0) + 1
++    for k, count in key_counts.items():
++        if count > 1:
++            drift.append(
++                core.Drift(
++                    rel,
++                    "backlog.metadata-bullet-repeated",
++                    f"metadata bullet - {k}: appears {count} times",
++                )
++            )
++    return drift
++
++
++def validate_item_state(
++    path: Path,
++    state: Any,
++    *,
++    has_history: bool,
++    text: Optional[str] = None,
++) -> List[core.Drift]:
++    """Validate one log-backed backlog item from ``artifact_meta.State`` and ``has_history``.
++
++    Mirrors ``specs.validate_spec_state``. When ``text`` is provided and starts with a YAML
++    mirror (``---``), validates the mirror through ``artifact_meta.parse_artifact_mirror`` and
++    verifies agreement with ``state.id6`` and ``state.status``.
++    """
++    from agent_workflows import artifact_meta as _meta
++
++    rel = drift_location(path)
++    drift: List[core.Drift] = []
++    item = item_from_state(state)
++    fields = getattr(state, "fields", None) or {}
++    gate_summary = _nonempty(fields.get("gate_summary"))
++
++    if text is not None:
++        drift.extend(_duplicate_leading_bullet_drift(rel, text))
++        stripped = text.lstrip("\ufeff")
++        if stripped.startswith("---"):
++            try:
++                mirror = _meta.parse_artifact_mirror(stripped)
++            except ValueError as exc:
++                drift.append(
++                    core.Drift(
++                        rel,
++                        "backlog.id-invalid",
++                        f"malformed YAML mirror: {exc}",
++                    )
++                )
++            else:
++                mirror_id = mirror.get("id")
++                if item.id and mirror_id != item.id:
++                    drift.append(
++                        core.Drift(
++                            rel,
++                            "backlog.id-invalid",
++                            f"YAML mirror id {mirror_id!r} != metadata log id {item.id!r}",
++                        )
++                    )
++                mirror_status = mirror.get("status")
++                if item.status and mirror_status != item.status:
++                    drift.append(
++                        core.Drift(
++                            rel,
++                            "backlog.status-invalid",
++                            f"YAML mirror status {mirror_status!r} != metadata log status {item.status!r}",
++                        )
++                    )
++
++    drift.extend(_validate_backlog_fields(rel, path, item, gate_summary))
++
++    if not has_history:
++        drift.append(
++            core.Drift(
++                rel,
++                "backlog.history-empty",
++                "no conformant workflow history record in metadata log",
++            )
++        )
++
++    return drift
++
++
++def validate_item(
++    path: Path,
++    text: str,
++    *,
++    state: Any = None,
++    has_history: Optional[bool] = None,
++    repo_root: Optional[Path] = None,
++) -> List[core.Drift]:
++    """Validate one backlog item fail-closed. Returns Drift records (empty == conformant)."""
+     from agent_workflows import artifact_meta as _meta
+ 
++    rel = drift_location(path)
++
++    if state is not None:
++        eff_has_history = (
++            bool(has_history)
++            if has_history is not None
++            else bool(
++                getattr(state, "last_seq", 0) > 0
++                or getattr(state, "last_history_day", None)
++            )
++        )
++        return validate_item_state(path, state, has_history=eff_has_history, text=text)
++
++    resolved_state, log_has_history, log_error = read_item_state(
++        path, text, repo_root=repo_root
++    )
++    if log_error is not None:
++        return [
++            core.Drift(
++                rel,
++                "backlog.id-invalid",
++                f"corrupt/invalid metadata log: {log_error}",
++            )
++        ]
++    if log_has_history is not None:
++        eff_has_history = (
++            bool(has_history) if has_history is not None else bool(log_has_history)
++        )
++        return validate_item_state(
++            path, resolved_state, has_history=eff_has_history, text=text
++        )
++
++    # Legacy bullet-format validation when no companion meta/<id6>.jsonl exists.
++    drift: List[core.Drift] = []
++    item = item_from_text(text)
++    gate_summary = _nonempty(
++        (getattr(resolved_state, "fields", None) or {}).get("gate_summary")
++    )
++    drift.extend(_duplicate_leading_bullet_drift(rel, text))
++    drift.extend(_validate_backlog_fields(rel, path, item, gate_summary))
++
+     _, hist_block, has_heading = _meta.split_history_section(text)
+     if not hist_block.records:
+         if not has_heading:
+@@ -628,16 +910,19 @@ def existing_backlog_ids(repo_root: Path) -> set:
+ 
+     Used by the `check.from-backlog-dangling` scan (bklggrad Order ku93tn) to confirm a plan's
+     `From-Backlog` value resolves to a real backlog item."""
++    from agent_workflows import artifact_meta as _meta
+ 
+     ids: set = set()
+-    for f in _iter_items(Path(repo_root)):
+-        try:
+-            text = f.read_text(encoding="utf-8")
+-        except OSError:
+-            continue
+-        item = item_from_text(text)
+-        if item.id:
+-            ids.add(item.id)
++    root = Path(repo_root)
++    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++        for f in _iter_items(root):
++            try:
++                text = f.read_text(encoding="utf-8")
++            except OSError:
++                continue
++            item = _read_backlog_item(f, text, repo_root=root)
++            if item.id:
++                ids.add(item.id)
+     return ids
+ 
+ 
+@@ -658,14 +943,18 @@ def blocks_release_of_item(repo_root: Path, item_id6: Optional[str]) -> Optional
+ 
+     if not item_id6 or item_id6 == "-":
+         return None
+-    for f in _iter_items(Path(repo_root)):
+-        try:
+-            text = f.read_text(encoding="utf-8")
+-        except OSError:
+-            continue
+-        item = item_from_text(text)
+-        if item.id == item_id6:
+-            return item.blocks_release
++    from agent_workflows import artifact_meta as _meta
++
++    root = Path(repo_root)
++    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++        for f in _iter_items(root):
++            try:
++                text = f.read_text(encoding="utf-8")
++            except OSError:
++                continue
++            item = _read_backlog_item(f, text, repo_root=root)
++            if item.id == item_id6:
++                return item.blocks_release
+     return None
+ 
+ 
+@@ -678,14 +967,18 @@ def find_item(repo_root: Path, item_id6: Optional[str]) -> Optional[BacklogItem]
+ 
+     if not item_id6:
+         return None
+-    for f in _iter_items(Path(repo_root)):
+-        try:
+-            text = f.read_text(encoding="utf-8")
+-        except OSError:
+-            continue
+-        item = item_from_text(text)
+-        if item.id == item_id6:
+-            return item
++    from agent_workflows import artifact_meta as _meta
++
++    root = Path(repo_root)
++    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++        for f in _iter_items(root):
++            try:
++                text = f.read_text(encoding="utf-8")
++            except OSError:
++                continue
++            item = _read_backlog_item(f, text, repo_root=root)
++            if item.id == item_id6:
++                return item
+     return None
+ 
+ 
+@@ -805,83 +1098,6 @@ def _refuse_unsafe_descriptive(
      return A.refuse_unsafe_descriptive(verb, flag, value, bound_length=bound_length)
  
  
@@ -3915,7 +4412,76 @@ index 5395ccb00..d44f32213 100644
  # --------------------------------------------------------------------------------------
  # Release exemption validation (IPD ghna7l E-04)
  # --------------------------------------------------------------------------------------
-@@ -1133,26 +1056,10 @@ def run_new(args) -> int:
+@@ -934,18 +1150,21 @@ def run_new(args) -> int:
+     status = getattr(args, "status", None) or "open"
+     if status not in STATUSES:
+         return _refuse(f"aw backlog new: --status must be one of {sorted(STATUSES)}")
++    from agent_workflows import artifact_meta as _meta
++
+     item = BacklogItem()
+     existing_ids = set()
+     existing_items_data: List[Tuple[Path, BacklogItem, str]] = []
+-    for f in _iter_items(repo_root):
+-        try:
+-            text = f.read_text(encoding="utf-8")
+-        except OSError:
+-            continue
+-        parsed = item_from_text(text)
+-        if parsed.id:
+-            existing_ids.add(parsed.id)
+-        existing_items_data.append((f, parsed, text))
++    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++        for f in _iter_items(repo_root):
++            try:
++                text = f.read_text(encoding="utf-8")
++            except OSError:
++                continue
++            parsed = _read_backlog_item(f, text, repo_root=repo_root)
++            if parsed.id:
++                existing_ids.add(parsed.id)
++            existing_items_data.append((f, parsed, text))
+     # IPD sk7ggr E-01: mint against the REPOSITORY-WIDE id6 set (terminal artifacts included), not
+     # just this tree's ids. The backlog set is unioned in, so this is strictly stronger than before.
+     item.id = core.mint_id6(repo_root, existing_ids)
+@@ -1085,6 +1304,13 @@ def run_new(args) -> int:
+     dest = backlog_root / subdir / filename
+     rel_dest = f"{backlog_root.name}/{subdir}/{filename}"
+     body = getattr(args, "body", None) or ""
++    pointer = core.writing_standard_pointer("backlog item")
++    if pointer in body:
++        create_body = body if body.startswith("\n") else f"\n{body}"
++    elif body.strip():
++        create_body = f"\n{pointer}\n\n{body.lstrip(chr(10))}"
++    else:
++        create_body = f"\n{pointer}\n"
+ 
+     create_fields: Dict[str, object] = {
+         "status": item.status,
+@@ -1111,48 +1337,19 @@ def run_new(args) -> int:
+     hist_message = ((message or "").strip() or item.summary).strip()
+     apply = bool(getattr(args, "apply", False))
+ 
+-    from agent_workflows import artifact_meta as _meta
+-
+-    base_ctx = _meta.legacy_context(repo_root)
+-    create_ctx = type(
+-        "LegacyContext",
+-        (),
+-        {
+-            "logical_roots": {
+-                "records": str(records_root),
+-                "state": base_ctx.logical_roots["state"],
+-            },
+-            "repo_root": Path(repo_root).resolve(),
+-        },
+-    )()
++    create_ctx = _records_context(records_root, repo_root)
+     preview = _meta.create(
+         item.id,
+         "backlog",
+         create_fields,
+-        body,
++        create_body,
          destination=rel_dest,
          dry_run=not apply,
          project_context=create_ctx,
@@ -3944,7 +4510,7 @@ index 5395ccb00..d44f32213 100644
  
      # IPD fwgq2u E-02 / OQ-01: near-duplicate advisory guard. Reuses the existing_items_data walk
      # performed above rather than doing a second corpus pass (which would be 59t9x5 double-read in
-@@ -1299,9 +1206,8 @@ def run_new(args) -> int:
+@@ -1299,9 +1496,8 @@ def run_new(args) -> int:
          sys.stdout.write(f"--- would write {dest} ---\n{rendered}")
          return 0
  
@@ -3956,22 +4522,42 @@ index 5395ccb00..d44f32213 100644
      if ctx.is_agent or ctx.is_json:
          res = CommandResult(
              command="backlog new",
-@@ -1449,7 +1355,6 @@ def run_note(args) -> int:
+@@ -1448,43 +1644,29 @@ def run_note(args) -> int:
+ 
      src = res.paths[0]
      text = src.read_text(encoding="utf-8")
-     item = item_from_text(text)
+-    item = item_from_text(text)
 -    date = getattr(args, "date", None) or core.utc_history_date()
++    records_root, owner = _resolve_item_roots(src, repo_root=repo_root)
++    if records_root is None:
++        records_root = _resolve_backlog_root(repo_root).parent
++    item = _read_backlog_item(src, text, repo_root=repo_root)
  
      from agent_workflows import artifact_meta as _meta
  
-@@ -1466,25 +1371,16 @@ def run_note(args) -> int:
-             "repo_root": Path(repo_root).resolve(),
-         },
-     )()
+-    base_ctx = _meta.legacy_context(repo_root)
+-    records_root = _resolve_backlog_root(repo_root).parent
+-    note_ctx = type(
+-        "LegacyContext",
+-        (),
+-        {
+-            "logical_roots": {
+-                "records": str(records_root),
+-                "state": base_ctx.logical_roots["state"],
+-            },
+-            "repo_root": Path(repo_root).resolve(),
+-        },
+-    )()
 -    _meta.append(
 -        _meta.LegacyTarget(src, "backlog", item.id),
++    note_ctx = _records_context(records_root, owner or repo_root)
++    target_id6 = (
++        item.id
++        or _meta.read_mirror_id6(text)
++        or _meta.file_id6(src, item.id)
++    )
 +    note_res = _meta.append(
-+        _meta.file_id6(src, item.id),
++        target_id6,
          [{"op": "note", "message": message}],
 -        repo_root=repo_root,
          project_context=note_ctx,
@@ -3997,7 +4583,7 @@ index 5395ccb00..d44f32213 100644
      return 0
  
  
-@@ -1519,50 +1415,6 @@ def _prior_history_records(text: str) -> List[str]:
+@@ -1519,50 +1701,6 @@ def _prior_history_records(text: str) -> List[str]:
      return _meta.history_records(text).record_lines
  
  
@@ -4048,11 +4634,114 @@ index 5395ccb00..d44f32213 100644
  def run_check(args) -> int:
      from agent_workflows.artifact_types import EXIT_CANNOT_RUN
      from agent_workflows.project_context import (
+@@ -1605,28 +1743,52 @@ def run_check(args) -> int:
+         sys.stderr.write((refusal.human_message or "") + "\n")
+         return EXIT_CANNOT_RUN
+ 
++    from agent_workflows import artifact_meta as _meta
++
+     drift: List[core.Drift] = []
+     seen_ids: Dict[str, str] = {}
+     items_count = 0
+-    for f in _iter_items(repo_root):
+-        items_count += 1
+-        text = f.read_text(encoding="utf-8")
+-        item_drift = validate_item(f, text)
+-        drift.extend(item_drift)
+-        drift.extend(prose_dash_advisories(f, text))
+-        pid = item_from_text(text).id
+-        if pid and core.is_valid_id6(pid):
+-            loc = drift_location(f)
+-            if pid in seen_ids:
+-                drift.append(
++    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++        for f in _iter_items(repo_root):
++            items_count += 1
++            text = f.read_text(encoding="utf-8")
++            st, log_has_history, log_error = read_item_state(
++                f, text, repo_root=repo_root
++            )
++            if log_error is not None:
++                item_drift = [
+                     core.Drift(
+-                        loc,
+-                        "backlog.id-duplicate",
+-                        f"id {pid} also in {seen_ids[pid]}",
++                        drift_location(f),
++                        "backlog.id-invalid",
++                        f"corrupt/invalid metadata log: {log_error}",
+                     )
++                ]
++                pid = _meta.read_mirror_id6(text) or item_from_text(text).id
++            elif log_has_history is not None:
++                item_drift = validate_item(
++                    f, text, state=st, has_history=log_has_history, repo_root=repo_root
++                )
++                pid = _single_token(
++                    getattr(st, "id6", None)
++                    or (getattr(st, "fields", None) or {}).get("id")
+                 )
+             else:
+-                seen_ids[pid] = loc
++                item_drift = validate_item(f, text, repo_root=repo_root)
++                pid = item_from_text(text).id
++            drift.extend(item_drift)
++            drift.extend(prose_dash_advisories(f, text))
++            if pid and core.is_valid_id6(pid):
++                loc = drift_location(f)
++                if pid in seen_ids:
++                    drift.append(
++                        core.Drift(
++                            loc,
++                            "backlog.id-duplicate",
++                            f"id {pid} also in {seen_ids[pid]}",
++                        )
++                    )
++                else:
++                    seen_ids[pid] = loc
+ 
+     ctx = select_output(args)
+     # rolswj/akhwp7: ONE count expression read by the human AND machine branches.
 diff --git a/agent_workflows/check_engine.py b/agent_workflows/check_engine.py
-index 9b09c151c..8a8cac230 100644
+index 9b09c151c..8c48f777e 100644
 --- a/agent_workflows/check_engine.py
 +++ b/agent_workflows/check_engine.py
-@@ -1975,27 +1975,10 @@ def validate_prompt_content(
+@@ -1639,20 +1639,22 @@ def check_content(
+         except Exception:
+             pass
+     elif record_type == "backlog":
++        from agent_workflows import artifact_meta as _meta
+         from agent_workflows import backlog as _backlog
+ 
+-        for p in _iter_type_files(
+-            repo_root,
+-            "backlog",
+-            include_untracked=include_untracked,
+-            include_retired=include_retired,
+-        ):
+-            try:
+-                text = p.read_text(encoding="utf-8")
+-                drift.extend(_backlog.validate_item(p, text))
+-                drift.extend(_backlog.prose_dash_advisories(p, text))
+-            except OSError:
+-                continue
++        with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++            for p in _iter_type_files(
++                repo_root,
++                "backlog",
++                include_untracked=include_untracked,
++                include_retired=include_retired,
++            ):
++                try:
++                    text = p.read_text(encoding="utf-8")
++                    drift.extend(_backlog.validate_item(p, text, repo_root=repo_root))
++                    drift.extend(_backlog.prose_dash_advisories(p, text))
++                except OSError:
++                    continue
+         try:
+             drift.extend(
+                 check_graduation_incomplete(
+@@ -1975,27 +1977,10 @@ def validate_prompt_content(
              comment_id = _meta_declared_id6(st_obj)
              comment_status = st_obj.status or st_obj.legacy_raw_status
          else:
@@ -4084,7 +4773,7 @@ index 9b09c151c..8a8cac230 100644
  
          m = _naming.parse_clustered(path.name)
          if m and not _re.fullmatch(r"\d{4}", m.group("set")):
-@@ -4245,7 +4228,7 @@ def check_ipd_draft_ready(
+@@ -4245,7 +4230,7 @@ def check_ipd_draft_ready(
      from agent_workflows import ipd_authoring as _authoring
  
      drift: List[_core.Drift] = []
@@ -4093,7 +4782,7 @@ index 9b09c151c..8a8cac230 100644
      for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
          # Only nudge a plan that is actually in a pending lane (not executed/superseded/etc.).
          if "pending" not in p.parts:
-@@ -4261,7 +4244,7 @@ def check_ipd_draft_ready(
+@@ -4261,7 +4246,7 @@ def check_ipd_draft_ready(
                  text = p.read_text(encoding="utf-8")
              except OSError:
                  continue
@@ -4102,7 +4791,7 @@ index 9b09c151c..8a8cac230 100644
              continue  # still a stub: stay silent
          id6 = _meta_declared_id6(st_obj) or p.stem
          recovery = f"aw ipd set to-review {id6}"
-@@ -5873,6 +5856,10 @@ def _meta_state_map(
+@@ -5873,6 +5858,10 @@ def _meta_state_map(
  
      ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
      records_root = Path(ctx.logical_roots["records"])
@@ -7350,7 +8039,7 @@ index 743de8176..8a3a3f5e5 100644
  
  def check_S6(
 diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
-index 461caf32a..19d522eb2 100644
+index 461caf32a..514921476 100644
 --- a/agent_workflows/runner_shared.py
 +++ b/agent_workflows/runner_shared.py
 @@ -6290,7 +6290,7 @@ def apply_records_only_rederivation(
@@ -7436,7 +8125,34 @@ index 461caf32a..19d522eb2 100644
                  raise DriverError(
                      f"Refusing {configured!r} for IPD {id6}: it is {what}, not an IPD plan"
                  )
-@@ -34759,21 +34752,14 @@ def run_review_sequence(
+@@ -25423,14 +25416,21 @@ def enforce_freeze_time_refusal(
+             try:
+                 content_bytes = abs_path.read_bytes()
+                 digest = hashlib.sha256(content_bytes).hexdigest()
+-                cache_key = (abs_path, digest, "backlog")
++                text = content_bytes.decode("utf-8", errors="replace").replace(
++                    "\r\n", "\n"
++                )
++                comp_log = backlog.companion_log_path(abs_path, text, repo_root=repo)
++                if comp_log is not None and comp_log.is_file():
++                    log_digest = (
++                        "present:" + hashlib.sha256(comp_log.read_bytes()).hexdigest()
++                    )
++                else:
++                    log_digest = "absent"
++                cache_key = (abs_path, digest, f"backlog:{log_digest}")
+                 if cache_key in _FREEZE_GATE_CACHE:
+                     drifts = _FREEZE_GATE_CACHE[cache_key]
+                 else:
+-                    text = content_bytes.decode("utf-8", errors="replace").replace(
+-                        "\r\n", "\n"
+-                    )
+-                    drifts = backlog.validate_item(abs_path, text)
++                    drifts = backlog.validate_item(abs_path, text, repo_root=repo)
+                     _FREEZE_GATE_CACHE[cache_key] = drifts
+                 for d in drifts:
+                     if getattr(d, "severity", "") != "info":
+@@ -34759,21 +34759,14 @@ def run_review_sequence(
              from agent_workflows import artifact_core as _core
              from agent_workflows import artifact_meta as _am
  
@@ -7466,19 +8182,105 @@ index 461caf32a..19d522eb2 100644
              )
          save_state(run_dir, state)
          return 1, s_id, last_log, last_argv
-@@ -56928,35 +56914,40 @@ def _collect_lane_added_open_backlogs(
+@@ -56928,35 +56921,126 @@ def _collect_lane_added_open_backlogs(
      return candidates, skipped
  
  
 -def mark_plan_attended(text: str, *, why: str = "") -> str:
 -    """Return plan TEXT carrying `- Attended: required` plus a dated workflow-history line.
++def _read_lane_companion_log(
++    repo: Path,
++    branch_ref: str,
++    log_rel: str,
++    *,
++    max_bytes: int = 500 * 1024,
++) -> tuple[str, str]:
++    """Read a companion ``meta/<id6>.jsonl`` blob from ``branch_ref`` with mode/size/UTF-8 guards.
+ 
+-    Pure and idempotent: a plan already marked is returned unchanged. The field and history line
+-    are rendered through `artifact_meta.render_legacy_text` (D-2).
++    Returns ``("present", utf8_text)``, ``("absent", "")``, or ``("error", skip_reason)``.
++    """
++    try:
++        ls_proc = subprocess.run(
++            _gch_lockfree(["ls-tree", "-z", branch_ref, "--", log_rel]),
++            cwd=str(repo),
++            stdout=subprocess.PIPE,
++            stderr=subprocess.PIPE,
++        )
++    except (OSError, subprocess.SubprocessError):
++        return "error", "companion-log-unreadable"
++    if ls_proc.returncode != 0:
++        return "error", "companion-log-unreadable"
++    if not ls_proc.stdout:
++        return "absent", ""
++
++    entries = [rec for rec in ls_proc.stdout.split(b"\x00") if rec]
++    if not entries:
++        return "absent", ""
++    matched_mode: str | None = None
++    matched_type: str | None = None
++    for rec in entries:
++        if b"\t" not in rec:
++            continue
++        meta_part, path_part = rec.split(b"\t", 1)
++        try:
++            entry_path = path_part.decode("utf-8", errors="strict")
++        except UnicodeDecodeError:
++            return "error", "companion-log-invalid-path"
++        if entry_path == log_rel:
++            parts = meta_part.decode("ascii", errors="replace").split()
++            if len(parts) >= 2:
++                matched_mode, matched_type = parts[0], parts[1]
++            break
++    if matched_mode is None:
++        return "absent", ""
++    if matched_type != "blob" or matched_mode not in _LANE_BACKLOG_REGULAR_MODES:
++        return "error", f"companion-log-non-regular-mode:{matched_mode}"
++
++    try:
++        size_proc = subprocess.run(
++            _gch_lockfree(["cat-file", "-s", f"{branch_ref}:{log_rel}"]),
++            cwd=str(repo),
++            stdout=subprocess.PIPE,
++            stderr=subprocess.PIPE,
++        )
++    except (OSError, subprocess.SubprocessError):
++        return "error", "companion-log-size-unreadable"
++    if size_proc.returncode != 0:
++        return "error", "companion-log-size-unreadable"
++    try:
++        blob_size = int(size_proc.stdout.decode("ascii", errors="strict").strip())
++    except (UnicodeDecodeError, ValueError):
++        return "error", "companion-log-size-unreadable"
++    if blob_size > max_bytes:
++        return "error", f"companion-log-too-large:{blob_size}>{max_bytes}"
++
++    try:
++        show_proc = subprocess.run(
++            _gch_lockfree(["show", f"{branch_ref}:{log_rel}"]),
++            cwd=str(repo),
++            stdout=subprocess.PIPE,
++            stderr=subprocess.PIPE,
++        )
++    except (OSError, subprocess.SubprocessError):
++        return "error", "companion-log-unreadable"
++    if show_proc.returncode != 0:
++        return "error", "companion-log-unreadable"
++    raw_bytes = show_proc.stdout
++    if len(raw_bytes) > max_bytes:
++        return "error", f"companion-log-too-large:{len(raw_bytes)}>{max_bytes}"
++    try:
++        return "present", raw_bytes.decode("utf-8", errors="strict")
++    except UnicodeDecodeError:
++        return "error", "companion-log-invalid-utf8"
++
++
 +def mark_plan_attended(
 +    plan_path: Path, repo_root: Path, *, why: str = "", id6: str | None = None
 +) -> bool:
 +    """Record `attended: required` plus a note on the plan's `meta/<id6>.jsonl` log.
- 
--    Pure and idempotent: a plan already marked is returned unchanged. The field and history line
--    are rendered through `artifact_meta.render_legacy_text` (D-2).
++
 +    Idempotent: a plan already marked is left unchanged and False is returned; True means the log
 +    was appended to. Post-cutover the field lives in the log (spec 4.1, 4.2), so this appends
 +    events through `artifact_meta.append` rather than rendering text (D-2).
@@ -7522,7 +8324,7 @@ index 461caf32a..19d522eb2 100644
  
  
  _PROPOSAL_SUMMARY_STRIP_CHARS = " .,;:!?-_/([{'\""
-@@ -57126,7 +57117,6 @@ def perform_coordinator_proposal_file(
+@@ -57126,7 +57210,6 @@ def perform_coordinator_proposal_file(
          skipped_backlog_reasons: tuple[tuple[str, str], ...] = (),
      ) -> ProposalFilingResult:
          from agent_workflows import artifact_core as _core
@@ -7530,7 +8332,7 @@ index 461caf32a..19d522eb2 100644
  
          proposals_dir = run_dir / "proposals"
          proposals_dir.mkdir(parents=True, exist_ok=True)
-@@ -57145,23 +57135,16 @@ def perform_coordinator_proposal_file(
+@@ -57145,23 +57228,16 @@ def perform_coordinator_proposal_file(
                  f"- Id: {item_id6}\n\n"
                  f"{body_text}\n"
              )
@@ -7564,7 +8366,7 @@ index 461caf32a..19d522eb2 100644
              )
          else:
              base_content = (
-@@ -57171,26 +57154,14 @@ def perform_coordinator_proposal_file(
+@@ -57171,26 +57247,14 @@ def perform_coordinator_proposal_file(
                  f"- Summary: Proposal from {item_id6}: {clean_summary}\n\n"
                  f"{body_text}\n"
              )
@@ -7599,7 +8401,146 @@ index 461caf32a..19d522eb2 100644
              )
          _core.atomic_write(fallback_file, fallback_content)
          rel_path = str(fallback_file)
-@@ -57392,17 +57363,15 @@ def perform_coordinator_proposal_file(
+@@ -57216,12 +57280,18 @@ def perform_coordinator_proposal_file(
+         *,
+         records_dir_override: Path | None = None,
+         commit_root_override: Path | None = None,
+-    ) -> tuple[list[str], list[tuple[str, str]]]:
+-        """Validate and atomically write qualifying lane open backlogs into `coord_path` (or external `records_dir_override`)."""
++    ) -> tuple[list[str], list[str], list[tuple[str, str]]]:
++        """Validate and atomically write qualifying lane open backlogs into `coord_path` (or external `records_dir_override`).
++
++        Returns ``(recovered_backlog_paths, recovered_log_paths, skipped_reasons)`` so callers
++        can commit/rollback companion ``meta/<id6>.jsonl`` logs while keeping
++        ``ProposalFilingResult.recovered_backlog_paths`` limited to ``.backlog.md`` paths.
++        """
+         recovered: list[str] = []
++        recovered_logs: list[str] = []
+         skipped: list[tuple[str, str]] = list(lane_pre_skipped)
+         if not lane_candidates:
+-            return recovered, skipped
++            return recovered, recovered_logs, skipped
+ 
+         from agent_workflows import (
+             artifact_core as _core,
+@@ -57254,21 +57324,76 @@ def perform_coordinator_proposal_file(
+                 skipped.append((rel_path, "invalid-utf8"))
+                 continue
+ 
+-            bk_state = _meta.read_text(text, record_type="backlog")
+-            drift = _backlog.validate_item(target_path, text)
++            records_rel = Path(rel_path).parent.parent.parent.as_posix()
++            mirror_id = _meta.read_mirror_id6(text)
++            has_yaml_mirror = text.lstrip("\ufeff").startswith("---")
++            log_text: str | None = None
++            target_log_path: Path | None = None
++            log_rel_in_lane: str | None = None
++
++            if mirror_id and _core.is_valid_id6(mirror_id):
++                log_rel_in_lane = f"{records_rel}/meta/{mirror_id}.jsonl"
++                log_status, log_payload = _read_lane_companion_log(
++                    repo, effective_lane_branch, log_rel_in_lane
++                )
++                if log_status == "error":
++                    skipped.append((rel_path, log_payload))
++                    continue
++                if log_status == "present":
++                    target_records_root = (
++                        records_dir_override
++                        if records_dir_override is not None
++                        else coord_path / records_rel
++                    )
++                    target_log_path = (
++                        target_records_root / "meta" / f"{mirror_id}.jsonl"
++                    )
++                    if target_log_path.exists():
++                        skipped.append((rel_path, "companion-log-already-exists"))
++                        continue
++                    log_lines = [
++                        ln for ln in log_payload.splitlines(keepends=True) if ln.strip()
++                    ]
++                    try:
++                        bk_state, _fc, _ap, proj_data = _meta.replay(
++                            mirror_id, "backlog", log_lines
++                        )
++                    except ValueError as exc:
++                        skipped.append((rel_path, f"companion-log-invalid:{exc}"))
++                        continue
++                    drift = _backlog.validate_item(
++                        target_path,
++                        text,
++                        state=bk_state,
++                        has_history=bool(proj_data.get("events")),
++                    )
++                    log_text = log_payload
++                elif has_yaml_mirror:
++                    skipped.append((rel_path, "missing-companion-log"))
++                    continue
++                else:
++                    bk_state = _meta.read_text(text, record_type="backlog")
++                    drift = _backlog.validate_item(target_path, text)
++            elif has_yaml_mirror:
++                skipped.append((rel_path, "missing-companion-log"))
++                continue
++            else:
++                bk_state = _meta.read_text(text, record_type="backlog")
++                drift = _backlog.validate_item(target_path, text)
++
+             if drift:
+                 codes = ",".join(sorted({d.rule for d in drift}))
+                 skipped.append((rel_path, f"backlog-validation-failed:{codes}"))
+                 continue
+ 
+             parsed_id = bk_state.id6 or None
+-            raw_set_field = bk_state.fields.get("set")
++            raw_set_val = bk_state.set_id or bk_state.fields.get("set")
+             parsed_set = (
+-                bk_state.set_id
++                raw_set_val.strip()
+                 if (
+-                    raw_set_field
+-                    and isinstance(raw_set_field, str)
+-                    and len(raw_set_field.split()) == 1
++                    raw_set_val
++                    and isinstance(raw_set_val, str)
++                    and len(raw_set_val.split()) == 1
+                 )
+                 else None
+             )
+@@ -57318,6 +57443,23 @@ def perform_coordinator_proposal_file(
+ 
+             target_path.parent.mkdir(parents=True, exist_ok=True)
+             _core.atomic_write(target_path, text)
++            if target_log_path is not None and log_text is not None:
++                target_log_path.parent.mkdir(parents=True, exist_ok=True)
++                _core.atomic_write(target_log_path, log_text)
++                if commit_root_override is not None:
++                    try:
++                        log_recorded_rel = (
++                            target_log_path.resolve()
++                            .relative_to(commit_root_override.resolve())
++                            .as_posix()
++                        )
++                    except ValueError:
++                        log_recorded_rel = str(target_log_path.resolve())
++                    recovered_logs.append(log_recorded_rel)
++                elif records_dir_override is not None:
++                    recovered_logs.append(str(target_log_path.resolve()))
++                else:
++                    recovered_logs.append(log_rel_in_lane or str(target_log_path))
+             if parsed_id:
+                 existing_ids.add(parsed_id)
+             if commit_root_override is not None:
+@@ -57335,7 +57477,7 @@ def perform_coordinator_proposal_file(
+             else:
+                 recovered.append(rel_path)
+ 
+-        return recovered, skipped
++        return recovered, recovered_logs, skipped
+ 
+     from agent_workflows import project_context as _proj_ctx
+ 
+@@ -57392,17 +57534,15 @@ def perform_coordinator_proposal_file(
                              f"needs-attended: the proposing plan could not be resolved: {exc}",
                              skipped_backlog_reasons=tuple(lane_pre_skipped),
                          )
@@ -7621,7 +8562,7 @@ index 461caf32a..19d522eb2 100644
                          commit_msg = f"plan({item_id6}): mark Attended: required (agent proposal)"
                  elif size == "small":
                      setid = f"prop-{item_id6}"
-@@ -57475,25 +57444,27 @@ def perform_coordinator_proposal_file(
+@@ -57475,25 +57615,27 @@ def perform_coordinator_proposal_file(
                      created_path = created_plan
                      created_is_new = True
                      plan_content = created_plan.read_text(encoding="utf-8")
@@ -7660,22 +8601,83 @@ index 461caf32a..19d522eb2 100644
                          )
                      commit_msg = (
                          f"Scaffold draft plan for agent proposal from {item_id6}"
-@@ -57612,6 +57583,14 @@ def perform_coordinator_proposal_file(
-                     if needs_attended_unchanged
-                     else [new_record_rel, *recovered_paths]
-                 )
+@@ -57565,7 +57707,11 @@ def perform_coordinator_proposal_file(
+                     commit_msg = f"File backlog item for agent proposal from {item_id6}"
+ 
+                 assert created_path is not None
+-                recovered_paths, skipped_reasons = _stage_validated_lane_backlogs(
++                (
++                    recovered_paths,
++                    recovered_log_paths,
++                    skipped_reasons,
++                ) = _stage_validated_lane_backlogs(
+                     repo,
+                     record_id6,
+                     records_dir_override=resolved_records_dir,
+@@ -57607,10 +57753,27 @@ def perform_coordinator_proposal_file(
+                         skipped_backlog_reasons=tuple(skipped_reasons),
+                     )
+ 
++                proposal_commit_paths: list[str] = []
 +                # The record's `meta/<id6>.jsonl` log is part of the record (spec 4.2).
-+                if not needs_attended_unchanged and record_id6:
-+                    _log_abs = resolved_records_dir / "meta" / f"{record_id6}.jsonl"
-+                    if _log_abs.is_file():
-+                        with contextlib.suppress(ValueError):
-+                            commit_paths.append(
-+                                _log_abs.resolve().relative_to(git_root_res).as_posix()
-+                            )
++                if not needs_attended_unchanged:
++                    proposal_commit_paths.append(new_record_rel)
++                    if record_id6:
++                        _log_abs = resolved_records_dir / "meta" / f"{record_id6}.jsonl"
++                        if _log_abs.is_file():
++                            with contextlib.suppress(ValueError):
++                                proposal_commit_paths.append(
++                                    _log_abs.resolve()
++                                    .relative_to(git_root_res)
++                                    .as_posix()
++                                )
+                 commit_paths = (
+-                    list(recovered_paths)
++                    [*recovered_paths, *recovered_log_paths]
+                     if needs_attended_unchanged
+-                    else [new_record_rel, *recovered_paths]
++                    else [
++                        *proposal_commit_paths,
++                        *recovered_paths,
++                        *recovered_log_paths,
++                    ]
+                 )
                  commit_sha = None
                  commit_exc = None
-                 try:
-@@ -57728,19 +57707,17 @@ def perform_coordinator_proposal_file(
+@@ -57632,11 +57795,22 @@ def perform_coordinator_proposal_file(
+                         with contextlib.suppress(OSError):
+                             (git_root_res / rec_rel).unlink()
+                         skipped_reasons.append((rec_rel, "commit-hook-rejected"))
++                    for rec_log_rel in recovered_log_paths:
++                        with contextlib.suppress(OSError):
++                            (git_root_res / rec_log_rel).unlink()
+                     _run_git(
+                         git_root_res,
+-                        ["reset", "--quiet", "HEAD", "--", *recovered_paths],
++                        [
++                            "reset",
++                            "--quiet",
++                            "HEAD",
++                            "--",
++                            *recovered_paths,
++                            *recovered_log_paths,
++                        ],
+                     )
+                     recovered_paths = []
++                    recovered_log_paths = []
+                     if needs_attended_unchanged:
+                         return ProposalFilingResult(
+                             filed=True,
+@@ -57653,7 +57827,7 @@ def perform_coordinator_proposal_file(
+                     try:
+                         commit_outcome = _gch.offer_commit(
+                             git_root_res,
+-                            [new_record_rel],
++                            proposal_commit_paths,
+                             message=commit_msg,
+                             assume_yes=True,
+                             interactive=False,
+@@ -57728,19 +57902,17 @@ def perform_coordinator_proposal_file(
                                  f"needs-attended: the proposing plan could not be resolved: {exc}",
                                  skipped_backlog_reasons=tuple(lane_pre_skipped),
                              )
@@ -7699,7 +8701,7 @@ index 461caf32a..19d522eb2 100644
                              commit_msg = f"plan({item_id6}): mark Attended: required (agent proposal)"
                      elif size == "small":
                          setid = f"prop-{item_id6}"
-@@ -57803,7 +57780,9 @@ def perform_coordinator_proposal_file(
+@@ -57803,7 +57975,9 @@ def perform_coordinator_proposal_file(
                          created_plan = matching[0]
                          plan_content = created_plan.read_text(encoding="utf-8")
                          record_id6 = (
@@ -7710,7 +8712,7 @@ index 461caf32a..19d522eb2 100644
                          )
  
                          from agent_workflows import artifact_core as _core
-@@ -57811,23 +57790,21 @@ def perform_coordinator_proposal_file(
+@@ -57811,23 +57985,21 @@ def perform_coordinator_proposal_file(
  
                          plan_content = plan_content.rstrip() + "\n\n" + body_text
                          _core.atomic_write(created_plan, plan_content)
@@ -7742,29 +8744,96 @@ index 461caf32a..19d522eb2 100644
                              )
                          new_record_rel = str(
                              created_plan.relative_to(coord.path)
-@@ -57925,6 +57902,20 @@ def perform_coordinator_proposal_file(
-                         if needs_attended_unchanged
-                         else [new_record_rel, *recovered_paths]
-                     )
+@@ -57902,9 +58074,11 @@ def perform_coordinator_proposal_file(
+ 
+                     # Validate and materialize lane defect backlogs AFTER new_record_rel and
+                     # record_id6 are resolved so st_mtime selection cannot pick a recovered file.
+-                    recovered_paths, skipped_reasons = _stage_validated_lane_backlogs(
+-                        coord.path, record_id6
+-                    )
++                    (
++                        recovered_paths,
++                        recovered_log_paths,
++                        skipped_reasons,
++                    ) = _stage_validated_lane_backlogs(coord.path, record_id6)
+                     last_skipped = tuple(skipped_reasons)
+ 
+                     if needs_attended_unchanged and not recovered_paths:
+@@ -57920,10 +58094,37 @@ def perform_coordinator_proposal_file(
+                             skipped_backlog_reasons=tuple(skipped_reasons),
+                         )
+ 
++                    proposal_commit_paths = []
 +                    # The record's `meta/<id6>.jsonl` log is part of the record (spec 4.2).
-+                    if not needs_attended_unchanged and record_id6:
-+                        from agent_workflows.project_context import (
-+                            project_records_dir as _prd,
-+                        )
++                    if not needs_attended_unchanged:
++                        proposal_commit_paths.append(new_record_rel)
++                        if record_id6:
++                            from agent_workflows.project_context import (
++                                project_records_dir as _prd,
++                            )
 +
-+                        _log_abs = _prd(coord.path) / "meta" / f"{record_id6}.jsonl"
-+                        if _log_abs.is_file():
-+                            with contextlib.suppress(ValueError):
-+                                commit_paths.append(
-+                                    str(_log_abs.relative_to(coord.path)).replace(
-+                                        "\\", "/"
-+                                    )
++                            _log_abs = _prd(coord.path) / "meta" / f"{record_id6}.jsonl"
++                            if not _log_abs.is_file() and new_record_rel.startswith(
++                                ".agents/"
++                            ):
++                                _log_abs = (
++                                    coord.path / ".agents" / "meta" / f"{record_id6}.jsonl"
 +                                )
++                            if _log_abs.is_file():
++                                with contextlib.suppress(ValueError):
++                                    proposal_commit_paths.append(
++                                        str(_log_abs.relative_to(coord.path)).replace(
++                                            "\\", "/"
++                                        )
++                                    )
+                     commit_paths = (
+-                        list(recovered_paths)
++                        [*recovered_paths, *recovered_log_paths]
+                         if needs_attended_unchanged
+-                        else [new_record_rel, *recovered_paths]
++                        else [
++                            *proposal_commit_paths,
++                            *recovered_paths,
++                            *recovered_log_paths,
++                        ]
+                     )
                      commit_sha = None
                      commit_exc = None
-                     try:
+@@ -57945,11 +58146,22 @@ def perform_coordinator_proposal_file(
+                             with contextlib.suppress(OSError):
+                                 (coord.path / rec_rel).unlink()
+                             skipped_reasons.append((rec_rel, "commit-hook-rejected"))
++                        for rec_log_rel in recovered_log_paths:
++                            with contextlib.suppress(OSError):
++                                (coord.path / rec_log_rel).unlink()
+                         _run_git(
+                             coord.path,
+-                            ["reset", "--quiet", "HEAD", "--", *recovered_paths],
++                            [
++                                "reset",
++                                "--quiet",
++                                "HEAD",
++                                "--",
++                                *recovered_paths,
++                                *recovered_log_paths,
++                            ],
+                         )
+                         recovered_paths = []
++                        recovered_log_paths = []
+                         last_skipped = tuple(skipped_reasons)
+                         if needs_attended_unchanged:
+                             return ProposalFilingResult(
+@@ -57967,7 +58179,7 @@ def perform_coordinator_proposal_file(
+                         try:
+                             commit_outcome = _gch.offer_commit(
+                                 coord.path,
+-                                [new_record_rel],
++                                proposal_commit_paths,
+                                 message=commit_msg,
+                                 assume_yes=True,
+                                 interactive=False,
 diff --git a/agent_workflows/set_records.py b/agent_workflows/set_records.py
-index 3d9f3bc0f..2b73f820a 100644
+index 3d9f3bc0f..bd310e41a 100644
 --- a/agent_workflows/set_records.py
 +++ b/agent_workflows/set_records.py
 @@ -19,7 +19,7 @@ inspects through normal AW records/attention:
@@ -7791,7 +8860,20 @@ index 3d9f3bc0f..2b73f820a 100644
      )
      return dest
  
-@@ -412,13 +406,9 @@ def promote_question_to_backlog(
+@@ -369,11 +363,7 @@ def promote_question_to_backlog(
+     if not _ac.validate_gate_ref("decision", gate_ref):
+         raise ValueError("derived decision Gate-Ref {0!r} is invalid".format(gate_ref))
+ 
+-    existing_ids = set()
+-    for f in _backlog._iter_items(repo_root):
+-        pid = _backlog.item_from_text(f.read_text(encoding="utf-8")).id
+-        if pid:
+-            existing_ids.add(pid)
++    existing_ids = _backlog.existing_backlog_ids(repo_root)
+     # IPD sk7ggr E-01: repository-wide mint (see artifact_core.mint_id6). This site was absent from
+     # the plan's original call-site list and mints a BACKLOG id6, so it needs the global set exactly
+     # as `backlog.run_new` does.
+@@ -412,13 +402,9 @@ def promote_question_to_backlog(
          "gate_ref": gate_ref,
      }
      hist_message = f"promoted blocking question ({gate_ref})"
@@ -7808,7 +8890,7 @@ index 3d9f3bc0f..2b73f820a 100644
          minted_id,
          "backlog",
          fields,
-@@ -426,17 +416,10 @@ def promote_question_to_backlog(
+@@ -426,17 +412,10 @@ def promote_question_to_backlog(
          destination=dest,
          dry_run=True,
          project_context=ctx,
@@ -7828,7 +8910,7 @@ index 3d9f3bc0f..2b73f820a 100644
          minted_id,
          "backlog",
          fields,
-@@ -444,10 +427,11 @@ def promote_question_to_backlog(
+@@ -444,10 +423,11 @@ def promote_question_to_backlog(
          destination=dest,
          dry_run=False,
          project_context=ctx,
@@ -7842,11 +8924,46 @@ index 3d9f3bc0f..2b73f820a 100644
      return PromotionResult(path=dest, backlog_id=minted_id, decision_ref=gate_ref)
  
  
-@@ -472,59 +456,46 @@ def close_on_answer(repo_root: Path, backlog_path: Path) -> Path:
-     root = _backlog._resolve_backlog_root(repo_root)
-     dest = root / "done" / backlog_path.name
-     ctx = _records_legacy_context(repo_root, root.resolve().parent)
+@@ -463,68 +443,77 @@ def close_on_answer(repo_root: Path, backlog_path: Path) -> Path:
+     from agent_workflows import check_engine as _check_engine
+ 
+     text = backlog_path.read_text(encoding="utf-8")
+-    item = _backlog.item_from_text(text)
++    state, log_has_history, log_error = _backlog.read_item_state(
++        backlog_path, text, repo_root=repo_root
++    )
++    if log_error is not None:
++        raise ValueError(
++            f"close_on_answer: corrupt/invalid metadata log for {backlog_path}: {log_error}"
++        )
++    item = (
++        _backlog.item_from_state(state)
++        if log_has_history is not None and state is not None
++        else _backlog.item_from_text(text)
++    )
+     if item.status != "blocked":
+         raise ValueError(
+             f"close_on_answer requires status 'blocked', got {item.status!r}"
+         )
+ 
+-    root = _backlog._resolve_backlog_root(repo_root)
+-    dest = root / "done" / backlog_path.name
+-    ctx = _records_legacy_context(repo_root, root.resolve().parent)
 -    target = _meta.LegacyTarget(backlog_path, "backlog", item.id or None)
++    records_root, _owner = _backlog._resolve_item_roots(
++        backlog_path, repo_root=repo_root
++    )
++    if (
++        backlog_path.parent.name in _backlog.STATUSES
++        and backlog_path.parent.parent.name == "backlog"
++    ):
++        backlog_root = backlog_path.parent.parent
++    else:
++        backlog_root = _backlog._resolve_backlog_root(repo_root)
++    if records_root is None:
++        records_root = backlog_root.parent
++    dest = backlog_root / "done" / backlog_path.name
++    ctx = _records_legacy_context(repo_root, records_root.resolve())
 +    target_id6 = _meta.file_id6(backlog_path, item.id or None)
      events = [
          {
@@ -7855,7 +8972,7 @@ index 3d9f3bc0f..2b73f820a 100644
              "to": "done",
              "message": "question answered; close-on-answer",
 +            # Spec 4.3: the disposition move is the transition's `path`; `append` moves the file.
-+            "path": _meta.stored_path(dest, root.resolve().parent, repo_root),
++            "path": _meta.stored_path(dest, records_root.resolve(), repo_root),
          },
          {"op": "unset", "fields": ["gate_kind", "gate_ref", "gate_summary"]},
      ]
@@ -13832,6 +14949,1124 @@ index f70fbffa5..cd0f80e37 100644
              "conformance-results-template.md",
              "00-README-index.md",
              "some-index.md",
+diff --git a/tests/test_backlog_log_format.py b/tests/test_backlog_log_format.py
+new file mode 100644
+index 000000000..10b8f3ad2
+--- /dev/null
++++ b/tests/test_backlog_log_format.py
+@@ -0,0 +1,1112 @@
++"""Core behavioral tests for log-aware backlog validation, readers, and production callers (fljn9b)."""
++
++from __future__ import annotations
++
++import argparse
++import io
++import json
++import subprocess
++from contextlib import redirect_stderr, redirect_stdout
++from pathlib import Path
++from unittest import mock
++
++import pytest
++
++from agent_workflows import (
++    artifact_core as core,
++    artifact_meta as meta,
++    backlog,
++    check_engine,
++    runner_shared,
++    set_records,
++)
++from tests.support import coordinator_role
++
++pytestmark = pytest.mark.core
++
++
++def _init_git_repo(root: Path, *, with_release: bool = False) -> Path:
++    repo = root / "repo"
++    repo.mkdir(parents=True, exist_ok=True)
++    subprocess.run(["git", "init", "-b", "main", "-q"], cwd=repo, check=True)
++    subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo, check=True)
++    subprocess.run(
++        ["git", "config", "user.email", "test@example.com"], cwd=repo, check=True
++    )
++    subprocess.run(["git", "config", "commit.gpgsign", "false"], cwd=repo, check=True)
++    (repo / ".gitignore").write_text(
++        ".aw/state/\n.aw/worktrees/\n.aw/runs/\n", encoding="utf-8"
++    )
++    (repo / ".aw" / "records" / "backlog" / "open").mkdir(parents=True, exist_ok=True)
++    (repo / ".aw" / "records" / "plans" / "pending").mkdir(parents=True, exist_ok=True)
++    (repo / ".aw" / "records" / "meta").mkdir(parents=True, exist_ok=True)
++    (repo / ".aw" / "records" / "backlog" / "open" / ".gitkeep").write_text(
++        "", encoding="utf-8"
++    )
++    (repo / ".aw" / "records" / "plans" / "pending" / ".gitkeep").write_text(
++        "", encoding="utf-8"
++    )
++    if with_release:
++        rel_dir = repo / ".aw" / "records" / "releases"
++        rel_dir.mkdir(parents=True, exist_ok=True)
++        ctx = meta.legacy_context(repo)
++        meta.create(
++            "rel001",
++            "release",
++            {
++                "status": "planned",
++                "set": "rel001",
++                "order": 1,
++                "version": "1.0.0",
++                "short_description": "Release 1.0.0",
++            },
++            "\n# Release 1.0.0\n",
++            destination="releases/20261127-rel001-01-rel001-v1.release.md",
++            dry_run=False,
++            project_context=ctx,
++            actor={"tool": "test"},
++            message="create release",
++        )
++    subprocess.run(["git", "add", "."], cwd=repo, check=True)
++    subprocess.run(["git", "commit", "-qm", "initial commit"], cwd=repo, check=True)
++    return repo
++
++
++def _new_backlog_args(repo: Path, **overrides) -> argparse.Namespace:
++    defaults = {
++        "dir": str(repo),
++        "status": "open",
++        "set": None,
++        "priority": "high",
++        "work_kind": "chore",
++        "kind": None,
++        "summary": "Default summary for log-format test",
++        "slug": None,
++        "gate_kind": None,
++        "gate_ref": None,
++        "blocks_release": None,
++        "release_exempt_kind": None,
++        "release_exempt_ref": None,
++        "message": None,
++        "body": "",
++        "apply": True,
++        "agent": False,
++        "json": False,
++    }
++    defaults.update(overrides)
++    return argparse.Namespace(**defaults)
++
++
++def _check_args(repo: Path, *, as_json: bool = False) -> argparse.Namespace:
++    return argparse.Namespace(
++        dir=str(repo),
++        agent=False,
++        json=as_json,
++        no_color=True,
++    )
++
++
++def _create_log_backlog(
++    records_root: Path,
++    owner_repo: Path,
++    id6: str,
++    *,
++    status: str = "open",
++    set_id: str = "demo",
++    priority: str = "high",
++    work_kind: str = "chore",
++    summary: str | None = "Log-backed summary",
++    short_description: str | None = None,
++    body: str = "\nBody prose.\n",
++    extra_fields: dict | None = None,
++    slug: str = "item",
++) -> Path:
++    ctx = backlog._records_context(records_root, owner_repo)
++    fields: dict = {
++        "status": status,
++        "set": set_id,
++        "priority": priority,
++        "work_kind": work_kind,
++    }
++    if summary is not None:
++        fields["summary"] = summary
++    if short_description is not None:
++        fields["short_description"] = short_description
++    elif summary is not None:
++        fields["short_description"] = summary
++    if extra_fields:
++        fields.update(extra_fields)
++    rel_dest = f"backlog/{status}/20261127-{set_id}-01-{id6}-{slug}.backlog.md"
++    res = meta.create(
++        id6,
++        "backlog",
++        fields,
++        body,
++        destination=rel_dest,
++        dry_run=False,
++        project_context=ctx,
++        actor={"tool": "test"},
++        message="created in test",
++    )
++    assert res.get("committed") is True
++    return Path(res["destination"])
++
++
++def test_backlog_new_emits_writing_standard_pointer_once_and_survives_set(
++    tmp_path: Path,
++) -> None:
++    repo = _init_git_repo(tmp_path)
++    pointer = core.writing_standard_pointer("backlog item")
++
++    # 1. Dry-run emits pointer once without creating files
++    dry_out = io.StringIO()
++    with redirect_stdout(dry_out), redirect_stderr(io.StringIO()):
++        rc = backlog.run_new(
++            _new_backlog_args(
++                repo,
++                summary="Dry-run pointer check",
++                body="Extra context paragraph.\n",
++                apply=False,
++            )
++        )
++    assert rc == 0
++    assert dry_out.getvalue().count(pointer) == 1
++    assert list((repo / ".aw" / "records" / "backlog" / "open").glob("*.backlog.md")) == []
++
++    # 2. Apply with empty body emits pointer once
++    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
++        rc = backlog.run_new(
++            _new_backlog_args(repo, summary="Empty body pointer check", body="", apply=True)
++        )
++    assert rc == 0
++    created_files = sorted(
++        (repo / ".aw" / "records" / "backlog" / "open").glob("*.backlog.md")
++    )
++    assert len(created_files) == 1
++    text_empty = created_files[0].read_text(encoding="utf-8")
++    assert text_empty.count(pointer) == 1
++
++    # 3. Apply when body already includes pointer does not duplicate it
++    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
++        rc = backlog.run_new(
++            _new_backlog_args(
++                repo,
++                summary="Pre-existing pointer body check",
++                body=f"{pointer}\n\nDetails follow.\n",
++                apply=True,
++            )
++        )
++    assert rc == 0
++    all_open = sorted(
++        (repo / ".aw" / "records" / "backlog" / "open").glob("*.backlog.md")
++    )
++    assert len(all_open) == 2
++    second = [p for p in all_open if p != created_files[0]][0]
++    text_second = second.read_text(encoding="utf-8")
++    assert text_second.count(pointer) == 1
++    assert "Details follow." in text_second
++
++    # 4. Pointer survives aw backlog set transition
++    id6 = meta.read_mirror_id6(text_second)
++    assert id6 is not None
++    set_args = argparse.Namespace(
++        dir=str(repo),
++        status="blocked",
++        args=[id6],
++        path=None,
++        actor="test",
++        message="waiting on decision D1",
++        gate_kind="decision",
++        gate_ref="D1",
++        gate_summary=None,
++        priority=None,
++        work_kind=None,
++        kind=None,
++        blocks_release=None,
++        release_exempt_kind=None,
++        release_exempt_ref=None,
++        close_evidence=None,
++        from_backlog=None,
++        from_spec=None,
++        graduated_to=None,
++        gate_dir=None,
++        gate_root=None,
++        lane_carrier_ref=None,
++        lane_carrier_path=None,
++        by_human=False,
++        apply=True,
++        agent=False,
++        json=False,
++    )
++    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
++        rc_set = backlog.run_set(set_args)
++    assert rc_set == 0
++    moved = repo / ".aw" / "records" / "backlog" / "blocked" / second.name
++    assert moved.is_file()
++    moved_text = moved.read_text(encoding="utf-8")
++    assert moved_text.count(pointer) == 1
++    assert "status: blocked" in moved_text
++    assert backlog.validate_item(moved, moved_text) == []
++
++
++def test_backlog_check_and_validate_item_conformant_log_format_variants(
++    tmp_path: Path,
++) -> None:
++    repo = _init_git_repo(tmp_path, with_release=True)
++    rec_root = repo / ".aw" / "records"
++
++    # Open item created via CLI
++    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
++        assert (
++            backlog.run_new(
++                _new_backlog_args(
++                    repo,
++                    summary="Open CLI item",
++                    work_kind="chore",
++                    priority="medium",
++                    apply=True,
++                )
++            )
++            == 0
++        )
++
++    # Blocked item with valid gate created via CLI
++    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
++        assert (
++            backlog.run_new(
++                _new_backlog_args(
++                    repo,
++                    status="blocked",
++                    summary="Blocked CLI item",
++                    work_kind="feature",
++                    priority="high",
++                    gate_kind="decision",
++                    gate_ref="D42",
++                    apply=True,
++                )
++            )
++            == 0
++        )
++
++    # Release-exempt bug item created via CLI
++    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
++        assert (
++            backlog.run_new(
++                _new_backlog_args(
++                    repo,
++                    summary="Release-exempt bug item",
++                    work_kind="bug",
++                    priority="low",
++                    release_exempt_kind="decision",
++                    release_exempt_ref="D99",
++                    apply=True,
++                )
++            )
++            == 0
++        )
++
++    # Blocks-release bug item created via CLI
++    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
++        assert (
++            backlog.run_new(
++                _new_backlog_args(
++                    repo,
++                    summary="Release-gating bug item",
++                    work_kind="bug",
++                    priority="high",
++                    blocks_release="next",
++                    apply=True,
++                )
++            )
++            == 0
++        )
++
++    # short_description-only log-format item (no legacy summary field)
++    sd_only = _create_log_backlog(
++        rec_root,
++        repo,
++        "sd0001",
++        status="open",
++        summary=None,
++        short_description="Post-cutover short description without legacy summary",
++        slug="sd-only",
++    )
++
++    out = io.StringIO()
++    with redirect_stdout(out), redirect_stderr(io.StringIO()):
++        rc_chk = backlog.run_check(_check_args(repo, as_json=True))
++    assert rc_chk == 0
++    payload = json.loads(out.getvalue())
++    assert payload["status"] == "clean"
++    assert payload["data"]["checked"] == 5
++    assert payload["data"]["violations"] == 0
++
++    # Direct validate_item with and without repo_root
++    for p in backlog._iter_items(repo):
++        txt = p.read_text(encoding="utf-8")
++        assert backlog.validate_item(p, txt) == []
++        assert backlog.validate_item(p, txt, repo_root=repo) == []
++
++    # Verify short_description fallback populated item.summary
++    found_sd = backlog.find_item(repo, "sd0001")
++    assert found_sd is not None
++    assert (
++        found_sd.summary == "Post-cutover short description without legacy summary"
++    )
++    assert sd_only.is_file()
++
++
++def test_validate_item_and_state_negative_cases(tmp_path: Path) -> None:
++    repo = _init_git_repo(tmp_path)
++    rec_root = repo / ".aw" / "records"
++
++    def _rules(drifts: list[core.Drift]) -> set[str]:
++        return {d.rule for d in drifts}
++
++    base_path = rec_root / "backlog" / "open" / "20261127-demo-01-neg001-case.backlog.md"
++
++    # 1. Status-dir mismatch
++    st_mismatch = meta.State(
++        id6="neg001",
++        type="backlog",
++        status="done",
++        set_id="demo",
++        short_description="Mismatch item",
++        fields={"priority": "high", "work_kind": "chore"},
++    )
++    assert "backlog.status-dir-mismatch" in _rules(
++        backlog.validate_item_state(base_path, st_mismatch, has_history=True)
++    )
++
++    # 2. Missing gate on blocked + invalid gate kind / ref
++    blocked_path = (
++        rec_root / "backlog" / "blocked" / "20261127-demo-01-neg002-blocked.backlog.md"
++    )
++    st_no_gate = meta.State(
++        id6="neg002",
++        type="backlog",
++        status="blocked",
++        set_id="demo",
++        short_description="Blocked missing gate",
++        fields={"priority": "high", "work_kind": "bug"},
++    )
++    assert "backlog.gate-missing" in _rules(
++        backlog.validate_item_state(blocked_path, st_no_gate, has_history=True)
++    )
++
++    st_bad_gate_kind = meta.State(
++        id6="neg002",
++        type="backlog",
++        status="blocked",
++        set_id="demo",
++        short_description="Bad gate kind",
++        fields={
++            "priority": "high",
++            "work_kind": "bug",
++            "gate_kind": "bogus",
++            "gate_ref": "D1",
++        },
++    )
++    assert "backlog.gate-kind-invalid" in _rules(
++        backlog.validate_item_state(blocked_path, st_bad_gate_kind, has_history=True)
++    )
++
++    st_bad_gate_ref = meta.State(
++        id6="neg002",
++        type="backlog",
++        status="blocked",
++        set_id="demo",
++        short_description="Bad gate ref",
++        fields={
++            "priority": "high",
++            "work_kind": "bug",
++            "gate_kind": "decision",
++            "gate_ref": "not-a-decision",
++        },
++    )
++    assert "backlog.gate-ref-invalid" in _rules(
++        backlog.validate_item_state(blocked_path, st_bad_gate_ref, has_history=True)
++    )
++
++    # 3. Unexpected gate and gate_summary on non-blocked + unsafe gate_summary
++    st_unexp_gate = meta.State(
++        id6="neg003",
++        type="backlog",
++        status="open",
++        set_id="demo",
++        short_description="Open with gate",
++        fields={
++            "priority": "high",
++            "work_kind": "chore",
++            "gate_kind": "decision",
++            "gate_ref": "D5",
++            "gate_summary": "bad\nmultiline",
++        },
++    )
++    rules_unexp = _rules(
++        backlog.validate_item_state(base_path, st_unexp_gate, has_history=True)
++    )
++    assert "backlog.gate-unexpected" in rules_unexp
++    assert "backlog.gate-summary-unexpected" in rules_unexp
++    assert "backlog.gate-descriptive-unsafe" in rules_unexp
++
++    # 4. Incomplete and contradictory release exemption
++    st_incomp_ex = meta.State(
++        id6="neg004",
++        type="backlog",
++        status="open",
++        set_id="demo",
++        short_description="Incomplete exemption",
++        fields={
++            "priority": "high",
++            "work_kind": "bug",
++            "release_exempt_kind": "decision",
++        },
++    )
++    assert "backlog.release-exempt-incomplete" in _rules(
++        backlog.validate_item_state(base_path, st_incomp_ex, has_history=True)
++    )
++
++    st_contra_ex = meta.State(
++        id6="neg004",
++        type="backlog",
++        status="open",
++        set_id="demo",
++        short_description="Contradictory exemption",
++        fields={
++            "priority": "high",
++            "work_kind": "bug",
++            "release_exempt_kind": "decision",
++            "release_exempt_ref": "D10",
++            "blocks_release": "next",
++        },
++    )
++    assert "backlog.release-exempt-contradicts-gate" in _rules(
++        backlog.validate_item_state(base_path, st_contra_ex, has_history=True)
++    )
++
++    # 5. Unsafe summary, unsafe close_evidence, empty history
++    st_unsafe = meta.State(
++        id6="neg005",
++        type="backlog",
++        status="open",
++        set_id="demo",
++        short_description="line1\nline2",
++        fields={
++            "priority": "high",
++            "work_kind": "chore",
++            "close_evidence": "bad\x07bell",
++        },
++    )
++    rules_unsafe = _rules(
++        backlog.validate_item_state(base_path, st_unsafe, has_history=False)
++    )
++    assert "backlog.summary-unsafe" in rules_unsafe
++    assert "backlog.close-evidence-unsafe" in rules_unsafe
++    assert "backlog.history-empty" in rules_unsafe
++
++    # 6. Orphan YAML-mirror file without meta/<id6>.jsonl fails closed
++    orphan_path = (
++        rec_root / "backlog" / "open" / "20261127-demo-01-orp001-orphan.backlog.md"
++    )
++    orphan_text = meta.render_in_file_mirror("orp001", "backlog", "open") + "\nBody.\n"
++    orphan_path.write_text(orphan_text, encoding="utf-8")
++    orphan_rules = _rules(backlog.validate_item(orphan_path, orphan_text))
++    assert "backlog.priority-invalid" in orphan_rules
++    assert "backlog.history-empty" in orphan_rules
++
++    # 7. Corrupt meta/<id6>.jsonl fails closed with Drift without crashing
++    corrupt_path = (
++        rec_root / "backlog" / "open" / "20261127-demo-01-crp001-corrupt.backlog.md"
++    )
++    corrupt_text = (
++        meta.render_in_file_mirror("crp001", "backlog", "open") + "\nBody.\n"
++    )
++    corrupt_path.write_text(corrupt_text, encoding="utf-8")
++    (rec_root / "meta" / "crp001.jsonl").write_text("{not-valid-json\n", encoding="utf-8")
++    corrupt_drifts = backlog.validate_item(corrupt_path, corrupt_text)
++    assert _rules(corrupt_drifts) == {"backlog.id-invalid"}
++
++    # 8. YAML mirror malformed, id mismatch, and status mismatch against valid state
++    good_path = _create_log_backlog(
++        rec_root, repo, "mir001", status="open", slug="mirror-check"
++    )
++    good_state = meta.read("mir001", project_context=meta.legacy_context(repo))
++
++    bad_mirror_text = "---\nid: mir001\nstatus: open\nextra: nope\n---\n\nBody.\n"
++    assert "backlog.id-invalid" in _rules(
++        backlog.validate_item(good_path, bad_mirror_text)
++    )
++
++    id_mismatch_text = "---\nid: zzz999\nstatus: open\n---\n\nBody.\n"
++    assert "backlog.id-invalid" in _rules(
++        backlog.validate_item_state(
++            good_path, good_state, has_history=True, text=id_mismatch_text
++        )
++    )
++
++    status_mismatch_text = "---\nid: mir001\nstatus: done\n---\n\nBody.\n"
++    assert "backlog.status-invalid" in _rules(
++        backlog.validate_item(good_path, status_mismatch_text)
++    )
++
++
++def test_legacy_bullet_format_parity(tmp_path: Path) -> None:
++    p = tmp_path / "backlog" / "open" / "20261127-demo-01-leg001-legacy.backlog.md"
++    p.parent.mkdir(parents=True, exist_ok=True)
++    valid_legacy = (
++        "- Id: leg001\n"
++        "- Status: open\n"
++        "- Set: demo\n"
++        "- Priority: medium\n"
++        "- Work-Kind: chore\n"
++        "- Summary: Legacy bullet item\n"
++        "\n"
++        "## Workflow history\n"
++        "- 2026-11-27 open (test): created\n"
++        "\n"
++        "Body prose.\n"
++    )
++    assert backlog.validate_item(p, valid_legacy) == []
++
++    dup_bullet = valid_legacy.replace(
++        "- Work-Kind: chore\n", "- Work-Kind: chore\n- Kind: bug\n"
++    )
++    assert "backlog.metadata-bullet-repeated" in {
++        d.rule for d in backlog.validate_item(p, dup_bullet)
++    }
++
++    no_history = valid_legacy.split("## Workflow history")[0] + "\nBody prose.\n"
++    assert "backlog.history-empty" in {
++        d.rule for d in backlog.validate_item(p, no_history)
++    }
++
++
++def test_mixed_aw_records_and_agents_backlog_resolution_note_and_close(
++    tmp_path: Path,
++) -> None:
++    from agent_workflows.migrations.chain import MetadataSchemaError
++
++    repo = _init_git_repo(tmp_path)
++    aw_rec = repo / ".aw" / "records"
++    agents_rec = repo / ".agents"
++    (agents_rec / "backlog" / "open").mkdir(parents=True, exist_ok=True)
++    (agents_rec / "backlog" / "blocked").mkdir(parents=True, exist_ok=True)
++    (agents_rec / "meta").mkdir(parents=True, exist_ok=True)
++
++    _create_log_backlog(aw_rec, repo, "mix001", status="open", slug="in-aw")
++    agents_open = _create_log_backlog(
++        agents_rec, repo, "mix002", status="open", slug="in-agents"
++    )
++    agents_blocked = _create_log_backlog(
++        agents_rec,
++        repo,
++        "mix003",
++        status="blocked",
++        extra_fields={"gate_kind": "decision", "gate_ref": "D7"},
++        slug="agents-blocked",
++    )
++
++    # 0. Without a schema-2 stamp, MetadataSchemaError propagates untouched (spec 4sd62s AC-11)
++    with pytest.raises(MetadataSchemaError):
++        backlog.validate_item(
++            agents_open, agents_open.read_text(encoding="utf-8"), repo_root=repo
++        )
++
++    # Stamp schema 2 as a migrated mixed-layout repository (spec 4sd62s C12(b))
++    cfg_dir = repo / ".aw" / "config"
++    cfg_dir.mkdir(parents=True, exist_ok=True)
++    (cfg_dir / "project.json").write_text(
++        json.dumps({"metadata_schema": 2}), encoding="utf-8"
++    )
++
++    # 1. aw backlog check validates both trees cleanly
++    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
++        assert backlog.run_check(_check_args(repo)) == 0
++    assert backlog.existing_backlog_ids(repo) == {"mix001", "mix002", "mix003"}
++
++    # 2. aw backlog note appends to .agents/meta/mix002.jsonl (not .aw/records/meta/)
++    note_args = argparse.Namespace(
++        dir=str(repo),
++        path=str(agents_open),
++        selector=None,
++        message="mixed layout note recorded",
++    )
++    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
++        assert backlog.run_note(note_args) == 0
++    agents_ctx = backlog._records_context(agents_rec, repo)
++    hist = meta.history("mix002", project_context=agents_ctx)
++    assert any(
++        ev.get("op") == "note" and ev.get("message") == "mixed layout note recorded"
++        for ev in hist
++    )
++    assert not (aw_rec / "meta" / "mix002.jsonl").exists()
++
++    # 3. set_records.close_on_answer closes .agents/backlog/blocked item into .agents/backlog/done/
++    closed_dest = set_records.close_on_answer(repo, agents_blocked)
++    assert closed_dest == agents_rec / "backlog" / "done" / agents_blocked.name
++    assert closed_dest.is_file()
++    assert not agents_blocked.exists()
++    closed_text = closed_dest.read_text(encoding="utf-8")
++    assert backlog.validate_item(closed_dest, closed_text, repo_root=repo) == []
++    closed_state = meta.read("mix003", project_context=agents_ctx)
++    assert closed_state.status == "done"
++    assert not closed_state.fields.get("gate_kind")
++
++
++def test_read_only_validation_and_find_do_not_create_index_db_in_uninitialized_dir(
++    tmp_path: Path,
++) -> None:
++    uninit = tmp_path / "uninit_dir"
++    (uninit / ".aw" / "records" / "backlog" / "open").mkdir(parents=True, exist_ok=True)
++    (uninit / ".aw" / "records" / "meta").mkdir(parents=True, exist_ok=True)
++    item_path = _create_log_backlog(
++        uninit / ".aw" / "records",
++        uninit,
++        "uni001",
++        status="open",
++        summary="Uninitialized dir item",
++        slug="uninit",
++    )
++    # Remove any state dir created by meta.create so we start completely uninitialized
++    state_dir = uninit / ".aw" / "state"
++    if state_dir.exists():
++        import shutil
++
++        shutil.rmtree(state_dir)
++    assert not (state_dir / "index.db").exists()
++
++    text = item_path.read_text(encoding="utf-8")
++    assert backlog.validate_item(item_path, text) == []
++    found = backlog.find_item(uninit, "uni001")
++    assert found is not None and found.summary == "Uninitialized dir item"
++    assert backlog.existing_backlog_ids(uninit) == {"uni001"}
++    assert backlog.blocks_release_of_item(uninit, "uni001") is None
++    assert not (state_dir / "index.db").exists()
++    assert not state_dir.exists()
++
++
++def test_backlog_readers_and_duplicate_detection_on_log_format_items(
++    tmp_path: Path,
++) -> None:
++    repo = _init_git_repo(tmp_path, with_release=True)
++    rec_root = repo / ".aw" / "records"
++
++    _create_log_backlog(
++        rec_root,
++        repo,
++        "dup001",
++        status="open",
++        set_id="alpha",
++        priority="high",
++        work_kind="bug",
++        summary="Regression in alpha_parser_engine module",
++        body="\nReproduced via test_alpha_parser_roundtrip in CI.\n",
++        extra_fields={"blocks_release": "next"},
++        slug="alpha-parser",
++    )
++    _create_log_backlog(
++        rec_root,
++        repo,
++        "dup002",
++        status="open",
++        set_id="beta",
++        priority="low",
++        work_kind="chore",
++        summary="Cleanup helper_gamma_runner",
++        body="\nNo distinctive test token here.\n",
++        slug="beta-cleanup",
++    )
++
++    assert backlog.existing_backlog_ids(repo) == {"dup001", "dup002"}
++    assert backlog.blocks_release_of_item(repo, "dup001") == "next"
++    assert backlog.blocks_release_of_item(repo, "dup002") is None
++    assert backlog.blocks_release_of_item(repo, "missing") is None
++
++    found = backlog.find_item(repo, "dup001")
++    assert found is not None
++    assert found.id == "dup001"
++    assert found.status == "open"
++    assert found.set == "alpha"
++    assert found.priority == "high"
++    assert found.kind == "bug"
++    assert found.summary == "Regression in alpha_parser_engine module"
++    assert found.blocks_release == "next"
++
++    # Cross-summary-and-body co-occurrence: summary has no distinctive token,
++    # body carries one token from log-stored summary (alpha_parser_engine) +
++    # one token from .backlog.md body (test_alpha_parser_roundtrip).
++    co_cands = backlog.find_duplicate_candidates(
++        repo,
++        summary="General follow-up note",
++        body="Investigate alpha_parser_engine and test_alpha_parser_roundtrip failures",
++    )
++    assert [c.id for c in co_cands] == ["dup001"]
++    assert co_cands[0].reason == "co-occurring tokens"
++    assert co_cands[0].shared_tokens == {
++        "alpha_parser_engine",
++        "test_alpha_parser_roundtrip",
++    }
++
++    # run_new duplicate advisory detection on log-format corpus
++    out = io.StringIO()
++    with redirect_stdout(out), redirect_stderr(io.StringIO()):
++        rc = backlog.run_new(
++            _new_backlog_args(
++                repo,
++                summary="Another issue in alpha_parser_engine",
++                body="",
++                apply=False,
++                json=True,
++            )
++        )
++    assert rc == 0
++    payload = json.loads(out.getvalue())
++    assert payload["data"]["duplicate_candidate_count"] == 1
++    assert payload["data"]["duplicate_candidates"][0]["id"] == "dup001"
++
++
++def test_check_engine_check_content_backlog_log_format(tmp_path: Path) -> None:
++    repo = _init_git_repo(tmp_path)
++    rec_root = repo / ".aw" / "records"
++    _create_log_backlog(
++        rec_root,
++        repo,
++        "chk001",
++        status="open",
++        summary="Clean log-format item for check_engine",
++        slug="clean",
++    )
++
++    drifts = check_engine.check_content(repo, "backlog")
++    errors = [d for d in drifts if (d.severity or "error") != "info"]
++    assert errors == []
++
++    # Add corrupt log-backed item and confirm check_content fails closed
++    bad_path = (
++        rec_root / "backlog" / "open" / "20261127-demo-01-chk002-corrupt.backlog.md"
++    )
++    bad_path.write_text(
++        meta.render_in_file_mirror("chk002", "backlog", "open") + "\nBody.\n",
++        encoding="utf-8",
++    )
++    (rec_root / "meta" / "chk002.jsonl").write_text("not-json\n", encoding="utf-8")
++    drifts_bad = check_engine.check_content(repo, "backlog")
++    assert any(d.rule == "backlog.id-invalid" for d in drifts_bad)
++
++
++def test_enforce_freeze_time_refusal_cache_invalidation_on_meta_log_lifecycle(
++    tmp_path: Path,
++) -> None:
++    repo = _init_git_repo(tmp_path)
++    rec_root = repo / ".aw" / "records"
++    item_path = _create_log_backlog(
++        rec_root,
++        repo,
++        "frz001",
++        status="open",
++        summary="Freeze gate cache test item",
++        slug="freeze-cache",
++    )
++    log_path = rec_root / "meta" / "frz001.jsonl"
++    valid_log_bytes = log_path.read_bytes()
++    rel_file = item_path.relative_to(repo).as_posix()
++    queue = [
++        {
++            "id6": "frz001",
++            "artifact_type": "backlog",
++            "status": "open",
++            "initial_status": "open",
++            "action": "execute",
++            "configured_file": rel_file,
++            "dependencies": [],
++        }
++    ]
++
++    # 1. Valid log present -> passes
++    runner_shared.enforce_freeze_time_refusal(queue, repo=repo, color=False)
++
++    # 2. Delete meta/<id6>.jsonl without touching .backlog.md -> cache invalidates -> refuses
++    log_path.unlink()
++    with pytest.raises(runner_shared.DriverError) as exc_deleted:
++        runner_shared.enforce_freeze_time_refusal(queue, repo=repo, color=False)
++    assert "RUN-STRUCTURE-PREFLIGHT" in str(exc_deleted.value)
++
++    # 3. Re-create valid meta/<id6>.jsonl without touching .backlog.md -> cache invalidates -> passes
++    log_path.write_bytes(valid_log_bytes)
++    runner_shared.enforce_freeze_time_refusal(queue, repo=repo, color=False)
++
++    # 4. Modify meta/<id6>.jsonl to corrupt JSON without touching .backlog.md -> cache invalidates -> refuses
++    log_path.write_text("{corrupt\n", encoding="utf-8")
++    with pytest.raises(runner_shared.DriverError) as exc_corrupt:
++        runner_shared.enforce_freeze_time_refusal(queue, repo=repo, color=False)
++    assert "backlog.id-invalid" in str(exc_corrupt.value)
++
++
++def _populate_lane_branch(
++    repo: Path,
++    branch_name: str,
++    mutate_fn,
++) -> str:
++    base_sha = subprocess.run(
++        ["git", "rev-parse", "HEAD"],
++        cwd=repo,
++        capture_output=True,
++        text=True,
++        check=True,
++    ).stdout.strip()
++    wt = repo.parent / f"wt-{branch_name.replace('/', '-')}"
++    subprocess.run(
++        ["git", "worktree", "add", "-b", branch_name, str(wt), base_sha],
++        cwd=repo,
++        check=True,
++        capture_output=True,
++    )
++    try:
++        mutate_fn(wt)
++        subprocess.run(["git", "add", "."], cwd=wt, check=True)
++        subprocess.run(
++            ["git", "commit", "-qm", "lane defect backlogs"], cwd=wt, check=True
++        )
++    finally:
++        subprocess.run(
++            ["git", "worktree", "remove", "--force", str(wt)],
++            cwd=repo,
++            check=True,
++            capture_output=True,
++        )
++    return base_sha
++
++
++def test_perform_coordinator_proposal_file_recovers_log_backed_lane_backlog(
++    tmp_path: Path,
++) -> None:
++    repo = _init_git_repo(tmp_path, with_release=True)
++    plan_path = _create_log_backlog(
++        repo / ".aw" / "records", repo, "prp000", status="open", slug="seed"
++    )
++    subprocess.run(["git", "add", "."], cwd=repo, check=True)
++    subprocess.run(["git", "commit", "-qm", "seed"], cwd=repo, check=True)
++
++    valid_rel_holder: list[str] = []
++    missing_rel_holder: list[str] = []
++    corrupt_rel_holder: list[str] = []
++
++    def _mutate(wt: Path) -> None:
++        rec = wt / ".aw" / "records"
++        # Valid log-backed lane defect backlog
++        valid_p = _create_log_backlog(
++            rec,
++            wt,
++            "rec001",
++            status="open",
++            set_id="rec001",
++            priority="high",
++            work_kind="bug",
++            summary="Recovered log-backed lane defect",
++            extra_fields={"blocks_release": "next"},
++            slug="recovered-log",
++        )
++        valid_rel_holder.append(valid_p.relative_to(wt).as_posix())
++
++        # YAML-mirror lane backlog missing companion log
++        missing_p = (
++            rec / "backlog" / "open" / "20261127-mis001-01-mis001-no-log.backlog.md"
++        )
++        missing_p.write_text(
++            meta.render_in_file_mirror("mis001", "backlog", "open") + "\nBody.\n",
++            encoding="utf-8",
++        )
++        missing_rel_holder.append(missing_p.relative_to(wt).as_posix())
++
++        # YAML-mirror lane backlog with invalid companion log
++        corrupt_p = (
++            rec / "backlog" / "open" / "20261127-bad001-01-bad001-bad-log.backlog.md"
++        )
++        corrupt_p.write_text(
++            meta.render_in_file_mirror("bad001", "backlog", "open") + "\nBody.\n",
++            encoding="utf-8",
++        )
++        (rec / "meta" / "bad001.jsonl").write_text("{invalid\n", encoding="utf-8")
++        corrupt_rel_holder.append(corrupt_p.relative_to(wt).as_posix())
++
++    lane_branch = "aw/lane/prp001"
++    base_sha = _populate_lane_branch(repo, lane_branch, _mutate)
++
++    run_dir = tmp_path / "run_dir"
++    run_dir.mkdir(parents=True, exist_ok=True)
++    proposal = {
++        "kind": "tool-defect",
++        "blocked_by": "validator blocked on lane defect",
++        "why": "needs coordinator triage",
++        "proposed_change": "update backlog validator",
++        "paths": ["agent_workflows/backlog.py"],
++        "size": "material",
++    }
++    item = {"id6": "prp001", "configured_file": str(plan_path)}
++    state = {"repo": str(repo), "run_id": "run-fljn9b-test"}
++
++    with coordinator_role():
++        res = runner_shared.perform_coordinator_proposal_file(
++            run_dir=run_dir,
++            state=state,
++            item=item,
++            proposal=proposal,
++            lane_branch=lane_branch,
++            lane_base_commit=base_sha,
++        )
++
++    assert res.filed is True
++    assert res.commit is not None
++    # recovered_backlog_paths carries ONLY .backlog.md paths (no .jsonl)
++    assert res.recovered_backlog_paths == (valid_rel_holder[0],)
++    skipped_map = dict(res.skipped_backlog_reasons)
++    assert skipped_map[missing_rel_holder[0]] == "missing-companion-log"
++    assert skipped_map[corrupt_rel_holder[0]].startswith("companion-log-invalid:")
++
++    # Both the recovered .backlog.md AND its companion meta/rec001.jsonl were committed on main
++    committed_files = set(
++        subprocess.run(
++            ["git", "show", "--pretty=", "--name-only", res.commit],
++            cwd=repo,
++            capture_output=True,
++            text=True,
++            check=True,
++        )
++        .stdout.strip()
++        .splitlines()
++    )
++    assert valid_rel_holder[0] in committed_files
++    assert ".aw/records/meta/rec001.jsonl" in committed_files
++    assert res.record_path in committed_files
++    assert f".aw/records/meta/{res.record_id6}.jsonl" in committed_files
++
++    # Main passes aw backlog check cleanly
++    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
++        assert backlog.run_check(_check_args(repo)) == 0
++
++
++def test_perform_coordinator_proposal_file_hook_reject_rollback_keeps_proposal_log(
++    tmp_path: Path,
++) -> None:
++    repo = _init_git_repo(tmp_path, with_release=True)
++
++    def _mutate(wt: Path) -> None:
++        _create_log_backlog(
++            wt / ".aw" / "records",
++            wt,
++            "rbk001",
++            status="open",
++            set_id="rbk001",
++            priority="high",
++            work_kind="bug",
++            summary="Lane defect rejected by commit hook",
++            extra_fields={"blocks_release": "next"},
++            slug="hook-reject",
++        )
++
++    lane_branch = "aw/lane/prp002"
++    base_sha = _populate_lane_branch(repo, lane_branch, _mutate)
++
++    run_dir = tmp_path / "run_dir_rb"
++    run_dir.mkdir(parents=True, exist_ok=True)
++    proposal = {
++        "kind": "tool-defect",
++        "blocked_by": "hook rejection rollback test",
++        "why": "verify proposal log retained on fallback retry",
++        "proposed_change": "retain proposal companion log on rollback",
++        "paths": ["agent_workflows/runner_shared.py"],
++        "size": "material",
++    }
++    item = {"id6": "prp002"}
++    state = {"repo": str(repo), "run_id": "run-fljn9b-rb"}
++
++    from agent_workflows import git_commit_helper as _gch
++
++    real_offer_commit = _gch.offer_commit
++    call_paths: list[list[str]] = []
++
++    def _reject_first_then_commit(repo_root, paths, **kwargs):
++        call_paths.append(list(paths))
++        if len(call_paths) == 1:
++            raise RuntimeError("simulated pre-commit hook failure on lane backlog")
++        return real_offer_commit(repo_root, paths, **kwargs)
++
++    with (
++        mock.patch.object(
++            _gch, "offer_commit", side_effect=_reject_first_then_commit
++        ),
++        coordinator_role(),
++    ):
++        res = runner_shared.perform_coordinator_proposal_file(
++            run_dir=run_dir,
++            state=state,
++            item=item,
++            proposal=proposal,
++            lane_branch=lane_branch,
++            lane_base_commit=base_sha,
++        )
++
++    assert res.filed is True
++    assert res.commit is not None
++    assert res.recovered_backlog_paths == ()
++    assert any(reason == "commit-hook-rejected" for _, reason in res.skipped_backlog_reasons)
++    assert len(call_paths) == 2
++    # Retry commit must include BOTH new_record_rel AND the proposal's own meta/<record_id6>.jsonl
++    assert res.record_path in call_paths[1]
++    assert f".aw/records/meta/{res.record_id6}.jsonl" in call_paths[1]
++
++    committed_files = set(
++        subprocess.run(
++            ["git", "show", "--pretty=", "--name-only", res.commit],
++            cwd=repo,
++            capture_output=True,
++            text=True,
++            check=True,
++        )
++        .stdout.strip()
++        .splitlines()
++    )
++    assert res.record_path in committed_files
++    assert f".aw/records/meta/{res.record_id6}.jsonl" in committed_files
++    assert ".aw/records/meta/rbk001.jsonl" not in committed_files
++    assert not (repo / ".aw" / "records" / "meta" / "rbk001.jsonl").exists()
++
++
++def test_set_records_promote_question_to_backlog_and_close_on_answer(
++    tmp_path: Path,
++) -> None:
++    repo = _init_git_repo(tmp_path)
++    _create_log_backlog(
++        repo / ".aw" / "records",
++        repo,
++        "exi001",
++        status="open",
++        summary="Pre-existing log-format backlog item",
++        slug="existing",
++    )
++
++    promo = set_records.promote_question_to_backlog(
++        repo,
++        decision_number=17,
++        summary="Blocking question requiring maintainer decision",
++        resume_command="aw oc run all",
++        context="Context for decision 17",
++    )
++    assert promo.path.is_file()
++    assert promo.backlog_id != "exi001"
++    assert promo.decision_ref == "D17"
++    promo_text = promo.path.read_text(encoding="utf-8")
++    assert backlog.validate_item(promo.path, promo_text, repo_root=repo) == []
++
++    closed_path = set_records.close_on_answer(repo, promo.path)
++    assert closed_path.is_file()
++    assert closed_path.parent.name == "done"
++    assert not promo.path.exists()
++    closed_text = closed_path.read_text(encoding="utf-8")
++    assert backlog.validate_item(closed_path, closed_text, repo_root=repo) == []
++    closed_item = backlog.find_item(repo, promo.backlog_id)
++    assert closed_item is not None
++    assert closed_item.status == "done"
++    assert closed_item.gate_kind is None
++    assert closed_item.gate_ref is None
 diff --git a/tests/test_history_date_clock_sidecar.py b/tests/test_history_date_clock_sidecar.py
 index f046ad08e..99b89945a 100644
 --- a/tests/test_history_date_clock_sidecar.py

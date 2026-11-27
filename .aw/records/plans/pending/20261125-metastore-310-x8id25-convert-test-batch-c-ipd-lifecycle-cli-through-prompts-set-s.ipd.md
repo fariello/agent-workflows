@@ -132,8 +132,11 @@ flowchart TD
 - Making `ipd_schema`, `ipd_lint`, and `ipd_authoring` log-aware: prerequisite child plan ahead of the test batches.
   - Carrier: hdwqex
   - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-305-hdwqex-make-ipd-lint-and-ipd-scaffold-log-aware-in-the-cutover-code.ipd.md
-- Making `backlog.py` (including `backlog.run_new` writing-standard pointer) and `specs.py`/`releases.py`/`check_engine.py` spec-link/`cli._run_search`/`ipd_dependency_statement_gate.py` log-aware: prerequisite production-fix child plans ahead of batches A and B.
-  - Carrier: fljn9b, szykgd
+- Making `backlog.py` (including `backlog.run_new` writing-standard pointer) log-aware: prerequisite production-fix child plan ahead of batch A.
+  - Carrier: fljn9b
+  - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-314-fljn9b-make-backlog-validation-and-readers-log-aware-in-the-cutover.ipd.md
+- Making `specs.py`/`releases.py`/`check_engine.py` spec-link/`cli._run_search`/`ipd_dependency_statement_gate.py` log-aware: prerequisite production-fix child plan ahead of batch B.
+  - Carrier: szykgd
 - Making `ipd_lifecycle.py`, `partition.py`/`plans.py`, `check_engine.py::check_status_untooled_range`, `executed_transition_gate.py`/`backlog_blocking_close_gate.py` marker ordering, and `meta_cli.py::meta_repair` log-aware: prerequisite production-fix child plan ahead of batch C.
   - Carrier: otin36
 - Modules outside batch C: the other batch children.

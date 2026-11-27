@@ -122,6 +122,7 @@ flowchart TD
 
 - Making `agent_workflows/backlog.py` and its `check_engine`/`runner_shared`/`set_records` callers log-aware in the cutover code patch (OQ-01, maintainer answer 2026-11-26): prerequisite child plan ahead of `cugg3w`.
   - Carrier: fljn9b
+  - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-314-fljn9b-make-backlog-validation-and-readers-log-aware-in-the-cutover.ipd.md
 - Modules outside batch A: the other batch children (`psm9ac`, `x8id25`, `e0g2gt`, `qi0kl6`, `x3mig6`).
   - Carrier: psm9ac
 - The final refusal list across all batches and the full-suite runs: the narrowed parent step.
