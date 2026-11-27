@@ -139,6 +139,7 @@ flowchart TD
 
 - Fixing the `backlog.run_new` writing-standard pointer alongside `backlog.py` log-awareness (OQ-01, maintainer answer 2026-11-26): folded into Order 314 ahead of `cugg3w`.
   - Carrier: fljn9b
+  - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-314-fljn9b-make-backlog-validation-and-readers-log-aware-in-the-cutover.ipd.md
 - Making `specs.py`, `releases.py`, `check_engine.py` spec-link checks, `cli._run_search`, and `hooks/ipd_dependency_statement_gate.py` log-aware in the cutover code patch (OQ-01, maintainer answer 2026-11-26): prerequisite child plan ahead of `psm9ac`.
   - Carrier: szykgd
 - Making `ipd_lifecycle`/`partition`/`plans`/`check_status_untooled*`/hooks/`meta_repair`, `.review.md`/prompt mirrors/`check_engine` priority, `coverage_record`/`readiness`/`runner`/`review_sequence`, `selectors`/`artifact_rename`, `research_cmd`/`research_refs`, and `plan_readiness`/`status_set`/`artifact_refs`/`artifact_adopt` log-aware in the cutover code patch (OQ-02 Option 1, maintainer answer 2026-11-26): six prerequisite child plans (`otin36` -> `p109wy` -> `q6fiws` -> `j1f454` -> `lec341` -> `3e0vfy`) re-chained ahead of `psm9ac`.
