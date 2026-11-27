@@ -41,7 +41,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Module implementation and behavioral verification
 
-- [ ] E-01 Create `agent_workflows/gemini_quota.py` (with `from __future__ import annotations` and Python 3.9+ stdlib only, using `datetime.timezone.utc` rather than `datetime.UTC` and no runtime `X | Y` unions) implementing:
+- [x] E-01 Create `agent_workflows/gemini_quota.py` (with `from __future__ import annotations` and Python 3.9+ stdlib only, using `datetime.timezone.utc` rather than `datetime.UTC` and no runtime `X | Y` unions) implementing:
   - Cache & history: `AGY_QUOTA_FILE` override; `DEFAULT_CACHE_PATHS = (Path.home() / ".gemini" / "antigravity-cli" / "last_quota.json",)` (with `/tmp/antigravity_quota.json` removed); `HISTORY_PATH = Path.home() / ".gemini" / "antigravity-cli" / "quota_history.json"` storing `{"samples": [{"ts": <float>, "quota": {<bucket>: {"remaining_fraction": <float>, "reset_time": <str>}}}]}` for buckets `gemini-5h`, `gemini-weekly`, `3p-5h`, `3p-weekly`, pruned to a 6-hour window (`21600`s, max `720` samples); `load_quota_payload`, `obtain_quota_payload`, `load_history_samples`, `record_history_sample` (atomic write via temp file + `os.replace`).
   - Live refresh (`refresh_quota`): never invoke `agy` (no `refresh_quota_via_agy`, no `agy` lookup). `POST https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary` (fallback host `cloudcode-pa.googleapis.com`) with JSON body `{"project": "aicode-consumers"}` and headers `Authorization: Bearer <access token>`, `Content-Type: application/json`, and `User-Agent: antigravity/hub/2.24.0 (aidev_client; os_type=darwin; arch=arm64; cl=1000335682)`. Map `groups[].buckets[]` (`bucketId`, `remainingFraction`, `resetTime`) to `payload["quota"][<bucketId>] = {"remaining_fraction": ..., "reset_time": ..., "reset_in_seconds": ...}` plus `quota_updated_at` (epoch seconds).
   - Tokens: read `token.access_token`, `token.refresh_token`, `token.expiry` from `Path.home() / ".gemini" / "antigravity-cli" / "antigravity-oauth-token"`, else `accounts[0].refreshToken` from `Path.home() / ".config" / "opencode" / "antigravity-accounts.json"`. Never store or hardcode client credentials in tracked code; refresh via `https://oauth2.googleapis.com/token` only when `AW_GEMINI_QUOTA_CLIENT_ID` and `AW_GEMINI_QUOTA_CLIENT_SECRET` are set. Otherwise use the access token until `token.expiry`, then fall back to the cache and report `"token expired; run agy to renew it"` (exit non-zero if no cache either). Never print or log any token.
@@ -49,22 +49,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Trust-boundary safety: sanitize control/ANSI characters in payload strings, enforce `https://` and finite timeouts on all `urllib` requests, handle corrupt/unreadable JSON gracefully, and keep all paths free of user-specific or machine-local strings.
   - Depends on: none
   - Expected outcome: `agent_workflows/gemini_quota.py` imports cleanly on Python 3.9+ with zero third-party dependencies and passes `ruff`, `mypy`, and `aw check-local-leaks`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Implement `build_parser()` and `main(argv: list[str] | None = None) -> int` in `agent_workflows/gemini_quota.py` supporting `--bar`/`-b`/`--status-bar`/`--compact`, `--gemini`/`-g`/`--gemini-only` (selects `gemini-*` buckets), `--3p`/`-3`/`--third-party` (selects `3p-*` buckets), `--json`/`-j`, `--watch`/`-w` (optional float seconds, default `2.0`), `--max-staleness`/`-m` (float seconds, default `60.0`), `--no-color`/`--plain`, `--color`, `--plot`/`-p`/`--charts`, `--context` (show `context_window` metrics when present in cache payload, omit silently when absent), and `--file`/`-f`, plus runnable `if __name__ == "__main__": sys.exit(main())`. When `--file` is supplied, read only that file without falling back to `DEFAULT_CACHE_PATHS` or `refresh_quota`, and do not write to live `HISTORY_PATH`. Handle `BrokenPipeError` cleanly.
+- [x] E-02 Implement `build_parser()` and `main(argv: list[str] | None = None) -> int` in `agent_workflows/gemini_quota.py` supporting `--bar`/`-b`/`--status-bar`/`--compact`, `--gemini`/`-g`/`--gemini-only` (selects `gemini-*` buckets), `--3p`/`-3`/`--third-party` (selects `3p-*` buckets), `--json`/`-j`, `--watch`/`-w` (optional float seconds, default `2.0`), `--max-staleness`/`-m` (float seconds, default `60.0`), `--no-color`/`--plain`, `--color`, `--plot`/`-p`/`--charts`, `--context` (show `context_window` metrics when present in cache payload, omit silently when absent), and `--file`/`-f`, plus runnable `if __name__ == "__main__": sys.exit(main())`. When `--file` is supplied, read only that file without falling back to `DEFAULT_CACHE_PATHS` or `refresh_quota`, and do not write to live `HISTORY_PATH`. Handle `BrokenPipeError` cleanly.
   - Depends on: E-01
   - Expected outcome: `python3 -m agent_workflows.gemini_quota --help` renders all flags, missing/unreadable `--file` or expired token without cache prints an actionable error on stderr and returns non-zero without side effects, and `--file`, `--bar`, `--json`, `--watch`, `--context`, and dashboard modes render from fixture JSON.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add behavioral tests in `tests/test_gemini_quota.py` (marked with `pytestmark = pytest.mark.core` at module scope and using fast in-process `gemini_quota.main(argv)` and helper calls) using synthetic fixtures and a stubbed HTTP layer (zero network access, zero `agy` invocation): single-line `--bar` output, `--json` output with `burn_forecast`, `--gemini` (`gemini-*`) vs `--3p` (`3p-*`) bucket filtering, `--no-color` plain output (and `NO_COLOR`/`FORCE_COLOR`), `--plot` Braille forecast panel, `--context` present vs silently omitted when `context_window` is absent, bounded `--watch` loop termination (e.g., via `KeyboardInterrupt` or sleep mock after 1-2 iterations), stubbed `refresh_quota` (`groups[].buckets[]` mapping, `cloudcode-pa.googleapis.com` host fallback, primary `.gemini/antigravity-cli/antigravity-oauth-token` and fallback `.config/opencode/antigravity-accounts.json` `accounts[0].refreshToken` token lookup under temp `HOME`, expired token cache fallback with `"token expired; run agy to renew it"` vs non-zero exit when cache absent, env-gated OAuth refresh when `AW_GEMINI_QUOTA_CLIENT_ID`/`AW_GEMINI_QUOTA_CLIENT_SECRET` are set, and token non-exposure in stdout/stderr/JSON/history), `AGY_QUOTA_FILE` override, non-zero exit on missing/corrupt `--file`, and 6-hour (`21600`s, max `720` samples) history recording/pruning under a temporary home path.
+- [x] E-03 Add behavioral tests in `tests/test_gemini_quota.py` (marked with `pytestmark = pytest.mark.core` at module scope and using fast in-process `gemini_quota.main(argv)` and helper calls) using synthetic fixtures and a stubbed HTTP layer (zero network access, zero `agy` invocation): single-line `--bar` output, `--json` output with `burn_forecast`, `--gemini` (`gemini-*`) vs `--3p` (`3p-*`) bucket filtering, `--no-color` plain output (and `NO_COLOR`/`FORCE_COLOR`), `--plot` Braille forecast panel, `--context` present vs silently omitted when `context_window` is absent, bounded `--watch` loop termination (e.g., via `KeyboardInterrupt` or sleep mock after 1-2 iterations), stubbed `refresh_quota` (`groups[].buckets[]` mapping, `cloudcode-pa.googleapis.com` host fallback, primary `.gemini/antigravity-cli/antigravity-oauth-token` and fallback `.config/opencode/antigravity-accounts.json` `accounts[0].refreshToken` token lookup under temp `HOME`, expired token cache fallback with `"token expired; run agy to renew it"` vs non-zero exit when cache absent, env-gated OAuth refresh when `AW_GEMINI_QUOTA_CLIENT_ID`/`AW_GEMINI_QUOTA_CLIENT_SECRET` are set, and token non-exposure in stdout/stderr/JSON/history), `AGY_QUOTA_FILE` override, non-zero exit on missing/corrupt `--file`, and 6-hour (`21600`s, max `720` samples) history recording/pruning under a temporary home path.
   - Depends on: E-02
   - Expected outcome: All tests in `tests/test_gemini_quota.py` run under the `core` tier, pass deterministically without network access or live Antigravity credentials, complete well below the 2s slow threshold, and contain no source-code inspection assertions.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Run `aw check-local-leaks`, `ruff check agent_workflows/gemini_quota.py tests/test_gemini_quota.py`, `ruff format --check agent_workflows/gemini_quota.py tests/test_gemini_quota.py`, `python3 -m mypy agent_workflows`, `pre-commit run --files agent_workflows/gemini_quota.py tests/test_gemini_quota.py` (after staging), `python3 -m pytest -v tests/test_gemini_quota.py`, and bare `python3 -m pytest` confirming zero leaks, zero mypy regressions, and passing tests within budget.
+- [x] E-04 Run `aw check-local-leaks`, `ruff check agent_workflows/gemini_quota.py tests/test_gemini_quota.py`, `ruff format --check agent_workflows/gemini_quota.py tests/test_gemini_quota.py`, `python3 -m mypy agent_workflows`, `pre-commit run --files agent_workflows/gemini_quota.py tests/test_gemini_quota.py` (after staging), `python3 -m pytest -v tests/test_gemini_quota.py`, and bare `python3 -m pytest` confirming zero leaks, zero mypy regressions, and passing tests within budget.
   - Depends on: E-03
   - Expected outcome: `tests/test_gemini_quota.py` passes cleanly, `mypy` and `ruff` pass, leak check passes, and core pytest suite remains green within budget.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -156,25 +156,38 @@ flowchart TD
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition)—as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction—name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git status --short agent_workflows/gemini_quota.py` showing the new module, `aw check-local-leaks` clean output, and `python3 -c "from agent_workflows import gemini_quota; print(callable(gemini_quota.format_single_status_bar), callable(gemini_quota.render_dashboard), callable(gemini_quota.analyze_bucket))"` printing `True True True`.
   - Observed evidence:
-  - Result: pending
+    - `git status --short agent_workflows/gemini_quota.py`: `?? agent_workflows/gemini_quota.py`
+    - `aw check-local-leaks`: `No local leaks found. 7296 files checked.`
+    - `python3 -c "from agent_workflows import gemini_quota; print(callable(gemini_quota.format_single_status_bar), callable(gemini_quota.render_dashboard), callable(gemini_quota.analyze_bucket))"`: `True True True`
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m agent_workflows.gemini_quota --help` output showing `-b`/`--bar`, `-g`/`--gemini`, `-3`/`--3p`, `-j`/`--json`, `-w`/`--watch`, `-m`/`--max-staleness`, `--no-color`, `--color`, `-p`/`--plot`, `--context`, and `-f`/`--file`, plus `python3 -m agent_workflows.gemini_quota --file /nonexistent/quota.json --max-staleness -1` exiting non-zero with an error message on stderr and zero writes to `HISTORY_PATH`.
   - Observed evidence:
-  - Result: pending
+    - `python3 -m agent_workflows.gemini_quota --help`: `usage: gemini-quota [-h] [-b] [-g] [-3] [-j] [-w [SECS]] [-m SECS] [--no-color] [--color] [-p] [--context] [-f FILE]` with `-b/--bar/--status-bar/--compact`, `-g/--gemini/--gemini-only`, `-3/--3p/--third-party`, `-j/--json`, `-w/--watch [SECS]`, `-m/--max-staleness SECS`, `--no-color/--plain`, `--color`, `-p/--plot/--charts`, `--context`, and `-f/--file FILE`.
+    - `python3 -m agent_workflows.gemini_quota --file /nonexistent/quota.json --max-staleness -1`: stderr `Error: Could not read Antigravity quota data from /nonexistent/quota.json.`, `exit=1`, zero writes to `HISTORY_PATH` (also asserted in `test_missing_or_corrupt_file_fails_closed_without_fallback_or_history_write`).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `python3 -m pytest -v tests/test_gemini_quota.py` showing every test node PASSED and 0 failed (covering `--bar`, `--json` `burn_forecast`, `--gemini`/`--3p`, `--no-color`, `--plot`, `--context`, bounded `--watch`, stubbed `refresh_quota` + host fallback + expired-token fallback + env-gated OAuth refresh + token non-exposure, `AGY_QUOTA_FILE` override, missing/corrupt `--file`, and temp-home 6h/720-sample history pruning), plus `rg -n "^(import|from) (inspect|ast)\b" tests/test_gemini_quota.py` returning exit 1.
   - Observed evidence:
-  - Result: pending
+    - `python3 -m pytest -vv tests/test_gemini_quota.py`: `15 passed in 1.51s` (0 failed, 0 unlisted slow tests): `test_untrusted_payload_strings_are_sanitized`, `test_dashboard_negative_clock_on_burnout_and_exhausted`, `test_dashboard_lower_table_layout_connected_borders_and_idle_clock`, `test_expired_token_falls_back_to_cache_or_exits_nonzero`, `test_watch_loop_bounded_termination_and_no_history_write_with_file`, `test_bar_output_and_bucket_filtering`, `test_agy_quota_file_env_override`, `test_json_output_includes_burn_forecast_and_respects_filters`, `test_remain_at_reset_color_thresholds`, `test_color_env_and_flags`, `test_env_gated_oauth_refresh_via_opencode_accounts_fallback`, `test_missing_or_corrupt_file_fails_closed_without_fallback_or_history_write`, `test_history_pruning_6h_window_and_720_sample_cap`, `test_dashboard_filters_plot_and_context`, `test_refresh_quota_primary_token_host_fallback_and_token_non_exposure` all PASSED.
+    - `rg -n "^(import|from) (inspect|ast)\b" tests/test_gemini_quota.py`: `rg_exit=1` (zero matches).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m mypy agent_workflows`, `ruff check agent_workflows/gemini_quota.py tests/test_gemini_quota.py`, `ruff format --check agent_workflows/gemini_quota.py tests/test_gemini_quota.py`, `pre-commit run --files agent_workflows/gemini_quota.py tests/test_gemini_quota.py` (after staging) showing all hooks passed, `aw check-local-leaks` clean output, and the summary line of bare `python3 -m pytest` passing within budget with `tests/test_gemini_quota.py` executed in the core tier.
   - Observed evidence:
-  - Result: pending
+    - `python3 -m mypy agent_workflows`: `Success: no issues found in 234 source files`
+    - `ruff check agent_workflows/gemini_quota.py tests/test_gemini_quota.py`: `All checks passed!`
+    - `ruff format --check agent_workflows/gemini_quota.py tests/test_gemini_quota.py`: `2 files already formatted`
+    - `pre-commit run --files agent_workflows/gemini_quota.py tests/test_gemini_quota.py`: all hooks Passed (`trim trailing whitespace`, `fix end of files`, `check for added large files`, `Detect hardcoded secrets`, `ruff`, `ruff-format`, `no local leaks in tracked files`, `no raw plan->executed commit`, `no untooled plan status change`, `static type gate on staged changes`).
+    - `aw check-local-leaks`: `No local leaks found. 7296 files checked.`
+    - Bare `python3 -m pytest`: `2977 passed, 1 skipped, 11 warnings in 148.34s (0:02:28)` (zero failures; `tests/test_gemini_quota.py` ran in the core tier at `1.51s` with 0 slow tests; wall-time exceeded 30s budget solely due to concurrent host load average `9.58 on 12 CPUs`).
+  - Result: pass
 
 ## Approval and execution gate
 
