@@ -22,6 +22,7 @@
 
 ## Workflow history
 
+- 2026-11-27 note (antigravity/gemini): Aligned E-03, V-03, and deferred scope with amended spec ogd2nv (R-09, R-11, AC-05) and follow-up backlog pqqqzf: keep aw reviews record intact until after metastore cutover cxxmyv (removing only aw reviews decisions), and document aw show review-decisions and durable aw show history.
 - 2026-11-23 to-review (aw set): status set to to-review
 - 2026-11-23 draft (antigravity): created and authored as Order 03 of Set `cliverbs` graduating `i8dc07` under spec `ogd2nv`.
 
@@ -60,7 +61,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: Completions, docs, and whole-Set verification
 
-- [ ] E-03 Update `agent_workflows/completion.py`, `agent_workflows/command_surface.py`, and `docs/cli-output-contract.md` to register and document `review`/`rev`, `exec`, `plan`/`grad`/`graduate`, `validate`, `approve`, `profile`, and `show` views (removing `reviews` from completions/surface and writing zero em or en dashes in user-facing prose).
+- [ ] E-03 Update `agent_workflows/completion.py`, `agent_workflows/command_surface.py`, and `docs/cli-output-contract.md` to register and document `review`/`rev`, `exec`, `plan`/`grad`/`graduate`, `validate`, `approve`, `profile`, and `show` views (`stale-reviews`, `review-decisions`, `graduation`, `board`, `history`, `runs`, `artifact`), removing `reviews decisions` while keeping `aw reviews record` intact until post-cutover backlog `pqqqzf`, and writing zero em or en dashes in user-facing prose.
   - Depends on: E-01, E-02
   - Expected outcome: Shell completions and CLI reference documentation reflect the complete verb-first CLI surface and consolidated `aw show` views.
   - Execution state: pending
@@ -91,6 +92,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Removing legacy `aw oc ...`, `aw agy ...`, `aw run ...`, or `aw set ...` commands: explicitly out of scope per spec `ogd2nv` (retained as lower-level stable interfaces).
   - Carrier-Declined: explicitly out of scope per spec ogd2nv (legacy commands retained as lower-level stable interfaces)
+- Relocating/renaming `aw reviews record` and removing top-level `aw reviews` completely before 2.0.0: deferred until after the `metastore` cutover (`cxxmyv`) lands so approved spec `4sd62s` and `.aw/system/cutover/metastore-docs.cutover.patch` remain unbroken.
+  - Carrier: pqqqzf
 
 ## Scope check
 
@@ -126,7 +129,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: Pasted pytest output from `tests/test_completion.py` and git diff excerpt for `docs/cli-output-contract.md` showing the new top-level verbs, `aw profile`, `aw show` views, removal of `reviews`, and zero em/en dashes.
+  - Required evidence: Pasted pytest output from `tests/test_completion.py` and git diff excerpt for `docs/cli-output-contract.md` showing the new top-level verbs, `aw profile`, `aw show` views (`stale-reviews`, `review-decisions`, `graduation`, `board`, `history`, `runs`, `artifact`), removal of `reviews decisions` while preserving `aw reviews record` until `pqqqzf`, and zero em/en dashes.
   - Observed evidence:
   - Result: pending
 

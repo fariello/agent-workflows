@@ -2,15 +2,15 @@
 
 - Date: 2026-11-22
 - Kind: orchestrator
-- Concern: Deliver verb-first top-level CLI commands (`aw rev`/`review`, `aw exec`, `aw plan`/`grad`/`graduate`, `aw validate`, `aw approve`), per-state runner profile routing with single-host `PATH` fallback, unified read-only `aw show` views, and removal of `aw reviews` for 2.0.0 per spec `ogd2nv` Sections 2-4 (`i8dc07`).
-- Scope: Coordinate Orders 01 through 03 of Set `cliverbs`: Order 01 (`m7jcis`) adds per-state default profile routing, single-host `PATH` fallback, and host-neutral `aw profile`; Order 02 (`p06t7i`) unifies read-only views under `aw show` (`stale-reviews`, `decisions`, `graduation`, `board`, `history`, `runs`, `artifact`) and removes `aw reviews` outright for 2.0.0; Order 03 (`xocj8i`) adds the verb-first top-level CLI commands (`rev`/`review`, `exec`, `plan`/`grad`/`graduate`, `validate`, `approve`), updates completions/docs, and performs whole-Set verification. This orchestrator performs no code edits itself.
+- Concern: Deliver verb-first top-level CLI commands (`aw rev`/`review`, `aw exec`, `aw plan`/`grad`/`graduate`, `aw validate`, `aw approve`), per-state runner profile routing with single-host `PATH` fallback, unified read-only `aw show` views, and removal of `aw reviews decisions` (keeping `aw reviews record` intact through `metastore` cutover `cxxmyv` until `pqqqzf`) per spec `ogd2nv` Sections 2-4 (`i8dc07`).
+- Scope: Coordinate Orders 01 through 03 of Set `cliverbs`: Order 01 (`m7jcis`) adds per-state default profile routing, single-host `PATH` fallback, and host-neutral `aw profile`; Order 02 (`p06t7i`) unifies read-only views under `aw show` (`stale-reviews`, `review-decisions`, `graduation`, `board`, `history` matching durable `aw show <id6> --history`, `runs`, `artifact`) and removes `aw reviews decisions` while keeping `aw reviews record` intact through `metastore` cutover `cxxmyv` (full `aw reviews` retirement deferred to `pqqqzf`); Order 03 (`xocj8i`) adds the verb-first top-level CLI commands (`rev`/`review`, `exec`, `plan`/`grad`/`graduate`, `validate`, `approve`), updates completions/docs, and performs whole-Set verification. This orchestrator performs no code edits itself.
 - Scope-Paths: .aw/records/plans/pending/20261122-cliverbs-00-lmlji2-orchestrate-verb-first-top-level-cli-commands-and-unified-aw.ipd.md
 - Item-Dependencies: executed:m7jcis, executed:p06t7i, executed:xocj8i
 - Status: to-review
 - Coverage: pass
-- Coverage-Fingerprint: adac3176384a4ce4301b8f5cf407d546c4ea613725c233742e2648ced9136ba0
-- Coverage-Checked: 2026-11-23 by uri/its_direct/pt3-claude-opus-5.5-1m-us
-- Short-Description: Coordinate Orders 01-03 adding per-state runner routing, unified aw show views (retiring aw reviews), and top-level verbs
+- Coverage-Fingerprint: 684388d57f13e57a114fa9ba19e61a12f1dce74012b541f76d2b48d5acf5a7cc
+- Coverage-Checked: 2026-11-27 by host-default
+- Short-Description: Coordinate Orders 01-03 adding per-state runner routing, unified aw show views (retiring aw reviews decisions), and top-level verbs
 - Work-Kind: feature
 - Priority: medium
 - From-Backlog: i8dc07
@@ -25,6 +25,8 @@
 
 ## Workflow history
 
+- 2026-11-27 coverage pass (aw agy run): fingerprint 684388d57f13, model by host-default
+- 2026-11-27 note (antigravity/gemini): Aligned scope, E-02, child table, and deferred scope with amended spec ogd2nv (R-09, R-11, AC-05) and follow-up backlog pqqqzf (aw show review-decisions, durable aw show history, keeping aw reviews record until post-cutover pqqqzf).
 - 2026-11-23 to-review (aw set): status set to to-review
 - 2026-11-23 coverage pass (aw oc run): fingerprint adac3176384a, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-11-23 draft (antigravity): created and authored as Order 00 orchestrator for Set `cliverbs` graduating `i8dc07` under spec `ogd2nv`.
@@ -36,7 +38,7 @@ Deliver the full verb-first CLI and unified `aw show` surface specified in `ogd2
 ```mermaid
 flowchart LR
     C01["Order 01: m7jcis (per-state profiles + PATH fallback + aw profile)"] --> C03["Order 03: xocj8i (top-level verbs + completions + Set verification)"]
-    C02["Order 02: p06t7i (unified aw show views + remove aw reviews)"] --> C03
+    C02["Order 02: p06t7i (unified aw show views + remove aw reviews decisions)"] --> C03
     C03 --> O00["Order 00: lmlji2 (orchestrator retirement)"]
 ```
 
@@ -53,7 +55,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-02 CONFIRM p06t7i REACHED executed
   - Depends on: none
-  - Expected outcome: Child plan `p06t7i` (Order 02) has landed in `.aw/records/plans/executed/` with `Status: executed`, consolidating read-only views under `aw show` (`stale-reviews`, `decisions`, `graduation`, `board`, `history`, `runs`, `artifact`) and removing `aw reviews` along with all 13 internal references.
+  - Expected outcome: Child plan `p06t7i` (Order 02) has landed in `.aw/records/plans/executed/` with `Status: executed`, consolidating read-only views under `aw show` (`stale-reviews`, `review-decisions`, `graduation`, `board`, `history` matching durable `aw show <id6> --history`, `runs`, `artifact`) and removing `aw reviews decisions` while keeping `aw reviews record` intact through `metastore` cutover `cxxmyv` (deferred retirement in `pqqqzf`).
   - Execution state: pending
 
 - [ ] E-03 CONFIRM xocj8i REACHED executed
@@ -66,13 +68,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | Order | Id | File | What it does | Depends on |
 |---|---|---|---|---|
 | 01 | `m7jcis` | `20261122-cliverbs-01-m7jcis-add-per-state-runner-profile-routing-path-host-fallback-and.ipd.md` | Extends `runner_profiles.py` and `run_dispatch.py` with per-state default profile config/CLI control (`graduate`/`plan`, `review`, `execute`, `validate`), single-host `PATH` fallback, and host-neutral `aw profile`. | none |
-| 02 | `p06t7i` | `20261122-cliverbs-02-p06t7i-unify-read-only-views-under-aw-show-and-remove-aw-reviews-fo.ipd.md` | Adds reserved `aw show` views (`stale-reviews`, `decisions`, `graduation`, `board`, `history`, `runs`) plus `aw show artifact <selector>` escape hatch, and removes `aw reviews` for 2.0.0 across all 13 references. | `executed:e36q6r`, `executed:9ifwdx` |
+| 02 | `p06t7i` | `20261122-cliverbs-02-p06t7i-unify-read-only-views-under-aw-show-and-remove-aw-reviews-fo.ipd.md` | Adds reserved `aw show` views (`stale-reviews`, `review-decisions`, `graduation`, `board`, `history` matching durable `aw show <id6> --history`, `runs`) plus `aw show artifact <selector>` escape hatch, and removes `aw reviews decisions` while keeping `aw reviews record` intact until post-cutover backlog `pqqqzf`. | `executed:e36q6r`, `executed:9ifwdx` |
 | 03 | `xocj8i` | `20261122-cliverbs-03-xocj8i-add-verb-first-top-level-cli-commands-review-exec-grad-appro.ipd.md` | Adds `aw rev`/`review`, `aw exec`, `aw plan`/`grad`/`graduate`, `aw validate` (`/verify-execution`), and `aw approve` (TTY auto-attest vs non-TTY `--by-human --message`), updates completions/docs, and performs whole-Set verification. | `executed:m7jcis`, `executed:p06t7i`, `executed:e36q6r` |
 
 ## Completion criteria (the whole Set is done only when)
 
 - Per-state default profile routing, single-host `PATH` fallback, and host-neutral `aw profile` satisfy spec `ogd2nv` R-07, R-08, and AC-04. Owner: `m7jcis`.
-- Unified read-only `aw show` views and complete removal of `aw reviews` (all 13 references updated) satisfy spec `ogd2nv` R-09 through R-11 and AC-05. Owner: `p06t7i`.
+- Unified read-only `aw show` views (`review-decisions`, durable `history`) and removal of `aw reviews decisions` (keeping `aw reviews record` intact until `pqqqzf`) satisfy spec `ogd2nv` R-09 through R-11 and AC-05. Owner: `p06t7i`.
 - Verb-first top-level commands (`review`/`rev`, `exec`, `plan`/`grad`/`graduate`, `validate`, `approve`), completions, docs, and whole-Set verification satisfy spec `ogd2nv` R-12 through R-16 and AC-06. Owner: `xocj8i`.
 
 ## Cross-IPD validation
@@ -85,6 +87,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: 3xwbvs
 - Review-staleness clearing on human approval and `aw show stale-reviews --diff` core renderer: implemented by prerequisite IPD `9ifwdx`.
   - Carrier: 9ifwdx
+- Relocating/renaming `aw reviews record` and removing top-level `aw reviews` completely before 2.0.0: deferred until after the `metastore` cutover (`cxxmyv`) lands.
+  - Carrier: pqqqzf
 
 ## Scope check
 
