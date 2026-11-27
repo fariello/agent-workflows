@@ -144,6 +144,7 @@ flowchart TD
   - Carrier: 3e0vfy
 - Prior prerequisite production fixes (`hdwqex`, `fljn9b`, `szykgd`, `otin36`): already owned by Orders 305 and 314-316.
   - Carrier: otin36
+  - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-316-otin36-make-ipd-lifecycle-partition-plans-untooled-range-hooks-and.ipd.md
 - Applying the cutover patches on the real tree: attended cutover commit.
   - Carrier: cxxmyv
 

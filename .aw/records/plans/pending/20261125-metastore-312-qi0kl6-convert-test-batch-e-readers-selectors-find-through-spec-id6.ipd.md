@@ -127,6 +127,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-305-hdwqex-make-ipd-lint-and-ipd-scaffold-log-aware-in-the-cutover-code.ipd.md
 - Making backlog (`fljn9b`), specs/releases/spec-link/dep-gate (`szykgd`), and `ipd_lifecycle`/`partition`/`plans`/untooled-range/hooks/`meta repair` (`otin36`) log-aware: prerequisite production fixes ahead of batches A-C.
   - Carrier: otin36
+  - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-316-otin36-make-ipd-lifecycle-partition-plans-untooled-range-hooks-and.ipd.md
 - Making review mirrors/prompt metadata/priority (`p109wy`) and coverage/readiness/runner/review-sequence (`q6fiws`) log-aware: prerequisite production fixes ahead of batch D.
   - Carrier: q6fiws
 - Making `selectors.py` status matching/typed-subject ownership and `artifact_rename.py` `--to-id6` log-aware (`OQ-01` Option 2, Order 319): first prerequisite production fix ahead of batch E.
