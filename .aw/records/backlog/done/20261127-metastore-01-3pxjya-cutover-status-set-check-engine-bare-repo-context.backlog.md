@@ -1,7 +1,6 @@
 - Id: 3pxjya
-- Status: blocked
-- Gate-Kind: artifact
-- Gate-Ref: 6cltab
+- Status: done
+- Close-Evidence: .aw/records/plans/executed/20261127-metastore-322-6cltab-populate-cli-creator-log-fields-and-align-aw-find-bare-repo.ipd.md
 - Set: metastore
 - Work-Kind: bug
 - Priority: high
@@ -12,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-27 done (aw set): Fixed and validated by executed Order 322 plan 6cltab (E-03/V-03, E-04/V-04).
 - 2026-11-27 blocked (aw set): covered by Order 322 child plan 6cltab (single-valued From-Backlog carries 0b3ynm)
 - 2026-11-27 created (aw backlog): Post-cutover status_set and check_engine call resolve_project_context without in-tree fallback on bare repos (sibling of ggp2pf and 2etrjf)
 
