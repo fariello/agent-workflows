@@ -102,6 +102,7 @@ class SetClassification:
     runnable: List[str]
     blocked: List[BlockedMember]
     is_completeable: bool
+    dep_notes: Tuple[Tuple[str, str, str], ...] = ()
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -596,42 +597,54 @@ def classify_sets(
             is_completeable=is_completeable,
         )
 
-    # Iterative dependency verification across all runnable candidates
+    # Iterative dependency verification across all runnable candidates, including
+    # standalone plans (Sets without an orchestrator) that are present in `candidates`.
     cand_by_id = {it.id: it for it in pre_max_candidates if it.id}
     members_by_id: Dict[str, Tuple[str, Any]] = {}
     member_edges: Dict[str, List[Any]] = {}
 
+    def _parse_edges_for_item(item_id: str, item_path: Optional[Path]) -> List[Any]:
+        deps: List[str] = []
+        if item_id in cand_by_id and cand_by_id[item_id].item_dependencies is not None:
+            deps = list(cand_by_id[item_id].item_dependencies or ())
+        elif item_path:
+            mp = item_path if item_path.is_absolute() else (repo_root / item_path)
+            if mp.exists():
+                try:
+                    raw_deps, _ = runner_shared._read_item_dependencies(
+                        mp.read_text(encoding="utf-8")
+                    )
+                    deps = raw_deps or []
+                except Exception:
+                    pass
+        parsed_edges: List[Any] = []
+        for tok in deps:
+            edge = runner_shared.parse_dependency_token(tok)
+            if edge is not None:
+                parsed_edges.append(edge)
+        return parsed_edges
+
+    classified_member_ids: Set[str] = set()
     for setid, cs in classifications.items():
         membership = runner_shared.read_set_membership(repo_root, setid)
         for m in membership.members:
+            classified_member_ids.add(m.id6)
             if m.id6 in cs.runnable:
                 members_by_id[m.id6] = (setid, m)
-                deps: List[str] = []
-                if (
-                    m.id6 in cand_by_id
-                    and cand_by_id[m.id6].item_dependencies is not None
-                ):
-                    deps = list(cand_by_id[m.id6].item_dependencies or ())
-                elif m.path:
-                    mp = m.path if m.path.is_absolute() else (repo_root / m.path)
-                    if mp.exists():
-                        try:
-                            raw_deps, _ = runner_shared._read_item_dependencies(
-                                mp.read_text(encoding="utf-8")
-                            )
-                            deps = raw_deps or []
-                        except Exception:
-                            pass
-                parsed_edges: List[Any] = []
-                for tok in deps:
-                    edge = runner_shared.parse_dependency_token(tok)
-                    if edge is not None:
-                        parsed_edges.append(edge)
-                member_edges[m.id6] = parsed_edges
+                member_edges[m.id6] = _parse_edges_for_item(m.id6, m.path)
+
+    standalone_runnable_ids: Set[str] = set()
+    for it in candidates:
+        if not it.id or it.id in classified_member_ids:
+            continue
+        standalone_runnable_ids.add(it.id)
+        member_edges[it.id] = _parse_edges_for_item(
+            it.id, Path(it.path) if it.path else None
+        )
 
     active_runnable_ids: Set[str] = {
         mid for cs in classifications.values() for mid in cs.runnable
-    }
+    } | standalone_runnable_ids
 
     changed = True
     while changed:
@@ -690,6 +703,51 @@ def classify_sets(
         if targets_for_mid:
             unsatisfied_targets[mid] = targets_for_mid
 
+    # Lazy scan of all trees only when at least one orchestrated-Set member has an unsatisfied dep.
+    all_items_by_id: Optional[Dict[str, _att.Item]] = None
+
+    def _describe_missing_dep(
+        dep_id: str,
+        current_classifications: Dict[str, SetClassification],
+    ) -> Tuple[str, str]:
+        nonlocal all_items_by_id
+        for other_sid, other_cs in current_classifications.items():
+            for ob in other_cs.blocked:
+                if ob.id6 == dep_id:
+                    cause_lbl = ob.cause.replace("-", " ")
+                    return (
+                        f"plan, {ob.status}; blocked in Set '{other_sid}' ({cause_lbl})",
+                        "blocked-set",
+                    )
+        if all_items_by_id is None:
+            try:
+                scanned, _ = _att.scan(
+                    repo_root, type_filters=("plans", "specs", "backlog")
+                )
+                all_items_by_id = {it.id: it for it in scanned if it.id}
+            except Exception:
+                all_items_by_id = {}
+        it = all_items_by_id.get(dep_id)
+        if it is None:
+            return ("not found on disk", "missing")
+        st = (getattr(it, "status", None) or it.native_status or "unknown").lower()
+        if it.tree != "plans":
+            singular = (
+                "spec"
+                if it.tree == "specs"
+                else ("backlog" if it.tree == "backlog" else it.tree)
+            )
+            return (f"{singular}, {st}; excluded by -t plans", "non-plan")
+        if not include_active and is_active_item(it, run_map):
+            return (f"plan, {st}; active in a live run", "active")
+        if dep_id in pre_max_ids and dep_id not in runnable_ids:
+            return (f"plan, {st}; excluded by --max", "excluded-by-max")
+        it_action = _run_selection_policy.action_for_status("ipd", st)
+        expected_action = action_flag or _run_selection_policy.ACTION_EXECUTE
+        if it_action != expected_action:
+            return (f"plan, {st}; not runnable in this batch", "not-runnable")
+        return (f"plan, {st}; not in selection", "not-selected")
+
     for setid, cs in list(classifications.items()):
         new_runnable = list(cs.runnable)
         new_blocked = list(cs.blocked)
@@ -724,7 +782,73 @@ def classify_sets(
             is_completeable=len(new_blocked) == 0,
         )
 
+    # Second pass: attach inline exclusion notes for root external unsatisfied deps
+    # now that every Set's blocked members are finalized. Exclude members already in
+    # this Set's own blocked list (they already have their own cause and fix lines).
+    for setid, cs in list(classifications.items()):
+        unsat_members = [b for b in cs.blocked if b.cause == "unsatisfied-dependency"]
+        if not unsat_members:
+            continue
+        same_set_blocked_ids = {b.id6 for b in cs.blocked}
+        root_ids: List[str] = []
+        seen_r: Set[str] = set()
+        for b in unsat_members:
+            for dep_id in b.unsatisfied_dependencies:
+                if dep_id not in same_set_blocked_ids and dep_id not in seen_r:
+                    seen_r.add(dep_id)
+                    root_ids.append(dep_id)
+        if root_ids:
+            notes: List[Tuple[str, str, str]] = []
+            for dep_id in root_ids:
+                desc, kind = _describe_missing_dep(dep_id, classifications)
+                notes.append((dep_id, desc, kind))
+            classifications[setid] = SetClassification(
+                setid=cs.setid,
+                orchestrator_id=cs.orchestrator_id,
+                finished=cs.finished,
+                runnable=cs.runnable,
+                blocked=cs.blocked,
+                is_completeable=cs.is_completeable,
+                dep_notes=tuple(notes),
+            )
+
     return classifications
+
+
+def _render_open_bubble(
+    sections: Sequence[Tuple[str, Sequence[str]]],
+    term: Term,
+    border_color: str,
+    rule_width: int = 64,
+) -> List[str]:
+    """Render an open-right rounded bubble with section dividers.
+
+    Open-right borders (`╭─ Title ───`, `│  ...`, `├─ Next ───`, `╰────`) preserve the
+    visual grouping and rounded corners without placing a right-hand `│` border on
+    copy-pasteable command lines.
+    """
+    use_unicode = getattr(term, "unicode", True)
+    tl = "╭─ " if use_unicode else "+- "
+    ml = "├─ " if use_unicode else "+- "
+    bl = "╰" if use_unicode else "+"
+    vl = "│" if use_unicode else "|"
+    hl = "─" if use_unicode else "-"
+
+    out: List[str] = []
+    v_styled = term.colorize(vl, border_color)
+    for idx, (title, body_lines) in enumerate(sections):
+        prefix = tl if idx == 0 else ml
+        title_styled = term.colorize(title, "bold")
+        dash_count = max(4, rule_width - len(prefix) - len(title) - 1)
+        out.append(
+            term.colorize(prefix, border_color)
+            + title_styled
+            + term.colorize(" " + (hl * dash_count), border_color)
+        )
+        for line in body_lines:
+            out.append(f"{v_styled}  {line}")
+    out.append(term.colorize(bl + (hl * max(4, rule_width - 1)), border_color))
+    return out
 
 
 def render_set_block(
@@ -734,16 +858,17 @@ def render_set_block(
 ) -> List[str]:
     """Render human diagnostic lines for an incomplete Set (error or warning)."""
     lines: List[str] = []
+    border_color = "yellow" if is_warning else "red"
     if is_warning:
         label = term.colorize("warning:", "yellow", "bold")
-        orch_bold = term.colorize(cs.orchestrator_id, "bold")
+        orch_styled = term.colorize(cs.orchestrator_id, "cyan", "bold")
         if cs.orchestrator_id in cs.finished:
             lines.append(
-                f"{label} Set '{cs.setid}' cannot finish in this batch; orchestrator {orch_bold} is already executed."
+                f"{label} Set '{cs.setid}' cannot finish in this batch; orchestrator {orch_styled} is already executed."
             )
         else:
             lines.append(
-                f"{label} Set '{cs.setid}' cannot finish in this batch; held back orchestrator {orch_bold}."
+                f"{label} Set '{cs.setid}' cannot finish in this batch; held back orchestrator {orch_styled}."
             )
     else:
         label = term.colorize("error:", "red", "bold")
@@ -751,21 +876,6 @@ def render_set_block(
             f"{label} Set '{cs.setid}' cannot finish in this batch, so nothing was scheduled."
         )
 
-    # Blocked line
-    blocked_items: List[str] = []
-    for b in cs.blocked:
-        b_id = term.colorize(b.id6, "bold")
-        cause_text = b.cause.replace("-", " ")
-        if b.unsatisfied_dependencies:
-            deps_str = ", ".join(b.unsatisfied_dependencies)
-            blocked_items.append(
-                f"{b_id} ({b.status}, {cause_text}) [needs: {deps_str}]"
-            )
-        else:
-            blocked_items.append(f"{b_id} ({b.status}, {cause_text})")
-    lines.append(f"  blocked: {', '.join(blocked_items)}")
-
-    # Fix line
     to_review = [b for b in cs.blocked if b.cause == "needs-review"]
     reviewed = [b for b in cs.blocked if b.cause == "needs-approval"]
     not_sel = [b for b in cs.blocked if b.cause == "not-selected"]
@@ -786,6 +896,74 @@ def render_set_block(
         + unsatisfied
     ]
 
+    # Compute root-cause external dependencies (excluding transitively blocked in-batch
+    # members AND siblings already reported in this Set's own blocked list for another cause).
+    same_set_blocked_ids = {b.id6 for b in cs.blocked}
+    non_unsat_blocked_ids = {
+        b.id6 for b in cs.blocked if b.cause != "unsatisfied-dependency"
+    }
+    root_deps: List[str] = []
+    cascading_deps: List[str] = []
+    same_set_cause_deps: List[str] = []
+    seen_deps: Set[str] = set()
+    fallback_fixes: List[str] = []
+    for b in unsatisfied:
+        if b.unsatisfied_dependencies:
+            for dep_id in b.unsatisfied_dependencies:
+                if dep_id in seen_deps:
+                    continue
+                seen_deps.add(dep_id)
+                if dep_id not in same_set_blocked_ids:
+                    root_deps.append(dep_id)
+                elif dep_id in non_unsat_blocked_ids:
+                    same_set_cause_deps.append(dep_id)
+                else:
+                    cascading_deps.append(dep_id)
+        elif b.fix not in fallback_fixes:
+            fallback_fixes.append(b.fix)
+    # Only fall back to cascading deps in a pure cycle (no external roots AND no same-Set
+    # root causes like needs-review / already-running that already have their own Fix lines).
+    if root_deps:
+        effective_missing_deps = root_deps
+    elif same_set_cause_deps:
+        effective_missing_deps = []
+    else:
+        effective_missing_deps = cascading_deps
+    root_dep_set = set(root_deps)
+    dep_notes_map: Dict[str, Tuple[str, str]] = {
+        did: (desc, kind) for did, desc, kind in cs.dep_notes
+    }
+
+    def _style_member_id(id6: str) -> str:
+        return term.colorize(id6, "cyan", "bold")
+
+    def _style_root_id(id6: str) -> str:
+        return term.colorize(id6, "yellow", "bold")
+
+    # Blocked section
+    blocked_lines: List[str] = []
+    for b in cs.blocked:
+        b_id = _style_member_id(b.id6)
+        cause_text = b.cause.replace("-", " ")
+        if b.unsatisfied_dependencies:
+            styled_deps = [
+                _style_root_id(d) if d in root_dep_set else _style_member_id(d)
+                for d in b.unsatisfied_dependencies
+            ]
+            blocked_lines.append(
+                f"{b_id} ({b.status}, {cause_text}) [needs: {', '.join(styled_deps)}]"
+            )
+        else:
+            blocked_lines.append(f"{b_id} ({b.status}, {cause_text})")
+    if root_deps and dep_notes_map:
+        for dep_id in root_deps:
+            if dep_id in dep_notes_map:
+                desc, _kind = dep_notes_map[dep_id]
+                blocked_lines.append(
+                    f"missing prerequisite: {_style_root_id(dep_id)} ({desc})"
+                )
+
+    # Fix section
     fix_clauses: List[str] = []
     if to_review:
         ids_str = " ".join(b.id6 for b in to_review)
@@ -810,9 +988,9 @@ def render_set_block(
             fix_clauses.append(cmd)
 
     if not_sel:
-        ids_str = " ".join(b.id6 for b in not_sel)
+        ids_styled = " ".join(_style_member_id(b.id6) for b in not_sel)
         fix_clauses.append(
-            f"add {ids_str} to the selection, or select the Set by its setid {cs.setid}"
+            f"add {ids_styled} to the selection, or select the Set by its setid {cs.setid}"
         )
 
     if max_excl:
@@ -823,37 +1001,47 @@ def render_set_block(
             fix_clauses.append(b.fix)
 
     if running:
-        ids_str = " ".join(b.id6 for b in running)
-        fix_clauses.append(f"wait for active run to finish {ids_str}")
+        ids_styled = " ".join(_style_member_id(b.id6) for b in running)
+        fix_clauses.append(f"wait for active run to finish {ids_styled}")
 
-    all_unsat_deps: List[str] = []
     if unsatisfied:
-        unsat_member_ids = {b.id6 for b in unsatisfied}
-        root_deps: List[str] = []
-        cascading_deps: List[str] = []
-        seen_deps: Set[str] = set()
-        fallback_fixes: List[str] = []
-        for b in unsatisfied:
-            if b.unsatisfied_dependencies:
-                for dep_id in b.unsatisfied_dependencies:
-                    if dep_id in seen_deps:
-                        continue
-                    seen_deps.add(dep_id)
-                    if dep_id not in unsat_member_ids:
-                        root_deps.append(dep_id)
-                    else:
-                        cascading_deps.append(dep_id)
-            elif b.fix not in fallback_fixes:
-                fallback_fixes.append(b.fix)
-        all_unsat_deps = root_deps + cascading_deps
-        if len(all_unsat_deps) == 1:
-            fix_clauses.append(
-                f"run with --with-dependencies, or execute prerequisite {all_unsat_deps[0]} first"
-            )
-        elif all_unsat_deps:
-            fix_clauses.append(
-                f"run with --with-dependencies, or execute prerequisites {', '.join(all_unsat_deps)} first"
-            )
+        if effective_missing_deps:
+            dep_kinds = {
+                dep_notes_map[d][1]
+                for d in effective_missing_deps
+                if d in dep_notes_map
+            }
+            styled_missing = [_style_root_id(d) for d in effective_missing_deps]
+            missing_joined = ", ".join(styled_missing)
+            if dep_kinds == {"active"}:
+                inc_flag = term.colorize("--include-active", "cyan")
+                fix_clauses.append(
+                    f"wait for active run to finish {missing_joined}, or rerun with {inc_flag}"
+                )
+            elif dep_kinds == {"non-plan"}:
+                noun = (
+                    "prerequisite"
+                    if len(effective_missing_deps) == 1
+                    else "prerequisites"
+                )
+                fix_clauses.append(f"satisfy non-plan {noun} {missing_joined} first")
+            elif dep_kinds == {"missing"}:
+                noun = (
+                    "dependency" if len(effective_missing_deps) == 1 else "dependencies"
+                )
+                fix_clauses.append(
+                    f"fix missing {noun} reference {missing_joined} (not found on disk)"
+                )
+            else:
+                with_deps_flag = term.colorize("--with-dependencies", "cyan")
+                if len(effective_missing_deps) == 1:
+                    fix_clauses.append(
+                        f"run with {with_deps_flag}, or execute prerequisite {missing_joined} first"
+                    )
+                else:
+                    fix_clauses.append(
+                        f"run with {with_deps_flag}, or execute prerequisites {missing_joined} first"
+                    )
         for fb in fallback_fixes:
             if fb not in fix_clauses:
                 fix_clauses.append(fb)
@@ -862,40 +1050,47 @@ def render_set_block(
         for b in other:
             fix_clauses.append(b.fix)
 
+    fix_lines: List[str] = []
     base_fix = "; ".join(fix_clauses)
     if is_warning:
-        lines.append(f"  fix:     {base_fix}")
+        if base_fix:
+            fix_lines.append(base_fix)
     else:
         has_runnable_children = any(cid != cs.orchestrator_id for cid in cs.runnable)
         if has_runnable_children:
             flag_cyan = term.colorize("--allow-partial-sets", "cyan")
             if cs.orchestrator_id in cs.finished:
-                partial_clause = (
+                partial_lines = [
                     f"or rerun with {flag_cyan} to run the ready plans now."
-                )
+                ]
             else:
-                orch_bold = term.colorize(cs.orchestrator_id, "bold")
-                partial_clause = (
-                    f"or rerun with {flag_cyan} to run the ready plans now and leave the\n"
-                    f"           orchestrator {orch_bold} for a later batch."
-                )
+                orch_styled = _style_member_id(cs.orchestrator_id)
+                partial_lines = [
+                    f"or rerun with {flag_cyan} to run the ready plans now and leave the",
+                    f"orchestrator {orch_styled} for a later batch.",
+                ]
             if base_fix:
-                full_fix = f"{base_fix};\n           {partial_clause}"
-            else:
-                full_fix = partial_clause
-        else:
-            full_fix = base_fix
-        lines.append(f"  fix:     {full_fix}")
+                fix_lines.append(f"{base_fix};")
+            fix_lines.extend(partial_lines)
+        elif base_fix:
+            fix_lines.append(base_fix)
 
-    if unsatisfied and all_unsat_deps:
+    sections: List[Tuple[str, Sequence[str]]] = [("Blocked", blocked_lines)]
+    if fix_lines:
+        sections.append(("Fix", fix_lines))
+
+    if unsatisfied and effective_missing_deps:
         missing_dep_ids = [b.id6 for b in unsatisfied]
-        dep_cmd = term.colorize(f"aw att {' '.join(all_unsat_deps)}", "cyan")
-        missing_cmd = term.colorize(f"aw att {' '.join(missing_dep_ids)}", "cyan")
-        lines.append(
-            f"  inspect: for more info on dependencies, run: {dep_cmd}\n"
-            f"           for more info on items missing those dependencies, run: {missing_cmd}"
-        )
+        aw_att_cmd = term.colorize("aw att", "cyan")
+        dep_ids_colored = " ".join(_style_root_id(d) for d in effective_missing_deps)
+        member_ids_colored = " ".join(_style_member_id(m) for m in missing_dep_ids)
+        more_info_lines = [
+            f"for more info on missing dependencies, run: {aw_att_cmd} {dep_ids_colored}",
+            f"for more info on items missing those dependencies, run: {aw_att_cmd} {member_ids_colored}",
+        ]
+        sections.append(("More Info", more_info_lines))
 
+    lines.extend(_render_open_bubble(sections, term, border_color=border_color))
     return lines
 
 

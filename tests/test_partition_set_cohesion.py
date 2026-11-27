@@ -1927,11 +1927,16 @@ def test_unsatisfied_dependency_lists_prereqs_and_inspect_commands(
         "uorch0 (approved, unsatisfied dependency) [needs: uchl01, uchl02]" in cap.err
     )
     assert (
-        "run with --with-dependencies, or execute prerequisites pext01, uchl01, uchl02 first"
-        in cap.err
+        "run with --with-dependencies, or execute prerequisite pext01 first" in cap.err
     )
+    assert "execute prerequisites pext01, uchl01" not in cap.err
     assert cap.err.count("run with --with-dependencies") == 1
-    assert "for more info on dependencies, run: aw att pext01 uchl01 uchl02" in cap.err
+    assert "missing prerequisite: pext01 (plan, approved; not in selection)" in cap.err
+    assert "Blocked" in cap.err
+    assert "Fix" in cap.err
+    assert "More Info" in cap.err
+    assert "for more info on missing dependencies, run: aw att pext01" in cap.err
+    assert "aw att pext01 uchl01" not in cap.err
     assert (
         "for more info on items missing those dependencies, run: aw att uorch0 uchl01 uchl02"
         in cap.err
@@ -1958,3 +1963,206 @@ def test_unsatisfied_dependency_lists_prereqs_and_inspect_commands(
     assert blocked_by_id["uchl01"]["unsatisfied_dependencies"] == ["pext01"]
     assert blocked_by_id["uchl02"]["unsatisfied_dependencies"] == ["uchl01"]
     assert blocked_by_id["uorch0"]["unsatisfied_dependencies"] == ["uchl01", "uchl02"]
+
+
+def test_standalone_approved_prereq_satisfies_orchestrated_set(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An approved standalone plan (Set without orchestrator) in candidates satisfies
+    an orchestrated Set's Item-Dependencies and clusters into the same shard.
+    """
+    repo = tmp_path / "repo_standalone_dep"
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+
+    # Standalone plan (no orchestrator in its Set)
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261122",
+        "child",
+        "approved",
+        "solo",
+        "Solo Prereq",
+        1,
+        "solo01",
+        "Standalone Prerequisite",
+    )
+
+    # Orchestrated Set depending on solo01
+    table_c = (
+        ("01", "cvch01", "Child 1"),
+        ("02", "cvch02", "Child 2"),
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261122",
+        "orchestrator",
+        "approved",
+        "setcv",
+        "Set CV",
+        0,
+        "cvor00",
+        "Set CV Orchestrator",
+        child_orders=table_c,
+        item_dependencies="executed:cvch01, executed:cvch02",
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261122",
+        "child",
+        "approved",
+        "setcv",
+        "Set CV",
+        1,
+        "cvch01",
+        "Child 1",
+        item_dependencies="executed:solo01",
+    )
+    make_fixture_plan(
+        repo,
+        "pending",
+        "20261122",
+        "child",
+        "approved",
+        "setcv",
+        "Set CV",
+        2,
+        "cvch02",
+        "Child 2",
+        item_dependencies="executed:cvch01",
+    )
+
+    code = cli.main(
+        [
+            "partition",
+            "-t",
+            "plans",
+            "-s",
+            "approved",
+            "-n",
+            "3",
+            "--run",
+            "none",
+            "--json",
+            "--dir",
+            str(repo),
+        ]
+    )
+    assert code == 0
+    cap = capsys.readouterr()
+    assert "cannot finish in this batch" not in cap.err
+    payload = json.loads(cap.out)
+    shards = payload["shards"]
+    flat = [i for sh in shards for i in sh]
+    assert set(flat) == {"solo01", "cvch01", "cvch02", "cvor00"}
+    # Dependency edge keeps solo01 in the same shard as setcv, ordered before cvch01
+    containing = [sh for sh in shards if "cvor00" in sh]
+    assert len(containing) == 1
+    shard = containing[0]
+    assert (
+        shard.index("solo01")
+        < shard.index("cvch01")
+        < shard.index("cvch02")
+        < shard.index("cvor00")
+    )
+
+
+def test_render_set_block_bubbles_colors_and_same_set_cause_dedup() -> None:
+    """render_set_block highlights root vs blocked id6s in color, frames sections in an
+    open-right rounded bubble (with ASCII fallback), and suppresses bogus --with-dependencies
+    when every unsatisfied dep is already blocked inside the same Set.
+    """
+    from agent_workflows.partition import (
+        BlockedMember,
+        SetClassification,
+        render_set_block,
+    )
+    from agent_workflows.term import Term
+
+    cs = SetClassification(
+        setid="cliverbs",
+        orchestrator_id="lmlji2",
+        finished=[],
+        runnable=[],
+        blocked=[
+            BlockedMember(
+                id6="lmlji2",
+                status="approved",
+                cause="unsatisfied-dependency",
+                fix="run with --with-dependencies",
+                unsatisfied_dependencies=("p06t7i", "xocj8i"),
+            ),
+            BlockedMember(
+                id6="p06t7i",
+                status="approved",
+                cause="unsatisfied-dependency",
+                fix="run with --with-dependencies",
+                unsatisfied_dependencies=("9ifwdx",),
+            ),
+            BlockedMember(
+                id6="xocj8i",
+                status="approved",
+                cause="unsatisfied-dependency",
+                fix="run with --with-dependencies",
+                unsatisfied_dependencies=("p06t7i",),
+            ),
+        ],
+        is_completeable=False,
+        dep_notes=(("9ifwdx", "plan, approved; active in a live run", "active"),),
+    )
+
+    color_term = Term(color=True, unicode=True)
+    rendered_color = "\n".join(render_set_block(cs, color_term, is_warning=False))
+    assert "╭─ " in rendered_color
+    assert "├─ " in rendered_color
+    assert "╰─" in rendered_color
+    # Root blocker highlighted in yellow+bold, blocked members in cyan+bold
+    assert "\033[33;1m9ifwdx\033[0m" in rendered_color
+    assert "\033[36;1mp06t7i\033[0m" in rendered_color
+    # Active external root blocker suggests waiting / --include-active, not --with-dependencies
+    assert "--include-active" in rendered_color
+    assert "--with-dependencies" not in rendered_color
+
+    ascii_term = Term(color=False, unicode=False)
+    rendered_ascii = "\n".join(render_set_block(cs, ascii_term, is_warning=False))
+    assert "+- Blocked" in rendered_ascii
+    assert "+- Fix" in rendered_ascii
+    assert "+- More Info" in rendered_ascii
+    assert "for more info on missing dependencies, run: aw att 9ifwdx" in rendered_ascii
+    assert (
+        "for more info on items missing those dependencies, run: aw att lmlji2 p06t7i xocj8i"
+        in rendered_ascii
+    )
+
+    # Same-Set root cause (needs-review sibling) does NOT emit bogus --with-dependencies
+    cs_internal = SetClassification(
+        setid="metastore",
+        orchestrator_id="cxxmyv",
+        finished=[],
+        runnable=[],
+        blocked=[
+            BlockedMember(
+                id6="6cltab",
+                status="to-review",
+                cause="needs-review",
+                fix="/plan-review 6cltab, then aw ipd set approved 6cltab --by-human",
+            ),
+            BlockedMember(
+                id6="cugg3w",
+                status="approved",
+                cause="unsatisfied-dependency",
+                fix="run with --with-dependencies",
+                unsatisfied_dependencies=("6cltab",),
+            ),
+        ],
+        is_completeable=False,
+    )
+    rendered_internal = "\n".join(
+        render_set_block(cs_internal, ascii_term, is_warning=False)
+    )
+    assert "--with-dependencies" not in rendered_internal
+    assert "More Info" not in rendered_internal
+    assert "/plan-review 6cltab" in rendered_internal
