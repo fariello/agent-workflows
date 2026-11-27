@@ -113,6 +113,7 @@ flowchart TD
 
 - Former E-02 (switch the builder to `RECORD_FORMAT = "log"`, add the log branch of `assert_field`/`assert_no_field`, the `text_only` contract, the codemod): moved per the maintainer answer to 06-x1mmdp-a1-Q-01.
   - Carrier: 89mtbl
+  - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-306-89mtbl-switch-the-shared-test-record-builder-and-codemod-to-the-log.ipd.md
 - Making `ipd_lint` and `ipd_authoring.build_skeleton` log-aware (`jycxw8`), which every log-format plan fixture needs first.
   - Carrier: hdwqex
   - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-305-hdwqex-make-ipd-lint-and-ipd-scaffold-log-aware-in-the-cutover-code.ipd.md
