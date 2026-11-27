@@ -42,14 +42,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: scratch worktree
 
-- [ ] E-01 Create the scratch worktree following the SCRATCH PROCEDURE of executed plan `2k5t16` (Step 0): run `git worktree add --detach .aw/state/p109wy/scratch HEAD`; inside `.aw/state/p109wy/scratch`, run `git apply --index .aw/system/cutover/metastore-docs.cutover.patch`, record `BASE=$(git write-tree)` in F-01, and then run `git apply --index .aw/system/cutover/metastore-code.cutover.patch`. If either patch rejects, stop and report.
+- [x] E-01 Create the scratch worktree following the SCRATCH PROCEDURE of executed plan `2k5t16` (Step 0): run `git worktree add --detach .aw/state/p109wy/scratch HEAD`; inside `.aw/state/p109wy/scratch`, run `git apply --index .aw/system/cutover/metastore-docs.cutover.patch`, record `BASE=$(git write-tree)` in F-01, and then run `git apply --index .aw/system/cutover/metastore-code.cutover.patch`. If either patch rejects, stop and report.
   - Depends on: none
   - Expected outcome: `.aw/state/p109wy/scratch` holds HEAD plus both patches staged, and F-01 records the base tree id.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: log-aware review mirrors, prompt mirrors, and check_engine checks (scratch worktree only)
 
-- [ ] E-02 Make spec `4sd62s` Section 4.1a `.review.md` YAML mirror parsing, SQLite cache projection, and review-check readers log-aware in `.aw/state/p109wy/scratch` while keeping legacy 5-bullet review parity intact:
+- [x] E-02 Make spec `4sd62s` Section 4.1a `.review.md` YAML mirror parsing, SQLite cache projection, and review-check readers log-aware in `.aw/state/p109wy/scratch` while keeping legacy 5-bullet review parity intact:
   1. In `agent_workflows/artifact_meta.py`:
      - In `parse_review_mirror(text)`, strip an optional leading UTF-8 BOM (`\ufeff`) before checking the `---` delimiter and reject unknown YAML keys outside `{"subject", "subject_type", "ref"}` so malformed review mirrors fail closed (spec `4sd62s` Section 4.1a).
      - In `read_review_subject_id(text)`, try `parse_review_mirror(text)` first and return `data["subject"]` when the review opens with a valid spec `4sd62s` Section 4.1a YAML mirror, falling back to `read_text(metadata_region(text)).fields.get("subject_id")` for legacy 5-bullet reviews.
@@ -64,9 +64,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
      - In `evaluate_review_finding_escalation` and `evaluate_review_decision_escalation`, resolve `plan_id6` via `artifact_meta.read_mirror_id6(plan_text)` before falling back to `_meta_declared_id6(_meta.read_text(plan_text, record_type="ipd"))` so log-format plans join against their spec-4.1a `.review.md` files without skipping or emitting false malformed-review (`REV-M101`) errors.
   - Depends on: E-01
   - Expected outcome: spec `4sd62s` Section 4.1a `.review.md` files parse with zero `REV-M101` diagnostics, log-sourced `op: "review"` rows project into SQLite `reviews` and survive `.review.md` indexing/removal, malformed reviews cache `parse_ok = 0`, `check_review_dangling` resolves `ipd` and `spec` subjects, and `evaluate_review_finding_escalation` / `evaluate_review_decision_escalation` fire accurately on log-format plans while legacy 5-bullet reviews keep existing behavior.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make staged-prompt mirror detection/parsing and `check_engine.py` log-backed plan checks log-aware in `.aw/state/p109wy/scratch`:
+- [x] E-03 Make staged-prompt mirror detection/parsing and `check_engine.py` log-backed plan checks log-aware in `.aw/state/p109wy/scratch`:
   1. In `agent_workflows/artifact_meta.py` and `agent_workflows/check_engine.py::validate_prompt_content`:
      - In `artifact_meta.has_prompt_metadata_comment(text)`, strip an optional leading UTF-8 BOM (`\ufeff`) and accept both post-cutover `<!-- aw-managed-prompt: ... -->` mirrors (`_MANAGED_PROMPT_COMMENT_RE`) and legacy `<!-- aw-prompt: ... -->` comments (`_AW_PROMPT_OPEN_RE`) on line 1, while still returning `False` for commentless prompts or comments appearing after line 1.
      - In `artifact_meta._parse_metadata_comment(first_line)`, strip an optional leading `\ufeff` and, for `_MANAGED_PROMPT_COMMENT_RE` matches, strip the `. Pipeline metadata only...` trailer (matching `parse_staged_prompt_mirror` token extraction for `id` and `status`) so `comment_bullets["status"]` is the clean status token (e.g. `"pending"`) rather than `"pending . Pipeline metadata only; ..."`. Also strip an optional leading `\ufeff` in `artifact_meta.parse_staged_prompt_mirror(text)` and in `artifact_meta.read_text(text, record_type="prompt")` before checking `startswith("<!--")`.
@@ -80,23 +80,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
      - Record the complete audit of all `_lint.parse(...)` callers in `check_engine.py` and `has_prompt_metadata_comment` callers in F-02.
   - Depends on: E-02
   - Expected outcome: `has_prompt_metadata_comment`, `_parse_metadata_comment`, `parse_staged_prompt_mirror`, and `read_text` handle BOM-prefixed and canonical `<!-- aw-managed-prompt: ... -->` mirrors with clean `id`/`status` tokens and zero corruption from legacy comment helpers; `validate_prompt_content` validates post-cutover prompts accurately; `check_plan_priority_required`, `stale_record_scope_paths`, and `evaluate_carrier_ungated` read log-stored metadata; and F-02 records the verified caller audit.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add and run core behavioral test module `tests/test_cutover_log_reviews_prompts_and_checks.py` (`pytestmark = pytest.mark.core`) in `.aw/state/p109wy/scratch` (asserting real outputs, exit codes, and side effects; no code-pinning tests):
+- [x] E-04 Add and run core behavioral test module `tests/test_cutover_log_reviews_prompts_and_checks.py` (`pytestmark = pytest.mark.core`) in `.aw/state/p109wy/scratch` (asserting real outputs, exit codes, and side effects; no code-pinning tests):
   1. Cover spec `4sd62s` Section 4.1a `.review.md` YAML mirrors (`artifact_meta.render_review_mirror`) across `artifact_meta.parse_review_mirror` (valid mirror, BOM-prefixed mirror, unknown-key rejection), `artifact_meta.read_review_subject_id`, SQLite cache projection (subject log `op: "review"` event visible to `artifact_meta.query(latest_gate_review_of=...)` and `review_findings.review_attestation_missing`, preserved without clobber when `.review.md` is indexed or removed, explicit `ref:` preserved, and malformed `.review.md` cached with `parse_ok=False`), `review_findings.parse_review_text` / `parse_review_file` (valid mirror produces zero diagnostics; invalid `subject_type` produces `REV-M102`; missing rounds produces `REV-R001` / `D_NO_ROUNDS`; legacy 5-bullet review preserves existing validation), `check_engine.check_review_dangling` (valid vs. dangling `ipd` and `spec` subjects, plus invalid `subject_type` not defaulting to `ipd`), `evaluate_review_finding_escalation` (flags unescalated `HIGH`/`BLOCKER` finding on a log-format plan and clears when escalated via a blocking `OQ-*` carrying `- Finding:`), and `evaluate_review_decision_escalation` (flags unescalated `Reversible: no` decision on a log-format plan).
   2. Cover `artifact_meta.has_prompt_metadata_comment`, `parse_staged_prompt_mirror`, `read_text(..., record_type="prompt")`, legacy `inject_prompt_metadata_id6`/`update_prompt_metadata_status` non-corruption, and `check_engine.validate_prompt_content` on post-cutover `<!-- aw-managed-prompt: id: <id6> | status: <status> . Pipeline metadata only... -->` prompts (valid prompt yields zero drift; filename/id mismatch yields `check.prompt-id-mismatch`; status/bucket mismatch yields `check.prompt-status-mismatch` both with and without a companion log; commentless post-cutover prompt yields `check.prompt-metadata-missing`; BOM-prefixed mirror extracts clean `id` and `status`; line-2 comment returns `False`; legacy helpers leave a managed prompt mirror unchanged).
   3. Cover `check_engine.check_plan_priority_required`, `stale_record_scope_paths` / `check_scope_path_target_stale`, and `evaluate_carrier_ungated` / `check_carrier_ungated` on log-format plans: `to-review` or `approved` plan missing `Priority` or `Work-Kind` in its log emits `check.ipd-priority-required` / `check.ipd-work-kind-required` while populated values pass and `draft` is exempt; a log-format plan declaring a moved/vanished `.aw/records/...` entry in log `scope_paths` is flagged by `stale_record_scope_paths`; and a log-format plan declaring a carrier edge in log `item_dependencies` produces zero `check.ipd-carrier-ungated` drift while an unedged carrier is flagged.
   4. Run `python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_reviews_prompts_and_checks.py` in `.aw/state/p109wy/scratch` and confirm every test passes.
   - Depends on: E-03
   - Expected outcome: `tests/test_cutover_log_reviews_prompts_and_checks.py` passes every test in `.aw/state/p109wy/scratch`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: package
 
-- [ ] E-05 In `.aw/state/p109wy/scratch`, run `git add -A` and write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch` in the executing checkout; remove the scratch worktree (`git worktree remove --force .aw/state/p109wy/scratch`); run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout; verify `git status --short` shows only `- Scope-Paths:` modified; and commit through `aw commit p109wy -- .aw/records/plans/pending/20261126-metastore-317-p109wy-make-review-mirrors-prompt-metadata-and-check-engine-priorit.ipd.md .aw/system/cutover/metastore-code.cutover.patch`; never push.
+- [x] E-05 In `.aw/state/p109wy/scratch`, run `git add -A` and write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch` in the executing checkout; remove the scratch worktree (`git worktree remove --force .aw/state/p109wy/scratch`); run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout; verify `git status --short` shows only `- Scope-Paths:` modified; and commit through `aw commit p109wy -- .aw/records/plans/pending/20261126-metastore-317-p109wy-make-review-mirrors-prompt-metadata-and-check-engine-priorit.ipd.md .aw/system/cutover/metastore-code.cutover.patch`; never push.
   - Depends on: E-04
   - Expected outcome: `.aw/system/cutover/metastore-code.cutover.patch` contains all prior code-patch hunks plus this plan's changes; `tests/test_metastore_cutover_code_patch.py` passes; scratch worktree is removed; no live files outside `- Scope-Paths:` are modified; one path-scoped commit is created.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -110,8 +110,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-01 | (written by E-01) | Base tree id after applying `.aw/system/cutover/metastore-docs.cutover.patch`. |
-| F-02 | (written by E-03) | Complete caller and behavior audit across `artifact_meta.py`, `review_findings.py`, `check_engine.py` (`_lint.parse` callers), and `has_prompt_metadata_comment` callers (`prompts.py`, `status_set.py`, `artifact_rename.py`, `cli.py`). |
+| F-01 | E-01, 2026-11-27: `git apply --index .aw/system/cutover/metastore-docs.cutover.patch` (exit 0) in `.aw/state/p109wy/scratch` on HEAD `3adbc7a7b4c2629c9ac628334efe3d387ea10e57`, followed by `git write-tree`. | Base tree id after applying `.aw/system/cutover/metastore-docs.cutover.patch`: `c0046a160738f783bedcfa4c68858ff5cb9a6146`. |
+| F-02 | E-03 caller and behavior audit in `.aw/state/p109wy/scratch` (`mypy`: 0 issues in `review_findings.py` and `check_engine.py`; `ruff check --select F`: all checks passed across all 4 touched files; `tests/test_cutover_log_reviews_prompts_and_checks.py`: `8 passed`; sibling regression suite `tests/test_cutover_log_checkers.py` + `tests/test_cutover_log_lifecycle_and_hooks.py` + `tests/test_backlog_log_format.py`: `28 passed`): (1) `agent_workflows/artifact_meta.py`: `parse_review_mirror` strips leading `\ufeff` and rejects unknown/duplicate YAML keys outside `{"subject", "subject_type", "ref"}`; `read_review_subject_id` checks `parse_review_mirror` before legacy `read_text(metadata_region(text))`; `_delete_artifact_projection` deletes `reviews` rows for `subject_id6`; `_load_sources` (`role == "log"`) inserts all 12 columns of `proj["reviews"]` into `reviews`; `load_legacy_review` handles spec-4.1a mirrors (`subject`, `ref` before `filename_id != subject_id`, `parse_ok = 0 if doc.diagnostics else 1`, `reviews_list = []`) and sets `parse_ok = 0 if doc.diagnostics else 1` for legacy reviews; `_load_sources` (`role == "review"` and `role == "removed"`/`prior_role == "review"`) preserves log-owned `reviews` rows whenever the file is a spec-4.1a mirror or the subject has a tracked log; `has_prompt_metadata_comment` strips `\ufeff` and matches `_MANAGED_PROMPT_COMMENT_RE` or `_AW_PROMPT_OPEN_RE` on line 1; `_parse_metadata_comment`, `parse_staged_prompt_mirror`, and `read_text` strip leading `\ufeff` and strip the `. Pipeline metadata only...` trailer so `id`/`status` tokens are clean; `inject_prompt_metadata_id6` and `update_prompt_metadata_status` guard on `_has_legacy_aw_prompt_comment` (`_AW_PROMPT_OPEN_RE` only) so managed prompt mirrors are never corrupted; (2) `agent_workflows/review_findings.py::parse_review_text`: reads `subject-id` and `subject-type` from `parse_review_mirror` without requiring legacy `reviewed-at`/`reviewer`/`verdict` (`REV-M101`), while preserving `REV-M102`, `REV-R001`, `REV-R002`, `REV-P001`..`REV-P003`, malformed-YAML fail-closed `REV-M101`, and legacy 5-bullet validation; (3) complete audit of all 10 `_lint.parse(...)` call sites in `agent_workflows/check_engine.py`: `_has_matching_history_line` (body `history_lines` only; no `meta_fields`), `check_plan_priority_required` (updated: `load_fields=True` state map + `_resolve_plan_state_from_text` fallback threaded into `_lint.parse`), `extract_plan_validation_space` (body `valid_leaves` only), `stale_record_scope_paths` (updated: optional `state=` + `_resolve_plan_state_from_text` fallback, plus `check_scope_path_target_stale` passing cached `state`), `evaluate_review_finding_escalation` (body `open_questions` only; `plan_id6` updated to `read_mirror_id6` first), `evaluate_review_decision_escalation` (body `open_questions` only; `plan_id6` updated to `read_mirror_id6` first), `find_obligations_carried_by` (body `open_questions`; `plan_id6` updated to `read_mirror_id6` first), `evaluate_durable_carrier` (body `open_questions` only), `evaluate_carrier_ungated` x2 (updated: optional `state=` + `_resolve_plan_state_from_text` fallback, plus `check_carrier_ungated` passing cached `state`); `check_review_dangling` updated to try `parse_review_mirror` first without defaulting invalid `subject_type` to `ipd`; (4) complete audit of all `has_prompt_metadata_comment` callers: `check_engine.py::validate_prompt_content` (updated missing-comment message to name `<!-- aw-managed-prompt: ... -->`), `prompts.py::_existing_id6s`, `status_set.py` (prompt current-status read), `artifact_rename.py` (`_rename_events`, `_id6_write_message`, `_read_existing_id6`), and `cli.py` (`aw describe`); all consume the clean `id6`/`status` returned by `read_text(..., record_type="prompt")`. | Verified complete caller and behavior audit across `artifact_meta.py`, `review_findings.py`, `check_engine.py` (all 10 `_lint.parse` sites), and all 5 `has_prompt_metadata_comment` callers; note that `_scope_paths_gate_applies("author", status)` enforces `check_plan_priority_required` at `READY_TO_EXECUTE` (`approved`/`auto-approved`) while `draft` and `to-review` remain exempt. |
 | F-03 | `e0g2gt` F-05 and static audit of `.aw/system/cutover/metastore-code.cutover.patch`: `artifact_meta.py::read_review_subject_id`, `load_legacy_review`, `has_prompt_metadata_comment`; `review_findings.py::parse_review_text`; `check_engine.py::validate_prompt_content`, `check_plan_priority_required`, `check_review_dangling`, `evaluate_review_finding_escalation`, `evaluate_review_decision_escalation` | Three verified production cutover gaps (items 1, 2, and 5 of `e0g2gt` F-05) block `tests/test_readers_check_engine.py`, `tests/test_readers_review_modules.py`, and post-cutover review/prompt/priority checks; split into Order 317 (`p109wy`) ahead of Order 318 (`q6fiws`) and `e0g2gt` per maintainer decision on `run-20261126T055808Z-863961` question `04-e0g2gt-a1-batch-d-production-log-aware-gaps`. |
 | F-04 | Plan-review static audit of post-patch `agent_workflows/artifact_meta.py` (`replay`, `parse_review_mirror`, `parse_staged_prompt_mirror`, `load_legacy_review`, `_delete_artifact_projection`, `_load_sources`, `has_prompt_metadata_comment`, `inject_prompt_metadata_id6`, `update_prompt_metadata_status`, `_parse_metadata_comment`, `read_text`), `agent_workflows/review_findings.py::D_NO_ROUNDS`, and `agent_workflows/check_engine.py` (`stale_record_scope_paths`, `evaluate_carrier_ungated`, `find_obligations_carried_by`) | Verified four additional cutover defects folded into E-02 through E-04: (1) missing-rounds diagnostic code is `REV-R001` (`review_findings.D_NO_ROUNDS`), not `REV-S201`; (2) `_load_sources` (`role == "log"`) omits inserting `proj["reviews"]` into SQLite `reviews`, `_delete_artifact_projection` omits `reviews`, `role == "review"` / `role == "removed"` clobbers log-owned `reviews` rows, `load_legacy_review` always caches `parse_ok = 1` because `parse_review_text` never raises, and `parse_review_mirror` lacks BOM and unknown-key guards; (3) `_parse_metadata_comment` leaves the `. Pipeline metadata only...` trailer on `status` in `<!-- aw-managed-prompt: ... -->`, `read_text`/`parse_staged_prompt_mirror` do not strip leading `\ufeff`, and `inject_prompt_metadata_id6`/`update_prompt_metadata_status` would corrupt managed prompt mirrors if gated on the widened `has_prompt_metadata_comment`; (4) `stale_record_scope_paths` and `evaluate_carrier_ungated` call bare `_lint.parse(plan_text)` and read `Scope-Paths` / `Item-Dependencies` from empty `meta_fields` on log-format plans. |
 
@@ -168,26 +168,82 @@ None open.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git worktree add --detach .aw/state/p109wy/scratch HEAD` command, both `git apply --index` commands (for `.aw/system/cutover/metastore-docs.cutover.patch` and `.aw/system/cutover/metastore-code.cutover.patch`) with exit status 0, and the base tree id recorded in F-01.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    ```text
+    $ git worktree add --detach .aw/state/p109wy/scratch HEAD && (cd .aw/state/p109wy/scratch && git apply --index .aw/system/cutover/metastore-docs.cutover.patch && echo "DOCS_APPLY_EXIT=$?" && BASE=$(git write-tree) && echo "BASE=$BASE" && git apply --index .aw/system/cutover/metastore-code.cutover.patch && echo "CODE_APPLY_EXIT=$?")
+    Preparing worktree (detached HEAD 3adbc7a7b)
+    HEAD is now at 3adbc7a7b chore(plans): record Carrier-Evidence for executed otin36 in x1mmdp, x8id25, e0g2gt, qi0kl6, p109wy, and q6fiws
+    DOCS_APPLY_EXIT=0
+    BASE=c0046a160738f783bedcfa4c68858ff5cb9a6146
+    CODE_APPLY_EXIT=0
+    Command exited with code 0.
+    ```
+    F-01 records base tree id `c0046a160738f783bedcfa4c68858ff5cb9a6146`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste observed outputs on `.aw/state/p109wy/scratch` (code paths updated by E-02) showing a spec `4sd62s` Section 4.1a `.review.md` mirror parsed by `artifact_meta.parse_review_mirror`, `artifact_meta.read_review_subject_id`, and `review_findings.parse_review_text` with zero `REV-M101` diagnostics (`REV-M102` on invalid `subject_type`, `REV-R001` on missing rounds, rejection on unknown mirror keys), a subject log `op: "review"` event visible to `artifact_meta.query(latest_gate_review_of=...)` and preserved when `.review.md` is indexed or removed, a malformed review cached with `parse_ok=False`, `check_engine.check_review_dangling` distinguishing valid vs. dangling `ipd` and `spec` subjects without defaulting invalid `subject_type` to `ipd`, and `evaluate_review_finding_escalation` / `evaluate_review_decision_escalation` flagging unescalated gating findings and irreversible decisions on a log-format plan.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    Throwaway-repository smoke output on `.aw/state/p109wy/scratch`:
+    ```text
+    === V-02 SMOKE ===
+    parse_review_mirror(BOM)={'subject': 'pl1001', 'subject_type': 'ipd', 'ref': '20261126-r1'} read_review_subject_id=pl1001
+    parse_review_text: ok_diags=() bad_type=['REV-M102'] no_rounds=['REV-R001'] unk_key=mirror parse error: unknown review front matter key: 'extra'
+    latest_gate_review_of(sp1001): before=['sp1001'] indexed=['sp1001'] after_rm=['sp1001'] bad_parse_ok=[False]
+    check_review_dangling=['20261126-demo-02-zz1111-dangling.review.md', '20261126-zz2222-01-zz2222-dangling.review.md']
+    escalations: finding=['check.review-finding-unescalated'] decision=['check.review-decision-unescalated']
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste F-02 (verified caller audit) and observed outputs on `.aw/state/p109wy/scratch` (code paths updated by E-03) showing `artifact_meta.has_prompt_metadata_comment` returning `True` for canonical and BOM-prefixed `<!-- aw-managed-prompt: ... -->` mirrors (and `False` for commentless or line-2 comments), `artifact_meta.read_text(..., record_type="prompt")` returning clean `id6` and `status` without the pipeline trailer, `inject_prompt_metadata_id6` / `update_prompt_metadata_status` leaving a managed prompt mirror unchanged, `check_engine.validate_prompt_content` emitting zero drift on a valid post-cutover prompt while flagging id mismatch, status-vs-bucket mismatch (with and without a companion log), and missing comment, `check_engine.check_plan_priority_required` flagging missing `Priority`/`Work-Kind` on a log-format `to-review` plan while passing a populated one, `stale_record_scope_paths` flagging a vanished `.aw/records/...` target from log `scope_paths`, and `evaluate_carrier_ungated` clearing a log-format plan whose log `item_dependencies` covers its open question's carrier.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    F-02 records the complete caller and behavior audit across `artifact_meta.py`, `review_findings.py`, `check_engine.py` (all 10 `_lint.parse` sites), and all 5 `has_prompt_metadata_comment` callers. Note: `ipd_lint._scope_paths_gate_applies("author", status)` enforces `check_plan_priority_required` at `READY_TO_EXECUTE` (`approved`/`auto-approved`), leaving `draft` and `to-review` exempt. Throwaway-repository smoke output on `.aw/state/p109wy/scratch`:
+    ```text
+    === V-03 SMOKE ===
+    has_prompt_metadata_comment: canon=True bom=True none=False line2=False
+    read_text(prompt, BOM): id6='pr1001' status='pending' legacy_raw_status='pending' legacy_helpers_unchanged=(True, True)
+    validate_prompt_content: valid=[] bad_id=['check.prompt-id-mismatch'] bad_st_nolog=['check.prompt-status-mismatch'] bad_st_log=['check.prompt-status-mismatch'] missing=['check.prompt-metadata-missing']
+    check_plan_priority_required: missing_only=[('20261126-demo-01-pl1001-plan.ipd.md', 'check.ipd-priority-required'), ('20261126-demo-01-pl1001-plan.ipd.md', 'check.ipd-work-kind-required')] with_populated_pl2002=[('20261126-demo-01-pl1001-plan.ipd.md', 'check.ipd-priority-required'), ('20261126-demo-01-pl1001-plan.ipd.md', 'check.ipd-work-kind-required')]
+    stale_record_scope_paths=[('.aw/records/plans/pending/20261126-demo-99-va9999-gone.ipd.md', 'vanished')]
+    evaluate_carrier_ungated(edged)=[]
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste the full `python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_reviews_prompts_and_checks.py` output in `.aw/state/p109wy/scratch` showing every test PASSED across spec-4.1a reviews and SQLite projection, staged-prompt mirrors, and log-format `check_engine` plan checks.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    ```text
+    $ (cd .aw/state/p109wy/scratch && python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_reviews_prompts_and_checks.py)
+    collected 8 items
+
+    tests/test_cutover_log_reviews_prompts_and_checks.py::test_validate_prompt_content_with_and_without_companion_log PASSED [ 12%]
+    tests/test_cutover_log_reviews_prompts_and_checks.py::test_stale_record_scope_paths_reads_log_scope_paths PASSED [ 25%]
+    tests/test_cutover_log_reviews_prompts_and_checks.py::test_check_plan_priority_required_on_log_format_plans PASSED [ 37%]
+    tests/test_cutover_log_reviews_prompts_and_checks.py::test_review_dangling_and_escalation_checks_on_log_format_plans PASSED [ 50%]
+    tests/test_cutover_log_reviews_prompts_and_checks.py::test_sqlite_review_projection_preserves_log_rows_and_tracks_parse_ok PASSED [ 62%]
+    tests/test_cutover_log_reviews_prompts_and_checks.py::test_review_mirror_parsing_and_subject_id_with_legacy_parity PASSED [ 75%]
+    tests/test_cutover_log_reviews_prompts_and_checks.py::test_staged_prompt_mirror_detection_parsing_and_legacy_non_corruption PASSED [ 87%]
+    tests/test_cutover_log_reviews_prompts_and_checks.py::test_carrier_ungated_and_find_obligations_carried_by_on_log_format_plans PASSED [100%]
+    ============================== SLOW TESTS REPORT ===============================
+
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 8 passed in 0.85s ===============================
+    ```
+    Sibling regression check in `.aw/state/p109wy/scratch`: `python3 -m pytest -o addopts="" -m '' tests/test_cutover_log_checkers.py tests/test_cutover_log_lifecycle_and_hooks.py tests/test_backlog_log_format.py` -> `28 passed in 18.34s`; `mypy` on `review_findings.py` and `check_engine.py` -> `Success: no issues found in 2 source files`; `ruff check --select F` on all 4 edited files -> `All checks passed!`.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste `git apply --stat .aw/system/cutover/metastore-code.cutover.patch`, the `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` run showing every guard behavior (docs+code patch apply check, non-empty numstat, bad-patch refusal) PASSED, `git worktree list` showing `.aw/state/p109wy/scratch` removed, `git status --short` confirming no live edits outside `- Scope-Paths:`, and the `aw commit p109wy` output naming the commit hash.
   - Observed evidence:
-  - Result: pending
+    - `git apply --stat .aw/system/cutover/metastore-code.cutover.patch`: `83 files changed, 11640 insertions(+), 8720 deletions(-)` (exit 0; includes `agent_workflows/artifact_meta.py` 3530, `agent_workflows/check_engine.py` 419, `agent_workflows/review_findings.py` 51, `tests/test_cutover_log_reviews_prompts_and_checks.py` 757).
+    - `python3 -m pytest -o addopts="" -v tests/test_metastore_cutover_code_patch.py`:
+      - `tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_code_patch_applies_after_docs_patch PASSED [ 33%]`
+      - `tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_check_refuses_a_patch_that_no_longer_applies PASSED [ 66%]`
+      - `tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_code_patch_touches_files PASSED [100%]`
+      - Summary: `3 passed in 0.45s` (exit 0).
+    - `git worktree list`: `.aw/state/p109wy/scratch` removed (only primary checkout `[main]`, lane `cugg3w`, and lane `p109wy` listed).
+    - `git status --short`: ` M .aw/system/cutover/metastore-code.cutover.patch` before commit (only declared `- Scope-Paths:` modified; zero live code or test edits).
+    - `aw commit p109wy -- .aw/system/cutover/metastore-code.cutover.patch`: `aw commit: committed 1 path(s): 342e43ce320b0ca35e73a468525c7e833c328fce`.
+  - Result: pass
 
 ## Approval and execution gate
 
