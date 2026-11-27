@@ -55,7 +55,7 @@ index 3f605a290..015ff87c3 100644
  
      THE MARKDOWN HARD-LINE-BREAK TRADEOFF IS DELIBERATE AND OWNED HERE. A per-line rstrip destroys
 diff --git a/agent_workflows/artifact_meta.py b/agent_workflows/artifact_meta.py
-index 888725a53..d06afca6d 100644
+index 888725a53..da5fd9caf 100644
 --- a/agent_workflows/artifact_meta.py
 +++ b/agent_workflows/artifact_meta.py
 @@ -26,12 +26,10 @@ import subprocess
@@ -1408,7 +1408,7 @@ index 888725a53..d06afca6d 100644
      lines = text.splitlines()
      _yaml_probe: Dict[str, str] = {}
      yaml_title: Optional[str] = None
-@@ -5792,9 +5126,16 @@ def read_multiline_bullets(text: str, keys: Sequence[str]) -> List[str]:
+@@ -5792,9 +5126,17 @@ def read_multiline_bullets(text: str, keys: Sequence[str]) -> List[str]:
  
  
  def read_review_subject_id(text: str) -> Optional[str]:
@@ -1416,17 +1416,18 @@ index 888725a53..d06afca6d 100644
 +    """Return the 6-character subject id declared in a review record's front matter, or None."""
      if not text:
          return None
-+    try:
-+        mirror = parse_review_mirror(text)
-+        subj = str(mirror.get("subject") or "").strip()
-+        if _core.ID6_RE.fullmatch(subj):
-+            return subj
-+    except ValueError:
-+        pass
++    first_lines = text.lstrip("\ufeff").splitlines()
++    if first_lines and first_lines[0].strip() == "---":
++        try:
++            mirror = parse_review_mirror(text)
++            subj = str(mirror.get("subject") or "").strip()
++            return subj if _core.ID6_RE.fullmatch(subj) else None
++        except ValueError:
++            return None
      raw = str(read_text(metadata_region(text)).fields.get("subject_id") or "").strip()
      return raw if _core.ID6_RE.fullmatch(raw) else None
  
-@@ -5969,24 +5310,17 @@ def history(id6: str, *, project_context: Any = None) -> List[Dict[str, Any]]:
+@@ -5969,24 +5311,17 @@ def history(id6: str, *, project_context: Any = None) -> List[Dict[str, Any]]:
                      )
              return res
  
@@ -1454,7 +1455,7 @@ index 888725a53..d06afca6d 100644
          # (4.1a), appended after the history lines in file order, with no inferred ordering.
          for rv in conn.execute(
              """SELECT r.seq, r.round, r.review_kind, r.verdict, r.legacy_verdict, r.observed_day,
-@@ -6507,65 +5841,35 @@ def resolve_id_at(
+@@ -6507,65 +5842,35 @@ def resolve_id_at(
      return declared
  
  
@@ -1540,7 +1541,7 @@ index 888725a53..d06afca6d 100644
  
  
  def read_path_at(
-@@ -6599,27 +5903,18 @@ def read_path_at(
+@@ -6599,27 +5904,18 @@ def read_path_at(
                  kind="invalid-revision", error=f"invalid revision {rev!r}"
              )
  
@@ -1574,7 +1575,7 @@ index 888725a53..d06afca6d 100644
  
  
  def read_at(
-@@ -6721,121 +6016,8 @@ def read_at(
+@@ -6721,121 +6017,8 @@ def read_at(
              except Exception as exc:
                  return ReadAtResult(kind="corrupt", error=str(exc))
  
@@ -1698,7 +1699,7 @@ index 888725a53..d06afca6d 100644
          return ReadAtResult(
              kind="absent", error=f"record {id6} not found in revision {rev}"
          )
-@@ -7088,58 +6270,6 @@ def _journal_dir(state_root: Path) -> Path:
+@@ -7088,58 +6271,6 @@ def _journal_dir(state_root: Path) -> Path:
      return d
  
  
@@ -1757,7 +1758,7 @@ index 888725a53..d06afca6d 100644
  @dataclasses.dataclass
  class WritePreview:
      """What a write WOULD do: the rendered text, its destination and whether anything changes."""
-@@ -7149,25 +6279,9 @@ class WritePreview:
+@@ -7149,25 +6280,9 @@ class WritePreview:
      source: Path
      changed: bool
      events: List[Dict[str, Any]]
@@ -1786,7 +1787,7 @@ index 888725a53..d06afca6d 100644
  
  
  #: `status_set` plural record types -> registry types (walkthroughs/roadmaps/other have no registry
-@@ -7184,86 +6298,10 @@ _LEGACY_PLURAL_TO_TYPE: Dict[str, str] = {
+@@ -7184,86 +6299,10 @@ _LEGACY_PLURAL_TO_TYPE: Dict[str, str] = {
  
  _TYPE_TO_PLURAL: Dict[str, str] = {v: k for k, v in _LEGACY_PLURAL_TO_TYPE.items()}
  
@@ -1873,7 +1874,7 @@ index 888725a53..d06afca6d 100644
  def metadata_region(text: str) -> str:
      """Return the leading METADATA REGION of a record: where it DECLARES its own identity."""
  
-@@ -7324,20 +6362,6 @@ def _normalize_legacy_types(
+@@ -7324,20 +6363,6 @@ def _normalize_legacy_types(
      return "ipd", "plans"
  
  
@@ -1894,7 +1895,7 @@ index 888725a53..d06afca6d 100644
  def legacy_context(repo_root: Union[str, Path]) -> Any:
      """The `project_context` a phase-B setter passes for ``repo_root``: the records root every record
      verb reads (`project_context.project_records_dir`) and the repository's own `.aw/state`.
-@@ -7393,10 +6417,6 @@ def _storage_format(records_root: Path, target: Any) -> str:
+@@ -7393,10 +6418,6 @@ def _storage_format(records_root: Path, target: Any) -> str:
      return "legacy"
  
  
@@ -1905,7 +1906,7 @@ index 888725a53..d06afca6d 100644
  def _check_owned_fields(
      record_type: str, events: List[Dict[str, Any]], from_status: Optional[str]
  ) -> None:
-@@ -7471,504 +6491,6 @@ def _check_owned_fields(
+@@ -7471,504 +6492,6 @@ def _check_owned_fields(
          )
  
  
@@ -2410,7 +2411,7 @@ index 888725a53..d06afca6d 100644
  def _split_prompt_comment(first_line: str) -> Optional[Tuple[str, str, str, str]]:
      """Return `(prefix, fields_part, trailer_part, suffix)` for an `<!-- aw-prompt: ... -->` line."""
      m = re.match(r"^(<!--\s*aw-prompt:\s*)(.*?)(\s*-->)\s*$", first_line)
-@@ -7990,1232 +6512,56 @@ def _split_prompt_comment(first_line: str) -> Optional[Tuple[str, str, str, str]
+@@ -7990,1232 +6513,56 @@ def _split_prompt_comment(first_line: str) -> Optional[Tuple[str, str, str, str]
      return prefix, inner, "", suffix
  
  
@@ -3683,7 +3684,7 @@ index 888725a53..d06afca6d 100644
      events: List[Dict[str, Any]],
      *,
      expect_seq: Optional[int] = None,
-@@ -9227,64 +6573,14 @@ def append(
+@@ -9227,64 +6574,14 @@ def append(
      overrides: Optional[List[str]] = None,
      migration_import: bool = False,
      _from_create: bool = False,
@@ -3756,7 +3757,7 @@ index 888725a53..d06afca6d 100644
      validate_id6(id6)
      ctx = project_context or _proj_ctx.resolve_project_context()
      records_root = Path(ctx.logical_roots["records"])
-@@ -9312,6 +6608,11 @@ def append(
+@@ -9312,6 +6609,11 @@ def append(
              if existing_lines:
                  last_ev = decode_line(existing_lines[-1])
                  current_seq = last_ev["seq"]
@@ -3768,7 +3769,7 @@ index 888725a53..d06afca6d 100644
  
          if expect_seq is not None and current_seq != expect_seq:
              raise ValueError(
-@@ -9368,10 +6669,45 @@ def append(
+@@ -9368,10 +6670,45 @@ def append(
              records_root=records_root,
              migration_import=migration_import,
          )
@@ -3815,7 +3816,7 @@ index 888725a53..d06afca6d 100644
  
          # Step 1: Write log via temp file, fsync, os.replace (THE COMMIT POINT)
          log_content = "".join(all_lines)
-@@ -9382,17 +6718,30 @@ def append(
+@@ -9382,17 +6719,30 @@ def append(
  
          # After step 1: Change is recorded. Subsequent steps are best effort/recovery
          try:
@@ -3856,7 +3857,7 @@ index 888725a53..d06afca6d 100644
  
              # Step 4: Cache update
              conn = open_cache(records_root, state_root)
-@@ -9413,7 +6762,12 @@ def append(
+@@ -9413,7 +6763,12 @@ def append(
              finally:
                  conn.close()
  
@@ -3870,7 +3871,7 @@ index 888725a53..d06afca6d 100644
  
          except Exception as step_exc:
              return {
-@@ -9432,70 +6786,17 @@ def create(
+@@ -9432,70 +6787,17 @@ def create(
      dry_run: bool = False,
      project_context: Any = None,
      actor: Optional[Dict[str, Any]] = None,
@@ -3950,7 +3951,7 @@ index 888725a53..d06afca6d 100644
      ctx = project_context or _proj_ctx.resolve_project_context()
      records_root = Path(ctx.logical_roots["records"])
      state_root = Path(ctx.logical_roots["state"])
-@@ -9513,6 +6814,35 @@ def create(
+@@ -9513,6 +6815,35 @@ def create(
              )
          except (OSError, ValueError):
              pass
@@ -3986,7 +3987,7 @@ index 888725a53..d06afca6d 100644
  
      # Retain operation journal before step 1
      j_dir = _journal_dir(state_root)
-@@ -9527,35 +6857,29 @@ def create(
+@@ -9527,35 +6858,29 @@ def create(
      j_file.write_text(json.dumps(journal_data, indent=2), encoding="utf-8")
  
      try:
@@ -5172,7 +5173,7 @@ index 5395ccb00..30e193203 100644
      ctx = select_output(args)
      # rolswj/akhwp7: ONE count expression read by the human AND machine branches.
 diff --git a/agent_workflows/check_engine.py b/agent_workflows/check_engine.py
-index 9b09c151c..870ac9a82 100644
+index 9b09c151c..209cd9bc9 100644
 --- a/agent_workflows/check_engine.py
 +++ b/agent_workflows/check_engine.py
 @@ -1610,23 +1610,27 @@ def check_content(
@@ -5572,7 +5573,7 @@ index 9b09c151c..870ac9a82 100644
          id6 = _meta_declared_id6(st_obj) or p.stem
          for b in blocking_prio:
              drift.append(
-@@ -9305,11 +9407,18 @@ def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
+@@ -9305,11 +9407,23 @@ def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
              text = path.read_text(encoding="utf-8")
          except OSError:
              continue
@@ -5580,11 +5581,16 @@ index 9b09c151c..870ac9a82 100644
 -        raw_sid = _meta_single_token((st.fields or {}).get("subject_id"))
 +        raw_sid: Optional[str] = None
 +        raw_stype: Optional[str] = None
-+        try:
-+            mirror = _meta.parse_review_mirror(text)
-+            raw_sid = _meta_single_token(mirror.get("subject"))
-+            raw_stype = _meta_single_token(mirror.get("subject_type"))
-+        except ValueError:
++        first_lines = text.lstrip("\ufeff").splitlines()
++        if first_lines and first_lines[0].strip() == "---":
++            try:
++                mirror = _meta.parse_review_mirror(text)
++                raw_sid = _meta_single_token(mirror.get("subject"))
++                raw_stype = _meta_single_token(mirror.get("subject_type"))
++            except ValueError:
++                raw_sid = None
++                raw_stype = None
++        else:
 +            st = _meta.read_text(text)
 +            raw_sid = _meta_single_token((st.fields or {}).get("subject_id"))
 +            raw_stype = _meta_single_token((st.fields or {}).get("subject_type"))
@@ -5594,7 +5600,7 @@ index 9b09c151c..870ac9a82 100644
          subject_type = raw_stype.lower() if raw_stype else ""
          known = known_by_type.get(subject_type)
          if known is None:
-@@ -9923,13 +10032,74 @@ _PLAN_SPEC_LINK_MISSING_RULE = "check.plan-spec-link-missing"
+@@ -9923,13 +10037,74 @@ _PLAN_SPEC_LINK_MISSING_RULE = "check.plan-spec-link-missing"
  PLAN_SPEC_LINK_NO_SOURCE_SENTINELS: FrozenSet[str] = frozenset({"-", "none"})
  
  
@@ -5675,7 +5681,7 @@ index 9b09c151c..870ac9a82 100644
      Filters candidate 6-character [0-9a-z]{6} tokens on word boundaries against `known_spec_ids`.
      """
      known = set(known_spec_ids)
-@@ -9938,9 +10108,18 @@ def parse_cited_spec_ids(plan_text: str, known_spec_ids: Iterable[str]) -> List[
+@@ -9938,9 +10113,18 @@ def parse_cited_spec_ids(plan_text: str, known_spec_ids: Iterable[str]) -> List[
  
      from agent_workflows import artifact_meta as _meta
  
@@ -5695,7 +5701,7 @@ index 9b09c151c..870ac9a82 100644
      cited: List[str] = []
      for m in _CITED_SPEC_TOKEN_RE.finditer(joined):
          tok = m.group(1)
-@@ -9954,10 +10133,11 @@ def check_plan_spec_link_missing(
+@@ -9954,10 +10138,11 @@ def check_plan_spec_link_missing(
  ) -> List[_core.Drift]:
      """Pending-scoped advisory rule flagging a pending plan citing a known spec without From-Spec.
  
@@ -5711,7 +5717,7 @@ index 9b09c151c..870ac9a82 100644
      Pending-scoping ensures historical records (executed/superseded) are never examined, while keeping
      the advisory nudge visible on `aw check plans` throughout the plan's authoring/review lifecycle.
      """
-@@ -9972,7 +10152,9 @@ def check_plan_spec_link_missing(
+@@ -9972,7 +10157,9 @@ def check_plan_spec_link_missing(
  
      spec_files_by_id6: Dict[str, Set[str]] = {}
      resolved_root = repo_root.resolve()
@@ -5722,7 +5728,7 @@ index 9b09c151c..870ac9a82 100644
          sid = _meta_declared_id6(st)
          if sid:
              try:
-@@ -10006,14 +10188,26 @@ def check_plan_spec_link_missing(
+@@ -10006,14 +10193,26 @@ def check_plan_spec_link_missing(
              except OSError:
                  continue
  
@@ -5752,7 +5758,7 @@ index 9b09c151c..870ac9a82 100644
              if parsed_paths:
                  scope_set = set(parsed_paths)
                  cited = [
-@@ -10318,7 +10512,9 @@ class StaleScopePath(NamedTuple):
+@@ -10318,7 +10517,9 @@ class StaleScopePath(NamedTuple):
      resolved: Tuple[str, ...] = ()
  
  
@@ -5763,7 +5769,7 @@ index 9b09c151c..870ac9a82 100644
      """Flag missing literal Scope-Paths under .aw/records/ classified moved-terminal/moved/vanished.
  
      Pure-ish predicate (reads filesystem, no subprocess, no git).
-@@ -10328,8 +10524,13 @@ def stale_record_scope_paths(repo_root: Path, plan_text: str) -> List[StaleScope
+@@ -10328,8 +10529,13 @@ def stale_record_scope_paths(repo_root: Path, plan_text: str) -> List[StaleScope
      from agent_workflows import status_set as _status_set
  
      repo_root = Path(repo_root)
@@ -5778,7 +5784,7 @@ index 9b09c151c..870ac9a82 100644
      except Exception:
          return []
      sp_value = doc.meta_fields.get("Scope-Paths")
-@@ -10433,10 +10634,15 @@ def check_scope_path_target_stale(repo_root: Path) -> List[_core.Drift]:
+@@ -10433,10 +10639,15 @@ def check_scope_path_target_stale(repo_root: Path) -> List[_core.Drift]:
      """
      repo_root = Path(repo_root)
      drift: List[_core.Drift] = []
@@ -5795,7 +5801,7 @@ index 9b09c151c..870ac9a82 100644
              if stale.resolved:
                  resolved_str = ", ".join(stale.resolved)
                  detail = (
-@@ -10814,7 +11020,9 @@ def evaluate_review_finding_escalation(
+@@ -10814,7 +11025,9 @@ def evaluate_review_finding_escalation(
      if str(thr).strip().lower() in ("off", ""):
          return drift
  
@@ -5806,7 +5812,7 @@ index 9b09c151c..870ac9a82 100644
      if plan_id6 is None:
          return drift  # no `- Id:` to join on; the metadata linter owns that complaint
  
-@@ -11010,7 +11218,9 @@ def evaluate_review_decision_escalation(
+@@ -11010,7 +11223,9 @@ def evaluate_review_decision_escalation(
      except Exception:
          return drift
  
@@ -5817,7 +5823,7 @@ index 9b09c151c..870ac9a82 100644
      if plan_id6 is None:
          return drift  # no `- Id:` to join on; the metadata linter owns that complaint
  
-@@ -11587,7 +11797,8 @@ def find_obligations_carried_by(
+@@ -11587,7 +11802,8 @@ def find_obligations_carried_by(
                  from agent_workflows import artifact_meta as _meta
  
                  plan_id6 = (
@@ -5827,7 +5833,7 @@ index 9b09c151c..870ac9a82 100644
                      or p.name[:6]
                  )
  
-@@ -12072,6 +12283,7 @@ def evaluate_carrier_ungated(
+@@ -12072,6 +12288,7 @@ def evaluate_carrier_ungated(
      plan_path: Path,
      plan_text: str,
      open_questions=None,
@@ -5835,7 +5841,7 @@ index 9b09c151c..870ac9a82 100644
  ) -> List[_core.Drift]:
      """The pure per-plan evaluator for `check.ipd-carrier-ungated` (carriergate rpw4sb E-02).
  
-@@ -12087,16 +12299,21 @@ def evaluate_carrier_ungated(
+@@ -12087,16 +12304,21 @@ def evaluate_carrier_ungated(
          from agent_workflows import ipd_lint as _lint
          from agent_workflows import ipd_schema as _ipd_schema
  
@@ -5859,7 +5865,7 @@ index 9b09c151c..870ac9a82 100644
  
          meta_fields = getattr(parsed, "meta_fields", None) or {}
          raw_deps = (meta_fields.get(_ipd_schema.META_ITEM_DEPENDENCIES) or "").strip()
-@@ -12173,6 +12390,7 @@ def check_carrier_ungated(
+@@ -12173,6 +12395,7 @@ def check_carrier_ungated(
      drift: List[_core.Drift] = []
      try:
          repo_root = Path(repo_root)
@@ -5867,7 +5873,7 @@ index 9b09c151c..870ac9a82 100644
          for p in _iter_type_files(
              repo_root, "plans", include_untracked=include_untracked
          ):
-@@ -12182,11 +12400,16 @@ def check_carrier_ungated(
+@@ -12182,11 +12405,16 @@ def check_carrier_ungated(
                  text = p.read_text(encoding="utf-8")
              except OSError:
                  continue
@@ -11870,7 +11876,7 @@ index ebb9bb13f..25e4416c3 100644
          touched.append(dst_rel)
          if has_comp:
 diff --git a/agent_workflows/review_findings.py b/agent_workflows/review_findings.py
-index 142df8fa4..155e0285f 100644
+index 142df8fa4..d20a01048 100644
 --- a/agent_workflows/review_findings.py
 +++ b/agent_workflows/review_findings.py
 @@ -48,7 +48,7 @@ from __future__ import annotations
@@ -11882,7 +11888,7 @@ index 142df8fa4..155e0285f 100644
  
  from agent_workflows import artifact_naming as _naming
  
-@@ -535,15 +535,35 @@ def parse_review_text(text: str, path: Optional[Path] = None) -> ReviewDocument:
+@@ -535,15 +535,37 @@ def parse_review_text(text: str, path: Optional[Path] = None) -> ReviewDocument:
  
      diagnostics: List[Diagnostic] = []
      meta: Dict[str, str] = {}
@@ -11895,6 +11901,8 @@ index 142df8fa4..155e0285f 100644
 -        val = raw_val.strip() if isinstance(raw_val, str) else str(raw_val).strip()
 -        if val:
 -            meta[field] = val
++    first_lines = (text or "").lstrip("\ufeff").splitlines()
++    starts_with_yaml = bool(first_lines and first_lines[0].strip() == "---")
 +    mirror_data: Optional[Dict[str, Any]] = None
 +    try:
 +        mirror_data = _am.parse_review_mirror(text)
@@ -11908,7 +11916,7 @@ index 142df8fa4..155e0285f 100644
 +            meta["subject-id"] = subj
 +        if stype:
 +            meta["subject-type"] = stype
-+    else:
++    elif not starts_with_yaml:
 +        st = _am.read_text(text)
 +        fields = st.fields or {}
 +        for field in (
@@ -11927,7 +11935,7 @@ index 142df8fa4..155e0285f 100644
      rounds: List[Round] = []
  
      cur_num: Optional[int] = None
-@@ -696,7 +716,12 @@ def parse_review_text(text: str, path: Optional[Path] = None) -> ReviewDocument:
+@@ -696,7 +718,12 @@ def parse_review_text(text: str, path: Optional[Path] = None) -> ReviewDocument:
  
      _flush()
  
@@ -11941,7 +11949,7 @@ index 142df8fa4..155e0285f 100644
          if not meta.get(field):
              diagnostics.append(
                  Diagnostic(0, D_MISSING_META, f"missing required `- {field}:` metadata")
-@@ -769,7 +794,7 @@ def iter_review_files(repo_root):
+@@ -769,7 +796,7 @@ def iter_review_files(repo_root):
      seen = set()
      for base in review_dirs(repo_root):
          for p in sorted(base.rglob("*.review.md")):
@@ -11950,7 +11958,7 @@ index 142df8fa4..155e0285f 100644
                  continue
              try:
                  key = str(p.resolve())
-@@ -949,7 +974,7 @@ def _cached_subject_review_files(
+@@ -949,7 +976,7 @@ def _cached_subject_review_files(
              ):
                  continue
              for p in sorted(base.rglob("*.review.md")):
@@ -22509,10 +22517,10 @@ index 000000000..da1713901
 +    assert any(a.command == "aw migrate metadata" for a in res_repair.next_actions)
 diff --git a/tests/test_cutover_log_reviews_prompts_and_checks.py b/tests/test_cutover_log_reviews_prompts_and_checks.py
 new file mode 100644
-index 000000000..6a9402f25
+index 000000000..dd583b70c
 --- /dev/null
 +++ b/tests/test_cutover_log_reviews_prompts_and_checks.py
-@@ -0,0 +1,757 @@
+@@ -0,0 +1,770 @@
 +"""Core behavioral tests for log-aware review mirrors, prompt metadata, and check_engine plan checks (p109wy)."""
 +
 +from __future__ import annotations
@@ -22758,9 +22766,22 @@ index 000000000..6a9402f25
 +    no_rounds_doc = rf.parse_review_text(no_rounds_text)
 +    assert [d.code for d in no_rounds_doc.diagnostics] == [rf.D_NO_ROUNDS]
 +
-+    # Malformed YAML header fails closed with REV-M101
++    # Malformed YAML header fails closed with REV-M101 (even if legacy-named keys are present)
 +    bad_key_doc = rf.parse_review_text(bad_key_text)
 +    assert rf.D_MISSING_META in {d.code for d in bad_key_doc.diagnostics}
++    malformed_five_key_yaml = (
++        "---\n"
++        "subject_id: ab12cd\n"
++        "subject_type: ipd\n"
++        "reviewed_at: 2026-11-26\n"
++        "reviewer: test-agent\n"
++        "verdict: APPROVE\n"
++        "---\n"
++        "## Round 1\n"
++    )
++    assert meta.read_review_subject_id(malformed_five_key_yaml) is None
++    malformed_five_doc = rf.parse_review_text(malformed_five_key_yaml)
++    assert rf.D_MISSING_META in {d.code for d in malformed_five_doc.diagnostics}
 +
 +    # Legacy 5-bullet review preserves existing validation and subject-id reading
 +    legacy_text = rf.render_review(
