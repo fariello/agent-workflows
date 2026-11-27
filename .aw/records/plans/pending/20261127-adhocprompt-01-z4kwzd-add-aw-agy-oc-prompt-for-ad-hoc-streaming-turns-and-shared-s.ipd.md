@@ -6,7 +6,7 @@
 - Scope: Add a shared ad-hoc prompt and session-continuation engine in `agent_workflows/runner_shared.py`; add `build_prompt_parser` and `main_prompt` to `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` (updating `run_opencode` to support `plan_path=None`, `use_continue`, and `options["timeout"]`); expose `aw oc prompt` (`aw opencode prompt`) and `aw agy prompt` (`aw antigravity prompt`) in `agent_workflows/cli.py`; declare both leaves in `agent_workflows/command_surface.py::COMMAND_INVENTORY` and register both forwarded-driver exemptions in `tests/conformance_matrix.py::MUTATION_EXEMPTION_REGISTRY` and `tests/test_shared_flag_honored.py::SECTION_1_3_EXEMPT_LEAVES`; sync `docs/cli-output-contract.md` Section 1.3; and add behavioral parity tests in `tests/test_adhoc_prompt_runner.py`. Keep `aw agy exec` (`agent_workflows/agy_run.py`) unchanged and do not modify Ctrl-C interrupt handling (tracked in backlog `9ici96`).
 - Scope-Paths: .aw/records/plans/pending/20261127-adhocprompt-01-z4kwzd-add-aw-agy-oc-prompt-for-ad-hoc-streaming-turns-and-shared-s.ipd.md, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/cli.py, agent_workflows/command_surface.py, docs/cli-output-contract.md, tests/conformance_matrix.py, tests/test_shared_flag_honored.py, tests/test_adhoc_prompt_runner.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Review-Depth: standard
 - Short-Description: Add aw agy prompt and aw oc prompt using shared streaming runner and session-continuation plumbing
@@ -18,11 +18,13 @@
 - Highest E allocated: 05
 - Author: antigravity/gemini
 - Id: z4kwzd
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-27 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-27 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005 (all FIXED); review record .aw/records/reviews/20261127-adhocprompt-01-z4kwzd-add-aw-agy-oc-prompt-for-ad-hoc-streaming-turns-and-shared-s.review.md
 - 2026-11-27 to-review (antigravity/gemini): authored review-ready plan for aw agy|oc prompt and shared session-continuation plumbing.
