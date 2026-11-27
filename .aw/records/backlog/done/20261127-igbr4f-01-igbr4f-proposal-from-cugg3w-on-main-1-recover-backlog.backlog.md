@@ -1,15 +1,15 @@
 - Id: igbr4f
-- Status: open
+- Status: done
 - Set: igbr4f
 - Work-Kind: followup
 - Priority: high
 - Summary: Proposal from cugg3w: On main: (1) recover backlog item 3pxjya from aw/lane/cugg3w
 - Short-Description: Proposal from cugg3w: On main: (1) recover backlog item 3pxjya from aw/lane/cugg3w
-- Blocks-Release: next
 
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-27 done (aw set): Applied Option 2 re-wiring (szykgd -> fljn9b, 6cltab -> 3e0vfy, cugg3w -> 6cltab, psm9ac -> cugg3w), expanded 6cltab with 3pxjya, refreshed 63ib9r coverage; release gate stays enforced by 6cltab, 3pxjya, and cugg3w.
 - 2026-11-27 created (aw backlog): Proposal from cugg3w: On main: (1) recover backlog item 3pxjya from aw/lane/cugg3w
 
 ## Agent Proposal from cugg3w
@@ -18,7 +18,6 @@
 - Proposing-Item: cugg3w
 - Lane-Branch: aw/lane/cugg3w
 - Blocked-By: 6 failing batch A tests blocked by Order 317 p109wy (SQLite reviews projection) and backlog 3pxjya (status_set.py and check_engine.py bare-repo resolve_project_context fallbacks). Maintainer selected Option 2 on 2026-11-27.
-- Kind: different-approach
 - Size: material
 
 ### Why
