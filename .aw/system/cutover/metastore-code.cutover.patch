@@ -21,10 +21,155 @@ index b166b011b..7eaf0dbe8 100755
      from agent_workflows import specs
  
 diff --git a/agent_workflows/artifact_adopt.py b/agent_workflows/artifact_adopt.py
-index d1243dd02..b2cfb9167 100644
+index d1243dd02..1f8652575 100644
 --- a/agent_workflows/artifact_adopt.py
 +++ b/agent_workflows/artifact_adopt.py
-@@ -1109,13 +1109,7 @@ def apply_adoption(
+@@ -41,6 +41,7 @@ import re
+ from datetime import date
+ from pathlib import Path
+ from typing import (
++    Any,
+     Dict,
+     FrozenSet,
+     List,
+@@ -791,6 +792,7 @@ class AdoptionPlan(NamedTuple):
+     already_adopted: Optional[AlreadyAdopted]
+     collision_set_size: int
+     short_description: Optional[str] = None
++    fields: Optional[Dict[str, Any]] = None
+ 
+     @property
+     def content(self) -> str:
+@@ -980,6 +982,7 @@ def plan_adoption(
+             already_adopted=already,
+             collision_set_size=len(existing),
+             short_description=(summary if summary and summary.strip() else None),
++            fields=dict(planned.fields) if planned.fields is not None else None,
+         ),
+         None,
+     )
+@@ -1040,51 +1043,70 @@ def apply_adoption(
+         )
+ 
+     # Step 1: write the destination through artifact_meta.create.
++    log_path: Optional[Path] = None
++    log_existed_before = False
+     try:
+         from agent_workflows import artifact_meta as _meta
+         from agent_workflows import research_contract as _R
+ 
+-        fm = _meta.front_matter_mapping(plan.frontmatter)
+-        fields: Dict[str, object] = {}
+-        if fm is not None:
+-            if "created" in fm:
+-                fields["created"] = fm["created"]
+-            if "set" in fm:
+-                fields["set"] = fm["set"]
+-            if "order" in fm:
+-                raw_order = fm["order"]
+-                fields["order"] = (
+-                    int(raw_order)
+-                    if isinstance(raw_order, str) and raw_order.isdigit()
+-                    else raw_order
+-                )
+-            if "topic" in fm:
+-                fields["topic"] = fm["topic"]
+-            if "model" in fm:
+-                fields["model"] = fm["model"] or None
+-            if "kind" in fm:
+-                fields["research_kind"] = fm["kind"]
+-            if "status" in fm:
+-                fields["status"] = fm["status"]
+-            if "outcome" in fm:
+-                fields["outcome"] = fm["outcome"]
+-            if "summary" in fm:
+-                fields["summary"] = fm["summary"]
+-            if "consumed-by" in fm:
+-                fields["consumed_by"] = fm["consumed-by"]
+-            if fm.get("priority"):
+-                fields["priority"] = fm["priority"]
+-            if fm.get("short-description"):
+-                fields["short_description"] = fm["short-description"]
+-            elif plan.short_description and plan.short_description.strip():
++        fields: Dict[str, Any] = {}
++        if plan.fields is not None:
++            fields = dict(plan.fields)
++            if "status" in fields and fields["status"] is None:
++                fields.pop("status", None)
++            if (
++                not fields.get("short_description")
++                and plan.short_description
++                and plan.short_description.strip()
++            ):
+                 fields["short_description"] = plan.short_description
+         else:
+-            fields["set"] = plan.suggestion.set_id
+-            fields["research_kind"] = plan.suggestion.kind
+-            if plan.suggestion.model:
+-                fields["model"] = plan.suggestion.model
+-            if plan.short_description and plan.short_description.strip():
+-                fields["short_description"] = plan.short_description
++            fm = _meta.front_matter_mapping(plan.frontmatter)
++            if fm is not None:
++                if "created" in fm:
++                    fields["created"] = fm["created"]
++                if "set" in fm:
++                    fields["set"] = fm["set"]
++                if "order" in fm:
++                    raw_order = fm["order"]
++                    fields["order"] = (
++                        int(raw_order)
++                        if isinstance(raw_order, str) and raw_order.isdigit()
++                        else raw_order
++                    )
++                if "topic" in fm:
++                    fields["topic"] = fm["topic"]
++                if "model" in fm:
++                    fields["model"] = fm["model"] or None
++                if "kind" in fm:
++                    fields["research_kind"] = fm["kind"]
++                if "status" in fm and fm["status"] is not None:
++                    fields["status"] = fm["status"]
++                if "outcome" in fm:
++                    fields["outcome"] = fm["outcome"]
++                if "summary" in fm:
++                    fields["summary"] = fm["summary"]
++                if "consumed-by" in fm:
++                    fields["consumed_by"] = fm["consumed-by"]
++                if fm.get("priority"):
++                    fields["priority"] = fm["priority"]
++                if fm.get("short-description"):
++                    fields["short_description"] = fm["short-description"]
++                elif plan.short_description and plan.short_description.strip():
++                    fields["short_description"] = plan.short_description
++                if "set" not in fields and plan.suggestion.set_id:
++                    fields["set"] = plan.suggestion.set_id
++                if "research_kind" not in fields and plan.suggestion.kind:
++                    fields["research_kind"] = plan.suggestion.kind
++                if "model" not in fields and plan.suggestion.model:
++                    fields["model"] = plan.suggestion.model
++            else:
++                fields["set"] = plan.suggestion.set_id
++                fields["research_kind"] = plan.suggestion.kind
++                if plan.suggestion.model:
++                    fields["model"] = plan.suggestion.model
++                if plan.short_description and plan.short_description.strip():
++                    fields["short_description"] = plan.short_description
+ 
+         base_ctx = _meta.legacy_context(repo_root)
+         records_root = _R.resolve_research_root(repo_root).resolve().parent
+@@ -1099,7 +1121,9 @@ def apply_adoption(
+                 "repo_root": repo_root.resolve(),
+             },
+         )()
+-        _meta.create(
++        log_path = records_root / "meta" / f"{plan.id6}.jsonl"
++        log_existed_before = log_path.exists()
++        create_res = _meta.create(
+             plan.id6,
+             "research",
+             fields,
+@@ -1109,14 +1133,15 @@ def apply_adoption(
              overwrite=overwrite,
              migration_import=plan.leaks.has_fail,
              project_context=ctx,
@@ -37,8 +182,34 @@ index d1243dd02..b2cfb9167 100644
 -            ),
 +            actor={"tool": "aw adopt"},
          )
++        if not create_res.get("committed"):
++            raise RuntimeError(
++                str(
++                    create_res.get("error")
++                    or f"metadata create did not commit for {plan.id6}"
++                )
++            )
      except Exception as exc:  # noqa: BLE001
          return None, f"destination write failed (original left in place): {exc}"
+ 
+@@ -1127,11 +1152,16 @@ def apply_adoption(
+         if refresh_index is not None:
+             index_detail = refresh_index(repo_root)
+     except Exception as exc:  # noqa: BLE001
+-        # Roll back the destination so no partial artifact remains, and leave the original alone.
++        # Roll back the destination (and newly created companion log) so no partial artifact remains.
+         try:
+             plan.destination.unlink()
+         except OSError:  # pragma: no cover - defensive
+             pass
++        if log_path is not None and not log_existed_before:
++            try:
++                log_path.unlink()
++            except OSError:  # pragma: no cover - defensive
++                pass
+         return None, (
+             f"index refresh failed after the destination write; rolled the destination back and "
+             f"left the original in {INBOX_REL}/: {exc}"
 diff --git a/agent_workflows/artifact_core.py b/agent_workflows/artifact_core.py
 index 3f605a290..015ff87c3 100644
 --- a/agent_workflows/artifact_core.py
@@ -4029,7 +4200,7 @@ index 888725a53..da5fd9caf 100644
      except Exception:
          # Journal remains on failure
 diff --git a/agent_workflows/artifact_refs.py b/agent_workflows/artifact_refs.py
-index 5a1fcbc7b..843786725 100644
+index 5a1fcbc7b..1e0d407de 100644
 --- a/agent_workflows/artifact_refs.py
 +++ b/agent_workflows/artifact_refs.py
 @@ -61,7 +61,6 @@ facet (F-09).
@@ -4061,25 +4232,164 @@ index 5a1fcbc7b..843786725 100644
          try:
              raw_text = f.read_text(encoding="utf-8")
          except (OSError, UnicodeDecodeError):
-@@ -975,11 +964,13 @@ def plan_scope_path_reference_rewrites(
+@@ -847,7 +836,7 @@ def classify_citing_plans_for_rewrite(
+             must_skip.append((path, f"cannot read plan file: {exc}"))
+             continue
  
-     for plan_file, file_edits in pending_edits.items():
-         try:
+-        plan_id = _meta.read_loose_id(text)
++        plan_id = _meta.read_mirror_id6(text) or _meta.read_loose_id(text)
+         if not plan_id:
+             must_skip.append((path, "missing - Id:"))
+             continue
+@@ -950,7 +939,10 @@ def plan_scope_path_reference_rewrites(
+ 
+     RESTRICTED TO PENDING PLANS AND SCOPE-PATHS:
+     - Filters out executed plans, tests, and documentation files scanned by the bare planner (F-10).
+-    - Rewrites ONLY inside the `- Scope-Paths:` line; prose mentions are historical citations left alone.
++    - Discovers pending plans from BOTH `plan_reference_rewrites` and `selectors.record_dirs` +
++      `plans_index.plan_files`, so log-format plans whose `scope_paths` live only in
++      `meta/<id6>.jsonl` are discovered even when the `.md` body has zero path mentions.
++    - Rewrites ONLY `scope_paths`; prose mentions are historical citations left alone.
+     - SKIPS with a reason any plan whose `Scope-Paths` already declares the destination path, preserving
+       deliberate forward declarations (F-07/F-10).
+ 
+@@ -958,62 +950,87 @@ def plan_scope_path_reference_rewrites(
+     """
+     from agent_workflows import artifact_meta as _meta
+     from agent_workflows import ipd_schema as _schema
++    from agent_workflows import plans_index as _plans_index
++    from agent_workflows import selectors as _selectors
+ 
+-    # Delegate to the existing planner to discover all citing candidate files
+-    raw_edits = plan_reference_rewrites(repo_root, path_map)
+-    if not raw_edits:
++    if not any(old_p and old_p != new_p for old_p, new_p in path_map.items()):
+         return [], []
+ 
+-    # Map candidate pending plans to the raw edits found in them
+-    pending_edits: Dict[Path, List[RefEdit]] = {}
+-    for edit in raw_edits:
++    # Discover candidate pending plans from both text-scan edits and the plans directories
++    # (post-cutover `scope_paths` lives in `meta/<id6>.jsonl` and may not appear in `.md` text).
++    candidates_by_res: Dict[Path, Path] = {}
++    for edit in plan_reference_rewrites(repo_root, path_map):
+         if _is_pending_plan_file(edit.file, repo_root):
+-            pending_edits.setdefault(edit.file, []).append(edit)
++            candidates_by_res.setdefault(edit.file.resolve(), edit.file)
++    for plans_dir in _selectors.record_dirs(repo_root, "plans"):
++        for plan_p in _plans_index.plan_files(plans_dir):
++            if _is_pending_plan_file(plan_p, repo_root):
++                candidates_by_res.setdefault(plan_p.resolve(), plan_p)
++
++    if not candidates_by_res:
++        return [], []
+ 
+     planned_edits: List[RefEdit] = []
+     skipped: List[Tuple[Path, str]] = []
++    meta_ctx = _meta.legacy_context(repo_root)
+ 
+-    for plan_file, file_edits in pending_edits.items():
+-        try:
 -            text = plan_file.read_text(encoding="utf-8")
 -        except OSError:
-+            plan_id6 = _meta.file_id6(plan_file)
-+            meta_ctx = _meta.legacy_context(repo_root)
-+            raw_sp = (
-+                _meta.read(plan_id6, project_context=meta_ctx).fields or {}
-+            ).get("scope_paths")
-+        except (OSError, ValueError):
-             continue
+-            continue
 -
 -        raw_sp = _meta.read_text(text, record_type="ipd").fields.get("scope_paths")
-         if raw_sp is None:
-             continue
+-        if raw_sp is None:
+-            continue
++    with _meta.ephemeral_if_uninitialized():
++        for res_key in sorted(candidates_by_res, key=lambda p: p.as_posix()):
++            plan_file = candidates_by_res[res_key]
++            raw_sp: Any = None
++            try:
++                plan_id6 = _meta.file_id6(plan_file)
++            except (OSError, ValueError):
++                plan_id6 = None
++            if plan_id6:
++                try:
++                    raw_sp = (
++                        _meta.read(plan_id6, project_context=meta_ctx).fields or {}
++                    ).get("scope_paths")
++                except Exception:
++                    raw_sp = None
++            if raw_sp is None:
++                try:
++                    raw_text = plan_file.read_text(encoding="utf-8")
++                    raw_sp = (
++                        _meta.read_text(raw_text, record_type="ipd").fields or {}
++                    ).get("scope_paths")
++                except (OSError, ValueError):
++                    continue
++            if raw_sp is None:
++                continue
  
-@@ -1026,7 +1017,7 @@ def apply_scope_path_reference_rewrites(
+-        raw_val = (
+-            ", ".join(str(x) for x in raw_sp)
+-            if isinstance(raw_sp, (list, tuple))
+-            else str(raw_sp)
+-        )
+-        declared_paths, is_grandfathered, _errs = _schema.parse_scope_paths(raw_val)
+-        if is_grandfathered:
+-            continue
++            raw_val = (
++                ", ".join(str(x) for x in raw_sp)
++                if isinstance(raw_sp, (list, tuple))
++                else str(raw_sp)
++            )
++            declared_paths, is_grandfathered, _errs = _schema.parse_scope_paths(raw_val)
++            if is_grandfathered:
++                continue
+ 
+-        file_has_skip = False
+-        file_scope_edits: List[RefEdit] = []
+-        for old_path, new_path in path_map.items():
+-            if new_path in declared_paths:
+-                skipped.append(
+-                    (plan_file, "destination already declared in Scope-Paths")
+-                )
+-                file_has_skip = True
+-                break
+-            if old_path in declared_paths:
+-                file_scope_edits.append(
+-                    RefEdit(
+-                        file=plan_file,
+-                        kind=FULL_NAME,
+-                        old=old_path,
+-                        new=new_path,
+-                        hits=1,
++            file_has_skip = False
++            file_scope_edits: List[RefEdit] = []
++            for old_path, new_path in path_map.items():
++                if new_path in declared_paths:
++                    skipped.append(
++                        (plan_file, "destination already declared in Scope-Paths")
++                    )
++                    file_has_skip = True
++                    break
++                if old_path in declared_paths:
++                    file_scope_edits.append(
++                        RefEdit(
++                            file=plan_file,
++                            kind=FULL_NAME,
++                            old=old_path,
++                            new=new_path,
++                            hits=1,
++                        )
+                     )
+-                )
+ 
+-        if not file_has_skip and file_scope_edits:
+-            planned_edits.extend(file_scope_edits)
++            if not file_has_skip and file_scope_edits:
++                planned_edits.extend(file_scope_edits)
+ 
+     return planned_edits, skipped
+ 
+@@ -1023,10 +1040,11 @@ def apply_scope_path_reference_rewrites(
+     edits: List[RefEdit],
+     *,
+     prefix: str = ".aw-ref-",
++    _file_bytes_changed: Optional[set[Path]] = None,
  ) -> List[Path]:
      """Apply planned Scope-Paths reference rewrites to pending plans.
  
@@ -4088,35 +4398,76 @@ index 5a1fcbc7b..843786725 100644
      and `ipd_schema.parse_scope_paths`, leaving prose mentions and fenced blocks elsewhere in
      the file byte-identical and appending no workflow history entry.
      """
-@@ -1040,11 +1031,13 @@ def apply_scope_path_reference_rewrites(
+@@ -1038,45 +1056,57 @@ def apply_scope_path_reference_rewrites(
+         by_file.setdefault(e.file, []).append(e)
+ 
      modified_files: List[Path] = []
-     for plan_file, file_edits in by_file.items():
-         try:
+-    for plan_file, file_edits in by_file.items():
+-        try:
 -            text = plan_file.read_text(encoding="utf-8")
 -        except OSError:
-+            plan_id6 = _meta.file_id6(plan_file)
-+            meta_ctx = _meta.legacy_context(repo_root)
-+            raw_sp = (
-+                _meta.read(plan_id6, project_context=meta_ctx).fields or {}
-+            ).get("scope_paths")
-+        except (OSError, ValueError):
-             continue
--
--        raw_sp = _meta.read_text(text, record_type="ipd").fields.get("scope_paths")
-         if raw_sp is None:
-             continue
+-            continue
++    meta_ctx = _meta.legacy_context(repo_root)
++    with _meta.ephemeral_if_uninitialized():
++        for plan_file, file_edits in by_file.items():
++            try:
++                plan_id6 = _meta.file_id6(plan_file)
++                raw_sp = (
++                    _meta.read(plan_id6, project_context=meta_ctx).fields or {}
++                ).get("scope_paths")
++            except (OSError, ValueError):
++                continue
++            if raw_sp is None:
++                continue
  
-@@ -1062,20 +1055,16 @@ def apply_scope_path_reference_rewrites(
-         if new_declared == declared_paths:
-             continue
+-        raw_sp = _meta.read_text(text, record_type="ipd").fields.get("scope_paths")
+-        if raw_sp is None:
+-            continue
++            raw_val = (
++                ", ".join(str(x) for x in raw_sp)
++                if isinstance(raw_sp, (list, tuple))
++                else str(raw_sp)
++            )
++            declared_paths, is_grandfathered, _errs = _schema.parse_scope_paths(raw_val)
++            if is_grandfathered:
++                continue
+ 
+-        raw_val = (
+-            ", ".join(str(x) for x in raw_sp)
+-            if isinstance(raw_sp, (list, tuple))
+-            else str(raw_sp)
+-        )
+-        declared_paths, is_grandfathered, _errs = _schema.parse_scope_paths(raw_val)
+-        if is_grandfathered:
+-            continue
++            edit_map = {e.old: e.new for e in file_edits}
++            new_declared = [edit_map.get(p, p) for p in declared_paths]
++            if new_declared == declared_paths:
++                continue
+ 
+-        edit_map = {e.old: e.new for e in file_edits}
+-        new_declared = [edit_map.get(p, p) for p in declared_paths]
+-        if new_declared == declared_paths:
+-            continue
++            try:
++                before_bytes: Optional[bytes] = plan_file.read_bytes()
++            except OSError:
++                before_bytes = None
++
++            # Post-cutover `scope_paths` is a log field (spec 4.2): append one `set` event, which
++            # leaves the file's prose byte-identical and adds no history line.
++            res = _meta.append(
++                plan_id6,
++                [{"op": "set", "fields": {"scope_paths": new_declared}}],
++                project_context=meta_ctx,
++                actor={"tool": "aw"},
++            )
++            if not res.get("committed"):
++                continue
  
 -        updated_text = _meta.render_legacy_text(
 -            text,
-+        # Post-cutover `scope_paths` is a log field (spec 4.2): append one `set` event, which
-+        # leaves the file's prose byte-identical and adds no history line.
-+        res = _meta.append(
-+            plan_id6,
-             [{"op": "set", "fields": {"scope_paths": new_declared}}],
+-            [{"op": "set", "fields": {"scope_paths": new_declared}}],
 -            record_type="ipd",
 -            render=_meta.LegacyRender(
 -                tag="",
@@ -4125,15 +4476,98 @@ index 5a1fcbc7b..843786725 100644
 -                history=False,
 -            ),
 -            repo_root=repo_root,
-+            project_context=meta_ctx,
-             actor={"tool": "aw"},
-         )
+-            actor={"tool": "aw"},
+-        )
 -        _core.atomic_write(plan_file, updated_text, prefix=prefix)
-+        if not res.get("committed"):
-+            continue
-         modified_files.append(plan_file)
+-        modified_files.append(plan_file)
++            try:
++                after_bytes: Optional[bytes] = plan_file.read_bytes()
++            except OSError:
++                after_bytes = None
++            if _file_bytes_changed is not None and after_bytes != before_bytes:
++                _file_bytes_changed.add(plan_file)
++
++            modified_files.append(plan_file)
  
      return modified_files
+ 
+@@ -1088,6 +1118,7 @@ def rewrite_scope_path_citations(
+     guard_in_flight: bool = False,
+     is_agent_or_json: bool = False,
+     changes: Optional[List[Any]] = None,
++    _file_bytes_changed: Optional[set[Path]] = None,
+ ) -> Tuple[List[Path], List[Tuple[Path, str]]]:
+     """High-level helper to plan, guard, apply, and report Scope-Paths citation rewrites (E-03, E-04, E-06).
+ 
+@@ -1114,7 +1145,9 @@ def rewrite_scope_path_citations(
+         edits_to_apply = planned_edits
+         all_skips = initial_skips
+ 
+-    rewritten_files = apply_scope_path_reference_rewrites(repo_root, edits_to_apply)
++    rewritten_files = apply_scope_path_reference_rewrites(
++        repo_root, edits_to_apply, _file_bytes_changed=_file_bytes_changed
++    )
+ 
+     # Reporting (E-06)
+     for p in rewritten_files:
+@@ -1171,23 +1204,52 @@ def post_relocation_citation_rewrite(
+ ) -> List[str]:
+     """Single shared post-relocation citation rewrite entrypoint called by relocating setters (E-05).
+ 
+-    Returns the list of repo-relative paths of modified pending plan files.
++    Returns the list of repo-relative paths mutated by citation rewrites (companion
++    `meta/<plan_id6>.jsonl` logs for log-format plans, plus any modified plan files).
+     """
+     if old_rel_path == new_rel_path:
+         return []
+ 
++    from agent_workflows import artifact_meta as _meta
++
++    file_bytes_changed: set[Path] = set()
+     rewritten_files, _ = rewrite_scope_path_citations(
+         repo_root,
+         {old_rel_path: new_rel_path},
+         guard_in_flight=True,
+         is_agent_or_json=is_agent_or_json,
+         changes=changes,
++        _file_bytes_changed=file_bytes_changed,
+     )
++    meta_ctx = _meta.legacy_context(repo_root)
++    records_root = Path(meta_ctx.logical_roots["records"])
++    root_res = repo_root.resolve()
+     res: List[str] = []
+     for p in rewritten_files:
+         try:
+-            rel = p.resolve().relative_to(repo_root.resolve()).as_posix()
+-        except ValueError:
+-            rel = p.as_posix()
+-        res.append(rel)
++            plan_id6: Optional[str] = _meta.file_id6(p)
++        except (OSError, ValueError):
++            plan_id6 = None
++        log_path = (records_root / "meta" / f"{plan_id6}.jsonl") if plan_id6 else None
++        if log_path is not None and log_path.is_file():
++            try:
++                log_rel = log_path.resolve().relative_to(root_res).as_posix()
++            except ValueError:
++                log_rel = None
++            if log_rel is not None and log_rel not in res:
++                res.append(log_rel)
++            if p in file_bytes_changed:
++                try:
++                    rel = p.resolve().relative_to(root_res).as_posix()
++                except ValueError:
++                    rel = p.as_posix()
++                if rel not in res:
++                    res.append(rel)
++        else:
++            try:
++                rel = p.resolve().relative_to(root_res).as_posix()
++            except ValueError:
++                rel = p.as_posix()
++            if rel not in res:
++                res.append(rel)
+     return res
 diff --git a/agent_workflows/artifact_rename.py b/agent_workflows/artifact_rename.py
 index 5624badf2..66ba05b26 100644
 --- a/agent_workflows/artifact_rename.py
@@ -10262,7 +10696,7 @@ index 1a49a542a..014ebca73 100644
  
  
 diff --git a/agent_workflows/plan_readiness.py b/agent_workflows/plan_readiness.py
-index 409fc31c0..43aeefab7 100644
+index 409fc31c0..4d8ae3b0a 100644
 --- a/agent_workflows/plan_readiness.py
 +++ b/agent_workflows/plan_readiness.py
 @@ -76,7 +76,7 @@ import dataclasses
@@ -10274,6 +10708,19 @@ index 409fc31c0..43aeefab7 100644
  
  from agent_workflows import ipd_schema as _schema
  
+@@ -273,10 +273,10 @@ def readiness_field_present(text: str) -> bool:
+ 
+ 
+ def _declared_id6(text: str) -> Optional[str]:
+-    """The plan's own `- Id:` id6 from its metadata block via ``artifact_meta``, or None."""
++    """The artifact's own id6 from its YAML mirror or `- Id:` bullet via ``artifact_meta``, or None."""
+     from agent_workflows import artifact_meta as _meta
+ 
+-    return _meta.read_loose_id(text or "")
++    return _meta.read_mirror_id6(text or "") or _meta.read_loose_id(text or "")
+ 
+ 
+ _OQ_HEADING_RE = _schema.OQ_HEADING_RE
 @@ -406,6 +406,93 @@ def has_unresolved_blocking_question(text: str) -> bool:
      return False
  
@@ -10290,7 +10737,7 @@ index 409fc31c0..43aeefab7 100644
 +        tool = (
 +            str(actor.get("tool") or "").strip() if isinstance(actor, Mapping) else ""
 +        )
-+        if tool == "aw ipd recheck-readiness":
++        if tool == "aw ipd recheck-readiness" or str(ev.get("actor_id") or "").strip() == "aw ipd recheck-readiness":
 +            return False
 +        return True
 +    if op in ("transition", "status"):
@@ -10405,7 +10852,289 @@ index 409fc31c0..43aeefab7 100644
      readiness = _schema.read_readiness(text)
      if readiness is not None:
          # The STRUCTURED signal decides the ANSWER and beats any prose verdict in the history, but it
-@@ -1338,25 +1449,25 @@ def recheck_readiness(
+@@ -651,6 +762,171 @@ def newest_verdict(text: str) -> Tuple[Optional[str], str]:
+     return None, ""
+ 
+ 
++class _ReadinessReviewSnapshot(NamedTuple):
++    """Shared log-aware snapshot of readiness and newest genuine review verdict."""
++
++    id6: Optional[str]
++    has_log: bool
++    readiness: Optional[str]
++    readiness_present: bool
++    verdict_polarity: Optional[str]
++    verdict_token: Optional[str]
++    reviewed_entry: str
++
++
++def _format_log_review_citation_entry(ev: Mapping[str, Any]) -> str:
++    """Format a review log event as `- YYYY-MM-DD <mid> (<actor>): <msg>` for citations/refusals."""
++    op = ev.get("op")
++    if op == "legacy":
++        return str(ev.get("line") or "").strip()
++    raw_date = str(ev.get("observed_day") or ev.get("at") or "").strip()
++    date_part = (
++        raw_date[:10] if re.match(r"^\d{4}-\d{2}-\d{2}", raw_date) else "0000-00-00"
++    )
++    actor_obj = ev.get("actor")
++    if isinstance(actor_obj, Mapping):
++        actor_part = str(
++            actor_obj.get("tool")
++            or actor_obj.get("id")
++            or actor_obj.get("model")
++            or "review"
++        ).strip()
++    else:
++        actor_part = str(ev.get("actor_id") or "review").strip()
++    if not actor_part:
++        actor_part = "review"
++    mid = "/plan-review" if op == "review" else "reviewed"
++    verdict = str(ev.get("verdict") or ev.get("legacy_verdict") or "").strip()
++    msg = str(ev.get("message") or "").strip()
++    findings_summary = str(ev.get("findings_summary") or "").strip()
++    parts: List[str] = []
++    if verdict and msg:
++        if verdict.upper() in msg.upper():
++            parts.append(msg)
++        else:
++            parts.append(f"{verdict}; {msg}")
++    elif verdict:
++        parts.append(verdict)
++    elif msg:
++        parts.append(msg)
++    if findings_summary and findings_summary not in " ".join(parts):
++        parts.append(findings_summary)
++    return f"- {date_part} {mid} ({actor_part}): {'; '.join(parts)}"
++
++
++def _newest_log_review_verdict(
++    events: Sequence[Mapping[str, Any]],
++) -> Tuple[Optional[str], Optional[str], str]:
++    """Return `(polarity, verdict_token, citation_entry)` from the newest genuine review event."""
++    for ev in reversed(events):
++        if not _is_gate_review_log_event(ev):
++            continue
++        entry = _format_log_review_citation_entry(ev)
++        op = ev.get("op")
++        token: Optional[str] = None
++        polarity: Optional[str] = None
++        if op == "review":
++            verdict = ev.get("verdict")
++            if isinstance(verdict, str) and verdict.strip():
++                token, polarity = classify_verdict(verdict)
++            else:
++                leg_verdict = ev.get("legacy_verdict")
++                if isinstance(leg_verdict, str) and leg_verdict.strip():
++                    token, polarity = classify_verdict(leg_verdict)
++                else:
++                    token, polarity = classify_verdict(
++                        str(ev.get("message") or "").strip()
++                    )
++        elif op in ("transition", "status"):
++            token, polarity = classify_verdict(str(ev.get("message") or "").strip())
++        elif op == "legacy":
++            m = _HISTORY_RECORD_PARTS_RE.match(entry)
++            token, polarity = classify_verdict(m.group("msg") if m else entry)
++        return polarity, token, entry
++    return None, None, ""
++
++
++def _read_readiness_and_review(
++    repo_root: Any,
++    plan_path: Any,
++    plan_text: str,
++) -> _ReadinessReviewSnapshot:
++    """Shared log-aware reader for `readiness` and newest genuine review verdict.
++
++    Loads companion log `State` and `history` (`artifact_meta.read` and `artifact_meta.history`
++    via `artifact_meta.legacy_context(repo_root)` inside `ephemeral_if_uninitialized()`) when a
++    companion log exists for `declared_id6`, falling back to inline text parsing for unlogged
++    legacy files.
++    """
++    from agent_workflows import artifact_meta as _meta
++
++    declared_id6 = _declared_id6(plan_text)
++    if declared_id6 and repo_root is not None:
++        ctx = None
++        log_path: Optional[Path] = None
++        try:
++            ctx = _meta.legacy_context(Path(repo_root))
++            log_path = (
++                Path(ctx.logical_roots["records"]) / "meta" / f"{declared_id6}.jsonl"
++            )
++        except Exception:
++            ctx = None
++            log_path = None
++        if ctx is not None and log_path is not None and log_path.is_file():
++            try:
++                with _meta.ephemeral_if_uninitialized():
++                    st = _meta.read(declared_id6, project_context=ctx)
++                    evts = _meta.history(declared_id6, project_context=ctx)
++            except Exception:
++                return _ReadinessReviewSnapshot(
++                    id6=declared_id6,
++                    has_log=True,
++                    readiness=None,
++                    readiness_present=False,
++                    verdict_polarity=None,
++                    verdict_token=None,
++                    reviewed_entry="",
++                )
++            fields = getattr(st, "fields", None) or {}
++            raw_readiness = fields.get("readiness")
++            if raw_readiness is not None and str(raw_readiness).strip() != "":
++                norm_r = str(raw_readiness).strip().lower()
++                if norm_r in _schema.READINESS_VALUES:
++                    readiness: Optional[str] = norm_r
++                    readiness_present = True
++                else:
++                    readiness = None
++                    readiness_present = True
++            else:
++                readiness = None
++                readiness_present = False
++            polarity, verdict_token, reviewed_entry = _newest_log_review_verdict(evts)
++            return _ReadinessReviewSnapshot(
++                id6=declared_id6,
++                has_log=True,
++                readiness=readiness,
++                readiness_present=readiness_present,
++                verdict_polarity=polarity,
++                verdict_token=verdict_token,
++                reviewed_entry=reviewed_entry,
++            )
++
++    # Unlogged legacy fallback: inline text parsing.
++    readiness = _schema.read_readiness(plan_text)
++    readiness_present = (readiness is not None) or readiness_field_present(plan_text)
++    polarity, reviewed_entry = newest_verdict(plan_text)
++    verdict_token = _extract_verdict_token(reviewed_entry)
++    return _ReadinessReviewSnapshot(
++        id6=declared_id6,
++        has_log=False,
++        readiness=readiness,
++        readiness_present=readiness_present,
++        verdict_polarity=polarity,
++        verdict_token=verdict_token,
++        reviewed_entry=reviewed_entry,
++    )
++
++
+ def approval_refusals(
+     repo_root,
+     plan_path,
+@@ -667,11 +943,12 @@ def approval_refusals(
+ 
+     It COMPOSES three shipped sources and reimplements none of them:
+ 
+-    1. THE PROSE VERDICT, via :func:`newest_verdict`, but only after the structured
+-       ``- Readiness:`` field has been consulted, in the SAME three-way order
++    1. THE PROSE VERDICT, via :func:`newest_verdict` (or companion log `history`), but only after
++       the structured ``readiness`` field has been consulted, in the SAME three-way order
+        :func:`is_plan_review_approved` uses: a valid field is authoritative and prose is never read;
+-       an ABSENT field falls back to prose; an OUT-OF-VOCAB field refuses outright with no fallback,
+-       because absence means "no signal recorded" while a bad value means "the signal is corrupt".
++       an ABSENT field falls back to review verdict; an OUT-OF-VOCAB field refuses outright with no
++       fallback, because absence means "no signal recorded" while a bad value means "the signal is
++       corrupt".
+        THIS GATE DOES NOT ADD THE PROVENANCE REQUIREMENT the auto-approve predicate now applies
+        (rdattest ``8v5pwa``): an unattested field there refuses UNATTENDED promotion, which costs one
+        deferral, while refusing it here would be an un-overridable lockout on a human's own approval.
+@@ -705,19 +982,19 @@ def approval_refusals(
+             return []
+ 
+     refusals: List[str] = []
++    snap = _read_readiness_and_review(repo_root, path, plan_text)
+ 
+-    # (1) Structured field FIRST, prose only as a bounded fallback.
+-    readiness = _schema.read_readiness(plan_text)
+-    if readiness is not None:
+-        if readiness not in _schema.READINESS_APPROVABLE:
++    # (1) Structured field FIRST, newest genuine review verdict only as a bounded fallback.
++    if snap.readiness is not None:
++        if snap.readiness not in _schema.READINESS_APPROVABLE:
+             refusals.append(
+                 "review recorded `- Readiness: {0}`, which does not clear this plan for "
+                 "execution. This refusal has NO override: get the review's readiness changed "
+                 "(re-run /plan-review) rather than forcing the approval.".format(
+-                    readiness
++                    snap.readiness
+                 )
+             )
+-    elif readiness_field_present(plan_text):
++    elif snap.readiness_present:
+         refusals.append(
+             "a `- Readiness:` field is present but its value is not one of {0}. A CORRUPT "
+             "readiness is not treated as an absent one: the review tried to record a readiness "
+@@ -726,16 +1003,17 @@ def approval_refusals(
+             )
+         )
+     else:
+-        polarity, entry = newest_verdict(plan_text)
+-        if polarity == NEGATIVE:
++        if snap.verdict_polarity == NEGATIVE:
+             refusals.append(
+                 "the newest review record states a verdict that does not clear this plan, so "
+                 "approving it would license execution of a plan its own review rejected. This "
+-                "refusal has NO override. Record: {0}".format(_one_line(entry))
++                "refusal has NO override. Record: {0}".format(
++                    _one_line(snap.reviewed_entry)
++                )
+             )
+ 
+     # (2) The TYPED review artifact, reused unchanged. Absent artifact -> silent, by contract.
+-    declared_id6 = _declared_id6(plan_text)
++    declared_id6 = snap.id6
+     if declared_id6 is not None:
+         try:
+             from agent_workflows import review_findings as _rf
+@@ -925,7 +1203,8 @@ def recheck_conditions(
+                 ),
+             )
+ 
+-    id6 = _declared_id6(plan_text) or ""
++    snap = _read_readiness_and_review(repo_root, path, plan_text)
++    id6 = snap.id6 or ""
+ 
+     # ---- Condition 1: an unresolved BLOCKING open question (the shipped, blocking-only predicate).
+     blocking = has_unresolved_blocking_question(plan_text)
+@@ -995,8 +1274,9 @@ def recheck_conditions(
+         )
+ 
+     # ---- Condition 3: a NEGATIVE, ABSENT, or UNRECOGNIZED verdict in the newest REVIEW history record.
+-    polarity, entry = newest_verdict(plan_text)
+-    verdict_token = _extract_verdict_token(entry)
++    polarity = snap.verdict_polarity
++    entry = snap.reviewed_entry
++    verdict_token = snap.verdict_token
+     if polarity == NEGATIVE:
+         c3 = ConditionResult(
+             C_NEGATIVE_VERDICT,
+@@ -1028,8 +1308,8 @@ def recheck_conditions(
+     # ---- Preconditions on the FIELD ITSELF and DISPOSITION. These are refusals, not conditions:
+     # they are reasons the re-check may not act at all, as distinct from reasons the plan is not ready.
+     refusals: List[str] = []
+-    readiness = _schema.read_readiness(plan_text)
+-    present = readiness_field_present(plan_text)
++    readiness = snap.readiness
++    present = snap.readiness_present
+     if readiness is None and not present:
+         # ABSENT. Refuse rather than mint: absence means NO REVIEW RECORDED A SIGNAL, and writing one
+         # here would be exactly the forgery `AGENTS.md` forbids. Absence is also a LEGITIMATE state
+@@ -1290,8 +1570,9 @@ def recheck_readiness(
+     except OSError:  # pragma: no cover - recheck_conditions already read it
+         return result, None
+ 
+-    _, reviewed_entry = newest_verdict(text)
+-    verdict_token = _extract_verdict_token(reviewed_entry)
++    snap = _read_readiness_and_review(repo_root_path, path, text)
++    reviewed_entry = snap.reviewed_entry
++    verdict_token = snap.verdict_token
+     resolved_date = (date or "").strip() or _core.utc_history_date()
+     msg_body = _format_recheck_history_message(
+         result, reviewed_entry=reviewed_entry, head=head
+@@ -1338,25 +1619,32 @@ def recheck_readiness(
      if review_ref is not None:
          event["review_ref"] = review_ref
  
@@ -10415,27 +11144,35 @@ index 409fc31c0..43aeefab7 100644
 -        actor_label=actor,
 -        history=True,
 -    )
++    meta_ctx = _meta.legacy_context(repo_root_path)
++    target_id6 = _meta.file_id6(path, id6)
      write_res = _meta.append(
 -        _meta.LegacyTarget(path, "plans", id6),
-+        _meta.file_id6(path, id6),
++        target_id6,
          [event],
          actor={"tool": "aw ipd recheck-readiness"},
 -        legacy_render=render,
 -        repo_root=repo_root_path,
-         project_context=_meta.legacy_context(repo_root_path),
+-        project_context=_meta.legacy_context(repo_root_path),
++        project_context=meta_ctx,
          dry_run=not apply,
      )
 -    new_text = write_res.text
 -    # Guard the WRITE TARGET. Re-read the amended text through the same reader every consumer uses,
 -    # so the assertion tests the OBSERVABLE value rather than the string we intended to write.
 -    written = _schema.read_readiness(new_text)
++    if apply and not write_res.get("committed"):
++        raise RuntimeError(
++            str(write_res.get("error") or f"{path}: readiness re-check write failed")
++        )
 +    if not apply:
 +        write_state = write_res.get("state")
 +    else:
-+        write_state = _meta.read(
-+            _meta.file_id6(path, id6),
-+            project_context=_meta.legacy_context(repo_root_path),
-+        )
++        with _meta.ephemeral_if_uninitialized():
++            write_state = _meta.read(
++                target_id6,
++                project_context=meta_ctx,
++            )
 +    new_text = path.read_text(encoding="utf-8")
 +    # Guard the WRITE TARGET. Re-read the replayed state the log produces (the file carries only the
 +    # in-file mirror), so the assertion tests the OBSERVABLE value rather than the one we intended.
@@ -10444,7 +11181,7 @@ index 409fc31c0..43aeefab7 100644
      assert (
          written == target_readiness
      ), "the re-check may write ONLY {0}; refusing to write {1!r}".format(
-@@ -1377,19 +1488,50 @@ class ReviewStaleness:
+@@ -1377,19 +1665,50 @@ class ReviewStaleness:
      question_ids: Tuple[str, ...] = ()
  
  
@@ -10498,7 +11235,7 @@ index 409fc31c0..43aeefab7 100644
          return None
      reviewed_oqs: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
      for block in _open_question_blocks(reviewed_text):
-@@ -1440,14 +1582,15 @@ def review_staleness_from_texts(
+@@ -1440,14 +1759,15 @@ def review_staleness_from_texts(
  
      from agent_workflows import ipd_lifecycle as _lifecycle
  
@@ -10522,7 +11259,7 @@ index 409fc31c0..43aeefab7 100644
  
      reasons: List[str] = []
      if answered_blocking_oqs:
-@@ -1465,7 +1608,7 @@ def review_staleness_from_texts(
+@@ -1465,7 +1785,7 @@ def review_staleness_from_texts(
      )
  
  
@@ -10531,7 +11268,7 @@ index 409fc31c0..43aeefab7 100644
  
  
  def clear_review_staleness_cache() -> None:
-@@ -1479,142 +1622,260 @@ def review_staleness_index(
+@@ -1479,142 +1799,260 @@ def review_staleness_index(
      """Bulk-resolve review staleness for candidates among ``plan_paths``.
  
      Filters ``plan_paths`` to plans whose metadata Status is reviewed, approved, or auto-approved.
@@ -11315,6 +12052,21 @@ index 7fde59be4..bf67de1ef 100644
  
  # The legacy staged staging name: YYYYMMDD-HHMM-NN-<slug>.prompt.md
  # The legacy staged name YYYYMMDD-HHMM-NN-<slug>.prompt.md is read by THE ONE file-name library.
+diff --git a/agent_workflows/readiness_recheck.py b/agent_workflows/readiness_recheck.py
+index 9d7bb84bd..8c8310a60 100644
+--- a/agent_workflows/readiness_recheck.py
++++ b/agent_workflows/readiness_recheck.py
+@@ -152,9 +152,7 @@ def _run_stale_findings(
+         text = path.read_text(encoding="utf-8")
+     except OSError as exc:
+         return (), False, "unreadable: {0}".format(exc), []
+-    from agent_workflows import artifact_meta as _meta
+-
+-    declared_id6 = _meta.read_loose_id(text)
++    declared_id6 = PR._declared_id6(text)
+     if not declared_id6:
+         return (), False, "no `- Id:` bullet, so no review record can be matched", []
+     stale = RF.stale_escalated_findings(repo_root, declared_id6, text)
 diff --git a/agent_workflows/record_history.py b/agent_workflows/record_history.py
 index 42ae51951..090fb934e 100644
 --- a/agent_workflows/record_history.py
@@ -16669,10 +17421,31 @@ index 7943ab597..b93414df0 100644
          markers = _pc.parse_spec_id_markers(text or "")
      except Exception:
 diff --git a/agent_workflows/status_set.py b/agent_workflows/status_set.py
-index fe7f5d6a4..8e5b05e82 100644
+index fe7f5d6a4..b76d6f14d 100644
 --- a/agent_workflows/status_set.py
 +++ b/agent_workflows/status_set.py
-@@ -1539,7 +1539,7 @@ def _build_event_actor(
+@@ -1052,8 +1052,19 @@ def validate_transition_allowed(
+                     False,
+                     f"Setting research status to '{target_status}' is not supported via aw set; use 'aw research promote {target_id} --to {target_status}' instead.",
+                 )
++        eff_root = repo_root if repo_root is not None else _repo_root_of(rec.path)
++        log_research_kind = None
++        try:
++            st_res = _state_for_record(rec, eff_root)
++            if st_res is not None:
++                log_research_kind = (getattr(st_res, "fields", None) or {}).get(
++                    "research_kind"
++                )
++        except Exception:
++            log_research_kind = None
+         is_prompt = (
+-            rec.path.name.endswith(".research-prompt.md")
++            log_research_kind == "research-prompt"
++            or rec.path.name.endswith(".research-prompt.md")
+             or "- Kind: research-prompt" in rec.raw_text
+             or "kind: research-prompt" in rec.raw_text
+         )
+@@ -1539,7 +1550,7 @@ def _build_event_actor(
                      raise ValueError(
                          f"actor.attempt must be an integer, got {val!r}"
                      ) from exc
@@ -16681,7 +17454,7 @@ index fe7f5d6a4..8e5b05e82 100644
          elif not kv_started:
              tool_tokens.append(tok)
  
-@@ -2038,47 +2038,43 @@ def _prepare_status_change(
+@@ -2038,47 +2049,43 @@ def _prepare_status_change(
      dest_path = _placement.resolve_transition_path(
          rec.record_type, rec.path, norm_status, repo_root=repo_root
      )
@@ -16756,7 +17529,7 @@ index fe7f5d6a4..8e5b05e82 100644
  
      # The SATISFIED close records its evidence; the close verdict judges the rendered item text.
      if rec.record_type == "backlog":
-@@ -2091,7 +2087,7 @@ def _prepare_status_change(
+@@ -2091,7 +2098,7 @@ def _prepare_status_change(
                  rec.path,
                  norm_status,
                  evidence=getattr(args, "evidence", None),
@@ -16765,7 +17538,7 @@ index fe7f5d6a4..8e5b05e82 100644
                  prior_priority=current_state.get("priority"),
                  lane_carrier_ref=effective_lane_carrier_ref,
                  lane_carrier_path=effective_lane_carrier_path,
-@@ -2223,62 +2219,20 @@ def apply_status_change(
+@@ -2223,62 +2230,20 @@ def apply_status_change(
      dest_path = prep.dest_path
      moving = dest_path.resolve() != rec.path.resolve()
  
@@ -16775,7 +17548,7 @@ index fe7f5d6a4..8e5b05e82 100644
 +    # carried by the `transition` event's `path` (spec 4.3).
      from agent_workflows import artifact_meta as _am
 -    from agent_workflows import lane_containment as _lc
--
+ 
 -    staged_root = _lc.companion_staged_records_root(repo_root)
 -    in_staged_lane = False
 -    if staged_root is not None:
@@ -16784,7 +17557,7 @@ index fe7f5d6a4..8e5b05e82 100644
 -            in_staged_lane = True
 -        except (OSError, ValueError):
 -            in_staged_lane = False
- 
+-
 -    sidecar = None
 -    if (
 -        not in_staged_lane
@@ -16834,7 +17607,7 @@ index fe7f5d6a4..8e5b05e82 100644
  
      rewritten_citations: list[str] = []
      if (
-@@ -3676,18 +3630,11 @@ def run_set_command(
+@@ -3676,18 +3641,11 @@ def run_set_command(
      from agent_workflows import artifact_meta as _am
      from agent_workflows import check_engine as _ce
  
@@ -16858,7 +17631,7 @@ index fe7f5d6a4..8e5b05e82 100644
  
      backlog_close_verdicts: dict[Path, _ce.CloseVerdict] = {}
      for rec in matched_records:
-@@ -3701,7 +3648,7 @@ def run_set_command(
+@@ -3701,7 +3659,7 @@ def run_set_command(
          # Compute gate-relevant post-mutation item text for the predicate (E-02).
          # Ensures same-call de-gating (`--blocks-release -`) and same-call gate defaulting
          # are judged against the state the item will actually carry.
@@ -16867,7 +17640,7 @@ index fe7f5d6a4..8e5b05e82 100644
          if getattr(args, "priority", None) is not None:
              item_text = _render_gate_fields(
                  item_text, {"priority": getattr(args, "priority", None)}
-@@ -3753,7 +3700,7 @@ def run_set_command(
+@@ -3753,7 +3711,7 @@ def run_set_command(
              rec.path,
              norm_target,
              evidence=ev_arg,
@@ -16876,7 +17649,78 @@ index fe7f5d6a4..8e5b05e82 100644
              prior_priority=prior_prio,
              lane_carrier_ref=lane_carrier_ref,
              lane_carrier_path=lane_carrier_path,
-@@ -4484,12 +4431,9 @@ def run_set_command(
+@@ -3965,7 +3923,9 @@ def run_set_command(
+                 continue
+             if orch_rec.record_type != "plans":
+                 continue
+-            orch_doc = _ipd_lint.parse(orch_rec.raw_text)
++            orch_doc = _ipd_lint.parse(
++                orch_rec.raw_text, state=_state_for_record(orch_rec, repo_root)
++            )
+             orch_kind = (orch_doc.meta_fields.get("Kind") or "").strip().lower()
+             if orch_kind != "orchestrator":
+                 continue
+@@ -3987,7 +3947,10 @@ def run_set_command(
+                 if other_rec.path in refused_paths:
+                     continue
+                 if other_rec.record_type == "plans":
+-                    other_doc = _ipd_lint.parse(other_rec.raw_text)
++                    other_doc = _ipd_lint.parse(
++                        other_rec.raw_text,
++                        state=_state_for_record(other_rec, repo_root),
++                    )
+                     other_set_raw = (other_doc.meta_fields.get("Set") or "").strip()
+                     other_setid = (
+                         other_set_raw.split("(")[0].strip().split()[0].strip()
+@@ -4114,7 +4077,7 @@ def run_set_command(
+             return 0
+         from agent_workflows import ipd_lint as _ipd_lint_sort
+ 
+-        doc = _ipd_lint_sort.parse(r.raw_text)
++        doc = _ipd_lint_sort.parse(r.raw_text, state=_state_for_record(r, repo_root))
+         return (
+             1
+             if (doc.meta_fields.get("Kind") or "").strip().lower() == "orchestrator"
+@@ -4445,8 +4408,28 @@ def run_set_command(
+             orchestrator_next_actions.append(NextAction(command="", description=hint))
+             continue
+ 
+-        # Check skip condition: orchestrator file has uncommitted changes in worktree or index
++        orch_meta_ctx = _am.legacy_context(repo_root)
++        orch_records_root = Path(orch_meta_ctx.logical_roots["records"])
++        orch_id6_for_log = _am.file_id6(orch.path, orch.id6)
++        orch_log: Path | None = (
++            orch_records_root / "meta" / f"{orch_id6_for_log}.jsonl"
++            if orch_id6_for_log
++            else None
++        )
++        orch_log_rel: str | None = None
++        if orch_log is not None:
++            try:
++                orch_log_rel = (
++                    orch_log.resolve().relative_to(repo_root.resolve()).as_posix()
++                )
++            except ValueError:
++                orch_log_rel = None
++
++        # Check skip condition: orchestrator file or companion log has uncommitted changes in worktree or index
+         if orch.path.resolve() not in command_modified_orch_paths:
++            status_targets = [str(orch.path)]
++            if orch_log is not None and orch_log.exists() and orch_log_rel is not None:
++                status_targets.append(str(orch_log))
+             proc = subprocess.run(
+                 [
+                     "git",
+@@ -4454,7 +4437,7 @@ def run_set_command(
+                     "status",
+                     "--porcelain",
+                     "--",
+-                    str(orch.path),
++                    *status_targets,
+                 ],
+                 cwd=repo_root,
+                 capture_output=True,
+@@ -4484,12 +4467,10 @@ def run_set_command(
          if _actor_problem is not None:
              raise ValueError(_actor_problem)
          msg = getattr(args, "message", None) or f"status set to {norm_stat}"
@@ -16884,22 +17728,55 @@ index fe7f5d6a4..8e5b05e82 100644
 -        # plan 2xwb9b E-09: one `note` event on the orchestrator, rendered as today's line.
 -        from agent_workflows import artifact_meta as _am
 -
-+        # plan 2xwb9b E-09: one `note` event on the orchestrator's log.
-         _am.append(
+-        _am.append(
 -            _am.LegacyTarget(orch.path, "plans", orch.id6),
-+            _am.file_id6(orch.path, orch.id6),
++        orch_before_bytes = orch.path.read_bytes() if orch.path.exists() else None
++        # plan 2xwb9b E-09: one `note` event on the orchestrator's log.
++        orch_res = _am.append(
++            orch_id6_for_log,
              [
                  {
                      "op": "note",
-@@ -4502,8 +4446,6 @@ def run_set_command(
+@@ -4502,18 +4483,30 @@ def run_set_command(
                  run_id=getattr(args, "run_id", None),
              ),
              by_human=bool(getattr(args, "by_human", False)),
 -            legacy_render=_am.LegacyRender("same-status", today, actor),
 -            repo_root=repo_root,
-             project_context=_am.legacy_context(repo_root),
+-            project_context=_am.legacy_context(repo_root),
++            project_context=orch_meta_ctx,
          )
++        if not orch_res.get("committed"):
++            raise ValueError(
++                str(
++                    orch_res.get("error")
++                    or f"failed to record retirement note on orchestrator {orch.id6}"
++                )
++            )
          command_modified_orch_paths.add(orch.path.resolve())
+ 
+-        try:
+-            orch_rel = orch.path.resolve().relative_to(repo_root.resolve()).as_posix()
+-        except ValueError:
+-            orch_rel = orch.path.as_posix()
+-        if orch_rel not in touched_paths:
+-            touched_paths.append(orch_rel)
++        orch_after_bytes = orch.path.read_bytes() if orch.path.exists() else None
++        if orch_after_bytes != orch_before_bytes:
++            try:
++                orch_rel = (
++                    orch.path.resolve().relative_to(repo_root.resolve()).as_posix()
++                )
++            except ValueError:
++                orch_rel = orch.path.as_posix()
++            if orch_rel not in touched_paths:
++                touched_paths.append(orch_rel)
++        if orch_log is not None and orch_log.exists() and orch_log_rel is not None:
++            if orch_log_rel not in touched_paths:
++                touched_paths.append(orch_log_rel)
+ 
+         orchestrator_updates.append(
+             (orch.path, orch.id6, rec.id6 or rec.path.name, norm_stat)
 diff --git a/tests/fixtures/fixture_codemod/dry_run_and_idempotence.py.txt b/tests/fixtures/fixture_codemod/dry_run_and_idempotence.py.txt
 index c7c8e16e4..379303e46 100644
 --- a/tests/fixtures/fixture_codemod/dry_run_and_idempotence.py.txt
@@ -26781,6 +27658,1138 @@ index 000000000..7c8d660c6
 +    assert attempt["review_tier_facts"]["names_spec"] is True
 +    assert item["status"] != "fail-gate"
 +
+diff --git a/tests/test_cutover_log_readiness_status_refs_adopt.py b/tests/test_cutover_log_readiness_status_refs_adopt.py
+new file mode 100644
+index 000000000..e92d82929
+--- /dev/null
++++ b/tests/test_cutover_log_readiness_status_refs_adopt.py
+@@ -0,0 +1,1126 @@
++"""Core behavioral tests for log-aware plan_readiness, readiness_recheck, status_set, artifact_refs, and artifact_adopt (3e0vfy)."""
++
++from __future__ import annotations
++
++import io
++import json
++import subprocess
++from contextlib import redirect_stderr, redirect_stdout
++from pathlib import Path
++from typing import Any, Dict, List, Optional, Tuple
++
++import pytest
++
++from agent_workflows import (
++    artifact_adopt as adopt,
++    artifact_meta as meta,
++    artifact_refs as refs,
++    cli,
++    coverage_record,
++    ipd_lifecycle as lifecycle,
++    plan_readiness as pr,
++    research_index as ri,
++    review_findings as rf,
++)
++from tests.record_builder import RecordBuilder
++
++pytestmark = pytest.mark.core
++
++
++def _git(repo: Path, *args: str) -> str:
++    proc = subprocess.run(
++        ["git", *args],
++        cwd=str(repo),
++        capture_output=True,
++        text=True,
++        check=True,
++    )
++    return proc.stdout.strip()
++
++
++def _init_log_repo(tmp_path: Path, *, name: str = "repo", with_git: bool = True) -> Path:
++    repo = tmp_path / name
++    for sub in (
++        ".aw/config",
++        ".aw/state",
++        ".aw/inbox",
++        ".aw/records/meta",
++        ".aw/records/plans/pending",
++        ".aw/records/plans/executed",
++        ".aw/records/plans/superseded",
++        ".aw/records/plans/not-executed",
++        ".aw/records/specs/to-review",
++        ".aw/records/specs/reviewed",
++        ".aw/records/specs/approved",
++        ".aw/records/backlog/open",
++        ".aw/records/backlog/graduated",
++        ".aw/records/backlog/blocked",
++        ".aw/records/research",
++        ".aw/records/reviews",
++    ):
++        (repo / sub).mkdir(parents=True, exist_ok=True)
++    (repo / ".aw" / "config" / "project.json").write_text(
++        json.dumps(
++            {
++                "metadata_schema": 2,
++                "records_backend": "repository",
++                "placements": {"records": "target-tracked"},
++            }
++        )
++        + "\n",
++        encoding="utf-8",
++    )
++    if with_git:
++        _git(repo, "init", "-q", "-b", "main")
++        _git(repo, "config", "user.name", "Test User")
++        _git(repo, "config", "user.email", "test@example.com")
++        _git(repo, "add", "-A")
++        _git(repo, "commit", "-q", "-m", "init")
++    return repo
++
++
++def _git_commit_all(repo: Path, msg: str = "seed") -> None:
++    _git(repo, "add", "-A")
++    _git(repo, "commit", "-q", "-m", msg)
++
++
++def _git_last_commit_files(repo: Path) -> List[str]:
++    out = _git(repo, "log", "-1", "--name-only", "--pretty=format:")
++    return [line.strip() for line in out.splitlines() if line.strip()]
++
++
++def _run_cli(repo: Path, argv: List[str]) -> Tuple[int, str, str]:
++    out, err = io.StringIO(), io.StringIO()
++    full_argv = [*argv, "--dir", str(repo)]
++    with redirect_stdout(out), redirect_stderr(err):
++        try:
++            rc = cli.main(full_argv)
++        except SystemExit as exc:
++            rc = int(exc.code or 0)
++    return rc, out.getvalue(), err.getvalue()
++
++
++def _write_log(repo: Path, id6: str, events: List[Dict[str, Any]]) -> Path:
++    log_path = repo / ".aw" / "records" / "meta" / f"{id6}.jsonl"
++    norm = []
++    for ev in events:
++        row = {"v": 1, **ev}
++        if row.get("by_human") is False:
++            row.pop("by_human", None)
++        norm.append(row)
++    log_path.write_text(
++        "\n".join(json.dumps(ev, separators=(",", ":")) for ev in norm) + "\n",
++        encoding="utf-8",
++    )
++    return log_path
++
++
++def _conforming_child_body(
++    slug: str = "sample-plan",
++    *,
++    oq_section: str = "None open.\n",
++) -> str:
++    return (
++        f"# IPD: {slug}\n\n"
++        "## Concern\n\nFix one bounded issue.\n\n"
++        "## Scope\n\nUpdate one target file.\n\n"
++        "## Goal\n\nImplement one bounded change.\n\n"
++        "## Detailed Implementation Checklist (TODO)\n\n"
++        "### Task group 1: work\n\n"
++        "- [ ] E-01 Update target module.\n"
++        "  - Depends on: none\n"
++        "  - Expected outcome: target module updated.\n"
++        "  - Execution state: pending\n\n"
++        "## Project conventions discovered (Step 0)\n\n- None.\n\n"
++        "## Findings\n\n- None.\n\n"
++        "## Proposed changes (ordered, validatable)\n\n1. Update module.\n\n"
++        "## Deferred / out of scope (with reason)\n\n- None.\n\n"
++        "## Scope check\n\n- Over-scope: none.\n- Under-scope: none.\n\n"
++        "## Required tests / validation\n\n- `python3 -m pytest`\n\n"
++        "## Spec / documentation sync\n\n- None.\n\n"
++        "## Open questions\n\n"
++        f"{oq_section}\n"
++        "## Validation and cross-check (verify before reporting done)\n\n"
++        "- [ ] V-01 validates E-01\n"
++        "  - Required evidence: paste pytest output.\n"
++        "  - Observed evidence:\n"
++        "  - Result: pending\n\n"
++        "## Approval and execution gate\n\n"
++        "- Size assessment: standard\n"
++        "- Cohesion rationale: not required\n"
++    )
++
++
++def _orchestrator_body(child_rows: List[Tuple[int, str, str]]) -> str:
++    table_lines = [
++        "| Order | Id | Child | Depends on |",
++        "|---|---|---|---|",
++    ]
++    e_blocks = []
++    v_blocks = []
++    for idx, (order_n, cid, desc) in enumerate(child_rows, start=1):
++        table_lines.append(f"| {order_n:02d} | `{cid}` | {desc} | none |")
++        e_blocks.append(
++            f"- [ ] E-{idx:02d} CONFIRM {cid} REACHED executed\n"
++            "  - Depends on: none\n"
++            f"  - Expected outcome: child `{cid}` executed.\n"
++            "  - Execution state: pending\n"
++        )
++        v_blocks.append(
++            f"- [ ] V-{idx:02d} validates E-{idx:02d}\n"
++            f"  - Required evidence: child `{cid}` executed.\n"
++            "  - Observed evidence:\n"
++            "  - Result: pending\n"
++        )
++    return (
++        "# IPD: Demo set orchestrator\n\n"
++        "## Concern\n\nCoordinate child plans.\n\n"
++        "## Scope\n\nOrchestration only.\n\n"
++        "## Goal\n\nCoordinate children.\n\n"
++        "## Child IPDs, sequence, and dependencies\n\n"
++        + "\n".join(table_lines)
++        + "\n\n"
++        "## Detailed Implementation Checklist (TODO)\n\n"
++        "### Task group 1: coordinate\n\n"
++        + "\n".join(e_blocks)
++        + "\n"
++        "## Project conventions discovered (Step 0)\n\n- None.\n\n"
++        "## Findings\n\n- None.\n\n"
++        "## Proposed changes (ordered, validatable)\n\n1. Run children.\n\n"
++        "## Deferred / out of scope (with reason)\n\n- None.\n\n"
++        "## Scope check\n\n- Over-scope: none.\n- Under-scope: none.\n\n"
++        "## Required tests / validation\n\n- `python3 -m pytest`\n\n"
++        "## Spec / documentation sync\n\n- None.\n\n"
++        "## Open questions\n\nNone open.\n\n"
++        "## Validation and cross-check (verify before reporting done)\n\n"
++        + "\n".join(v_blocks)
++        + "\n"
++        "## Approval and execution gate\n\n"
++        "- Size assessment: standard\n"
++        "- Cohesion rationale: not required\n"
++    )
++
++
++def _create_log_plan(
++    repo: Path,
++    id6: str,
++    *,
++    status: str = "reviewed",
++    bucket: str = "pending",
++    slug: str = "sample-plan",
++    set_id: str = "demo",
++    order: int = 1,
++    plan_role: str = "child",
++    scope_paths: Optional[List[str]] = None,
++    extra_fields: Optional[Dict[str, Any]] = None,
++    body: Optional[str] = None,
++    extra_events: Optional[List[Dict[str, Any]]] = None,
++) -> Path:
++    rel = f"plans/{bucket}/20261126-{set_id}-{order:02d}-{id6}-{slug}.ipd.md"
++    plan_path = repo / ".aw" / "records" / rel
++    plan_path.parent.mkdir(parents=True, exist_ok=True)
++    mirror = meta.render_in_file_mirror(id6, "ipd", status)
++    plan_path.write_text(
++        mirror + (body if body is not None else _conforming_child_body(slug)),
++        encoding="utf-8",
++    )
++    fields: Dict[str, Any] = {
++        "type": "ipd",
++        "status": status,
++        "plan_role": plan_role,
++        "set": set_id,
++        "order": order,
++        "priority": "medium",
++        "work_kind": "bug",
++        "highest_e_allocated": "01",
++        "author": "test-agent",
++        "dependency_declaration": "none",
++        "scope_paths": (
++            scope_paths if scope_paths is not None else [f".aw/records/{rel}"]
++        ),
++    }
++    if extra_fields:
++        fields.update(extra_fields)
++    events: List[Dict[str, Any]] = [
++        {
++            "seq": 0,
++            "append": 0,
++            "op": "checkpoint",
++            "at": "2026-11-26T10:00:00Z",
++            "actor": {"tool": "test"},
++            "path": rel,
++            "fields": fields,
++            "message": "created",
++        }
++    ]
++    if extra_events:
++        events.extend(extra_events)
++    _write_log(repo, id6, events)
++    return plan_path
++
++
++def _create_log_spec(
++    repo: Path,
++    id6: str,
++    *,
++    status: str = "reviewed",
++    initial_status: Optional[str] = None,
++    slug: str = "demo-spec",
++    extra_events: Optional[List[Dict[str, Any]]] = None,
++    body_extra: str = "",
++) -> Path:
++    rel = f"specs/{status}/20261126-{id6}-01-{id6}-{slug}.spec.md"
++    spec_path = repo / ".aw" / "records" / rel
++    spec_path.parent.mkdir(parents=True, exist_ok=True)
++    mirror = meta.render_in_file_mirror(id6, "spec", status)
++    spec_path.write_text(
++        mirror + f"# Spec: {slug}\n\n## Goals\n\nDeliver behavior.\n{body_extra}",
++        encoding="utf-8",
++    )
++    start_status = initial_status or status
++    start_rel = f"specs/{start_status}/20261126-{id6}-01-{id6}-{slug}.spec.md"
++    events: List[Dict[str, Any]] = [
++        {
++            "seq": 0,
++            "append": 0,
++            "op": "checkpoint",
++            "at": "2026-11-26T10:00:00Z",
++            "actor": {"tool": "test"},
++            "path": start_rel,
++            "fields": {
++                "type": "spec",
++                "status": start_status,
++                "author": "test-agent",
++            },
++            "message": "created",
++        }
++    ]
++    if extra_events:
++        events.extend(extra_events)
++    _write_log(repo, id6, events)
++    return spec_path
++
++
++def _write_review_file(
++    repo: Path,
++    subject_id6: str,
++    *,
++    subject_type: str = "ipd",
++    slug: str = "sample-plan",
++    finding_id: str = "PR-001",
++    severity: str = "high",
++    status: str = "open",
++    verdict: str = "REVIEWED - OPEN QUESTIONS",
++    readiness: Optional[str] = None,
++) -> Path:
++    rb = RecordBuilder(repo)
++    res = rb.review(
++        subject_id6,
++        subject_type=subject_type,
++        when="2026-11-26",
++        reviewer="test-reviewer",
++        verdict=verdict,
++        set_name="demo",
++        order=1,
++        slug=slug,
++        review_kind="gate",
++        readiness=readiness,
++        rounds=[
++            {
++                "number": 1,
++                "date": "2026-11-26",
++                "reviewer": "test-reviewer",
++                "verdict": verdict,
++                "findings": [
++                    {
++                        "id": finding_id,
++                        "severity": severity,
++                        "scope": "plan",
++                        "area": "correctness",
++                        "evidence": "E-01",
++                        "finding": "Escalated blocking question",
++                        "remediation_risk": "low",
++                        "decision": status,
++                        "resolution": "Escalated to OQ-01",
++                    }
++                ],
++            }
++        ],
++    )
++    assert isinstance(res, Path)
++    return res
++
++
++def test_plan_readiness_approval_gate_and_recheck_on_log_records(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    """approval_refusals, recheck_conditions, recheck_readiness, and --stale-findings work on log-format plans and specs."""
++    repo = _init_log_repo(tmp_path, name="readiness-repo", with_git=False)
++    ctx = meta.legacy_context(repo)
++
++    # 1. Log-format plan with readiness="no-go" refuses approval even with allow_open_questions=True
++    p_nogo = _create_log_plan(
++        repo,
++        "pl1001",
++        slug="nogo-plan",
++        extra_events=[
++            {
++                "seq": 1,
++                "append": 1,
++                "op": "review",
++                "at": "2026-11-26T11:00:00Z",
++                "actor": {"tool": "aw plan-review"},
++                "review_kind": "gate",
++                "round": 1,
++                "verdict": "REVIEWED - OPEN QUESTIONS",
++                "readiness": "no-go",
++                "message": "PR-001 OPEN",
++            }
++        ],
++    )
++    refs_nogo = pr.approval_refusals(repo, p_nogo, allow_open_questions=True)
++    assert any("no-go" in r for r in refs_nogo), refs_nogo
++
++    # 2. Log-format plan with out-of-vocab readiness refuses as corrupt (no fallback to positive verdict)
++    p_corrupt = _create_log_plan(
++        repo,
++        "pl1002",
++        slug="corrupt-readiness",
++        extra_events=[
++            {
++                "seq": 1,
++                "append": 1,
++                "op": "review",
++                "at": "2026-11-26T11:00:00Z",
++                "actor": {"tool": "aw plan-review"},
++                "review_kind": "gate",
++                "round": 1,
++                "verdict": "APPROVE",
++                "readiness": "bogus-value",
++                "message": "APPROVE",
++            }
++        ],
++    )
++    refs_corrupt = pr.approval_refusals(repo, p_corrupt, allow_open_questions=True)
++    assert any("CORRUPT" in r for r in refs_corrupt), refs_corrupt
++    rc_corrupt = pr.recheck_conditions(repo, p_corrupt)
++    assert not rc_corrupt.may_write
++    assert rc_corrupt.readiness is None
++    assert rc_corrupt.readiness_present is True
++    assert any("CORRUPT" in r for r in rc_corrupt.refusals)
++
++    # 3. Log-format plan with absent readiness falls back to newest review verdict; REJECT refuses with no override
++    p_reject = _create_log_plan(
++        repo,
++        "pl1003",
++        slug="reject-plan",
++        extra_events=[
++            {
++                "seq": 1,
++                "append": 1,
++                "op": "review",
++                "at": "2026-11-26T11:00:00Z",
++                "actor": {"tool": "aw plan-review"},
++                "review_kind": "gate",
++                "round": 1,
++                "verdict": "REJECT - NEEDS REPLAN",
++                "message": "REJECT - NEEDS REPLAN; fatal flaw",
++            }
++        ],
++    )
++    refs_reject = pr.approval_refusals(repo, p_reject, allow_open_questions=True)
++    assert any("rejected" in r.lower() for r in refs_reject), refs_reject
++
++    # 4. Log-format spec carrying YAML mirror resolves id6 for both verdict and typed gating finding
++    s_gate = _create_log_spec(
++        repo,
++        "sp1001",
++        status="reviewed",
++        initial_status="to-review",
++        slug="gated-spec",
++        extra_events=[
++            {
++                "seq": 1,
++                "append": 1,
++                "op": "transition",
++                "at": "2026-11-26T11:00:00Z",
++                "actor": {"tool": "aw set"},
++                "from": "to-review",
++                "to": "reviewed",
++                "path": "specs/reviewed/20261126-sp1001-01-sp1001-gated-spec.spec.md",
++                "message": "/spec-review: REJECT - NEEDS REPLAN",
++            }
++        ],
++    )
++    _write_review_file(
++        repo,
++        "sp1001",
++        subject_type="spec",
++        slug="gated-spec",
++        finding_id="SR-001",
++        severity="high",
++        status="open",
++        verdict="REJECT - NEEDS REPLAN",
++    )
++    assert pr._declared_id6(s_gate.read_text(encoding="utf-8")) == "sp1001"
++    refs_spec = pr.approval_refusals(repo, s_gate, allow_open_questions=True)
++    assert any("rejected" in r.lower() for r in refs_spec), refs_spec
++    assert any("SR-001" in r for r in refs_spec), refs_spec
++
++    # 5. Log-format no-go plan with unresolved blocking OQ refuses recheck; negative/absent verdict also refuses
++    oq_open = (
++        "### OQ-01: Must we block?\n\n"
++        "- Blocking: yes\n"
++        "- Status: open\n"
++        "- Finding: PR-001\n"
++    )
++    p_oq = _create_log_plan(
++        repo,
++        "pl1004",
++        slug="open-oq",
++        body=_conforming_child_body("open-oq", oq_section=oq_open),
++        extra_events=[
++            {
++                "seq": 1,
++                "append": 1,
++                "op": "review",
++                "at": "2026-11-26T11:00:00Z",
++                "actor": {"tool": "aw plan-review"},
++                "review_kind": "gate",
++                "round": 1,
++                "verdict": "REVIEWED - OPEN QUESTIONS",
++                "readiness": "no-go",
++                "message": "PR-001 OPEN",
++            }
++        ],
++    )
++    rc_oq = pr.recheck_conditions(repo, p_oq)
++    assert not rc_oq.may_write
++    assert any(c.name == pr.C_BLOCKING_QUESTION and c.holds for c in rc_oq.conditions)
++
++    p_no_verdict = _create_log_plan(
++        repo,
++        "pl1005",
++        slug="verdictless-nogo",
++        extra_events=[
++            {
++                "seq": 1,
++                "append": 1,
++                "op": "review",
++                "at": "2026-11-26T11:00:00Z",
++                "actor": {"tool": "aw plan-review"},
++                "review_kind": "gate",
++                "round": 1,
++                "readiness": "no-go",
++                "message": "no verdict token here",
++            }
++        ],
++    )
++    rc_no_verdict = pr.recheck_conditions(repo, p_no_verdict)
++    assert not rc_no_verdict.may_write
++    assert any(
++        c.name == pr.C_NEGATIVE_VERDICT and c.holds for c in rc_no_verdict.conditions
++    )
++
++    # 6. Log-format no-go plan with resolved OQ-01 linked to stale escalated finding PR-001
++    oq_resolved = (
++        "### OQ-01: Must we block?\n\n"
++        "- Blocking: yes\n"
++        "- Status: resolved\n"
++        "- Finding: PR-001\n"
++        "- Resolution or deferral rationale: Resolved by maintainer.\n"
++    )
++    p_stale = _create_log_plan(
++        repo,
++        "pl1006",
++        slug="stale-recheck",
++        body=_conforming_child_body("stale-recheck", oq_section=oq_resolved),
++    )
++    rev_stale = _write_review_file(
++        repo,
++        "pl1006",
++        subject_type="ipd",
++        slug="stale-recheck",
++        finding_id="PR-001",
++        severity="high",
++        status="open",
++        verdict="REVIEWED - OPEN QUESTIONS",
++        readiness="no-go",
++    )
++    # Without --stale-findings, PR-001 still blocks readiness recheck and approval
++    assert any("PR-001" in r for r in pr.approval_refusals(repo, p_stale))
++    rc_before = pr.recheck_conditions(repo, p_stale)
++    assert not rc_before.may_write
++    assert any(c.name == pr.C_GATING_FINDING and c.holds for c in rc_before.conditions)
++
++    # Run CLI `aw ipd recheck-readiness pl1006 --stale-findings --apply`
++    rc_cli, out_cli, err_cli = _run_cli(
++        repo,
++        ["ipd", "recheck-readiness", "pl1006", "--stale-findings", "--apply"],
++    )
++    assert rc_cli == 0, f"recheck-readiness failed: {out_cli}\n{err_cli}"
++    assert "updated" in out_cli, out_cli
++    assert "PR-001" in out_cli, out_cli
++
++    # Review file now has a closing round and zero gating blocks
++    assert rf.subject_gating_blocks(repo, "pl1006") == ()
++    assert "Round 2" in rev_stale.read_text(encoding="utf-8")
++
++    # Log now holds readiness="go-pending-approval" and a valid gate verdict (4sd62s 4.1a K2)
++    with meta.ephemeral_if_uninitialized():
++        st_after = meta.read("pl1006", project_context=ctx)
++        hist_after = meta.history("pl1006", project_context=ctx)
++    assert st_after.fields.get("readiness") == "go-pending-approval"
++    recheck_ev = hist_after[-1]
++    assert recheck_ev["op"] == "review"
++    assert recheck_ev["review_kind"] == "gate"
++    assert recheck_ev["readiness"] == "go-pending-approval"
++    assert recheck_ev["verdict"] == "REVIEWED - OPEN QUESTIONS"
++    assert recheck_ev["actor"]["tool"] == "aw ipd recheck-readiness"
++    assert "RE-CHECKED REVIEW: the review of 2026-11-26" in recheck_ev["message"]
++
++    # Plan now passes approval_refusals cleanly and subsequent recheck still resolves original review
++    assert pr.approval_refusals(repo, p_stale) == []
++    rc_after = pr.recheck_conditions(repo, p_stale)
++    assert not rc_after.may_write
++    assert rc_after.readiness == "go-pending-approval"
++    assert all(not c.holds for c in rc_after.conditions)
++
++    # 7. Uncommitted append on apply=True raises RuntimeError
++    p_fail = _create_log_plan(
++        repo,
++        "pl1007",
++        slug="uncommitted-recheck",
++        extra_events=[
++            {
++                "seq": 1,
++                "append": 1,
++                "op": "review",
++                "at": "2026-11-26T11:00:00Z",
++                "actor": {"tool": "aw plan-review"},
++                "review_kind": "gate",
++                "round": 1,
++                "verdict": "REVIEWED - OPEN QUESTIONS",
++                "readiness": "no-go",
++                "message": "PR-001 FIXED",
++            }
++        ],
++    )
++    monkeypatch.setattr(
++        meta,
++        "append",
++        lambda *a, **kw: {"committed": False, "error": "simulated write refusal"},
++    )
++    with pytest.raises(RuntimeError, match="simulated write refusal"):
++        pr.recheck_readiness(
++            repo,
++            p_fail,
++            apply=True,
++            date="2026-11-27",
++            actor="test-agent",
++        )
++
++
++def test_status_set_orchestrator_readiness_ordering_retirement_commit_and_prompt_guard(
++    tmp_path: Path,
++) -> None:
++    """status_set enforces log-format orchestrator readiness + child-first ordering, commits orch log on child retirement, skips dirty orch log, and refuses hot status on log research-prompt."""
++    repo = _init_log_repo(tmp_path, name="status-set-repo")
++    ctx = meta.legacy_context(repo)
++
++    # Seed a log-format Set with 1 orchestrator and 2 children.
++    # Start ch2001 at `draft` so orchestrator readiness gate fires when promoting or2000 alone!
++    _create_log_plan(
++        repo,
++        "ch2001",
++        status="draft",
++        slug="child-one",
++        set_id="setx",
++        order=1,
++    )
++    _create_log_plan(
++        repo,
++        "ch2002",
++        status="to-review",
++        slug="child-two",
++        set_id="setx",
++        order=2,
++    )
++    orch_path = _create_log_plan(
++        repo,
++        "or2000",
++        status="draft",
++        slug="orch-setx",
++        set_id="setx",
++        order=0,
++        plan_role="orchestrator",
++        body=_orchestrator_body([(1, "ch2001", "Child one"), (2, "ch2002", "Child two")]),
++    )
++    cov_res = coverage_record.write(
++        orch_path,
++        coverage_record.COVERAGE_PASS,
++        model="test-model",
++        tool="test",
++        commit=False,
++        repo=repo,
++    )
++    assert cov_res.written is True
++    _git_commit_all(repo, "seed setx")
++
++    # 1. Promoting orchestrator alone to to-review while child ch2001 is still draft is REFUSED
++    rc_refuse, out_refuse, err_refuse = _run_cli(
++        repo,
++        ["ipd", "set", "to-review", "or2000", "--yes", "--json"],
++    )
++    assert rc_refuse == 1, f"expected refusal, got rc={rc_refuse}: {out_refuse}\n{err_refuse}"
++    assert "not ready" in (out_refuse + err_refuse).lower()
++
++    # 2. Promoting orchestrator AND draft child together (orchestrator listed FIRST) succeeds via
++    # sibling `status_overrides` AND sorts children before orchestrator in write order!
++    rc_ok, out_ok, err_ok = _run_cli(
++        repo,
++        [
++            "ipd",
++            "set",
++            "to-review",
++            "or2000",
++            "ch2001",
++            "--yes",
++            "--json",
++        ],
++    )
++    assert rc_ok == 0, f"batch to-review failed: {out_ok}\n{err_ok}"
++    payload = json.loads(out_ok)
++    change_paths = [c["path"] for c in payload["changes"] if c.get("applied")]
++    orch_idx = next(i for i, p in enumerate(change_paths) if "or2000" in p)
++    ch1_idx = next(i for i, p in enumerate(change_paths) if "ch2001" in p)
++    assert ch1_idx < orch_idx, change_paths
++
++    # Advance all three to reviewed with positive gate reviews, then batch-approve with orchestrator first
++    for pid in ("ch2001", "ch2002", "or2000"):
++        res_rev = meta.append(
++            pid,
++            [
++                {
++                    "op": "transition",
++                    "from": "to-review",
++                    "to": "reviewed",
++                    "message": "APPROVE",
++                },
++                {
++                    "op": "review",
++                    "review_kind": "gate",
++                    "round": 1,
++                    "verdict": "APPROVE",
++                    "readiness": "go-pending-approval",
++                    "message": "APPROVE",
++                },
++            ],
++            actor={"tool": "aw plan-review"},
++            project_context=ctx,
++        )
++        assert res_rev.get("committed") is True
++    rc_app, out_app, err_app = _run_cli(
++        repo,
++        [
++            "ipd",
++            "set",
++            "approved",
++            "or2000",
++            "ch2001",
++            "ch2002",
++            "--by-human",
++            "--yes",
++            "--json",
++        ],
++    )
++    assert rc_app == 0, f"batch approve failed: {out_app}\n{err_app}"
++    app_paths = [c["path"] for c in json.loads(out_app)["changes"] if c.get("applied")]
++    app_orch_idx = next(i for i, p in enumerate(app_paths) if "or2000" in p)
++    app_ch1_idx = next(i for i, p in enumerate(app_paths) if "ch2001" in p)
++    app_ch2_idx = next(i for i, p in enumerate(app_paths) if "ch2002" in p)
++    assert app_ch1_idx < app_orch_idx and app_ch2_idx < app_orch_idx, app_paths
++    _git_commit_all(repo, "approve setx")
++
++    # 3. Retiring child ch2001 with --commit appends a note to meta/or2000.jsonl and commits it
++    orch_before_bytes = orch_path.read_bytes()
++    rc_ret, out_ret, err_ret = _run_cli(
++        repo,
++        [
++            "ipd",
++            "set",
++            "superseded",
++            "ch2001",
++            "--yes",
++            "--commit",
++            "-m",
++            "replaced by ch2002",
++        ],
++    )
++    assert rc_ret == 0, f"child retire failed: {out_ret}\n{err_ret}"
++    assert orch_path.read_bytes() == orch_before_bytes
++    with meta.ephemeral_if_uninitialized():
++        orch_hist = meta.history("or2000", project_context=ctx)
++    assert any(
++        ev.get("op") == "note" and "child ch2001 retired superseded" in str(ev.get("message", ""))
++        for ev in orch_hist
++    ), orch_hist
++    committed = _git_last_commit_files(repo)
++    assert ".aw/records/meta/or2000.jsonl" in committed, committed
++    assert ".aw/records/meta/ch2001.jsonl" in committed, committed
++
++    # 4. Dirty orchestrator companion log (while orch.path .ipd.md is clean) skips orchestrator note
++    orch_log = repo / ".aw" / "records" / "meta" / "or2000.jsonl"
++    prior_hist_len = len(orch_hist)
++    dirty_event = {
++        "v": 1,
++        "seq": prior_hist_len,
++        "append": prior_hist_len,
++        "op": "note",
++        "at": "2026-11-26T12:00:00Z",
++        "actor": {"tool": "manual"},
++        "message": "uncommitted manual note",
++    }
++    orch_log.write_text(
++        orch_log.read_text(encoding="utf-8") + json.dumps(dirty_event) + "\n",
++        encoding="utf-8",
++    )
++    rc_ret2, out_ret2, err_ret2 = _run_cli(
++        repo,
++        ["ipd", "set", "not-executed", "ch2002", "--yes", "-m", "dropped"],
++    )
++    assert rc_ret2 == 0, f"child 2 retire failed: {out_ret2}\n{err_ret2}"
++    assert "uncommitted changes" in (out_ret2 + err_ret2).lower()
++    with meta.ephemeral_if_uninitialized():
++        orch_hist2 = meta.history("or2000", project_context=ctx)
++    assert not any(
++        "child ch2002 retired" in str(ev.get("message", "")) for ev in orch_hist2
++    ), orch_hist2
++
++    # 5. Hot status on a log-format research-prompt (without .research-prompt.md suffix or inline kind) is refused
++    prompt_rel = "research/20261126-rp01-00-rp3001-prompt-doc.md"
++    prompt_path = repo / ".aw" / "records" / prompt_rel
++    prompt_path.write_text(
++        meta.render_in_file_mirror("rp3001", "research", None)
++        + "# Prompt Document\n\nBody without inline kind.\n",
++        encoding="utf-8",
++    )
++    _write_log(
++        repo,
++        "rp3001",
++        [
++            {
++                "seq": 0,
++                "append": 0,
++                "op": "checkpoint",
++                "at": "2026-11-26T10:00:00Z",
++                "actor": {"tool": "test"},
++                "path": prompt_rel,
++                "fields": {
++                    "type": "research",
++                    "created": "20261126",
++                    "set": "rp01",
++                    "order": 0,
++                    "topic": [],
++                    "model": None,
++                    "research_kind": "research-prompt",
++                    "outcome": "none-yet",
++                    "summary": "Prompt doc",
++                    "consumed_by": [],
++                },
++                "message": "created",
++            }
++        ],
++    )
++    rc_rp, out_rp, err_rp = _run_cli(
++        repo, ["set", "research", "active", "rp3001", "--yes"]
++    )
++    assert rc_rp != 0, f"expected refusal for research-prompt hot status: {out_rp}\n{err_rp}"
++    assert "research-prompt carries no hot status" in (out_rp + err_rp)
++
++
++def test_artifact_refs_in_flight_guard_log_scope_paths_and_commit(
++    tmp_path: Path,
++) -> None:
++    """artifact_refs guards mirror-format in-flight plans, discovers log-only scope_paths, reports Change on plan, and commits meta/<id6>.jsonl."""
++    repo = _init_log_repo(tmp_path, name="refs-repo")
++    ctx = meta.legacy_context(repo)
++
++    # Create a log-format backlog item in open/
++    bkl_rel = "backlog/open/20261126-bk4001-demo-item.backlog.md"
++    bkl_repo_rel = f".aw/records/{bkl_rel}"
++    bkl_path = repo / ".aw" / "records" / bkl_rel
++    bkl_path.write_text(
++        meta.render_in_file_mirror("bk4001", "backlog", "open")
++        + "# Backlog: Demo item\n\nNeed log-aware citation rewrite.\n",
++        encoding="utf-8",
++    )
++    _write_log(
++        repo,
++        "bk4001",
++        [
++            {
++                "seq": 0,
++                "append": 0,
++                "op": "checkpoint",
++                "at": "2026-11-26T10:00:00Z",
++                "actor": {"tool": "test"},
++                "path": bkl_rel,
++                "fields": {
++                    "type": "backlog",
++                    "status": "open",
++                    "priority": "medium",
++                    "work_kind": "chore",
++                    "short_description": "Demo item",
++                },
++                "message": "created",
++            }
++        ],
++    )
++
++    # Create TWO log-format pending plans whose .ipd.md bodies have ZERO mention of bkl_repo_rel,
++    # storing bkl_repo_rel ONLY in meta/<id6>.jsonl `scope_paths`.
++    p_ready = _create_log_plan(
++        repo,
++        "pl4001",
++        status="to-review",
++        slug="citing-ready",
++        set_id="cite",
++        order=1,
++        scope_paths=[bkl_repo_rel],
++        extra_fields={"from_backlog": "bk4001"},
++    )
++    p_inflight = _create_log_plan(
++        repo,
++        "pl4002",
++        status="to-review",
++        slug="citing-inflight",
++        set_id="cite",
++        order=2,
++        scope_paths=[bkl_repo_rel],
++    )
++    assert bkl_repo_rel not in p_ready.read_text(encoding="utf-8")
++    assert bkl_repo_rel not in p_inflight.read_text(encoding="utf-8")
++    _git_commit_all(repo, "seed backlog and citing plans")
++
++    # 1. Direct classify_citing_plans_for_rewrite & filter_in_flight_plan_edits tests on log-format plans
++    rewritable_no_rcpt, skips_no_rcpt = refs.classify_citing_plans_for_rewrite(
++        repo, [p_ready, p_inflight]
++    )
++    assert rewritable_no_rcpt == [p_ready, p_inflight]
++    assert skips_no_rcpt == []
++
++    # Plant a live begin receipt for pl4002
++    rcpt_path = lifecycle.receipt_path_for(repo, "pl4002")
++    rcpt_path.parent.mkdir(parents=True, exist_ok=True)
++    rcpt_path.write_text(json.dumps({"id6": "pl4002"}) + "\n", encoding="utf-8")
++
++    rewritable_with_rcpt, skips_with_rcpt = refs.classify_citing_plans_for_rewrite(
++        repo, [p_ready, p_inflight]
++    )
++    assert rewritable_with_rcpt == [p_ready]
++    assert skips_with_rcpt == [(p_inflight, "live begin receipt present")]
++
++    dummy_edits = [
++        refs.RefEdit(p_ready, refs.FULL_NAME, "old.md", "new.md", 1),
++        refs.RefEdit(p_inflight, refs.FULL_NAME, "old.md", "new.md", 1),
++    ]
++    kept, notes = refs.filter_in_flight_plan_edits(repo, dummy_edits)
++    assert [e.file for e in kept] == [p_ready]
++    assert len(notes) == 1 and "live begin receipt present" in notes[0]
++
++    # 2. End-to-end `aw backlog set graduated bk4001 --rewrite-citations --commit --json`
++    p_ready_before = p_ready.read_bytes()
++    rc_grad, out_grad, err_grad = _run_cli(
++        repo,
++        [
++            "backlog",
++            "set",
++            "graduated",
++            "bk4001",
++            "--rewrite-citations",
++            "--commit",
++            "--json",
++            "--yes",
++            "--message",
++            "graduated to pl4001",
++        ],
++    )
++    assert rc_grad == 0, f"backlog graduate failed: {out_grad}\n{err_grad}"
++    grad_data = json.loads(out_grad)
++    expected_new_rel = ".aw/records/backlog/graduated/20261126-bk4001-demo-item.backlog.md"
++
++    # JSON Change reports the citing plan file (applied=True for pl4001, skipped for in-flight pl4002)
++    assert any(
++        c.get("applied") is True
++        and "pl4001" in c.get("path", "")
++        and f"{bkl_repo_rel} -> {expected_new_rel}" in c.get("detail", "")
++        for c in grad_data["changes"]
++    ), grad_data["changes"]
++    assert any(
++        c.get("applied") is False
++        and "pl4002" in c.get("path", "")
++        and "live begin receipt present" in c.get("detail", "")
++        for c in grad_data["changes"]
++    ), grad_data["changes"]
++
++    # Log-stored scope_paths updated for pl4001, untouched for in-flight pl4002, .ipd.md unchanged
++    with meta.ephemeral_if_uninitialized():
++        sp_ready = meta.read("pl4001", project_context=ctx).fields["scope_paths"]
++        sp_inflight = meta.read("pl4002", project_context=ctx).fields["scope_paths"]
++    assert sp_ready == [expected_new_rel]
++    assert sp_inflight == [bkl_repo_rel]
++    assert p_ready.read_bytes() == p_ready_before
++
++    # Git commit includes meta/pl4001.jsonl (and NOT unchanged pl4001.ipd.md or skipped pl4002.jsonl)
++    committed = _git_last_commit_files(repo)
++    assert ".aw/records/meta/pl4001.jsonl" in committed, committed
++    assert not any("pl4001-citing-ready.ipd.md" in f for f in committed), committed
++    assert ".aw/records/meta/pl4002.jsonl" not in committed, committed
++
++    # 3. Already-declared destination skip rule still works on log-format plans
++    edits_dup, skips_dup = refs.plan_scope_path_reference_rewrites(
++        repo, {bkl_repo_rel: expected_new_rel}
++    )
++    assert any(
++        p.resolve() == p_ready.resolve()
++        and reason == "destination already declared in Scope-Paths"
++        for p, reason in skips_dup
++    ), skips_dup
++    assert all(e.file.resolve() != p_ready.resolve() for e in edits_dup)
++
++
++def test_artifact_adopt_persists_complete_metadata_and_rolls_back_log(
++    tmp_path: Path,
++) -> None:
++    """artifact_adopt carries structured PlannedFile.fields into meta/<id6>.jsonl, passes _scan_docs with zero drift, and rolls back newly created logs cleanly."""
++    repo = _init_log_repo(tmp_path, name="adopt-repo", with_git=False)
++    ctx = meta.legacy_context(repo)
++    rroot = repo / ".aw" / "records" / "research"
++
++    # 1. Adopt a research-report drop via CLI `aw adopt --apply`
++    drop1 = repo / ".aw" / "inbox" / "cache-study.gpt56.md"
++    drop1.write_text("# Cache Tier Study\n\nObserved latency metrics.\n", encoding="utf-8")
++
++    rc_ad, out_ad, err_ad = _run_cli(
++        repo,
++        [
++            "adopt",
++            str(drop1),
++            "--set",
++            "adopt01",
++            "--order",
++            "2",
++            "--topic",
++            "perf,cache",
++            "--summary",
++            "Adopted cache tier study",
++            "--date",
++            "20261126",
++            "--apply",
++            "--json",
++        ],
++    )
++    assert rc_ad == 0, f"aw adopt failed: {out_ad}\n{err_ad}"
++    ad_payload = json.loads(out_ad)
++    id6 = ad_payload["data"]["id6"]
++    assert not drop1.exists()
++
++    with meta.ephemeral_if_uninitialized():
++        st = meta.read(id6, project_context=ctx)
++    assert st.fields["created"] == "20261126"
++    assert st.fields["set"] == "adopt01"
++    assert st.fields["order"] == 2
++    assert st.fields["topic"] == ["perf", "cache"]
++    assert st.fields["model"] == "gpt56"
++    assert st.fields["research_kind"] == "research-report"
++    assert st.status == "todo"
++    assert st.fields["outcome"] == "none-yet"
++    assert st.fields["summary"] == "Adopted cache tier study"
++    assert st.fields["consumed_by"] == []
++    assert st.fields["short_description"] == "Adopted cache tier study"
++
++    entries, scan_drift = ri._scan_docs(rroot)
++    assert scan_drift == [], f"unexpected drift: {scan_drift}"
++    matched = [e for e in entries if e.id6 == id6]
++    assert len(matched) == 1
++    assert matched[0].topic == ["perf", "cache"]
++    assert matched[0].summary == "Adopted cache tier study"
++    assert matched[0].model == "gpt56"
++
++    # 2. Adopt a statusless research-prompt drop (omits status key, keeps 1-key id-only mirror)
++    drop_prompt = repo / ".aw" / "inbox" / "cache-prompt.md"
++    drop_prompt.write_text("# Cache Study Prompt\n\nAsk the model.\n", encoding="utf-8")
++    plan_p, err_p = adopt.plan_adoption(
++        repo_root=repo,
++        source=drop_prompt,
++        kind="research-prompt",
++        set_id="adopt01",
++        order=0,
++        summary="Cache study prompt",
++        date_str="20261126",
++    )
++    assert err_p is None and plan_p is not None
++    assert plan_p.fields is not None
++    assert "status" not in plan_p.fields
++    res_p, apply_err_p = adopt.apply_adoption(plan_p, repo_root=repo)
++    assert apply_err_p is None and res_p is not None
++    with meta.ephemeral_if_uninitialized():
++        st_p = meta.read(res_p.id6, project_context=ctx)
++        ev0_p = meta.history(res_p.id6, project_context=ctx)[0]
++    assert st_p.status is None
++    assert "status" not in ev0_p["fields"]
++    parsed_mirror = meta.parse_artifact_mirror(
++        res_p.destination.read_text(encoding="utf-8"), allow_statusless=True
++    )
++    assert parsed_mirror == {"id": res_p.id6, "status": None}
++
++    # 3. Rollback on refresh_index failure removes both destination AND newly created companion log
++    drop_rb = repo / ".aw" / "inbox" / "rollback-drop.md"
++    drop_rb.write_text("# Rollback Test\n\nShould not leave orphan log.\n", encoding="utf-8")
++    plan_rb, err_rb = adopt.plan_adoption(
++        repo_root=repo,
++        source=drop_rb,
++        set_id="rb01",
++        summary="Rollback test",
++        date_str="20261126",
++    )
++    assert err_rb is None and plan_rb is not None
++    log_rb = repo / ".aw" / "records" / "meta" / f"{plan_rb.id6}.jsonl"
++    assert not log_rb.exists()
++
++    def _fail_refresh(_root: Path) -> str:
++        raise RuntimeError("simulated index refresh failure")
++
++    res_rb, apply_err_rb = adopt.apply_adoption(
++        plan_rb, repo_root=repo, refresh_index=_fail_refresh
++    )
++    assert res_rb is None
++    assert apply_err_rb is not None and "rolled the destination back" in apply_err_rb
++    assert not plan_rb.destination.exists()
++    assert not log_rb.exists(), "orphan companion log must be unlinked on rollback"
++    assert drop_rb.exists(), "inbox original must remain intact on rollback"
++
++    # 4. Pre-existing log on overwrite=True rollback is NOT deleted
++    drop_ow = repo / ".aw" / "inbox" / "overwrite-rollback.md"
++    drop_ow.write_text("# Overwrite Rollback\n\nBody.\n", encoding="utf-8")
++    plan_ow, err_ow = adopt.plan_adoption(
++        repo_root=repo,
++        source=drop_ow,
++        set_id="ow01",
++        summary="Overwrite rollback test",
++        date_str="20261126",
++    )
++    assert err_ow is None and plan_ow is not None
++    # First apply succeeds, creating destination + log
++    res_ow1, apply_err_ow1 = adopt.apply_adoption(plan_ow, repo_root=repo)
++    assert apply_err_ow1 is None and res_ow1 is not None
++    log_ow = repo / ".aw" / "records" / "meta" / f"{plan_ow.id6}.jsonl"
++    assert log_ow.exists()
++    # Recreate inbox source and overwrite with failing refresh_index: pre-existing log must survive
++    drop_ow.write_text("# Overwrite Rollback\n\nUpdated body.\n", encoding="utf-8")
++    res_ow2, apply_err_ow2 = adopt.apply_adoption(
++        plan_ow, repo_root=repo, refresh_index=_fail_refresh, overwrite=True
++    )
++    assert res_ow2 is None and apply_err_ow2 is not None
++    assert log_ow.exists(), "pre-existing companion log must NOT be deleted on --overwrite rollback"
 diff --git a/tests/test_cutover_log_research_writers.py b/tests/test_cutover_log_research_writers.py
 new file mode 100644
 index 000000000..69be15ce6
