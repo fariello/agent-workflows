@@ -94,6 +94,9 @@ fi
 CHECKOUT_ABS="$(cd "$CHECKOUT" && pwd)"
 if [[ -z "$JOURNAL_PATH" ]]; then
     JOURNAL_PATH="${CHECKOUT_ABS}/.aw/state/durable/migrations/m0001/descriptions.jsonl"
+    JOURNAL_DISPLAY="<checkout>/.aw/state/durable/migrations/m0001/descriptions.jsonl"
+else
+    JOURNAL_DISPLAY="$JOURNAL_PATH"
 fi
 
 PASS_COUNT=0
@@ -781,14 +784,12 @@ PYEOF
     echo "$ aw backlog new (item A & item B) + branch A parks A + branch B parks B + git merge"
     out_a="$(run_aw_in_clone "$demo_clone" "$demo_home_abs" backlog new --summary "AC-3 branch A probe" --priority low --work-kind chore --apply 2>&1)"
     out_b="$(run_aw_in_clone "$demo_clone" "$demo_home_abs" backlog new --summary "AC-3 branch B probe" --priority low --work-kind chore --apply 2>&1)"
-    id_a="$(printf '%s\n' "$out_a" | grep -Eo '[a-z0-9]{6}' | head -n 1 || true)"
-    id_b="$(printf '%s\n' "$out_b" | grep -Eo '[a-z0-9]{6}' | head -n 1 || true)"
-    # Resolve created ids deterministically from untracked meta logs or backlog files.
+    # Resolve created ids deterministically from untracked backlog files.
     read -r id_a id_b < <(cd "$demo_clone" && python3 - <<'PYEOF'
 import subprocess
 from pathlib import Path
 from agent_workflows import artifact_naming as naming
-proc = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, check=True)
+proc = subprocess.run(["git", "status", "--porcelain", "-uall"], capture_output=True, text=True, check=True)
 ids = []
 for ln in proc.stdout.splitlines():
     rel = ln[3:].strip()
@@ -829,7 +830,7 @@ PYEOF
         echo "Could not seed two backlog items in ${demo_clone}:"
         printf '%s\n%s\n' "$out_a" "$out_b"
     fi
-    git -C "$demo_clone" checkout -q --detach "$base_sha"
+    git -C "$demo_clone" checkout -qf --detach "$base_sha"
     git -C "$demo_clone" clean -fdq
     if [[ "$ac3_ok" -eq 1 ]]; then
         record_result "AC-3" "PASS" "two-branch status changes merged cleanly without conflict"
@@ -851,7 +852,7 @@ PYEOF
 import subprocess
 from pathlib import Path
 from agent_workflows import artifact_naming as naming
-proc = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, check=True)
+proc = subprocess.run(["git", "status", "--porcelain", "-uall"], capture_output=True, text=True, check=True)
 for ln in proc.stdout.splitlines():
     rel = ln[3:].strip()
     if rel.endswith(".ipd.md") and "ac6demo" in rel:
@@ -872,9 +873,12 @@ from agent_workflows import meta_cli
 id6, plan_rel = sys.argv[1], sys.argv[2]
 plan_path = Path(plan_rel)
 text = plan_path.read_text(encoding="utf-8")
-# Preserve leading front matter (up to second '---') if present.
+# Preserve leading front matter and aw-managed banner before the '# IPD:' heading.
 fm = ""
-if text.startswith("---\n"):
+heading_idx = text.find("# IPD:")
+if heading_idx > 0:
+    fm = text[:heading_idx]
+elif text.startswith("---\n"):
     end = text.find("\n---\n", 4)
     if end != -1:
         fm = text[: end + 5]
@@ -953,6 +957,7 @@ meta.append(
             "fields": {
                 "scope_paths": [plan_rel, "ac6-demo-probe.txt"],
                 "dependency_declaration": "none",
+                "item_dependencies": "none",
             },
         }
     ],
@@ -1013,7 +1018,7 @@ PYEOF
             printf '%s\n' "$fin_out"
         fi
         if [[ "$set_rc" -eq 0 && -n "$set_diff" && "$fin_rc" -eq 0 ]] \
-            && printf '%s\n' "$fin_diff" | grep -q '"op": "unset"' \
+            && printf '%s\n' "$fin_diff" | grep -Eq '"op":[[:space:]]*"unset"' \
             && printf '%s\n' "$fin_diff" | grep -q '"scope_result"'; then
             ac6_ok=1
         fi
@@ -1021,7 +1026,7 @@ PYEOF
         echo "Could not scaffold AC-6 plan:"
         printf '%s\n' "$ac6_out"
     fi
-    git -C "$demo_clone" checkout -q --detach "$base_sha"
+    git -C "$demo_clone" checkout -qf --detach "$base_sha"
     git -C "$demo_clone" clean -fdq
     if [[ "$ac6_ok" -eq 1 ]]; then
         record_result "AC-6" "PASS" "aw set diff and finalize diff (with unset and scope fields) captured"
@@ -1100,8 +1105,12 @@ import sys
 from pathlib import Path
 p = Path(sys.argv[1])
 lines = p.read_text(encoding="utf-8").splitlines()
-# Mutate line 1 in place (non-append edit)
-p.write_text(lines[0].replace('"v": 1', '"v": 1 ') + "\n" + "\n".join(lines[1:]) + "\n", encoding="utf-8")
+# Mutate line 1 in place (non-append edit; encode_event writes compact JSON '"v":1')
+mutated = lines[0].replace('"v":1', '"v": 1', 1)
+if mutated == lines[0]:
+    mutated = lines[0] + " "
+assert mutated != lines[0], "failed to mutate line 1 in place"
+p.write_text(mutated + "\n" + "\n".join(lines[1:]) + "\n", encoding="utf-8")
 PYEOF
         )
         git -C "$demo_clone" add "$exec_log"
@@ -1136,7 +1145,7 @@ PYEOF
 import subprocess
 from pathlib import Path
 from agent_workflows import artifact_naming as naming
-proc = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, check=True)
+proc = subprocess.run(["git", "status", "--porcelain", "-uall"], capture_output=True, text=True, check=True)
 for ln in proc.stdout.splitlines():
     rel = ln[3:].strip()
     if rel.endswith(".backlog.md"):
@@ -1188,7 +1197,7 @@ PYEOF
     else
         echo "Could not seed AC-31 backlog item"
     fi
-    git -C "$demo_clone" checkout -q --detach "$base_sha"
+    git -C "$demo_clone" checkout -qf --detach "$base_sha"
     git -C "$demo_clone" clean -fdq
     if [[ "$ac31_ok" -eq 1 ]]; then
         record_result "AC-31" "PASS" "rename and group events logged; no history.jsonl sidecar created"
@@ -1301,7 +1310,7 @@ section_measure() {
     echo "  aw find:       python3 -m agent_workflows find plans"
     echo "  aw attention:  python3 -m agent_workflows attention"
     echo "  log append:    artifact_meta.append(<exec_id6>, [{'op':'note','message':'AC-13 append timing'}]) in throwaway clone"
-    echo "  journal cost:  summary of ${JOURNAL_PATH}"
+    echo "  journal cost:  summary of ${JOURNAL_DISPLAY}"
     echo ""
 
     # Prepare throwaway clone for log-size + append-time probe
