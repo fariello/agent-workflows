@@ -5944,7 +5944,7 @@ index 5395ccb00..30e193203 100644
      ctx = select_output(args)
      # rolswj/akhwp7: ONE count expression read by the human AND machine branches.
 diff --git a/agent_workflows/check_engine.py b/agent_workflows/check_engine.py
-index 9b09c151c..91bf29bb8 100644
+index 9b09c151c..1edf458a2 100644
 --- a/agent_workflows/check_engine.py
 +++ b/agent_workflows/check_engine.py
 @@ -1610,23 +1610,27 @@ def check_content(
@@ -6102,7 +6102,315 @@ index 9b09c151c..91bf29bb8 100644
  
          m = _naming.parse_clustered(path.name)
          if m and not _re.fullmatch(r"\d{4}", m.group("set")):
-@@ -3557,13 +3550,28 @@ def _git_read_at_context(repo_root: Path, *, rel_path: Optional[str] = None) ->
+@@ -2261,90 +2254,141 @@ def check_collisions(
+     # passes take every file; the setid pass takes only what the caller asked for.
+     from agent_workflows import artifact_meta as _meta
+ 
+-    records: List[tuple] = []
+-    for record_type in SUPPORTED:
+-        meta_type = _meta._LEGACY_PLURAL_TO_TYPE.get(record_type)
+-        for p in _iter_type_files(
+-            repo_root,
+-            record_type,
+-            include_untracked=include_untracked,
+-            include_retired=True,
+-        ):  # already deduped by resolved path
++    def _has_in_file_mirror(text: str) -> bool:
++        stripped = (text or "").lstrip("\ufeff")
++        if stripped.startswith("---"):
+             try:
+-                text = p.read_text(encoding="utf-8")
+-            except OSError:
+-                continue
+-            st_obj = _meta.read_text(text, record_type=meta_type)
+-            raw_id = (
+-                st_obj.id6 if (st_obj.id6 and _ID6_RE.fullmatch(st_obj.id6)) else None
++                _meta.parse_artifact_mirror(stripped, allow_statusless=True)
++                return True
++            except ValueError:
++                return False
++        if stripped.startswith("<!--"):
++            try:
++                _meta.parse_staged_prompt_mirror(stripped)
++                return True
++            except ValueError:
++                return False
++        return False
++
++    records: List[tuple] = []
++    with _meta.ephemeral_if_uninitialized():
++        for record_type in SUPPORTED:
++            meta_type = _meta._LEGACY_PLURAL_TO_TYPE.get(record_type)
++            state_map = (
++                _meta_state_map(repo_root, meta_type, load_fields=True)
++                if meta_type
++                else {}
+             )
+-            # Preserve bullet-vs-YAML parity: YAML research records declare `id:` in YAML frontmatter,
+-            # while `_read_declared_id` only reads bullet `- Id:` declarations.
+-            declared_id = (
+-                raw_id
+-                if (
+-                    raw_id
+-                    and not (
+-                        text.startswith("---")
+-                        and not st_obj.fields.get("Id")
+-                        and st_obj.fields.get("id")
++            for p in _iter_type_files(
++                repo_root,
++                record_type,
++                include_untracked=include_untracked,
++                include_retired=True,
++            ):  # already deduped by resolved path
++                try:
++                    text = p.read_text(encoding="utf-8")
++                except OSError:
++                    continue
++                st_cached = state_map.get(p)
++                if st_cached is None:
++                    try:
++                        st_cached = state_map.get(p.resolve())
++                    except OSError:
++                        st_cached = None
++
++                declared_id = _meta_declared_id6(st_cached)
++                if declared_id is None and _has_in_file_mirror(text):
++                    mirror_id = _meta.read_mirror_id6(text)
++                    if mirror_id and _ID6_RE.fullmatch(mirror_id):
++                        declared_id = mirror_id
++
++                st_obj = None
++                if declared_id is None:
++                    st_obj = _meta.read_text(text, record_type=meta_type)
++                    raw_id = (
++                        st_obj.id6
++                        if (st_obj.id6 and _ID6_RE.fullmatch(st_obj.id6))
++                        else None
+                     )
+-                )
+-                else None
+-            )
+-            slot_id6 = _identity_slot_token(p.name)
+-            records.append((str(p), declared_id, slot_id6))
+-
+-            # The id6 pass: EVERY file, retired or not. A terminal id6 is permanently cited, so a
+-            # collision with one is real (docstring, and IPD sk7ggr F-3).
+-            if declared_id:
+-                id6 = declared_id
+-                if id6 in seen_ids:
+-                    drift.append(
+-                        _core.Drift(
+-                            str(p),
+-                            "check.id6-collision",
+-                            f"id6 {id6} also on {_finding_rel_path(repo_root, seen_ids[id6])}",
++                    # Preserve bullet-vs-YAML parity for legacy non-log research YAML records:
++                    # legacy YAML research records declare `id:` in multi-key YAML frontmatter
++                    # without a log or post-cutover mirror.
++                    declared_id = (
++                        raw_id
++                        if (
++                            raw_id
++                            and not (
++                                text.startswith("---")
++                                and not st_obj.fields.get("Id")
++                                and st_obj.fields.get("id")
++                            )
+                         )
++                        else None
+                     )
+-                else:
+-                    seen_ids[id6] = str(p)
+-            # The setid pass keeps the caller's corpus (collpop t0jyb2): widening it would surface
+-            # within-type descriptive conflicts on retired records that are not active work.
+-            caller_visible = include_retired or not is_retired(p, record_type)
+-            if not caller_visible:
+-                continue
+-            raw_set = str((st_obj.fields or {}).get("set") or "").strip()
+-            if raw_set:
+-                head = raw_set.split("(")[0].strip()
+-                sid = head.split()[0] if head else None
+-                desc = (
+-                    raw_set[raw_set.index("(") + 1 : raw_set.rindex(")")].strip()
+-                    or None
+-                    if "(" in raw_set and ")" in raw_set
+-                    else None
+-                )
+-            else:
+-                sid, desc = None, None
+-            if sid:
+-                set_key = (record_type, sid)
+-                if set_key in seen_sets:
+-                    prev_desc, prev_path = seen_sets[set_key]
+-                    # WITHIN-TYPE descriptive conflict ONLY. One setid carrying two different
+-                    # descriptives inside ONE type is a genuine inconsistency in that Set's own
+-                    # name. The cross-type comparison that used to live here was REMOVED per D153 /
+-                    # spec `2lcqno` N1 (see this function's docstring); it reported the endorsed
+-                    # normal state as an error.
+-                    if desc is not None and prev_desc is not None and desc != prev_desc:
++                slot_id6 = _identity_slot_token(p.name)
++                records.append((str(p), declared_id, slot_id6))
++
++                # The id6 pass: EVERY file, retired or not. A terminal id6 is permanently cited, so a
++                # collision with one is real (docstring, and IPD sk7ggr F-3).
++                if declared_id:
++                    id6 = declared_id
++                    if id6 in seen_ids:
+                         drift.append(
+                             _core.Drift(
+                                 str(p),
+-                                "check.setid-collision",
+-                                f"setid {sid} conflicts with {_finding_rel_path(repo_root, prev_path)} (descriptive: {prev_desc!r} vs {desc!r})",
++                                "check.id6-collision",
++                                f"id6 {id6} also on {_finding_rel_path(repo_root, seen_ids[id6])}",
+                             )
+                         )
++                    else:
++                        seen_ids[id6] = str(p)
++                # The setid pass keeps the caller's corpus (collpop t0jyb2): widening it would surface
++                # within-type descriptive conflicts on retired records that are not active work.
++                caller_visible = include_retired or not is_retired(p, record_type)
++                if not caller_visible:
++                    continue
++                if st_cached is not None:
++                    raw_set = str(
++                        (st_cached.fields or {}).get("set") or st_cached.set_id or ""
++                    ).strip()
++                else:
++                    if st_obj is None:
++                        st_obj = _meta.read_text(text, record_type=meta_type)
++                    raw_set = str((st_obj.fields or {}).get("set") or "").strip()
++                if raw_set:
++                    head = raw_set.split("(")[0].strip()
++                    sid = head.split()[0] if head else None
++                    desc = (
++                        raw_set[raw_set.index("(") + 1 : raw_set.rindex(")")].strip()
++                        or None
++                        if "(" in raw_set and ")" in raw_set
++                        else None
++                    )
+                 else:
+-                    seen_sets[set_key] = (desc, str(p))
++                    sid, desc = None, None
++                if sid:
++                    set_key = (record_type, sid)
++                    if set_key in seen_sets:
++                        prev_desc, prev_path = seen_sets[set_key]
++                        # WITHIN-TYPE descriptive conflict ONLY. One setid carrying two different
++                        # descriptives inside ONE type is a genuine inconsistency in that Set's own
++                        # name. The cross-type comparison that used to live here was REMOVED per D153 /
++                        # spec `2lcqno` N1 (see this function's docstring); it reported the endorsed
++                        # normal state as an error.
++                        if (
++                            desc is not None
++                            and prev_desc is not None
++                            and desc != prev_desc
++                        ):
++                            drift.append(
++                                _core.Drift(
++                                    str(p),
++                                    "check.setid-collision",
++                                    f"setid {sid} conflicts with {_finding_rel_path(repo_root, prev_path)} (descriptive: {prev_desc!r} vs {desc!r})",
++                                )
++                            )
++                    else:
++                        seen_sets[set_key] = (desc, str(p))
+ 
+     drift.extend(_check_identity_slots(records))
+     return drift
+@@ -3320,35 +3364,70 @@ def check_name_identity(
+     which is a better trade than one rule with private scope semantics.
+     """
+ 
++    from agent_workflows import artifact_meta as _meta
++
+     repo_root = Path(repo_root)
+     types = list(SUPPORTED.keys())
+     if "research" not in types:
+         types.append("research")
+ 
+-    # Pass 1: read every record once (full body AND bounded region), so the discriminator below has
+-    # the global set of declared ids the shared `_is_real_id6` needs.
++    # Pass 1: read every record once (log-backed state when cached, else full body AND bounded
++    # region), so the discriminator below has the global set of declared ids the shared
++    # `_is_real_id6` needs.
+     scanned: List[tuple] = []
+     seen: set = set()
+-    for record_type in types:
+-        for p in _iter_type_files(
+-            repo_root,
+-            record_type,
+-            include_untracked=include_untracked,
+-            include_retired=include_retired,
+-        ):
+-            try:
+-                key = str(p.resolve())
+-            except OSError:
+-                continue
+-            if key in seen:
+-                continue
+-            seen.add(key)
+-            try:
+-                text = p.read_text(encoding="utf-8")
+-            except OSError:
+-                continue
+-            id_decl, set_decl = _identity_declared_values(text)
+-            scanned.append((record_type, p, id_decl, set_decl))
++    with _meta.ephemeral_if_uninitialized():
++        for record_type in types:
++            meta_type = _meta._LEGACY_PLURAL_TO_TYPE.get(record_type)
++            state_map = (
++                _meta_state_map(repo_root, meta_type, load_fields=True)
++                if meta_type
++                else {}
++            )
++            for p in _iter_type_files(
++                repo_root,
++                record_type,
++                include_untracked=include_untracked,
++                include_retired=include_retired,
++            ):
++                try:
++                    resolved = p.resolve()
++                    key = str(resolved)
++                except OSError:
++                    continue
++                if key in seen:
++                    continue
++                seen.add(key)
++                st_cached = state_map.get(p) or state_map.get(resolved)
++                if st_cached is not None:
++                    cached_id = (
++                        st_cached.id6
++                        if (
++                            st_cached.id6
++                            and not getattr(st_cached, "id_derived", False)
++                        )
++                        else None
++                    )
++                    raw_set = str(
++                        st_cached.set_id
++                        or (st_cached.fields or {}).get("set")
++                        or ""
++                    ).strip()
++                    if raw_set:
++                        head = raw_set.split("(")[0].strip()
++                        tok = head.split()[0] if head.split() else ""
++                        cached_set = tok.strip("`\"'") or None
++                    else:
++                        cached_set = None
++                    id_decl = (cached_id, True)
++                    set_decl = (cached_set, True)
++                else:
++                    try:
++                        text = p.read_text(encoding="utf-8")
++                    except OSError:
++                        continue
++                    id_decl, set_decl = _identity_declared_values(text)
++                scanned.append((record_type, p, id_decl, set_decl))
+ 
+     declared_ids = {
+         id_decl[0]
+@@ -3557,13 +3636,28 @@ def _git_read_at_context(repo_root: Path, *, rel_path: Optional[str] = None) ->
          )()
      ctx = _proj_ctx.resolve_project_context(target_repo=str(root))
      records_root = Path(ctx.logical_roots["records"])
@@ -6134,7 +6442,7 @@ index 9b09c151c..91bf29bb8 100644
          return type(
              "_GitReadAtCtx",
              (),
-@@ -3672,6 +3680,9 @@ def _check_untooled_plan_transition(
+@@ -3672,6 +3766,9 @@ def _check_untooled_plan_transition(
      new_history: Sequence[Dict[str, Any]] = (),
      commit_subjects: Optional[Sequence[str]] = None,
      scope_label: str = "this commit",
@@ -6144,7 +6452,7 @@ index 9b09c151c..91bf29bb8 100644
  ) -> Optional[_core.Drift]:
      """Check a single plan transition between old and new ``read_at`` states for untooled changes.
  
-@@ -3684,6 +3695,37 @@ def _check_untooled_plan_transition(
+@@ -3684,6 +3781,37 @@ def _check_untooled_plan_transition(
      new_status = _plan_status_from_state(new_state)
      old_status = _plan_status_from_state(old_state) if old_state is not None else None
  
@@ -6182,7 +6490,7 @@ index 9b09c151c..91bf29bb8 100644
      is_in_executed = _EXECUTED_SEGMENT in ("/" + new_path.replace("\\", "/"))
      was_in_executed = bool(
          old_path and _EXECUTED_SEGMENT in ("/" + old_path.replace("\\", "/"))
-@@ -3822,11 +3864,23 @@ def check_status_untooled(repo_root: Path) -> List[_core.Drift]:
+@@ -3822,11 +3950,23 @@ def check_status_untooled(repo_root: Path) -> List[_core.Drift]:
                      )
                  )
                  continue
@@ -6206,7 +6514,7 @@ index 9b09c151c..91bf29bb8 100644
              d = _check_untooled_plan_transition(
                  old_path,
                  head_state,
-@@ -3835,6 +3889,8 @@ def check_status_untooled(repo_root: Path) -> List[_core.Drift]:
+@@ -3835,6 +3975,8 @@ def check_status_untooled(repo_root: Path) -> List[_core.Drift]:
                  new_history=staged_history,
                  commit_subjects=None,
                  scope_label="this commit",
@@ -6215,7 +6523,7 @@ index 9b09c151c..91bf29bb8 100644
              )
              if d is not None:
                  drift.append(d)
-@@ -3892,14 +3948,36 @@ def check_status_untooled_range(
+@@ -3892,14 +4034,36 @@ def check_status_untooled_range(
                  continue
              if not _is_plan_ipd_path(new_path):
                  continue
@@ -6253,7 +6561,7 @@ index 9b09c151c..91bf29bb8 100644
              d = _check_untooled_plan_transition(
                  old_path,
                  old_state,
-@@ -3908,6 +3986,8 @@ def check_status_untooled_range(
+@@ -3908,6 +4072,8 @@ def check_status_untooled_range(
                  new_history=new_history,
                  commit_subjects=commit_subjects,
                  scope_label="this range",
@@ -6262,7 +6570,7 @@ index 9b09c151c..91bf29bb8 100644
              )
              if d is not None:
                  drift.append(d)
-@@ -4245,7 +4325,7 @@ def check_ipd_draft_ready(
+@@ -4245,7 +4411,7 @@ def check_ipd_draft_ready(
      from agent_workflows import ipd_authoring as _authoring
  
      drift: List[_core.Drift] = []
@@ -6271,7 +6579,7 @@ index 9b09c151c..91bf29bb8 100644
      for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
          # Only nudge a plan that is actually in a pending lane (not executed/superseded/etc.).
          if "pending" not in p.parts:
-@@ -4261,7 +4341,7 @@ def check_ipd_draft_ready(
+@@ -4261,7 +4427,7 @@ def check_ipd_draft_ready(
                  text = p.read_text(encoding="utf-8")
              except OSError:
                  continue
@@ -6280,7 +6588,7 @@ index 9b09c151c..91bf29bb8 100644
              continue  # still a stub: stay silent
          id6 = _meta_declared_id6(st_obj) or p.stem
          recovery = f"aw ipd set to-review {id6}"
-@@ -5661,6 +5741,27 @@ def _meta_from_backlog(st: Any) -> Optional[str]:
+@@ -5661,6 +5827,27 @@ def _meta_from_backlog(st: Any) -> Optional[str]:
      return cls.id6 if cls.verdict == _S.SOURCE_LINK_USABLE else None
  
  
@@ -6308,7 +6616,7 @@ index 9b09c151c..91bf29bb8 100644
  def _meta_records_with_fields(
      repo_root: Path,
      meta_type: str,
-@@ -5670,10 +5771,9 @@ def _meta_records_with_fields(
+@@ -5670,10 +5857,9 @@ def _meta_records_with_fields(
  ) -> List[Tuple[Path, Any]]:
      """Query `artifact_meta` for `meta_type` records and load each record's typed fields."""
      from agent_workflows import artifact_meta as _meta
@@ -6320,7 +6628,7 @@ index 9b09c151c..91bf29bb8 100644
      records_root = Path(ctx.logical_roots["records"])
      scan_repo = _meta._scan_repo_root(ctx, records_root)
      has_tree = records_root.is_dir() or (
-@@ -5794,14 +5894,13 @@ def _meta_state_for_path(
+@@ -5794,14 +5980,13 @@ def _meta_state_for_path(
  ) -> Optional[Any]:
      """Return `artifact_meta.read` State for an on-disk record path, or None if uncached."""
      from agent_workflows import artifact_meta as _meta
@@ -6336,7 +6644,7 @@ index 9b09c151c..91bf29bb8 100644
      records_root = Path(ctx.logical_roots["records"])
      scan_repo = _meta._scan_repo_root(ctx, records_root)
      has_tree = records_root.is_dir() or (
-@@ -5852,7 +5951,6 @@ def _meta_state_map(
+@@ -5852,7 +6037,6 @@ def _meta_state_map(
  ) -> Dict[Path, Any]:
      """Return resolved-path -> `artifact_meta` State map for `meta_type` in one cache scan."""
      from agent_workflows import artifact_meta as _meta
@@ -6344,7 +6652,7 @@ index 9b09c151c..91bf29bb8 100644
      from agent_workflows import selectors as _selectors
  
      repo_root = Path(repo_root)
-@@ -5871,7 +5969,7 @@ def _meta_state_map(
+@@ -5871,7 +6055,7 @@ def _meta_state_map(
          except OSError:
              cache_key = None
  
@@ -6353,7 +6661,7 @@ index 9b09c151c..91bf29bb8 100644
      records_root = Path(ctx.logical_roots["records"])
      scan_repo = _meta._scan_repo_root(ctx, records_root)
      has_tree = records_root.is_dir() or (
-@@ -5944,6 +6042,33 @@ def _meta_state_for_cached_path(
+@@ -5944,6 +6128,33 @@ def _meta_state_for_cached_path(
      return _meta.read_text(text, record_type=record_type), text
  
  
@@ -6387,7 +6695,7 @@ index 9b09c151c..91bf29bb8 100644
  def _from_backlog_value(text: str) -> Optional[str]:
      """Return the captured `- From-Backlog:` value, or None if absent, sentinel, or malformed (plan okp2o4)."""
      from agent_workflows import artifact_meta as _meta
-@@ -6416,10 +6541,9 @@ def build_graduation_reverse_index(
+@@ -6416,10 +6627,9 @@ def build_graduation_reverse_index(
      rather than order.
      """
      from agent_workflows import artifact_meta as _meta
@@ -6399,7 +6707,7 @@ index 9b09c151c..91bf29bb8 100644
      records_root = Path(ctx.logical_roots["records"])
      scan_repo = _meta._scan_repo_root(ctx, records_root)
      has_tree = records_root.is_dir() or (
-@@ -6552,7 +6676,7 @@ def build_plan_setid_index(
+@@ -6552,7 +6762,7 @@ def build_plan_setid_index(
              or _core.is_ignored_path(path, repo_root, ignored_dirs)
          ):
              continue
@@ -6408,7 +6716,7 @@ index 9b09c151c..91bf29bb8 100644
          if not setid:
              continue
          declared_id = _meta_declared_id6(st_obj) or ""
-@@ -7308,11 +7432,11 @@ def _item_close_date(
+@@ -7308,11 +7518,11 @@ def _item_close_date(
      """
      if repo_root is not None and item_id6 is not None:
          from agent_workflows import artifact_meta as _meta
@@ -6423,7 +6731,7 @@ index 9b09c151c..91bf29bb8 100644
          except Exception:
              events = []
          dates: List[str] = []
-@@ -7629,11 +7753,11 @@ def _item_graduated_date(
+@@ -7629,11 +7839,11 @@ def _item_graduated_date(
      """
      if repo_root is not None and item_id6 is not None:
          from agent_workflows import artifact_meta as _meta
@@ -6438,7 +6746,7 @@ index 9b09c151c..91bf29bb8 100644
          except Exception:
              events = []
          dates: List[str] = []
-@@ -7691,11 +7815,11 @@ def _spec_implementing_date(
+@@ -7691,11 +7901,11 @@ def _spec_implementing_date(
      """
      if repo_root is not None and spec_id6 is not None:
          from agent_workflows import artifact_meta as _meta
@@ -6453,7 +6761,146 @@ index 9b09c151c..91bf29bb8 100644
          except Exception:
              events = []
          dates: List[str] = []
-@@ -9168,7 +9292,7 @@ def check_plan_priority_required(
+@@ -8681,6 +8891,19 @@ def evaluate_ipd_dependencies(
+         )
+ 
+ 
++def _meta_raw_item_dependencies(st: Any) -> Optional[str]:
++    """Extract the logical Item-Dependencies string from an ``artifact_meta.State``."""
++    from agent_workflows import ipd_lint as _lint
++
++    fields = getattr(st, "fields", None) or {}
++    val = _lint._format_state_meta_value(
++        "item_dependencies", fields.get("item_dependencies"), fields
++    )
++    if val is None:
++        return None
++    return str(val).strip()
++
++
+ def _evaluate_ipd_dependencies_impl(
+     repo_root: Path,
+     *,
+@@ -8767,8 +8990,7 @@ def _evaluate_ipd_dependencies_impl(
+             mid_declared = _meta_declared_id6(st_obj)
+             if mid_declared:
+                 own_id[ps] = mid_declared
+-            raw_dep = (getattr(st_obj, "fields", None) or {}).get("item_dependencies")
+-            dep_value[ps] = str(raw_dep).strip() if raw_dep is not None else None
++            dep_value[ps] = _meta_raw_item_dependencies(st_obj)
+ 
+         # Build the IPD->IPD edge graph (by owner id6) from ALL plans for cycle detection.
+         edges_by_plan: Dict[str, List[str]] = {}
+@@ -8812,32 +9034,56 @@ def _evaluate_ipd_dependencies_impl(
+             else [pt for pt in all_plans if not is_retired(pt[0])]
+         )
+     )
++    target_ids: Set[str] = set()
+     for p, text in sorted(target_plans, key=lambda pt: str(pt[0])):
+         ps = str(p)
+-        if ps in dep_value and plans is None:
+-            raw = dep_value[ps]
++        try:
++            ps_res = str(p.resolve())
++        except OSError:
++            ps_res = ps
++        in_overlay = (
++            ps in overlay_states
++            or ps_res in overlay_states
++            or ps in overlay
++            or ps_res in overlay
++        )
++        st_t: Optional[Any] = None
++        if ps in overlay_states:
++            st_t = overlay_states[ps]
++        elif ps_res in overlay_states:
++            st_t = overlay_states[ps_res]
++        elif ps in overlay or ps_res in overlay:
++            st_t = _meta.read_text(text, record_type="ipd")
+         else:
+-            if ps in overlay_states:
+-                st_t = overlay_states[ps]
+-            elif ps in overlay or plans is not None:
+-                st_t = _meta.read_text(text, record_type="ipd")
++            text_state: Optional[Any] = None
++            text_dep: Optional[str] = None
++            if plans is not None and text:
++                text_state = _meta.read_text(text, record_type="ipd")
++                text_dep = _meta_raw_item_dependencies(text_state)
++            if text_dep is not None:
++                st_t = text_state
+             else:
+                 try:
+-                    st_t = state_map.get(p.resolve())
++                    st_t = state_map.get(p) or state_map.get(p.resolve())
+                 except OSError:
+-                    st_t = None
++                    st_t = state_map.get(p)
+                 if st_t is None:
+-                    st_t = _meta.read_text(text, record_type="ipd")
+-            raw_dep = (getattr(st_t, "fields", None) or {}).get("item_dependencies")
+-            raw = str(raw_dep).strip() if raw_dep is not None else None
+-        oid = own_id.get(ps)
++                    st_t = (
++                        text_state
++                        if text_state is not None
++                        else _meta.read_text(text, record_type="ipd")
++                    )
++        raw = _meta_raw_item_dependencies(st_t)
++        if raw is None and not in_overlay:
++            raw = dep_value.get(ps) if ps in dep_value else dep_value.get(ps_res)
++        oid = own_id.get(ps) or own_id.get(ps_res) or _meta_declared_id6(st_t)
++        if oid:
++            target_ids.add(oid)
+         # (1) missing statement - CUTOVER-GATED: a grandfathered (pre-cutover / no-cutover) plan is
+         # NEVER flagged for a missing statement, at ANY phase, so the existing corpus is not
+         # mass-failed. Only a POST-cutover plan missing the field is a finding (error).
+         if raw is None:
+-            if not _is_grandfathered_plan(
+-                text, cutover_date, state=overlay_states.get(ps)
+-            ):
++            if not _is_grandfathered_plan(text, cutover_date, state=st_t, path=p):
+                 drift.append(
+                     _core.Drift(
+                         ps,
+@@ -8924,7 +9170,6 @@ def _evaluate_ipd_dependencies_impl(
+                         )
+ 
+     # (6) cycles - report once per cycle, located at the (sorted-first) member's path if known.
+-    target_ids = {own_id.get(str(p)) for p, _t in target_plans}
+     for cyc in cycles:
+         # When evaluating a subset (lint of one plan), only report a cycle that involves a target.
+         if plans is not None and not (set(cyc) & target_ids):
+@@ -8945,16 +9190,26 @@ def _evaluate_ipd_dependencies_impl(
+ 
+ 
+ def _is_grandfathered_plan(
+-    text: str, cutover_date: Optional[str], *, state: Optional[Any] = None
++    text: str,
++    cutover_date: Optional[str],
++    *,
++    state: Optional[Any] = None,
++    path: Optional[Path] = None,
+ ) -> bool:
+     """A plan is grandfathered (missing-statement is advisory, not error) when there is no cutover
+-    in effect, or the plan's `- Date:` predates the cutover date. Fail-open: unparseable -> True."""
++    in effect, or the plan's date predates the cutover date. Fail-open: unparseable -> True."""
+     if cutover_date is None:
+         return True
+     if state is not None:
+         pdate = _meta_single_token((getattr(state, "fields", None) or {}).get("date"))
+     else:
+         pdate = _plan_date(text)
++    if not pdate and (state is not None or path is not None):
++        from agent_workflows import ipd_lint as _lint
++
++        pdate = _lint._resolve_state_date(state, path=path)
++    if not pdate and state is not None and text:
++        pdate = _plan_date(text)
+     if not pdate:
+         return True
+     return pdate < cutover_date
+@@ -9168,7 +9423,7 @@ def check_plan_priority_required(
      from agent_workflows import ipd_schema as _schema
  
      drift: List[_core.Drift] = []
@@ -6462,7 +6909,7 @@ index 9b09c151c..91bf29bb8 100644
      for p in _iter_type_files(
          repo_root,
          "plans",
-@@ -9180,19 +9304,25 @@ def check_plan_priority_required(
+@@ -9180,19 +9435,25 @@ def check_plan_priority_required(
          except OSError:
              continue
          try:
@@ -6495,7 +6942,7 @@ index 9b09c151c..91bf29bb8 100644
          id6 = _meta_declared_id6(st_obj) or p.stem
          for b in blocking_prio:
              drift.append(
-@@ -9305,11 +9435,23 @@ def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
+@@ -9305,11 +9566,23 @@ def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
              text = path.read_text(encoding="utf-8")
          except OSError:
              continue
@@ -6522,7 +6969,7 @@ index 9b09c151c..91bf29bb8 100644
          subject_type = raw_stype.lower() if raw_stype else ""
          known = known_by_type.get(subject_type)
          if known is None:
-@@ -9923,13 +10065,74 @@ _PLAN_SPEC_LINK_MISSING_RULE = "check.plan-spec-link-missing"
+@@ -9923,13 +10196,74 @@ _PLAN_SPEC_LINK_MISSING_RULE = "check.plan-spec-link-missing"
  PLAN_SPEC_LINK_NO_SOURCE_SENTINELS: FrozenSet[str] = frozenset({"-", "none"})
  
  
@@ -6531,7 +6978,11 @@ index 9b09c151c..91bf29bb8 100644
 +_FENCE_OPEN_RE = _re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
 +_ATX_HEADING_RE = _re.compile(r"^(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$")
 +
-+
+ 
+-    Pure function (IPD 0ykozn E-03 / PR-502).
+-    Consumes each target bullet as its header line plus all following continuation lines
+-    until the next `- ` bullet, the next heading, or a blank line via
+-    `artifact_meta.read_multiline_bullets`.
 +def _extract_markdown_sections(
 +    text: str, section_names: Tuple[str, ...]
 +) -> List[str]:
@@ -6585,11 +7036,7 @@ index 9b09c151c..91bf29bb8 100644
 +        chunks.append("\n".join(current))
 +    return chunks
 +
- 
--    Pure function (IPD 0ykozn E-03 / PR-502).
--    Consumes each target bullet as its header line plus all following continuation lines
--    until the next `- ` bullet, the next heading, or a blank line via
--    `artifact_meta.read_multiline_bullets`.
++
 +def parse_cited_spec_ids(
 +    plan_text: str, known_spec_ids: Iterable[str], *, state: Any = None
 +) -> List[str]:
@@ -6603,7 +7050,7 @@ index 9b09c151c..91bf29bb8 100644
      Filters candidate 6-character [0-9a-z]{6} tokens on word boundaries against `known_spec_ids`.
      """
      known = set(known_spec_ids)
-@@ -9938,9 +10141,18 @@ def parse_cited_spec_ids(plan_text: str, known_spec_ids: Iterable[str]) -> List[
+@@ -9938,9 +10272,18 @@ def parse_cited_spec_ids(plan_text: str, known_spec_ids: Iterable[str]) -> List[
  
      from agent_workflows import artifact_meta as _meta
  
@@ -6623,7 +7070,7 @@ index 9b09c151c..91bf29bb8 100644
      cited: List[str] = []
      for m in _CITED_SPEC_TOKEN_RE.finditer(joined):
          tok = m.group(1)
-@@ -9954,10 +10166,11 @@ def check_plan_spec_link_missing(
+@@ -9954,10 +10297,11 @@ def check_plan_spec_link_missing(
  ) -> List[_core.Drift]:
      """Pending-scoped advisory rule flagging a pending plan citing a known spec without From-Spec.
  
@@ -6639,7 +7086,7 @@ index 9b09c151c..91bf29bb8 100644
      Pending-scoping ensures historical records (executed/superseded) are never examined, while keeping
      the advisory nudge visible on `aw check plans` throughout the plan's authoring/review lifecycle.
      """
-@@ -9972,7 +10185,9 @@ def check_plan_spec_link_missing(
+@@ -9972,7 +10316,9 @@ def check_plan_spec_link_missing(
  
      spec_files_by_id6: Dict[str, Set[str]] = {}
      resolved_root = repo_root.resolve()
@@ -6650,7 +7097,7 @@ index 9b09c151c..91bf29bb8 100644
          sid = _meta_declared_id6(st)
          if sid:
              try:
-@@ -10006,14 +10221,26 @@ def check_plan_spec_link_missing(
+@@ -10006,14 +10352,26 @@ def check_plan_spec_link_missing(
              except OSError:
                  continue
  
@@ -6680,7 +7127,7 @@ index 9b09c151c..91bf29bb8 100644
              if parsed_paths:
                  scope_set = set(parsed_paths)
                  cited = [
-@@ -10318,7 +10545,9 @@ class StaleScopePath(NamedTuple):
+@@ -10318,7 +10676,9 @@ class StaleScopePath(NamedTuple):
      resolved: Tuple[str, ...] = ()
  
  
@@ -6691,7 +7138,7 @@ index 9b09c151c..91bf29bb8 100644
      """Flag missing literal Scope-Paths under .aw/records/ classified moved-terminal/moved/vanished.
  
      Pure-ish predicate (reads filesystem, no subprocess, no git).
-@@ -10328,8 +10557,13 @@ def stale_record_scope_paths(repo_root: Path, plan_text: str) -> List[StaleScope
+@@ -10328,8 +10688,13 @@ def stale_record_scope_paths(repo_root: Path, plan_text: str) -> List[StaleScope
      from agent_workflows import status_set as _status_set
  
      repo_root = Path(repo_root)
@@ -6706,7 +7153,7 @@ index 9b09c151c..91bf29bb8 100644
      except Exception:
          return []
      sp_value = doc.meta_fields.get("Scope-Paths")
-@@ -10433,10 +10667,15 @@ def check_scope_path_target_stale(repo_root: Path) -> List[_core.Drift]:
+@@ -10433,10 +10798,15 @@ def check_scope_path_target_stale(repo_root: Path) -> List[_core.Drift]:
      """
      repo_root = Path(repo_root)
      drift: List[_core.Drift] = []
@@ -6723,7 +7170,7 @@ index 9b09c151c..91bf29bb8 100644
              if stale.resolved:
                  resolved_str = ", ".join(stale.resolved)
                  detail = (
-@@ -10814,7 +11053,9 @@ def evaluate_review_finding_escalation(
+@@ -10814,7 +11184,9 @@ def evaluate_review_finding_escalation(
      if str(thr).strip().lower() in ("off", ""):
          return drift
  
@@ -6734,7 +7181,7 @@ index 9b09c151c..91bf29bb8 100644
      if plan_id6 is None:
          return drift  # no `- Id:` to join on; the metadata linter owns that complaint
  
-@@ -11010,7 +11251,9 @@ def evaluate_review_decision_escalation(
+@@ -11010,7 +11382,9 @@ def evaluate_review_decision_escalation(
      except Exception:
          return drift
  
@@ -6745,7 +7192,82 @@ index 9b09c151c..91bf29bb8 100644
      if plan_id6 is None:
          return drift  # no `- Id:` to join on; the metadata linter owns that complaint
  
-@@ -11587,7 +11830,8 @@ def find_obligations_carried_by(
+@@ -11308,15 +11682,10 @@ class CarriedObligation(NamedTuple):
+     row_text: str
+ 
+ 
+-def _plan_date_compact(text: str) -> Optional[str]:
+-    """The plan's own `- Date:` as compact YYYYMMDD, or None when absent/malformed."""
+-    from agent_workflows import artifact_meta as _meta
+-
+-    st = _meta.read_text(text, record_type="ipd")
+-    raw = _meta_single_token((st.fields or {}).get("date"))
++def _iso_date_to_compact(raw: Optional[str]) -> Optional[str]:
+     if not raw or not raw.isascii():
+         return None
+-    parts = raw.split("-")
++    parts = raw.strip().split("-")
+     if (
+         len(parts) == 3
+         and len(parts[0]) == 4
+@@ -11328,16 +11697,53 @@ def _plan_date_compact(text: str) -> Optional[str]:
+     return None
+ 
+ 
+-def carrier_severity_for_plan(plan_text: str, repo_root: Optional[Path] = None) -> str:
++def _plan_date_compact(
++    text: str,
++    *,
++    state: Optional[Any] = None,
++    path: Optional[Path] = None,
++) -> Optional[str]:
++    """The plan's own date as compact YYYYMMDD, or None when absent/malformed.
++
++    Reads legacy inline ``- Date:`` from ``text`` first; when absent and ``state`` or ``path``
++    is supplied, resolves via ``ipd_lint._resolve_state_date(state, path=path)``. Single-arg
++    callers compare ``text`` only so filename-vs-body date checks are not masked.
++    """
++    from agent_workflows import artifact_meta as _meta
++
++    st = _meta.read_text(text, record_type="ipd")
++    raw = _meta_single_token((st.fields or {}).get("date"))
++    compact = _iso_date_to_compact(raw)
++    if compact is not None:
++        return compact
++    if state is not None or path is not None:
++        from agent_workflows import ipd_lint as _lint
++
++        return _iso_date_to_compact(_lint._resolve_state_date(state, path=path))
++    return None
++
++
++def carrier_severity_for_plan(
++    plan_text: str,
++    repo_root: Optional[Path] = None,
++    *,
++    plan_path: Optional[Path] = None,
++    state: Optional[Any] = None,
++) -> str:
+     """The severity tier this plan's carrier findings get: `error` post-cutover, else the legacy tier.
+ 
+     When repo_root is provided, queries resolve_cutover_date(repo_root, "carrier_obligations").
+     Falls back to deprecated CARRIER_CUTOVER_DATE constant when unconfigured or repo_root is omitted.
+-    A plan with NO parseable `- Date:` is treated as PRE-cutover (grandfathered). That direction is
++    A plan with NO parseable date is treated as PRE-cutover (grandfathered). That direction is
+     deliberate: the metadata linter already owns the missing-Date complaint (`IPD-M101`), and inventing
+     a second, harsher consequence for it here would make this rule fire on a defect it does not own.
+     """
+-    date = _plan_date_compact(plan_text)
++    resolved_state = state
++    if resolved_state is None and repo_root is not None and plan_path is not None:
++        resolved_state = _meta_state_for_path(
++            repo_root, plan_path, meta_type="ipd"
++        )
++    date = _plan_date_compact(plan_text, state=resolved_state, path=plan_path)
+     if date is None:
+         return _CARRIER_LEGACY_SEVERITY
+     cutover = None
+@@ -11587,7 +11993,8 @@ def find_obligations_carried_by(
                  from agent_workflows import artifact_meta as _meta
  
                  plan_id6 = (
@@ -6755,7 +7277,18 @@ index 9b09c151c..91bf29bb8 100644
                      or p.name[:6]
                  )
  
-@@ -12072,6 +12316,7 @@ def evaluate_carrier_ungated(
+@@ -12008,7 +12415,9 @@ def evaluate_durable_carrier(
+                 )
+             )
+         else:
+-            severity = carrier_severity_for_plan(plan_text, repo_root=repo_root)
++            severity = carrier_severity_for_plan(
++                plan_text, repo_root=repo_root, plan_path=plan_path
++            )
+             drift.append(
+                 enrich_drift(
+                     _core.Drift(str(plan_path), rule, detail, severity=severity),
+@@ -12072,6 +12481,7 @@ def evaluate_carrier_ungated(
      plan_path: Path,
      plan_text: str,
      open_questions=None,
@@ -6763,7 +7296,7 @@ index 9b09c151c..91bf29bb8 100644
  ) -> List[_core.Drift]:
      """The pure per-plan evaluator for `check.ipd-carrier-ungated` (carriergate rpw4sb E-02).
  
-@@ -12087,16 +12332,21 @@ def evaluate_carrier_ungated(
+@@ -12087,16 +12497,21 @@ def evaluate_carrier_ungated(
          from agent_workflows import ipd_lint as _lint
          from agent_workflows import ipd_schema as _ipd_schema
  
@@ -6787,7 +7320,7 @@ index 9b09c151c..91bf29bb8 100644
  
          meta_fields = getattr(parsed, "meta_fields", None) or {}
          raw_deps = (meta_fields.get(_ipd_schema.META_ITEM_DEPENDENCIES) or "").strip()
-@@ -12173,6 +12423,7 @@ def check_carrier_ungated(
+@@ -12173,6 +12588,7 @@ def check_carrier_ungated(
      drift: List[_core.Drift] = []
      try:
          repo_root = Path(repo_root)
@@ -6795,7 +7328,7 @@ index 9b09c151c..91bf29bb8 100644
          for p in _iter_type_files(
              repo_root, "plans", include_untracked=include_untracked
          ):
-@@ -12182,11 +12433,16 @@ def check_carrier_ungated(
+@@ -12182,11 +12598,16 @@ def check_carrier_ungated(
                  text = p.read_text(encoding="utf-8")
              except OSError:
                  continue
@@ -6812,6 +7345,35 @@ index 9b09c151c..91bf29bb8 100644
                  )
              )
      except Exception:
+@@ -12379,8 +12800,7 @@ def check_ipd_lint_reach(
+             except OSError:
+                 st_cached = None
+         if st_cached is not None:
+-            cached_date_val = str((st_cached.fields or {}).get("date") or "").strip()
+-            cached_date = cached_date_val.split()[0] if cached_date_val else None
++            cached_date = _lint._resolve_state_date(st_cached, path=p)
+             if cached_date is not None:
+                 if not _lint._m105_terminal_date_applies(cached_date):
+                     continue
+@@ -12396,12 +12816,15 @@ def check_ipd_lint_reach(
+             continue
+ 
+         st_date = _meta.read_text(text, record_type="ipd")
+-        raw_date_val = str((st_date.fields or {}).get("date") or "").strip()
+-        raw_date = raw_date_val.split()[0] if raw_date_val else None
++        raw_date = _lint._resolve_state_date(st_cached or st_date, path=p)
+         if not _lint._m105_terminal_date_applies(raw_date):
+             continue
+ 
+-        status = _plans._status_from_state(st_date)
++        status = (
++            _plans._status_from_state(st_cached) if st_cached is not None else None
++        )
++        if status is None:
++            status = _plans._status_from_state(st_date)
+         if status is None:
+             continue
+ 
 diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
 index 038a893c1..a2eedc38a 100644
 --- a/agent_workflows/cli.py
@@ -7557,32 +8119,103 @@ index df1ac3710..59de6c0ab 100644
      # EMPTY means not-a-merge, in which case behavior is byte-identical to before integpath 29wvmj.
      incoming_commits = _merge_incoming_commits(root)
 diff --git a/agent_workflows/hooks/ipd_dependency_statement_gate.py b/agent_workflows/hooks/ipd_dependency_statement_gate.py
-index 7bb430f8b..9a108c934 100644
+index 7bb430f8b..d921aed01 100644
 --- a/agent_workflows/hooks/ipd_dependency_statement_gate.py
 +++ b/agent_workflows/hooks/ipd_dependency_statement_gate.py
-@@ -39,13 +39,15 @@ _HARD_REFUSE_RULES = (
+@@ -26,7 +26,7 @@ Honest limits (never oversold): git hooks are LOCAL, not cloned by default, and
+ from __future__ import annotations
+ 
+ from pathlib import Path
+-from typing import Dict, List, Optional, Tuple
++from typing import Dict, List, Optional, Set, Tuple
+ 
+ # Staged `- Status:` values at/after which an `unresolved` statement should block (advancing to a
+ # blocking phase). A plain `draft` staying draft is left committable.
+@@ -38,36 +38,143 @@ _HARD_REFUSE_RULES = (
+ )
  
  
- def _staged_ipd_overlay(repo_root: Path) -> Tuple[Dict[str, object], Dict[str, str]]:
+-def _staged_ipd_overlay(repo_root: Path) -> Tuple[Dict[str, object], Dict[str, str]]:
 -    """Return (overlay_states, staged_status) for every staged `.ipd.md` via ``artifact_meta.read_at``.
-+    """Return (overlay_states, staged_status) for staged `.ipd.md` and `meta/<id6>.jsonl` files
-+    via ``artifact_meta.read_at``.
++def _staged_meta_log_ipd_info(
++    repo_root: Path, rel_path: str, ctx: object
++) -> Tuple[bool, Optional[str]]:
++    """Return ``(is_ipd_or_unknown, resolved_plan_path_or_None)`` for a staged meta log.
++
++    Returns ``(False, None)`` only when the staged log's first non-empty event parses cleanly
++    as a known non-IPD artifact type. Any IPD log or unparseable log returns ``(True, ...)``
++    so the pre-commit gate fails closed when it cannot rule out an IPD.
++    """
++    from agent_workflows import artifact_meta as _meta
++    from agent_workflows import check_engine as _ce
++
++    norm = rel_path.replace("\\", "/").removeprefix("./")
++    rc, raw_blob, _err = _ce._git_capture(repo_root, ["show", f":0:{norm}"])
++    if rc != 0 or not raw_blob.strip():
++        return True, None
++    first_line = next(
++        (ln for ln in raw_blob.splitlines(keepends=True) if ln.strip()), ""
++    )
++    if not first_line:
++        return True, None
++    if not first_line.endswith("\n"):
++        first_line += "\n"
++    try:
++        ev = _meta.decode_line(first_line)
++    except Exception:
++        return True, None
++    fields = ev.get("fields") if isinstance(ev, dict) else None
++    art_type = fields.get("type") if isinstance(fields, dict) else None
++    if isinstance(art_type, str) and art_type in _meta.SUPPORTED_TYPES:
++        if art_type != "ipd":
++            return False, None
++        raw_path = ev.get("path")
++        if isinstance(raw_path, str) and raw_path.strip():
++            try:
++                return True, str(
++                    _meta.source_path(
++                        raw_path,
++                        Path(ctx.logical_roots["records"]),
++                        repo_root,
++                    ).resolve()
++                )
++            except (ValueError, OSError):
++                pass
++        return True, None
++    return True, None
++
++
++def _staged_ipd_overlay(
++    repo_root: Path,
++) -> Tuple[Dict[str, object], Dict[str, str], List[str]]:
++    """Return ``(overlay_states, staged_status, corrupt_messages)`` for staged `.ipd.md` and
++    `meta/<id6>.jsonl` files via ``artifact_meta.read_at``.
  
      overlay_states: abs_path_str -> staged ``artifact_meta.State``;
-     staged_status: abs_path_str -> staged lowercased status.
+-    staged_status: abs_path_str -> staged lowercased status.
 -    Fast-empty when nothing is staged under a plans tree. Additions/modifications/renames are
 -    included; pure deletions are skipped (nothing to check).
++    staged_status: abs_path_str -> staged lowercased status;
++    corrupt_messages: deduplicated fail-closed ``check.ipd-dependency-malformed`` refusals for
++    staged IPD or unparseable meta logs where ``read_at`` returned ``kind='corrupt'``.
 +    Fast-empty when nothing is staged under a plans or meta tree. Additions/modifications/renames
 +    are included; pure deletions are skipped (nothing to check).
      """
 +    from agent_workflows import artifact_core as _core
      from agent_workflows import artifact_meta as _meta
      from agent_workflows import check_engine as _ce
++    from agent_workflows import ipd_schema as _S
  
-@@ -56,18 +58,68 @@ def _staged_ipd_overlay(repo_root: Path) -> Tuple[Dict[str, object], Dict[str, s
+     overlay_states: Dict[str, object] = {}
+     statuses: Dict[str, str] = {}
++    corrupt_ids: Set[str] = set()
++    corrupt_by_key: Dict[str, str] = {}
+     rc, out, _err = _ce._git_capture(
+         repo_root, ["diff", "--cached", "--name-status", "-M"]
      )
      if rc != 0 or not out.strip():
-         return overlay_states, statuses
+-        return overlay_states, statuses
++        return overlay_states, statuses, []
 +
 +    meta_dirs = {".aw/records/meta", ".agents/meta"}
 +    try:
@@ -7619,7 +8252,7 @@ index 7bb430f8b..9a108c934 100644
 +                staged_meta_paths.append((new_path, stem))
 +
 +    if not staged_ipd_paths and not staged_meta_paths:
-+        return overlay_states, statuses
++        return overlay_states, statuses, []
 +
 +    def _stage_ctx(rel_path: str) -> object:
 +        norm = rel_path.replace("\\", "/").removeprefix("./")
@@ -7659,14 +8292,47 @@ index 7bb430f8b..9a108c934 100644
              plan_id = _meta.resolve_id_at(new_path, ":0:", project_context=ctx)
              if plan_id:
                  res = _meta.read_at(
-@@ -82,6 +134,32 @@ def _staged_ipd_overlay(repo_root: Path) -> Tuple[Dict[str, object], Dict[str, s
+@@ -75,6 +182,14 @@ def _staged_ipd_overlay(repo_root: Path) -> Tuple[Dict[str, object], Dict[str, s
+                 )
+             else:
+                 res = _meta.read_path_at(new_path, ":0:", project_context=ctx)
++            if res.kind == "corrupt":
++                abs_ps = str((repo_root / new_path).resolve())
++                detail = (res.error or "corrupt staged IPD metadata log").strip()
++                msg = f"{abs_ps}: {_S.RULE_IPD_DEP_MALFORMED}: {detail}"
++                if plan_id:
++                    corrupt_ids.add(plan_id)
++                corrupt_by_key.setdefault(plan_id or abs_ps, msg)
++                continue
+             if res.kind != "ok" or res.state is None:
+                 continue
+             abs_ps = str((repo_root / new_path).resolve())
+@@ -82,7 +197,50 @@ def _staged_ipd_overlay(repo_root: Path) -> Tuple[Dict[str, object], Dict[str, s
              st_val = _ce._plan_status_from_state(res.state)
              if st_val is not None:
                  statuses[abs_ps] = st_val
+-    return overlay_states, statuses
 +
 +        for new_path, stem in staged_meta_paths:
++            if stem in corrupt_ids:
++                continue
 +            ctx = _stage_ctx(new_path)
 +            res = _meta.read_at(stem, ":0:", project_context=ctx)
++            if res.kind == "corrupt":
++                is_ipd_or_unknown, plan_abs = _staged_meta_log_ipd_info(
++                    repo_root, new_path, ctx
++                )
++                if not is_ipd_or_unknown:
++                    continue
++                detail = (res.error or "corrupt staged metadata log").strip()
++                if plan_abs:
++                    msg = f"{plan_abs}: {_S.RULE_IPD_DEP_MALFORMED}: {detail} (staged log: {new_path})"
++                else:
++                    log_abs = str((repo_root / new_path).resolve())
++                    msg = f"{log_abs}: {_S.RULE_IPD_DEP_MALFORMED}: {detail}"
++                corrupt_ids.add(stem)
++                corrupt_by_key.setdefault(stem, msg)
++                continue
 +            if (
 +                res.kind != "ok"
 +                or res.state is None
@@ -7689,9 +8355,92 @@ index 7bb430f8b..9a108c934 100644
 +            if st_val is not None:
 +                statuses[abs_ps] = st_val
 +
-     return overlay_states, statuses
++    return overlay_states, statuses, list(corrupt_by_key.values())
  
  
+ def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
+@@ -96,45 +254,46 @@ def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
+     from agent_workflows import ipd_schema as _S
+ 
+     root = Path(repo_root).resolve() if repo_root is not None else Path(".").resolve()
+-    overlay_states, statuses = _staged_ipd_overlay(root)
+-    if not overlay_states:
++    overlay_states, statuses, corrupt_messages = _staged_ipd_overlay(root)
++    if not overlay_states and not corrupt_messages:
+         return 0, []  # fast no-op: no staged IPD
+ 
+-    staged_plans = [(Path(ps), "") for ps in overlay_states]
+-    # Evaluate at a blocking phase so dangling/ambiguous/cycle/malformed are all errors; the overlay
+-    # makes the whole-repo graph reflect the staged content.
+-    drift = _ce.evaluate_ipd_dependencies(
+-        root, phase="pre-execution", plans=staged_plans, overlay_states=overlay_states
+-    )
++    messages: List[str] = list(corrupt_messages)
++    if overlay_states:
++        staged_plans = [(Path(ps), "") for ps in overlay_states]
++        # Evaluate at a blocking phase so dangling/ambiguous/cycle/malformed are all errors; the overlay
++        # makes the whole-repo graph reflect the staged content.
++        drift = _ce.evaluate_ipd_dependencies(
++            root, phase="pre-execution", plans=staged_plans, overlay_states=overlay_states
++        )
+ 
+-    staged_locations = {str(Path(ps).resolve()) for ps in overlay_states}
+-
+-    def _on_staged_file(location: str) -> bool:
+-        try:
+-            return str(Path(location).resolve()) in staged_locations
+-        except OSError:
+-            return location in staged_locations
+-
+-    hard_rules = {
+-        _S.RULE_IPD_DEP_MALFORMED,
+-        _S.RULE_IPD_DEP_DANGLING,
+-        _S.RULE_IPD_DEP_AMBIGUOUS,
+-        _S.RULE_IPD_DEP_CYCLE,
+-    }
+-    messages: List[str] = []
+-    for d in drift:
+-        # Commit-scoping: never block on a finding located in a file this commit did not touch.
+-        if not _on_staged_file(d.location):
+-            continue
+-        if d.rule in hard_rules:
+-            messages.append(f"{d.location}: {d.rule}: {d.detail}")
+-        elif d.rule == _S.RULE_IPD_DEP_UNRESOLVED:
+-            # OQ-01: `unresolved` blocks ONLY when the staged plan is advancing to a blocking phase.
+-            st = statuses.get(str(Path(d.location).resolve()))
+-            if st in _ADVANCING_STATUSES:
++        staged_locations = {str(Path(ps).resolve()) for ps in overlay_states}
++
++        def _on_staged_file(location: str) -> bool:
++            try:
++                return str(Path(location).resolve()) in staged_locations
++            except OSError:
++                return location in staged_locations
++
++        hard_rules = {
++            _S.RULE_IPD_DEP_MALFORMED,
++            _S.RULE_IPD_DEP_DANGLING,
++            _S.RULE_IPD_DEP_AMBIGUOUS,
++            _S.RULE_IPD_DEP_CYCLE,
++        }
++        for d in drift:
++            # Commit-scoping: never block on a finding located in a file this commit did not touch.
++            if not _on_staged_file(d.location):
++                continue
++            if d.rule in hard_rules:
+                 messages.append(f"{d.location}: {d.rule}: {d.detail}")
+-        # MISSING is intentionally NOT hard-refused by the hook (it is cutover-gated policy enforced
+-        # by `aw check`/lint; a missing statement is not a hand-edited-invalid-statement bypass).
++            elif d.rule == _S.RULE_IPD_DEP_UNRESOLVED:
++                # OQ-01: `unresolved` blocks ONLY when the staged plan is advancing to a blocking phase.
++                st = statuses.get(str(Path(d.location).resolve()))
++                if st in _ADVANCING_STATUSES:
++                    messages.append(f"{d.location}: {d.rule}: {d.detail}")
++            # MISSING is intentionally NOT hard-refused by the hook (it is cutover-gated policy enforced
++            # by `aw check`/lint; a missing statement is not a hand-edited-invalid-statement bypass).
+     if messages:
+         return 1, messages
+     return 0, []
 diff --git a/agent_workflows/install_wizard.py b/agent_workflows/install_wizard.py
 index 248703373..270a517ec 100644
 --- a/agent_workflows/install_wizard.py
@@ -27688,6 +28437,779 @@ index 000000000..10b8f3ad2
 +    assert closed_item.status == "done"
 +    assert closed_item.gate_kind is None
 +    assert closed_item.gate_ref is None
+diff --git a/tests/test_cutover_log_check_engine_and_dep_hook.py b/tests/test_cutover_log_check_engine_and_dep_hook.py
+new file mode 100644
+index 000000000..5b88d801b
+--- /dev/null
++++ b/tests/test_cutover_log_check_engine_and_dep_hook.py
+@@ -0,0 +1,767 @@
++"""Core behavioral tests for post-cutover check_engine log readers and dep-gate hook (639g02).
++
++Covers backlog items:
++- ``0wilvu``: ``check_collisions`` and ``check_name_identity`` reading log-backed id/set and
++  YAML-mirror ids without creating untracked ``.aw/state/index.db``.
++- ``ay07de``: ``_plan_date_compact``, ``carrier_severity_for_plan``, ``evaluate_durable_carrier``,
++  ``_is_grandfathered_plan``, and ``check_ipd_lint_reach`` resolving log-format plan dates.
++- ``1fmcdk``: ``_evaluate_ipd_dependencies_impl`` consulting ``state_map`` when ``plans`` is
++  supplied (including ``ipd_lint.lint_file`` and companion-repo sibling dependencies).
++- ``197ak8``: ``hooks/ipd_dependency_statement_gate.py`` failing closed with a deduplicated
++  ``check.ipd-dependency-malformed`` refusal on corrupt staged IPD/meta logs while allowing
++  valid staged IPDs and unrelated non-IPD staged files.
++"""
++
++from __future__ import annotations
++
++import json
++import shutil
++import subprocess
++from pathlib import Path
++from typing import Any, Dict, Optional
++
++import pytest
++
++from agent_workflows import (
++    artifact_meta as meta,
++    check_engine,
++    ipd_lint,
++    ipd_schema,
++)
++from agent_workflows.hooks import ipd_dependency_statement_gate as dep_gate
++
++pytestmark = pytest.mark.core
++
++
++def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
++    proc = subprocess.run(
++        ["git", *args],
++        cwd=str(repo),
++        capture_output=True,
++        text=True,
++        encoding="utf-8",
++        errors="replace",
++        check=False,
++    )
++    assert proc.returncode == 0, f"git {' '.join(args)} failed: {proc.stderr}"
++    return proc
++
++
++def _init_repo(
++    tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
++    *,
++    name: str = "repo",
++    git: bool = True,
++    schema: Optional[int] = 2,
++    extra_config: Optional[Dict[str, Any]] = None,
++) -> Path:
++    monkeypatch.setenv("AW_HOME", str(tmp_path / "aw_home"))
++    repo = tmp_path / name
++    for sub in (
++        "meta",
++        "plans/pending",
++        "plans/executed",
++        "specs/draft",
++        "specs/approved",
++        "backlog/open",
++        "research",
++        "reviews",
++    ):
++        (repo / ".aw" / "records" / sub).mkdir(parents=True, exist_ok=True)
++    if schema is not None or extra_config:
++        cfg_dir = repo / ".aw" / "config"
++        cfg_dir.mkdir(parents=True, exist_ok=True)
++        cfg: Dict[str, Any] = {}
++        if schema is not None:
++            cfg["metadata_schema"] = schema
++        if extra_config:
++            cfg.update(extra_config)
++        (cfg_dir / "project.json").write_text(
++            json.dumps(cfg, indent=2) + "\n", encoding="utf-8"
++        )
++    if git:
++        _git(repo, "init", "-b", "main", "-q")
++        _git(repo, "config", "user.name", "Test User")
++        _git(repo, "config", "user.email", "test@example.com")
++        _git(repo, "config", "commit.gpgsign", "false")
++        (repo / ".gitignore").write_text(
++            ".aw/state/\n.aw/worktrees/\n.aw/runs/\n", encoding="utf-8"
++        )
++        (repo / "README.md").write_text("fixture\n", encoding="utf-8")
++        _git(repo, "add", "-A")
++        _git(repo, "commit", "-q", "-m", "init")
++    return repo
++
++
++def _minimal_plan_body(
++    title: str = "Sample Plan",
++    *,
++    extra_sections: str = "",
++) -> str:
++    return (
++        f"# IPD: {title}\n\n"
++        "## Goal\n\n"
++        "Deliver the sample change cleanly.\n\n"
++        "## Detailed Implementation Checklist (TODO)\n\n"
++        "- [ ] E-01 Perform sample change.\n"
++        "  - Depends on: none\n"
++        "  - Expected outcome: sample change complete.\n"
++        "  - Execution state: pending\n\n"
++        "## Validation and cross-check (verify before reporting done)\n\n"
++        "- [ ] V-01 validates E-01\n"
++        "  - Required evidence: paste sample check output.\n"
++        "  - Observed evidence:\n"
++        "  - Result: pending\n"
++        f"{extra_sections}"
++    )
++
++
++def _create_log_plan(
++    repo: Path,
++    *,
++    id6: str,
++    rel_dest: str,
++    status: str = "draft",
++    set_val: str = "demo",
++    order: int = 1,
++    item_dependencies: Optional[str] = "none",
++    body: Optional[str] = None,
++    created_at: Optional[str] = None,
++    extra_fields: Optional[Dict[str, Any]] = None,
++    ctx: Optional[Any] = None,
++) -> Path:
++    use_ctx = ctx or meta.legacy_context(repo)
++    fields: Dict[str, Any] = {
++        "title": f"Plan {id6}",
++        "plan_role": "child",
++        "status": status,
++        "set": set_val,
++        "order": order,
++        "scope_paths": ["x.py"],
++        "priority": "medium",
++        "work_kind": "bug",
++    }
++    if item_dependencies is not None:
++        fields["item_dependencies"] = item_dependencies
++    if extra_fields:
++        fields.update(extra_fields)
++    meta.create(
++        id6,
++        "ipd",
++        fields,
++        body if body is not None else _minimal_plan_body(f"Plan {id6}"),
++        destination=rel_dest,
++        project_context=use_ctx,
++    )
++    records_root = Path(use_ctx.logical_roots["records"])
++    if created_at is not None:
++        log_path = records_root / "meta" / f"{id6}.jsonl"
++        lines = [ln for ln in log_path.read_text(encoding="utf-8").splitlines(keepends=True) if ln.strip()]
++        rewritten = []
++        for ln in lines:
++            ev = meta.decode_line(ln)
++            ev["at"] = created_at
++            rewritten.append(meta.encode_event(ev))
++        log_path.write_text("".join(rewritten), encoding="utf-8")
++        index_db = Path(use_ctx.logical_roots["state"]) / "index.db"
++        if index_db.exists():
++            index_db.unlink()
++    return records_root / rel_dest
++
++
++# --------------------------------------------------------------------------------------
++# 1. Backlog 0wilvu: check_collisions and check_name_identity on log-format records
++# --------------------------------------------------------------------------------------
++
++
++def test_check_collisions_detects_duplicate_yaml_mirror_id_and_log_setid_conflict(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    repo = _init_repo(tmp_path, monkeypatch, git=False)
++    ctx = meta.legacy_context(repo)
++
++    # First file owns meta/dup111.jsonl; second file carries a duplicate YAML-mirror `id: dup111`
++    # with no second log path entry in meta/dup111.jsonl.
++    _create_log_plan(
++        repo,
++        id6="dup111",
++        rel_dest="plans/pending/20261127-demo-01-dup111-first.ipd.md",
++        status="approved",
++        set_val="demo (Alpha)",
++        order=1,
++        ctx=ctx,
++    )
++    second_spec = (
++        repo / ".aw" / "records" / "specs" / "draft" / "20261127-demo-01-dup111-second.spec.md"
++    )
++    second_spec.write_text(
++        meta.render_in_file_mirror("dup111", "spec", "draft") + "# Spec: Duplicate\n",
++        encoding="utf-8",
++    )
++
++    # Two log-format plans sharing setid `topic` with conflicting descriptives in meta logs only.
++    _create_log_plan(
++        repo,
++        id6="set111",
++        rel_dest="plans/pending/20261127-topic-01-set111-a.ipd.md",
++        status="approved",
++        set_val="topic (First Name)",
++        order=1,
++        ctx=ctx,
++    )
++    _create_log_plan(
++        repo,
++        id6="set222",
++        rel_dest="plans/pending/20261127-topic-02-set222-b.ipd.md",
++        status="approved",
++        set_val="topic (Second Name)",
++        order=2,
++        ctx=ctx,
++    )
++
++    # Legacy non-log multi-key YAML research record must remain unflagged for YAML `id:`.
++    legacy_research = (
++        repo / ".aw" / "records" / "research" / "20260801-1200-01-legacy-note.research.md"
++    )
++    legacy_research.write_text(
++        "---\nid: dup111\ntitle: Legacy YAML Research\ndate: 2026-08-01\n---\n\nBody.\n",
++        encoding="utf-8",
++    )
++
++    # Remove .aw/state so we prove check_collisions creates no untracked index.db.
++    state_dir = repo / ".aw" / "state"
++    if state_dir.exists():
++        shutil.rmtree(state_dir)
++
++    drift = check_engine.check_collisions(repo)
++    assert not (state_dir / "index.db").exists()
++
++    id_collisions = [d for d in drift if d.rule == "check.id6-collision"]
++    assert len(id_collisions) == 1, drift
++    assert "dup111" in id_collisions[0].detail
++    assert "20261127-demo-01-dup111-second.spec.md" in id_collisions[0].location
++
++    set_collisions = [d for d in drift if d.rule == "check.setid-collision"]
++    assert len(set_collisions) == 1, drift
++    assert "topic" in set_collisions[0].detail
++    assert "First Name" in set_collisions[0].detail
++    assert "Second Name" in set_collisions[0].detail
++
++
++def test_check_name_identity_detects_log_setid_drift_without_body_quote_false_positives(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    repo = _init_repo(tmp_path, monkeypatch, git=False)
++    ctx = meta.legacy_context(repo)
++
++    # Filename carries `demo`, while meta/<id6>.jsonl declares `set: topic (Topic Desc)`.
++    drifted = _create_log_plan(
++        repo,
++        id6="drf111",
++        rel_dest="plans/pending/20261127-demo-01-drf111-drifted.ipd.md",
++        status="approved",
++        set_val="topic (Topic Desc)",
++        order=1,
++        ctx=ctx,
++    )
++
++    # Clean log-format plan whose filename matches `set: clean` but whose body quotes `- Set: bogus`.
++    _create_log_plan(
++        repo,
++        id6="cln222",
++        rel_dest="plans/pending/20261127-clean-01-cln222-quoted.ipd.md",
++        status="approved",
++        set_val="clean (Clean Desc)",
++        order=1,
++        body=_minimal_plan_body("Quoted Example")
++        + "\nExample line in body:\n- Set: bogus\n- Id: zzz999\n",
++        ctx=ctx,
++    )
++
++    state_dir = repo / ".aw" / "state"
++    if state_dir.exists():
++        shutil.rmtree(state_dir)
++
++    drift = check_engine.check_name_identity(repo)
++    assert not (state_dir / "index.db").exists()
++
++    assert [d.rule for d in drift] == ["check.identity-absent-from-name"]
++    assert Path(drift[0].location).resolve() == drifted.resolve()
++    assert "[drift]" in drift[0].detail
++    assert "Set: topic" in drift[0].detail
++
++
++# --------------------------------------------------------------------------------------
++# 2. Backlog ay07de: log-format plan date resolution across check_engine readers
++# --------------------------------------------------------------------------------------
++
++
++def test_plan_date_helpers_carrier_severity_grandfather_and_ipd_lint_reach_on_log_plans(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    repo = _init_repo(
++        tmp_path,
++        monkeypatch,
++        git=False,
++        extra_config={"cutovers": {"carrier_obligations": "2026-09-19"}},
++    )
++    ctx = meta.legacy_context(repo)
++
++    # Post-cutover log-format plan with an uncarried obligation (no `- Date:` bullet in markdown).
++    uncarried_body = _minimal_plan_body(
++        "Uncarried Log Plan",
++        extra_sections="\n## Deferred / out of scope (with reason)\n\n- Follow-up item with no carrier.\n",
++    )
++    post_plan = _create_log_plan(
++        repo,
++        id6="car111",
++        rel_dest="plans/pending/20261127-demo-01-car111-uncarried.ipd.md",
++        status="approved",
++        set_val="demo",
++        order=1,
++        body=uncarried_body,
++        created_at="2026-11-27T12:00:00Z",
++        ctx=ctx,
++    )
++    post_text = post_plan.read_text(encoding="utf-8")
++    post_state = meta.read("car111", project_context=ctx)
++
++    # Single-arg text-only call stays None (does not mask filename-vs-body date mismatch checks),
++    # while state/path-aware call resolves compact YYYYMMDD from the log state.
++    assert check_engine._plan_date_compact(post_text) is None
++    assert (
++        check_engine._plan_date_compact(post_text, state=post_state, path=post_plan)
++        == "20261127"
++    )
++    assert (
++        check_engine.carrier_severity_for_plan(
++            post_text, repo_root=repo, plan_path=post_plan
++        )
++        == "error"
++    )
++    assert (
++        check_engine._is_grandfathered_plan(
++            post_text, "2026-09-19", state=post_state, path=post_plan
++        )
++        is False
++    )
++
++    carrier_drift = check_engine.evaluate_durable_carrier(
++        repo, plan_path=post_plan, plan_text=post_text
++    )
++    assert len(carrier_drift) == 1
++    assert carrier_drift[0].rule == "check.ipd-uncarried-obligation"
++    assert carrier_drift[0].severity == "error"
++
++    # Pre-cutover log-format plan stays grandfathered (`info` severity and `_is_grandfathered_plan=True`).
++    pre_plan = _create_log_plan(
++        repo,
++        id6="pre111",
++        rel_dest="plans/pending/20260801-demo-02-pre111-legacy.ipd.md",
++        status="approved",
++        set_val="demo",
++        order=2,
++        body=uncarried_body,
++        created_at="2026-08-01T12:00:00Z",
++        ctx=ctx,
++    )
++    pre_text = pre_plan.read_text(encoding="utf-8")
++    pre_state = meta.read("pre111", project_context=ctx)
++    assert (
++        check_engine.carrier_severity_for_plan(
++            pre_text, repo_root=repo, plan_path=pre_plan
++        )
++        == "info"
++    )
++    assert (
++        check_engine._is_grandfathered_plan(
++            pre_text, "2026-09-19", state=pre_state, path=pre_plan
++        )
++        is True
++    )
++
++    # Terminal-directory log-format plans for check_ipd_lint_reach IPD-M105 parity:
++    # (1) post-cutover offender (`to-review` sitting in `executed/`) -> MUST report IPD-M105;
++    # (2) pre-cutover terminal plan -> suppressed by M105 cutover;
++    # (3) post-cutover matching `executed` plan -> clean.
++    offender = _create_log_plan(
++        repo,
++        id6="trm111",
++        rel_dest="plans/executed/20261127-demo-03-trm111-bad-terminal.ipd.md",
++        status="to-review",
++        set_val="demo",
++        order=3,
++        created_at="2026-11-27T12:00:00Z",
++        ctx=ctx,
++    )
++    pre_term = _create_log_plan(
++        repo,
++        id6="trm222",
++        rel_dest="plans/executed/20260701-demo-04-trm222-old-terminal.ipd.md",
++        status="to-review",
++        set_val="demo",
++        order=4,
++        created_at="2026-07-01T12:00:00Z",
++        ctx=ctx,
++    )
++    clean_term = _create_log_plan(
++        repo,
++        id6="trm333",
++        rel_dest="plans/executed/20261127-demo-05-trm333-good-terminal.ipd.md",
++        status="executed",
++        set_val="demo",
++        order=5,
++        created_at="2026-11-27T12:00:00Z",
++        ctx=ctx,
++    )
++
++    state_dir = repo / ".aw" / "state"
++    if state_dir.exists():
++        shutil.rmtree(state_dir)
++
++    reach_drift = check_engine.check_ipd_lint_reach(repo)
++    assert not (state_dir / "index.db").exists()
++
++    terminal_findings = [
++        d for d in reach_drift if "plans/executed/" in d.location.replace("\\", "/")
++    ]
++    assert len(terminal_findings) == 1, terminal_findings
++    assert terminal_findings[0].rule == "check.ipd-lint-diagnostic"
++    assert "IPD-M105" in terminal_findings[0].detail
++    assert Path(terminal_findings[0].location).resolve() == offender.resolve()
++
++    # Cross-surface agreement with ipd_lint.lint_file on the three terminal files.
++    lint_error_paths = {
++        p.resolve()
++        for p in (offender, pre_term, clean_term)
++        if ipd_lint.lint_file(p).disposition == "error"
++    }
++    assert lint_error_paths == {offender.resolve()}
++
++
++# --------------------------------------------------------------------------------------
++# 3. Backlog 1fmcdk: evaluate_ipd_dependencies with plans=[(path, text)] & ipd_lint
++# --------------------------------------------------------------------------------------
++
++
++def test_ipd_lint_and_evaluate_ipd_dependencies_read_log_deps_when_plans_passed(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    repo = _init_repo(
++        tmp_path,
++        monkeypatch,
++        git=False,
++        extra_config={"cutovers": {"dependency_schema": "2026-08-25"}},
++    )
++    ctx = meta.legacy_context(repo)
++
++    # Sibling plan that exists so a valid dependency resolves cleanly.
++    _create_log_plan(
++        repo,
++        id6="sib111",
++        rel_dest="plans/pending/20261127-demo-01-sib111-sibling.ipd.md",
++        status="approved",
++        set_val="demo",
++        order=1,
++        item_dependencies="none",
++        ctx=ctx,
++    )
++    valid_plan = _create_log_plan(
++        repo,
++        id6="val222",
++        rel_dest="plans/pending/20261127-demo-02-val222-valid-dep.ipd.md",
++        status="to-review",
++        set_val="demo",
++        order=2,
++        item_dependencies="executed:sib111",
++        ctx=ctx,
++    )
++    dangling_plan = _create_log_plan(
++        repo,
++        id6="dng333",
++        rel_dest="plans/pending/20261127-demo-03-dng333-dangling-dep.ipd.md",
++        status="to-review",
++        set_val="demo",
++        order=3,
++        item_dependencies="executed:zzzzzz",
++        ctx=ctx,
++    )
++    # Self-edge in JSONL log: valid syntax at replay, malformed self-dependency in check_engine.
++    self_edge_plan = _create_log_plan(
++        repo,
++        id6="slf444",
++        rel_dest="plans/pending/20261127-demo-04-slf444-self-dep.ipd.md",
++        status="to-review",
++        set_val="demo",
++        order=4,
++        item_dependencies="executed:slf444",
++        ctx=ctx,
++    )
++    # Post-cutover log-format plan with NO item_dependencies (must NOT be silently grandfathered).
++    missing_dep_plan = _create_log_plan(
++        repo,
++        id6="mis555",
++        rel_dest="plans/pending/20261127-demo-05-mis555-missing-dep.ipd.md",
++        status="to-review",
++        set_val="demo",
++        order=5,
++        item_dependencies=None,
++        ctx=ctx,
++    )
++
++    # 1. ipd_lint.lint_file at a dependency-blocking checkpoint passes plans=[(path, text)].
++    valid_res = ipd_lint.lint_file(valid_plan, checkpoint="review-finalize")
++    assert all(
++        d.code != ipd_schema.RULE_IPD_DEP_DANGLING for d in valid_res.diagnostics
++    ), valid_res.diagnostics
++
++    dangling_res = ipd_lint.lint_file(dangling_plan, checkpoint="review-finalize")
++    assert any(
++        d.code == ipd_schema.RULE_IPD_DEP_DANGLING for d in dangling_res.diagnostics
++    ), dangling_res.diagnostics
++
++    # 2. Direct evaluate_ipd_dependencies(..., plans=[(path, text)]) reports both dangling and
++    #    malformed findings from JSONL logs as well as inline legacy text overrides and missing deps.
++    direct_dangling = check_engine.evaluate_ipd_dependencies(
++        repo,
++        phase="pre-execution",
++        plans=[(dangling_plan, dangling_plan.read_text(encoding="utf-8"))],
++    )
++    assert [d.rule for d in direct_dangling] == [ipd_schema.RULE_IPD_DEP_DANGLING]
++    assert "zzzzzz" in direct_dangling[0].detail
++
++    direct_self_malformed = check_engine.evaluate_ipd_dependencies(
++        repo,
++        phase="pre-execution",
++        plans=[(self_edge_plan, self_edge_plan.read_text(encoding="utf-8"))],
++    )
++    malformed_hits = [
++        d for d in direct_self_malformed if d.rule == ipd_schema.RULE_IPD_DEP_MALFORMED
++    ]
++    assert len(malformed_hits) == 1, direct_self_malformed
++    assert "slf444" in malformed_hits[0].detail
++
++    inline_malformed_text = (
++        "# IPD: Inline Malformed\n\n"
++        "- Date: 2026-11-27\n"
++        "- Status: to-review\n"
++        "- Set: demo\n"
++        "- Order: 6\n"
++        "- Id: inl666\n"
++        "- Item-Dependencies: not-a-valid-edge\n"
++    )
++    direct_inline_malformed = check_engine.evaluate_ipd_dependencies(
++        repo,
++        phase="pre-execution",
++        plans=[(valid_plan, inline_malformed_text)],
++    )
++    assert [d.rule for d in direct_inline_malformed] == [
++        ipd_schema.RULE_IPD_DEP_MALFORMED
++    ]
++
++    direct_missing = check_engine.evaluate_ipd_dependencies(
++        repo,
++        phase="pre-execution",
++        plans=[(missing_dep_plan, missing_dep_plan.read_text(encoding="utf-8"))],
++    )
++    assert [d.rule for d in direct_missing] == [ipd_schema.RULE_IPD_DEP_MISSING]
++
++
++def test_ipd_lint_resolves_companion_repo_log_sibling_dependency(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    monkeypatch.setenv("AW_HOME", str(tmp_path / "aw_home"))
++    target = tmp_path / "target_repo"
++    companion = tmp_path / "target_repo.aw"
++    (target / ".aw" / "config").mkdir(parents=True, exist_ok=True)
++    for sub in ("meta", "plans/pending", "reviews"):
++        (companion / "records" / sub).mkdir(parents=True, exist_ok=True)
++    (target / ".aw" / "config" / "project.json").write_text(
++        json.dumps(
++            {
++                "delivery_mode": "clean-delta",
++                "records_backend": "companion",
++                "metadata_schema": 2,
++            },
++            indent=2,
++        )
++        + "\n",
++        encoding="utf-8",
++    )
++    from agent_workflows import project_context
++
++    ctx = project_context.resolve_project_context(target_repo=str(target))
++    _create_log_plan(
++        target,
++        id6="cmp111",
++        rel_dest="plans/pending/20261127-probe-01-cmp111-first.ipd.md",
++        status="to-review",
++        set_val="probe",
++        order=1,
++        item_dependencies="none",
++        ctx=ctx,
++    )
++    plan2 = _create_log_plan(
++        target,
++        id6="cmp222",
++        rel_dest="plans/pending/20261127-probe-02-cmp222-second.ipd.md",
++        status="to-review",
++        set_val="probe",
++        order=2,
++        item_dependencies="executed:cmp111",
++        ctx=ctx,
++    )
++    res_ok = ipd_lint.lint_file(plan2, checkpoint="pre-execution")
++    assert all(
++        d.code != ipd_schema.RULE_IPD_DEP_DANGLING for d in res_ok.diagnostics
++    ), res_ok.diagnostics
++
++    meta.append(
++        "cmp222",
++        [{"op": "set", "fields": {"item_dependencies": "executed:zzzzzz"}}],
++        project_context=ctx,
++    )
++    res_bad = ipd_lint.lint_file(plan2, checkpoint="pre-execution")
++    assert any(
++        d.code == ipd_schema.RULE_IPD_DEP_DANGLING for d in res_bad.diagnostics
++    ), res_bad.diagnostics
++
++
++# --------------------------------------------------------------------------------------
++# 4. Backlog 197ak8: ipd_dependency_statement_gate fail-closed on corrupt staged logs
++# --------------------------------------------------------------------------------------
++
++
++def _write_corrupt_ipd_log(repo: Path, id6: str, rel_md: str, dep_value: str) -> tuple[Path, Path]:
++    md_path = repo / ".aw" / "records" / rel_md
++    md_path.parent.mkdir(parents=True, exist_ok=True)
++    md_path.write_text(
++        meta.render_in_file_mirror(id6, "ipd", "draft") + _minimal_plan_body(f"Corrupt {id6}"),
++        encoding="utf-8",
++    )
++    log_path = repo / ".aw" / "records" / "meta" / f"{id6}.jsonl"
++    log_path.parent.mkdir(parents=True, exist_ok=True)
++    ev = {
++        "v": 1,
++        "seq": 1,
++        "append": 1,
++        "at": "2026-11-27T12:00:00Z",
++        "actor": {"tool": "aw test"},
++        "op": "create",
++        "path": rel_md,
++        "fields": {
++            "id": id6,
++            "type": "ipd",
++            "plan_role": "child",
++            "status": "draft",
++            "set": "demo",
++            "order": 1,
++            "item_dependencies": dep_value,
++        },
++    }
++    log_path.write_text(meta.encode_event(ev), encoding="utf-8")
++    return md_path, log_path
++
++
++def test_dep_gate_refuses_corrupt_staged_meta_log_deduplicated_and_allows_valid_commits(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    repo = _init_repo(tmp_path, monkeypatch, git=True)
++    ctx = meta.legacy_context(repo)
++
++    # Case 1: Staging BOTH .ipd.md and corrupt meta/<id6>.jsonl (duplicate edge) produces exit 1
++    # with ONE deduplicated check.ipd-dependency-malformed message.
++    rel_md = "plans/pending/20261127-demo-01-cor111-corrupt.ipd.md"
++    md_path, log_path = _write_corrupt_ipd_log(
++        repo, "cor111", rel_md, "executed:cor111, executed:cor111"
++    )
++    _git(
++        repo,
++        "add",
++        "--",
++        str(md_path.relative_to(repo)),
++        str(log_path.relative_to(repo)),
++    )
++    rc_both, msgs_both = dep_gate.check(repo)
++    assert rc_both == 1
++    assert len(msgs_both) == 1, msgs_both
++    assert ipd_schema.RULE_IPD_DEP_MALFORMED in msgs_both[0]
++    assert "cor111" in msgs_both[0]
++
++    # Case 2: Staging ONLY corrupt meta/<id6>.jsonl (meta-log-only) also refuses with exit 1
++    # and ONE check.ipd-dependency-malformed message.
++    _git(repo, "reset", "-q", "HEAD", "--", str(md_path.relative_to(repo)))
++    rc_log_only, msgs_log_only = dep_gate.check(repo)
++    assert rc_log_only == 1
++    assert len(msgs_log_only) == 1, msgs_log_only
++    assert ipd_schema.RULE_IPD_DEP_MALFORMED in msgs_log_only[0]
++    assert "cor111" in msgs_log_only[0]
++
++    # Case 3: Staging completely unparseable JSON in meta/<id6>.jsonl cannot rule out an IPD
++    # and fails closed with exit 1 + check.ipd-dependency-malformed.
++    _git(repo, "reset", "-q")
++    unparseable_log = repo / ".aw" / "records" / "meta" / "bad222.jsonl"
++    unparseable_log.write_text("{not valid json\n", encoding="utf-8")
++    _git(repo, "add", "--", str(unparseable_log.relative_to(repo)))
++    rc_unp, msgs_unp = dep_gate.check(repo)
++    assert rc_unp == 1
++    assert len(msgs_unp) == 1, msgs_unp
++    assert ipd_schema.RULE_IPD_DEP_MALFORMED in msgs_unp[0]
++    assert "bad222.jsonl" in msgs_unp[0]
++
++    # Case 4: Staging a corrupt non-IPD spec meta log or an unrelated file does not trigger IPD gate.
++    _git(repo, "reset", "-q")
++    spec_log = repo / ".aw" / "records" / "meta" / "spc333.jsonl"
++    spec_log.write_text(
++        meta.encode_event(
++            {
++                "v": 1,
++                "seq": 1,
++                "append": 1,
++                "at": "2026-11-27T12:00:00Z",
++                "actor": {"tool": "aw test"},
++                "op": "create",
++                "path": "specs/draft/20261127-demo-01-spc333-spec.spec.md",
++                "fields": {"id": "spc333", "type": "spec", "status": "draft"},
++            }
++        )
++        + "{broken second line\n",
++        encoding="utf-8",
++    )
++    unrelated = repo / "notes.txt"
++    unrelated.write_text("hello\n", encoding="utf-8")
++    _git(
++        repo,
++        "add",
++        "--",
++        str(spec_log.relative_to(repo)),
++        str(unrelated.relative_to(repo)),
++    )
++    rc_non_ipd, msgs_non_ipd = dep_gate.check(repo)
++    assert rc_non_ipd == 0
++    assert msgs_non_ipd == []
++
++    # Case 5: Staging a valid log-format IPD with valid item_dependencies passes with exit 0, [].
++    _git(repo, "reset", "-q")
++    valid_md = _create_log_plan(
++        repo,
++        id6="ok0111",
++        rel_dest="plans/pending/20261127-demo-02-ok0111-valid.ipd.md",
++        status="draft",
++        set_val="demo",
++        order=2,
++        item_dependencies="none",
++        ctx=ctx,
++    )
++    valid_log = repo / ".aw" / "records" / "meta" / "ok0111.jsonl"
++    _git(
++        repo,
++        "add",
++        "--",
++        str(valid_md.relative_to(repo)),
++        str(valid_log.relative_to(repo)),
++    )
++    rc_ok, msgs_ok = dep_gate.check(repo)
++    assert rc_ok == 0
++    assert msgs_ok == []
 diff --git a/tests/test_cutover_log_checkers.py b/tests/test_cutover_log_checkers.py
 new file mode 100644
 index 000000000..0df1c5f0c
