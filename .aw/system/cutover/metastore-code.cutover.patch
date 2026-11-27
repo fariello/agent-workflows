@@ -6082,10 +6082,206 @@ index 038a893c1..b19962684 100644
                      hits += 1
                      file_matches.append((0, p.name))
 diff --git a/agent_workflows/coverage_record.py b/agent_workflows/coverage_record.py
-index 9f69cef67..deaa68e3c 100644
+index 9f69cef67..3083d774f 100644
 --- a/agent_workflows/coverage_record.py
 +++ b/agent_workflows/coverage_record.py
-@@ -207,7 +207,6 @@ def write(
+@@ -20,7 +20,7 @@ import os
+ import re
+ import subprocess
+ import tempfile
+-from typing import NamedTuple, Sequence
++from typing import Any, Mapping, NamedTuple, Sequence
+ 
+ COVERAGE_PASS = "pass"
+ COVERAGE_FAIL = "fail"
+@@ -48,37 +48,139 @@ class CoverageWriteResult(NamedTuple):
+     detail: str = ""
+ 
+ 
+-def read(plan_text: str) -> CoverageRecord:
+-    """Read the coverage record from `plan_text`.
++def _resolve_log_state_and_history(
++    plan_text: str,
++    *,
++    state: Any = None,
++    history: Sequence[Mapping[str, Any]] | None = None,
++    plan_path: Path | str | None = None,
++    repo: Path | str | None = None,
++) -> tuple[Any, Sequence[Mapping[str, Any]]]:
++    """Resolve log-backed `artifact_meta.State` and event history, falling back to `read_text`."""
++    from agent_workflows import artifact_core as _core
++    from agent_workflows import artifact_meta as _meta
++    from agent_workflows import artifact_naming as _naming
++    from agent_workflows import project_context as _proj_ctx
++
++    resolved_state = state
++    resolved_history: Sequence[Mapping[str, Any]] | None = history
++
++    path: Path | None = Path(plan_path) if plan_path is not None else None
++    resolved_repo: Path | None = Path(repo) if repo is not None else None
++    if resolved_repo is None and path is not None:
++        owner = _proj_ctx.record_owner_root(path)
++        if owner is not None:
++            resolved_repo = owner
++        else:
++            cand = _core.repo_root_of(path)
++            resolved_repo = path.parent if cand == path.resolve() else cand
++
++    cand_id6: str | None = None
++    if (
++        resolved_state is not None
++        and getattr(resolved_state, "id6", None)
++        and not getattr(resolved_state, "id_derived", False)
++    ):
++        cand_id6 = str(resolved_state.id6).strip() or None
++    if not cand_id6:
++        cand_id6 = _meta.read_mirror_id6(plan_text) or _meta.read_loose_id(plan_text)
++    if not cand_id6 and path is not None:
++        parts = _naming.identity_parts(path.name)
++        if parts and parts[3]:
++            cand_id6 = parts[3]
++
++    if resolved_repo is not None and cand_id6:
++        ctx = _meta.legacy_context(resolved_repo)
++        log_path = Path(ctx.logical_roots["records"]) / "meta" / f"{cand_id6}.jsonl"
++        if log_path.is_file():
++            with _meta.ephemeral_if_uninitialized():
++                if resolved_state is None:
++                    try:
++                        resolved_state = _meta.read(cand_id6, project_context=ctx)
++                    except Exception:
++                        resolved_state = None
++                if resolved_history is None:
++                    try:
++                        resolved_history = _meta.history(cand_id6, project_context=ctx)
++                    except Exception:
++                        resolved_history = ()
++
++    if resolved_state is None:
++        resolved_state = _meta.read_text(
++            _meta.metadata_region(plan_text), record_type="ipd"
++        )
++
++    return resolved_state, (resolved_history if resolved_history is not None else ())
++
++
++def _date_and_model_from_history(
++    history: Sequence[Mapping[str, Any]],
++) -> tuple[str, str]:
++    """Derive coverage `(date, model)` from the newest `op == 'coverage'` log event."""
++    for ev in reversed(list(history)):
++        if ev.get("op") != "coverage":
++            continue
++        obs = str(ev.get("observed_day") or "").strip()
++        at_val = str(ev.get("at") or "").strip()
++        date = obs if obs else (at_val[:10] if len(at_val) >= 10 else at_val)
++        actor = ev.get("actor")
++        raw_model = (
++            str(actor.get("model") or "").strip() if isinstance(actor, Mapping) else ""
++        )
++        if not raw_model or raw_model in ("host-default", "by host-default"):
++            model = "by host-default"
++        else:
++            model = raw_model
++        return date, model
++    return "", "by host-default"
++
++
++def read(
++    plan_text: str,
++    *,
++    state: Any = None,
++    history: Sequence[Mapping[str, Any]] | None = None,
++    plan_path: Path | str | None = None,
++    repo: Path | str | None = None,
++) -> CoverageRecord:
++    """Read the coverage record from log state/history or `plan_text`.
+ 
+     Returns a :class:`CoverageRecord` with verdict `pass`, `fail`, or `absent`.
+     On `fail`, parses quotes from the `## Coverage findings` section if present.
+     """
+-    from agent_workflows import artifact_meta as _meta
+-
+-    state = _meta.read_text(_meta.metadata_region(plan_text), record_type="ipd")
+-    verdict = str(state.fields.get("coverage") or "").strip()
++    resolved_state, resolved_history = _resolve_log_state_and_history(
++        plan_text,
++        state=state,
++        history=history,
++        plan_path=plan_path,
++        repo=repo,
++    )
++    fields = getattr(resolved_state, "fields", None) or {}
++    verdict = str(fields.get("coverage") or "").strip()
+     if verdict not in (COVERAGE_PASS, COVERAGE_FAIL):
+         return CoverageRecord(verdict=COVERAGE_ABSENT)
+ 
+-    raw_fp = str(state.fields.get("coverage_fingerprint") or "").strip()
++    raw_fp = str(fields.get("coverage_fingerprint") or "").strip()
+     fingerprint = raw_fp if (raw_fp and len(raw_fp.split()) == 1) else ""
+ 
+-    raw_checked = str(state.fields.get("coverage_checked") or "").strip()
+-    if " by " in raw_checked:
+-        date_part, model_part = raw_checked.split(" by ", 1)
+-        date = date_part.strip()
+-        raw_model = model_part.strip()
+-    elif raw_checked.endswith(" by"):
+-        date = raw_checked[:-3].strip()
+-        raw_model = ""
+-    else:
+-        date = raw_checked
+-        raw_model = ""
+-    if not raw_model or raw_model == "host-default":
+-        model = "by host-default"
++    raw_checked = str(fields.get("coverage_checked") or "").strip()
++    if raw_checked:
++        if " by " in raw_checked:
++            date_part, model_part = raw_checked.split(" by ", 1)
++            date = date_part.strip()
++            raw_model = model_part.strip()
++        elif raw_checked.endswith(" by"):
++            date = raw_checked[:-3].strip()
++            raw_model = ""
++        else:
++            date = raw_checked
++            raw_model = ""
++        if not raw_model or raw_model == "host-default":
++            model = "by host-default"
++        else:
++            model = raw_model
+     else:
+-        model = raw_model
++        date, model = _date_and_model_from_history(resolved_history)
+ 
+     quotes: list[str] = []
+     if verdict == COVERAGE_FAIL:
+@@ -110,9 +212,22 @@ def read(plan_text: str) -> CoverageRecord:
+     )
+ 
+ 
+-def is_current(plan_text: str) -> bool:
+-    """Return True iff `plan_text` contains a current coverage record matching its fingerprint."""
+-    rec = read(plan_text)
++def is_current(
++    plan_text: str,
++    *,
++    state: Any = None,
++    history: Sequence[Mapping[str, Any]] | None = None,
++    plan_path: Path | str | None = None,
++    repo: Path | str | None = None,
++) -> bool:
++    """Return True iff the plan contains a current coverage record matching its fingerprint."""
++    rec = read(
++        plan_text,
++        state=state,
++        history=history,
++        plan_path=plan_path,
++        repo=repo,
++    )
+     if rec.verdict not in (COVERAGE_PASS, COVERAGE_FAIL) or not rec.fingerprint:
+         return False
+     from agent_workflows.runner_shared import probe_cache_digest
+@@ -207,7 +322,6 @@ def write(
      from agent_workflows.runner_shared import probe_cache_digest
  
      fingerprint = probe_cache_digest(plan_text)
@@ -6093,7 +6289,68 @@ index 9f69cef67..deaa68e3c 100644
  
      raw_model = (model or "").strip()
      if not raw_model or raw_model in ("host-default", "by host-default"):
-@@ -266,23 +265,14 @@ def write(
+@@ -231,16 +345,42 @@ def write(
+             resolved_repo = path.parent if cand == path.resolve() else cand
+ 
+     git_repo = _proj_ctx.record_git_root(path) or resolved_repo
++    git_repo_res = Path(git_repo).resolve()
++    path_res = path.resolve()
+     rel_path = (
+-        str(path.relative_to(git_repo)) if path.is_relative_to(git_repo) else str(path)
++        str(path_res.relative_to(git_repo_res))
++        if path_res.is_relative_to(git_repo_res)
++        else str(path)
+     )
+ 
+-    # 1. Dirty-plan check before writing if commit=True
++    try:
++        id6 = _meta.file_id6(
++            path, _meta.read_mirror_id6(plan_text) or _meta.read_loose_id(plan_text)
++        )
++    except Exception as exc:
++        return CoverageWriteResult(
++            written=False,
++            committed=False,
++            detail=str(exc),
++        )
++
++    ctx = _meta.legacy_context(resolved_repo)
++    log_path = (Path(ctx.logical_roots["records"]) / "meta" / f"{id6}.jsonl").resolve()
++    log_in_git = log_path.is_relative_to(git_repo_res)
++    log_rel = (
++        str(log_path.relative_to(git_repo_res)) if log_in_git else str(log_path)
++    )
++
++    dirty_paths = [rel_path]
++    if log_in_git and log_rel != rel_path:
++        dirty_paths.append(log_rel)
++
++    # 1. Dirty-plan and dirty-log check before writing if commit=True
+     dirty = False
+     dirty_reason = ""
+     if commit:
+         st_proc = subprocess.run(
+-            ["git", "--no-optional-locks", "status", "--porcelain", "--", rel_path],
++            ["git", "--no-optional-locks", "status", "--porcelain", "--", *dirty_paths],
+             cwd=str(git_repo),
+             capture_output=True,
+             text=True,
+@@ -249,12 +389,11 @@ def write(
+         if st_proc.returncode == 0 and st_proc.stdout.strip():
+             dirty = True
+             dirty_reason = (
+-                f"plan file {rel_path} already has uncommitted changes; "
+-                "record written without commit"
++                f"plan or companion log ({', '.join(dirty_paths)}) already has "
++                "uncommitted changes; record written without commit"
+             )
+ 
+     # 2. Update/remove ## Coverage findings body section (N3) and append op="coverage".
+-    id6_or_none = _meta.read_loose_id(plan_text)
+     body_text = _update_coverage_findings_section(plan_text, verdict, quotes)
+ 
+     event: dict[str, object] = {
+@@ -266,25 +405,29 @@ def write(
      actor_dict: dict[str, str] = {"tool": tool_str}
      if clean_model:
          actor_dict["model"] = clean_model
@@ -6108,16 +6365,90 @@ index 9f69cef67..deaa68e3c 100644
      try:
          if body_text != plan_text:
              _core.atomic_write(path, body_text)
-         _meta.append(
+-        _meta.append(
 -            _meta.LegacyTarget(path, "plans", id6_or_none),
-+            _meta.file_id6(path, id6_or_none),
++        append_res = _meta.append(
++            id6,
              [event],
              actor=actor_dict,
 -            legacy_render=render,
 -            repo_root=resolved_repo,
-             project_context=_meta.legacy_context(resolved_repo),
+-            project_context=_meta.legacy_context(resolved_repo),
++            project_context=ctx,
          )
++        if not isinstance(append_res, Mapping) or not append_res.get("committed"):
++            err_detail = (
++                str(append_res.get("error") or "artifact_meta.append did not commit")
++                if isinstance(append_res, Mapping)
++                else "artifact_meta.append did not commit"
++            )
++            if path.is_file() and path.read_bytes() != pre_bytes:
++                _restore_file_bytes(path, pre_bytes)
++            return CoverageWriteResult(
++                written=False,
++                committed=False,
++                detail=err_detail,
++            )
      except Exception as exc:
+         if path.is_file() and path.read_bytes() != pre_bytes:
+             _restore_file_bytes(path, pre_bytes)
+@@ -294,17 +437,19 @@ def write(
+             detail=str(exc),
+         )
+ 
+-    final_text = path.read_text(encoding="utf-8")
+-
+     if not commit:
+         return CoverageWriteResult(written=True, committed=False, detail="")
+ 
+     if dirty:
+         return CoverageWriteResult(written=True, committed=False, detail=dirty_reason)
+ 
+-    # 3. Git add and commit
++    # 3. Git add and commit (plan file + companion log)
++    stage_paths = [rel_path]
++    if log_in_git and log_rel != rel_path and log_path.exists():
++        stage_paths.append(log_rel)
++
+     add_proc = subprocess.run(
+-        ["git", "add", "--", rel_path],
++        ["git", "add", "--", *stage_paths],
+         cwd=str(git_repo),
+         capture_output=True,
+         text=True,
+@@ -317,14 +462,6 @@ def write(
+             detail=f"git add failed: {add_proc.stderr.strip()}",
+         )
+ 
+-    # Derive id6 from plan text or filename
+-    declared_id6 = _meta.read_loose_id(final_text)
+-    if declared_id6:
+-        id6 = declared_id6
+-    else:
+-        fname_match = re.search(r"\b([0-9a-z]{6})\b", path.name)
+-        id6 = fname_match.group(1) if fname_match else path.stem
+-
+     from agent_workflows import git_commit_helper as _gch
+ 
+     commit_msg = f"coverage({resolved_host}): record the coverage answer for {id6}"
+@@ -335,7 +472,7 @@ def write(
+         message=commit_msg,
+     )
+     commit_proc = subprocess.run(
+-        ["git", "commit", "-m", ident.message, "--", rel_path],
++        ["git", "commit", "-m", ident.message, "--", *stage_paths],
+         cwd=str(git_repo),
+         env=ident.env,
+         capture_output=True,
+@@ -344,7 +481,7 @@ def write(
+     )
+     if commit_proc.returncode != 0:
+         subprocess.run(
+-            ["git", "restore", "--staged", "--", rel_path],
++            ["git", "restore", "--staged", "--", *stage_paths],
+             cwd=str(git_repo),
+             capture_output=True,
+             text=True,
 diff --git a/agent_workflows/engine.py b/agent_workflows/engine.py
 index 114c25e5c..ffd2e7832 100755
 --- a/agent_workflows/engine.py
@@ -9332,7 +9663,7 @@ index a5d4d3389..b978d1414 100644
          )
          art_type = str(art_row["type"])
 diff --git a/agent_workflows/orchestrator_readiness.py b/agent_workflows/orchestrator_readiness.py
-index b5bf7a6bb..d32f41122 100644
+index b5bf7a6bb..a5082c39d 100644
 --- a/agent_workflows/orchestrator_readiness.py
 +++ b/agent_workflows/orchestrator_readiness.py
 @@ -240,7 +240,7 @@ def resolve_all_set_memberships(repo: Path | str) -> dict[str, Any]:
@@ -9344,6 +9675,26 @@ index b5bf7a6bb..d32f41122 100644
              continue
          resolved_entries.append((path, st))
  
+@@ -359,7 +359,7 @@ def review_readiness(
+             applies=False, ready=True, findings=(), id6=id6, setid=setid
+         )
+ 
+-    doc = _ipd_lint.parse(text)
++    doc = _ipd_lint.parse(text, state=plan_state)
+ 
+     findings: list[Finding] = []
+ 
+@@ -521,8 +521,8 @@ def review_readiness(
+             )
+ 
+     # Condition 4: coverage record
+-    rec = _cr.read(text)
+-    is_curr = _cr.is_current(text)
++    rec = _cr.read(text, state=plan_state, plan_path=path, repo=repo_path)
++    is_curr = _cr.is_current(text, state=plan_state, plan_path=path, repo=repo_path)
+     cached = False
+     calls = 0
+     written = False
 diff --git a/agent_workflows/partition.py b/agent_workflows/partition.py
 index 0ccea5180..c439503a7 100644
 --- a/agent_workflows/partition.py
@@ -9560,10 +9911,150 @@ index 1a49a542a..014ebca73 100644
  
  
 diff --git a/agent_workflows/plan_readiness.py b/agent_workflows/plan_readiness.py
-index 409fc31c0..dad31dbd2 100644
+index 409fc31c0..43aeefab7 100644
 --- a/agent_workflows/plan_readiness.py
 +++ b/agent_workflows/plan_readiness.py
-@@ -1338,25 +1338,25 @@ def recheck_readiness(
+@@ -76,7 +76,7 @@ import dataclasses
+ import re
+ import subprocess
+ from pathlib import Path
+-from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
++from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Sequence, Tuple
+ 
+ from agent_workflows import ipd_schema as _schema
+ 
+@@ -406,6 +406,93 @@ def has_unresolved_blocking_question(text: str) -> bool:
+     return False
+ 
+ 
++def _is_gate_review_log_event(ev: Mapping[str, Any]) -> bool:
++    """Whether a log event from `artifact_meta.history` provides gate review provenance."""
++    op = ev.get("op")
++    if op == "review":
++        if ev.get("source") == "review-file":
++            return False
++        if ev.get("review_kind") != "gate":
++            return False
++        actor = ev.get("actor")
++        tool = (
++            str(actor.get("tool") or "").strip() if isinstance(actor, Mapping) else ""
++        )
++        if tool == "aw ipd recheck-readiness":
++            return False
++        return True
++    if op in ("transition", "status"):
++        to_val = str(ev.get("to") or ev.get("to_status") or "").strip().lower()
++        if to_val != "reviewed":
++            return False
++        msg = str(ev.get("message") or "").strip()
++        if _LEADING_VERDICT_RE.search(msg):
++            return True
++        first_clause = re.split(r"[:;]", msg, maxsplit=1)[0]
++        if _WORKFLOW_NAME_CLAUSE_RE.search(first_clause):
++            return True
++        return False
++    if op == "legacy":
++        line = ev.get("line")
++        return isinstance(line, str) and is_review_history_entry(line)
++    return False
++
++
++def _log_event_verdict_approves(ev: Mapping[str, Any]) -> bool:
++    """Whether a gate-review log event states an approving verdict (fallback path)."""
++    op = ev.get("op")
++    if op == "review":
++        verdict = ev.get("verdict")
++        if isinstance(verdict, str) and verdict.strip():
++            return history_verdict_approves(verdict)
++        leg_verdict = ev.get("legacy_verdict")
++        if isinstance(leg_verdict, str) and leg_verdict.strip():
++            return history_verdict_approves(leg_verdict)
++        return history_verdict_approves(str(ev.get("message") or "").strip())
++    if op in ("transition", "status"):
++        return history_verdict_approves(str(ev.get("message") or "").strip())
++    if op == "legacy":
++        return history_verdict_approves(str(ev.get("line") or "").strip())
++    return False
++
++
++def _load_plan_log_state_and_history(
++    plan_path: Path, text: str
++) -> Tuple[bool, Optional[Any], Sequence[Mapping[str, Any]]]:
++    """Resolve companion log `(has_log, state, events)` for `plan_path`."""
++    from agent_workflows import artifact_core as _core
++    from agent_workflows import artifact_meta as _meta
++    from agent_workflows import artifact_naming as _naming
++    from agent_workflows import project_context as _proj_ctx
++
++    resolved = Path(plan_path).resolve()
++    owner_root = _proj_ctx.record_owner_root(resolved)
++    if owner_root is None:
++        cand = _core.repo_root_of(resolved)
++        owner_root = resolved.parent if cand == resolved else cand
++
++    cand_id6 = _meta.read_mirror_id6(text) or _meta.read_loose_id(text)
++    if not cand_id6:
++        parts = _naming.identity_parts(resolved.name)
++        if parts and parts[3]:
++            cand_id6 = parts[3]
++    if not cand_id6:
++        return False, None, ()
++
++    ctx = _meta.legacy_context(owner_root)
++    log_path = Path(ctx.logical_roots["records"]) / "meta" / f"{cand_id6}.jsonl"
++    if not log_path.is_file():
++        return False, None, ()
++
++    try:
++        with _meta.ephemeral_if_uninitialized():
++            st = _meta.read(cand_id6, project_context=ctx)
++            evts = _meta.history(cand_id6, project_context=ctx)
++        return True, st, evts
++    except Exception:
++        return True, None, ()
++
++
+ def is_plan_review_approved(plan_path: Path) -> bool:
+     """Whether REVIEW has cleared this plan for automated approval. FAILS CLOSED.
+ 
+@@ -446,11 +533,35 @@ def is_plan_review_approved(plan_path: Path) -> bool:
+     This function does NOT read ``- Status:``. The caller must independently require
+     ``Status: reviewed`` before acting, which is what keeps this from widening the gate.
+     """
++    path = Path(plan_path)
+     try:
+-        text = plan_path.read_text(encoding="utf-8")
++        text = path.read_text(encoding="utf-8")
+     except OSError:
+         return False
+ 
++    has_log, log_state, log_events = _load_plan_log_state_and_history(path, text)
++    if has_log:
++        if log_state is None:
++            return False
++        fields = getattr(log_state, "fields", None) or {}
++        if "readiness" in fields and fields["readiness"] is not None:
++            val = str(fields["readiness"]).strip().lower()
++            if val not in _schema.READINESS_VALUES:
++                return False
++            if not any(_is_gate_review_log_event(ev) for ev in log_events):
++                return False
++            return val in _schema.READINESS_APPROVABLE
++        if not log_events:
++            return False
++        newest_ev = log_events[-1]
++        if not _is_gate_review_log_event(newest_ev):
++            return False
++        if not _log_event_verdict_approves(newest_ev):
++            return False
++        if has_unresolved_blocking_question(text):
++            return False
++        return True
++
+     readiness = _schema.read_readiness(text)
+     if readiness is not None:
+         # The STRUCTURED signal decides the ANSWER and beats any prose verdict in the history, but it
+@@ -1338,25 +1449,25 @@ def recheck_readiness(
      if review_ref is not None:
          event["review_ref"] = review_ref
  
@@ -9602,6 +10093,479 @@ index 409fc31c0..dad31dbd2 100644
      assert (
          written == target_readiness
      ), "the re-check may write ONLY {0}; refusing to write {1!r}".format(
+@@ -1377,19 +1488,50 @@ class ReviewStaleness:
+     question_ids: Tuple[str, ...] = ()
+ 
+ 
++def _normalize_scope_paths_for_staleness(raw: Any) -> Tuple[bool, Tuple[str, ...]]:
++    """Normalize a log or inline `scope_paths` value to `(is_grandfathered, sorted_paths)`."""
++    if raw is None:
++        return False, ()
++    if isinstance(raw, str):
++        joined = raw.strip()
++    elif isinstance(raw, Sequence):
++        joined = ", ".join(str(x).strip() for x in raw if str(x).strip())
++    else:
++        joined = str(raw).strip()
++    if not joined:
++        return False, ()
++    paths, is_grandfathered, _errs = _schema.parse_scope_paths(joined)
++    if is_grandfathered:
++        return True, ()
++    return False, tuple(sorted(paths))
++
++
+ def review_staleness_from_texts(
+-    reviewed_text: str, current_text: str, reviewed_commit: str
++    reviewed_text: str,
++    current_text: str,
++    reviewed_commit: str,
++    *,
++    reviewed_scope_paths: Any = None,
++    current_scope_paths: Any = None,
+ ) -> Optional[ReviewStaleness]:
+     """Determine whether review may be stale by comparing reviewed blob to current text.
+ 
+     Pure. Evaluates:
+     (a) answered-blocking-question: any ### OQ-NN block that read `Blocking: yes` and `Status: open`
+         in reviewed_text and reads `Status: resolved` in current_text;
+-    (b) substantive-edit: `ipd_lifecycle.frozen_region_digest` differs between reviewed and current.
++    (b) substantive-edit: `ipd_lifecycle.frozen_region_digest` differs between reviewed and current,
++        or normalized non-grandfathered `reviewed_scope_paths` and `current_scope_paths` differ.
+ 
+     Returns None when neither reason holds.
+     """
+-    if reviewed_text == current_text:
++    scope_paths_differ = False
++    if reviewed_scope_paths is not None or current_scope_paths is not None:
++        rev_gf, rev_norm = _normalize_scope_paths_for_staleness(reviewed_scope_paths)
++        cur_gf, cur_norm = _normalize_scope_paths_for_staleness(current_scope_paths)
++        if not rev_gf and not cur_gf and rev_norm != cur_norm:
++            scope_paths_differ = True
++
++    if reviewed_text == current_text and not scope_paths_differ:
+         return None
+     reviewed_oqs: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
+     for block in _open_question_blocks(reviewed_text):
+@@ -1440,14 +1582,15 @@ def review_staleness_from_texts(
+ 
+     from agent_workflows import ipd_lifecycle as _lifecycle
+ 
+-    substantive_edit = False
+-    try:
+-        if _lifecycle.frozen_region_digest(
+-            reviewed_text
+-        ) != _lifecycle.frozen_region_digest(current_text):
+-            substantive_edit = True
+-    except Exception:
+-        pass
++    substantive_edit = scope_paths_differ
++    if not substantive_edit and reviewed_text != current_text:
++        try:
++            if _lifecycle.frozen_region_digest(
++                reviewed_text
++            ) != _lifecycle.frozen_region_digest(current_text):
++                substantive_edit = True
++        except Exception:
++            pass
+ 
+     reasons: List[str] = []
+     if answered_blocking_oqs:
+@@ -1465,7 +1608,7 @@ def review_staleness_from_texts(
+     )
+ 
+ 
+-_STALENESS_CACHE: Dict[Tuple[Path, str, int], Optional[ReviewStaleness]] = {}
++_STALENESS_CACHE: Dict[Tuple[Any, ...], Optional[ReviewStaleness]] = {}
+ 
+ 
+ def clear_review_staleness_cache() -> None:
+@@ -1479,142 +1622,260 @@ def review_staleness_index(
+     """Bulk-resolve review staleness for candidates among ``plan_paths``.
+ 
+     Filters ``plan_paths`` to plans whose metadata Status is reviewed, approved, or auto-approved.
+-    Runs one git log call to locate the latest `plan-review:` commit per candidate path, and reads
+-    all reviewed blobs in one `git cat-file --batch` call.
++    Runs one git log call to locate the latest `plan-review:` commit per candidate path (including
++    companion `meta/<id6>.jsonl` logs), reads all reviewed blobs in one `git cat-file --batch`
++    call, and compares reviewed vs. current log `scope_paths` via `artifact_meta.read_at`.
+ 
+     Returns a dict mapping repo-relative POSIX paths to ReviewStaleness.
+     Never raises: any git error or non-git environment yields an empty dict.
+     """
+     try:
+         from agent_workflows import artifact_meta as _meta
++        from agent_workflows import artifact_naming as _naming
+         from agent_workflows import check_engine as _ce
+ 
+         repo_root_path = Path(repo_root).resolve()
++        ctx = _meta.legacy_context(repo_root_path)
++        records_root = Path(ctx.logical_roots["records"])
+         results: Dict[str, ReviewStaleness] = {}
+-        candidate_map: Dict[str, Tuple[Path, str, Tuple[Path, str, int]]] = {}
+-        for raw_path in plan_paths:
+-            p = Path(raw_path)
+-            abs_path = (
+-                p.resolve() if p.is_absolute() else (repo_root_path / p).resolve()
++        candidate_map: Dict[
++            str,
++            Tuple[
++                Path,
++                str,
++                Tuple[Any, ...],
++                Optional[str],
++                Optional[Any],
++                Optional[str],
++            ],
++        ] = {}
++        log_rel_to_plan: Dict[str, str] = {}
++
++        with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++            for raw_path in plan_paths:
++                p = Path(raw_path)
++                abs_path = (
++                    p.resolve() if p.is_absolute() else (repo_root_path / p).resolve()
++                )
++                try:
++                    rel_posix = abs_path.relative_to(repo_root_path).as_posix()
++                except ValueError:
++                    rel_posix = p.as_posix()
++                try:
++                    st = abs_path.stat()
++                except OSError:
++                    continue
++
++                cand_id6: Optional[str] = None
++                parts = _naming.identity_parts(abs_path.name)
++                if parts and parts[3]:
++                    cand_id6 = parts[3]
++
++                log_path = (
++                    (records_root / "meta" / f"{cand_id6}.jsonl") if cand_id6 else None
++                )
++                if log_path is not None:
++                    try:
++                        lst = log_path.stat()
++                        log_sig = (lst.st_mtime_ns, lst.st_size)
++                        has_log = True
++                    except OSError:
++                        log_sig = (0, 0)
++                        has_log = False
++                else:
++                    log_sig = (0, 0)
++                    has_log = False
++
++                cache_key: Tuple[Any, ...] = (
++                    repo_root_path,
++                    rel_posix,
++                    st.st_mtime_ns,
++                    st.st_size,
++                    log_sig[0],
++                    log_sig[1],
++                )
++                if cache_key in _STALENESS_CACHE:
++                    cached = _STALENESS_CACHE[cache_key]
++                    if cached is not None:
++                        results[rel_posix] = cached
++                    continue
++
++                try:
++                    text = abs_path.read_text(encoding="utf-8")
++                except OSError:
++                    continue
++
++                if not cand_id6:
++                    cand_id6 = _meta.read_mirror_id6(text) or _meta.read_loose_id(text)
++                    if cand_id6:
++                        log_path = records_root / "meta" / f"{cand_id6}.jsonl"
++                        try:
++                            lst = log_path.stat()
++                            log_sig = (lst.st_mtime_ns, lst.st_size)
++                            has_log = True
++                        except OSError:
++                            log_sig = (0, 0)
++                            has_log = False
++                        cache_key = (
++                            repo_root_path,
++                            rel_posix,
++                            st.st_mtime_ns,
++                            st.st_size,
++                            log_sig[0],
++                            log_sig[1],
++                        )
++                        if cache_key in _STALENESS_CACHE:
++                            cached = _STALENESS_CACHE[cache_key]
++                            if cached is not None:
++                                results[rel_posix] = cached
++                            continue
++
++                cur_state: Any = None
++                log_state_ok = False
++                if has_log and cand_id6:
++                    try:
++                        cur_state = _meta.read(cand_id6, project_context=ctx)
++                        log_state_ok = True
++                    except Exception:
++                        cur_state = None
++                        log_state_ok = False
++                if cur_state is None:
++                    cur_state = _meta.read_text(text, record_type="ipd")
++
++                status = _ce._plan_status_from_state(cur_state)
++                if status in ("reviewed", "approved", "auto-approved"):
++                    log_rel: Optional[str] = None
++                    if log_state_ok and log_path is not None:
++                        try:
++                            log_rel = log_path.resolve().relative_to(
++                                repo_root_path
++                            ).as_posix()
++                        except ValueError:
++                            log_rel = None
++                    candidate_map[rel_posix] = (
++                        abs_path,
++                        text,
++                        cache_key,
++                        cand_id6 if log_state_ok else None,
++                        cur_state if log_state_ok else None,
++                        log_rel,
++                    )
++                    if log_rel:
++                        log_rel_to_plan[log_rel] = rel_posix
++                else:
++                    _STALENESS_CACHE[cache_key] = None
++
++            if not candidate_map:
++                return results
++
++            git_query_paths = list(candidate_map.keys()) + [
++                lr for lr in log_rel_to_plan if lr not in candidate_map
++            ]
++            cmd = [
++                "git",
++                "log",
++                "--grep=^plan-review:",
++                "--format=%x01%H%x00%s",
++                "--name-only",
++                "--",
++            ] + git_query_paths
++            proc = subprocess.run(
++                cmd,
++                cwd=repo_root_path,
++                stdout=subprocess.PIPE,
++                stderr=subprocess.PIPE,
++                text=True,
++                check=False,
+             )
+-            try:
+-                rel_posix = abs_path.relative_to(repo_root_path).as_posix()
+-            except ValueError:
+-                rel_posix = p.as_posix()
+-            try:
+-                st = abs_path.stat()
+-            except OSError:
+-                continue
+-
+-            cache_key = (repo_root_path, rel_posix, st.st_mtime_ns)
+-            if cache_key in _STALENESS_CACHE:
+-                cached = _STALENESS_CACHE[cache_key]
+-                if cached is not None:
+-                    results[rel_posix] = cached
+-                continue
+-
+-            try:
+-                text = abs_path.read_text(encoding="utf-8")
+-            except OSError:
+-                continue
+-            cur_state = _meta.read_text(text, record_type="ipd")
+-            status = _ce._plan_status_from_state(cur_state)
+-            if status in ("reviewed", "approved", "auto-approved"):
+-                candidate_map[rel_posix] = (abs_path, text, cache_key)
+-            else:
+-                _STALENESS_CACHE[cache_key] = None
+-
+-        if not candidate_map:
+-            return results
+-
+-        cmd = [
+-            "git",
+-            "log",
+-            "--grep=^plan-review:",
+-            "--format=%x01%H%x00%s",
+-            "--name-only",
+-            "--",
+-        ] + list(candidate_map.keys())
+-        proc = subprocess.run(
+-            cmd,
+-            cwd=repo_root_path,
+-            stdout=subprocess.PIPE,
+-            stderr=subprocess.PIPE,
+-            text=True,
+-            check=False,
+-        )
+-        if proc.returncode != 0:
+-            return results
+-
+-        candidate_reviewed_commits: Dict[str, str] = {}
+-        for section in proc.stdout.split("\x01")[1:]:
+-            lines = section.splitlines()
+-            if not lines:
+-                continue
+-            header = lines[0]
+-            if "\x00" not in header:
+-                continue
+-            sha, subject = header.split("\x00", 1)
+-            if not subject.startswith("plan-review:"):
+-                continue
+-            for f in lines[1:]:
+-                f = f.strip()
+-                if f in candidate_map and f not in candidate_reviewed_commits:
+-                    candidate_reviewed_commits[f] = sha
+-            if len(candidate_reviewed_commits) == len(candidate_map):
+-                break
+-
+-        for rel, (_, _, cache_key) in candidate_map.items():
+-            if rel not in candidate_reviewed_commits:
+-                _STALENESS_CACHE[cache_key] = None
+-
+-        if not candidate_reviewed_commits:
+-            return results
+-
+-        # Current plan status was read through `artifact_meta.read_text` above (spec 4sd62s 4.4 /
+-        # D-3); the batched `git cat-file --batch` below reads body prose only for open-question
+-        # blocks and `frozen_region_digest` (N3), never record metadata at the review commit.
+-        batch_input_str = "".join(
+-            f"{sha}:{rel}\n" for rel, sha in candidate_reviewed_commits.items()
+-        )
+-        p = subprocess.Popen(
+-            ["git", "cat-file", "--batch"],
+-            cwd=repo_root_path,
+-            stdin=subprocess.PIPE,
+-            stdout=subprocess.PIPE,
+-            stderr=subprocess.PIPE,
+-        )
+-        stdout_bytes, _ = p.communicate(batch_input_str.encode("utf-8"))
+-        if p.returncode != 0:
+-            return results
+-
+-        stream = stdout_bytes
+-        idx = 0
+-        for rel, sha in candidate_reviewed_commits.items():
+-            abs_p, current_text, cache_key = candidate_map[rel]
+-            newline_pos = stream.find(b"\n", idx)
+-            if newline_pos == -1:
+-                _STALENESS_CACHE[cache_key] = None
+-                break
+-            header_line = stream[idx:newline_pos].decode("utf-8", errors="replace")
+-            idx = newline_pos + 1
+-            if header_line.endswith(" missing"):
+-                _STALENESS_CACHE[cache_key] = None
+-                continue
+-            parts = header_line.split()
+-            if len(parts) >= 3 and parts[1] == "blob":
+-                size = int(parts[2])
+-                blob_bytes = stream[idx : idx + size]
+-                idx += size
+-                if idx < len(stream) and stream[idx : idx + 1] == b"\n":
+-                    idx += 1
+-                reviewed_text = blob_bytes.decode("utf-8", errors="replace")
+-                stale = review_staleness_from_texts(reviewed_text, current_text, sha)
+-                _STALENESS_CACHE[cache_key] = stale
+-                if stale is not None:
+-                    results[rel] = stale
+-            else:
+-                _STALENESS_CACHE[cache_key] = None
++            if proc.returncode != 0:
++                return results
++
++            candidate_reviewed_commits: Dict[str, str] = {}
++            for section in proc.stdout.split("\x01")[1:]:
++                lines = section.splitlines()
++                if not lines:
++                    continue
++                header = lines[0]
++                if "\x00" not in header:
++                    continue
++                sha, subject = header.split("\x00", 1)
++                if not subject.startswith("plan-review:"):
++                    continue
++                for f in lines[1:]:
++                    f = f.strip()
++                    target_rel = f if f in candidate_map else log_rel_to_plan.get(f)
++                    if target_rel and target_rel not in candidate_reviewed_commits:
++                        candidate_reviewed_commits[target_rel] = sha
++                if len(candidate_reviewed_commits) == len(candidate_map):
++                    break
++
++            for rel, (_, _, cache_key, _, _, _) in candidate_map.items():
++                if rel not in candidate_reviewed_commits:
++                    _STALENESS_CACHE[cache_key] = None
++
++            if not candidate_reviewed_commits:
++                return results
++
++            batch_input_str = "".join(
++                f"{sha}:{rel}\n" for rel, sha in candidate_reviewed_commits.items()
++            )
++            p = subprocess.Popen(
++                ["git", "cat-file", "--batch"],
++                cwd=repo_root_path,
++                stdin=subprocess.PIPE,
++                stdout=subprocess.PIPE,
++                stderr=subprocess.PIPE,
++            )
++            stdout_bytes, _ = p.communicate(batch_input_str.encode("utf-8"))
++            if p.returncode != 0:
++                return results
++
++            stream = stdout_bytes
++            idx = 0
++            for rel, sha in candidate_reviewed_commits.items():
++                abs_p, current_text, cache_key, log_id6, cur_log_state, _ = (
++                    candidate_map[rel]
++                )
++                newline_pos = stream.find(b"\n", idx)
++                if newline_pos == -1:
++                    _STALENESS_CACHE[cache_key] = None
++                    break
++                header_line = stream[idx:newline_pos].decode("utf-8", errors="replace")
++                idx = newline_pos + 1
++                if header_line.endswith(" missing"):
++                    _STALENESS_CACHE[cache_key] = None
++                    continue
++                parts = header_line.split()
++                if len(parts) >= 3 and parts[1] == "blob":
++                    size = int(parts[2])
++                    blob_bytes = stream[idx : idx + size]
++                    idx += size
++                    if idx < len(stream) and stream[idx : idx + 1] == b"\n":
++                        idx += 1
++                    reviewed_text = blob_bytes.decode("utf-8", errors="replace")
++                    rev_sp: Any = None
++                    cur_sp: Any = None
++                    if log_id6 is not None and cur_log_state is not None:
++                        try:
++                            rev_res = _meta.read_at(log_id6, sha, project_context=ctx)
++                            if rev_res.kind == "ok" and rev_res.state is not None:
++                                rev_sp = (rev_res.state.fields or {}).get("scope_paths")
++                                cur_sp = (cur_log_state.fields or {}).get("scope_paths")
++                        except Exception:
++                            rev_sp = None
++                            cur_sp = None
++                    stale = review_staleness_from_texts(
++                        reviewed_text,
++                        current_text,
++                        sha,
++                        reviewed_scope_paths=rev_sp,
++                        current_scope_paths=cur_sp,
++                    )
++                    _STALENESS_CACHE[cache_key] = stale
++                    if stale is not None:
++                        results[rel] = stale
++                else:
++                    _STALENESS_CACHE[cache_key] = None
+         return results
+     except Exception:
+         return {}
 diff --git a/agent_workflows/plans.py b/agent_workflows/plans.py
 index 814a91e57..05989d887 100644
 --- a/agent_workflows/plans.py
@@ -11967,11 +12931,475 @@ index 142df8fa4..d20a01048 100644
                      continue
                  if (parse_review_file(p).subject_id or "").strip() != wanted:
                      continue
+diff --git a/agent_workflows/review_rereview.py b/agent_workflows/review_rereview.py
+index 7d655e668..423e04b7b 100644
+--- a/agent_workflows/review_rereview.py
++++ b/agent_workflows/review_rereview.py
+@@ -8,7 +8,7 @@ from __future__ import annotations
+ import subprocess
+ import tempfile
+ from pathlib import Path
+-from typing import NamedTuple, Sequence
++from typing import Any, Callable, NamedTuple, Sequence
+ 
+ from agent_workflows import (
+     artifact_meta,
+@@ -59,6 +59,9 @@ def rereview_triggers(
+     now_text: str,
+     *,
+     after_r_text: str | None,
++    state_start: Any = None,
++    state_now: Any = None,
++    state_after_r: Any = None,
+ ) -> list[str]:
+     """Compute runner re-review triggers per spec Section 8.2 and E-02.
+ 
+@@ -72,10 +75,18 @@ def rereview_triggers(
+     The baseline for (a) to (c) is the plan at the start of the current pass.
+     An empty list means no trigger.
+     """
+-    doc_start = ipd_lint.parse(pass_start_text or "")
+-    doc_now = ipd_lint.parse(now_text or "")
+-    state_start = artifact_meta.read_text(pass_start_text or "", record_type="ipd")
+-    state_now = artifact_meta.read_text(now_text or "", record_type="ipd")
++    st_start = (
++        state_start
++        if state_start is not None
++        else artifact_meta.read_text(pass_start_text or "", record_type="ipd")
++    )
++    st_now = (
++        state_now
++        if state_now is not None
++        else artifact_meta.read_text(now_text or "", record_type="ipd")
++    )
++    doc_start = ipd_lint.parse(pass_start_text or "", state=st_start)
++    doc_now = ipd_lint.parse(now_text or "", state=st_now)
+ 
+     reasons: list[str] = []
+ 
+@@ -93,20 +104,25 @@ def rereview_triggers(
+         reasons.append(f"E/V items changed: {'; '.join(parts)}")
+ 
+     # (b) Scope-Paths
+-    sp_start = state_start.fields.get("scope_paths")
+-    sp_now = state_now.fields.get("scope_paths")
++    sp_start = (getattr(st_start, "fields", None) or {}).get("scope_paths")
++    sp_now = (getattr(st_now, "fields", None) or {}).get("scope_paths")
+     if sp_start != sp_now:
+         reasons.append(f"Scope-Paths changed from {sp_start!r} to {sp_now!r}")
+ 
+     # (c) Item-Dependencies
+-    dep_start = state_start.fields.get("item_dependencies")
+-    dep_now = state_now.fields.get("item_dependencies")
++    dep_start = (getattr(st_start, "fields", None) or {}).get("item_dependencies")
++    dep_now = (getattr(st_now, "fields", None) or {}).get("item_dependencies")
+     if dep_start != dep_now:
+         reasons.append(f"Item-Dependencies changed from {dep_start!r} to {dep_now!r}")
+ 
+     # (d) Confirm-only changes after R2/R4
+     if after_r_text is not None:
+-        _refused, confirm = review_sequence.structural_diff(after_r_text, now_text)
++        _refused, confirm = review_sequence.structural_diff(
++            after_r_text,
++            now_text,
++            state_before=state_after_r,
++            state_after=state_now,
++        )
+         if confirm:
+             reasons.append(
+                 f"Confirm-listed items changed after R2/R4: {'; '.join(confirm)}"
+@@ -131,16 +147,25 @@ def limit_reached_instruction(result: RereviewResult) -> str:
+     )
+ 
+ 
+-def check_limit_s7(plan_before: str, plan_after: str) -> str | None:
++def check_limit_s7(
++    plan_before: str,
++    plan_after: str,
++    *,
++    state_after: Any = None,
++) -> str | None:
+     """Postcondition check for S7 when re-review limit is reached (spec Section 8.3, E-04).
+ 
+-    Returns None when readiness from artifact_meta.read_text(plan_after) is 'no-go'
+-    and ipd_lint.parse(plan_after).open_questions holds a question id
++    Returns None when readiness from `state_after` (or `artifact_meta.read_text(plan_after)`)
++    is 'no-go' and ipd_lint.parse(plan_after).open_questions holds a question id
+     absent from plan_before with Blocking: yes and Status: open;
+     otherwise the failed postcondition text.
+     """
+-    state_after = artifact_meta.read_text(plan_after or "", record_type="ipd")
+-    raw_rd = state_after.fields.get("readiness")
++    resolved_state = (
++        state_after
++        if state_after is not None
++        else artifact_meta.read_text(plan_after or "", record_type="ipd")
++    )
++    raw_rd = (getattr(resolved_state, "fields", None) or {}).get("readiness")
+     rd_val = str(raw_rd).strip().lower() if raw_rd is not None else ""
+     rd = rd_val if rd_val in ipd_schema.READINESS_VALUES else None
+     if rd != "no-go":
+@@ -148,7 +173,7 @@ def check_limit_s7(plan_before: str, plan_after: str) -> str | None:
+ 
+     try:
+         doc_before = ipd_lint.parse(plan_before or "")
+-        doc_after = ipd_lint.parse(plan_after or "")
++        doc_after = ipd_lint.parse(plan_after or "", state=resolved_state)
+     except Exception as e:
+         return f"Failed to parse plan for limit check: {e}"
+ 
+@@ -291,6 +316,9 @@ def run_rereview_loop(
+     s6_reply: str,
+     *,
+     after_r_text: str | None,
++    pass_start_state: Any = None,
++    after_r_state: Any = None,
++    read_state: Callable[[Path], Any] | None = None,
+ ) -> RereviewResult:
+     """Run the bounded re-review loop (spec Section 8.3, E-03).
+ 
+@@ -302,6 +330,11 @@ def run_rereview_loop(
+     plan_rel = ctx.plan_path.name
+     groups = rereview_prompt_groups(ctx.tier, ctx.variant, ctx.checks_run)
+ 
++    def _read_current_state() -> Any:
++        if read_state is None:
++            return None
++        return read_state(ctx.plan_path)
++
+     # Check if resuming inside an already-started re-review pass
+     resuming_pass = False
+     if ctx.pass_no >= 2:
+@@ -312,6 +345,7 @@ def run_rereview_loop(
+             resuming_pass = True
+ 
+     current_pass_start_text = ctx.pass_start_text
++    current_pass_start_state: Any = pass_start_state
+     current_reasons: list[str] = []
+     current_marker: str | None = None
+ 
+@@ -333,8 +367,14 @@ def run_rereview_loop(
+ 
+         # 2. Check triggers for current pass
+         plan_text_now = ctx.plan_path.read_text(encoding="utf-8")
++        state_now = _read_current_state()
+         triggers = rereview_triggers(
+-            ctx.pass_start_text, plan_text_now, after_r_text=after_r_text
++            ctx.pass_start_text,
++            plan_text_now,
++            after_r_text=after_r_text,
++            state_start=current_pass_start_state,
++            state_now=state_now,
++            state_after_r=after_r_state,
+         )
+ 
+         if marker == "DONE" and not triggers:
+@@ -352,6 +392,7 @@ def run_rereview_loop(
+         if not resuming_pass:
+             diff_text = compute_plan_diff(current_pass_start_text, current_plan_text)
+             current_pass_start_text = current_plan_text
++            current_pass_start_state = _read_current_state()
+             if hasattr(ctx, "_replace"):
+                 ctx = ctx._replace(
+                     pass_no=pass_to_run,
+@@ -366,6 +407,7 @@ def run_rereview_loop(
+ 
+         all_checks = [c for grp in groups for c in grp]
+         pass_after_r_text: str | None = None
++        pass_after_r_state: Any = None
+ 
+         completed_in_pass = len(
+             [s for s in ctx.review_steps if s.get("pass") == ctx.pass_no]
+@@ -375,6 +417,7 @@ def run_rereview_loop(
+             if i < completed_in_pass:
+                 if any(c in ("R2", "R4") for c in grp):
+                     pass_after_r_text = ctx.plan_path.read_text(encoding="utf-8")
++                    pass_after_r_state = _read_current_state()
+                 continue
+ 
+             is_first = i == 0
+@@ -400,6 +443,7 @@ def run_rereview_loop(
+ 
+             if any(c in ("R2", "R4") for c in grp):
+                 pass_after_r_text = ctx.plan_path.read_text(encoding="utf-8")
++                pass_after_r_state = _read_current_state()
+             if "S6" in grp:
+                 s6_reply = reply
+ 
+@@ -419,10 +463,14 @@ def run_rereview_loop(
+                 return RereviewResult("incomplete", ctx.pass_no, current_reasons, None)
+ 
+         current_plan_text = ctx.plan_path.read_text(encoding="utf-8")
++        current_plan_state = _read_current_state()
+         current_reasons = rereview_triggers(
+             ctx.pass_start_text,
+             current_plan_text,
+             after_r_text=pass_after_r_text,
++            state_start=current_pass_start_state,
++            state_now=current_plan_state,
++            state_after_r=pass_after_r_state,
+         )
+         current_marker = marker
+ 
 diff --git a/agent_workflows/review_sequence.py b/agent_workflows/review_sequence.py
-index 743de8176..8a3a3f5e5 100644
+index 743de8176..141ff2822 100644
 --- a/agent_workflows/review_sequence.py
 +++ b/agent_workflows/review_sequence.py
-@@ -594,19 +594,20 @@ def restore_pre_s7_plan(
+@@ -273,19 +273,31 @@ def render_prompt(
+     return content
+ 
+ 
+-def structural_diff(before: str, after: str) -> tuple[list[str], list[str]]:
++def structural_diff(
++    before: str,
++    after: str,
++    *,
++    state_before: Any = None,
++    state_after: Any = None,
++) -> tuple[list[str], list[str]]:
+     """Implement the structural preservation check of spec Section 6.1 over ipd_lint.parse.
+ 
+     Returns (refused_list, confirm_only_list).
+     """
+-    doc_b = ipd_lint.parse(before or "")
+-    doc_a = ipd_lint.parse(after or "")
+-    fm_b = _state_to_front_matter(
+-        artifact_meta.read_text(before or "", record_type="ipd")
++    st_b = (
++        state_before
++        if state_before is not None
++        else artifact_meta.read_text(before or "", record_type="ipd")
+     )
+-    fm_a = _state_to_front_matter(
+-        artifact_meta.read_text(after or "", record_type="ipd")
++    st_a = (
++        state_after
++        if state_after is not None
++        else artifact_meta.read_text(after or "", record_type="ipd")
+     )
++    doc_b = ipd_lint.parse(before or "", state=st_b)
++    doc_a = ipd_lint.parse(after or "", state=st_a)
++    fm_b = _state_to_front_matter(st_b)
++    fm_a = _state_to_front_matter(st_a)
+ 
+     refused: list[str] = []
+     confirm: list[str] = []
+@@ -497,6 +509,7 @@ def check_S5(
+     *,
+     repo_root: Path | None = None,
+     plan_path: Path | None = None,
++    state_after: Any = None,
+ ) -> str | None:
+     """Postcondition check for S5 (Open questions).
+ 
+@@ -504,7 +517,7 @@ def check_S5(
+     check.review-finding-unescalated reports nothing for this review record.
+     """
+     try:
+-        doc = ipd_lint.parse(plan_text_after or "")
++        doc = ipd_lint.parse(plan_text_after or "", state=state_after)
+     except Exception:
+         return "Every open question has `Blocking:` and `Status:`."
+ 
+@@ -515,11 +528,19 @@ def check_S5(
+             return "Every open question has `Blocking:` and `Status:`."
+ 
+     if review_text:
+-        plan_id6 = None
+-        if plan_path is not None:
++        plan_id6: str | None = None
++        if (
++            state_after is not None
++            and getattr(state_after, "id6", None)
++            and not getattr(state_after, "id_derived", False)
++        ):
++            plan_id6 = str(state_after.id6).strip() or None
++        if not plan_id6 and plan_path is not None:
+             m = re.search(r"-([a-z0-9]{6})-", plan_path.name)
+             if m:
+                 plan_id6 = m.group(1)
++        if not plan_id6:
++            plan_id6 = artifact_meta.read_mirror_id6(plan_text_after or "")
+         if not plan_id6:
+             st_after = artifact_meta.read_text(plan_text_after or "", record_type="ipd")
+             if st_after.id6 and not getattr(st_after, "id_derived", False):
+@@ -527,21 +548,42 @@ def check_S5(
+         if not plan_id6:
+             plan_id6 = check_engine._read_item_id(plan_text_after)
+ 
+-        # Ensure minimal review metadata if missing in snippet
++        # Preserve valid spec 4sd62s Section 4.1a YAML review mirrors without prepending legacy bullets.
++        has_yaml_review_mirror = False
++        try:
++            has_yaml_review_mirror = (
++                artifact_meta.parse_review_mirror(review_text) is not None
++            )
++        except ValueError:
++            has_yaml_review_mirror = False
++
++        # Ensure minimal legacy review metadata if missing in snippet
+         fixed_rev_text = review_text
+-        meta_needed: list[str] = []
+-        if "- subject-id:" not in review_text.lower():
+-            meta_needed.append(f"- Subject-Id: {plan_id6 or 'pln001'}")
+-        if "- subject-type:" not in review_text.lower():
+-            meta_needed.append("- Subject-Type: ipd")
+-        if "- reviewed-at:" not in review_text.lower():
+-            meta_needed.append("- Reviewed-At: 2026-10-25")
+-        if "- reviewer:" not in review_text.lower():
+-            meta_needed.append("- Reviewer: test")
+-        if "- verdict:" not in review_text.lower():
+-            meta_needed.append("- Verdict: APPROVE")
+-        if meta_needed:
+-            fixed_rev_text = "\n".join(meta_needed) + "\n\n" + review_text
++        if not has_yaml_review_mirror:
++            meta_needed: list[str] = []
++            if "- subject-id:" not in review_text.lower():
++                meta_needed.append(f"- Subject-Id: {plan_id6 or 'pln001'}")
++            if "- subject-type:" not in review_text.lower():
++                meta_needed.append("- Subject-Type: ipd")
++            if "- reviewed-at:" not in review_text.lower():
++                meta_needed.append("- Reviewed-At: 2026-10-25")
++            if "- reviewer:" not in review_text.lower():
++                meta_needed.append("- Reviewer: test")
++            if "- verdict:" not in review_text.lower():
++                meta_needed.append("- Verdict: APPROVE")
++            if meta_needed:
++                fixed_rev_text = "\n".join(meta_needed) + "\n\n" + review_text
++
++        eval_plan_text = plan_text_after or ""
++        if (
++            plan_id6
++            and not artifact_meta.read_mirror_id6(eval_plan_text)
++            and not check_engine._read_item_id(eval_plan_text)
++        ):
++            eval_plan_text = (
++                artifact_meta.render_in_file_mirror(plan_id6, "ipd", "to-review")
++                + eval_plan_text
++            )
+ 
+         with tempfile.TemporaryDirectory() as td:
+             tmp_dir = Path(td)
+@@ -553,7 +595,7 @@ def check_S5(
+             drift = check_engine.evaluate_review_finding_escalation(
+                 r_root,
+                 plan_path=p_path,
+-                plan_text=plan_text_after,
++                plan_text=eval_plan_text,
+                 open_questions=doc.open_questions,
+                 review_index={plan_id6: [rev_file]} if plan_id6 else None,
+             )
+@@ -563,8 +605,68 @@ def check_S5(
+     return None
+ 
+ 
+-def count_verdict_bearing_entries(plan_text: str) -> int:
++def _log_event_verdict_summary(ev: Mapping[str, Any]) -> str | None:
++    """Return a stable verdict summary string for a verdict-bearing log event, or None."""
++    op = ev.get("op")
++    if op == "review":
++        if ev.get("source") == "review-file":
++            return None
++        if ev.get("review_kind") != "gate":
++            return None
++        actor = ev.get("actor")
++        tool = (
++            str(actor.get("tool") or "").strip() if isinstance(actor, Mapping) else ""
++        )
++        if tool == "aw ipd recheck-readiness":
++            return None
++        token = None
++        for cand in (ev.get("verdict"), ev.get("legacy_verdict"), ev.get("message")):
++            if isinstance(cand, str) and cand.strip():
++                token, _ = plan_readiness.classify_verdict(cand)
++                if token is not None:
++                    break
++        if token is None:
++            return None
++        return (
++            f"seq={ev.get('seq')} op=review round={ev.get('round')} "
++            f"verdict={token} readiness={ev.get('readiness') or ''}"
++        )
++    if op in ("transition", "status"):
++        to_val = str(ev.get("to") or ev.get("to_status") or "").strip().lower()
++        if to_val != "reviewed":
++            return None
++        msg = str(ev.get("message") or "").strip()
++        if not msg:
++            return None
++        is_tagged = bool(plan_readiness._LEADING_VERDICT_RE.search(msg))
++        if not is_tagged:
++            first_clause = re.split(r"[:;]", msg, maxsplit=1)[0]
++            is_tagged = bool(plan_readiness._WORKFLOW_NAME_CLAUSE_RE.search(first_clause))
++        if not is_tagged:
++            return None
++        token, _ = plan_readiness.classify_verdict(msg)
++        if token is None:
++            return None
++        return f"seq={ev.get('seq')} op={op} to=reviewed verdict={token}"
++    if op == "legacy":
++        line = ev.get("line")
++        if isinstance(line, str) and plan_readiness.is_review_history_entry(line):
++            m = plan_readiness._HISTORY_RECORD_PARTS_RE.match(line)
++            msg = m.group("msg") if m else line
++            token, _ = plan_readiness.classify_verdict(msg)
++            if token is not None:
++                return line
++    return None
++
++
++def count_verdict_bearing_entries(
++    plan_text: str,
++    *,
++    history: Sequence[Mapping[str, Any]] | None = None,
++) -> int:
+     """Count history entries that are review records and contain a classified verdict."""
++    if history is not None:
++        return sum(1 for ev in history if _log_event_verdict_summary(ev) is not None)
+     count = 0
+     for candidate in artifact_meta.history_records(plan_text or "").records:
+         if not plan_readiness.is_review_history_entry(candidate):
+@@ -577,16 +679,34 @@ def count_verdict_bearing_entries(plan_text: str) -> int:
+     return count
+ 
+ 
+-def verdict_outputs(plan_text: str) -> tuple[str | None, str | None, str]:
++def verdict_outputs(
++    plan_text: str,
++    *,
++    state: Any = None,
++    history: Sequence[Mapping[str, Any]] | None = None,
++) -> tuple[str | None, str | None, str]:
+     """Return (readiness, Status value, newest_verdict raw entry) for the MD-15 guard."""
+     try:
+-        state = artifact_meta.read_text(plan_text or "", record_type="ipd")
+-        rd = _readiness_from_state(state)
+-        st = _status_from_state(state)
++        resolved_state = (
++            state
++            if state is not None
++            else artifact_meta.read_text(plan_text or "", record_type="ipd")
++        )
++        rd = _readiness_from_state(resolved_state)
++        st = _status_from_state(resolved_state)
+     except Exception:
+         rd = None
+         st = None
+-    newest = plan_readiness.newest_verdict(plan_text)[1]
++
++    if history is not None:
++        newest = ""
++        for ev in reversed(list(history)):
++            summary = _log_event_verdict_summary(ev)
++            if summary is not None:
++                newest = summary
++                break
++    else:
++        newest = plan_readiness.newest_verdict(plan_text)[1]
+     return (rd, st, newest)
+ 
+ 
+@@ -594,19 +714,20 @@ def restore_pre_s7_plan(
      pre_pass_text: str,
      current_text: str,
  ) -> str:
@@ -12003,8 +13431,157 @@ index 743de8176..8a3a3f5e5 100644
  
  
  def check_S6(
+@@ -640,6 +761,11 @@ def check_S7(
+     plan_text_after: str,
+     review_text: str,
+     reply_text: str,
++    *,
++    state_before: Any = None,
++    state_after: Any = None,
++    history_before: Sequence[Mapping[str, Any]] | None = None,
++    history_after: Sequence[Mapping[str, Any]] | None = None,
+ ) -> str | None:
+     """Postcondition check for S7 (Finalize).
+ 
+@@ -650,7 +776,11 @@ def check_S7(
+     aw ipd lint --phase author reports no new error except IPD-Q501.
+     """
+     try:
+-        state_a = artifact_meta.read_text(plan_text_after or "", record_type="ipd")
++        state_a = (
++            state_after
++            if state_after is not None
++            else artifact_meta.read_text(plan_text_after or "", record_type="ipd")
++        )
+         rd = _readiness_from_state(state_a)
+         st = _status_from_state(state_a)
+     except Exception:
+@@ -674,15 +804,27 @@ def check_S7(
+             "`to-review`, and the round records an exhausted orchestrator repair."
+         )
+ 
+-    cb = count_verdict_bearing_entries(plan_text_before)
+-    ca = count_verdict_bearing_entries(plan_text_after)
++    cb = count_verdict_bearing_entries(plan_text_before, history=history_before)
++    ca = count_verdict_bearing_entries(plan_text_after, history=history_after)
+     if (ca - cb) != 1:
+         return (
+             "Exactly one verdict-bearing history entry was added during the invocation."
+         )
+ 
+-    res_b = ipd_lint.lint_text(plan_text_before or "", checkpoint="author")
+-    res_a = ipd_lint.lint_text(plan_text_after or "", checkpoint="author")
++    loader_b = (lambda: list(history_before)) if history_before is not None else None
++    loader_a = (lambda: list(history_after)) if history_after is not None else None
++    res_b = ipd_lint.lint_text(
++        plan_text_before or "",
++        checkpoint="author",
++        state=state_before,
++        _history_loader=loader_b,
++    )
++    res_a = ipd_lint.lint_text(
++        plan_text_after or "",
++        checkpoint="author",
++        state=state_after,
++        _history_loader=loader_a,
++    )
+     codes_b = {d.code for d in res_b.diagnostics}
+     codes_a = {d.code for d in res_a.diagnostics}
+     new_errs = (codes_a - codes_b) - {"IPD-Q501"}
+diff --git a/agent_workflows/review_tier.py b/agent_workflows/review_tier.py
+index 6306a7c02..704fb813c 100644
+--- a/agent_workflows/review_tier.py
++++ b/agent_workflows/review_tier.py
+@@ -15,23 +15,37 @@ from agent_workflows import artifact_meta, ipd_lint, ipd_schema
+ VALID_TIER_SOURCES = frozenset(("agent", "orchestrator", "raised"))
+ 
+ 
+-def tier_facts(plan_text: str) -> dict[str, Any]:
+-    """Compute the pre-pass tier facts from a plan's text.
++def _is_todo_scope_token(val: str) -> bool:
++    trimmed = val.strip()
++    return (
++        trimmed == "TODO"
++        or trimmed.startswith("TODO ")
++        or trimmed.startswith("TODO(")
++        or trimmed.startswith("TODO:")
++    )
++
++
++def tier_facts(plan_text: str, *, state: Any = None) -> dict[str, Any]:
++    """Compute the pre-pass tier facts from a plan's text and optional log `State`.
+ 
+     Returns a dict with seven keys:
+-      - kind: plan kind from '- Kind:' (str or None)
++      - kind: plan kind from '- Kind:' / log 'plan_role' (str or None)
+       - scope_paths: list of declared scope paths (list[str] or None)
+       - names_spec: True if any scope path ends with '.spec.md' (bool)
+       - e_items: count of E-* leaves (int)
+       - task_groups: count of task-group H3s (int)
+       - exceeds_size: True if size limits are exceeded (bool)
+-      - in_set: True if '- Set:' is present (bool)
++      - in_set: True if '- Set:' / log 'set' is present (bool)
+ 
+     Pure; never raises on any plan text.
+     """
+     try:
+-        parsed = ipd_lint.parse(plan_text or "")
+-        state = artifact_meta.read_text(plan_text or "", record_type="ipd")
++        resolved_state = (
++            state
++            if state is not None
++            else artifact_meta.read_text(plan_text or "", record_type="ipd")
++        )
++        parsed = ipd_lint.parse(plan_text or "", state=resolved_state)
+     except Exception:
+         return {
+             "kind": None,
+@@ -43,27 +57,33 @@ def tier_facts(plan_text: str) -> dict[str, Any]:
+             "in_set": False,
+         }
+ 
+-    fields = state.fields or {}
++    fields = getattr(resolved_state, "fields", None) or {}
+     kind = fields.get("plan_role")
+ 
+     raw_sp = fields.get("scope_paths")
+     scope_paths: list[str] | None = None
+     if raw_sp is not None:
+-        trimmed = str(raw_sp).strip()
+-        if not (
+-            trimmed == "TODO"
+-            or trimmed.startswith("TODO ")
+-            or trimmed.startswith("TODO(")
+-            or trimmed.startswith("TODO:")
+-        ):
+-            scope_paths = [p.strip() for p in trimmed.split(",") if p.strip()]
++        if isinstance(raw_sp, (list, tuple)):
++            cleaned = [
++                str(p).strip()
++                for p in raw_sp
++                if str(p).strip() and not _is_todo_scope_token(str(p))
++            ]
++            if raw_sp and not cleaned:
++                scope_paths = None
++            else:
++                scope_paths = cleaned
++        else:
++            trimmed = str(raw_sp).strip()
++            if not _is_todo_scope_token(trimmed):
++                scope_paths = [p.strip() for p in trimmed.split(",") if p.strip()]
+ 
+     names_spec = bool(scope_paths and any(p.endswith(".spec.md") for p in scope_paths))
+ 
+     e_items = sum(1 for lf in parsed.exec_leaves if lf.kind == "E")
+     task_groups = parsed.exec_task_groups
+     exceeds_size = ipd_schema.size_warning(task_groups, e_items)
+-    in_set = bool(state.set_id or fields.get("set"))
++    in_set = bool(getattr(resolved_state, "set_id", None) or fields.get("set"))
+ 
+     return {
+         "kind": kind,
 diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
-index 461caf32a..4a23b52ba 100644
+index 461caf32a..420a31914 100644
 --- a/agent_workflows/runner_shared.py
 +++ b/agent_workflows/runner_shared.py
 @@ -6290,7 +6290,7 @@ def apply_records_only_rederivation(
@@ -12140,7 +13717,49 @@ index 461caf32a..4a23b52ba 100644
                          return (
                              False,
                              f"spec '{norm_p}' contract violation ({drift.rule}): {drift.detail}",
-@@ -17433,7 +17489,7 @@ def discover_plans(
+@@ -17162,19 +17218,35 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
+ 
+ 
+ def plan_kind_from_file(path: Path) -> str | None:
+-    """The plan's `- Kind:` value, read through ``artifact_meta.read_text``. THE LEGACY-MANIFEST FALLBACK.
++    """The plan's `- Kind:` / log `plan_role` value, read via companion log state with text fallback.
+ 
+     Returns None when the file is unreadable, which makes `action_for` fall back to
+     `determine_action` -- the pre-`pgq326` behavior, and the safe direction (a plan is agent-handled,
+     never silently retired).
+     """
+-    try:
+-        text = path.read_text(encoding="utf-8")
+-    except OSError:
++    from agent_workflows import artifact_core as _core
++    from agent_workflows import project_context as _proj_ctx
++
++    p = Path(path)
++    owner_root = _proj_ctx.record_owner_root(p)
++    if owner_root is None:
++        cand = _core.repo_root_of(p)
++        owner_root = p.parent if cand == p.resolve() else cand
++    st, raw_text = _read_state_for_path(owner_root, p, record_type="ipd")
++    if st is None:
+         return None
+-    st = _read_text_with_loose(text, record_type="ipd")
+     raw_kind = (getattr(st, "fields", None) or {}).get("plan_role")
+-    return str(raw_kind).strip().lower() if raw_kind else None
++    if raw_kind:
++        return str(raw_kind).strip().lower()
++    if raw_text is None:
++        try:
++            raw_text = p.read_text(encoding="utf-8")
++        except OSError:
++            return None
++        st_fb = _read_text_with_loose(raw_text, record_type="ipd")
++        raw_kind = (getattr(st_fb, "fields", None) or {}).get("plan_role")
++        return str(raw_kind).strip().lower() if raw_kind else None
++    return None
+ 
+ 
+ def resolve_manifest_kind(
+@@ -17433,7 +17505,7 @@ def discover_plans(
                  root == resolved or root in resolved.parents for root in plans_roots
              ):
                  continue
@@ -12149,7 +13768,7 @@ index 461caf32a..4a23b52ba 100644
                  continue
              if resolved in seen or not resolved.is_file():
                  continue
-@@ -17542,7 +17598,7 @@ def discover_specs(repo: Path) -> dict[str, SpecRecord]:
+@@ -17542,7 +17614,7 @@ def discover_specs(repo: Path) -> dict[str, SpecRecord]:
                      sr == resolved or sr in resolved.parents for sr in spec_roots
                  ):
                      continue
@@ -12158,7 +13777,7 @@ index 461caf32a..4a23b52ba 100644
                      continue
                  if not resolved.is_file():
                      continue
-@@ -17932,8 +17988,8 @@ def resolve_plan_path(repo: Path, configured: str, id6: str) -> Path:
+@@ -17932,8 +18004,8 @@ def resolve_plan_path(repo: Path, configured: str, id6: str) -> Path:
                  raise DriverError(
                      f"Refusing {configured!r} for IPD {id6}: it is {what}, not an IPD plan"
                  )
@@ -12169,7 +13788,18 @@ index 461caf32a..4a23b52ba 100644
                  raise DriverError(
                      f"Refusing {configured!r} for IPD {id6}: it is {what}, not an IPD plan"
                  )
-@@ -25396,14 +25452,21 @@ def enforce_freeze_time_refusal(
+@@ -24604,8 +24676,8 @@ def probe_orchestrator(
+ 
+     options = state.get("options") or {}
+     model = options.get("model") or ""
+-    rec = coverage_record.read(target.text)
+-    if coverage_record.is_current(target.text):
++    rec = coverage_record.read(target.text, plan_path=target.path, repo=Path(repo))
++    if coverage_record.is_current(target.text, plan_path=target.path, repo=Path(repo)):
+         ans = (
+             PROBE_ANSWER_NO_EXECUTIONS
+             if rec.verdict == coverage_record.COVERAGE_PASS
+@@ -25396,14 +25468,21 @@ def enforce_freeze_time_refusal(
              try:
                  content_bytes = abs_path.read_bytes()
                  digest = hashlib.sha256(content_bytes).hexdigest()
@@ -12196,7 +13826,7 @@ index 461caf32a..4a23b52ba 100644
                      _FREEZE_GATE_CACHE[cache_key] = drifts
                  for d in drifts:
                      if getattr(d, "severity", "") != "info":
-@@ -25423,14 +25486,21 @@ def enforce_freeze_time_refusal(
+@@ -25423,14 +25502,21 @@ def enforce_freeze_time_refusal(
              try:
                  content_bytes = abs_path.read_bytes()
                  digest = hashlib.sha256(content_bytes).hexdigest()
@@ -12223,7 +13853,128 @@ index 461caf32a..4a23b52ba 100644
                      _FREEZE_GATE_CACHE[cache_key] = drifts
                  for d in drifts:
                      if getattr(d, "severity", "") != "info":
-@@ -34759,21 +34829,14 @@ def run_review_sequence(
+@@ -27864,13 +27950,31 @@ def hold_attended_plan(
+     """
+     if q_entry.get("action") != "execute" or plan_path is None:
+         return False
++    from agent_workflows import artifact_core as _core
+     from agent_workflows import ipd_schema as _schema
++    from agent_workflows import project_context as _proj_ctx
+ 
+-    try:
+-        text = Path(plan_path).read_text(encoding="utf-8")
+-    except OSError:
++    p = Path(plan_path)
++    owner_root = _proj_ctx.record_owner_root(p)
++    if owner_root is None:
++        cand = _core.repo_root_of(p)
++        owner_root = p.parent if cand == p.resolve() else cand
++    st, raw_text = _read_state_for_path(owner_root, p, record_type="ipd")
++    if st is None:
+         return False
+-    if not _schema.plan_requires_attended(text):
++    attended_val = (
++        str((getattr(st, "fields", None) or {}).get("attended") or "").strip().lower()
++    )
++    if attended_val == "required":
++        requires_attended = True
++    else:
++        if raw_text is None:
++            try:
++                raw_text = p.read_text(encoding="utf-8")
++            except OSError:
++                return False
++        requires_attended = _schema.plan_requires_attended(raw_text)
++    if not requires_attended:
+         return False
+     if interactive:
+         q_entry[ATTENDED_KEY] = True
+@@ -34497,17 +34601,53 @@ def run_review_sequence(
+             else (target_root / item.get("configured_file", ""))
+         )
+ 
++    def _read_plan_log_state_and_history(
++        p: Path | None = None,
++    ) -> tuple[Any | None, list[dict[str, Any]] | None]:
++        from agent_workflows import artifact_meta as _am
++        from agent_workflows import artifact_naming as _an_rev
++
++        pf = Path(p) if p is not None else plan_file
++        try:
++            cand_id6: str | None = None
++            raw_item_id = str(item.get("id6") or "").strip()
++            if raw_item_id and ID6_RE.fullmatch(raw_item_id):
++                cand_id6 = raw_item_id
++            if not cand_id6 and pf.is_file():
++                cand_id6 = _am.read_mirror_id6(pf.read_text(encoding="utf-8"))
++            if not cand_id6:
++                parts = _an_rev.identity_parts(pf.name)
++                if parts and parts[3] and ID6_RE.fullmatch(parts[3]):
++                    cand_id6 = parts[3]
++            if not cand_id6:
++                return None, None
++            meta_ctx = _am.legacy_context(target_root)
++            log_p = Path(meta_ctx.logical_roots["records"]) / "meta" / f"{cand_id6}.jsonl"
++            if not log_p.is_file():
++                return None, None
++            with _am.ephemeral_if_uninitialized():
++                st_val = _am.read(cand_id6, project_context=meta_ctx)
++                hist_val = _am.history(cand_id6, project_context=meta_ctx)
++            return st_val, hist_val
++        except Exception:
++            return None, None
++
+     plan_text_initial = (
+         plan_file.read_text(encoding="utf-8") if plan_file.is_file() else ""
+     )
+-    doc = ipd_lint.parse(plan_text_initial)
++    state_initial, history_initial = _read_plan_log_state_and_history()
++    doc = ipd_lint.parse(plan_text_initial, state=state_initial)
+     kind = (doc.meta_fields.get("Kind") or "").strip()
+     in_set = bool(doc.meta_fields.get("Set")) or bool(item.get("setid"))
+ 
+     baseline_plan_sha = hashlib.sha256(plan_text_initial.encode("utf-8")).hexdigest()
+-    baseline_frozen_digest = ipd_lifecycle.frozen_region_digest(plan_text_initial)
+-    baseline_verdicts = review_sequence.verdict_outputs(plan_text_initial)
+-    tf = review_tier.tier_facts(plan_text_initial)
++    baseline_frozen_digest = ipd_lifecycle.frozen_region_digest(
++        plan_text_initial, state=state_initial
++    )
++    baseline_verdicts = review_sequence.verdict_outputs(
++        plan_text_initial, state=state_initial, history=history_initial
++    )
++    tf = review_tier.tier_facts(plan_text_initial, state=state_initial)
+     facts_md = review_tier.render_tier_facts(tf)
+ 
+     _rc_h, head_out, _ = _run_git(target_root, ["rev-parse", "HEAD"])
+@@ -34626,7 +34766,10 @@ def run_review_sequence(
+         return 0, cur_session, run_dir / f"{log_suffix}.jsonl", []
+ 
+     def _check_verdict_guard(cur_text: str) -> bool:
+-        cur_verdicts = review_sequence.verdict_outputs(cur_text)
++        cur_st, cur_hist = _read_plan_log_state_and_history()
++        cur_verdicts = review_sequence.verdict_outputs(
++            cur_text, state=cur_st, history=cur_hist
++        )
+         if cur_verdicts != baseline_verdicts:
+             return True
+         if baseline_head:
+@@ -34682,6 +34825,7 @@ def run_review_sequence(
+     limit_reached = False
+     limit_instruction = ""
+     after_r_text: str | None = None
++    after_r_state: Any = None
+ 
+     if review_steps:
+         last_step = review_steps[-1]
+@@ -34754,26 +34898,20 @@ def run_review_sequence(
+         else:
+             plan_file.write_text(plan_text_initial, encoding="utf-8")
+         cur = plan_file.read_text(encoding="utf-8")
+-        doc_c = ipd_lint.parse(cur)
++        cur_st, _ = _read_plan_log_state_and_history()
++        doc_c = ipd_lint.parse(cur, state=cur_st)
+         if doc_c.meta_fields.get("Status") != "to-review":
              from agent_workflows import artifact_core as _core
              from agent_workflows import artifact_meta as _am
  
@@ -12253,7 +14004,194 @@ index 461caf32a..4a23b52ba 100644
              )
          save_state(run_dir, state)
          return 1, s_id, last_log, last_argv
-@@ -56928,35 +56991,126 @@ def _collect_lane_added_open_backlogs(
+@@ -34854,8 +34992,12 @@ def run_review_sequence(
+ 
+         # Check structural diff on P
+         if "P" in p1_checks:
++            state_after_p1, _ = _read_plan_log_state_and_history()
+             refused_diff, confirm_changes = review_sequence.structural_diff(
+-                plan_text_initial, plan_text_after
++                plan_text_initial,
++                plan_text_after,
++                state_before=state_initial,
++                state_after=state_after_p1,
+             )
+             if refused_diff:
+                 plan_file.write_text(plan_text_initial, encoding="utf-8")
+@@ -34874,8 +35016,12 @@ def run_review_sequence(
+                 plan_text_after = plan_file.read_text(encoding="utf-8")
+                 reply_text = _get_reply_text(log_path)
+                 review_text = _get_review_text()
++                state_after_p1_reask, _ = _read_plan_log_state_and_history()
+                 refused_diff2, confirm_changes = review_sequence.structural_diff(
+-                    plan_text_initial, plan_text_after
++                    plan_text_initial,
++                    plan_text_after,
++                    state_before=state_initial,
++                    state_after=state_after_p1_reask,
+                 )
+                 if refused_diff2:
+                     return _fail_incomplete(
+@@ -34978,6 +35124,7 @@ def run_review_sequence(
+ 
+         if any(c in ("R2", "R4") for c in p1_checks):
+             after_r_text = plan_text_after
++            after_r_state, _ = _read_plan_log_state_and_history()
+         p1_sha = hashlib.sha256(plan_text_after.encode("utf-8")).hexdigest()
+         (snap_dir / f"{p1_sha}.plan.md").write_text(plan_text_after, encoding="utf-8")
+         step_1_rec = {
+@@ -35031,6 +35178,7 @@ def run_review_sequence(
+             p_text = p_text + "\n\n" + limit_instruction
+ 
+         plan_text_before = plan_file.read_text(encoding="utf-8")
++        state_before, history_before = _read_plan_log_state_and_history()
+ 
+         if not (resumed_rereview and k == s6_idx):
+             p_path = write_prompt(
+@@ -35086,10 +35234,12 @@ def run_review_sequence(
+                 )
+ 
+             plan_text_after = plan_file.read_text(encoding="utf-8")
++            state_after, history_after = _read_plan_log_state_and_history()
+             reply_text = _get_reply_text(step_log_path)
+             review_text = _get_review_text()
+         else:
+             plan_text_after = plan_text_before
++            state_after, history_after = state_before, history_before
+             reply_text = ""
+             review_text = _get_review_text()
+ 
+@@ -35126,6 +35276,7 @@ def run_review_sequence(
+                     reply_text,
+                     repo_root=target_root,
+                     plan_path=plan_file,
++                    state_after=state_after,
+                 )
+                 if err:
+                     failed_check, failed_reason = "S5", err
+@@ -35146,7 +35297,14 @@ def run_review_sequence(
+ 
+             if failed_check is None and "S7" in group_checks:
+                 err = review_sequence.check_S7(
+-                    plan_text_before, plan_text_after, review_text, reply_text
++                    plan_text_before,
++                    plan_text_after,
++                    review_text,
++                    reply_text,
++                    state_before=state_before,
++                    state_after=state_after,
++                    history_before=history_before,
++                    history_after=history_after,
+                 )
+                 if err:
+                     failed_check, failed_reason = "S7", err
+@@ -35154,7 +35312,9 @@ def run_review_sequence(
+                     from agent_workflows import review_rereview
+ 
+                     err_lim = review_rereview.check_limit_s7(
+-                        plan_text_before, plan_text_after
++                        plan_text_before,
++                        plan_text_after,
++                        state_after=state_after,
+                     )
+                     if err_lim:
+                         failed_check, failed_reason = "S7", err_lim
+@@ -35185,6 +35345,7 @@ def run_review_sequence(
+                     reask_p, k, f"{lbl}-reask", session_id
+                 )
+                 plan_text_after = plan_file.read_text(encoding="utf-8")
++                state_after, history_after = _read_plan_log_state_and_history()
+                 reply_text = _get_reply_text(step_log_path)
+                 review_text = _get_review_text()
+ 
+@@ -35202,6 +35363,7 @@ def run_review_sequence(
+                         reply_text,
+                         repo_root=target_root,
+                         plan_path=plan_file,
++                        state_after=state_after,
+                     )
+                 elif failed_check == "S6":
+                     err2 = review_sequence.check_S6(
+@@ -35209,13 +35371,22 @@ def run_review_sequence(
+                     )
+                 elif failed_check == "S7":
+                     err2 = review_sequence.check_S7(
+-                        plan_text_before, plan_text_after, review_text, reply_text
++                        plan_text_before,
++                        plan_text_after,
++                        review_text,
++                        reply_text,
++                        state_before=state_before,
++                        state_after=state_after,
++                        history_before=history_before,
++                        history_after=history_after,
+                     )
+                     if not err2 and limit_reached:
+                         from agent_workflows import review_rereview
+ 
+                         err2 = review_rereview.check_limit_s7(
+-                            plan_text_before, plan_text_after
++                            plan_text_before,
++                            plan_text_after,
++                            state_after=state_after,
+                         )
+                 else:
+                     err2 = review_sequence.check_steps(
+@@ -35335,6 +35506,7 @@ def run_review_sequence(
+ 
+             if any(c in ("R2", "R4") for c in group_checks):
+                 after_r_text = plan_text_after
++                after_r_state, _ = _read_plan_log_state_and_history()
+ 
+         # Delegate S6 if review_rereview is present
+         if "S6" in group_checks:
+@@ -35398,6 +35570,7 @@ def run_review_sequence(
+                     )
+                     last_rereview_log = Path(r_log_path)
+                     plan_text_a = plan_file.read_text(encoding="utf-8")
++                    r_state_a, _ = _read_plan_log_state_and_history()
+                     r_reply = _get_reply_text(r_log_path)
+                     r_review = _get_review_text()
+ 
+@@ -35420,6 +35593,7 @@ def run_review_sequence(
+                                 r_reply,
+                                 repo_root=target_root,
+                                 plan_path=plan_file,
++                                state_after=r_state_a,
+                             )
+                             if err:
+                                 failed_chk, failed_rsn = "S5", err
+@@ -35445,6 +35619,7 @@ def run_review_sequence(
+                             )
+                             last_rereview_log = Path(r_log_path)
+                             plan_text_a = plan_file.read_text(encoding="utf-8")
++                            r_state_a, _ = _read_plan_log_state_and_history()
+                             r_reply = _get_reply_text(r_log_path)
+                             r_review = _get_review_text()
+                             if failed_chk == "S5":
+@@ -35455,6 +35630,7 @@ def run_review_sequence(
+                                     r_reply,
+                                     repo_root=target_root,
+                                     plan_path=plan_file,
++                                    state_after=r_state_a,
+                                 )
+                             else:
+                                 err2 = review_sequence.check_steps(
+@@ -35566,7 +35742,12 @@ def run_review_sequence(
+                 try:
+                     s6_arg = "" if resumed_rereview else reply_text
+                     rereview_res = review_rereview.run_rereview_loop(
+-                        ctx, s6_arg, after_r_text=after_r_text
++                        ctx,
++                        s6_arg,
++                        after_r_text=after_r_text,
++                        pass_start_state=state_initial,
++                        after_r_state=after_r_state,
++                        read_state=lambda p: _read_plan_log_state_and_history(p)[0],
+                     )
+                 except (
+                     KeyboardInterrupt,
+@@ -56928,35 +57109,126 @@ def _collect_lane_added_open_backlogs(
      return candidates, skipped
  
  
@@ -12395,7 +14333,7 @@ index 461caf32a..4a23b52ba 100644
  
  
  _PROPOSAL_SUMMARY_STRIP_CHARS = " .,;:!?-_/([{'\""
-@@ -57126,7 +57280,6 @@ def perform_coordinator_proposal_file(
+@@ -57126,7 +57398,6 @@ def perform_coordinator_proposal_file(
          skipped_backlog_reasons: tuple[tuple[str, str], ...] = (),
      ) -> ProposalFilingResult:
          from agent_workflows import artifact_core as _core
@@ -12403,7 +14341,7 @@ index 461caf32a..4a23b52ba 100644
  
          proposals_dir = run_dir / "proposals"
          proposals_dir.mkdir(parents=True, exist_ok=True)
-@@ -57145,23 +57298,16 @@ def perform_coordinator_proposal_file(
+@@ -57145,23 +57416,16 @@ def perform_coordinator_proposal_file(
                  f"- Id: {item_id6}\n\n"
                  f"{body_text}\n"
              )
@@ -12437,7 +14375,7 @@ index 461caf32a..4a23b52ba 100644
              )
          else:
              base_content = (
-@@ -57171,26 +57317,14 @@ def perform_coordinator_proposal_file(
+@@ -57171,26 +57435,14 @@ def perform_coordinator_proposal_file(
                  f"- Summary: Proposal from {item_id6}: {clean_summary}\n\n"
                  f"{body_text}\n"
              )
@@ -12472,7 +14410,7 @@ index 461caf32a..4a23b52ba 100644
              )
          _core.atomic_write(fallback_file, fallback_content)
          rel_path = str(fallback_file)
-@@ -57216,12 +57350,18 @@ def perform_coordinator_proposal_file(
+@@ -57216,12 +57468,18 @@ def perform_coordinator_proposal_file(
          *,
          records_dir_override: Path | None = None,
          commit_root_override: Path | None = None,
@@ -12494,7 +14432,7 @@ index 461caf32a..4a23b52ba 100644
  
          from agent_workflows import (
              artifact_core as _core,
-@@ -57254,21 +57394,76 @@ def perform_coordinator_proposal_file(
+@@ -57254,21 +57512,76 @@ def perform_coordinator_proposal_file(
                  skipped.append((rel_path, "invalid-utf8"))
                  continue
  
@@ -12578,7 +14516,7 @@ index 461caf32a..4a23b52ba 100644
                  )
                  else None
              )
-@@ -57318,6 +57513,23 @@ def perform_coordinator_proposal_file(
+@@ -57318,6 +57631,23 @@ def perform_coordinator_proposal_file(
  
              target_path.parent.mkdir(parents=True, exist_ok=True)
              _core.atomic_write(target_path, text)
@@ -12602,7 +14540,7 @@ index 461caf32a..4a23b52ba 100644
              if parsed_id:
                  existing_ids.add(parsed_id)
              if commit_root_override is not None:
-@@ -57335,7 +57547,7 @@ def perform_coordinator_proposal_file(
+@@ -57335,7 +57665,7 @@ def perform_coordinator_proposal_file(
              else:
                  recovered.append(rel_path)
  
@@ -12611,7 +14549,7 @@ index 461caf32a..4a23b52ba 100644
  
      from agent_workflows import project_context as _proj_ctx
  
-@@ -57392,17 +57604,15 @@ def perform_coordinator_proposal_file(
+@@ -57392,17 +57722,15 @@ def perform_coordinator_proposal_file(
                              f"needs-attended: the proposing plan could not be resolved: {exc}",
                              skipped_backlog_reasons=tuple(lane_pre_skipped),
                          )
@@ -12633,7 +14571,7 @@ index 461caf32a..4a23b52ba 100644
                          commit_msg = f"plan({item_id6}): mark Attended: required (agent proposal)"
                  elif size == "small":
                      setid = f"prop-{item_id6}"
-@@ -57475,25 +57685,27 @@ def perform_coordinator_proposal_file(
+@@ -57475,25 +57803,27 @@ def perform_coordinator_proposal_file(
                      created_path = created_plan
                      created_is_new = True
                      plan_content = created_plan.read_text(encoding="utf-8")
@@ -12672,7 +14610,7 @@ index 461caf32a..4a23b52ba 100644
                          )
                      commit_msg = (
                          f"Scaffold draft plan for agent proposal from {item_id6}"
-@@ -57565,7 +57777,11 @@ def perform_coordinator_proposal_file(
+@@ -57565,7 +57895,11 @@ def perform_coordinator_proposal_file(
                      commit_msg = f"File backlog item for agent proposal from {item_id6}"
  
                  assert created_path is not None
@@ -12685,7 +14623,7 @@ index 461caf32a..4a23b52ba 100644
                      repo,
                      record_id6,
                      records_dir_override=resolved_records_dir,
-@@ -57607,10 +57823,27 @@ def perform_coordinator_proposal_file(
+@@ -57607,10 +57941,27 @@ def perform_coordinator_proposal_file(
                          skipped_backlog_reasons=tuple(skipped_reasons),
                      )
  
@@ -12715,7 +14653,7 @@ index 461caf32a..4a23b52ba 100644
                  )
                  commit_sha = None
                  commit_exc = None
-@@ -57632,11 +57865,22 @@ def perform_coordinator_proposal_file(
+@@ -57632,11 +57983,22 @@ def perform_coordinator_proposal_file(
                          with contextlib.suppress(OSError):
                              (git_root_res / rec_rel).unlink()
                          skipped_reasons.append((rec_rel, "commit-hook-rejected"))
@@ -12739,7 +14677,7 @@ index 461caf32a..4a23b52ba 100644
                      if needs_attended_unchanged:
                          return ProposalFilingResult(
                              filed=True,
-@@ -57653,7 +57897,7 @@ def perform_coordinator_proposal_file(
+@@ -57653,7 +58015,7 @@ def perform_coordinator_proposal_file(
                      try:
                          commit_outcome = _gch.offer_commit(
                              git_root_res,
@@ -12748,7 +14686,7 @@ index 461caf32a..4a23b52ba 100644
                              message=commit_msg,
                              assume_yes=True,
                              interactive=False,
-@@ -57728,19 +57972,17 @@ def perform_coordinator_proposal_file(
+@@ -57728,19 +58090,17 @@ def perform_coordinator_proposal_file(
                                  f"needs-attended: the proposing plan could not be resolved: {exc}",
                                  skipped_backlog_reasons=tuple(lane_pre_skipped),
                              )
@@ -12772,7 +14710,7 @@ index 461caf32a..4a23b52ba 100644
                              commit_msg = f"plan({item_id6}): mark Attended: required (agent proposal)"
                      elif size == "small":
                          setid = f"prop-{item_id6}"
-@@ -57803,7 +58045,9 @@ def perform_coordinator_proposal_file(
+@@ -57803,7 +58163,9 @@ def perform_coordinator_proposal_file(
                          created_plan = matching[0]
                          plan_content = created_plan.read_text(encoding="utf-8")
                          record_id6 = (
@@ -12783,7 +14721,7 @@ index 461caf32a..4a23b52ba 100644
                          )
  
                          from agent_workflows import artifact_core as _core
-@@ -57811,23 +58055,21 @@ def perform_coordinator_proposal_file(
+@@ -57811,23 +58173,21 @@ def perform_coordinator_proposal_file(
  
                          plan_content = plan_content.rstrip() + "\n\n" + body_text
                          _core.atomic_write(created_plan, plan_content)
@@ -12815,7 +14753,7 @@ index 461caf32a..4a23b52ba 100644
                              )
                          new_record_rel = str(
                              created_plan.relative_to(coord.path)
-@@ -57902,9 +58144,11 @@ def perform_coordinator_proposal_file(
+@@ -57902,9 +58262,11 @@ def perform_coordinator_proposal_file(
  
                      # Validate and materialize lane defect backlogs AFTER new_record_rel and
                      # record_id6 are resolved so st_mtime selection cannot pick a recovered file.
@@ -12830,7 +14768,7 @@ index 461caf32a..4a23b52ba 100644
                      last_skipped = tuple(skipped_reasons)
  
                      if needs_attended_unchanged and not recovered_paths:
-@@ -57920,10 +58164,37 @@ def perform_coordinator_proposal_file(
+@@ -57920,10 +58282,37 @@ def perform_coordinator_proposal_file(
                              skipped_backlog_reasons=tuple(skipped_reasons),
                          )
  
@@ -12870,7 +14808,7 @@ index 461caf32a..4a23b52ba 100644
                      )
                      commit_sha = None
                      commit_exc = None
-@@ -57945,11 +58216,22 @@ def perform_coordinator_proposal_file(
+@@ -57945,11 +58334,22 @@ def perform_coordinator_proposal_file(
                              with contextlib.suppress(OSError):
                                  (coord.path / rec_rel).unlink()
                              skipped_reasons.append((rec_rel, "commit-hook-rejected"))
@@ -12894,7 +14832,7 @@ index 461caf32a..4a23b52ba 100644
                          last_skipped = tuple(skipped_reasons)
                          if needs_attended_unchanged:
                              return ProposalFilingResult(
-@@ -57967,7 +58249,7 @@ def perform_coordinator_proposal_file(
+@@ -57967,7 +58367,7 @@ def perform_coordinator_proposal_file(
                          try:
                              commit_outcome = _gch.offer_commit(
                                  coord.path,
@@ -22515,6 +24453,1211 @@ index 000000000..da1713901
 +    assert res_repair.exit_code == 2
 +    assert "aw migrate metadata" in res_repair.summary
 +    assert any(a.command == "aw migrate metadata" for a in res_repair.next_actions)
+diff --git a/tests/test_cutover_log_readiness_runner_and_review_seq.py b/tests/test_cutover_log_readiness_runner_and_review_seq.py
+new file mode 100644
+index 000000000..77268e9ae
+--- /dev/null
++++ b/tests/test_cutover_log_readiness_runner_and_review_seq.py
+@@ -0,0 +1,1199 @@
++"""Core behavioral tests for log-aware coverage_record, readiness, runner helpers, and review-sequence evaluators (q6fiws)."""
++
++from __future__ import annotations
++
++import json
++import os
++import subprocess
++from pathlib import Path
++from typing import Any
++
++import pytest
++
++from agent_workflows import (
++    artifact_meta as meta,
++    coverage_record,
++    orchestrator_readiness,
++    plan_readiness,
++    review_rereview,
++    review_sequence,
++    review_tier,
++    runner_shared,
++)
++
++pytestmark = pytest.mark.core
++
++
++def _git(repo: Path, *args: str) -> str:
++    proc = subprocess.run(
++        ["git", *args],
++        cwd=str(repo),
++        capture_output=True,
++        text=True,
++        check=True,
++    )
++    return proc.stdout.strip()
++
++
++def _init_log_repo(tmp_path: Path, *, name: str = "repo", with_git: bool = False) -> Path:
++    repo = tmp_path / name
++    for sub in (
++        ".aw/config",
++        ".aw/state",
++        ".aw/records/meta",
++        ".aw/records/plans/pending",
++        ".aw/records/plans/executed",
++        ".aw/records/specs/to-review",
++        ".aw/records/specs/approved",
++        ".aw/records/backlog/open",
++        ".aw/records/reviews",
++    ):
++        (repo / sub).mkdir(parents=True, exist_ok=True)
++    (repo / ".aw" / "config" / "project.json").write_text(
++        json.dumps(
++            {
++                "metadata_schema": 2,
++                "records_backend": "repository",
++                "placements": {"records": "target-tracked"},
++            }
++        )
++        + "\n",
++        encoding="utf-8",
++    )
++    if with_git:
++        _git(repo, "init", "-b", "main")
++        _git(repo, "config", "user.name", "Test User")
++        _git(repo, "config", "user.email", "test@example.com")
++    return repo
++
++
++def _write_log(repo: Path, id6: str, events: list[dict[str, Any]]) -> Path:
++    log_path = repo / ".aw" / "records" / "meta" / f"{id6}.jsonl"
++    norm = []
++    for ev in events:
++        row = {"v": 1, **ev}
++        if row.get("by_human") is False:
++            row.pop("by_human", None)
++        norm.append(row)
++    log_path.write_text(
++        "\n".join(json.dumps(ev, separators=(",", ":")) for ev in norm) + "\n",
++        encoding="utf-8",
++    )
++    return log_path
++
++
++def _conforming_child_body(slug: str = "child-plan", oq_section: str = "None open.\n") -> str:
++    return (
++        f"# IPD: {slug}\n\n"
++        "## Goal\n\nImplement one bounded change.\n\n"
++        "## Detailed Implementation Checklist (TODO)\n\n"
++        "### Task group 1: work\n\n"
++        "- [ ] E-01 Update target module.\n"
++        "  - Depends on: none\n"
++        "  - Expected outcome: target module updated.\n"
++        "  - Execution state: pending\n\n"
++        "## Project conventions discovered (Step 0)\n\n- None.\n\n"
++        "## Findings\n\n- None.\n\n"
++        "## Proposed changes (ordered, validatable)\n\n1. Update module.\n\n"
++        "## Deferred / out of scope (with reason)\n\n- None.\n\n"
++        "## Scope check\n\n- Over-scope: none.\n- Under-scope: none.\n\n"
++        "## Required tests / validation\n\n- `python3 -m pytest`\n\n"
++        "## Spec / documentation sync\n\n- None.\n\n"
++        "## Open questions\n\n"
++        f"{oq_section}\n"
++        "## Validation and cross-check (verify before reporting done)\n\n"
++        "- [ ] V-01 validates E-01\n"
++        "  - Required evidence: paste pytest output.\n"
++        "  - Observed evidence:\n"
++        "  - Result: pending\n\n"
++        "## Approval and execution gate\n\n"
++        "- Size assessment: standard\n"
++        "- Cohesion rationale: not required\n"
++    )
++
++
++def _orchestrator_body(
++    child_id6: str,
++    *,
++    e01_text: str | None = None,
++    extra_goal: str = "",
++) -> str:
++    action_line = (
++        e01_text
++        if e01_text is not None
++        else f"CONFIRM {child_id6} REACHED executed"
++    )
++    return (
++        "# IPD: Demo set orchestrator\n\n"
++        f"## Goal\n\nCoordinate child `{child_id6}`.{extra_goal}\n\n"
++        "## Child IPDs, sequence, and dependencies\n\n"
++        "| Order | Id | Child | Depends on |\n"
++        "|---|---|---|---|\n"
++        f"| 01 | `{child_id6}` | Child work | none |\n\n"
++        "## Detailed Implementation Checklist (TODO)\n\n"
++        "### Task group 1: coordinate\n\n"
++        f"- [ ] E-01 {action_line}\n"
++        "  - Depends on: none\n"
++        f"  - Expected outcome: child `{child_id6}` executed.\n"
++        "  - Execution state: pending\n\n"
++        "## Project conventions discovered (Step 0)\n\n- None.\n\n"
++        "## Findings\n\n- None.\n\n"
++        "## Proposed changes (ordered, validatable)\n\n1. Run child.\n\n"
++        "## Deferred / out of scope (with reason)\n\n- None.\n\n"
++        "## Scope check\n\n- Over-scope: none.\n- Under-scope: none.\n\n"
++        "## Required tests / validation\n\n- `python3 -m pytest`\n\n"
++        "## Spec / documentation sync\n\n- None.\n\n"
++        "## Open questions\n\nNone open.\n\n"
++        "## Validation and cross-check (verify before reporting done)\n\n"
++        "- [ ] V-01 validates E-01\n"
++        f"  - Required evidence: child `{child_id6}` executed.\n"
++        "  - Observed evidence:\n"
++        "  - Result: pending\n\n"
++        "## Approval and execution gate\n\n"
++        "- Size assessment: standard\n"
++        "- Cohesion rationale: not required\n"
++    )
++
++
++def _create_log_plan(
++    repo: Path,
++    id6: str,
++    *,
++    status: str = "to-review",
++    bucket: str = "pending",
++    slug: str = "sample-plan",
++    set_id: str = "demo",
++    order: int = 1,
++    plan_role: str = "child",
++    scope_paths: list[str] | None = None,
++    item_dependencies: list[dict[str, Any]] | None = None,
++    extra_fields: dict[str, Any] | None = None,
++    body: str | None = None,
++    extra_events: list[dict[str, Any]] | None = None,
++) -> Path:
++    rel = f"plans/{bucket}/20261126-{set_id}-{order:02d}-{id6}-{slug}.ipd.md"
++    plan_path = repo / ".aw" / "records" / rel
++    plan_path.parent.mkdir(parents=True, exist_ok=True)
++    mirror = meta.render_in_file_mirror(id6, "ipd", status)
++    plan_path.write_text(
++        mirror + (body if body is not None else _conforming_child_body(slug)),
++        encoding="utf-8",
++    )
++    fields: dict[str, Any] = {
++        "type": "ipd",
++        "status": status,
++        "plan_role": plan_role,
++        "set": set_id,
++        "order": order,
++        "priority": "medium",
++        "work_kind": "bug",
++        "highest_e_allocated": "01",
++        "author": "test-agent",
++        "scope_paths": (
++            scope_paths if scope_paths is not None else [f".aw/records/{rel}"]
++        ),
++    }
++    if item_dependencies is not None:
++        fields["item_dependencies"] = item_dependencies
++    else:
++        fields["dependency_declaration"] = "none"
++    if extra_fields:
++        fields.update(extra_fields)
++    events: list[dict[str, Any]] = [
++        {
++            "seq": 0,
++            "append": 0,
++            "op": "checkpoint",
++            "at": "2026-11-26T10:00:00Z",
++            "actor": {"tool": "test"},
++            "path": rel,
++            "fields": fields,
++            "message": "created",
++        }
++    ]
++    if extra_events:
++        events.extend(extra_events)
++    _write_log(repo, id6, events)
++    return plan_path
++
++
++def test_coverage_record_write_read_is_current_and_dirty_log_refusal(
++    tmp_path: Path,
++) -> None:
++    """coverage_record commits companion log on pass/fail, derives date/model from op='coverage', and refuses dirty logs."""
++    repo = _init_log_repo(tmp_path, with_git=True)
++    _create_log_plan(repo, "ch1001", status="to-review", order=1, slug="child-one")
++    orch_path = _create_log_plan(
++        repo,
++        "or1001",
++        status="to-review",
++        order=0,
++        plan_role="orchestrator",
++        slug="orch-one",
++        body=_orchestrator_body("ch1001"),
++    )
++    _git(repo, "add", ".aw")
++    _git(repo, "commit", "-m", "initial log orchestrator")
++
++    # Pass write with commit=True commits .aw/records/meta/or1001.jsonl even though .ipd.md is unchanged
++    res_pass = coverage_record.write(
++        orch_path,
++        coverage_record.COVERAGE_PASS,
++        model="gpt-5-mini",
++        tool="aw oc run",
++        commit=True,
++        host="oc",
++        repo=repo,
++    )
++    assert res_pass.written is True
++    assert res_pass.committed is True
++    committed_files = _git(repo, "show", "--name-only", "--format=", "HEAD").splitlines()
++    assert ".aw/records/meta/or1001.jsonl" in committed_files
++
++    orch_text = orch_path.read_text(encoding="utf-8")
++    rec = coverage_record.read(orch_text, plan_path=orch_path, repo=repo)
++    assert rec.verdict == coverage_record.COVERAGE_PASS
++    assert rec.fingerprint == runner_shared.probe_cache_digest(orch_text)
++    assert len(rec.date) == 10 and rec.date[4] == "-"
++    assert rec.model == "gpt-5-mini"
++    assert coverage_record.is_current(orch_text, plan_path=orch_path, repo=repo) is True
++
++    # Fail write with commit=True commits BOTH the plan file (with ## Coverage findings) and companion log
++    res_fail = coverage_record.write(
++        orch_path,
++        coverage_record.COVERAGE_FAIL,
++        quotes=("Run full deployment script directly.",),
++        model="",
++        tool="aw agy run",
++        commit=True,
++        host="agy",
++        repo=repo,
++    )
++    assert res_fail.written is True
++    assert res_fail.committed is True
++    fail_files = _git(repo, "show", "--name-only", "--format=", "HEAD").splitlines()
++    assert ".aw/records/meta/or1001.jsonl" in fail_files
++    assert any(f.endswith("or1001-orch-one.ipd.md") for f in fail_files)
++
++    fail_text = orch_path.read_text(encoding="utf-8")
++    rec_fail = coverage_record.read(fail_text, plan_path=orch_path, repo=repo)
++    assert rec_fail.verdict == coverage_record.COVERAGE_FAIL
++    assert rec_fail.model == "by host-default"
++    assert rec_fail.quotes == ("Run full deployment script directly.",)
++    assert coverage_record.is_current(fail_text, plan_path=orch_path, repo=repo) is True
++
++    # Body edit invalidates fingerprint
++    edited_text = fail_text.replace(
++        "Coordinate child `ch1001`.", "Coordinate child `ch1001` and run extra release."
++    )
++    assert coverage_record.is_current(edited_text, plan_path=orch_path, repo=repo) is False
++
++    # commit=False writes without creating a commit
++    head_before = _git(repo, "rev-parse", "HEAD")
++    res_nocommit = coverage_record.write(
++        orch_path,
++        coverage_record.COVERAGE_PASS,
++        model="claude-opus",
++        tool="aw oc run",
++        commit=False,
++        repo=repo,
++    )
++    assert res_nocommit.written is True
++    assert res_nocommit.committed is False
++    assert _git(repo, "rev-parse", "HEAD") == head_before
++
++    # Now companion log is dirty -> commit=True refuses to commit but still writes
++    res_dirty = coverage_record.write(
++        orch_path,
++        coverage_record.COVERAGE_PASS,
++        model="claude-opus",
++        tool="aw oc run",
++        commit=True,
++        repo=repo,
++    )
++    assert res_dirty.written is True
++    assert res_dirty.committed is False
++    assert "uncommitted" in res_dirty.detail.lower()
++    assert _git(repo, "rev-parse", "HEAD") == head_before
++
++    # Legacy inline text parity (no plan_path/repo, no log state)
++    legacy_text = (
++        "# IPD: Legacy orch\n\n"
++        "- Id: lg1001\n"
++        "- Coverage: pass\n"
++        f"- Coverage-Fingerprint: {runner_shared.probe_cache_digest(_orchestrator_body('ch1001'))}\n"
++        "- Coverage-Checked: 2026-10-01 by legacy-model\n\n"
++        + _orchestrator_body("ch1001")
++    )
++    rec_leg = coverage_record.read(legacy_text)
++    assert rec_leg.verdict == coverage_record.COVERAGE_PASS
++    assert rec_leg.date == "2026-10-01"
++    assert rec_leg.model == "legacy-model"
++
++
++def test_orchestrator_readiness_and_probe_orchestrator_on_log_format(
++    tmp_path: Path,
++) -> None:
++    """review_readiness recognizes cached log coverage, fires Condition 3 on nonconforming rows, and probe_orchestrator caches/re-probes."""
++    repo = _init_log_repo(tmp_path, with_git=True)
++    _create_log_plan(repo, "ch2001", status="to-review", order=1, slug="child-two")
++    orch_path = _create_log_plan(
++        repo,
++        "or2001",
++        status="to-review",
++        order=0,
++        plan_role="orchestrator",
++        slug="orch-two",
++        body=_orchestrator_body("ch2001"),
++    )
++    _git(repo, "add", ".aw")
++    _git(repo, "commit", "-m", "init orch two")
++
++    # Probe once via probe_orchestrator -> calls asker, writes & commits log
++    calls_seen: list[str] = []
++
++    def _asker(state: Any, excerpt: str, *, host: str, repo: Path, runner: Any = None):
++        calls_seen.append(host)
++        return (runner_shared.PROBE_ANSWER_NO_EXECUTIONS, "all work delegated", ())
++
++    target = runner_shared.ProbeTarget(
++        id6="or2001",
++        position=0,
++        setid="demo",
++        path=orch_path,
++        text=orch_path.read_text(encoding="utf-8"),
++    )
++    out1 = runner_shared.probe_orchestrator(
++        {"options": {"model": "probe-m1"}},
++        target,
++        repo=repo,
++        host="oc",
++        retry_budget=0,
++        asker=_asker,
++        commit=True,
++    )
++    assert out1.cached is False
++    assert out1.calls == 1
++    assert out1.written is True
++    assert out1.committed is True
++    assert len(calls_seen) == 1
++
++    # Second probe hits cache with 0 model calls
++    target2 = runner_shared.ProbeTarget(
++        id6="or2001",
++        position=0,
++        setid="demo",
++        path=orch_path,
++        text=orch_path.read_text(encoding="utf-8"),
++    )
++    out2 = runner_shared.probe_orchestrator(
++        {"options": {"model": "probe-m1"}},
++        target2,
++        repo=repo,
++        host="oc",
++        retry_budget=0,
++        asker=_asker,
++        commit=True,
++    )
++    assert out2.cached is True
++    assert out2.calls == 0
++    assert "probe-m1" in out2.detail
++    assert len(calls_seen) == 1
++
++    # review_readiness recognizes cached log coverage and reports ready=True
++    rr = orchestrator_readiness.review_readiness(repo, orch_path, ask=False)
++    assert rr.applies is True
++    assert rr.cached is True
++    assert rr.calls == 0
++    assert rr.ready is True
++    assert rr.findings == ()
++
++    # Nonconforming orchestrator row (work not referencing any child in ## Child IPDs) fires Condition 3 CODE_ROW_NONCONFORMING
++    bad_orch = _create_log_plan(
++        repo,
++        "or2002",
++        status="to-review",
++        order=0,
++        plan_role="orchestrator",
++        set_id="badset",
++        slug="orch-bad-row",
++        body=_orchestrator_body(
++            "ch2002",
++            e01_text="Run standalone deployment migration directly without any child.",
++        ),
++    )
++    _create_log_plan(
++        repo, "ch2002", status="to-review", order=1, set_id="badset", slug="child-bad"
++    )
++    rr_bad = orchestrator_readiness.review_readiness(repo, bad_orch, ask=False)
++    assert rr_bad.applies is True
++    codes = {f.code for f in rr_bad.findings}
++    assert orchestrator_readiness.CODE_ROW_NONCONFORMING in codes
++
++
++def test_is_plan_review_approved_log_provenance_three_way_and_fallback(
++    tmp_path: Path,
++) -> None:
++    """is_plan_review_approved enforces gate review provenance, fails closed on bad readiness, and checks events[-1] on fallback."""
++    repo = _init_log_repo(tmp_path)
++
++    # 1. Valid readiness + gate op="review" -> True
++    p_ok = _create_log_plan(
++        repo,
++        "ap1001",
++        status="reviewed",
++        extra_events=[
++            {
++                "seq": 1,
++                "append": 1,
++                "op": "review",
++                "at": "2026-11-26T11:00:00Z",
++                "actor": {"tool": "plan-review", "model": "m1"},
++                "round": 1,
++                "review_kind": "gate",
++                "verdict": "APPROVE WITH REVISIONS APPLIED",
++                "readiness": "go-pending-approval",
++                "message": "APPROVE WITH REVISIONS APPLIED",
++            }
++        ],
++    )
++    assert plan_readiness.is_plan_review_approved(p_ok) is True
++
++    # 2. Readiness set only by recheck-readiness (no real gate review) -> False
++    p_recheck = _create_log_plan(
++        repo,
++        "ap1002",
++        status="reviewed",
++        extra_events=[
++            {
++                "seq": 1,
++                "append": 1,
++                "op": "review",
++                "at": "2026-11-26T11:00:00Z",
++                "actor": {"tool": "aw ipd recheck-readiness"},
++                "round": 1,
++                "review_kind": "gate",
++                "verdict": "APPROVE",
++                "readiness": "go-pending-approval",
++                "message": "recheck only",
++            }
++        ],
++    )
++    assert plan_readiness.is_plan_review_approved(p_recheck) is False
++
++    # 3. Refinement review only -> False
++    p_ref = _create_log_plan(
++        repo,
++        "ap1003",
++        status="reviewed",
++        extra_events=[
++            {
++                "seq": 1,
++                "append": 1,
++                "op": "review",
++                "at": "2026-11-26T11:00:00Z",
++                "actor": {"tool": "plan-review"},
++                "round": 1,
++                "review_kind": "refinement",
++                "verdict": "REVIEWED - NO MATERIAL IMPROVEMENTS FOUND IN THIS ITERATION",
++            }
++        ],
++    )
++    assert plan_readiness.is_plan_review_approved(p_ref) is False
++
++    # 4. Readiness no-go with gate review -> False
++    p_nogo = _create_log_plan(
++        repo,
++        "ap1004",
++        status="reviewed",
++        extra_events=[
++            {
++                "seq": 1,
++                "append": 1,
++                "op": "review",
++                "at": "2026-11-26T11:00:00Z",
++                "actor": {"tool": "plan-review"},
++                "round": 1,
++                "review_kind": "gate",
++                "verdict": "APPROVE",
++                "readiness": "no-go",
++            }
++        ],
++    )
++    assert plan_readiness.is_plan_review_approved(p_nogo) is False
++
++    # 5. Out-of-vocab readiness -> fails closed outright without fallback
++    p_bogus = _create_log_plan(
++        repo,
++        "ap1005",
++        status="reviewed",
++        extra_fields={"readiness": "bogus-value"},
++        extra_events=[
++            {
++                "seq": 1,
++                "append": 1,
++                "op": "review",
++                "at": "2026-11-26T11:00:00Z",
++                "actor": {"tool": "plan-review"},
++                "round": 1,
++                "review_kind": "gate",
++                "verdict": "APPROVE",
++            }
++        ],
++    )
++    assert plan_readiness.is_plan_review_approved(p_bogus) is False
++
++    # 6. Absent readiness fallback: events[-1] (ORDER BY seq ASC) is gate review APPROVE -> True
++    p_fb_ok = _create_log_plan(
++        repo,
++        "ap1006",
++        status="reviewed",
++        extra_events=[
++            {
++                "seq": 1,
++                "append": 1,
++                "op": "note",
++                "at": "2026-11-26T10:30:00Z",
++                "actor": {"tool": "author"},
++                "message": "author note",
++            },
++            {
++                "seq": 2,
++                "append": 2,
++                "op": "review",
++                "at": "2026-11-26T11:00:00Z",
++                "actor": {"tool": "plan-review"},
++                "round": 1,
++                "review_kind": "gate",
++                "verdict": "APPROVE",
++            },
++        ],
++    )
++    assert plan_readiness.is_plan_review_approved(p_fb_ok) is True
++
++    # 7. Absent readiness fallback: newer non-review note after APPROVE -> False (events[-1] has no review provenance)
++    p_fb_stale_last = _create_log_plan(
++        repo,
++        "ap1007",
++        status="reviewed",
++        extra_events=[
++            {
++                "seq": 1,
++                "append": 1,
++                "op": "review",
++                "at": "2026-11-26T11:00:00Z",
++                "actor": {"tool": "plan-review"},
++                "round": 1,
++                "review_kind": "gate",
++                "verdict": "APPROVE",
++            },
++            {
++                "seq": 2,
++                "append": 2,
++                "op": "note",
++                "at": "2026-11-26T12:00:00Z",
++                "actor": {"tool": "author"},
++                "message": "later note",
++            },
++        ],
++    )
++    assert plan_readiness.is_plan_review_approved(p_fb_stale_last) is False
++
++    # 8. Absent readiness fallback with unresolved blocking OQ -> False
++    oq_open = "### OQ-01: Need decision\n- Blocking: yes\n- Status: open\n"
++    p_fb_oq = _create_log_plan(
++        repo,
++        "ap1008",
++        status="reviewed",
++        body=_conforming_child_body("oq-plan", oq_section=oq_open),
++        extra_events=[
++            {
++                "seq": 1,
++                "append": 1,
++                "op": "review",
++                "at": "2026-11-26T11:00:00Z",
++                "actor": {"tool": "plan-review"},
++                "round": 1,
++                "review_kind": "gate",
++                "verdict": "APPROVE",
++            }
++        ],
++    )
++    assert plan_readiness.is_plan_review_approved(p_fb_oq) is False
++
++    # 9. Legacy unlogged inline parity
++    leg_path = repo / ".aw" / "records" / "plans" / "pending" / "20261126-demo-09-lg2001-legacy.ipd.md"
++    leg_path.write_text(
++        "# IPD: Legacy\n\n"
++        "- Status: reviewed\n"
++        "- Readiness: go-pending-approval\n"
++        "- Id: lg2001\n\n"
++        "## Workflow history\n\n"
++        "- 2026-11-26 /plan-review (tester): APPROVE\n",
++        encoding="utf-8",
++    )
++    assert plan_readiness.is_plan_review_approved(leg_path) is True
++
++
++def test_review_staleness_log_only_scope_paths_and_cache_invalidation(
++    tmp_path: Path,
++) -> None:
++    """review_staleness_index finds log-only plan-review commits, flags log-only Scope-Paths mutations, and invalidates cache on log mtime."""
++    plan_readiness.clear_review_staleness_cache()
++    repo = _init_log_repo(tmp_path, with_git=True)
++    plan_path = _create_log_plan(
++        repo,
++        "st1001",
++        status="to-review",
++        scope_paths=["agent_workflows/a.py"],
++    )
++    _git(repo, "add", ".aw")
++    _git(repo, "commit", "-m", "add plan st1001")
++
++    # Simulate a log-only plan-review commit (modifies ONLY meta/st1001.jsonl, leaving .ipd.md untouched)
++    log_path = repo / ".aw" / "records" / "meta" / "st1001.jsonl"
++    existing_lines = log_path.read_text(encoding="utf-8").splitlines()
++    existing_lines.append(
++        json.dumps(
++            {
++                "v": 1,
++                "seq": 1,
++                "append": 1,
++                "op": "review",
++                "at": "2026-11-26T11:00:00Z",
++                "actor": {"tool": "plan-review"},
++                "round": 1,
++                "review_kind": "gate",
++                "verdict": "APPROVE",
++                "readiness": "go-pending-approval",
++            }
++        )
++    )
++    existing_lines.append(
++        json.dumps(
++            {
++                "v": 1,
++                "seq": 2,
++                "append": 1,
++                "op": "transition",
++                "at": "2026-11-26T11:00:00Z",
++                "actor": {"tool": "plan-review"},
++                "from": "to-review",
++                "to": "reviewed",
++            }
++        )
++    )
++    log_path.write_text("\n".join(existing_lines) + "\n", encoding="utf-8")
++    _git(repo, "add", ".aw/records/meta/st1001.jsonl")
++    _git(repo, "commit", "-m", "plan-review: st1001 APPROVE")
++    rev_sha = _git(repo, "rev-parse", "HEAD")
++
++    rel_plan = plan_path.relative_to(repo).as_posix()
++
++    # Clean right after review (primes _STALENESS_CACHE)
++    idx_clean = plan_readiness.review_staleness_index(repo, [plan_path])
++    assert rel_plan not in idx_clean
++
++    # Now mutate ONLY Scope-Paths in meta/st1001.jsonl WITHOUT touching .ipd.md and WITHOUT clearing cache
++    existing_lines.append(
++        json.dumps(
++            {
++                "v": 1,
++                "seq": 3,
++                "append": 3,
++                "op": "set",
++                "at": "2026-11-26T12:00:00Z",
++                "actor": {"tool": "aw set"},
++                "fields": {
++                    "scope_paths": ["agent_workflows/a.py", "agent_workflows/b.py"]
++                },
++            }
++        )
++    )
++    log_path.write_text("\n".join(existing_lines) + "\n", encoding="utf-8")
++    # Bump log mtime to guarantee distinct mtime_ns even on coarse filesystems
++    st_now = log_path.stat()
++    os.utime(log_path, ns=(st_now.st_atime_ns, st_now.st_mtime_ns + 1_000_000))
++
++    idx_stale = plan_readiness.review_staleness_index(repo, [plan_path])
++    assert rel_plan in idx_stale
++    assert idx_stale[rel_plan].reviewed_commit == rev_sha
++    assert "substantive-edit" in idx_stale[rel_plan].reasons
++
++    # Pure review_staleness_from_texts check (3-arg unchanged, keyword args catch scope delta on identical text)
++    same_text = plan_path.read_text(encoding="utf-8")
++    assert plan_readiness.review_staleness_from_texts(same_text, same_text, rev_sha) is None
++    st_delta = plan_readiness.review_staleness_from_texts(
++        same_text,
++        same_text,
++        rev_sha,
++        reviewed_scope_paths=["agent_workflows/a.py"],
++        current_scope_paths=["agent_workflows/a.py", "agent_workflows/b.py"],
++    )
++    assert st_delta is not None
++    assert st_delta.reasons == ("substantive-edit",)
++    assert (
++        plan_readiness.review_staleness_from_texts(
++            same_text,
++            same_text,
++            rev_sha,
++            reviewed_scope_paths=["grandfathered"],
++            current_scope_paths=["agent_workflows/a.py"],
++        )
++        is None
++    )
++
++
++def test_hold_attended_plan_and_plan_kind_from_file_on_log_and_legacy(
++    tmp_path: Path,
++) -> None:
++    """hold_attended_plan holds headless / marks interactive on log attended='required' plans; plan_kind_from_file reads log plan_role."""
++    repo = _init_log_repo(tmp_path)
++    p_att = _create_log_plan(
++        repo,
++        "at1001",
++        status="approved",
++        plan_role="child",
++        extra_fields={"attended": "required"},
++    )
++    p_orch = _create_log_plan(
++        repo,
++        "or3001",
++        status="approved",
++        order=0,
++        plan_role="orchestrator",
++        body=_orchestrator_body("at1001"),
++    )
++
++    # Headless hold
++    q_headless: dict[str, Any] = {"id6": "at1001", "action": "execute", "status": "queued"}
++    held = runner_shared.hold_attended_plan(q_headless, p_att, interactive=False)
++    assert held is True
++    assert q_headless["status"] == "not-run"
++    assert q_headless[runner_shared.NEEDS_INPUT_KEY] is True
++    assert q_headless["refusal"]["code"] == runner_shared.ATTENDED_REQUIRED_CODE
++
++    # Interactive mark
++    q_interactive: dict[str, Any] = {"id6": "at1001", "action": "execute", "status": "queued"}
++    held_int = runner_shared.hold_attended_plan(q_interactive, p_att, interactive=True)
++    assert held_int is False
++    assert q_interactive[runner_shared.ATTENDED_KEY] is True
++    assert q_interactive["status"] == "queued"
++
++    # Non-attended log plan is untouched
++    q_normal: dict[str, Any] = {"id6": "or3001", "action": "execute", "status": "queued"}
++    assert runner_shared.hold_attended_plan(q_normal, p_orch, interactive=False) is False
++    assert q_normal["status"] == "queued"
++
++    # plan_kind_from_file reads log plan_role without inline - Kind:
++    assert runner_shared.plan_kind_from_file(p_orch) == "orchestrator"
++    assert runner_shared.plan_kind_from_file(p_att) == "child"
++
++    # Legacy inline parity
++    p_leg = repo / ".aw" / "records" / "plans" / "pending" / "20261126-demo-05-lg3001-leg.ipd.md"
++    p_leg.write_text(
++        "# IPD: Legacy attended\n\n- Kind: orchestrator\n- Attended: required\n- Id: lg3001\n",
++        encoding="utf-8",
++    )
++    assert runner_shared.plan_kind_from_file(p_leg) == "orchestrator"
++    q_leg: dict[str, Any] = {"id6": "lg3001", "action": "execute", "status": "queued"}
++    assert runner_shared.hold_attended_plan(q_leg, p_leg, interactive=False) is True
++
++
++def test_review_tier_sequence_and_rereview_log_aware_and_legacy_parity(
++    tmp_path: Path,
++) -> None:
++    """tier_facts, structural_diff, check_S5, verdict_outputs, check_S7, rereview_triggers, run_rereview_loop, and check_limit_s7 work on log-format plans."""
++    repo = _init_log_repo(tmp_path)
++    p_path = _create_log_plan(
++        repo,
++        "rv1001",
++        status="to-review",
++        plan_role="child",
++        scope_paths=["agent_workflows/x.py", ".aw/records/specs/approved/20261126-sp1001-01-sp1001-demo.spec.md"],
++        item_dependencies=[
++            {
++                "condition": "executed",
++                "target_type": "ipd",
++                "target_id6": "dep001",
++                "required_status": None,
++                "raw": "executed:dep001",
++            }
++        ],
++    )
++    ctx = meta.legacy_context(repo)
++    with meta.ephemeral_if_uninitialized():
++        st_before = meta.read("rv1001", project_context=ctx)
++        hist_before = meta.history("rv1001", project_context=ctx)
++    plan_text_before = p_path.read_text(encoding="utf-8")
++
++    # 1. review_tier.tier_facts with list[str] scope_paths & TODO exclusion
++    facts = review_tier.tier_facts(plan_text_before, state=st_before)
++    assert facts["kind"] == "child"
++    assert facts["names_spec"] is True
++    assert facts["in_set"] is True
++    assert facts["e_items"] == 1
++    assert facts["task_groups"] == 1
++    assert facts["scope_paths"] == [
++        "agent_workflows/x.py",
++        ".aw/records/specs/approved/20261126-sp1001-01-sp1001-demo.spec.md",
++    ]
++    st_todo = meta.State(
++        id6="rv1001",
++        type="ipd",
++        status="to-review",
++        fields={"plan_role": "child", "scope_paths": ["TODO: fill later"]},
++    )
++    assert review_tier.tier_facts(plan_text_before, state=st_todo)["scope_paths"] is None
++
++    # 2. structural_diff detects log metadata change even when plan body text is identical
++    st_mut = meta.State(
++        id6="rv1001",
++        type="ipd",
++        status="to-review",
++        set_id="demo",
++        order_nn=1,
++        fields={**st_before.fields, "scope_paths": ["agent_workflows/x.py", "agent_workflows/y.py"]},
++    )
++    refused, confirm = review_sequence.structural_diff(
++        plan_text_before,
++        plan_text_before,
++        state_before=st_before,
++        state_after=st_mut,
++    )
++    assert any("Scope-Paths" in r for r in refused)
++    assert confirm == []
++
++    # 3. check_S5 resolves YAML mirror id without plan_path and preserves spec-4.1a YAML review mirror
++    yaml_review_unescalated = (
++        "---\n"
++        "subject: rv1001\n"
++        "subject_type: ipd\n"
++        "---\n"
++        "# Review: rv1001\n\n"
++        "## Round 1\n\n"
++        "### Findings\n\n"
++        "| Id | Severity | Scope | Area | Evidence | Finding | Remediation risk | Decision | Resolution |\n"
++        "|---|---|---|---|---|---|---|---|---|\n"
++        "| F-01 | high | in-scope | rubric | x.py:1 | Missing check | low | open | pending |\n"
++    )
++    err_s5 = review_sequence.check_S5(
++        plan_text_before,
++        plan_text_before,
++        yaml_review_unescalated,
++        "",
++        repo_root=repo,
++    )
++    assert err_s5 is not None and "review-finding-unescalated" in err_s5
++
++    plan_with_oq = meta.render_in_file_mirror("rv1001", "ipd", "to-review") + _conforming_child_body(
++        "sample-plan",
++        oq_section=(
++            "### OQ-01: Escalated finding\n"
++            "- Blocking: yes\n"
++            "- Status: open\n"
++            "- Finding: F-01\n"
++        ),
++    )
++    assert (
++        review_sequence.check_S5(
++            plan_text_before,
++            plan_with_oq,
++            yaml_review_unescalated,
++            "",
++            repo_root=repo,
++        )
++        is None
++    )
++
++    # 4. verdict_outputs, count_verdict_bearing_entries, and check_S7 with real log append + read + history (no false IPD-M107)
++    assert review_sequence.verdict_outputs(
++        plan_text_before, state=st_before, history=hist_before
++    ) == (None, "to-review", "")
++    assert (
++        review_sequence.count_verdict_bearing_entries(
++            plan_text_before, history=hist_before
++        )
++        == 0
++    )
++
++    # Append a recheck-readiness event (must NOT count as verdict-bearing) + one real gate review + transition to reviewed
++    meta.append(
++        "rv1001",
++        [
++            {
++                "op": "review",
++                "round": 1,
++                "review_kind": "gate",
++                "verdict": "APPROVE",
++                "readiness": "go-pending-approval",
++                "message": "recheck-only",
++            }
++        ],
++        actor={"tool": "aw ipd recheck-readiness"},
++        project_context=ctx,
++    )
++    meta.append(
++        "rv1001",
++        [
++            {
++                "op": "review",
++                "round": 1,
++                "review_kind": "gate",
++                "verdict": "APPROVE WITH REVISIONS APPLIED",
++                "readiness": "go-pending-approval",
++                "message": "APPROVE WITH REVISIONS APPLIED",
++            },
++            {
++                "op": "transition",
++                "from": "to-review",
++                "to": "reviewed",
++            },
++        ],
++        actor={"tool": "plan-review", "model": "m1"},
++        project_context=ctx,
++    )
++    with meta.ephemeral_if_uninitialized():
++        st_after = meta.read("rv1001", project_context=ctx)
++        hist_after = meta.history("rv1001", project_context=ctx)
++    plan_text_after = p_path.read_text(encoding="utf-8")
++
++    vo_after = review_sequence.verdict_outputs(
++        plan_text_after, state=st_after, history=hist_after
++    )
++    assert vo_after[0] == "go-pending-approval"
++    assert vo_after[1] == "reviewed"
++    assert "APPROVE WITH REVISIONS APPLIED" in vo_after[2]
++    assert (
++        review_sequence.count_verdict_bearing_entries(
++            plan_text_after, history=hist_after
++        )
++        == 1
++    )
++
++    err_s7 = review_sequence.check_S7(
++        plan_text_before,
++        plan_text_after,
++        yaml_review_unescalated,
++        "",
++        state_before=st_before,
++        state_after=st_after,
++        history_before=hist_before,
++        history_after=hist_after,
++    )
++    assert err_s7 is None
++
++    # 5. rereview_triggers & run_rereview_loop detect log-only Scope-Paths edit via read_state
++    trig = review_rereview.rereview_triggers(
++        plan_text_before,
++        plan_text_before,
++        after_r_text=None,
++        state_start=st_before,
++        state_now=st_mut,
++    )
++    assert any("Scope-Paths" in r for r in trig)
++
++    current_state_box = [st_mut]  # log Scope-Paths changed during pass 1 while .ipd.md is unchanged
++    prompts_sent: list[str] = []
++
++    def _send(prompt: str, grp: Any = None, pno: Any = None) -> str:
++        prompts_sent.append(prompt)
++        return "Checked changes.\nAW-REVIEW: DONE"
++
++    r_ctx = review_sequence.ReviewSequenceContext(
++        send_prompt=_send,
++        tier="standard",
++        variant="single-12",
++        checks_run={"P", "T", "R1", "R2", "R3", "R4", "S5", "S6"},
++        plan_path=p_path,
++        review_path=repo / ".aw" / "records" / "reviews",
++        pass_start_text=plan_text_before,
++        pass_no=1,
++        baseline={},
++        review_steps=[],
++    )
++    rr_res = review_rereview.run_rereview_loop(
++        r_ctx,
++        "AW-REVIEW: DONE",
++        after_r_text=None,
++        pass_start_state=st_before,
++        read_state=lambda _p: current_state_box[0],
++    )
++    assert rr_res.outcome == "done"
++    assert rr_res.passes == 2
++    assert len(prompts_sent) >= 1
++    assert any("Scope-Paths" in p for p in prompts_sent)
++
++    # 6. check_limit_s7 reads readiness='no-go' from state_after
++    st_nogo = meta.State(
++        id6="rv1001",
++        type="ipd",
++        status="reviewed",
++        fields={**st_before.fields, "readiness": "no-go"},
++    )
++    assert (
++        review_rereview.check_limit_s7(
++            plan_text_before, plan_with_oq, state_after=st_nogo
++        )
++        is None
++    )
++    assert (
++        review_rereview.check_limit_s7(
++            plan_text_before, plan_with_oq, state_after=st_after
++        )
++        is not None
++    )
++
++    # 7. Legacy inline parity when state/history omitted
++    legacy_plan = (
++        "# IPD: Legacy plan\n\n"
++        "- Kind: child\n"
++        "- Scope-Paths: a.py, specs/foo.spec.md\n"
++        "- Set: legset\n"
++        "- Status: reviewed\n"
++        "- Readiness: no-go\n\n"
++        "## Open questions\n\n"
++        "### OQ-01: Blocker\n"
++        "- Blocking: yes\n"
++        "- Status: open\n\n"
++        "## Workflow history\n\n"
++        "- 2026-11-26 /plan-review (tester): APPROVE\n"
++    )
++    leg_facts = review_tier.tier_facts(legacy_plan)
++    assert leg_facts["kind"] == "child"
++    assert leg_facts["names_spec"] is True
++    assert review_sequence.verdict_outputs(legacy_plan)[:2] == ("no-go", "reviewed")
++    assert review_rereview.check_limit_s7("# IPD: Before\n\n## Open questions\n\nNone.\n", legacy_plan) is None
++
++
++def test_run_review_sequence_threads_log_state_end_to_end(tmp_path: Path) -> None:
++    """runner_shared.run_review_sequence threads companion log state/history through tier_facts, structural_diff, S5, MD-15 guard, and S7."""
++    repo = _init_log_repo(tmp_path, with_git=True)
++    p_path = _create_log_plan(
++        repo,
++        "sq1001",
++        status="to-review",
++        plan_role="child",
++        scope_paths=["agent_workflows/demo.py", ".aw/records/specs/approved/20261126-sp1001-01-sp1001-demo.spec.md"],
++    )
++    _git(repo, "add", ".aw")
++    _git(repo, "commit", "-m", "add log plan sq1001")
++
++    rev_path = repo / ".aw" / "records" / "reviews" / "20261126-demo-01-sq1001-sample-plan.review.md"
++    run_dir = repo / ".aw" / "state" / "runs" / "test-run"
++    (run_dir / "sessions").mkdir(parents=True, exist_ok=True)
++    (run_dir / "prompts").mkdir(parents=True, exist_ok=True)
++
++    rel_plan = p_path.relative_to(repo).as_posix()
++    item: dict[str, Any] = {
++        "position": 1,
++        "id6": "sq1001",
++        "setid": "demo",
++        "action": "review",
++        "configured_file": rel_plan,
++        "status": "running",
++        "attempts": [],
++    }
++    attempt: dict[str, Any] = {"attempt": 1}
++    item["attempts"].append(attempt)
++    state: dict[str, Any] = {"options": {"review_variant": "single-12", "quick_ok": True}}
++    ctx = meta.legacy_context(repo)
++
++    def _write_oc_log(log_file: Path, reply_text: str) -> None:
++        log_file.parent.mkdir(parents=True, exist_ok=True)
++        log_file.write_text(
++            json.dumps({"type": "text", "part": {"text": reply_text}}) + "\n",
++            encoding="utf-8",
++        )
++
++    def _spawn(prompt_p, work_dir, tracker, plan_p, att_no, sess_id, use_cont):
++        # Prompt 1: P + T -> write spec-4.1a YAML review mirror with Proofreading + Step T
++        prompt_text = Path(prompt_p).read_text(encoding="utf-8")
++        assert "- Kind: child" in prompt_text
++        assert "- Names spec: yes" in prompt_text
++        rev_path.write_text(
++            "---\n"
++            "subject: sq1001\n"
++            "subject_type: ipd\n"
++            "---\n"
++            "# Review: sq1001\n\n"
++            "## Round 1\n\n"
++            "### Proofreading\n\nChecked.\n\n"
++            "### Step T\n\n"
++            "1. Simple change.\n"
++            "2. Low risk.\n"
++            "3. Small scope.\n"
++            "4. Clear tests.\n"
++            "5. Tier is simple.\n\n"
++            "### Step Q\n\n"
++            "- Checked: quick risk pass.\n",
++            encoding="utf-8",
++        )
++        lp = run_dir / "sessions" / "01-sq1001-p1.jsonl"
++        _write_oc_log(lp, "Proofread and tiered.\nAW-TIER: simple")
++        return 0, "sess-1", lp, ["oc"]
++
++    def _launcher(st, rdir, itm, plan_p, prompt_p, att_no, **kwargs):
++        suffix = kwargs.get("log_suffix", "step")
++        prompt_text = Path(prompt_p).read_text(encoding="utf-8")
++        lp = run_dir / "sessions" / f"01-sq1001-{suffix}.jsonl"
++        if "s7-finalize.md" in prompt_text:
++            # S7 appends gate review + transition to reviewed in the companion log
++            meta.append(
++                "sq1001",
++                [
++                    {
++                        "op": "review",
++                        "round": 1,
++                        "review_kind": "gate",
++                        "verdict": "APPROVE",
++                        "readiness": "go-pending-approval",
++                        "message": "APPROVE",
++                    },
++                    {
++                        "op": "transition",
++                        "from": "to-review",
++                        "to": "reviewed",
++                    },
++                ],
++                actor={"tool": "plan-review", "model": "m1"},
++                project_context=ctx,
++            )
++            _write_oc_log(lp, "Finalized review.")
++        elif "s6-rereview.md" in prompt_text or "s5-questions.md" in prompt_text:
++            _write_oc_log(lp, "Questions checked.\nAW-REVIEW: DONE")
++        else:
++            rev_path.write_text(
++                rev_path.read_text(encoding="utf-8")
++                + "\n### Step Q\n\n- Checked: quick risk.\n",
++                encoding="utf-8",
++            )
++            _write_oc_log(lp, "Step complete.")
++        return 0, "sess-1", lp, ["oc"]
++
++    rc, sid, _lp, _argv = runner_shared.run_review_sequence(
++        run_dir / "prompts" / "init.md",
++        str(repo),
++        None,
++        p_path,
++        1,
++        None,
++        False,
++        state=state,
++        item=item,
++        run_dir=run_dir,
++        repo=repo,
++        host_labels=runner_shared.OC_HOST_LABELS,
++        spawn_executor=_spawn,
++        raw_launcher=_launcher,
++        save_state=lambda _rd, _st: None,
++        append_jsonl=lambda *a, **kw: None,
++        pal=runner_shared.Palette(False),
++        attempt=attempt,
++    )
++    assert rc == 0
++    assert sid == "sess-1"
++    assert attempt["review_tier"] == "simple"
++    assert attempt["review_tier_facts"]["names_spec"] is True
++    assert item["status"] != "fail-gate"
++
 diff --git a/tests/test_cutover_log_reviews_prompts_and_checks.py b/tests/test_cutover_log_reviews_prompts_and_checks.py
 new file mode 100644
 index 000000000..dd583b70c
