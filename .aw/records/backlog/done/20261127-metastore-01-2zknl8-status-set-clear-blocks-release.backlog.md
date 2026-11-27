@@ -1,5 +1,5 @@
 - Id: 2zknl8
-- Status: graduated
+- Status: done
 - Graduated-To: ztvubn
 - Set: metastore
 - Work-Kind: bug
@@ -11,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-27 done (aw backlog): closed by aw agy run: IPD ztvubn executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261127-metastore-323-ztvubn-fix-post-cutover-status-set-selectors-and-runner-commit-log.ipd.md); evidence .aw/records/plans/executed/20261127-metastore-323-ztvubn-fix-post-cutover-status-set-selectors-and-runner-commit-log.ipd.md
 - 2026-11-27 graduated (aw set): Graduated to Order 323 child plan ztvubn in Set metastore.
 - 2026-11-27 created (aw backlog): Clearing Blocks-Release with dash writes literal dash instead of unsetting field in status_set._render_gate_fields
 
