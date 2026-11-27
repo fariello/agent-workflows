@@ -55,7 +55,7 @@ index 3f605a290..015ff87c3 100644
  
      THE MARKDOWN HARD-LINE-BREAK TRADEOFF IS DELIBERATE AND OWNED HERE. A per-line rstrip destroys
 diff --git a/agent_workflows/artifact_meta.py b/agent_workflows/artifact_meta.py
-index 888725a53..a0d192f14 100644
+index 888725a53..d06afca6d 100644
 --- a/agent_workflows/artifact_meta.py
 +++ b/agent_workflows/artifact_meta.py
 @@ -26,12 +26,10 @@ import subprocess
@@ -71,7 +71,61 @@ index 888725a53..a0d192f14 100644
      NamedTuple,
      Optional,
      Sequence,
-@@ -2219,24 +2217,11 @@ def read_mirror_id6(text: str) -> Optional[str]:
+@@ -2116,9 +2114,12 @@ def parse_walkthrough_mirror(text: str) -> Dict[str, Any]:
+     return {"id": id_val, "status": None}
+ 
+ 
++_REVIEW_MIRROR_ALLOWED_KEYS = frozenset({"subject", "subject_type", "ref"})
++
++
+ def parse_review_mirror(text: str) -> Dict[str, Any]:
+     """Parse review front matter: subject, subject_type, and optional ref."""
+-    lines = text.splitlines()
++    lines = (text or "").lstrip("\ufeff").splitlines()
+     if not lines or lines[0].strip() != "---":
+         raise ValueError("review must start with '---' front matter")
+     closing_idx = -1
+@@ -2141,7 +2142,16 @@ def parse_review_mirror(text: str) -> Dict[str, Any]:
+             raise ValueError(
+                 f"mirror parse error: invalid review front matter line: {line!r}"
+             )
+-        data[m.group(1)] = m.group(2)
++        key, val = m.group(1), m.group(2)
++        if key not in _REVIEW_MIRROR_ALLOWED_KEYS:
++            raise ValueError(
++                f"mirror parse error: unknown review front matter key: {key!r}"
++            )
++        if key in data:
++            raise ValueError(
++                f"mirror parse error: duplicate review front matter key: {key!r}"
++            )
++        data[key] = val
+ 
+     if "subject" not in data or "subject_type" not in data:
+         raise ValueError("review front matter requires 'subject' and 'subject_type'")
+@@ -2154,7 +2164,7 @@ def parse_staged_prompt_mirror(text: str) -> Dict[str, Any]:
+ 
+     <!-- aw-managed-prompt: id: <id> | status: <status> ... -->
+     """
+-    lines = text.splitlines()
++    lines = (text or "").lstrip("\ufeff").splitlines()
+     if not lines:
+         raise ValueError("empty prompt file")
+     m = _MANAGED_PROMPT_COMMENT_RE.match(lines[0].strip())
+@@ -2169,9 +2179,9 @@ def parse_staged_prompt_mirror(text: str) -> Dict[str, Any]:
+         if ":" in part:
+             k, v = part.split(":", 1)
+             k = k.strip()
+-            v = v.strip().split()[0]  # token
+-            if k in ("id", "status"):
+-                result[k] = v
++            tokens = v.strip().split()
++            if tokens and k in ("id", "status"):
++                result[k] = tokens[0]
+     if "id" not in result or "status" not in result:
+         raise ValueError(f"managed prompt comment missing id or status: {lines[0]!r}")
+     validate_id6(result["id"])
+@@ -2219,24 +2229,11 @@ def read_mirror_id6(text: str) -> Optional[str]:
  
  LAYOUT_VERSION = "layout_v1"
  
@@ -101,7 +155,7 @@ index 888725a53..a0d192f14 100644
  
  # The 4.5a Table Set as listed in E-08: exactly 26 tables
  CACHE_TABLES_4_5A: Tuple[str, ...] = (
-@@ -2284,7 +2269,7 @@ def compute_schema_hash(
+@@ -2284,7 +2281,7 @@ def compute_schema_hash(
              field_items.append((f, fdef.value_type, fdef.ownership, vals))
          items.append((t, field_items))
      canon_bytes = json.dumps(
@@ -110,7 +164,106 @@ index 888725a53..a0d192f14 100644
          sort_keys=True,
      ).encode("utf-8")
      return hashlib.sha256(canon_bytes).hexdigest()
-@@ -3560,11 +3545,6 @@ def _parse_yaml_front_matter(text: str) -> Tuple[Dict[str, str], Optional[str]]:
+@@ -2816,11 +2813,23 @@ PROMPT_METADATA_TRAILER: str = (
+ _AW_PROMPT_OPEN_RE = re.compile(r"\A<!--\s*aw-prompt:")
+ 
+ 
++def _has_legacy_aw_prompt_comment(text: str) -> bool:
++    """Return True iff ``text`` opens on line 1 with a legacy ``<!-- aw-prompt: ... -->`` comment."""
++    if not text:
++        return False
++    first_line = text.lstrip("\ufeff").split("\n", 1)[0]
++    return bool(_AW_PROMPT_OPEN_RE.match(first_line))
++
++
+ def has_prompt_metadata_comment(text: str) -> bool:
+-    """Return True iff ``text`` opens with a leading ``<!-- aw-prompt: ... -->`` comment."""
++    """Return True iff ``text`` opens on line 1 with a ``<!-- aw-managed-prompt: ... -->`` or legacy ``<!-- aw-prompt: ... -->`` comment."""
+     if not text:
+         return False
+-    return bool(_AW_PROMPT_OPEN_RE.match(text.split("\n", 1)[0]))
++    first_line = text.lstrip("\ufeff").split("\n", 1)[0]
++    return bool(
++        _MANAGED_PROMPT_COMMENT_RE.match(first_line)
++        or _AW_PROMPT_OPEN_RE.match(first_line)
++    )
+ 
+ 
+ def inject_prompt_metadata_id6(
+@@ -2829,10 +2838,10 @@ def inject_prompt_metadata_id6(
+     """Return ``text`` with ``Id:`` (and optionally ``Set:``) written into its metadata comment.
+ 
+     Idempotent: a comment that already declares a valid ``Id:`` is returned unchanged.
+-    Commentless prompts (and prompts whose only ``aw-prompt`` comment appears after line 1)
+-    are returned unchanged to preserve prompt purity (no comment is ever minted).
++    Commentless prompts, post-cutover ``<!-- aw-managed-prompt: ... -->`` mirrors, and prompts
++    whose only ``aw-prompt`` comment appears after line 1 are returned unchanged.
+     """
+-    if not has_prompt_metadata_comment(text):
++    if not _has_legacy_aw_prompt_comment(text):
+         return text
+     lines = text.split("\n")
+     first = lines[0]
+@@ -2867,10 +2876,10 @@ def update_prompt_metadata_status(text: str, status: str) -> str:
+     """Return ``text`` with ``Status: <status>`` updated or inserted in its metadata comment.
+ 
+     Idempotent: if the comment already declares ``status``, returns ``text`` unchanged.
+-    Commentless prompts (and prompts whose only ``aw-prompt`` comment appears after line 1)
+-    are returned unchanged to preserve prompt purity (no comment is ever minted).
++    Commentless prompts, post-cutover ``<!-- aw-managed-prompt: ... -->`` mirrors, and prompts
++    whose only ``aw-prompt`` comment appears after line 1 are returned unchanged.
+     """
+-    if not has_prompt_metadata_comment(text):
++    if not _has_legacy_aw_prompt_comment(text):
+         return text
+     lines = text.split("\n")
+     first = lines[0]
+@@ -2924,21 +2933,38 @@ def _parse_metadata_comment(first_line: str) -> Dict[str, str]:
+     """Key/value pairs of a prompt's leading ``<!-- aw-managed-prompt: ... -->`` or
+     ``<!-- aw-prompt: ... -->`` metadata comment, or ``{}`` when ``first_line`` carries neither.
+ 
+-    The trailing ``. This HTML comment is ...`` pipeline trailer is not part of the field list.
++    The trailing ``. Pipeline metadata only...`` or ``. This HTML comment is ...`` pipeline
++    trailer is not part of the field list.
+     """
+     comment_bullets: Dict[str, str] = {}
+-    m_prompt = _MANAGED_PROMPT_COMMENT_RE.match(first_line)
++    clean_line = (first_line or "").lstrip("\ufeff")
++    m_prompt = _MANAGED_PROMPT_COMMENT_RE.match(clean_line)
+     if m_prompt:
+-        for item in m_prompt.group(1).split("|"):
++        inner = m_prompt.group(1)
++        for marker in (
++            " . Pipeline metadata only",
++            ". Pipeline metadata only",
++            f" . {PROMPT_METADATA_TRAILER}",
++            " . This HTML comment is",
++            PROMPT_METADATA_TRAILER,
++        ):
++            if marker in inner:
++                inner = inner.split(marker, 1)[0].strip()
++                break
++        for item in inner.split("|"):
+             if ":" in item:
+                 k, v = item.split(":", 1)
+-                comment_bullets[k.strip()] = v.strip()
++                k_s = k.strip()
++                v_s = v.strip()
++                if k_s in ("id", "status") and v_s:
++                    v_s = v_s.split()[0]
++                comment_bullets[k_s] = v_s
+         return comment_bullets
+-    m_aw = re.match(r"\A<!--\s*aw-prompt:\s*(.*?)\s*-->", first_line, re.DOTALL)
++    m_aw = re.match(r"\A<!--\s*aw-prompt:\s*(.*?)\s*-->", clean_line, re.DOTALL)
+     if not m_aw:
+         return comment_bullets
+     inner = m_aw.group(1)
+-    split_aw = _split_prompt_comment(first_line)
++    split_aw = _split_prompt_comment(clean_line)
+     if split_aw is not None and split_aw[2]:
+         inner = split_aw[1]
+     else:
+@@ -3560,11 +3586,6 @@ def _parse_yaml_front_matter(text: str) -> Tuple[Dict[str, str], Optional[str]]:
      return data, title
  
  
@@ -122,7 +275,7 @@ index 888725a53..a0d192f14 100644
  def stored_path(
      abs_path: Union[str, Path],
      records_root: Union[str, Path],
-@@ -3631,520 +3611,6 @@ def _scan_repo_root(ctx: Any, records_root: Path) -> Optional[Path]:
+@@ -3631,128 +3652,14 @@ def _scan_repo_root(ctx: Any, records_root: Path) -> Optional[Path]:
      return _proj_ctx.record_git_root(records_root)
  
  
@@ -240,24 +393,23 @@ index 888725a53..a0d192f14 100644
 -
 -
 -def load_legacy_artifact(
--    path: Path,
--    records_root: Path,
--    text: Optional[str] = None,
--    *,
--    repo_root: Optional[Path] = None,
++def load_legacy_review(
+     path: Path,
+     records_root: Path,
+     text: Optional[str] = None,
+     *,
+     repo_root: Optional[Path] = None,
 -    extra_taken: Optional[Iterable[str]] = None,
--) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+ ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
 -    """Load an existing legacy .md artifact into cache projection rows."""
--    if text is None:
--        text = path.read_text(encoding="utf-8")
--
--    filename = path.name
--    scan_repo = (
--        Path(repo_root)
--        if repo_root is not None
--        else _scan_repo_root(None, records_root)
--    )
--    rel_path = stored_path(path, records_root, scan_repo)
++    """Load a `.review.md` file (spec 4.1a YAML mirror or legacy 5-bullet) into review_files and reviews rows."""
+     if text is None:
+         text = path.read_text(encoding="utf-8")
+ 
+@@ -3763,418 +3670,28 @@ def load_legacy_artifact(
+         else _scan_repo_root(None, records_root)
+     )
+     rel_path = stored_path(path, records_root, scan_repo)
 -    disposition = path.parent.name
 -
 -    # Identity detection order:
@@ -285,7 +437,7 @@ index 888725a53..a0d192f14 100644
 -    }
 -    if rel_path.startswith("@repo/"):
 -        from agent_workflows import status_set as _status_set
--
+ 
 -        detected = (
 -            _status_set.detect_artifact_type(path, scan_repo)
 -            if scan_repo is not None
@@ -297,7 +449,13 @@ index 888725a53..a0d192f14 100644
 -        rel_parts = Path(rel_path).parts
 -        top_dir = rel_parts[0] if rel_parts else ""
 -        art_type = type_map.get(top_dir, "ipd")
--
++    # Filename id6 (4.1a K4 fallback when filename id6 != subject_id)
++    m_attr = _naming.parse_attributed(filename)
++    filename_id = m_attr.id6 if m_attr else None
++    if not filename_id:
++        m_c = _naming.parse_clustered(filename)
++        filename_id = m_c.group("id6") if m_c else None
+ 
 -    m_legacy = _naming._LEGACY_TIMESTAMP_RE.match(filename)
 -    if m_legacy:
 -        filename_date = m_legacy.group("date")
@@ -351,8 +509,13 @@ index 888725a53..a0d192f14 100644
 -        art_type = type_map.get(top_dir, "research")
 -        if art_type not in REGISTRY:
 -            art_type = "research"
--
--    bullets: Dict[str, str] = {}
++    mirror: Optional[Dict[str, Any]] = None
++    try:
++        mirror = parse_review_mirror(text)
++    except ValueError:
++        mirror = None
+ 
+     bullets: Dict[str, str] = {}
 -    title: Optional[str] = None
 -    history_lines: List[str] = []
 -
@@ -478,7 +641,9 @@ index 888725a53..a0d192f14 100644
 -    if is_yaml_record:
 -        raw_status = yaml_status
 -        raw_status_legacy = yaml_status
--    else:
++    if mirror is not None:
++        subject_id = str(mirror["subject"])
+     else:
 -        raw_status = bullets.get("Status") or bullets.get("status")
 -        if raw_status_legacy is not None:
 -            raw_status_legacy = raw_status_legacy.strip() or None
@@ -640,13 +805,106 @@ index 888725a53..a0d192f14 100644
 -    return artifact_row, hist_rows
 -
 -
- def load_legacy_review(
-     path: Path,
-     records_root: Path,
-@@ -4278,109 +3744,6 @@ def _delete_artifact_projection(conn: sqlite3.Connection, id6: str) -> None:
+-def load_legacy_review(
+-    path: Path,
+-    records_root: Path,
+-    text: Optional[str] = None,
+-    *,
+-    repo_root: Optional[Path] = None,
+-) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+-    """Load a legacy .review.md file into review_files and reviews rows."""
+-    if text is None:
+-        text = path.read_text(encoding="utf-8")
+-
+-    filename = path.name
+-    scan_repo = (
+-        Path(repo_root)
+-        if repo_root is not None
+-        else _scan_repo_root(None, records_root)
+-    )
+-    rel_path = stored_path(path, records_root, scan_repo)
+-    bullets, _, _ = _parse_bullet_metadata(text)
+-
+-    subject_id = bullets.get("Subject-Id") or bullets.get("Subject") or ""
+-    # Try parsing subject from filename if absent
+-    if not subject_id:
+-        m_attr = _naming.parse_attributed(filename)
+-        if m_attr:
+-            subject_id = m_attr.id6
+-        else:
+-            m_clust = _naming.parse_clustered(filename)
+-            if m_clust:
+-                subject_id = m_clust.group("id6")
++        bullets, _, _ = _parse_bullet_metadata(text)
++        subject_id = bullets.get("Subject-Id") or bullets.get("Subject") or ""
++        if not subject_id and filename_id:
++            subject_id = filename_id
+ 
+     validate_id6(subject_id)
+ 
+@@ -4183,28 +3700,27 @@ def load_legacy_review(
+     rounds = [int(r) for r in round_matches] if round_matches else [1]
+     round_count = max(rounds) if rounds else 1
+ 
+-    # Check parse_ok via review_findings
++    # Check parse_ok via review_findings (parse_review_text never raises; check diagnostics)
+     parse_ok = 1
+     try:
+-        _rev_findings.parse_review_text(text)
++        doc = _rev_findings.parse_review_text(text)
++        parse_ok = 0 if doc.diagnostics else 1
+     except Exception:
+         parse_ok = 0
+ 
+     # Binding ref (4.1a K4):
+-    # If review file filename id6 != subject_id, review_ref is filename id6
+-    m_attr = _naming.parse_attributed(filename)
+-    filename_id = m_attr.id6 if m_attr else None
+-    if not filename_id:
+-        m_c = _naming.parse_clustered(filename)
+-        filename_id = m_c.group("id6") if m_c else None
+-
+     review_ref: Optional[str] = None
+-    if filename_id and filename_id != subject_id:
+-        review_ref = filename_id
+-    elif "Ref" in bullets:
+-        review_ref = bullets["Ref"]
+-
+-    review_kind = review_kind_of_file(rel_path)
++    if mirror is not None:
++        explicit_ref = str(mirror.get("ref") or "").strip()
++        if explicit_ref:
++            review_ref = explicit_ref
++        elif filename_id and filename_id != subject_id:
++            review_ref = filename_id
++    else:
++        if filename_id and filename_id != subject_id:
++            review_ref = filename_id
++        elif "Ref" in bullets:
++            review_ref = bullets["Ref"]
+ 
+     review_file_row = {
+         "path": rel_path,
+@@ -4214,6 +3730,13 @@ def load_legacy_review(
+         "parse_ok": parse_ok,
+     }
+ 
++    # For spec 4.1a YAML mirrors, the subject's `.aw/records/meta/<subject_id>.jsonl` owns
++    # `op: "review"` rows; do not synthesize rows from the mirror file.
++    if mirror is not None:
++        return review_file_row, []
++
++    review_kind = review_kind_of_file(rel_path)
++
+     # One row per round. Verdict, Reviewer, Reviewed-At on LAST round only (K5a)
+     reviews_list: List[Dict[str, Any]] = []
+     verdict_raw = bullets.get("Verdict")
+@@ -4276,109 +3799,7 @@ def _delete_artifact_projection(conn: sqlite3.Connection, id6: str) -> None:
+     conn.execute("DELETE FROM gates WHERE id6 = ?", (id6,))
+     conn.execute("DELETE FROM events WHERE id6 = ?", (id6,))
      conn.execute("DELETE FROM field_changes WHERE id6 = ?", (id6,))
- 
- 
+-
+-
 -def _store_legacy_artifact_projection(
 -    conn: sqlite3.Connection,
 -    art_row: Dict[str, Any],
@@ -748,12 +1006,11 @@ index 888725a53..a0d192f14 100644
 -            None,
 -        ),
 -    )
--
--
++    conn.execute("DELETE FROM reviews WHERE subject_id6 = ?", (id6,))
+ 
+ 
  def _load_sources(
-     conn: sqlite3.Connection,
-     changed_sources: List[Dict[str, Any]],
-@@ -4408,54 +3771,6 @@ def _load_sources(
+@@ -4408,54 +3829,6 @@ def _load_sources(
          dig_i = hashlib.sha256(raw_b).hexdigest()
          pre_reads[p_s] = (st_i, dig_i, raw_b)
  
@@ -808,7 +1065,156 @@ index 888725a53..a0d192f14 100644
      # Track (id6 <-> path) in memory across this batch so legacy loading does not run an
      # O(N^2) `SELECT id6 FROM artifacts WHERE path != ?` full table scan on every file.
      _art_id_by_path: Dict[str, str] = {}
-@@ -4883,124 +4198,45 @@ def _load_sources(
+@@ -4556,10 +3929,19 @@ def _load_sources(
+                         (path_str,),
+                     ).fetchone()
+                     if rf is not None:
+-                        conn.execute(
+-                            "DELETE FROM reviews WHERE subject_id6 = ? AND review_ref IS ?",
+-                            (rf[0], rf[1]),
++                        subj_id = rf[0]
++                        has_subject_log = bool(
++                            conn.execute(
++                                "SELECT 1 FROM files WHERE file_role = 'log' AND id6 = ? LIMIT 1",
++                                (subj_id,),
++                            ).fetchone()
++                            or (records_root / "meta" / f"{subj_id}.jsonl").exists()
+                         )
++                        if not has_subject_log:
++                            conn.execute(
++                                "DELETE FROM reviews WHERE subject_id6 = ? AND review_ref IS ?",
++                                (rf[0], rf[1]),
++                            )
+                     conn.execute("DELETE FROM review_files WHERE path = ?", (path_str,))
+                 continue
+ 
+@@ -4762,6 +4144,28 @@ def _load_sources(
+                                 fc["unset"],
+                             ),
+                         )
++                    for rrow in proj["reviews"]:
++                        conn.execute(
++                            """INSERT OR REPLACE INTO reviews (
++                                subject_id6, seq, review_ref, round, review_kind, verdict,
++                                legacy_verdict, observed_day, readiness, review_depth,
++                                findings_summary, reviewer
++                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
++                            (
++                                rrow["subject_id6"],
++                                rrow["seq"],
++                                rrow["review_ref"],
++                                rrow["round"],
++                                rrow["review_kind"],
++                                rrow["verdict"],
++                                rrow["legacy_verdict"],
++                                rrow["observed_day"],
++                                rrow["readiness"],
++                                rrow["review_depth"],
++                                rrow["findings_summary"],
++                                rrow["reviewer"],
++                            ),
++                        )
+ 
+                     conn.execute(
+                         """INSERT OR REPLACE INTO files (
+@@ -4805,51 +4209,68 @@ def _load_sources(
+ 
+             elif role == "review":
+                 try:
++                    review_text = pre_bytes.decode("utf-8")
+                     rf_row, rev_rows = load_legacy_review(
+                         abs_p,
+                         records_root,
+-                        text=pre_bytes.decode("utf-8"),
++                        text=review_text,
+                         repo_root=scan_repo,
+                     )
+-                    # Replace this file's rounds rather than overlaying them (1ajqaa): a review
+-                    # edited to fewer rounds must not keep the old ones.
+-                    conn.execute(
+-                        "DELETE FROM reviews WHERE subject_id6 = ? AND review_ref IS ?",
+-                        (rf_row["subject_id6"], rf_row["review_ref"]),
++                    subj_id = rf_row["subject_id6"]
++                    is_mirror_review = False
++                    try:
++                        parse_review_mirror(review_text)
++                        is_mirror_review = True
++                    except ValueError:
++                        pass
++                    has_subject_log = bool(
++                        conn.execute(
++                            "SELECT 1 FROM files WHERE file_role = 'log' AND id6 = ? LIMIT 1",
++                            (subj_id,),
++                        ).fetchone()
++                        or (records_root / "meta" / f"{subj_id}.jsonl").exists()
+                     )
++                    if not is_mirror_review and not has_subject_log:
++                        # Replace this legacy file's rounds rather than overlaying them (1ajqaa):
++                        # a review edited to fewer rounds must not keep the old ones.
++                        conn.execute(
++                            "DELETE FROM reviews WHERE subject_id6 = ? AND review_ref IS ?",
++                            (subj_id, rf_row["review_ref"]),
++                        )
+                     conn.execute(
+                         """INSERT OR REPLACE INTO review_files (
+                             path, subject_id6, review_ref, round_count, parse_ok
+                         ) VALUES (?, ?, ?, ?, ?)""",
+                         (
+                             rf_row["path"],
+-                            rf_row["subject_id6"],
++                            subj_id,
+                             rf_row["review_ref"],
+                             rf_row["round_count"],
+                             rf_row["parse_ok"],
+                         ),
+                     )
+-                    for rrow in rev_rows:
+-                        conn.execute(
+-                            """INSERT OR REPLACE INTO reviews (
+-                                subject_id6, seq, review_ref, round, review_kind, verdict,
+-                                legacy_verdict, observed_day, readiness, review_depth, findings_summary, reviewer
+-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+-                            (
+-                                rrow["subject_id6"],
+-                                rrow["seq"],
+-                                rrow["review_ref"],
+-                                rrow["round"],
+-                                rrow["review_kind"],
+-                                rrow["verdict"],
+-                                rrow["legacy_verdict"],
+-                                rrow["observed_day"],
+-                                rrow["readiness"],
+-                                rrow["review_depth"],
+-                                rrow["findings_summary"],
+-                                rrow["reviewer"],
+-                            ),
+-                        )
++                    if not is_mirror_review and not has_subject_log:
++                        for rrow in rev_rows:
++                            conn.execute(
++                                """INSERT OR REPLACE INTO reviews (
++                                    subject_id6, seq, review_ref, round, review_kind, verdict,
++                                    legacy_verdict, observed_day, readiness, review_depth, findings_summary, reviewer
++                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
++                                (
++                                    rrow["subject_id6"],
++                                    rrow["seq"],
++                                    rrow["review_ref"],
++                                    rrow["round"],
++                                    rrow["review_kind"],
++                                    rrow["verdict"],
++                                    rrow["legacy_verdict"],
++                                    rrow["observed_day"],
++                                    rrow["readiness"],
++                                    rrow["review_depth"],
++                                    rrow["findings_summary"],
++                                    rrow["reviewer"],
++                                ),
++                            )
+                     conn.execute(
+                         """INSERT OR REPLACE INTO files (
+                             path, file_role, id6, size, mtime_ns, content_digest, loaded_at, load_error
+@@ -4883,124 +4304,45 @@ def _load_sources(
                      )
  
              elif role in ("artifact", "walkthrough"):
@@ -967,7 +1373,7 @@ index 888725a53..a0d192f14 100644
  
  
  def _require_schema(project_context: Any, records_root: Path) -> None:
-@@ -5192,11 +4428,7 @@ def check_freshness(
+@@ -5192,11 +4534,7 @@ def check_freshness(
                      ):
                          subdirs.append((entry.path, f"{rel_prefix}{fname}"))
                      continue
@@ -980,7 +1386,7 @@ index 888725a53..a0d192f14 100644
                      continue
                  rel_f = f"{rel_prefix}{fname}"
                  current_files_set.add(rel_f)
-@@ -5259,12 +4491,7 @@ def check_freshness(
+@@ -5259,12 +4597,7 @@ def check_freshness(
                      dirty_dirs.append((dir_stored, current_mtime))
  
                  for fname in files:
@@ -994,7 +1400,33 @@ index 888725a53..a0d192f14 100644
                          continue
                      fpath = root_p / fname
                      try:
-@@ -5969,24 +5196,17 @@ def history(id6: str, *, project_context: Any = None) -> List[Dict[str, Any]]:
+@@ -5526,6 +4859,7 @@ def read_text(text: str, *, record_type: Optional[str] = None) -> State:
+     if not text:
+         return State(id6="", type=art_type)
+ 
++    text = text.lstrip("\ufeff")
+     lines = text.splitlines()
+     _yaml_probe: Dict[str, str] = {}
+     yaml_title: Optional[str] = None
+@@ -5792,9 +5126,16 @@ def read_multiline_bullets(text: str, keys: Sequence[str]) -> List[str]:
+ 
+ 
+ def read_review_subject_id(text: str) -> Optional[str]:
+-    """Return the 6-character ``Subject-Id`` declared in a review record's front matter, or None."""
++    """Return the 6-character subject id declared in a review record's front matter, or None."""
+     if not text:
+         return None
++    try:
++        mirror = parse_review_mirror(text)
++        subj = str(mirror.get("subject") or "").strip()
++        if _core.ID6_RE.fullmatch(subj):
++            return subj
++    except ValueError:
++        pass
+     raw = str(read_text(metadata_region(text)).fields.get("subject_id") or "").strip()
+     return raw if _core.ID6_RE.fullmatch(raw) else None
+ 
+@@ -5969,24 +5310,17 @@ def history(id6: str, *, project_context: Any = None) -> List[Dict[str, Any]]:
                      )
              return res
  
@@ -1022,7 +1454,7 @@ index 888725a53..a0d192f14 100644
          # (4.1a), appended after the history lines in file order, with no inferred ordering.
          for rv in conn.execute(
              """SELECT r.seq, r.round, r.review_kind, r.verdict, r.legacy_verdict, r.observed_day,
-@@ -6507,65 +5727,35 @@ def resolve_id_at(
+@@ -6507,65 +5841,35 @@ def resolve_id_at(
      return declared
  
  
@@ -1108,7 +1540,7 @@ index 888725a53..a0d192f14 100644
  
  
  def read_path_at(
-@@ -6599,27 +5789,18 @@ def read_path_at(
+@@ -6599,27 +5903,18 @@ def read_path_at(
                  kind="invalid-revision", error=f"invalid revision {rev!r}"
              )
  
@@ -1142,7 +1574,7 @@ index 888725a53..a0d192f14 100644
  
  
  def read_at(
-@@ -6721,121 +5902,8 @@ def read_at(
+@@ -6721,121 +6016,8 @@ def read_at(
              except Exception as exc:
                  return ReadAtResult(kind="corrupt", error=str(exc))
  
@@ -1266,7 +1698,7 @@ index 888725a53..a0d192f14 100644
          return ReadAtResult(
              kind="absent", error=f"record {id6} not found in revision {rev}"
          )
-@@ -7088,58 +6156,6 @@ def _journal_dir(state_root: Path) -> Path:
+@@ -7088,58 +6270,6 @@ def _journal_dir(state_root: Path) -> Path:
      return d
  
  
@@ -1325,7 +1757,7 @@ index 888725a53..a0d192f14 100644
  @dataclasses.dataclass
  class WritePreview:
      """What a write WOULD do: the rendered text, its destination and whether anything changes."""
-@@ -7149,25 +6165,9 @@ class WritePreview:
+@@ -7149,25 +6279,9 @@ class WritePreview:
      source: Path
      changed: bool
      events: List[Dict[str, Any]]
@@ -1354,7 +1786,7 @@ index 888725a53..a0d192f14 100644
  
  
  #: `status_set` plural record types -> registry types (walkthroughs/roadmaps/other have no registry
-@@ -7184,86 +6184,10 @@ _LEGACY_PLURAL_TO_TYPE: Dict[str, str] = {
+@@ -7184,86 +6298,10 @@ _LEGACY_PLURAL_TO_TYPE: Dict[str, str] = {
  
  _TYPE_TO_PLURAL: Dict[str, str] = {v: k for k, v in _LEGACY_PLURAL_TO_TYPE.items()}
  
@@ -1441,7 +1873,7 @@ index 888725a53..a0d192f14 100644
  def metadata_region(text: str) -> str:
      """Return the leading METADATA REGION of a record: where it DECLARES its own identity."""
  
-@@ -7324,20 +6248,6 @@ def _normalize_legacy_types(
+@@ -7324,20 +6362,6 @@ def _normalize_legacy_types(
      return "ipd", "plans"
  
  
@@ -1462,7 +1894,7 @@ index 888725a53..a0d192f14 100644
  def legacy_context(repo_root: Union[str, Path]) -> Any:
      """The `project_context` a phase-B setter passes for ``repo_root``: the records root every record
      verb reads (`project_context.project_records_dir`) and the repository's own `.aw/state`.
-@@ -7393,10 +6303,6 @@ def _storage_format(records_root: Path, target: Any) -> str:
+@@ -7393,10 +6417,6 @@ def _storage_format(records_root: Path, target: Any) -> str:
      return "legacy"
  
  
@@ -1473,7 +1905,7 @@ index 888725a53..a0d192f14 100644
  def _check_owned_fields(
      record_type: str, events: List[Dict[str, Any]], from_status: Optional[str]
  ) -> None:
-@@ -7471,504 +6377,6 @@ def _check_owned_fields(
+@@ -7471,504 +6491,6 @@ def _check_owned_fields(
          )
  
  
@@ -1978,13 +2410,26 @@ index 888725a53..a0d192f14 100644
  def _split_prompt_comment(first_line: str) -> Optional[Tuple[str, str, str, str]]:
      """Return `(prefix, fields_part, trailer_part, suffix)` for an `<!-- aw-prompt: ... -->` line."""
      m = re.match(r"^(<!--\s*aw-prompt:\s*)(.*?)(\s*-->)\s*$", first_line)
-@@ -7990,871 +6398,6 @@ def _split_prompt_comment(first_line: str) -> Optional[Tuple[str, str, str, str]
+@@ -7990,1232 +6512,56 @@ def _split_prompt_comment(first_line: str) -> Optional[Tuple[str, str, str, str]
      return prefix, inner, "", suffix
  
  
 -def _render_prompt_field(text: str, key_label: str, value: Optional[Any]) -> str:
 -    """Edit, insert, or remove one key in a leading `<!-- aw-prompt: ... -->` comment.
--
++def validate_actor_string(
++    field_name: str,
++    value: str,
++    *,
++    repo_root: Path,
++    ruleset: Optional["_leak.Ruleset"] = None,
++) -> "_leak.Ruleset":
++    """Validate a raw actor or display attribution string against safety, path, and leak rules."""
++    _check_string_safety(field_name, value, prose=False, migration_import=False)
++    _check_no_absolute_paths_in_text(field_name, value)
++    resolved_ruleset = ruleset if ruleset is not None else _writer_ruleset(repo_root)
++    _check_leak_sanitizer(value, field_name, resolved_ruleset)
++    return resolved_ruleset
+ 
 -    Leaves comment-less legacy prompts unchanged (`inject_prompt_metadata_id6` parity)."""
 -    lines = text.split("\n")
 -    if not lines or "<!-- aw-prompt:" not in lines[0]:
@@ -2042,7 +2487,7 @@ index 888725a53..a0d192f14 100644
 -        return text
 -    lines[0] = f"{prefix}{' | '.join(new_segments)}{trailer_part}{suffix}"
 -    return "\n".join(lines)
--
+ 
 -
 -def _render_create_fields(
 -    text: str, plural: str, fields: Dict[str, Any], *, repo_root: Optional[Path]
@@ -2847,17 +3292,36 @@ index 888725a53..a0d192f14 100644
 -    return prepared
 -
 -
- def validate_actor_string(
-     field_name: str,
-     value: str,
-@@ -8870,143 +6413,6 @@ def validate_actor_string(
-     return resolved_ruleset
+-def validate_actor_string(
+-    field_name: str,
+-    value: str,
+-    *,
+-    repo_root: Path,
+-    ruleset: Optional["_leak.Ruleset"] = None,
+-) -> "_leak.Ruleset":
+-    """Validate a raw actor or display attribution string against safety, path, and leak rules."""
+-    _check_string_safety(field_name, value, prose=False, migration_import=False)
+-    _check_no_absolute_paths_in_text(field_name, value)
+-    resolved_ruleset = ruleset if ruleset is not None else _writer_ruleset(repo_root)
+-    _check_leak_sanitizer(value, field_name, resolved_ruleset)
+-    return resolved_ruleset
++def _git_target_root(path: Path, repo_root: Path) -> Path:
++    """The git root a move is staged in: the companion records repository when it owns the record."""
++    owner = _proj_ctx.record_owner_root(path)
++    if owner is not None:
++        with contextlib.suppress(Exception):
++            c = _proj_ctx.resolve_project_context(target_repo=str(owner))
++            if c.records_backend == _proj_ctx.RecordsBackend.COMPANION.value:
++                gr = _proj_ctx.record_git_root(path)
++                if gr is not None:
++                    return gr
++    return repo_root
  
  
 -def _validate_legacy_render(render: LegacyRender, *, repo_root: Path) -> None:
 -    """Validate LegacyRender actor attribution fields before rendering or writing."""
 -    ruleset: Optional["_leak.Ruleset"] = None
--
+ 
 -    if render.history or render.actor_label:
 -        if not isinstance(render.actor_label, str):
 -            raise ValueError("LegacyRender.actor_label must be a string")
@@ -2938,7 +3402,13 @@ index 888725a53..a0d192f14 100644
 -    Uses `_render_status`, `_set_bullet`, and the history-block primitives rather than
 -    `validate_new_events` and emits no `set readiness` event."""
 -    _, plural = _normalize_legacy_types(record_type)
--    try:
++def file_id6(path: Union[str, Path], declared: Optional[str] = None) -> str:
++    """The id6 that keys the log of the record at ``path``: ``declared`` when given, else the id its
++    in-file mirror declares. Raises ``ValueError`` for a file with neither, which after the cutover
++    is an unmigrated or orphan record (spec 4.6)."""
++    if declared and _core.ID6_RE.fullmatch(str(declared)):
++        return str(declared)
+     try:
 -        from agent_workflows import ipd_lint as _lint
 -
 -        doc_pre = _lint.parse(pre_pass_text or "")
@@ -2991,13 +3461,19 @@ index 888725a53..a0d192f14 100644
 -    return result
 -
 -
- def _git_target_root(path: Path, repo_root: Path) -> Path:
-     """The git root a move is staged in: the companion records repository when it owns the record."""
-     owner = _proj_ctx.record_owner_root(path)
-@@ -9020,202 +6426,28 @@ def _git_target_root(path: Path, repo_root: Path) -> Path:
-     return repo_root
- 
- 
+-def _git_target_root(path: Path, repo_root: Path) -> Path:
+-    """The git root a move is staged in: the companion records repository when it owns the record."""
+-    owner = _proj_ctx.record_owner_root(path)
+-    if owner is not None:
+-        with contextlib.suppress(Exception):
+-            c = _proj_ctx.resolve_project_context(target_repo=str(owner))
+-            if c.records_backend == _proj_ctx.RecordsBackend.COMPANION.value:
+-                gr = _proj_ctx.record_git_root(path)
+-                if gr is not None:
+-                    return gr
+-    return repo_root
+-
+-
 -def write_legacy(
 -    target: Union[Path, str, LegacyTarget],
 -    events: List[Dict[str, Any]],
@@ -3062,7 +3538,7 @@ index 888725a53..a0d192f14 100644
 -        migration_import=migration_import,
 -    )
 -    _check_owned_fields(reg_type or plural, prepared, from_status)
- 
+-
 -    src = Path(ltarget.path)
 -    if ltarget.source_digest is not None:
 -        if src.is_file():
@@ -3189,13 +3665,6 @@ index 888725a53..a0d192f14 100644
 -        quiet=quiet,
 -        from_status=from_status,
 -        notes_out=notes_out,
-+def file_id6(path: Union[str, Path], declared: Optional[str] = None) -> str:
-+    """The id6 that keys the log of the record at ``path``: ``declared`` when given, else the id its
-+    in-file mirror declares. Raises ``ValueError`` for a file with neither, which after the cutover
-+    is an unmigrated or orphan record (spec 4.6)."""
-+    if declared and _core.ID6_RE.fullmatch(str(declared)):
-+        return str(declared)
-+    try:
 +        text = Path(path).read_text(encoding="utf-8")
 +    except OSError as exc:
 +        raise ValueError(f"cannot read record {path}: {exc}") from exc
@@ -3214,7 +3683,7 @@ index 888725a53..a0d192f14 100644
      events: List[Dict[str, Any]],
      *,
      expect_seq: Optional[int] = None,
-@@ -9227,64 +6459,14 @@ def append(
+@@ -9227,64 +6573,14 @@ def append(
      overrides: Optional[List[str]] = None,
      migration_import: bool = False,
      _from_create: bool = False,
@@ -3287,7 +3756,7 @@ index 888725a53..a0d192f14 100644
      validate_id6(id6)
      ctx = project_context or _proj_ctx.resolve_project_context()
      records_root = Path(ctx.logical_roots["records"])
-@@ -9312,6 +6494,11 @@ def append(
+@@ -9312,6 +6608,11 @@ def append(
              if existing_lines:
                  last_ev = decode_line(existing_lines[-1])
                  current_seq = last_ev["seq"]
@@ -3299,7 +3768,7 @@ index 888725a53..a0d192f14 100644
  
          if expect_seq is not None and current_seq != expect_seq:
              raise ValueError(
-@@ -9368,10 +6555,45 @@ def append(
+@@ -9368,10 +6669,45 @@ def append(
              records_root=records_root,
              migration_import=migration_import,
          )
@@ -3346,7 +3815,7 @@ index 888725a53..a0d192f14 100644
  
          # Step 1: Write log via temp file, fsync, os.replace (THE COMMIT POINT)
          log_content = "".join(all_lines)
-@@ -9382,17 +6604,30 @@ def append(
+@@ -9382,17 +6718,30 @@ def append(
  
          # After step 1: Change is recorded. Subsequent steps are best effort/recovery
          try:
@@ -3387,7 +3856,7 @@ index 888725a53..a0d192f14 100644
  
              # Step 4: Cache update
              conn = open_cache(records_root, state_root)
-@@ -9413,7 +6648,12 @@ def append(
+@@ -9413,7 +6762,12 @@ def append(
              finally:
                  conn.close()
  
@@ -3401,7 +3870,7 @@ index 888725a53..a0d192f14 100644
  
          except Exception as step_exc:
              return {
-@@ -9432,70 +6672,17 @@ def create(
+@@ -9432,70 +6786,17 @@ def create(
      dry_run: bool = False,
      project_context: Any = None,
      actor: Optional[Dict[str, Any]] = None,
@@ -3481,7 +3950,7 @@ index 888725a53..a0d192f14 100644
      ctx = project_context or _proj_ctx.resolve_project_context()
      records_root = Path(ctx.logical_roots["records"])
      state_root = Path(ctx.logical_roots["state"])
-@@ -9513,6 +6700,35 @@ def create(
+@@ -9513,6 +6814,35 @@ def create(
              )
          except (OSError, ValueError):
              pass
@@ -3517,7 +3986,7 @@ index 888725a53..a0d192f14 100644
  
      # Retain operation journal before step 1
      j_dir = _journal_dir(state_root)
-@@ -9527,35 +6743,29 @@ def create(
+@@ -9527,35 +6857,29 @@ def create(
      j_file.write_text(json.dumps(journal_data, indent=2), encoding="utf-8")
  
      try:
@@ -4703,7 +5172,7 @@ index 5395ccb00..30e193203 100644
      ctx = select_output(args)
      # rolswj/akhwp7: ONE count expression read by the human AND machine branches.
 diff --git a/agent_workflows/check_engine.py b/agent_workflows/check_engine.py
-index 9b09c151c..66f11d8da 100644
+index 9b09c151c..870ac9a82 100644
 --- a/agent_workflows/check_engine.py
 +++ b/agent_workflows/check_engine.py
 @@ -1610,23 +1610,27 @@ def check_content(
@@ -4820,6 +5289,15 @@ index 9b09c151c..66f11d8da 100644
      elif record_type == "prompts":
          for p in _iter_type_files(
              repo_root,
+@@ -1953,7 +1963,7 @@ def validate_prompt_content(
+                 _core.Drift(
+                     rel,
+                     "check.prompt-metadata-missing",
+-                    "prompt filename date requires a leading <!-- aw-prompt: ... --> metadata comment",
++                    "prompt filename date requires a leading <!-- aw-managed-prompt: ... --> metadata comment",
+                 )
+             )
+         )
 @@ -1975,27 +1985,10 @@ def validate_prompt_content(
              comment_id = _meta_declared_id6(st_obj)
              comment_status = st_obj.status or st_obj.legacy_raw_status
@@ -5009,7 +5487,41 @@ index 9b09c151c..66f11d8da 100644
      scan_repo = _meta._scan_repo_root(ctx, records_root)
      has_tree = records_root.is_dir() or (
          scan_repo is not None
-@@ -6552,7 +6621,7 @@ def build_plan_setid_index(
+@@ -5944,6 +6013,33 @@ def _meta_state_for_cached_path(
+     return _meta.read_text(text, record_type=record_type), text
+ 
+ 
++def _resolve_plan_state_from_text(
++    repo_root: Path, plan_text: str
++) -> Optional[Any]:
++    """Resolve companion ``artifact_meta.State`` for a log-format plan text, or None."""
++    from agent_workflows import artifact_meta as _meta
++    from agent_workflows import project_context as _proj_ctx
++
++    id6 = _meta.read_mirror_id6(plan_text)
++    if not id6:
++        return None
++    root = Path(repo_root)
++    try:
++        ctx = _proj_ctx.resolve_project_context(target_repo=str(root))
++        records_root = Path(ctx.logical_roots["records"])
++        in_tree_records = root / ".aw" / "records"
++        if not (records_root / "meta" / f"{id6}.jsonl").is_file():
++            if (in_tree_records / "meta" / f"{id6}.jsonl").is_file():
++                ctx = _meta.legacy_context(root)
++                records_root = Path(ctx.logical_roots["records"])
++            else:
++                return None
++        with _meta.ephemeral_if_uninitialized():
++            return _meta.read(id6, project_context=ctx)
++    except Exception:
++        return None
++
++
+ def _from_backlog_value(text: str) -> Optional[str]:
+     """Return the captured `- From-Backlog:` value, or None if absent, sentinel, or malformed (plan okp2o4)."""
+     from agent_workflows import artifact_meta as _meta
+@@ -6552,7 +6648,7 @@ def build_plan_setid_index(
              or _core.is_ignored_path(path, repo_root, ignored_dirs)
          ):
              continue
@@ -5018,7 +5530,71 @@ index 9b09c151c..66f11d8da 100644
          if not setid:
              continue
          declared_id = _meta_declared_id6(st_obj) or ""
-@@ -9923,13 +9992,74 @@ _PLAN_SPEC_LINK_MISSING_RULE = "check.plan-spec-link-missing"
+@@ -9168,7 +9264,7 @@ def check_plan_priority_required(
+     from agent_workflows import ipd_schema as _schema
+ 
+     drift: List[_core.Drift] = []
+-    state_map = _meta_state_map(repo_root, "ipd")
++    state_map = _meta_state_map(repo_root, "ipd", load_fields=True)
+     for p in _iter_type_files(
+         repo_root,
+         "plans",
+@@ -9180,19 +9276,25 @@ def check_plan_priority_required(
+         except OSError:
+             continue
+         try:
+-            doc = _lint.parse(text)
++            st_obj = state_map.get(p.resolve())
++        except OSError:
++            st_obj = None
++        if st_obj is None:
++            st_obj = _resolve_plan_state_from_text(repo_root, text)
++        from_read_text = False
++        if st_obj is None:
++            st_obj = _meta.read_text(text, record_type="ipd")
++            from_read_text = True
++        try:
++            doc = _lint.parse(
++                text, state=st_obj, _state_from_read_text=from_read_text, path=p
++            )
+         except Exception:
+             continue
+         status = doc.meta_fields.get("Status", "")
+         if not _lint._scope_paths_gate_applies("author", status):
+             continue
+         blocking_prio, _ = _lint.check_plan_priority(doc, "author", None)
+-        try:
+-            st_obj = state_map.get(p.resolve())
+-        except OSError:
+-            st_obj = None
+-        if st_obj is None:
+-            st_obj = _meta.read_text(text, record_type="ipd")
+         id6 = _meta_declared_id6(st_obj) or p.stem
+         for b in blocking_prio:
+             drift.append(
+@@ -9305,11 +9407,18 @@ def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
+             text = path.read_text(encoding="utf-8")
+         except OSError:
+             continue
+-        st = _meta.read_text(text)
+-        raw_sid = _meta_single_token((st.fields or {}).get("subject_id"))
++        raw_sid: Optional[str] = None
++        raw_stype: Optional[str] = None
++        try:
++            mirror = _meta.parse_review_mirror(text)
++            raw_sid = _meta_single_token(mirror.get("subject"))
++            raw_stype = _meta_single_token(mirror.get("subject_type"))
++        except ValueError:
++            st = _meta.read_text(text)
++            raw_sid = _meta_single_token((st.fields or {}).get("subject_id"))
++            raw_stype = _meta_single_token((st.fields or {}).get("subject_type"))
+         if not raw_sid or not _ID6_RE.fullmatch(raw_sid):
+             continue  # a missing/malformed Subject-Id is the parser's diagnostic, not this rule's
+-        raw_stype = _meta_single_token((st.fields or {}).get("subject_type"))
+         subject_type = raw_stype.lower() if raw_stype else ""
+         known = known_by_type.get(subject_type)
+         if known is None:
+@@ -9923,13 +10032,74 @@ _PLAN_SPEC_LINK_MISSING_RULE = "check.plan-spec-link-missing"
  PLAN_SPEC_LINK_NO_SOURCE_SENTINELS: FrozenSet[str] = frozenset({"-", "none"})
  
  
@@ -5026,11 +5602,7 @@ index 9b09c151c..66f11d8da 100644
 -    """Return ordered, deduplicated spec id6s cited in Concern/Scope/Scope-Paths bullets.
 +_FENCE_OPEN_RE = _re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
 +_ATX_HEADING_RE = _re.compile(r"^(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$")
- 
--    Pure function (IPD 0ykozn E-03 / PR-502).
--    Consumes each target bullet as its header line plus all following continuation lines
--    until the next `- ` bullet, the next heading, or a blank line via
--    `artifact_meta.read_multiline_bullets`.
++
 +
 +def _extract_markdown_sections(
 +    text: str, section_names: Tuple[str, ...]
@@ -5085,7 +5657,11 @@ index 9b09c151c..66f11d8da 100644
 +        chunks.append("\n".join(current))
 +    return chunks
 +
-+
+ 
+-    Pure function (IPD 0ykozn E-03 / PR-502).
+-    Consumes each target bullet as its header line plus all following continuation lines
+-    until the next `- ` bullet, the next heading, or a blank line via
+-    `artifact_meta.read_multiline_bullets`.
 +def parse_cited_spec_ids(
 +    plan_text: str, known_spec_ids: Iterable[str], *, state: Any = None
 +) -> List[str]:
@@ -5099,7 +5675,7 @@ index 9b09c151c..66f11d8da 100644
      Filters candidate 6-character [0-9a-z]{6} tokens on word boundaries against `known_spec_ids`.
      """
      known = set(known_spec_ids)
-@@ -9938,9 +10068,18 @@ def parse_cited_spec_ids(plan_text: str, known_spec_ids: Iterable[str]) -> List[
+@@ -9938,9 +10108,18 @@ def parse_cited_spec_ids(plan_text: str, known_spec_ids: Iterable[str]) -> List[
  
      from agent_workflows import artifact_meta as _meta
  
@@ -5119,7 +5695,7 @@ index 9b09c151c..66f11d8da 100644
      cited: List[str] = []
      for m in _CITED_SPEC_TOKEN_RE.finditer(joined):
          tok = m.group(1)
-@@ -9954,10 +10093,11 @@ def check_plan_spec_link_missing(
+@@ -9954,10 +10133,11 @@ def check_plan_spec_link_missing(
  ) -> List[_core.Drift]:
      """Pending-scoped advisory rule flagging a pending plan citing a known spec without From-Spec.
  
@@ -5135,7 +5711,7 @@ index 9b09c151c..66f11d8da 100644
      Pending-scoping ensures historical records (executed/superseded) are never examined, while keeping
      the advisory nudge visible on `aw check plans` throughout the plan's authoring/review lifecycle.
      """
-@@ -9972,7 +10112,9 @@ def check_plan_spec_link_missing(
+@@ -9972,7 +10152,9 @@ def check_plan_spec_link_missing(
  
      spec_files_by_id6: Dict[str, Set[str]] = {}
      resolved_root = repo_root.resolve()
@@ -5146,7 +5722,7 @@ index 9b09c151c..66f11d8da 100644
          sid = _meta_declared_id6(st)
          if sid:
              try:
-@@ -10006,14 +10148,26 @@ def check_plan_spec_link_missing(
+@@ -10006,14 +10188,26 @@ def check_plan_spec_link_missing(
              except OSError:
                  continue
  
@@ -5176,6 +5752,138 @@ index 9b09c151c..66f11d8da 100644
              if parsed_paths:
                  scope_set = set(parsed_paths)
                  cited = [
+@@ -10318,7 +10512,9 @@ class StaleScopePath(NamedTuple):
+     resolved: Tuple[str, ...] = ()
+ 
+ 
+-def stale_record_scope_paths(repo_root: Path, plan_text: str) -> List[StaleScopePath]:
++def stale_record_scope_paths(
++    repo_root: Path, plan_text: str, *, state: Optional[Any] = None
++) -> List[StaleScopePath]:
+     """Flag missing literal Scope-Paths under .aw/records/ classified moved-terminal/moved/vanished.
+ 
+     Pure-ish predicate (reads filesystem, no subprocess, no git).
+@@ -10328,8 +10524,13 @@ def stale_record_scope_paths(repo_root: Path, plan_text: str) -> List[StaleScope
+     from agent_workflows import status_set as _status_set
+ 
+     repo_root = Path(repo_root)
++    st_obj = (
++        state
++        if state is not None
++        else _resolve_plan_state_from_text(repo_root, plan_text)
++    )
+     try:
+-        doc = _lint.parse(plan_text)
++        doc = _lint.parse(plan_text, state=st_obj)
+     except Exception:
+         return []
+     sp_value = doc.meta_fields.get("Scope-Paths")
+@@ -10433,10 +10634,15 @@ def check_scope_path_target_stale(repo_root: Path) -> List[_core.Drift]:
+     """
+     repo_root = Path(repo_root)
+     drift: List[_core.Drift] = []
++    state_map = _meta_state_map(repo_root, "ipd", load_fields=True)
+     for path, text in _iter_plan_ipds(repo_root):
+         if path.parent.name != "pending":
+             continue
+-        for stale in stale_record_scope_paths(repo_root, text):
++        try:
++            st_obj = state_map.get(path.resolve())
++        except OSError:
++            st_obj = None
++        for stale in stale_record_scope_paths(repo_root, text, state=st_obj):
+             if stale.resolved:
+                 resolved_str = ", ".join(stale.resolved)
+                 detail = (
+@@ -10814,7 +11020,9 @@ def evaluate_review_finding_escalation(
+     if str(thr).strip().lower() in ("off", ""):
+         return drift
+ 
+-    plan_id6 = _meta_declared_id6(_meta.read_text(plan_text, record_type="ipd"))
++    plan_id6 = _meta.read_mirror_id6(plan_text) or _meta_declared_id6(
++        _meta.read_text(plan_text, record_type="ipd")
++    )
+     if plan_id6 is None:
+         return drift  # no `- Id:` to join on; the metadata linter owns that complaint
+ 
+@@ -11010,7 +11218,9 @@ def evaluate_review_decision_escalation(
+     except Exception:
+         return drift
+ 
+-    plan_id6 = _meta_declared_id6(_meta.read_text(plan_text, record_type="ipd"))
++    plan_id6 = _meta.read_mirror_id6(plan_text) or _meta_declared_id6(
++        _meta.read_text(plan_text, record_type="ipd")
++    )
+     if plan_id6 is None:
+         return drift  # no `- Id:` to join on; the metadata linter owns that complaint
+ 
+@@ -11587,7 +11797,8 @@ def find_obligations_carried_by(
+                 from agent_workflows import artifact_meta as _meta
+ 
+                 plan_id6 = (
+-                    _meta_declared_id6(_meta.read_text(text, record_type="ipd"))
++                    _meta.read_mirror_id6(text)
++                    or _meta_declared_id6(_meta.read_text(text, record_type="ipd"))
+                     or p.name[:6]
+                 )
+ 
+@@ -12072,6 +12283,7 @@ def evaluate_carrier_ungated(
+     plan_path: Path,
+     plan_text: str,
+     open_questions=None,
++    state: Optional[Any] = None,
+ ) -> List[_core.Drift]:
+     """The pure per-plan evaluator for `check.ipd-carrier-ungated` (carriergate rpw4sb E-02).
+ 
+@@ -12087,16 +12299,21 @@ def evaluate_carrier_ungated(
+         from agent_workflows import ipd_lint as _lint
+         from agent_workflows import ipd_schema as _ipd_schema
+ 
++        st_obj = (
++            state
++            if state is not None
++            else _resolve_plan_state_from_text(repo_root, plan_text)
++        )
+         parsed = None
+         if open_questions is None:
+-            parsed = _lint.parse(plan_text)
++            parsed = _lint.parse(plan_text, state=st_obj)
+             open_questions = parsed.open_questions
+ 
+         if not open_questions:
+             return drift
+ 
+         if parsed is None:
+-            parsed = _lint.parse(plan_text)
++            parsed = _lint.parse(plan_text, state=st_obj)
+ 
+         meta_fields = getattr(parsed, "meta_fields", None) or {}
+         raw_deps = (meta_fields.get(_ipd_schema.META_ITEM_DEPENDENCIES) or "").strip()
+@@ -12173,6 +12390,7 @@ def check_carrier_ungated(
+     drift: List[_core.Drift] = []
+     try:
+         repo_root = Path(repo_root)
++        state_map = _meta_state_map(repo_root, "ipd", load_fields=True)
+         for p in _iter_type_files(
+             repo_root, "plans", include_untracked=include_untracked
+         ):
+@@ -12182,11 +12400,16 @@ def check_carrier_ungated(
+                 text = p.read_text(encoding="utf-8")
+             except OSError:
+                 continue
++            try:
++                st_obj = state_map.get(p.resolve())
++            except OSError:
++                st_obj = None
+             drift.extend(
+                 evaluate_carrier_ungated(
+                     repo_root,
+                     plan_path=p,
+                     plan_text=text,
++                    state=st_obj,
+                 )
+             )
+     except Exception:
 diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
 index 038a893c1..b19962684 100644
 --- a/agent_workflows/cli.py
@@ -11162,10 +11870,78 @@ index ebb9bb13f..25e4416c3 100644
          touched.append(dst_rel)
          if has_comp:
 diff --git a/agent_workflows/review_findings.py b/agent_workflows/review_findings.py
-index 142df8fa4..b99f4406b 100644
+index 142df8fa4..155e0285f 100644
 --- a/agent_workflows/review_findings.py
 +++ b/agent_workflows/review_findings.py
-@@ -769,7 +769,7 @@ def iter_review_files(repo_root):
+@@ -48,7 +48,7 @@ from __future__ import annotations
+ import functools
+ import re
+ from pathlib import Path
+-from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
++from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Tuple
+ 
+ from agent_workflows import artifact_naming as _naming
+ 
+@@ -535,15 +535,35 @@ def parse_review_text(text: str, path: Optional[Path] = None) -> ReviewDocument:
+ 
+     diagnostics: List[Diagnostic] = []
+     meta: Dict[str, str] = {}
+-    st = _am.read_text(text)
+-    fields = st.fields or {}
+-    for field in ("subject-id", "subject-type", "reviewed-at", "reviewer", "verdict"):
+-        raw_val = fields.get(field.replace("-", "_"))
+-        if raw_val is None:
+-            continue
+-        val = raw_val.strip() if isinstance(raw_val, str) else str(raw_val).strip()
+-        if val:
+-            meta[field] = val
++    mirror_data: Optional[Dict[str, Any]] = None
++    try:
++        mirror_data = _am.parse_review_mirror(text)
++    except ValueError:
++        mirror_data = None
++
++    if mirror_data is not None:
++        subj = str(mirror_data.get("subject") or "").strip()
++        stype = str(mirror_data.get("subject_type") or "").strip()
++        if subj:
++            meta["subject-id"] = subj
++        if stype:
++            meta["subject-type"] = stype
++    else:
++        st = _am.read_text(text)
++        fields = st.fields or {}
++        for field in (
++            "subject-id",
++            "subject-type",
++            "reviewed-at",
++            "reviewer",
++            "verdict",
++        ):
++            raw_val = fields.get(field.replace("-", "_"))
++            if raw_val is None:
++                continue
++            val = raw_val.strip() if isinstance(raw_val, str) else str(raw_val).strip()
++            if val:
++                meta[field] = val
+     rounds: List[Round] = []
+ 
+     cur_num: Optional[int] = None
+@@ -696,7 +716,12 @@ def parse_review_text(text: str, path: Optional[Path] = None) -> ReviewDocument:
+ 
+     _flush()
+ 
+-    for field in ("subject-id", "subject-type", "reviewed-at", "reviewer", "verdict"):
++    required_meta_fields = (
++        ("subject-id", "subject-type")
++        if mirror_data is not None
++        else ("subject-id", "subject-type", "reviewed-at", "reviewer", "verdict")
++    )
++    for field in required_meta_fields:
+         if not meta.get(field):
+             diagnostics.append(
+                 Diagnostic(0, D_MISSING_META, f"missing required `- {field}:` metadata")
+@@ -769,7 +794,7 @@ def iter_review_files(repo_root):
      seen = set()
      for base in review_dirs(repo_root):
          for p in sorted(base.rglob("*.review.md")):
@@ -11174,7 +11950,7 @@ index 142df8fa4..b99f4406b 100644
                  continue
              try:
                  key = str(p.resolve())
-@@ -949,7 +949,7 @@ def _cached_subject_review_files(
+@@ -949,7 +974,7 @@ def _cached_subject_review_files(
              ):
                  continue
              for p in sorted(base.rglob("*.review.md")):
@@ -21731,6 +22507,769 @@ index 000000000..da1713901
 +    assert res_repair.exit_code == 2
 +    assert "aw migrate metadata" in res_repair.summary
 +    assert any(a.command == "aw migrate metadata" for a in res_repair.next_actions)
+diff --git a/tests/test_cutover_log_reviews_prompts_and_checks.py b/tests/test_cutover_log_reviews_prompts_and_checks.py
+new file mode 100644
+index 000000000..6a9402f25
+--- /dev/null
++++ b/tests/test_cutover_log_reviews_prompts_and_checks.py
+@@ -0,0 +1,757 @@
++"""Core behavioral tests for log-aware review mirrors, prompt metadata, and check_engine plan checks (p109wy)."""
++
++from __future__ import annotations
++
++import json
++import sqlite3
++from pathlib import Path
++
++import pytest
++
++from agent_workflows import (
++    artifact_meta as meta,
++)
++from agent_workflows import (
++    artifact_rename,
++    check_engine,
++    prompts,
++)
++from agent_workflows import (
++    review_findings as rf,
++)
++
++pytestmark = pytest.mark.core
++
++
++def _init_log_repo(tmp_path: Path, *, name: str = "repo") -> Path:
++    repo = tmp_path / name
++    for sub in (
++        ".aw/config",
++        ".aw/state",
++        ".aw/records/meta",
++        ".aw/records/plans/pending",
++        ".aw/records/plans/executed",
++        ".aw/records/specs/to-review",
++        ".aw/records/specs/approved",
++        ".aw/records/backlog/open",
++        ".aw/records/prompts/pending",
++        ".aw/records/prompts/executed",
++        ".aw/records/reviews",
++    ):
++        (repo / sub).mkdir(parents=True, exist_ok=True)
++    (repo / ".aw" / "config" / "project.json").write_text(
++        json.dumps(
++            {
++                "metadata_schema": 2,
++                "records_backend": "repository",
++                "placements": {"records": "target-tracked"},
++            }
++        )
++        + "\n",
++        encoding="utf-8",
++    )
++    return repo
++
++
++def _write_log(repo: Path, id6: str, events: list[dict]) -> Path:
++    log_path = repo / ".aw" / "records" / "meta" / f"{id6}.jsonl"
++    norm = []
++    for ev in events:
++        row = {"v": 1, **ev}
++        if row.get("by_human") is False:
++            row.pop("by_human", None)
++        norm.append(row)
++    log_path.write_text(
++        "\n".join(json.dumps(ev, separators=(",", ":")) for ev in norm) + "\n",
++        encoding="utf-8",
++    )
++    return log_path
++
++
++def _create_log_plan(
++    repo: Path,
++    id6: str,
++    *,
++    status: str = "to-review",
++    bucket: str = "pending",
++    slug: str = "sample-plan",
++    set_id: str = "demo",
++    order: int = 1,
++    priority: str | None = "medium",
++    work_kind: str | None = "bug",
++    scope_paths: list[str] | None = None,
++    item_dependencies: list[dict] | None = None,
++    body_extra: str = "",
++    extra_events: list[dict] | None = None,
++) -> Path:
++    rel = f"plans/{bucket}/20261126-{set_id}-{order:02d}-{id6}-{slug}.ipd.md"
++    plan_path = repo / ".aw" / "records" / rel
++    plan_path.parent.mkdir(parents=True, exist_ok=True)
++    mirror = meta.render_in_file_mirror(id6, "ipd", status)
++    plan_path.write_text(
++        mirror
++        + f"# IPD: {slug}\n\n"
++        + "## Goal\n\nVerify log-aware checks.\n\n"
++        + "## Open questions\n\n"
++        + (body_extra if body_extra else "None open.\n"),
++        encoding="utf-8",
++    )
++    fields: dict = {
++        "type": "ipd",
++        "status": status,
++        "plan_role": "child",
++        "set": set_id,
++        "order": order,
++        "author": "test-agent",
++        "scope_paths": scope_paths
++        if scope_paths is not None
++        else [f".aw/records/{rel}"],
++    }
++    if priority is not None:
++        fields["priority"] = priority
++    if work_kind is not None:
++        fields["work_kind"] = work_kind
++    if item_dependencies is not None:
++        fields["item_dependencies"] = item_dependencies
++    else:
++        fields["dependency_declaration"] = "none"
++    events: list[dict] = [
++        {
++            "seq": 0,
++            "append": 0,
++            "op": "checkpoint",
++            "at": "2026-11-26T10:00:00Z",
++            "actor": {"tool": "test"},
++            "path": rel,
++            "fields": fields,
++            "message": "created",
++        }
++    ]
++    if extra_events:
++        events.extend(extra_events)
++    _write_log(repo, id6, events)
++    return plan_path
++
++
++def _create_log_spec(
++    repo: Path,
++    id6: str,
++    *,
++    status: str = "to-review",
++    bucket: str = "to-review",
++    slug: str = "sample-spec",
++    extra_events: list[dict] | None = None,
++) -> Path:
++    rel = f"specs/{bucket}/20261126-{id6}-01-{id6}-{slug}.spec.md"
++    spec_path = repo / ".aw" / "records" / rel
++    spec_path.parent.mkdir(parents=True, exist_ok=True)
++    mirror = meta.render_in_file_mirror(id6, "spec", status)
++    spec_path.write_text(mirror + f"# Spec: {slug}\n\nBody.\n", encoding="utf-8")
++    events: list[dict] = [
++        {
++            "seq": 0,
++            "append": 0,
++            "op": "checkpoint",
++            "at": "2026-11-26T10:00:00Z",
++            "actor": {"tool": "test"},
++            "path": rel,
++            "fields": {"type": "spec", "status": status, "set": id6, "order": 1},
++            "message": "created",
++        }
++    ]
++    if extra_events:
++        events.extend(extra_events)
++    _write_log(repo, id6, events)
++    return spec_path
++
++
++def _render_mirror_review(
++    subject_id: str,
++    subject_type: str = "ipd",
++    *,
++    review_ref: str | None = None,
++    findings_rows: list[str] | None = None,
++    decisions_rows: list[str] | None = None,
++    include_rounds: bool = True,
++) -> str:
++    header = meta.render_review_mirror(subject_id, subject_type, review_ref=review_ref)
++    parts = [header, "# Plan Review\n"]
++    if include_rounds:
++        parts.append("## Round 1\n\n### Findings\n\n")
++        parts.append(
++            "| Id | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |\n"
++            "|---|---|---|---|---|---|---|---|---|\n"
++        )
++        for row in findings_rows or []:
++            parts.append(row.rstrip("\n") + "\n")
++        parts.append("\n### Decisions\n\n")
++        parts.append(
++            "| Id | Question | Chosen | Alternatives | Basis | Reversible |\n"
++            "|---|---|---|---|---|---|\n"
++        )
++        for row in decisions_rows or []:
++            parts.append(row.rstrip("\n") + "\n")
++    return "".join(parts)
++
++
++# --------------------------------------------------------------------------------------
++# 1. Spec 4sd62s Section 4.1a .review.md mirrors, SQLite projection, and review checks
++# --------------------------------------------------------------------------------------
++
++
++def test_review_mirror_parsing_and_subject_id_with_legacy_parity() -> None:
++    valid_text = _render_mirror_review("ab12cd", "ipd", review_ref="20261126-demo-01")
++    parsed = meta.parse_review_mirror(valid_text)
++    assert parsed == {
++        "subject": "ab12cd",
++        "subject_type": "ipd",
++        "ref": "20261126-demo-01",
++    }
++    assert meta.read_review_subject_id(valid_text) == "ab12cd"
++
++    # BOM-prefixed mirror parses cleanly
++    bom_text = "\ufeff" + valid_text
++    assert meta.parse_review_mirror(bom_text) == parsed
++    assert meta.read_review_subject_id(bom_text) == "ab12cd"
++
++    # Unknown YAML key fails closed
++    bad_key_text = (
++        "---\n"
++        "subject: ab12cd\n"
++        "subject_type: ipd\n"
++        "unexpected_key: oops\n"
++        "---\n"
++        "## Round 1\n"
++    )
++    with pytest.raises(ValueError, match="unknown review front matter key"):
++        meta.parse_review_mirror(bad_key_text)
++
++    # parse_review_text on valid spec-4.1a mirror produces zero REV-M101 diagnostics
++    doc = rf.parse_review_text(valid_text)
++    assert doc.diagnostics == ()
++    assert doc.subject_id == "ab12cd"
++    assert doc.subject_type == "ipd"
++    assert len(doc.rounds) == 1
++
++    # Invalid subject_type emits REV-M102 (D_UNKNOWN_SUBJECT_TYPE), not REV-M101
++    bad_type_text = _render_mirror_review("ab12cd", "bogus")
++    bad_type_doc = rf.parse_review_text(bad_type_text)
++    assert [d.code for d in bad_type_doc.diagnostics] == [rf.D_UNKNOWN_SUBJECT_TYPE]
++
++    # Missing rounds emits REV-R001 (D_NO_ROUNDS)
++    no_rounds_text = _render_mirror_review("ab12cd", "ipd", include_rounds=False)
++    no_rounds_doc = rf.parse_review_text(no_rounds_text)
++    assert [d.code for d in no_rounds_doc.diagnostics] == [rf.D_NO_ROUNDS]
++
++    # Malformed YAML header fails closed with REV-M101
++    bad_key_doc = rf.parse_review_text(bad_key_text)
++    assert rf.D_MISSING_META in {d.code for d in bad_key_doc.diagnostics}
++
++    # Legacy 5-bullet review preserves existing validation and subject-id reading
++    legacy_text = rf.render_review(
++        subject_id="ef34gh",
++        subject_type="spec",
++        reviewed_at="2026-11-26",
++        reviewer="test-agent",
++        verdict="APPROVE",
++        rounds=[rf.Round(1, (), ())],
++    )
++    assert meta.read_review_subject_id(legacy_text) == "ef34gh"
++    assert rf.parse_review_text(legacy_text).diagnostics == ()
++
++    incomplete_legacy = (
++        "# Review\n\n- Subject-Id: ef34gh\n- Subject-Type: spec\n\n## Round 1\n"
++    )
++    incomplete_doc = rf.parse_review_text(incomplete_legacy)
++    assert rf.D_MISSING_META in {d.code for d in incomplete_doc.diagnostics}
++
++
++def test_sqlite_review_projection_preserves_log_rows_and_tracks_parse_ok(
++    tmp_path: Path,
++) -> None:
++    repo = _init_log_repo(tmp_path)
++    gate_event = {
++        "seq": 1,
++        "append": 1,
++        "op": "review",
++        "at": "2026-11-26T11:00:00Z",
++        "actor": {"tool": "spec-review"},
++        "by_human": False,
++        "review_kind": "gate",
++        "round": 1,
++        "review_ref": "20261126-rev-r1",
++        "verdict": "APPROVE",
++        "observed_day": "2026-11-26",
++        "readiness": None,
++        "review_depth": "standard",
++        "findings_summary": "0 findings",
++        "reviewer": "test-reviewer",
++    }
++    _create_log_spec(repo, "sp1001", extra_events=[gate_event])
++
++    ctx = meta.legacy_context(repo)
++    # Log-sourced op: "review" is visible to query(latest_gate_review_of=...) and attestation
++    res = meta.query(latest_gate_review_of="sp1001", project_context=ctx)
++    assert [st.id6 for st in res.rows] == ["sp1001"]
++    assert rf.review_attestation_missing(repo, "sp1001", "spec") is None
++
++    # Adding a spec-4.1a .review.md with explicit ref: indexes review_files without clobbering reviews
++    rev_path = (
++        repo
++        / ".aw"
++        / "records"
++        / "reviews"
++        / "20261126-sp1001-01-xx9999-sample-spec.review.md"
++    )
++    rev_path.write_text(
++        _render_mirror_review("sp1001", "spec", review_ref="20261126-rev-r1"),
++        encoding="utf-8",
++    )
++    rows = meta.review_rows("sp1001", project_context=ctx)
++    assert len(rows) == 1
++    assert rows[0]["parse_ok"] is True
++
++    db_path = Path(ctx.logical_roots["state"]) / "index.db"
++    conn = sqlite3.connect(db_path)
++    try:
++        rf_row = conn.execute(
++            "SELECT subject_id6, review_ref, parse_ok FROM review_files WHERE subject_id6 = ?",
++            ("sp1001",),
++        ).fetchone()
++        assert rf_row == ("sp1001", "20261126-rev-r1", 1)
++        rev_rows = conn.execute(
++            "SELECT subject_id6, seq, review_ref, round, review_kind, verdict, reviewer "
++            "FROM reviews WHERE subject_id6 = ?",
++            ("sp1001",),
++        ).fetchall()
++        assert rev_rows == [
++            ("sp1001", 1, "20261126-rev-r1", 1, "gate", "APPROVE", "test-reviewer")
++        ]
++    finally:
++        conn.close()
++
++    # Removing the .review.md deletes only review_files; log-owned reviews rows survive
++    rev_path.unlink()
++    assert meta.review_rows("sp1001", project_context=ctx) == []
++    res_after_rm = meta.query(latest_gate_review_of="sp1001", project_context=ctx)
++    assert [st.id6 for st in res_after_rm.rows] == ["sp1001"]
++    assert rf.review_attestation_missing(repo, "sp1001", "spec") is None
++
++    # Malformed .review.md (missing rounds) caches parse_ok=False
++    bad_rev = (
++        repo
++        / ".aw"
++        / "records"
++        / "reviews"
++        / "20261126-sp1001-02-sp1001-broken.review.md"
++    )
++    bad_rev.write_text(
++        _render_mirror_review("sp1001", "spec", include_rounds=False),
++        encoding="utf-8",
++    )
++    bad_rows = meta.review_rows("sp1001", project_context=ctx)
++    assert len(bad_rows) == 1
++    assert bad_rows[0]["parse_ok"] is False
++
++
++def test_review_dangling_and_escalation_checks_on_log_format_plans(
++    tmp_path: Path,
++) -> None:
++    repo = _init_log_repo(tmp_path)
++    plan_path = _create_log_plan(repo, "pl1001", status="to-review")
++    _create_log_spec(repo, "sp2001", status="to-review")
++
++    reviews_dir = repo / ".aw" / "records" / "reviews"
++    # Valid ipd and spec review mirrors
++    valid_ipd_rev = reviews_dir / "20261126-demo-01-pl1001-plan.review.md"
++    valid_ipd_rev.write_text(
++        _render_mirror_review(
++            "pl1001",
++            "ipd",
++            findings_rows=[
++                "| PR-001 | high | in-scope | logic | file.py | unescalated bug | med | open | pending |"
++            ],
++            decisions_rows=["| D-01 | change schema? | yes | keep old | spec | no |"],
++        ),
++        encoding="utf-8",
++    )
++    (reviews_dir / "20261126-sp2001-01-sp2001-spec.review.md").write_text(
++        _render_mirror_review("sp2001", "spec"), encoding="utf-8"
++    )
++    # Dangling ipd and spec mirrors
++    dangling_ipd = reviews_dir / "20261126-demo-02-zz1111-missing-plan.review.md"
++    dangling_ipd.write_text(_render_mirror_review("zz1111", "ipd"), encoding="utf-8")
++    dangling_spec = reviews_dir / "20261126-zz2222-01-zz2222-missing-spec.review.md"
++    dangling_spec.write_text(_render_mirror_review("zz2222", "spec"), encoding="utf-8")
++    # Invalid subject_type must NOT default to ipd
++    invalid_type_rev = reviews_dir / "20261126-demo-03-zz3333-bad-type.review.md"
++    invalid_type_rev.write_text(
++        _render_mirror_review("zz3333", "bogus"), encoding="utf-8"
++    )
++
++    dangling = check_engine.check_review_dangling(repo)
++    dangling_paths = {Path(d.location).name for d in dangling}
++    assert dangling_paths == {dangling_ipd.name, dangling_spec.name}
++    assert all(d.rule == "check.review-dangling" for d in dangling)
++
++    # Finding escalation flags unescalated HIGH finding without false REV-M101 malformed drift
++    plan_text = plan_path.read_text(encoding="utf-8")
++    f_drift = check_engine.evaluate_review_finding_escalation(
++        repo, plan_path=plan_path, plan_text=plan_text, threshold="high"
++    )
++    assert len(f_drift) == 1
++    assert f_drift[0].rule == "check.review-finding-unescalated"
++    assert "PR-001" in f_drift[0].detail
++    assert "REV-M101" not in f_drift[0].detail
++
++    # Decision escalation flags unescalated Reversible: no decision
++    d_drift = check_engine.evaluate_review_decision_escalation(
++        repo, plan_path=plan_path, plan_text=plan_text
++    )
++    assert len(d_drift) == 1
++    assert d_drift[0].rule == "check.review-decision-unescalated"
++    assert "D-01" in d_drift[0].detail
++
++    # Escalating via a blocking OQ carrying - Finding: PR-001 clears both
++    escalated_plan_path = _create_log_plan(
++        repo,
++        "pl1001",
++        status="to-review",
++        body_extra=(
++            "### OQ-01: Resolve PR-001 and D-01\n\n"
++            "- Status: open\n"
++            "- Blocking: yes\n"
++            "- Finding: PR-001\n"
++            "- Question: Should we proceed?\n"
++        ),
++    )
++    escalated_text = escalated_plan_path.read_text(encoding="utf-8")
++    assert (
++        check_engine.evaluate_review_finding_escalation(
++            repo,
++            plan_path=escalated_plan_path,
++            plan_text=escalated_text,
++            threshold="high",
++        )
++        == []
++    )
++    assert (
++        check_engine.evaluate_review_decision_escalation(
++            repo, plan_path=escalated_plan_path, plan_text=escalated_text
++        )
++        == []
++    )
++
++
++# --------------------------------------------------------------------------------------
++# 2. Staged-prompt mirrors and check_engine.validate_prompt_content
++# --------------------------------------------------------------------------------------
++
++
++def test_staged_prompt_mirror_detection_parsing_and_legacy_non_corruption(
++    tmp_path: Path,
++) -> None:
++    managed = (
++        meta.render_in_file_mirror("pr1001", "prompt", "pending")
++        + "# Prompt Body\n\nAnalyze the repository.\n"
++    )
++    bom_managed = "\ufeff" + managed
++    legacy = (
++        "<!-- aw-prompt: Kind: research | Status: pending . "
++        + meta.PROMPT_METADATA_TRAILER
++        + " -->\n# Legacy Prompt\n"
++    )
++    commentless = "# Plain Prompt\n\nNo metadata comment.\n"
++    line2_comment = "# Heading\n" + managed
++
++    assert meta.has_prompt_metadata_comment(managed) is True
++    assert meta.has_prompt_metadata_comment(bom_managed) is True
++    assert meta.has_prompt_metadata_comment(legacy) is True
++    assert meta.has_prompt_metadata_comment(commentless) is False
++    assert meta.has_prompt_metadata_comment(line2_comment) is False
++
++    # parse_staged_prompt_mirror and read_text extract clean id and status without trailer
++    assert meta.parse_staged_prompt_mirror(managed) == {
++        "id": "pr1001",
++        "status": "pending",
++    }
++    assert meta.parse_staged_prompt_mirror(bom_managed) == {
++        "id": "pr1001",
++        "status": "pending",
++    }
++    for sample in (managed, bom_managed):
++        st = meta.read_text(sample, record_type="prompt")
++        assert st.id6 == "pr1001"
++        assert st.status == "pending"
++        assert st.legacy_raw_status == "pending"
++
++    # Legacy rewriters must never corrupt a post-cutover managed prompt mirror
++    assert (
++        meta.inject_prompt_metadata_id6(managed, id6="zz9999", set_id="demo") == managed
++    )
++    assert meta.update_prompt_metadata_status(managed, "executed") == managed
++    assert meta.inject_prompt_metadata_id6(bom_managed, id6="zz9999") == bom_managed
++    assert meta.update_prompt_metadata_status(bom_managed, "executed") == bom_managed
++
++    # Legacy aw-prompt rewriters still work on legacy comments
++    updated_legacy = meta.inject_prompt_metadata_id6(legacy, id6="lg1001")
++    assert "Id: lg1001" in updated_legacy
++    updated_legacy_status = meta.update_prompt_metadata_status(
++        updated_legacy, "executed"
++    )
++    assert "Status: executed" in updated_legacy_status
++
++    # Downstream callers recognize post-cutover managed prompts cleanly
++    repo = _init_log_repo(tmp_path)
++    p_dir = repo / ".aw" / "records" / "prompts" / "pending"
++    p_file = p_dir / "20261126-demo-01-pr1001-check.prompt.md"
++    p_file.write_text(bom_managed, encoding="utf-8")
++    assert "pr1001" in prompts._existing_id6s(repo / ".aw" / "records" / "prompts")
++    assert artifact_rename._read_existing_id6(p_file, "prompts") == "pr1001"
++
++
++def test_validate_prompt_content_with_and_without_companion_log(
++    tmp_path: Path,
++) -> None:
++    repo = _init_log_repo(tmp_path)
++    pending_dir = repo / ".aw" / "records" / "prompts" / "pending"
++    executed_dir = repo / ".aw" / "records" / "prompts" / "executed"
++
++    # 1. Valid post-cutover prompt with companion log -> zero drift
++    p_ok_rel = "prompts/pending/20261126-demo-01-pr2001-valid.prompt.md"
++    p_ok = repo / ".aw" / "records" / p_ok_rel
++    p_ok.write_text(
++        meta.render_in_file_mirror("pr2001", "prompt", "pending") + "# Prompt\n",
++        encoding="utf-8",
++    )
++    _write_log(
++        repo,
++        "pr2001",
++        [
++            {
++                "seq": 0,
++                "append": 0,
++                "op": "checkpoint",
++                "at": "2026-11-26T10:00:00Z",
++                "actor": {"tool": "test"},
++                "path": p_ok_rel,
++                "fields": {
++                    "type": "prompt",
++                    "status": "pending",
++                    "prompt_kind": "research",
++                    "set": "demo",
++                    "order": 1,
++                },
++                "message": "created",
++            }
++        ],
++    )
++    assert check_engine.validate_prompt_content(p_ok, repo_root=repo) == []
++
++    # 2. Valid post-cutover prompt WITHOUT companion log -> zero drift
++    p_nolog = pending_dir / "20261126-demo-02-pr2002-nolog.prompt.md"
++    p_nolog.write_text(
++        meta.render_in_file_mirror("pr2002", "prompt", "pending") + "# Prompt\n",
++        encoding="utf-8",
++    )
++    assert check_engine.validate_prompt_content(p_nolog, repo_root=repo) == []
++
++    # 3. Filename / id mismatch -> check.prompt-id-mismatch
++    p_bad_id = pending_dir / "20261126-demo-03-pr2003-mismatch.prompt.md"
++    p_bad_id.write_text(
++        meta.render_in_file_mirror("zz8888", "prompt", "pending") + "# Prompt\n",
++        encoding="utf-8",
++    )
++    id_drift = check_engine.validate_prompt_content(p_bad_id, repo_root=repo)
++    assert [d.rule for d in id_drift] == ["check.prompt-id-mismatch"]
++
++    # 4. Status / bucket mismatch WITHOUT companion log -> check.prompt-status-mismatch
++    p_bad_st_nolog = pending_dir / "20261126-demo-04-pr2004-wrong-bucket.prompt.md"
++    p_bad_st_nolog.write_text(
++        meta.render_in_file_mirror("pr2004", "prompt", "executed") + "# Prompt\n",
++        encoding="utf-8",
++    )
++    st_drift_nolog = check_engine.validate_prompt_content(
++        p_bad_st_nolog, repo_root=repo
++    )
++    assert [d.rule for d in st_drift_nolog] == ["check.prompt-status-mismatch"]
++
++    # 5. Status / bucket mismatch WITH companion log -> check.prompt-status-mismatch
++    p_bad_st_rel = "prompts/executed/20261126-demo-05-pr2005-logged-mismatch.prompt.md"
++    p_bad_st_log = executed_dir / "20261126-demo-05-pr2005-logged-mismatch.prompt.md"
++    p_bad_st_log.write_text(
++        meta.render_in_file_mirror("pr2005", "prompt", "pending") + "# Prompt\n",
++        encoding="utf-8",
++    )
++    _write_log(
++        repo,
++        "pr2005",
++        [
++            {
++                "seq": 0,
++                "append": 0,
++                "op": "checkpoint",
++                "at": "2026-11-26T10:00:00Z",
++                "actor": {"tool": "test"},
++                "path": p_bad_st_rel,
++                "fields": {
++                    "type": "prompt",
++                    "status": "pending",
++                    "prompt_kind": "research",
++                    "set": "demo",
++                    "order": 5,
++                },
++                "message": "created",
++            }
++        ],
++    )
++    st_drift_log = check_engine.validate_prompt_content(p_bad_st_log, repo_root=repo)
++    assert [d.rule for d in st_drift_log] == ["check.prompt-status-mismatch"]
++
++    # 6. Commentless post-cutover prompt -> check.prompt-metadata-missing
++    p_nocomment = pending_dir / "20261126-demo-06-pr2006-commentless.prompt.md"
++    p_nocomment.write_text("# Commentless Prompt\n\nBody.\n", encoding="utf-8")
++    missing_drift = check_engine.validate_prompt_content(p_nocomment, repo_root=repo)
++    assert [d.rule for d in missing_drift] == ["check.prompt-metadata-missing"]
++    assert "aw-managed-prompt" in missing_drift[0].detail
++
++
++# --------------------------------------------------------------------------------------
++# 3. check_engine log-backed plan checks (priority, stale scope, carrier ungated)
++# --------------------------------------------------------------------------------------
++
++
++def test_check_plan_priority_required_on_log_format_plans(tmp_path: Path) -> None:
++    repo = _init_log_repo(tmp_path)
++
++    # Missing Priority and Work-Kind on approved -> flagged
++    p_missing = _create_log_plan(
++        repo,
++        "pl3001",
++        status="approved",
++        order=1,
++        priority=None,
++        work_kind=None,
++    )
++    # Populated Priority and Work-Kind on approved -> clean
++    _create_log_plan(
++        repo,
++        "pl3002",
++        status="approved",
++        order=2,
++        priority="high",
++        work_kind="feature",
++    )
++    # Draft plan missing Priority and Work-Kind -> exempt
++    _create_log_plan(
++        repo,
++        "pl3003",
++        status="draft",
++        order=3,
++        priority=None,
++        work_kind=None,
++    )
++
++    drift = check_engine.check_plan_priority_required(repo)
++    by_rule = {d.rule: Path(d.location).resolve() for d in drift}
++    assert set(by_rule.keys()) == {
++        "check.ipd-priority-required",
++        "check.ipd-work-kind-required",
++    }
++    assert all(path == p_missing.resolve() for path in by_rule.values())
++
++
++def test_stale_record_scope_paths_reads_log_scope_paths(tmp_path: Path) -> None:
++    repo = _init_log_repo(tmp_path)
++
++    # Create an executed target to test moved-terminal detection as well
++    _create_log_plan(repo, "tg1001", status="executed", bucket="executed", order=1)
++
++    vanished_target = ".aw/records/plans/pending/20261126-demo-99-va9999-gone.ipd.md"
++    moved_old_path = (
++        ".aw/records/plans/pending/20261126-demo-01-tg1001-sample-plan.ipd.md"
++    )
++
++    plan_path = _create_log_plan(
++        repo,
++        "pl4001",
++        status="approved",
++        order=2,
++        scope_paths=[vanished_target, moved_old_path],
++    )
++    plan_text = plan_path.read_text(encoding="utf-8")
++
++    # Direct call (no state= passed) resolves log state automatically
++    stale = check_engine.stale_record_scope_paths(repo, plan_text)
++    classifications = {s.path: s.classification for s in stale}
++    assert classifications == {
++        vanished_target: check_engine.SCOPE_STALE_VANISHED,
++        moved_old_path: check_engine.SCOPE_STALE_MOVED_TERMINAL,
++    }
++
++    # Sweep caller also reports both findings
++    sweep_drift = check_engine.check_scope_path_target_stale(repo)
++    assert len(sweep_drift) == 2
++    assert all(d.rule == "check.scope-path-target-stale" for d in sweep_drift)
++
++
++def test_carrier_ungated_and_find_obligations_carried_by_on_log_format_plans(
++    tmp_path: Path,
++) -> None:
++    repo = _init_log_repo(tmp_path)
++
++    oq_body = (
++        "### OQ-01: Decide rollout order\n\n"
++        "- Status: open\n"
++        "- Blocking: yes\n"
++        "- Carrier: bk1001\n"
++        "- Question: Which stage runs first?\n"
++    )
++    # Edged plan declares matching item_dependencies in its log -> zero drift
++    edged_path = _create_log_plan(
++        repo,
++        "pl5001",
++        status="approved",
++        order=1,
++        item_dependencies=[
++            {
++                "condition": "state",
++                "target_type": "backlog",
++                "required_status": "done",
++                "raw": "state:backlog:done:bk1001",
++                "target_id6": "bk1001",
++            }
++        ],
++        body_extra=oq_body,
++    )
++    # Unedged plan has no item_dependencies in its log -> flagged
++    unedged_path = _create_log_plan(
++        repo,
++        "pl5002",
++        status="approved",
++        order=2,
++        item_dependencies=[],
++        body_extra=oq_body,
++    )
++
++    # Direct calls without state= resolve log item_dependencies automatically
++    assert (
++        check_engine.evaluate_carrier_ungated(
++            repo, plan_path=edged_path, plan_text=edged_path.read_text(encoding="utf-8")
++        )
++        == []
++    )
++    unedged_drift = check_engine.evaluate_carrier_ungated(
++        repo, plan_path=unedged_path, plan_text=unedged_path.read_text(encoding="utf-8")
++    )
++    assert [d.rule for d in unedged_drift] == ["check.ipd-carrier-ungated"]
++    assert "bk1001" in unedged_drift[0].detail
++
++    # Sweep caller flags only the unedged plan
++    sweep = check_engine.check_carrier_ungated(repo)
++    assert len(sweep) == 1
++    assert Path(sweep[0].location).resolve() == unedged_path.resolve()
++
++    # find_obligations_carried_by resolves plan_id6 from YAML mirrors
++    carried = check_engine.find_obligations_carried_by(repo, "bk1001")
++    assert {c.plan_id6 for c in carried} == {"pl5001", "pl5002"}
 diff --git a/tests/test_history_date_clock_sidecar.py b/tests/test_history_date_clock_sidecar.py
 index f046ad08e..99b89945a 100644
 --- a/tests/test_history_date_clock_sidecar.py
