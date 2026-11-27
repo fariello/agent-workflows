@@ -4703,10 +4703,52 @@ index 5395ccb00..30e193203 100644
      ctx = select_output(args)
      # rolswj/akhwp7: ONE count expression read by the human AND machine branches.
 diff --git a/agent_workflows/check_engine.py b/agent_workflows/check_engine.py
-index 9b09c151c..8c48f777e 100644
+index 9b09c151c..0e5bc4919 100644
 --- a/agent_workflows/check_engine.py
 +++ b/agent_workflows/check_engine.py
-@@ -1639,20 +1639,22 @@ def check_content(
+@@ -1610,23 +1610,27 @@ def check_content(
+     repo_root = Path(repo_root)
+     drift: List[_core.Drift] = []
+     if record_type == "specs":
++        from agent_workflows import artifact_meta as _meta
+         from agent_workflows import specs as _specs
+ 
+         # Discover files via _type_dirs (robust for a bare repo), validate each with validate_spec.
+-        for p in _iter_type_files(
+-            repo_root,
+-            "specs",
+-            include_untracked=include_untracked,
+-            include_retired=include_retired,
+-        ):
+-            try:
+-                text = p.read_text(encoding="utf-8")
+-                drift.extend(_specs.validate_spec(p, text))
+-                drift.extend(_specs.prose_dash_advisories(p, text))
+-                if p.name.endswith(".spec.md"):
+-                    drift.extend(check_spec_test_citations_for_text(repo_root, p, text))
+-            except OSError:
+-                continue
++        with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++            for p in _iter_type_files(
++                repo_root,
++                "specs",
++                include_untracked=include_untracked,
++                include_retired=include_retired,
++            ):
++                try:
++                    text = p.read_text(encoding="utf-8")
++                    drift.extend(_specs.validate_spec(p, text, repo_root=repo_root))
++                    drift.extend(_specs.prose_dash_advisories(p, text))
++                    if p.name.endswith(".spec.md"):
++                        drift.extend(
++                            check_spec_test_citations_for_text(repo_root, p, text)
++                        )
++                except OSError:
++                    continue
+         try:
+             drift.extend(
+                 check_graduation_incomplete(
+@@ -1639,20 +1643,22 @@ def check_content(
          except Exception:
              pass
      elif record_type == "backlog":
@@ -4741,7 +4783,44 @@ index 9b09c151c..8c48f777e 100644
          try:
              drift.extend(
                  check_graduation_incomplete(
-@@ -1975,27 +1977,10 @@ def validate_prompt_content(
+@@ -1888,20 +1894,24 @@ def check_content(
+         if dirs and include_retired:
+             drift.extend(_ridx.check_drift(repo_root, dirs[0]))
+     elif record_type == "releases":
++        from agent_workflows import artifact_meta as _meta
+         from agent_workflows import releases as _releases
+ 
+-        for p in _iter_type_files(
+-            repo_root,
+-            "releases",
+-            include_untracked=include_untracked,
+-            include_retired=include_retired,
+-        ):
+-            try:
+-                drift.extend(
+-                    _releases.validate_release(p, p.read_text(encoding="utf-8"))
+-                )
+-            except OSError:
+-                continue
++        with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++            for p in _iter_type_files(
++                repo_root,
++                "releases",
++                include_untracked=include_untracked,
++                include_retired=include_retired,
++            ):
++                try:
++                    drift.extend(
++                        _releases.validate_release(
++                            p, p.read_text(encoding="utf-8"), repo_root=repo_root
++                        )
++                    )
++                except OSError:
++                    continue
+     elif record_type == "prompts":
+         for p in _iter_type_files(
+             repo_root,
+@@ -1975,27 +1985,10 @@ def validate_prompt_content(
              comment_id = _meta_declared_id6(st_obj)
              comment_status = st_obj.status or st_obj.legacy_raw_status
          else:
@@ -4773,7 +4852,7 @@ index 9b09c151c..8c48f777e 100644
  
          m = _naming.parse_clustered(path.name)
          if m and not _re.fullmatch(r"\d{4}", m.group("set")):
-@@ -4245,7 +4230,7 @@ def check_ipd_draft_ready(
+@@ -4245,7 +4238,7 @@ def check_ipd_draft_ready(
      from agent_workflows import ipd_authoring as _authoring
  
      drift: List[_core.Drift] = []
@@ -4782,7 +4861,7 @@ index 9b09c151c..8c48f777e 100644
      for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
          # Only nudge a plan that is actually in a pending lane (not executed/superseded/etc.).
          if "pending" not in p.parts:
-@@ -4261,7 +4246,7 @@ def check_ipd_draft_ready(
+@@ -4261,7 +4254,7 @@ def check_ipd_draft_ready(
                  text = p.read_text(encoding="utf-8")
              except OSError:
                  continue
@@ -4791,7 +4870,7 @@ index 9b09c151c..8c48f777e 100644
              continue  # still a stub: stay silent
          id6 = _meta_declared_id6(st_obj) or p.stem
          recovery = f"aw ipd set to-review {id6}"
-@@ -5873,6 +5858,10 @@ def _meta_state_map(
+@@ -5873,6 +5866,10 @@ def _meta_state_map(
  
      ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
      records_root = Path(ctx.logical_roots["records"])
@@ -4802,8 +4881,175 @@ index 9b09c151c..8c48f777e 100644
      scan_repo = _meta._scan_repo_root(ctx, records_root)
      has_tree = records_root.is_dir() or (
          scan_repo is not None
+@@ -6552,7 +6549,7 @@ def build_plan_setid_index(
+             or _core.is_ignored_path(path, repo_root, ignored_dirs)
+         ):
+             continue
+-        setid = st_obj.legacy_raw_set
++        setid = st_obj.legacy_raw_set or st_obj.set_id
+         if not setid:
+             continue
+         declared_id = _meta_declared_id6(st_obj) or ""
+@@ -9923,13 +9920,74 @@ _PLAN_SPEC_LINK_MISSING_RULE = "check.plan-spec-link-missing"
+ PLAN_SPEC_LINK_NO_SOURCE_SENTINELS: FrozenSet[str] = frozenset({"-", "none"})
+ 
+ 
+-def parse_cited_spec_ids(plan_text: str, known_spec_ids: Iterable[str]) -> List[str]:
+-    """Return ordered, deduplicated spec id6s cited in Concern/Scope/Scope-Paths bullets.
++_FENCE_OPEN_RE = _re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
++_ATX_HEADING_RE = _re.compile(r"^(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$")
++
++
++def _extract_markdown_sections(
++    text: str, section_names: Tuple[str, ...]
++) -> List[str]:
++    """Return body text lines under matching ``## <Name>`` headings, skipping fenced code blocks."""
++    wanted = {name.strip().lower() for name in section_names}
++    chunks: List[str] = []
++    in_fence = False
++    fence_char = ""
++    fence_len = 0
++    capturing = False
++    current: List[str] = []
++
++    for line in text.replace("\r\n", "\n").split("\n"):
++        if in_fence:
++            stripped = line.lstrip(" \t")
++            if (
++                stripped.startswith(fence_char * fence_len)
++                and stripped.rstrip(" \t") == fence_char * len(stripped.rstrip(" \t"))
++            ):
++                in_fence = False
++                fence_char = ""
++                fence_len = 0
++            continue
++        m_fence = _FENCE_OPEN_RE.match(line)
++        if m_fence is not None:
++            marker = m_fence.group(1)
++            in_fence = True
++            fence_char = marker[0]
++            fence_len = len(marker)
++            continue
++        m_head = _ATX_HEADING_RE.match(line)
++        if m_head is not None:
++            level = len(m_head.group(1))
++            title = m_head.group(2).strip().lower()
++            if level == 2 and title in wanted:
++                if current:
++                    chunks.append("\n".join(current))
++                    current = []
++                capturing = True
++                continue
++            if level <= 2:
++                if current:
++                    chunks.append("\n".join(current))
++                    current = []
++                capturing = False
++                continue
++        if capturing:
++            current.append(line)
++
++    if current:
++        chunks.append("\n".join(current))
++    return chunks
++
++
++def parse_cited_spec_ids(
++    plan_text: str, known_spec_ids: Iterable[str], *, state: Any = None
++) -> List[str]:
++    """Return ordered, deduplicated spec id6s cited in Concern/Scope/Scope-Paths bullets,
++    ``## Concern``/``## Scope`` body sections, and log-stored ``scope_paths``.
+ 
+-    Pure function (IPD 0ykozn E-03 / PR-502).
+-    Consumes each target bullet as its header line plus all following continuation lines
+-    until the next `- ` bullet, the next heading, or a blank line via
+-    `artifact_meta.read_multiline_bullets`.
++    Pure function (IPD 0ykozn E-03 / PR-502; extended in IPD szykgd for metadata-v2 plans).
++    Consumes legacy bullets via ``artifact_meta.read_multiline_bullets``, scans ``## Concern`` and
++    ``## Scope`` Markdown body sections while respecting fenced code blocks, and reads
++    ``state.fields.get("scope_paths")`` (list or str) when ``state`` is provided.
+     Filters candidate 6-character [0-9a-z]{6} tokens on word boundaries against `known_spec_ids`.
+     """
+     known = set(known_spec_ids)
+@@ -9938,9 +9996,18 @@ def parse_cited_spec_ids(plan_text: str, known_spec_ids: Iterable[str]) -> List[
+ 
+     from agent_workflows import artifact_meta as _meta
+ 
+-    joined = "\n".join(
++    chunks: List[str] = list(
+         _meta.read_multiline_bullets(plan_text, ("Concern", "Scope", "Scope-Paths"))
+     )
++    chunks.extend(_extract_markdown_sections(plan_text, ("Concern", "Scope")))
++    if state is not None:
++        raw_sp = (getattr(state, "fields", None) or {}).get("scope_paths")
++        if isinstance(raw_sp, list):
++            chunks.append("\n".join(str(item) for item in raw_sp))
++        elif isinstance(raw_sp, str) and raw_sp.strip():
++            chunks.append(raw_sp)
++
++    joined = "\n".join(chunks)
+     cited: List[str] = []
+     for m in _CITED_SPEC_TOKEN_RE.finditer(joined):
+         tok = m.group(1)
+@@ -9954,10 +10021,11 @@ def check_plan_spec_link_missing(
+ ) -> List[_core.Drift]:
+     """Pending-scoped advisory rule flagging a pending plan citing a known spec without From-Spec.
+ 
+-    IPD 0ykozn E-04 / PR-501; amended by IPD jm27py.
+-    Flags a plan in a `pending/` lane whose `- Concern:`, `- Scope:`, or `- Scope-Paths:` front matter
+-    cites a resolvable spec id6 while carrying neither a valid `- From-Spec:` link, an explicit
+-    "no spec source" sentinel (`none` or `-`), nor an edit of that spec in its `- Scope-Paths:`.
++    IPD 0ykozn E-04 / PR-501; amended by IPD jm27py and IPD szykgd.
++    Flags a plan in a `pending/` lane whose `- Concern:`, `- Scope:`, `- Scope-Paths:`,
++    `## Concern`, `## Scope`, or log-stored `scope_paths` cites a resolvable spec id6 while
++    carrying neither a valid `- From-Spec:` link, an explicit "no spec source" sentinel (`none`
++    or `-`), nor an edit of that spec in its `Scope-Paths`.
+     Pending-scoping ensures historical records (executed/superseded) are never examined, while keeping
+     the advisory nudge visible on `aw check plans` throughout the plan's authoring/review lifecycle.
+     """
+@@ -9972,7 +10040,9 @@ def check_plan_spec_link_missing(
+ 
+     spec_files_by_id6: Dict[str, Set[str]] = {}
+     resolved_root = repo_root.resolve()
+-    for sp, st in _meta_records_with_fields(repo_root, "spec", suffix=".spec.md"):
++    for sp, st in _meta_state_map(repo_root, "spec").items():
++        if not sp.name.endswith(".spec.md"):
++            continue
+         sid = _meta_declared_id6(st)
+         if sid:
+             try:
+@@ -10006,14 +10076,26 @@ def check_plan_spec_link_missing(
+             except OSError:
+                 continue
+ 
+-        cited = parse_cited_spec_ids(text, known)
++        cited = parse_cited_spec_ids(text, known, state=st_obj)
+         if not cited:
+             continue
+ 
+         # E-02: drop each cited id6 whose spec file path appears literally in Scope-Paths
+-        sp_raw = _declared_bullet_fields(text).get("scope_paths")
++        sp_raw = (st_obj.fields or {}).get("scope_paths")
++        if sp_raw is None:
++            sp_raw = _declared_bullet_fields(text).get("scope_paths")
+         if sp_raw is not None:
+-            parsed_paths, _is_gf, _errs = _ipd_schema.parse_scope_paths(sp_raw)
++            if isinstance(sp_raw, list):
++                sp_joined = ", ".join(str(x).strip() for x in sp_raw if str(x).strip())
++                parsed_paths, _is_gf, _errs = (
++                    _ipd_schema.parse_scope_paths(sp_joined)
++                    if sp_joined
++                    else ([], False, [])
++                )
++            elif isinstance(sp_raw, str):
++                parsed_paths, _is_gf, _errs = _ipd_schema.parse_scope_paths(sp_raw)
++            else:
++                parsed_paths = []
+             if parsed_paths:
+                 scope_set = set(parsed_paths)
+                 cited = [
 diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
-index 038a893c1..c721fa374 100644
+index 038a893c1..b19962684 100644
 --- a/agent_workflows/cli.py
 +++ b/agent_workflows/cli.py
 @@ -600,9 +600,9 @@ _DESCRIPTIONS = {
@@ -4897,6 +5143,102 @@ index 038a893c1..c721fa374 100644
              actor={"tool": "aw describe"},
              message=msg,
          )
+@@ -17790,6 +17762,10 @@ def _run_search(
+ 
+     search_ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
+     search_records_root = Path(search_ctx.logical_roots["records"])
++    in_tree_records = Path(repo_root) / ".aw" / "records"
++    if not search_records_root.is_dir() and in_tree_records.is_dir():
++        search_ctx = _meta.legacy_context(repo_root)
++        search_records_root = Path(search_ctx.logical_roots["records"])
+     search_scan_repo = _meta._scan_repo_root(search_ctx, search_records_root)
+     search_has_tree = search_records_root.is_dir() or (
+         search_scan_repo is not None
+@@ -17799,9 +17775,9 @@ def _run_search(
+         )
+     )
+     cached_by_path: Dict[Path, _meta.State] = {}
+-    if (status_filters or status_not_filters) and search_has_tree:
++    if search_has_tree:
+         with _meta.ephemeral_if_uninitialized():
+-            _qrows = _meta.query(project_context=search_ctx).rows
++            _qrows = _meta.query(project_context=search_ctx, include_fields=True).rows
+         for st_row in _qrows:
+             if not st_row.path:
+                 continue
+@@ -17814,6 +17790,37 @@ def _run_search(
+             except Exception:
+                 continue
+ 
++    def _log_metadata_candidates(st_row: _meta.State) -> List[tuple[str, str]]:
++        """Collect ordered, deduplicated (label, value) header/descriptive metadata from a State."""
++        entries: List[tuple[str, str]] = []
++        seen_vals: set[str] = set()
++
++        def _add(label: str, raw_val: Any) -> None:
++            if not isinstance(raw_val, str):
++                return
++            val = raw_val.strip()
++            if not val or val in seen_vals:
++                return
++            seen_vals.add(val)
++            entries.append((label, val))
++
++        fields = st_row.fields if isinstance(st_row.fields, dict) else {}
++        _add("title", st_row.title)
++        _add("title", fields.get("title"))
++        _add("summary", fields.get("summary"))
++        _add("short_description", st_row.short_description)
++        _add("short_description", fields.get("short_description"))
++        _add("set", st_row.set_id)
++        _add("status", st_row.status)
++        _add("id", st_row.id6)
++        for fk in sorted(fields):
++            if fk in ("title", "summary", "short_description", "set", "status", "id"):
++                continue
++            fv = fields[fk]
++            if isinstance(fv, str):
++                _add(fk, fv)
++        return entries
++
+     def _artifact_status(p: Path, text: str) -> str:
+         st_row = cached_by_path.get(p.resolve())
+         if st_row is None:
+@@ -17929,7 +17936,10 @@ def _run_search(
+                             end_offset = m_close.end()
+                             line_count = text[:end_offset].count("\n") + 1
+                             post_fence = text[end_offset:]
+-                            m_h1 = re.search(r"\A([ \t]*\r?\n)*#\s+[^\n]+", post_fence)
++                            m_h1 = re.search(
++                                r"\A(?:[ \t]*\r?\n)*(?:[ \t]*<!--\s*aw-managed(?:-prompt)?:[^\n]*?-->[ \t]*\r?\n)?(?:[ \t]*\r?\n)*#\s+[^\n]+",
++                                post_fence,
++                            )
+                             if m_h1 is not None:
+                                 line_count += text[
+                                     end_offset : end_offset + m_h1.end()
+@@ -17954,6 +17964,22 @@ def _run_search(
+                             {"path": str(p), "line": i, "text": line.strip()}
+                         )
+ 
++                st_row = cached_by_path.get(resolved_p)
++                if st_row is not None:
++                    matched_line_texts = [ln for _, ln in file_matches]
++                    for meta_label, meta_val in _log_metadata_candidates(st_row):
++                        if not rx.search(meta_val):
++                            continue
++                        if any(meta_val in existing for existing in matched_line_texts):
++                            continue
++                        meta_display = f"{meta_label}: {meta_val}"
++                        hits += 1
++                        file_matches.append((0, meta_display))
++                        matched_line_texts.append(meta_display)
++                        json_results.append(
++                            {"path": str(p), "line": 0, "text": meta_display}
++                        )
++
+                 if filename_matched and not file_matches:
+                     hits += 1
+                     file_matches.append((0, p.name))
 diff --git a/agent_workflows/coverage_record.py b/agent_workflows/coverage_record.py
 index 9f69cef67..deaa68e3c 100644
 --- a/agent_workflows/coverage_record.py
@@ -5045,6 +5387,142 @@ index a57e03db6..a2eae8fd8 100644
  honored from persisted state.
  
  Honest limits (never oversold): git hooks are LOCAL, not cloned by default, and skippable with
+diff --git a/agent_workflows/hooks/ipd_dependency_statement_gate.py b/agent_workflows/hooks/ipd_dependency_statement_gate.py
+index 7bb430f8b..9a108c934 100644
+--- a/agent_workflows/hooks/ipd_dependency_statement_gate.py
++++ b/agent_workflows/hooks/ipd_dependency_statement_gate.py
+@@ -39,13 +39,15 @@ _HARD_REFUSE_RULES = (
+ 
+ 
+ def _staged_ipd_overlay(repo_root: Path) -> Tuple[Dict[str, object], Dict[str, str]]:
+-    """Return (overlay_states, staged_status) for every staged `.ipd.md` via ``artifact_meta.read_at``.
++    """Return (overlay_states, staged_status) for staged `.ipd.md` and `meta/<id6>.jsonl` files
++    via ``artifact_meta.read_at``.
+ 
+     overlay_states: abs_path_str -> staged ``artifact_meta.State``;
+     staged_status: abs_path_str -> staged lowercased status.
+-    Fast-empty when nothing is staged under a plans tree. Additions/modifications/renames are
+-    included; pure deletions are skipped (nothing to check).
++    Fast-empty when nothing is staged under a plans or meta tree. Additions/modifications/renames
++    are included; pure deletions are skipped (nothing to check).
+     """
++    from agent_workflows import artifact_core as _core
+     from agent_workflows import artifact_meta as _meta
+     from agent_workflows import check_engine as _ce
+ 
+@@ -56,18 +58,68 @@ def _staged_ipd_overlay(repo_root: Path) -> Tuple[Dict[str, object], Dict[str, s
+     )
+     if rc != 0 or not out.strip():
+         return overlay_states, statuses
++
++    meta_dirs = {".aw/records/meta", ".agents/meta"}
++    try:
++        from agent_workflows.project_context import project_records_dir
++
++        rec_rel = (
++            project_records_dir(repo_root)
++            .resolve()
++            .relative_to(repo_root.resolve())
++            .as_posix()
++        )
++        meta_dirs.add(f"{rec_rel}/meta" if rec_rel and rec_rel != "." else "meta")
++    except Exception:
++        pass
++
++    staged_ipd_paths: List[str] = []
++    staged_meta_paths: List[Tuple[str, str]] = []
++    for line in out.splitlines():
++        parts = line.split("\t")
++        if not parts:
++            continue
++        code = parts[0].strip()
++        if code.startswith("D"):
++            continue  # a pure deletion carries no statement to check
++        new_path = parts[-1].strip()
++        if new_path.endswith(".ipd.md"):
++            staged_ipd_paths.append(new_path)
++            continue
++        norm_new = new_path.replace("\\", "/").removeprefix("./")
++        if norm_new.endswith(".jsonl"):
++            parent_posix = Path(norm_new).parent.as_posix()
++            stem = Path(norm_new).stem
++            if parent_posix in meta_dirs and _core.is_valid_id6(stem):
++                staged_meta_paths.append((new_path, stem))
++
++    if not staged_ipd_paths and not staged_meta_paths:
++        return overlay_states, statuses
++
++    def _stage_ctx(rel_path: str) -> object:
++        norm = rel_path.replace("\\", "/").removeprefix("./")
++        ctx = _ce._git_read_at_context(repo_root, rel_path=norm)
++        if norm.startswith(".aw/records/") and (repo_root / ".git").exists():
++            rec = Path(ctx.logical_roots["records"]).resolve()
++            in_tree = (repo_root / ".aw" / "records").resolve()
++            if rec != in_tree and (in_tree.is_dir() or not rec.is_dir()):
++                return type(
++                    "_StagedReadAtCtx",
++                    (),
++                    {
++                        "logical_roots": {
++                            "records": in_tree,
++                            "state": (repo_root / ".aw" / "state").resolve(),
++                        },
++                        "repo_root": repo_root.resolve(),
++                        "target_repo": str(repo_root.resolve()),
++                    },
++                )()
++        return ctx
++
+     with _meta.ephemeral_if_uninitialized():
+-        for line in out.splitlines():
+-            parts = line.split("\t")
+-            if not parts:
+-                continue
+-            code = parts[0].strip()
+-            if code.startswith("D"):
+-                continue  # a pure deletion carries no statement to check
+-            new_path = parts[-1].strip()
+-            if not new_path.endswith(".ipd.md"):
+-                continue
+-            ctx = _ce._git_read_at_context(repo_root, rel_path=new_path)
++        for new_path in staged_ipd_paths:
++            ctx = _stage_ctx(new_path)
+             plan_id = _meta.resolve_id_at(new_path, ":0:", project_context=ctx)
+             if plan_id:
+                 res = _meta.read_at(
+@@ -82,6 +134,32 @@ def _staged_ipd_overlay(repo_root: Path) -> Tuple[Dict[str, object], Dict[str, s
+             st_val = _ce._plan_status_from_state(res.state)
+             if st_val is not None:
+                 statuses[abs_ps] = st_val
++
++        for new_path, stem in staged_meta_paths:
++            ctx = _stage_ctx(new_path)
++            res = _meta.read_at(stem, ":0:", project_context=ctx)
++            if (
++                res.kind != "ok"
++                or res.state is None
++                or res.state.type != "ipd"
++                or not res.state.path
++            ):
++                continue
++            try:
++                abs_ps = str(
++                    _meta.source_path(
++                        res.state.path, Path(ctx.logical_roots["records"]), repo_root
++                    ).resolve()
++                )
++            except (ValueError, OSError):
++                continue
++            if abs_ps in overlay_states:
++                continue  # preserve any already-staged .ipd.md entry for the same path
++            overlay_states[abs_ps] = res.state
++            st_val = _ce._plan_status_from_state(res.state)
++            if st_val is not None:
++                statuses[abs_ps] = st_val
++
+     return overlay_states, statuses
+ 
+ 
 diff --git a/agent_workflows/install_wizard.py b/agent_workflows/install_wizard.py
 index 248703373..270a517ec 100644
 --- a/agent_workflows/install_wizard.py
@@ -7691,10 +8169,304 @@ index 42ae51951..090fb934e 100644
  # Inline history parsing helpers (shared with ipd_lifecycle)
  # --------------------------------------------------------------------------------------
 diff --git a/agent_workflows/releases.py b/agent_workflows/releases.py
-index 4651ab385..8060ae5a2 100644
+index 4651ab385..69fbde857 100644
 --- a/agent_workflows/releases.py
 +++ b/agent_workflows/releases.py
-@@ -126,16 +126,10 @@ def _create_release_via_meta(
+@@ -76,29 +76,278 @@ def _read_release_fields(text: str) -> _ReleaseFields:
+     )
+ 
+ 
++def _resolve_release_roots(
++    path: Path, *, repo_root: Optional[Path] = None
++) -> Tuple[Optional[Path], Optional[Path]]:
++    """Return ``(records_root, owner_repo_root)`` for a release record path.
++
++    Infers ``records_root`` from ``path.parent.parent`` when ``path.parent.name == "releases"``
++    (or walking up to a ``releases`` ancestor), falling back to ``project_records_dir(repo_root)``
++    or ``project_context.record_owner_root(path)``.
++    """
++    from agent_workflows import project_context as _proj_ctx
++
++    p = Path(path)
++    if not p.is_absolute() and repo_root is not None:
++        p = Path(repo_root) / p
++
++    records_root: Optional[Path] = None
++    if p.parent.name == "releases":
++        records_root = p.parent.parent
++    else:
++        for parent in p.parents:
++            if parent.name == "releases":
++                records_root = parent.parent
++                break
++    if records_root is None and repo_root is not None:
++        records_root = project_records_dir(Path(repo_root).resolve())
++
++    owner: Optional[Path] = Path(repo_root).resolve() if repo_root is not None else None
++    if owner is None:
++        try:
++            owner = _proj_ctx.record_owner_root(p.resolve())
++        except OSError:
++            owner = _proj_ctx.record_owner_root(p)
++    if owner is None and records_root is not None:
++        try:
++            rr = records_root.resolve()
++        except OSError:
++            rr = records_root
++        if rr.name == "records" and rr.parent.name == ".aw":
++            owner = rr.parent.parent
++        elif rr.name == ".agents":
++            owner = rr.parent
++        else:
++            owner = rr
++    if records_root is None and owner is not None:
++        records_root = project_records_dir(owner)
++
++    return records_root, owner
++
++
++def _records_context(records_root: Path, owner: Optional[Path]) -> Any:
++    """Build a LegacyContext pointing ``records`` at ``records_root``."""
++    from agent_workflows import artifact_meta as _meta
++
++    rr = records_root.resolve()
++    repo = owner.resolve() if owner is not None else rr
++    base_ctx = _meta.legacy_context(repo)
++    return type(
++        "LegacyContext",
++        (),
++        {
++            "logical_roots": {
++                "records": str(rr),
++                "state": base_ctx.logical_roots["state"],
++            },
++            "repo_root": repo,
++        },
++    )()
++
++
++def _release_fields_from_state(state: Any) -> _ReleaseFields:
++    """Build ``_ReleaseFields`` from an ``artifact_meta.State``."""
++    fields = getattr(state, "fields", None) or {}
++    id6_raw = _single_token(getattr(state, "id6", None) or fields.get("id"))
++    raw_summary = fields.get("summary")
++    if raw_summary is None or not str(raw_summary).strip():
++        raw_summary = getattr(state, "short_description", None) or fields.get(
++            "short_description"
++        )
++    summary_str = (
++        str(raw_summary).strip()
++        if raw_summary is not None and str(raw_summary).strip()
++        else None
++    )
++    return _ReleaseFields(
++        id6=id6_raw if id6_raw and _core.ID6_RE.match(id6_raw) else None,
++        status=_single_token(getattr(state, "status", None) or fields.get("status")),
++        version=_single_token(fields.get("version")),
++        summary=summary_str,
++    )
++
++
++def _format_log_history(events: List[Dict[str, Any]]) -> Tuple[str, ...]:
++    """Render ordered ``artifact_meta`` log events into human-readable history lines."""
++    lines: List[str] = []
++    for ev in events:
++        if not isinstance(ev, dict):
++            continue
++        day = str(ev.get("at") or "")[:10]
++        op = str(ev.get("op") or "").strip()
++        if op == "transition":
++            label = str(ev.get("to") or op)
++        elif op == "create":
++            ev_fields = ev.get("fields") or {}
++            label = str(
++                ev_fields.get("status") if isinstance(ev_fields, dict) else "created"
++            ) or "created"
++        else:
++            label = op or "event"
++        actor_obj = ev.get("actor")
++        actor = ""
++        if isinstance(actor_obj, dict):
++            actor = str(actor_obj.get("tool") or actor_obj.get("id") or "").strip()
++        if not actor:
++            actor = str(ev.get("actor_id") or "").strip()
++        msg = str(ev.get("message") or "").strip()
++        head = f"{day} {label}".strip() if day else label
++        if actor:
++            head = f"{head} ({actor})"
++        if msg:
++            head = f"{head}: {msg}"
++        if head:
++            lines.append(head)
++    return tuple(lines)
++
++
++def _read_release_state(
++    path: Path,
++    text: str,
++    *,
++    repo_root: Optional[Path] = None,
++) -> Tuple[Any, Optional[List[Dict[str, Any]]], Optional[str]]:
++    """Load a release record's ``(state, events, log_error)`` from its companion log if present.
++
++    Lets ``MetadataSchemaError`` propagate untouched (spec 4sd62s AC-11) and returns
++    ``(None, None, <error>)`` on corrupt-log ``ValueError`` so validators fail closed.
++    Returns ``(None, None, None)`` when no companion ``meta/<id6>.jsonl`` exists.
++    """
++    from agent_workflows import artifact_meta as _meta
++
++    id6 = _meta.read_mirror_id6(text)
++    if id6 and _core.is_valid_id6(id6):
++        records_root, owner = _resolve_release_roots(path, repo_root=repo_root)
++        if records_root is not None:
++            log_path = records_root / "meta" / f"{id6}.jsonl"
++            if log_path.is_file():
++                ctx = _records_context(records_root, owner)
++                try:
++                    with _meta.ephemeral_if_uninitialized():
++                        st = _meta.read(id6, project_context=ctx)
++                        events = _meta.history(id6, project_context=ctx)
++                    return st, events, None
++                except ValueError as exc:
++                    return None, None, str(exc)
++    return None, None, None
++
++
++def _read_release_fields_for_path(
++    path: Path, text: str, *, repo_root: Optional[Path] = None
++) -> _ReleaseFields:
++    """Read a release record's fields log-first with legacy bullet fallback."""
++    st, _events, log_error = _read_release_state(path, text, repo_root=repo_root)
++    if log_error is None and st is not None:
++        return _release_fields_from_state(st)
++    return _read_release_fields(text)
++
++
++def _artifact_state_map(repo_root: Path) -> Dict[Path, Any]:
++    """Query all valid artifact states (with fields) under ``repo_root`` keyed by resolved Path."""
++    from agent_workflows import artifact_meta as _meta
++
++    root = Path(repo_root).resolve()
++    ctx = _meta.legacy_context(root)
++    records_root = Path(ctx.logical_roots["records"])
++    scan_repo = _meta._scan_repo_root(ctx, records_root)
++    state_map: Dict[Path, Any] = {}
++    try:
++        rows = _meta.query(project_context=ctx, include_fields=True).rows
++    except ValueError:
++        rows = []
++    for row in rows:
++        if not row.path:
++            continue
++        try:
++            abs_p = _meta.source_path(row.path, records_root, scan_repo).resolve()
++        except (ValueError, OSError):
++            continue
++        state_map[abs_p] = row
++    return state_map
++
++
++def _companion_records_root_for_path(path: Path, repo_root: Path) -> Path:
++    """Derive the records root (``.aw/records`` or ``.agents``) owning ``path``."""
++    try:
++        resolved = path.resolve()
++    except OSError:
++        resolved = path
++    for parent in resolved.parents:
++        if parent.name == "records" and parent.parent.name == ".aw":
++            return parent
++        if parent.name == ".agents":
++            return parent
++    return project_records_dir(Path(repo_root).resolve())
++
++
++def _read_artifact_state_for_path(
++    path: Path,
++    text: str,
++    repo_root: Path,
++    state_map: Dict[Path, Any],
++) -> Tuple[Any, bool]:
++    """Return ``(state, is_log_backed)`` for an arbitrary record file (backlog/spec/plan)."""
++    from agent_workflows import artifact_meta as _meta
++
++    try:
++        key = path.resolve()
++    except OSError:
++        key = path
++    cached = state_map.get(key)
++    if cached is not None:
++        is_log = bool(
++            getattr(cached, "created_at", None)
++            or getattr(cached, "updated_at", None)
++            or getattr(cached, "last_seq", 0) > 0
++        )
++        if is_log:
++            return cached, True
++
++    id6 = _meta.read_mirror_id6(text)
++    if id6 and _core.is_valid_id6(id6):
++        rr = _companion_records_root_for_path(path, repo_root)
++        log_path = rr / "meta" / f"{id6}.jsonl"
++        if log_path.is_file():
++            ctx = _records_context(rr, Path(repo_root).resolve())
++            try:
++                st = _meta.read(id6, project_context=ctx)
++                return st, True
++            except ValueError:
++                return None, False
++    return None, False
++
++
+ def _releases_dir(repo_root: Path) -> Path:
+     return project_records_dir(Path(repo_root).resolve()) / "releases"
+ 
+ 
+ def _existing_ids(repo_root: Path) -> set:
++    from agent_workflows import artifact_meta as _meta
++
++    repo_root = Path(repo_root)
+     ids: set = set()
+     d = _releases_dir(repo_root)
+     if d.is_dir():
+-        for p in d.rglob("*.release.md"):
+-            id6 = _read_release_fields(p.read_text(encoding="utf-8")).id6
+-            if id6:
+-                ids.add(id6)
++        with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++            for p in d.rglob("*.release.md"):
++                try:
++                    txt = p.read_text(encoding="utf-8")
++                except OSError:
++                    continue
++                id6 = _read_release_fields_for_path(p, txt, repo_root=repo_root).id6
++                if id6:
++                    ids.add(id6)
+     return ids
+ 
+ 
+-def _create_release_via_meta(
++def _create_release_preview(
+     repo_root: Path,
+     version: str,
+     summary: str,
+     *,
+     status: str = "planned",
+     dry_run: bool = True,
+-) -> Tuple[Path, str]:
++) -> Dict[str, Any]:
+     """Render (and write when ``dry_run=False``) a new release record via ``artifact_meta.create``."""
+     from agent_workflows import artifact_meta as _meta
+ 
+@@ -118,7 +367,7 @@ def _create_release_via_meta(
+     release_fields: Dict[str, Any] = {"status": status, "version": version}
+     if summary and summary.strip():
+         release_fields["short_description"] = summary
+-    preview = _meta.create(
++    return _meta.create(
+         id6,
+         "release",
+         release_fields,
+@@ -126,16 +375,24 @@ def _create_release_via_meta(
          destination=f"releases/{name}",
          dry_run=dry_run,
          project_context=ctx,
@@ -7709,11 +8481,802 @@ index 4651ab385..8060ae5a2 100644
          message=summary,
      )
 -    return Path(preview.destination), preview.text
++
++
++def _create_release_via_meta(
++    repo_root: Path,
++    version: str,
++    summary: str,
++    *,
++    status: str = "planned",
++    dry_run: bool = True,
++) -> Tuple[Path, str]:
++    """Render (and write when ``dry_run=False``) a new release record via ``artifact_meta.create``."""
++    preview = _create_release_preview(
++        repo_root, version, summary, status=status, dry_run=dry_run
++    )
 +    return Path(preview["destination"]), preview["text"]
  
  
  def plan_release(
-@@ -827,7 +821,7 @@ def check_graduated_to(
+@@ -162,12 +419,11 @@ def create_release(
+     return dest
+ 
+ 
+-def validate_release(path: Path, text: str) -> List[_core.Drift]:
+-    """Validate a release record's front-matter. Returns Drift for a bad status, missing Version,
+-    or an invalid/missing id6."""
+-    loc = str(path)
++def _validate_release_fields(
++    loc: str, rf: _ReleaseFields, text: Optional[str]
++) -> List[_core.Drift]:
++    """Validate release field invariants shared by log-backed and legacy release records."""
+     drift: List[_core.Drift] = []
+-    rf = _read_release_fields(text)
+     if not rf.id6:
+         drift.append(_core.Drift(loc, "release.id-missing", "no valid `- Id:` (id6)"))
+     if rf.status is None:
+@@ -193,7 +449,7 @@ def validate_release(path: Path, text: str) -> List[_core.Drift]:
+                     "Summary bullet is over-length or has control chars/newlines",
+                 )
+             )
+-    else:
++    elif text is not None:
+         prose_summary = _summary_section(text)
+         if prose_summary and A._CONTROL_CHAR_RE.search(prose_summary):
+             drift.append(
+@@ -207,6 +463,89 @@ def validate_release(path: Path, text: str) -> List[_core.Drift]:
+     return drift
+ 
+ 
++def validate_release_state(
++    path: Path, state: Any, *, text: Optional[str] = None
++) -> List[_core.Drift]:
++    """Validate a log-backed release record from ``artifact_meta.State``.
++
++    When ``text`` starts with a YAML mirror (``---``), parses it via
++    ``artifact_meta.parse_artifact_mirror`` and emits ``release.id-missing`` or
++    ``release.status-invalid`` if the mirror is malformed or contradicts ``state``.
++    """
++    from agent_workflows import artifact_meta as _meta
++
++    loc = str(path)
++    drift: List[_core.Drift] = []
++    rf = _release_fields_from_state(state)
++
++    if text is not None:
++        stripped = text.lstrip("\ufeff")
++        if stripped.startswith("---"):
++            try:
++                mirror = _meta.parse_artifact_mirror(stripped)
++            except ValueError as exc:
++                drift.append(
++                    _core.Drift(
++                        loc,
++                        "release.id-missing",
++                        f"malformed YAML mirror: {exc}",
++                    )
++                )
++            else:
++                mirror_id = mirror.get("id")
++                if rf.id6 and mirror_id != rf.id6:
++                    drift.append(
++                        _core.Drift(
++                            loc,
++                            "release.id-missing",
++                            f"YAML mirror id {mirror_id!r} != metadata log id {rf.id6!r}",
++                        )
++                    )
++                mirror_status = mirror.get("status")
++                if rf.status and mirror_status != rf.status:
++                    drift.append(
++                        _core.Drift(
++                            loc,
++                            "release.status-invalid",
++                            f"YAML mirror status {mirror_status!r} != metadata log status {rf.status!r}",
++                        )
++                    )
++
++    drift.extend(_validate_release_fields(loc, rf, text))
++    return drift
++
++
++def validate_release(
++    path: Path,
++    text: str,
++    *,
++    state: Any = None,
++    repo_root: Optional[Path] = None,
++) -> List[_core.Drift]:
++    """Validate a release record's metadata (log-backed or legacy front-matter). Returns Drift
++    for a bad status, missing Version, invalid/missing id6, or corrupt companion log."""
++    loc = str(path)
++    if state is not None:
++        return validate_release_state(path, state, text=text)
++
++    resolved_state, _events, log_error = _read_release_state(
++        path, text, repo_root=repo_root
++    )
++    if log_error is not None:
++        return [
++            _core.Drift(
++                loc,
++                "release.id-missing",
++                f"corrupt/invalid metadata log: {log_error}",
++            )
++        ]
++    if resolved_state is not None:
++        return validate_release_state(path, resolved_state, text=text)
++
++    rf = _read_release_fields(text)
++    return _validate_release_fields(loc, rf, text)
++
++
+ def resolve_release_outcome(repo_root: Path, value: str) -> ReleaseResolution:
+     """Resolve a Blocks-Release value to an outcome enum and candidate paths.
+ 
+@@ -215,52 +554,61 @@ def resolve_release_outcome(repo_root: Path, value: str) -> ReleaseResolution:
+       * SENTINEL_ABSENT: zero candidates matched
+       * SENTINEL_AMBIGUOUS: two or more candidates matched
+     """
++    from agent_workflows import artifact_meta as _meta
++
+     repo_root = Path(repo_root)
+     d = _releases_dir(repo_root)
+     if not d.is_dir():
+         return ReleaseResolution(SENTINEL_ABSENT, [])
+-    if value == "next":
+-        planned = []
+-        for p in sorted(d.rglob("*.release.md")):
+-            try:
+-                txt = p.read_text(encoding="utf-8")
+-            except OSError:
+-                continue
+-            if _read_release_fields(txt).status == "planned":
+-                planned.append(p)
+-        if len(planned) == 1:
+-            return ReleaseResolution(SENTINEL_RESOLVED, planned)
+-        if len(planned) == 0:
+-            return ReleaseResolution(SENTINEL_ABSENT, [])
+-        return ReleaseResolution(SENTINEL_AMBIGUOUS, planned)
+-    if _core.ID6_RE.match(value):
+-        matches = []
++    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++        if value == "next":
++            planned = []
++            for p in sorted(d.rglob("*.release.md")):
++                try:
++                    txt = p.read_text(encoding="utf-8")
++                except OSError:
++                    continue
++                if (
++                    _read_release_fields_for_path(p, txt, repo_root=repo_root).status
++                    == "planned"
++                ):
++                    planned.append(p)
++            if len(planned) == 1:
++                return ReleaseResolution(SENTINEL_RESOLVED, planned)
++            if len(planned) == 0:
++                return ReleaseResolution(SENTINEL_ABSENT, [])
++            return ReleaseResolution(SENTINEL_AMBIGUOUS, planned)
++        if _core.ID6_RE.match(value):
++            matches = []
++            for p in sorted(d.rglob("*.release.md")):
++                try:
++                    txt = p.read_text(encoding="utf-8")
++                except OSError:
++                    continue
++                if (
++                    _read_release_fields_for_path(p, txt, repo_root=repo_root).id6
++                    == value
++                ):
++                    matches.append(p)
++            if len(matches) == 1:
++                return ReleaseResolution(SENTINEL_RESOLVED, matches)
++            if len(matches) > 1:
++                return ReleaseResolution(SENTINEL_AMBIGUOUS, matches)
++        val_clean = value.lstrip("v")
++        matching_ver = []
+         for p in sorted(d.rglob("*.release.md")):
+             try:
+                 txt = p.read_text(encoding="utf-8")
+             except OSError:
+                 continue
+-            if _read_release_fields(txt).id6 == value:
+-                matches.append(p)
+-        if len(matches) == 1:
+-            return ReleaseResolution(SENTINEL_RESOLVED, matches)
+-        if len(matches) > 1:
+-            return ReleaseResolution(SENTINEL_AMBIGUOUS, matches)
+-    val_clean = value.lstrip("v")
+-    matching_ver = []
+-    for p in sorted(d.rglob("*.release.md")):
+-        try:
+-            txt = p.read_text(encoding="utf-8")
+-        except OSError:
+-            continue
+-        ver = _read_release_fields(txt).version
+-        if ver and (ver == value or ver.lstrip("v") == val_clean):
+-            matching_ver.append(p)
+-    if len(matching_ver) == 1:
+-        return ReleaseResolution(SENTINEL_RESOLVED, matching_ver)
+-    if len(matching_ver) > 1:
+-        return ReleaseResolution(SENTINEL_AMBIGUOUS, matching_ver)
+-    return ReleaseResolution(SENTINEL_ABSENT, [])
++            ver = _read_release_fields_for_path(p, txt, repo_root=repo_root).version
++            if ver and (ver == value or ver.lstrip("v") == val_clean):
++                matching_ver.append(p)
++        if len(matching_ver) == 1:
++            return ReleaseResolution(SENTINEL_RESOLVED, matching_ver)
++        if len(matching_ver) > 1:
++            return ReleaseResolution(SENTINEL_AMBIGUOUS, matching_ver)
++        return ReleaseResolution(SENTINEL_ABSENT, [])
+ 
+ 
+ def resolve_release(repo_root: Path, value: str) -> Optional[Path]:
+@@ -277,15 +625,19 @@ def describe_planned_release(repo_root: Path) -> Optional[Tuple[str, str]]:
+     """Return (id6, version) of THE single planned release, or None if there is not
+     exactly one. Used to name the release in surfacing UI (attention/status) so the
+     thing that `Blocks-Release: next` gates is visible, not just a blocker count."""
+-    p = resolve_release(repo_root, "next")
+-    if p is None:
+-        return None
+-    try:
+-        text = p.read_text(encoding="utf-8")
+-    except OSError:
+-        return None
+-    rf = _read_release_fields(text)
+-    return (rf.id6 or "?", rf.version or "?")
++    from agent_workflows import artifact_meta as _meta
++
++    repo_root = Path(repo_root)
++    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++        p = resolve_release(repo_root, "next")
++        if p is None:
++            return None
++        try:
++            text = p.read_text(encoding="utf-8")
++        except OSError:
++            return None
++        rf = _read_release_fields_for_path(p, text, repo_root=repo_root)
++        return (rf.id6 or "?", rf.version or "?")
+ 
+ 
+ class ActiveRelease(NamedTuple):
+@@ -356,10 +708,52 @@ def _summary_section(text: str) -> Optional[str]:
+     return joined or None
+ 
+ 
+-def parse_release(path: Path, text: str) -> ReleaseRecord:
+-    """Parse one release record's text into a ReleaseRecord (pure; never raises on bad content)."""
++def parse_release(
++    path: Path,
++    text: str,
++    *,
++    state: Any = None,
++    repo_root: Optional[Path] = None,
++    history_events: Optional[List[Dict[str, Any]]] = None,
++) -> ReleaseRecord:
++    """Parse one release record into a ReleaseRecord (log-first with legacy fallback; never raises on bad content)."""
+     from agent_workflows import artifact_meta as _meta
+ 
++    if state is not None:
++        rf = _release_fields_from_state(state)
++        summary = rf.summary or _summary_section(text)
++        if history_events is not None:
++            history = _format_log_history(history_events)
++        else:
++            history = tuple(
++                line.lstrip()[2:].strip()
++                for _lineno, line in _meta.history_section_lines(text)
++            )
++        return ReleaseRecord(
++            id6=rf.id6,
++            version=rf.version,
++            status=rf.status,
++            summary=summary or None,
++            path=Path(path),
++            history=history,
++        )
++
++    resolved_state, log_events, log_error = _read_release_state(
++        path, text, repo_root=repo_root
++    )
++    if log_error is None and resolved_state is not None:
++        rf = _release_fields_from_state(resolved_state)
++        summary = rf.summary or _summary_section(text)
++        history = _format_log_history(log_events or [])
++        return ReleaseRecord(
++            id6=rf.id6,
++            version=rf.version,
++            status=rf.status,
++            summary=summary or None,
++            path=Path(path),
++            history=history,
++        )
++
+     rf = _read_release_fields(text)
+     summary = rf.summary
+     if not summary:
+@@ -383,16 +777,20 @@ def list_releases(repo_root: Path) -> List[ReleaseRecord]:
+     Uses the SAME discovery glob as `resolve_release`/`_existing_ids` (`rglob("*.release.md")` under
+     `_releases_dir`), so the listing and the resolver see exactly one set of files. Unreadable files
+     are skipped (a listing must not blow up on an I/O error)."""
+-    d = _releases_dir(Path(repo_root))
++    from agent_workflows import artifact_meta as _meta
++
++    repo_root = Path(repo_root)
++    d = _releases_dir(repo_root)
+     if not d.is_dir():
+         return []
+     out: List[ReleaseRecord] = []
+-    for p in sorted(d.rglob("*.release.md")):
+-        try:
+-            text = p.read_text(encoding="utf-8")
+-        except OSError:
+-            continue
+-        out.append(parse_release(p, text))
++    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++        for p in sorted(d.rglob("*.release.md")):
++            try:
++                text = p.read_text(encoding="utf-8")
++            except OSError:
++                continue
++            out.append(parse_release(p, text, repo_root=repo_root))
+     return out
+ 
+ 
+@@ -404,29 +802,35 @@ def get_release(repo_root: Path, selector: str) -> Optional[ReleaseRecord]:
+     `Blocks-Release: next` can never point at different records. Version/filename matching is the
+     only additional lookup this verb adds, and it is applied after the canonical resolver misses.
+     Returns None when the selector resolves to nothing (incl. an ambiguous `next`)."""
++    from agent_workflows import artifact_meta as _meta
++
+     repo_root = Path(repo_root)
+     selector = (selector or "").strip()
+     if not selector:
+         return None
+-    # 1. Canonical resolver first (handles `next` + id6).
+-    p = resolve_release(repo_root, selector)
+-    if p is not None:
+-        try:
+-            return parse_release(p, p.read_text(encoding="utf-8"))
+-        except OSError:
+-            return None
+-    # 2. Version string / filename / stem (the verb's own convenience selectors).
+-    records = list_releases(repo_root)
+-    for rec in records:
+-        if rec.version and (
+-            rec.version == selector or rec.version.lstrip("v") == selector.lstrip("v")
+-        ):
+-            return rec
+-    for rec in records:
+-        name = rec.path.name
+-        if selector in (name, name[: -len(".release.md")]):
+-            return rec
+-    return None
++    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++        # 1. Canonical resolver first (handles `next` + id6).
++        p = resolve_release(repo_root, selector)
++        if p is not None:
++            try:
++                return parse_release(
++                    p, p.read_text(encoding="utf-8"), repo_root=repo_root
++                )
++            except OSError:
++                return None
++        # 2. Version string / filename / stem (the verb's own convenience selectors).
++        records = list_releases(repo_root)
++        for rec in records:
++            if rec.version and (
++                rec.version == selector
++                or rec.version.lstrip("v") == selector.lstrip("v")
++            ):
++                return rec
++        for rec in records:
++            name = rec.path.name
++            if selector in (name, name[: -len(".release.md")]):
++                return rec
++        return None
+ 
+ 
+ def get_release_blockers(repo_root: Path, selector: str) -> List[Dict[str, Any]]:
+@@ -486,32 +890,45 @@ def get_release_blockers(repo_root: Path, selector: str) -> List[Dict[str, Any]]
+ 
+ 
+ def _declared_blocks_release(repo_root: Path, rel_path: str) -> Optional[str]:
+-    """Read an item's own `- Blocks-Release:` value from disk, trying the same two bases
+-    `attention.release_blockers` probes (repo-relative, then `.aw/records/`-relative)."""
+-    for base in (
+-        Path(repo_root) / rel_path,
+-        project_records_dir(repo_root) / rel_path,
+-    ):
+-        try:
+-            if not base.is_file():
+-                continue
+-            text = base.read_text(encoding="utf-8")
+-            if ".research" in base.name or "/research/" in str(base):
+-                from agent_workflows import artifact_meta as _meta
+-
+-                if not text.startswith("---"):
+-                    return None
+-                v = _meta.read_text(text, record_type="research").fields.get(
+-                    "blocks_release"
+-                )
+-                return str(v).strip() if v else None
+-            from agent_workflows import artifact_meta as _meta
++    """Read an item's own `blocks_release` value from companion log or disk, trying the same two
++    bases `attention.release_blockers` probes (repo-relative, then `.aw/records/`-relative)."""
++    from agent_workflows import artifact_meta as _meta
+ 
+-            br = _meta.read_loose_blocks_release(text)
+-            if br is not None:
+-                return br
+-        except OSError:
+-            continue
++    root = Path(repo_root)
++    with _meta.ephemeral_if_uninitialized():
++        for base in (
++            root / rel_path,
++            project_records_dir(root) / rel_path,
++        ):
++            try:
++                if not base.is_file():
++                    continue
++                text = base.read_text(encoding="utf-8")
++                id6 = _meta.read_mirror_id6(text)
++                if id6 and _core.is_valid_id6(id6):
++                    rr = _companion_records_root_for_path(base, root)
++                    log_path = rr / "meta" / f"{id6}.jsonl"
++                    if log_path.is_file():
++                        ctx = _records_context(rr, root.resolve())
++                        try:
++                            st = _meta.read(id6, project_context=ctx)
++                        except ValueError:
++                            st = None
++                        if st is not None:
++                            v = (st.fields or {}).get("blocks_release")
++                            return str(v).strip() if v and str(v).strip() else None
++                if ".research" in base.name or "/research/" in str(base):
++                    if not text.startswith("---"):
++                        return None
++                    v = _meta.read_text(text, record_type="research").fields.get(
++                        "blocks_release"
++                    )
++                    return str(v).strip() if v else None
++                br = _meta.read_loose_blocks_release(text)
++                if br is not None:
++                    return br
++            except OSError:
++                continue
+     return None
+ 
+ 
+@@ -613,31 +1030,48 @@ def canonicalize_graduated_to(
+ 
+ 
+ def count_blocks_release_sentinel(repo_root: Path) -> int:
+-    """Count how many backlog, specs, and plans records carry '- Blocks-Release: next'."""
++    """Count how many backlog, specs, and plans records carry `blocks_release == 'next'`."""
++    from agent_workflows import artifact_meta as _meta
++
+     repo_root = Path(repo_root)
+     ignored_dirs = _core.get_ignored_dirs(repo_root)
+     records_root = project_records_dir(repo_root)
+     count = 0
+-    for sub in ("backlog", "specs", "plans"):
+-        for base in (records_root / sub, repo_root / ".agents" / sub):
+-            if not base.is_dir() or _core.is_ignored_path(
+-                base, repo_root, ignored_dirs
+-            ):
+-                continue
+-            for p in base.rglob("*.md"):
+-                if p.name in layout.RECORD_SCAN_SKIP_NAMES or _core.is_ignored_path(
+-                    p, repo_root, ignored_dirs
++    seen: set = set()
++    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++        state_map = _artifact_state_map(repo_root)
++        for sub in ("backlog", "specs", "plans"):
++            for base in (records_root / sub, repo_root / ".agents" / sub):
++                if not base.is_dir() or _core.is_ignored_path(
++                    base, repo_root, ignored_dirs
+                 ):
+                     continue
+-                try:
+-                    text = p.read_text(encoding="utf-8")
+-                except OSError:
+-                    continue
+-                from agent_workflows import artifact_meta as _meta
+-
+-                br = _meta.read_loose_blocks_release(text)
+-                if br and br.strip() == "next":
+-                    count += 1
++                for p in base.rglob("*.md"):
++                    if p.name in layout.RECORD_SCAN_SKIP_NAMES or _core.is_ignored_path(
++                        p, repo_root, ignored_dirs
++                    ):
++                        continue
++                    try:
++                        rkey = p.resolve()
++                    except OSError:
++                        rkey = p
++                    if rkey in seen:
++                        continue
++                    seen.add(rkey)
++                    try:
++                        text = p.read_text(encoding="utf-8")
++                    except OSError:
++                        continue
++                    st, is_log = _read_artifact_state_for_path(
++                        p, text, repo_root, state_map
++                    )
++                    if is_log and st is not None:
++                        raw_br = (st.fields or {}).get("blocks_release")
++                        br = str(raw_br).strip() if raw_br is not None else None
++                    else:
++                        br = _meta.read_loose_blocks_release(text)
++                    if br and br.strip() == "next":
++                        count += 1
+     return count
+ 
+ 
+@@ -656,80 +1090,97 @@ def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
+     literally 'next'. Records carrying non-'next' values (concrete id6 or version) that do not
+     resolve continue to report per-record as check.blocks-release-dangling.
+     """
++    from agent_workflows import artifact_meta as _meta
++
+     repo_root = Path(repo_root)
+     ignored_dirs = _core.get_ignored_dirs(repo_root)
+     drift: List[_core.Drift] = []
+ 
+-    sentinel_res = resolve_release_outcome(repo_root, "next")
+-    rel_dir = _releases_dir(repo_root)
+-    if not rel_dir.is_dir() and (repo_root / ".agents" / "releases").is_dir():
+-        rel_dir = repo_root / ".agents" / "releases"
+-    try:
+-        loc = str(rel_dir.relative_to(repo_root))
+-    except ValueError:
+-        loc = ".aw/records/releases"
+-
+-    has_next_references = False
+-    records_root = project_records_dir(repo_root)
+-
+-    for sub in ("backlog", "specs", "plans"):
+-        for base in (records_root / sub, repo_root / ".agents" / sub):
+-            if not base.is_dir() or _core.is_ignored_path(
+-                base, repo_root, ignored_dirs
+-            ):
+-                continue
+-            for p in base.rglob("*.md"):
+-                if p.name in layout.RECORD_SCAN_SKIP_NAMES or _core.is_ignored_path(
+-                    p, repo_root, ignored_dirs
++    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++        sentinel_res = resolve_release_outcome(repo_root, "next")
++        rel_dir = _releases_dir(repo_root)
++        if not rel_dir.is_dir() and (repo_root / ".agents" / "releases").is_dir():
++            rel_dir = repo_root / ".agents" / "releases"
++        try:
++            loc = str(rel_dir.relative_to(repo_root))
++        except ValueError:
++            loc = ".aw/records/releases"
++
++        has_next_references = False
++        records_root = project_records_dir(repo_root)
++        state_map = _artifact_state_map(repo_root)
++        seen: set = set()
++
++        for sub in ("backlog", "specs", "plans"):
++            for base in (records_root / sub, repo_root / ".agents" / sub):
++                if not base.is_dir() or _core.is_ignored_path(
++                    base, repo_root, ignored_dirs
+                 ):
+                     continue
+-                try:
+-                    text = p.read_text(encoding="utf-8")
+-                except OSError:
+-                    continue
+-                from agent_workflows import artifact_meta as _meta
+-
+-                br = _meta.read_loose_blocks_release(text)
+-                if not br:
+-                    continue
+-                val = br.strip()
+-                if val == "next":
+-                    has_next_references = True
+-                    if sentinel_res.outcome != SENTINEL_RESOLVED:
+-                        # Narrow suppression: root cause reported on releases tree.
+-                        pass
+-                    continue
+-                if resolve_release(repo_root, val) is None:
++                for p in base.rglob("*.md"):
++                    if p.name in layout.RECORD_SCAN_SKIP_NAMES or _core.is_ignored_path(
++                        p, repo_root, ignored_dirs
++                    ):
++                        continue
+                     try:
+-                        p_loc = str(p.relative_to(repo_root))
+-                    except ValueError:
+-                        p_loc = str(p)
+-                    drift.append(
+-                        _core.Drift(
+-                            p_loc,
+-                            "check.blocks-release-dangling",
+-                            f"Blocks-Release {val!r} does not resolve to a release record",
+-                        )
++                        rkey = p.resolve()
++                    except OSError:
++                        rkey = p
++                    if rkey in seen:
++                        continue
++                    seen.add(rkey)
++                    try:
++                        text = p.read_text(encoding="utf-8")
++                    except OSError:
++                        continue
++                    st, is_log = _read_artifact_state_for_path(
++                        p, text, repo_root, state_map
+                     )
++                    if is_log and st is not None:
++                        raw_br = (st.fields or {}).get("blocks_release")
++                        br = str(raw_br).strip() if raw_br is not None else None
++                    else:
++                        br = _meta.read_loose_blocks_release(text)
++                    if not br:
++                        continue
++                    val = br.strip()
++                    if val == "next":
++                        has_next_references = True
++                        if sentinel_res.outcome != SENTINEL_RESOLVED:
++                            # Narrow suppression: root cause reported on releases tree.
++                            pass
++                        continue
++                    if resolve_release(repo_root, val) is None:
++                        try:
++                            p_loc = str(p.relative_to(repo_root))
++                        except ValueError:
++                            p_loc = str(p)
++                        drift.append(
++                            _core.Drift(
++                                p_loc,
++                                "check.blocks-release-dangling",
++                                f"Blocks-Release {val!r} does not resolve to a release record",
++                            )
++                        )
+ 
+-    if has_next_references:
+-        if sentinel_res.outcome == SENTINEL_ABSENT:
+-            drift.append(
+-                _core.Drift(
+-                    loc,
+-                    RELEASE_SENTINEL_ABSENT_RULE,
+-                    "release sentinel 'next' does not resolve: no planned release record in releases tree",
++        if has_next_references:
++            if sentinel_res.outcome == SENTINEL_ABSENT:
++                drift.append(
++                    _core.Drift(
++                        loc,
++                        RELEASE_SENTINEL_ABSENT_RULE,
++                        "release sentinel 'next' does not resolve: no planned release record in releases tree",
++                    )
+                 )
+-            )
+-        elif sentinel_res.outcome == SENTINEL_AMBIGUOUS:
+-            names = ", ".join(p.name for p in sorted(sentinel_res.paths))
+-            drift.append(
+-                _core.Drift(
+-                    loc,
+-                    RELEASE_SENTINEL_AMBIGUOUS_RULE,
+-                    f"release sentinel 'next' is ambiguous: multiple planned release records ({names})",
++            elif sentinel_res.outcome == SENTINEL_AMBIGUOUS:
++                names = ", ".join(p.name for p in sorted(sentinel_res.paths))
++                drift.append(
++                    _core.Drift(
++                        loc,
++                        RELEASE_SENTINEL_AMBIGUOUS_RULE,
++                        f"release sentinel 'next' is ambiguous: multiple planned release records ({names})",
++                    )
+                 )
+-            )
+ 
+     return drift
+ 
+@@ -772,44 +1223,64 @@ def check_from_backlog(repo_root: Path) -> List[_core.Drift]:
+     repo_root = Path(repo_root)
+     ignored_dirs = _core.get_ignored_dirs(repo_root)
+     drift: List[_core.Drift] = []
+-    known = _backlog.existing_backlog_ids(repo_root)
+-    records_root = project_records_dir(repo_root)
+-    for sub in ("plans", "specs", "backlog"):
+-        for base in (records_root / sub, repo_root / ".agents" / sub):
+-            if not base.is_dir() or _core.is_ignored_path(
+-                base, repo_root, ignored_dirs
+-            ):
+-                continue
+-            for p in base.rglob("*.md"):
+-                if p.name in layout.RECORD_SCAN_SKIP_NAMES or _core.is_ignored_path(
+-                    p, repo_root, ignored_dirs
++    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++        known = _backlog.existing_backlog_ids(repo_root)
++        records_root = project_records_dir(repo_root)
++        state_map = _artifact_state_map(repo_root)
++        seen: set = set()
++        for sub in ("plans", "specs", "backlog"):
++            for base in (records_root / sub, repo_root / ".agents" / sub):
++                if not base.is_dir() or _core.is_ignored_path(
++                    base, repo_root, ignored_dirs
+                 ):
+                     continue
+-                try:
+-                    text = p.read_text(encoding="utf-8")
+-                except OSError:
+-                    continue
+-                link = _meta.read_text(text).fields.get("from_backlog")
+-                if link is None:
+-                    continue
+-                cls = _schema.classify_source_link(link)
+-                if cls.verdict == _schema.SOURCE_LINK_MALFORMED:
+-                    drift.append(
+-                        _core.Drift(
+-                            str(p),
+-                            FROM_BACKLOG_MALFORMED_RULE,
+-                            f"From-Backlog {link!r} is not a valid backlog item id6",
+-                        )
++                for p in base.rglob("*.md"):
++                    if p.name in layout.RECORD_SCAN_SKIP_NAMES or _core.is_ignored_path(
++                        p, repo_root, ignored_dirs
++                    ):
++                        continue
++                    try:
++                        rkey = p.resolve()
++                    except OSError:
++                        rkey = p
++                    if rkey in seen:
++                        continue
++                    seen.add(rkey)
++                    try:
++                        text = p.read_text(encoding="utf-8")
++                    except OSError:
++                        continue
++                    st, is_log = _read_artifact_state_for_path(
++                        p, text, repo_root, state_map
+                     )
+-                elif cls.verdict == _schema.SOURCE_LINK_USABLE:
+-                    if cls.id6 not in known:
++                    if is_log and st is not None:
++                        raw_link = (st.fields or {}).get("from_backlog")
++                        if isinstance(raw_link, list):
++                            link = ", ".join(str(x) for x in raw_link)
++                        else:
++                            link = raw_link
++                    else:
++                        link = _meta.read_text(text).fields.get("from_backlog")
++                    if link is None:
++                        continue
++                    cls = _schema.classify_source_link(link)
++                    if cls.verdict == _schema.SOURCE_LINK_MALFORMED:
+                         drift.append(
+                             _core.Drift(
+                                 str(p),
+-                                FROM_BACKLOG_DANGLING_RULE,
+-                                f"From-Backlog {cls.id6!r} does not resolve to a backlog item",
++                                FROM_BACKLOG_MALFORMED_RULE,
++                                f"From-Backlog {link!r} is not a valid backlog item id6",
+                             )
+                         )
++                    elif cls.verdict == _schema.SOURCE_LINK_USABLE:
++                        if cls.id6 not in known:
++                            drift.append(
++                                _core.Drift(
++                                    str(p),
++                                    FROM_BACKLOG_DANGLING_RULE,
++                                    f"From-Backlog {cls.id6!r} does not resolve to a backlog item",
++                                )
++                            )
+     return drift
+ 
+ 
+@@ -827,7 +1298,7 @@ def check_graduated_to(
  
      setidhard Order bwgyum E-03: the DIRECT MIRROR of `check_from_backlog` directly above, in the same
      module, with the same traversal (`rglob` over `plans`/`specs`/`backlog` under BOTH the `.aw/records/`
@@ -7722,7 +9285,7 @@ index 4651ab385..8060ae5a2 100644
      paths), and registered at the same once-per-full-sweep seam. Only the RESOLUTION TARGET differs: the
      back-link resolves an id6 against `backlog.existing_backlog_ids`, and this resolves a SETID against
      the set of setids that name a real plan Set.
-@@ -856,7 +850,7 @@ def check_graduated_to(
+@@ -856,7 +1327,7 @@ def check_graduated_to(
  
      WHAT `_iter_plan_ipds` MISSES, stated because it decides whether a VALID link can be called dangling:
      it globs `*.ipd.md` ONLY. Measured on this repository, every plan file matches and the non-matching
@@ -7731,6 +9294,180 @@ index 4651ab385..8060ae5a2 100644
      nothing real is lost today. A bare-`.md` plan (a form the naming grammar still permits) would be
      invisible to this scan and its Set would read as nonexistent.
  
+@@ -883,6 +1354,7 @@ def check_graduated_to(
+     `aw check backlog` does NOT validate the field. An empty `- Graduated-To:` line is treated as ABSENT
+     and reports nothing (see `parse_graduated_to`).
+     """
++    from agent_workflows import artifact_meta as _meta
+     from agent_workflows import (
+         check_engine as _ce,
+     )  # local import avoids an import cycle
+@@ -892,67 +1364,85 @@ def check_graduated_to(
+     ignored_dirs = _core.get_ignored_dirs(repo_root)
+     drift: List[_core.Drift] = []
+ 
+-    known_setids: set = (
+-        set(plan_setids)
+-        if plan_setids is not None
+-        else set(_ce.build_plan_setid_index(repo_root))
+-    )
+-    if not known_setids:
+-        # No plan Set is discoverable at all (no plans tree, or an unreadable one). We cannot
+-        # distinguish a dangling link from an invisible plan corpus, so report nothing rather than flag
+-        # every link in the repo. This is the SPEC-side twin's fail-safe posture, deliberately.
+-        return drift
+-
+-    records_root = project_records_dir(repo_root)
+-    for sub in ("backlog", "specs", "plans"):
+-        for base in (records_root / sub, repo_root / ".agents" / sub):
+-            if not base.is_dir() or _core.is_ignored_path(
+-                base, repo_root, ignored_dirs
+-            ):
+-                continue
+-            for p in base.rglob("*.md"):
+-                if p.name in layout.RECORD_SCAN_SKIP_NAMES or _core.is_ignored_path(
+-                    p, repo_root, ignored_dirs
++    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++        known_setids: set = (
++            set(plan_setids)
++            if plan_setids is not None
++            else set(_ce.build_plan_setid_index(repo_root))
++        )
++        if not known_setids:
++            # No plan Set is discoverable at all (no plans tree, or an unreadable one). We cannot
++            # distinguish a dangling link from an invisible plan corpus, so report nothing rather than flag
++            # every link in the repo. This is the SPEC-side twin's fail-safe posture, deliberately.
++            return drift
++
++        records_root = project_records_dir(repo_root)
++        state_map = _artifact_state_map(repo_root)
++        seen_paths: set = set()
++        for sub in ("backlog", "specs", "plans"):
++            for base in (records_root / sub, repo_root / ".agents" / sub):
++                if not base.is_dir() or _core.is_ignored_path(
++                    base, repo_root, ignored_dirs
+                 ):
+                     continue
+-                try:
+-                    text = p.read_text(encoding="utf-8")
+-                except OSError:
+-                    continue
+-                entries = parse_graduated_to(text)
+-                if not entries:
+-                    continue
+-                seen: set = set()
+-                for entry in entries:
+-                    if not _plans.is_set_id_valid(entry):
+-                        drift.append(
+-                            _core.Drift(
+-                                str(p),
+-                                GRADUATED_TO_MALFORMED_RULE,
+-                                f"Graduated-To entry {entry!r} is not a valid setid "
+-                                "(lowercase-kebab, at most "
+-                                f"{_plans.MAX_SET_ID_LEN} characters)",
+-                            )
+-                        )
++                for p in base.rglob("*.md"):
++                    if p.name in layout.RECORD_SCAN_SKIP_NAMES or _core.is_ignored_path(
++                        p, repo_root, ignored_dirs
++                    ):
+                         continue
+-                    if entry in seen:
+-                        drift.append(
+-                            _core.Drift(
+-                                str(p),
+-                                GRADUATED_TO_REPEATED_RULE,
+-                                f"Graduated-To names {entry!r} more than once",
+-                            )
++                    try:
++                        rkey = p.resolve()
++                    except OSError:
++                        rkey = p
++                    if rkey in seen_paths:
++                        continue
++                    seen_paths.add(rkey)
++                    try:
++                        text = p.read_text(encoding="utf-8")
++                    except OSError:
++                        continue
++                    st, is_log = _read_artifact_state_for_path(
++                        p, text, repo_root, state_map
++                    )
++                    if is_log and st is not None:
++                        entries = _meta.parse_graduated_to(
++                            (st.fields or {}).get("graduated_to")
+                         )
++                    else:
++                        entries = parse_graduated_to(text)
++                    if not entries:
+                         continue
+-                    seen.add(entry)
+-                    if entry not in known_setids:
+-                        drift.append(
+-                            _core.Drift(
+-                                str(p),
+-                                GRADUATED_TO_DANGLING_RULE,
+-                                f"Graduated-To entry {entry!r} does not resolve to a plan Set",
++                    seen: set = set()
++                    for entry in entries:
++                        if not _plans.is_set_id_valid(entry):
++                            drift.append(
++                                _core.Drift(
++                                    str(p),
++                                    GRADUATED_TO_MALFORMED_RULE,
++                                    f"Graduated-To entry {entry!r} is not a valid setid "
++                                    "(lowercase-kebab, at most "
++                                    f"{_plans.MAX_SET_ID_LEN} characters)",
++                                )
++                            )
++                            continue
++                        if entry in seen:
++                            drift.append(
++                                _core.Drift(
++                                    str(p),
++                                    GRADUATED_TO_REPEATED_RULE,
++                                    f"Graduated-To names {entry!r} more than once",
++                                )
++                            )
++                            continue
++                        seen.add(entry)
++                        if entry not in known_setids:
++                            drift.append(
++                                _core.Drift(
++                                    str(p),
++                                    GRADUATED_TO_DANGLING_RULE,
++                                    f"Graduated-To entry {entry!r} does not resolve to a plan Set",
++                                )
+                             )
+-                        )
+     return drift
+ 
+ 
+@@ -1303,11 +1793,22 @@ def run_new(args) -> int:
+         )
+ 
+     applied = bool(getattr(args, "apply", False))
+-    dest, body = _create_release_via_meta(
++    preview = _create_release_preview(
+         repo_root, version, summary, status=status, dry_run=not applied
+     )
++    dest = Path(preview["destination"])
++    body = preview["text"]
+ 
+-    rec = parse_release(dest, body)
++    if applied:
++        rec = parse_release(dest, body, repo_root=repo_root)
++    else:
++        rec = parse_release(
++            dest,
++            body,
++            state=preview.get("state"),
++            repo_root=repo_root,
++            history_events=preview.get("events"),
++        )
+     data = {
+         "repo_root": str(repo_root),
+         "release": _record_dict(repo_root, rec),
 diff --git a/agent_workflows/research_archive.py b/agent_workflows/research_archive.py
 index 2aa9e1960..f18bf5622 100644
 --- a/agent_workflows/research_archive.py
@@ -8039,7 +9776,7 @@ index 743de8176..8a3a3f5e5 100644
  
  def check_S6(
 diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
-index 461caf32a..514921476 100644
+index 461caf32a..4a23b52ba 100644
 --- a/agent_workflows/runner_shared.py
 +++ b/agent_workflows/runner_shared.py
 @@ -6290,7 +6290,7 @@ def apply_records_only_rederivation(
@@ -8096,7 +9833,86 @@ index 461caf32a..514921476 100644
      2. Requires the file to sit under a recognized lifecycle bucket of a supported type
         (:data:`lifecycle_dirs.LIFECYCLE_SUBDIRS`).
      3. Requires the type's own facet suffix (:data:`artifact_naming.TYPE_FACET`, e.g. ``.ipd.md`` for
-@@ -17433,7 +17426,7 @@ def discover_plans(
+@@ -9174,12 +9167,75 @@ def check_review_lane_artifacts(
+ 
+         # 3. Specs (.spec.md)
+         elif norm_p.endswith(".spec.md"):
+-            from agent_workflows import specs
++            from agent_workflows import artifact_core as _core
++            from agent_workflows import check_engine, specs
+ 
+             try:
+-                spec_drifts = specs.validate_spec(Path(norm_p), content)
++                if wt_path and (wt_path / norm_p).is_file():
++                    spec_drifts = specs.validate_spec(
++                        wt_path / norm_p, content, repo_root=eval_root
++                    )
++                elif branch:
++                    with _meta.ephemeral_if_uninitialized(), _meta.scan_once():
++                        ctx = check_engine._git_read_at_context(repo, rel_path=norm_p)
++                        if norm_p.startswith(".aw/records/") and (repo / ".git").exists():
++                            in_tree_rec = (repo / ".aw" / "records").resolve()
++                            if Path(ctx.logical_roots["records"]).resolve() != in_tree_rec:
++                                ctx = type(
++                                    "_BranchSpecCtx",
++                                    (),
++                                    {
++                                        "logical_roots": {
++                                            "records": in_tree_rec,
++                                            "state": (repo / ".aw" / "state").resolve(),
++                                        },
++                                        "repo_root": repo.resolve(),
++                                        "target_repo": str(repo.resolve()),
++                                    },
++                                )()
++                        spec_id = _meta.read_mirror_id6(content) or _meta.resolve_id_at(
++                            norm_p, branch, project_context=ctx
++                        )
++                        spec_res = (
++                            _meta.read_at(
++                                spec_id, branch, project_context=ctx, path_hint=norm_p
++                            )
++                            if (spec_id and _core.is_valid_id6(spec_id))
++                            else None
++                        )
++                    if (
++                        spec_res is not None
++                        and spec_res.kind == "ok"
++                        and spec_res.state is not None
++                    ):
++                        spec_drifts = specs.validate_spec(
++                            Path(norm_p),
++                            content,
++                            state=spec_res.state,
++                            has_history=bool(spec_res.history),
++                        )
++                    elif spec_res is not None and spec_res.kind == "corrupt":
++                        spec_drifts = [
++                            _core.Drift(
++                                specs.drift_location(Path(norm_p)),
++                                "attention.unreadable",
++                                f"corrupt/invalid metadata log: {spec_res.error or 'corrupt log'}",
++                            )
++                        ]
++                    elif content.lstrip("\ufeff").startswith("---"):
++                        spec_drifts = [
++                            _core.Drift(
++                                specs.drift_location(Path(norm_p)),
++                                "attention.history-missing",
++                                "YAML-mirror spec has no companion metadata log on branch",
++                            )
++                        ]
++                    else:
++                        spec_drifts = specs.validate_spec(Path(norm_p), content)
++                else:
++                    spec_drifts = specs.validate_spec(Path(norm_p), content)
+                 for drift in spec_drifts:
+-                    if drift.severity == "error":
++                    if (drift.severity or "error") == "error":
+                         return (
+                             False,
+                             f"spec '{norm_p}' contract violation ({drift.rule}): {drift.detail}",
+@@ -17433,7 +17489,7 @@ def discover_plans(
                  root == resolved or root in resolved.parents for root in plans_roots
              ):
                  continue
@@ -8105,7 +9921,7 @@ index 461caf32a..514921476 100644
                  continue
              if resolved in seen or not resolved.is_file():
                  continue
-@@ -17542,7 +17535,7 @@ def discover_specs(repo: Path) -> dict[str, SpecRecord]:
+@@ -17542,7 +17598,7 @@ def discover_specs(repo: Path) -> dict[str, SpecRecord]:
                      sr == resolved or sr in resolved.parents for sr in spec_roots
                  ):
                      continue
@@ -8114,7 +9930,7 @@ index 461caf32a..514921476 100644
                      continue
                  if not resolved.is_file():
                      continue
-@@ -17932,8 +17925,8 @@ def resolve_plan_path(repo: Path, configured: str, id6: str) -> Path:
+@@ -17932,8 +17988,8 @@ def resolve_plan_path(repo: Path, configured: str, id6: str) -> Path:
                  raise DriverError(
                      f"Refusing {configured!r} for IPD {id6}: it is {what}, not an IPD plan"
                  )
@@ -8125,7 +9941,34 @@ index 461caf32a..514921476 100644
                  raise DriverError(
                      f"Refusing {configured!r} for IPD {id6}: it is {what}, not an IPD plan"
                  )
-@@ -25423,14 +25416,21 @@ def enforce_freeze_time_refusal(
+@@ -25396,14 +25452,21 @@ def enforce_freeze_time_refusal(
+             try:
+                 content_bytes = abs_path.read_bytes()
+                 digest = hashlib.sha256(content_bytes).hexdigest()
+-                cache_key = (abs_path, digest, "spec")
++                text = content_bytes.decode("utf-8", errors="replace").replace(
++                    "\r\n", "\n"
++                )
++                comp_log = specs.companion_log_path(abs_path, text, repo_root=repo)
++                if comp_log is not None and comp_log.is_file():
++                    log_digest = (
++                        "present:" + hashlib.sha256(comp_log.read_bytes()).hexdigest()
++                    )
++                else:
++                    log_digest = "absent"
++                cache_key = (abs_path, digest, f"spec:{log_digest}")
+                 if cache_key in _FREEZE_GATE_CACHE:
+                     drifts = _FREEZE_GATE_CACHE[cache_key]
+                 else:
+-                    text = content_bytes.decode("utf-8", errors="replace").replace(
+-                        "\r\n", "\n"
+-                    )
+-                    drifts = specs.validate_spec(abs_path, text)
++                    drifts = specs.validate_spec(abs_path, text, repo_root=repo)
+                     _FREEZE_GATE_CACHE[cache_key] = drifts
+                 for d in drifts:
+                     if getattr(d, "severity", "") != "info":
+@@ -25423,14 +25486,21 @@ def enforce_freeze_time_refusal(
              try:
                  content_bytes = abs_path.read_bytes()
                  digest = hashlib.sha256(content_bytes).hexdigest()
@@ -8152,7 +9995,7 @@ index 461caf32a..514921476 100644
                      _FREEZE_GATE_CACHE[cache_key] = drifts
                  for d in drifts:
                      if getattr(d, "severity", "") != "info":
-@@ -34759,21 +34759,14 @@ def run_review_sequence(
+@@ -34759,21 +34829,14 @@ def run_review_sequence(
              from agent_workflows import artifact_core as _core
              from agent_workflows import artifact_meta as _am
  
@@ -8182,7 +10025,7 @@ index 461caf32a..514921476 100644
              )
          save_state(run_dir, state)
          return 1, s_id, last_log, last_argv
-@@ -56928,35 +56921,126 @@ def _collect_lane_added_open_backlogs(
+@@ -56928,35 +56991,126 @@ def _collect_lane_added_open_backlogs(
      return candidates, skipped
  
  
@@ -8324,7 +10167,7 @@ index 461caf32a..514921476 100644
  
  
  _PROPOSAL_SUMMARY_STRIP_CHARS = " .,;:!?-_/([{'\""
-@@ -57126,7 +57210,6 @@ def perform_coordinator_proposal_file(
+@@ -57126,7 +57280,6 @@ def perform_coordinator_proposal_file(
          skipped_backlog_reasons: tuple[tuple[str, str], ...] = (),
      ) -> ProposalFilingResult:
          from agent_workflows import artifact_core as _core
@@ -8332,7 +10175,7 @@ index 461caf32a..514921476 100644
  
          proposals_dir = run_dir / "proposals"
          proposals_dir.mkdir(parents=True, exist_ok=True)
-@@ -57145,23 +57228,16 @@ def perform_coordinator_proposal_file(
+@@ -57145,23 +57298,16 @@ def perform_coordinator_proposal_file(
                  f"- Id: {item_id6}\n\n"
                  f"{body_text}\n"
              )
@@ -8366,7 +10209,7 @@ index 461caf32a..514921476 100644
              )
          else:
              base_content = (
-@@ -57171,26 +57247,14 @@ def perform_coordinator_proposal_file(
+@@ -57171,26 +57317,14 @@ def perform_coordinator_proposal_file(
                  f"- Summary: Proposal from {item_id6}: {clean_summary}\n\n"
                  f"{body_text}\n"
              )
@@ -8401,7 +10244,7 @@ index 461caf32a..514921476 100644
              )
          _core.atomic_write(fallback_file, fallback_content)
          rel_path = str(fallback_file)
-@@ -57216,12 +57280,18 @@ def perform_coordinator_proposal_file(
+@@ -57216,12 +57350,18 @@ def perform_coordinator_proposal_file(
          *,
          records_dir_override: Path | None = None,
          commit_root_override: Path | None = None,
@@ -8423,7 +10266,7 @@ index 461caf32a..514921476 100644
  
          from agent_workflows import (
              artifact_core as _core,
-@@ -57254,21 +57324,76 @@ def perform_coordinator_proposal_file(
+@@ -57254,21 +57394,76 @@ def perform_coordinator_proposal_file(
                  skipped.append((rel_path, "invalid-utf8"))
                  continue
  
@@ -8507,7 +10350,7 @@ index 461caf32a..514921476 100644
                  )
                  else None
              )
-@@ -57318,6 +57443,23 @@ def perform_coordinator_proposal_file(
+@@ -57318,6 +57513,23 @@ def perform_coordinator_proposal_file(
  
              target_path.parent.mkdir(parents=True, exist_ok=True)
              _core.atomic_write(target_path, text)
@@ -8531,7 +10374,7 @@ index 461caf32a..514921476 100644
              if parsed_id:
                  existing_ids.add(parsed_id)
              if commit_root_override is not None:
-@@ -57335,7 +57477,7 @@ def perform_coordinator_proposal_file(
+@@ -57335,7 +57547,7 @@ def perform_coordinator_proposal_file(
              else:
                  recovered.append(rel_path)
  
@@ -8540,7 +10383,7 @@ index 461caf32a..514921476 100644
  
      from agent_workflows import project_context as _proj_ctx
  
-@@ -57392,17 +57534,15 @@ def perform_coordinator_proposal_file(
+@@ -57392,17 +57604,15 @@ def perform_coordinator_proposal_file(
                              f"needs-attended: the proposing plan could not be resolved: {exc}",
                              skipped_backlog_reasons=tuple(lane_pre_skipped),
                          )
@@ -8562,7 +10405,7 @@ index 461caf32a..514921476 100644
                          commit_msg = f"plan({item_id6}): mark Attended: required (agent proposal)"
                  elif size == "small":
                      setid = f"prop-{item_id6}"
-@@ -57475,25 +57615,27 @@ def perform_coordinator_proposal_file(
+@@ -57475,25 +57685,27 @@ def perform_coordinator_proposal_file(
                      created_path = created_plan
                      created_is_new = True
                      plan_content = created_plan.read_text(encoding="utf-8")
@@ -8601,7 +10444,7 @@ index 461caf32a..514921476 100644
                          )
                      commit_msg = (
                          f"Scaffold draft plan for agent proposal from {item_id6}"
-@@ -57565,7 +57707,11 @@ def perform_coordinator_proposal_file(
+@@ -57565,7 +57777,11 @@ def perform_coordinator_proposal_file(
                      commit_msg = f"File backlog item for agent proposal from {item_id6}"
  
                  assert created_path is not None
@@ -8614,7 +10457,7 @@ index 461caf32a..514921476 100644
                      repo,
                      record_id6,
                      records_dir_override=resolved_records_dir,
-@@ -57607,10 +57753,27 @@ def perform_coordinator_proposal_file(
+@@ -57607,10 +57823,27 @@ def perform_coordinator_proposal_file(
                          skipped_backlog_reasons=tuple(skipped_reasons),
                      )
  
@@ -8644,7 +10487,7 @@ index 461caf32a..514921476 100644
                  )
                  commit_sha = None
                  commit_exc = None
-@@ -57632,11 +57795,22 @@ def perform_coordinator_proposal_file(
+@@ -57632,11 +57865,22 @@ def perform_coordinator_proposal_file(
                          with contextlib.suppress(OSError):
                              (git_root_res / rec_rel).unlink()
                          skipped_reasons.append((rec_rel, "commit-hook-rejected"))
@@ -8668,7 +10511,7 @@ index 461caf32a..514921476 100644
                      if needs_attended_unchanged:
                          return ProposalFilingResult(
                              filed=True,
-@@ -57653,7 +57827,7 @@ def perform_coordinator_proposal_file(
+@@ -57653,7 +57897,7 @@ def perform_coordinator_proposal_file(
                      try:
                          commit_outcome = _gch.offer_commit(
                              git_root_res,
@@ -8677,7 +10520,7 @@ index 461caf32a..514921476 100644
                              message=commit_msg,
                              assume_yes=True,
                              interactive=False,
-@@ -57728,19 +57902,17 @@ def perform_coordinator_proposal_file(
+@@ -57728,19 +57972,17 @@ def perform_coordinator_proposal_file(
                                  f"needs-attended: the proposing plan could not be resolved: {exc}",
                                  skipped_backlog_reasons=tuple(lane_pre_skipped),
                              )
@@ -8701,7 +10544,7 @@ index 461caf32a..514921476 100644
                              commit_msg = f"plan({item_id6}): mark Attended: required (agent proposal)"
                      elif size == "small":
                          setid = f"prop-{item_id6}"
-@@ -57803,7 +57975,9 @@ def perform_coordinator_proposal_file(
+@@ -57803,7 +58045,9 @@ def perform_coordinator_proposal_file(
                          created_plan = matching[0]
                          plan_content = created_plan.read_text(encoding="utf-8")
                          record_id6 = (
@@ -8712,7 +10555,7 @@ index 461caf32a..514921476 100644
                          )
  
                          from agent_workflows import artifact_core as _core
-@@ -57811,23 +57985,21 @@ def perform_coordinator_proposal_file(
+@@ -57811,23 +58055,21 @@ def perform_coordinator_proposal_file(
  
                          plan_content = plan_content.rstrip() + "\n\n" + body_text
                          _core.atomic_write(created_plan, plan_content)
@@ -8744,7 +10587,7 @@ index 461caf32a..514921476 100644
                              )
                          new_record_rel = str(
                              created_plan.relative_to(coord.path)
-@@ -57902,9 +58074,11 @@ def perform_coordinator_proposal_file(
+@@ -57902,9 +58144,11 @@ def perform_coordinator_proposal_file(
  
                      # Validate and materialize lane defect backlogs AFTER new_record_rel and
                      # record_id6 are resolved so st_mtime selection cannot pick a recovered file.
@@ -8759,7 +10602,7 @@ index 461caf32a..514921476 100644
                      last_skipped = tuple(skipped_reasons)
  
                      if needs_attended_unchanged and not recovered_paths:
-@@ -57920,10 +58094,37 @@ def perform_coordinator_proposal_file(
+@@ -57920,10 +58164,37 @@ def perform_coordinator_proposal_file(
                              skipped_backlog_reasons=tuple(skipped_reasons),
                          )
  
@@ -8799,7 +10642,7 @@ index 461caf32a..514921476 100644
                      )
                      commit_sha = None
                      commit_exc = None
-@@ -57945,11 +58146,22 @@ def perform_coordinator_proposal_file(
+@@ -57945,11 +58216,22 @@ def perform_coordinator_proposal_file(
                              with contextlib.suppress(OSError):
                                  (coord.path / rec_rel).unlink()
                              skipped_reasons.append((rec_rel, "commit-hook-rejected"))
@@ -8823,7 +10666,7 @@ index 461caf32a..514921476 100644
                          last_skipped = tuple(skipped_reasons)
                          if needs_attended_unchanged:
                              return ProposalFilingResult(
-@@ -57967,7 +58179,7 @@ def perform_coordinator_proposal_file(
+@@ -57967,7 +58249,7 @@ def perform_coordinator_proposal_file(
                          try:
                              commit_outcome = _gch.offer_commit(
                                  coord.path,
@@ -9031,7 +10874,7 @@ index 3d9f3bc0f..bd310e41a 100644
  
  
 diff --git a/agent_workflows/specs.py b/agent_workflows/specs.py
-index 7943ab597..b7f06d61a 100644
+index 7943ab597..b93414df0 100644
 --- a/agent_workflows/specs.py
 +++ b/agent_workflows/specs.py
 @@ -103,7 +103,7 @@ def _spec_files(repo_root: Path) -> List[Path]:
@@ -9061,7 +10904,320 @@ index 7943ab597..b7f06d61a 100644
      Routes through project_context.record_owner_root first to map records under AW_HOME to their owning repository (backlog 4uw2a6)."""
      p = (Path.cwd() / spec_path).resolve()
      from agent_workflows import project_context
-@@ -879,23 +879,21 @@ def run_migrate(args) -> int:
+@@ -260,9 +260,232 @@ def prose_dash_advisories(path: Path, text: str) -> List[core.Drift]:
+     return out
+ 
+ 
+-def validate_spec(path: Path, text: str) -> List[core.Drift]:
++def _resolve_spec_roots(
++    path: Path, *, repo_root: Optional[Path] = None
++) -> tuple[List[Path], Optional[Path]]:
++    """Return ``(candidate_records_roots, owner_repo_root)`` for a spec file path.
++
++    Supports canonical ``.aw/records/specs/...``, legacy ``.agents/docs/specs/...``,
++    nested status subdirectories under ``specs/``, and companion/home roots via
++    ``project_context.record_owner_root``.
++    """
++    from agent_workflows import project_context as _proj_ctx
++
++    p = Path(path)
++    if not p.is_absolute() and repo_root is not None:
++        p = Path(repo_root) / p
++
++    candidates: List[Path] = []
++
++    def _add_candidate(cand: Optional[Path]) -> None:
++        if cand is None:
++            return
++        try:
++            res = cand.resolve()
++        except OSError:
++            res = cand
++        if res not in candidates:
++            candidates.append(res)
++
++    specs_dir: Optional[Path] = None
++    for parent in p.parents:
++        if parent.name == "specs":
++            specs_dir = parent
++            break
++
++    if specs_dir is not None:
++        if specs_dir.parent.name == "docs" and specs_dir.parent.parent.name == ".agents":
++            _add_candidate(specs_dir.parent.parent)
++            _add_candidate(specs_dir.parent)
++        else:
++            _add_candidate(specs_dir.parent)
++
++    owner: Optional[Path] = Path(repo_root).resolve() if repo_root is not None else None
++    if owner is None:
++        try:
++            owner = _proj_ctx.record_owner_root(p.resolve())
++        except OSError:
++            owner = _proj_ctx.record_owner_root(p)
++    if owner is None and candidates:
++        rr = candidates[0]
++        if rr.name == "records" and rr.parent.name == ".aw":
++            owner = rr.parent.parent
++        elif rr.name == ".agents":
++            owner = rr.parent
++        elif rr.name == "docs" and rr.parent.name == ".agents":
++            owner = rr.parent.parent
++        else:
++            for anc in [rr] + list(rr.parents):
++                if (
++                    (anc / ".aw").is_dir()
++                    or (anc / ".agents").is_dir()
++                    or (anc / ".git").exists()
++                ):
++                    owner = anc
++                    break
++            if owner is None:
++                owner = rr
++
++    if owner is not None:
++        _add_candidate(_proj_ctx.project_records_dir(owner))
++        legacy_agents = owner / ".agents"
++        if legacy_agents.is_dir():
++            _add_candidate(legacy_agents)
++
++    return candidates, owner
++
++
++def _records_context(records_root: Path, owner: Optional[Path]) -> Any:
++    """Build a LegacyContext pointing ``records`` at ``records_root``."""
++    from agent_workflows import artifact_meta as _meta
++
++    rr = records_root.resolve()
++    repo = owner.resolve() if owner is not None else rr
++    base_ctx = _meta.legacy_context(repo)
++    return type(
++        "LegacyContext",
++        (),
++        {
++            "logical_roots": {
++                "records": str(rr),
++                "state": base_ctx.logical_roots["state"],
++            },
++            "repo_root": repo,
++        },
++    )()
++
++
++def companion_log_path(
++    path: Path, text: str, *, repo_root: Optional[Path] = None
++) -> Optional[Path]:
++    """Return the companion ``<records_root>/meta/<id6>.jsonl`` path for ``path``, or ``None``.
++
++    Extracts ``id6`` via ``artifact_meta.read_mirror_id6(text)`` without raising on legacy or
++    pure-text inputs. Does not require the log file to exist on disk so callers (such as the
++    freeze-time refusal cache) can distinguish absent vs present companion logs.
++    """
++    from agent_workflows import artifact_meta as _meta
++
++    id6 = _meta.read_mirror_id6(text)
++    if not id6 or not core.is_valid_id6(id6):
++        return None
++    candidates, _owner = _resolve_spec_roots(path, repo_root=repo_root)
++    if not candidates:
++        return None
++    for rr in candidates:
++        cand = rr / "meta" / f"{id6}.jsonl"
++        if cand.is_file():
++            return cand
++    return candidates[0] / "meta" / f"{id6}.jsonl"
++
++
++def read_spec_state(
++    path: Path,
++    text: str,
++    *,
++    repo_root: Optional[Path] = None,
++) -> tuple[Any, Optional[bool], Optional[str]]:
++    """Load a spec's ``(state, has_history, log_error)`` from its companion log if present.
++
++    Extracts ``id6`` via ``artifact_meta.read_mirror_id6(text)``. When
++    ``<records_root>/meta/<id6>.jsonl`` exists, reads ``artifact_meta.read`` and
++    ``artifact_meta.history`` inside ``artifact_meta.ephemeral_if_uninitialized()``.
++    ``MetadataSchemaError`` propagates untouched (spec 4sd62s AC-11). A corrupt or invalid
++    companion log returns ``(None, False, <error detail>)`` so validators fail closed cleanly.
++
++    Returns ``(None, None, None)`` when no companion log exists on disk so callers fall back
++    to legacy bullet validation.
++    """
++    from agent_workflows import artifact_meta as _meta
++
++    id6 = _meta.read_mirror_id6(text)
++    if id6 and core.is_valid_id6(id6):
++        candidates, owner = _resolve_spec_roots(path, repo_root=repo_root)
++        for rr in candidates:
++            log_path = rr / "meta" / f"{id6}.jsonl"
++            if log_path.is_file():
++                ctx = _records_context(rr, owner)
++                try:
++                    with _meta.ephemeral_if_uninitialized():
++                        st = _meta.read(id6, project_context=ctx)
++                        events = _meta.history(id6, project_context=ctx)
++                    return st, bool(events), None
++                except ValueError as exc:
++                    return None, False, str(exc)
++    return None, None, None
++
++
++def _validate_spec_with_state(
++    path: Path, text: str, state: Any, *, has_history: bool
++) -> List[core.Drift]:
++    """Validate a log-backed spec from ``state`` plus mirror/leading-bullet checks on ``text``."""
++    from agent_workflows import artifact_meta as _meta
++
++    loc = drift_location(path)
++    drift: List[core.Drift] = []
++
++    key_counts: Dict[str, int] = {}
++    for k, _ in _meta.list_metadata_bullets(text, leading_block_only=True):
++        key_counts[k] = key_counts.get(k, 0) + 1
++    for k, count in key_counts.items():
++        if count > 1 and k not in SPEC_MULTI_VALUED_KEYS:
++            drift.append(
++                core.Drift(
++                    loc,
++                    "spec.metadata-bullet-repeated",
++                    f"metadata bullet - {k}: appears {count} times",
++                )
++            )
++
++    stripped = (text or "").lstrip("\ufeff")
++    if stripped.startswith("---"):
++        try:
++            mirror = _meta.parse_artifact_mirror(stripped)
++        except ValueError as exc:
++            drift.append(
++                core.Drift(
++                    loc,
++                    "attention.missing-status",
++                    f"malformed YAML mirror: {exc}",
++                )
++            )
++        else:
++            state_id = getattr(state, "id6", None)
++            mirror_id = mirror.get("id")
++            if state_id and mirror_id != state_id:
++                drift.append(
++                    core.Drift(
++                        loc,
++                        "attention.missing-status",
++                        f"YAML mirror id {mirror_id!r} != metadata log id {state_id!r}",
++                    )
++                )
++            state_status = getattr(state, "status", None)
++            mirror_status = mirror.get("status")
++            if state_status and mirror_status != state_status:
++                drift.append(
++                    core.Drift(
++                        loc,
++                        "attention.unknown-status",
++                        f"YAML mirror status {mirror_status!r} != metadata log status {state_status!r}",
++                    )
++                )
++
++    drift.extend(validate_spec_state(path, state, has_history=has_history))
++    return drift
++
++
++def validate_spec(
++    path: Path,
++    text: str,
++    *,
++    state: Any = None,
++    has_history: Optional[bool] = None,
++    repo_root: Optional[Path] = None,
++) -> List[core.Drift]:
+     """Return every spec-contract violation for one spec file, as Drift records (rule ids from the
+-    Order 01 catalog). Pure; does not read anything but the passed text.
++    Order 01 catalog). Log-aware when ``state`` is supplied or a companion ``meta/<id6>.jsonl``
++    exists, falling back to legacy bullet-format validation otherwise.
+ 
+     The Drift ``location`` is the REPO-RELATIVE POSIX path (see `drift_location`), never the
+     absolute path the callers pass in: spec Section 8.5 forbids an absolute path on any output
+@@ -270,6 +493,37 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
+     """
+ 
+     loc = drift_location(path)
++
++    if state is not None:
++        eff_has_history = (
++            bool(has_history)
++            if has_history is not None
++            else bool(
++                getattr(state, "last_seq", 0) > 0
++                or getattr(state, "last_history_day", None)
++            )
++        )
++        return _validate_spec_with_state(path, text, state, has_history=eff_has_history)
++
++    resolved_state, log_has_history, log_error = read_spec_state(
++        path, text, repo_root=repo_root
++    )
++    if log_error is not None:
++        return [
++            core.Drift(
++                loc,
++                "attention.unreadable",
++                f"corrupt/invalid metadata log: {log_error}",
++            )
++        ]
++    if log_has_history is not None and resolved_state is not None:
++        eff_has_history = (
++            bool(has_history) if has_history is not None else bool(log_has_history)
++        )
++        return _validate_spec_with_state(
++            path, text, resolved_state, has_history=eff_has_history
++        )
++
+     drift: List[core.Drift] = []
+ 
+     from agent_workflows import artifact_meta as _meta
+@@ -646,21 +900,26 @@ def run_check(args) -> int:
+             sys.stderr.write((refusal.human_message or "") + "\n")
+             return EXIT_CANNOT_RUN
+         paths = _spec_files(repo_root)
++    from agent_workflows import artifact_meta as _meta
++
+     drift: List[core.Drift] = []
+-    for p in paths:
+-        try:
+-            text = p.read_text(encoding="utf-8")
+-        except (OSError, UnicodeDecodeError):
+-            drift.append(
+-                # attcor `rkn8ya` E-02: the unreadable-file path carried the same `str(p)` absolute
+-                # leak as `validate_spec`; route it through the same repo-relative helper.
+-                core.Drift(
+-                    drift_location(p), "attention.unreadable", "cannot read/decode spec"
++    with _meta.scan_once(), _meta.ephemeral_if_uninitialized():
++        for p in paths:
++            try:
++                text = p.read_text(encoding="utf-8")
++            except (OSError, UnicodeDecodeError):
++                drift.append(
++                    # attcor `rkn8ya` E-02: the unreadable-file path carried the same `str(p)` absolute
++                    # leak as `validate_spec`; route it through the same repo-relative helper.
++                    core.Drift(
++                        drift_location(p),
++                        "attention.unreadable",
++                        "cannot read/decode spec",
++                    )
+                 )
+-            )
+-            continue
+-        drift.extend(validate_spec(p, text))
+-        drift.extend(prose_dash_advisories(p, text))
++                continue
++            drift.extend(validate_spec(p, text, repo_root=repo_root))
++            drift.extend(prose_dash_advisories(p, text))
+ 
+     exit_code = core.drift_exit_code(drift)
+     status = "clean" if exit_code == 0 else "findings"
+@@ -879,23 +1138,21 @@ def run_migrate(args) -> int:
  
      raw_id = _meta.read_text(text, record_type="spec").id6
      id6 = raw_id if core.is_valid_id6(raw_id) else None
@@ -9099,7 +11255,7 @@ index 7943ab597..b7f06d61a 100644
      if residual:
          sys.stderr.write(
              "aw specs migrate: the resulting spec would not conform; refused (file unchanged):\n"
-@@ -903,13 +901,15 @@ def run_migrate(args) -> int:
+@@ -903,13 +1160,15 @@ def run_migrate(args) -> int:
          for d in residual:
              sys.stderr.write(f"  {d.rule}: {d.detail}\n")
          return 1
@@ -9120,7 +11276,7 @@ index 7943ab597..b7f06d61a 100644
      sys.stdout.write(f"aw specs migrate: {path} -> {new}\n")
      return 0
  
-@@ -941,24 +941,20 @@ def run_note(args) -> int:
+@@ -941,24 +1200,20 @@ def run_note(args) -> int:
      ):
          raw_id = _meta.read_text(text, record_type="spec").id6
          id6 = raw_id if core.is_valid_id6(raw_id) else None
@@ -9159,7 +11315,22 @@ index 7943ab597..b7f06d61a 100644
      return 0
  
  
-@@ -989,48 +985,6 @@ def _new_spec_body(title: str, summary: str) -> str:
+@@ -969,9 +1224,11 @@ def _existing_spec_ids(repo_root: Path) -> set:
+     ids: set = set()
+     for p in _spec_files(repo_root):
+         try:
+-            raw_id = _meta.read_text(
+-                p.read_text(encoding="utf-8"), record_type="spec"
+-            ).id6
++            spec_text = p.read_text(encoding="utf-8")
++            raw_id = (
++                _meta.read_mirror_id6(spec_text)
++                or _meta.read_text(spec_text, record_type="spec").id6
++            )
+         except (OSError, UnicodeDecodeError):
+             continue
+         if core.is_valid_id6(raw_id):
+@@ -989,48 +1246,6 @@ def _new_spec_body(title: str, summary: str) -> str:
      return body
  
  
@@ -9208,7 +11379,7 @@ index 7943ab597..b7f06d61a 100644
  def _specs_root(repo_root: Path) -> Path:
      """Prefer an existing `.aw/records/specs`, else the legacy `.agents/docs/specs`."""
      from agent_workflows.project_context import project_records_dir
-@@ -1108,12 +1062,10 @@ def run_new(args) -> int:
+@@ -1108,12 +1323,10 @@ def run_new(args) -> int:
      explicit_date = getattr(args, "date", None)
      if explicit_date is not None:
          date_iso = explicit_date.strip()
@@ -9222,7 +11393,7 @@ index 7943ab597..b7f06d61a 100644
  
      if not re.match(r"\A\d{4}-\d{2}-\d{2}\Z", date_iso):
          return _refuse(f"aw specs new: --date must be YYYY-MM-DD (got {date_iso!r})")
-@@ -1201,16 +1153,10 @@ def run_new(args) -> int:
+@@ -1201,16 +1414,10 @@ def run_new(args) -> int:
          destination=rel_dest,
          dry_run=not apply,
          project_context=create_ctx,
@@ -9241,6 +11412,28 @@ index 7943ab597..b7f06d61a 100644
  
      if not apply:
          if ctx.is_agent or ctx.is_json:
+@@ -1286,7 +1493,7 @@ def _review_attestation_refusal(spec_path: Path, text: str) -> Optional[str]:
+     from agent_workflows import artifact_meta as _meta
+     from agent_workflows import review_findings as _rf
+ 
+-    id6 = _meta.read_loose_id(text or "") or ""
++    id6 = _meta.read_mirror_id6(text or "") or _meta.read_loose_id(text or "") or ""
+     repo_root = _spec_repo_root(spec_path)
+     try:
+         missing = _rf.review_attestation_missing(repo_root, id6, "spec")
+@@ -1340,7 +1547,11 @@ def _deferred_ids_refusal(spec_path: Path, text: str) -> Optional[str]:
+     from agent_workflows import artifact_meta as _meta
+     from agent_workflows import production_checks as _pc
+ 
+-    spec_id = _meta.read_loose_id(text or "") or spec_path.name
++    spec_id = (
++        _meta.read_mirror_id6(text or "")
++        or _meta.read_loose_id(text or "")
++        or spec_path.name
++    )
+     try:
+         markers = _pc.parse_spec_id_markers(text or "")
+     except Exception:
 diff --git a/agent_workflows/status_set.py b/agent_workflows/status_set.py
 index fe7f5d6a4..8e5b05e82 100644
 --- a/agent_workflows/status_set.py
@@ -16067,6 +18260,903 @@ index 000000000..10b8f3ad2
 +    assert closed_item.status == "done"
 +    assert closed_item.gate_kind is None
 +    assert closed_item.gate_ref is None
+diff --git a/tests/test_cutover_log_checkers.py b/tests/test_cutover_log_checkers.py
+new file mode 100644
+index 000000000..0df1c5f0c
+--- /dev/null
++++ b/tests/test_cutover_log_checkers.py
+@@ -0,0 +1,891 @@
++"""Core behavioral tests for log-aware specs, releases, spec-link, search, and dep-gate (szykgd)."""
++
++from __future__ import annotations
++
++import argparse
++import io
++import json
++import shutil
++import subprocess
++from contextlib import redirect_stdout
++from pathlib import Path
++from types import SimpleNamespace
++from unittest import mock
++
++import pytest
++
++from agent_workflows import (
++    artifact_meta as meta,
++    check_engine,
++    cli,
++    releases,
++    runner_shared,
++    specs,
++)
++from agent_workflows.hooks import ipd_dependency_statement_gate as dep_gate
++from agent_workflows.migrations.chain import MetadataSchemaError
++from agent_workflows.term import Term
++
++pytestmark = pytest.mark.core
++
++
++def _init_repo(tmp_path: Path, *, name: str = "repo", git: bool = True) -> Path:
++    repo = tmp_path / name
++    repo.mkdir(parents=True, exist_ok=True)
++    if git:
++        subprocess.run(["git", "init", "-b", "main", "-q"], cwd=repo, check=True)
++        subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo, check=True)
++        subprocess.run(
++            ["git", "config", "user.email", "test@example.com"], cwd=repo, check=True
++        )
++        subprocess.run(["git", "config", "commit.gpgsign", "false"], cwd=repo, check=True)
++        (repo / ".gitignore").write_text(
++            ".aw/state/\n.aw/worktrees/\n.aw/runs/\n", encoding="utf-8"
++        )
++    for sub in (
++        "meta",
++        "specs",
++        "plans/pending",
++        "releases",
++        "backlog/open",
++        "research",
++        "prompts/pending",
++        "reviews",
++    ):
++        (repo / ".aw" / "records" / sub).mkdir(parents=True, exist_ok=True)
++    return repo
++
++
++def _git_commit_all(repo: Path, msg: str = "commit") -> None:
++    subprocess.run(["git", "add", "."], cwd=repo, check=True)
++    subprocess.run(["git", "commit", "-q", "-m", msg], cwd=repo, check=True)
++
++
++def _search_json(
++    repo: Path, pattern: str, *, full: bool = False, types: list[str] | None = None
++) -> tuple[int, dict]:
++    buf = io.StringIO()
++    ns = argparse.Namespace(
++        type=pattern,
++        selector=[],
++        types=types or [],
++        status=[],
++        status_not=[],
++        full=full,
++        line_numbers=False,
++        short=False,
++        files_only=False,
++        paths=False,
++        limit=None,
++        dir=str(repo),
++        json=True,
++        agent=False,
++    )
++    with redirect_stdout(buf):
++        rc = cli._run_search(ns, Term(color=False))
++    return rc, json.loads(buf.getvalue())
++
++
++# --------------------------------------------------------------------------------------
++# 1. Specs: validation, transition gates, check_engine, runner_shared callers
++# --------------------------------------------------------------------------------------
++
++
++def test_specs_new_check_and_transition_refusals(tmp_path: Path) -> None:
++    repo = _init_repo(tmp_path)
++    (repo / ".aw" / "config").mkdir(parents=True, exist_ok=True)
++    (repo / ".aw" / "config" / "project.json").write_text(
++        json.dumps({"metadata_schema": 2}) + "\n", encoding="utf-8"
++    )
++    buf = io.StringIO()
++    with redirect_stdout(buf):
++        rc_new = specs.run_new(
++            SimpleNamespace(
++                dir=str(repo),
++                title="Token Verification Spec",
++                slug="token-verification",
++                summary="Verify signed tokens cleanly",
++                apply=True,
++                json=True,
++                agent=False,
++            )
++        )
++    assert rc_new == 0
++    new_payload = json.loads(buf.getvalue())
++    spec_id = new_payload["data"]["id"]
++    spec_path = Path(new_payload["data"]["path"])
++    assert spec_path.is_file()
++
++    # aw specs check exits 0 with zero findings
++    chk_buf = io.StringIO()
++    with redirect_stdout(chk_buf):
++        rc_chk = specs.run_check(
++            SimpleNamespace(dir=str(repo), path=None, json=True, agent=False)
++        )
++    assert rc_chk == 0
++    chk_payload = json.loads(chk_buf.getvalue())
++    assert chk_payload["status"] == "clean"
++    assert chk_payload["data"]["checked"] == 1
++    assert chk_payload["data"]["violations"] == 0
++
++    # check_engine.check_content(..., "specs") reports no error findings
++    ce_drifts = [
++        d for d in check_engine.check_content(repo, "specs") if d.severity == "error"
++    ]
++    assert ce_drifts == []
++
++    # _review_attestation_refusal resolves YAML mirror id6 (refuses without review, passes with review)
++    spec_text = spec_path.read_text(encoding="utf-8")
++    refusal = specs._review_attestation_refusal(spec_path, spec_text)
++    assert refusal is not None
++    assert spec_id in refusal
++
++    from agent_workflows import review_findings
++
++    review_file = (
++        repo
++        / ".aw"
++        / "records"
++        / "reviews"
++        / f"20261125-{spec_id}-01-{spec_id}-token-verification.review.md"
++    )
++    review_findings.write_review(
++        review_file,
++        subject_id=spec_id,
++        subject_type="spec",
++        reviewed_at="2026-11-25",
++        reviewer="test-reviewer",
++        verdict="APPROVE",
++        rounds=[
++            review_findings.Round(
++                number=1,
++                findings=[],
++                decisions=[],
++            )
++        ],
++    )
++    assert specs._review_attestation_refusal(spec_path, spec_text) is None
++
++    # _deferred_ids_refusal resolves YAML mirror id6
++    deferred_text = spec_text + "\n- **R-1** [Deferred] Deferred requirement.\n"
++    def_refusal = specs._deferred_ids_refusal(spec_path, deferred_text)
++    assert def_refusal is not None
++    assert spec_id in def_refusal
++    assert "R-1" in def_refusal
++    assert specs._deferred_ids_refusal(spec_path, spec_text) is None
++
++
++def test_specs_validate_negatives_legacy_parity_and_no_index_db(tmp_path: Path) -> None:
++    repo = _init_repo(tmp_path, git=False)
++    ctx = meta.legacy_context(repo)
++
++    # 1. Deferred missing gate + invalid priority + invalid work_kind
++    meta.create(
++        "sp0001",
++        "spec",
++        {
++            "status": "deferred",
++            "title": "Bad Spec",
++            "priority": "urgent",
++            "work_kind": "unknown-kind",
++        },
++        "# Spec: Bad Spec\n",
++        destination="specs/20261125-sp0001-01-sp0001-bad.spec.md",
++        project_context=ctx,
++    )
++    sp1 = repo / ".aw" / "records" / "specs" / "20261125-sp0001-01-sp0001-bad.spec.md"
++
++    # Remove .aw/state completely to prove read-only validate_spec does NOT create index.db
++    state_dir = repo / ".aw" / "state"
++    if state_dir.exists():
++        shutil.rmtree(state_dir)
++
++    rules = {d.rule for d in specs.validate_spec(sp1, sp1.read_text(encoding="utf-8"), repo_root=repo)}
++    assert "attention.gate-missing" in rules
++    assert "spec.priority-invalid" in rules
++    assert "spec.work-kind-invalid" in rules
++    assert not (state_dir / "index.db").exists()
++
++    # 2. Empty history on explicit state
++    st_empty = meta.State(id6="sp0001", type="spec", status="draft", fields={})
++    d_empty = specs.validate_spec(
++        sp1,
++        meta.render_in_file_mirror("sp0001", "spec", "draft") + "# Spec\n",
++        state=st_empty,
++        has_history=False,
++    )
++    assert [d.rule for d in d_empty] == ["attention.history-missing"]
++
++    # 3. YAML mirror id / status mismatch and malformed mirror
++    mirror_bad_status = meta.render_in_file_mirror("sp0001", "spec", "approved") + "# Spec\n"
++    d_mismatch = specs.validate_spec(
++        sp1,
++        mirror_bad_status,
++        state=meta.State(id6="sp0001", type="spec", status="draft", fields={}),
++        has_history=True,
++    )
++    assert "attention.unknown-status" in [d.rule for d in d_mismatch]
++
++    mirror_bad_id = meta.render_in_file_mirror("sp9999", "spec", "draft") + "# Spec\n"
++    d_id_mis = specs.validate_spec(
++        sp1,
++        mirror_bad_id,
++        state=meta.State(id6="sp0001", type="spec", status="draft", fields={}),
++        has_history=True,
++    )
++    assert "attention.missing-status" in [d.rule for d in d_id_mis]
++
++    d_mal_mirror = specs.validate_spec(
++        sp1,
++        "---\nid: sp0001\n---\n# Spec\n",
++        state=meta.State(id6="sp0001", type="spec", status="draft", fields={}),
++        has_history=True,
++    )
++    assert "attention.missing-status" in [d.rule for d in d_mal_mirror]
++
++    # 4. Corrupt companion log fails closed with attention.unreadable
++    (repo / ".aw" / "records" / "meta" / "cor001.jsonl").write_text(
++        "{corrupt json\n", encoding="utf-8"
++    )
++    sp_cor = repo / ".aw" / "records" / "specs" / "20261125-cor001-01-cor001-cor.spec.md"
++    sp_cor.write_text(
++        meta.render_in_file_mirror("cor001", "spec", "draft") + "# Spec: Corrupt\n",
++        encoding="utf-8",
++    )
++    d_cor = specs.validate_spec(sp_cor, sp_cor.read_text(encoding="utf-8"), repo_root=repo)
++    assert [d.rule for d in d_cor] == ["attention.unreadable"]
++    assert not (state_dir / "index.db").exists()
++
++    # 5. MetadataSchemaError propagates untouched
++    with mock.patch.object(meta, "read", side_effect=MetadataSchemaError("schema-2 required")):
++        with pytest.raises(MetadataSchemaError):
++            specs.validate_spec(sp1, sp1.read_text(encoding="utf-8"), repo_root=repo)
++
++    # 6. Legacy bullet-format parity
++    legacy_ok = (
++        "# Legacy Spec\n\n"
++        "- Id: leg001\n"
++        "- Status: draft\n\n"
++        "## Workflow history\n\n"
++        "- 2026-11-25 draft (test): created\n"
++    )
++    assert specs.validate_spec(Path("specs/leg001.spec.md"), legacy_ok) == []
++
++
++def test_runner_shared_spec_review_lane_and_freeze_cache(tmp_path: Path) -> None:
++    repo = _init_repo(tmp_path)
++    ctx = meta.legacy_context(repo)
++
++    # Create valid log-backed spec on main
++    rel_spec = ".aw/records/specs/20261125-sp1001-01-sp1001-good.spec.md"
++    meta.create(
++        "sp1001",
++        "spec",
++        {"status": "draft", "title": "Good Spec"},
++        "# Spec: Good Spec\n",
++        destination="specs/20261125-sp1001-01-sp1001-good.spec.md",
++        project_context=ctx,
++    )
++    _git_commit_all(repo, "add valid spec")
++
++    # 1. check_review_lane_artifacts with worktree path
++    wt_handle = SimpleNamespace(path=str(repo), branch="main")
++    ok, msg = runner_shared.check_review_lane_artifacts(repo, wt_handle, [rel_spec])
++    assert ok is True, msg
++
++    # 2. check_review_lane_artifacts with branch-only (wt_path=None)
++    br_handle = SimpleNamespace(path=None, branch="main")
++    ok_br, msg_br = runner_shared.check_review_lane_artifacts(repo, br_handle, [rel_spec])
++    assert ok_br is True, msg_br
++
++    # Branch-only invalid spec (deferred without gate) on a feature branch
++    subprocess.run(["git", "checkout", "-q", "-b", "bad-spec-lane"], cwd=repo, check=True)
++    meta.append(
++        "sp1001",
++        [{"op": "transition", "from": "draft", "to": "deferred", "message": "defer without gate"}],
++        project_context=ctx,
++    )
++    _git_commit_all(repo, "bad deferred spec")
++    subprocess.run(["git", "checkout", "-q", "main"], cwd=repo, check=True)
++
++    bad_br_handle = SimpleNamespace(path=None, branch="bad-spec-lane")
++    ok_bad, msg_bad = runner_shared.check_review_lane_artifacts(
++        repo, bad_br_handle, [rel_spec]
++    )
++    assert ok_bad is False
++    assert "attention.gate-missing" in msg_bad
++
++    # 3. enforce_freeze_time_refusal cache invalidation when meta/<id6>.jsonl changes or is deleted
++    runner_shared._FREEZE_GATE_CACHE.clear()
++    spec_abs = repo / rel_spec
++    log_path = repo / ".aw" / "records" / "meta" / "sp1001.jsonl"
++    orig_log = log_path.read_bytes()
++
++    queue = [
++        {
++            "id6": "sp1001",
++            "artifact_type": "spec",
++            "initial_status": "draft",
++            "action": "review",
++            "configured_file": rel_spec,
++            "dependencies": [],
++        }
++    ]
++    # Valid log -> passes
++    runner_shared.enforce_freeze_time_refusal(queue, repo=repo, color=False)
++
++    # Modify meta/<id6>.jsonl to invalid priority without touching .spec.md bytes -> must fail (no stale cache hit)
++    meta.append(
++        "sp1001",
++        [{"op": "set", "fields": {"priority": "bogus-priority"}}],
++        project_context=ctx,
++    )
++    with pytest.raises(runner_shared.DriverError) as exc_mod:
++        runner_shared.enforce_freeze_time_refusal(queue, repo=repo, color=False)
++    assert "spec.priority-invalid" in str(exc_mod.value)
++
++    # Delete meta/<id6>.jsonl -> must fail closed (no stale cache hit)
++    log_path.unlink()
++    with pytest.raises(runner_shared.DriverError) as exc_del:
++        runner_shared.enforce_freeze_time_refusal(queue, repo=repo, color=False)
++    assert "attention.missing-status" in str(exc_del.value) or "attention.history-missing" in str(
++        exc_del.value
++    )
++
++    # Restore valid meta/<id6>.jsonl -> passes again
++    log_path.write_bytes(orig_log)
++    runner_shared.enforce_freeze_time_refusal(queue, repo=repo, color=False)
++    assert spec_abs.is_file()
++
++
++# --------------------------------------------------------------------------------------
++# 2. Releases: validation, parsing, resolution, listing, link/gate checks, run_new
++# --------------------------------------------------------------------------------------
++
++
++def test_releases_crud_validation_resolution_and_dry_run(tmp_path: Path) -> None:
++    repo = _init_repo(tmp_path)
++
++    # aw releases new dry-run (--json) populates version, status, summary, history
++    dry_buf = io.StringIO()
++    with redirect_stdout(dry_buf):
++        rc_dry = releases.run_new(
++            SimpleNamespace(
++                dir=str(repo),
++                version="4.1.0",
++                summary="Cutover dry run preview",
++                status="planned",
++                apply=False,
++                json=True,
++                agent=False,
++            )
++        )
++    assert rc_dry == 0
++    dry_rel = json.loads(dry_buf.getvalue())["data"]["release"]
++    assert dry_rel["version"] == "4.1.0"
++    assert dry_rel["status"] == "planned"
++    assert dry_rel["summary"] == "Cutover dry run preview"
++    assert len(dry_rel["history"]) >= 1
++    assert releases.list_releases(repo) == []
++
++    # aw releases new --apply (--json) writes log-backed release and populates fields
++    app_buf = io.StringIO()
++    with redirect_stdout(app_buf):
++        rc_app = releases.run_new(
++            SimpleNamespace(
++                dir=str(repo),
++                version="4.1.0",
++                summary="Cutover applied release",
++                status="planned",
++                apply=True,
++                json=True,
++                agent=False,
++            )
++        )
++    assert rc_app == 0
++    app_rel = json.loads(app_buf.getvalue())["data"]["release"]
++    rel_id = app_rel["id"]
++    rel_path = repo / app_rel["path"]
++    assert app_rel["version"] == "4.1.0"
++    assert app_rel["status"] == "planned"
++    assert len(app_rel["history"]) >= 1
++
++    # Readers and validators on log-backed release
++    rel_text = rel_path.read_text(encoding="utf-8")
++    assert releases.validate_release(rel_path, rel_text, repo_root=repo) == []
++    assert check_engine.check_content(repo, "releases") == []
++
++    parsed = releases.parse_release(rel_path, rel_text, repo_root=repo)
++    assert parsed.id6 == rel_id
++    assert parsed.version == "4.1.0"
++    assert parsed.status == "planned"
++    assert parsed.summary == "Cutover applied release"
++    assert len(parsed.history) >= 1
++
++    assert releases.resolve_release(repo, "4.1.0") == rel_path
++    assert releases.resolve_release(repo, "v4.1.0") == rel_path
++    assert releases.resolve_release(repo, rel_id) == rel_path
++    assert releases.resolve_release(repo, "next") == rel_path
++    assert releases.describe_planned_release(repo) == (rel_id, "4.1.0")
++    assert [r.version for r in releases.list_releases(repo)] == ["4.1.0"]
++    got = releases.get_release(repo, "4.1.0")
++    assert got is not None and got.id6 == rel_id
++
++    # create_release helper directly (second shipped release)
++    rel2 = releases.create_release(repo, "4.0.0", "Prior shipped release", status="shipped")
++    assert releases.validate_release(rel2, rel2.read_text(encoding="utf-8"), repo_root=repo) == []
++    assert releases.resolve_release(repo, "4.0.0") == rel2
++    assert len(releases.list_releases(repo)) == 2
++
++    # Negative release validation: missing version, mirror mismatch, corrupt log
++    ctx = meta.legacy_context(repo)
++    meta.create(
++        "relbad",
++        "release",
++        {"status": "planned"},
++        "# Release: Missing Version\n",
++        destination="releases/20261125-relbad-01-relbad-missing-ver.release.md",
++        project_context=ctx,
++    )
++    bad_p = repo / ".aw" / "records" / "releases" / "20261125-relbad-01-relbad-missing-ver.release.md"
++    assert [d.rule for d in releases.validate_release(bad_p, bad_p.read_text(encoding="utf-8"), repo_root=repo)] == [
++        "release.version-missing"
++    ]
++    assert "release.version-missing" in [
++        d.rule for d in check_engine.check_content(repo, "releases")
++    ]
++
++    # Mirror status contradiction
++    d_mir = releases.validate_release(
++        rel_path,
++        meta.render_in_file_mirror(rel_id, "release", "shipped") + "# Release\n",
++        repo_root=repo,
++    )
++    assert "release.status-invalid" in [d.rule for d in d_mir]
++
++    # Corrupt log fails closed
++    (repo / ".aw" / "records" / "meta" / "relcor.jsonl").write_text(
++        "{not-json\n", encoding="utf-8"
++    )
++    cor_p = repo / ".aw" / "records" / "releases" / "20261125-relcor-01-relcor-corrupt.release.md"
++    cor_p.write_text(
++        meta.render_in_file_mirror("relcor", "release", "planned") + "# Release\n",
++        encoding="utf-8",
++    )
++    assert [d.rule for d in releases.validate_release(cor_p, cor_p.read_text(encoding="utf-8"), repo_root=repo)] == [
++        "release.id-missing"
++    ]
++
++
++def test_releases_links_graduated_to_sentinels_and_blockers(tmp_path: Path) -> None:
++    repo = _init_repo(tmp_path)
++    ctx = meta.legacy_context(repo)
++
++    rel_path = releases.create_release(repo, "5.0.0", "Release 5.0.0", status="planned")
++    assert rel_path.is_file()
++
++    # Log-format backlog item: valid + graduated_to with valid, repeated, dangling, and malformed entries
++    meta.create(
++        "bk1001",
++        "backlog",
++        {
++            "status": "open",
++            "set": "corefix",
++            "priority": "high",
++            "work_kind": "bug",
++            "short_description": "Release blocker backlog",
++            "blocks_release": "next",
++            "graduated_to": ["corefix", "corefix", "missing-set", "BAD SET"],
++        },
++        "# Backlog: Release blocker\n",
++        destination="backlog/open/20261125-corefix-01-bk1001-blocker.backlog.md",
++        project_context=ctx,
++    )
++
++    # Log-format plans: one valid from_backlog + blocks_release=next, one dangling, one malformed, one dangling blocks_release
++    meta.create(
++        "pl1001",
++        "ipd",
++        {
++            "status": "draft",
++            "set": "corefix",
++            "from_backlog": "bk1001",
++            "blocks_release": "next",
++        },
++        "# IPD: Valid link\n",
++        destination="plans/pending/20261125-corefix-01-pl1001-valid.ipd.md",
++        project_context=ctx,
++    )
++    meta.create(
++        "pl1002",
++        "ipd",
++        {
++            "status": "draft",
++            "set": "corefix",
++            "from_backlog": "zz9999",
++            "blocks_release": "9.9.9",
++        },
++        "# IPD: Dangling links\n",
++        destination="plans/pending/20261125-corefix-02-pl1002-dangling.ipd.md",
++        project_context=ctx,
++    )
++    meta.create(
++        "pl1003",
++        "ipd",
++        {
++            "status": "draft",
++            "set": "corefix",
++            "from_backlog": "bk1001, bk1002",
++        },
++        "# IPD: Malformed from-backlog\n",
++        destination="plans/pending/20261125-corefix-03-pl1003-malformed.ipd.md",
++        project_context=ctx,
++    )
++
++    # check_from_backlog detects malformed and dangling, accepts valid bk1001
++    fb_drifts = releases.check_from_backlog(repo)
++    assert sorted(d.rule for d in fb_drifts) == [
++        "check.from-backlog-dangling",
++        "check.from-backlog-malformed",
++    ]
++
++    # build_plan_setid_index populates log-format plan setids, so check_graduated_to works WITHOUT plan_setids override
++    plan_setids = check_engine.build_plan_setid_index(repo)
++    assert "corefix" in plan_setids
++    gt_drifts = releases.check_graduated_to(repo)
++    assert sorted(d.rule for d in gt_drifts) == [
++        "check.graduated-to-dangling",
++        "check.graduated-to-malformed",
++        "check.graduated-to-repeated",
++    ]
++
++    # count_blocks_release_sentinel, check_blocks_release, _declared_blocks_release, get_release_blockers
++    assert releases.count_blocks_release_sentinel(repo) == 2
++    br_drifts = releases.check_blocks_release(repo)
++    assert [d.rule for d in br_drifts] == ["check.blocks-release-dangling"]
++    assert (
++        releases._declared_blocks_release(
++            repo, ".aw/records/backlog/open/20261125-corefix-01-bk1001-blocker.backlog.md"
++        )
++        == "next"
++    )
++    blockers = releases.get_release_blockers(repo, "next")
++    blocker_ids = {b["id"] for b in blockers}
++    assert "bk1001" in blocker_ids
++    assert "pl1001" in blocker_ids
++
++
++# --------------------------------------------------------------------------------------
++# 3. Spec-link checks: parse_cited_spec_ids and check_plan_spec_link_missing
++# --------------------------------------------------------------------------------------
++
++
++def test_parse_cited_spec_ids_and_plan_spec_link_missing_log_format(tmp_path: Path) -> None:
++    repo = _init_repo(tmp_path)
++    ctx = meta.legacy_context(repo)
++
++    # Pure function unit checks: ## Concern, ## Scope, fenced code blocks ignored, list scope_paths
++    plan_md = (
++        "---\nid: pl2001\nstatus: draft\n---\n"
++        "# IPD: Log Plan\n\n"
++        "## Concern\n\n"
++        "Implements spec sp2001.\n\n"
++        "```text\n"
++        "Example only: sp9999\n"
++        "```\n\n"
++        "## Scope\n\n"
++        "Aligns with sp2002.\n\n"
++        "## Notes\n\n"
++        "Mentions sp8888 outside concern/scope.\n"
++    )
++    st_with_sp = meta.State(
++        id6="pl2001",
++        type="ipd",
++        status="draft",
++        fields={"scope_paths": [".aw/records/specs/20261125-sp2003-01-sp2003-third.spec.md"]},
++    )
++    cited = check_engine.parse_cited_spec_ids(
++        plan_md, {"sp2001", "sp2002", "sp2003", "sp8888", "sp9999"}, state=st_with_sp
++    )
++    assert cited == ["sp2001", "sp2002", "sp2003"]
++
++    # End-to-end check_plan_spec_link_missing on log-format plans
++    spec_rel = ".aw/records/specs/20261125-sp2001-01-sp2001-auth.spec.md"
++    meta.create(
++        "sp2001",
++        "spec",
++        {"status": "approved", "title": "Auth Spec"},
++        "# Spec: Auth Spec\n",
++        destination="specs/20261125-sp2001-01-sp2001-auth.spec.md",
++        project_context=ctx,
++    )
++    # Plan A: cites sp2001 in ## Concern without from_spec -> flagged
++    meta.create(
++        "pl2001",
++        "ipd",
++        {"status": "draft", "set": "auth", "scope_paths": ["src/auth.py"]},
++        "# IPD: Unlinked\n\n## Concern\n\nImplements sp2001.\n",
++        destination="plans/pending/20261125-auth-01-pl2001-unlinked.ipd.md",
++        project_context=ctx,
++    )
++    # Plan B: cites sp2001 in ## Concern, exempt because list-valued scope_paths edits the spec file
++    meta.create(
++        "pl2002",
++        "ipd",
++        {"status": "draft", "set": "auth", "scope_paths": [spec_rel]},
++        "# IPD: Edits Spec\n\n## Concern\n\nUpdates sp2001 wording.\n",
++        destination="plans/pending/20261125-auth-02-pl2002-edits.ipd.md",
++        project_context=ctx,
++    )
++    # Plan C: cites sp2001 in ## Scope and carries from_spec=sp2001 -> clean
++    meta.create(
++        "pl2003",
++        "ipd",
++        {
++            "status": "draft",
++            "set": "auth",
++            "from_spec": "sp2001",
++            "scope_paths": ["src/other.py"],
++        },
++        "# IPD: Linked\n\n## Scope\n\nCovers sp2001.\n",
++        destination="plans/pending/20261125-auth-03-pl2003-linked.ipd.md",
++        project_context=ctx,
++    )
++
++    drifts = check_engine.check_plan_spec_link_missing(repo)
++    assert [Path(d.location).name for d in drifts] == [
++        "20261125-auth-01-pl2001-unlinked.ipd.md"
++    ]
++    assert [d.rule for d in drifts] == ["check.plan-spec-link-missing"]
++
++
++# --------------------------------------------------------------------------------------
++# 4. aw search: banner-preceded H1 + log-stored metadata in default and --full modes
++# --------------------------------------------------------------------------------------
++
++
++def test_aw_search_banner_h1_and_log_metadata_superset(tmp_path: Path) -> None:
++    repo = _init_repo(tmp_path)
++    ctx = meta.legacy_context(repo)
++
++    fixtures = [
++        (
++            "pl3001",
++            "ipd",
++            {
++                "status": "draft",
++                "set": "srchplan",
++                "title": "PlanMetaTitleTok",
++                "short_description": "PlanMetaDescTok",
++            },
++            "# IPD: PlanBannerH1Tok\n\n## Body\n\nPlanBodyOnlyTok\n",
++            "plans/pending/20261125-srchplan-01-pl3001-p.ipd.md",
++        ),
++        (
++            "sp3001",
++            "spec",
++            {
++                "status": "draft",
++                "title": "SpecMetaTitleTok",
++                "short_description": "SpecMetaDescTok",
++            },
++            "# Spec: SpecBannerH1Tok\n\n## Body\n\nSpecBodyOnlyTok\n",
++            "specs/20261125-sp3001-01-sp3001-s.spec.md",
++        ),
++        (
++            "bk3001",
++            "backlog",
++            {
++                "status": "open",
++                "set": "srchbk",
++                "priority": "medium",
++                "work_kind": "chore",
++                "short_description": "BacklogMetaSummaryTok",
++            },
++            "# Backlog: BacklogBannerH1Tok\n\n## Details\n\nBacklogBodyOnlyTok\n",
++            "backlog/open/20261125-srchbk-01-bk3001-b.backlog.md",
++        ),
++        (
++            "rs3001",
++            "research",
++            {
++                "status": "reference",
++                "title": "ResearchMetaTitleTok",
++                "short_description": "ResearchMetaSummaryTok",
++            },
++            "# Research: ResearchBannerH1Tok\n\n## Findings\n\nResearchBodyOnlyTok\n",
++            "research/20261125-rs3001-01-rs3001-r.research.md",
++        ),
++        (
++            "pr3001",
++            "prompt",
++            {
++                "status": "pending",
++                "title": "PromptMetaTitleTok",
++                "short_description": "PromptMetaSummaryTok",
++            },
++            "# Prompt: PromptBannerH1Tok\n\n## Instructions\n\nPromptBodyOnlyTok\n",
++            "prompts/pending/20261125-pr3001-01-pr3001-pr.prompt.md",
++        ),
++    ]
++    for id6, atype, fields, body, dest in fixtures:
++        meta.create(id6, atype, fields, body, destination=dest, project_context=ctx)
++
++    # Every banner-preceded H1 and log-stored metadata token matches in default mode AND --full mode
++    for token in (
++        "PlanBannerH1Tok",
++        "PlanMetaTitleTok",
++        "PlanMetaDescTok",
++        "SpecBannerH1Tok",
++        "SpecMetaTitleTok",
++        "SpecMetaDescTok",
++        "BacklogBannerH1Tok",
++        "BacklogMetaSummaryTok",
++        "ResearchBannerH1Tok",
++        "ResearchMetaTitleTok",
++        "ResearchMetaSummaryTok",
++        "PromptBannerH1Tok",
++        "PromptMetaTitleTok",
++        "PromptMetaSummaryTok",
++    ):
++        rc_def, data_def = _search_json(repo, token, full=False)
++        assert rc_def == 0, f"default search missed {token}"
++        assert data_def["data"]["hits"] >= 1
++        rc_full, data_full = _search_json(repo, token, full=True)
++        assert rc_full == 0, f"--full search missed {token}"
++        assert set(data_def["data"]["files"]).issubset(set(data_full["data"]["files"]))
++
++    # Body-only tokens are excluded in default mode and matched in --full mode
++    for body_tok in (
++        "PlanBodyOnlyTok",
++        "SpecBodyOnlyTok",
++        "BacklogBodyOnlyTok",
++        "ResearchBodyOnlyTok",
++        "PromptBodyOnlyTok",
++    ):
++        rc_def, data_def = _search_json(repo, body_tok, full=False)
++        assert rc_def == 1, f"default search unexpectedly matched body token {body_tok}"
++        assert data_def["data"]["hits"] == 0
++        rc_full, data_full = _search_json(repo, body_tok, full=True)
++        assert rc_full == 0, f"--full search missed body token {body_tok}"
++        assert data_full["data"]["hits"] == 1
++
++    # Searching an id6 already present in the YAML mirror does not emit a duplicate line: 0 match
++    rc_id, data_id = _search_json(repo, "pl3001", full=False)
++    assert rc_id == 0
++    lines_for_pl = [
++        m["line"] for m in data_id["data"]["matches"] if "pl3001" in m["path"]
++    ]
++    assert 0 not in lines_for_pl
++
++
++# --------------------------------------------------------------------------------------
++# 5. ipd_dependency_statement_gate: staged meta/<id6>.jsonl log-only edits
++# --------------------------------------------------------------------------------------
++
++
++def test_ipd_dependency_statement_gate_staged_meta_logs(tmp_path: Path) -> None:
++    repo = _init_repo(tmp_path)
++    ctx = meta.legacy_context(repo)
++
++    meta.create(
++        "dp1001",
++        "ipd",
++        {"status": "draft", "set": "depset", "item_dependencies": "none"},
++        "# IPD: Plan 1\n",
++        destination="plans/pending/20261125-depset-01-dp1001-p1.ipd.md",
++        project_context=ctx,
++    )
++    meta.create(
++        "dp1002",
++        "ipd",
++        {
++            "status": "draft",
++            "set": "depset",
++            "item_dependencies": "executed:dp1001",
++        },
++        "# IPD: Plan 2\n",
++        destination="plans/pending/20261125-depset-02-dp1002-p2.ipd.md",
++        project_context=ctx,
++    )
++    _git_commit_all(repo, "initial clean plans")
++
++    # No-op when nothing staged
++    rc, msgs = dep_gate.check(repo)
++    assert rc == 0 and msgs == []
++
++    # 1. Log-only staged dangling dependency -> exit 1
++    meta.append(
++        "dp1001",
++        [{"op": "set", "fields": {"item_dependencies": "executed:zzzz99"}}],
++        project_context=ctx,
++    )
++    subprocess.run(["git", "add", ".aw/records/meta/dp1001.jsonl"], cwd=repo, check=True)
++    rc, msgs = dep_gate.check(repo)
++    assert rc == 1
++    assert any("check.ipd-dependency-dangling" in m for m in msgs)
++
++    # 2. Log-only staged cycle (dp1001 -> dp1002 while dp1002 -> dp1001) -> exit 1
++    subprocess.run(["git", "reset", "-q", "HEAD"], cwd=repo, check=True)
++    subprocess.run(["git", "checkout", "-q", "--", ".aw/records/meta/dp1001.jsonl"], cwd=repo, check=True)
++    meta.append(
++        "dp1001",
++        [{"op": "set", "fields": {"item_dependencies": "executed:dp1002"}}],
++        project_context=ctx,
++    )
++    subprocess.run(["git", "add", ".aw/records/meta/dp1001.jsonl"], cwd=repo, check=True)
++    rc, msgs = dep_gate.check(repo)
++    assert rc == 1
++    assert any("check.ipd-dependency-cycle" in m for m in msgs)
++
++    # 3. Log-only staged malformed dependency (self-dependency on own id6) -> exit 1
++    subprocess.run(["git", "reset", "-q", "HEAD"], cwd=repo, check=True)
++    subprocess.run(["git", "checkout", "-q", "--", ".aw/records/meta/dp1001.jsonl"], cwd=repo, check=True)
++    meta.append(
++        "dp1001",
++        [{"op": "set", "fields": {"item_dependencies": "executed:dp1001"}}],
++        project_context=ctx,
++    )
++    subprocess.run(["git", "add", ".aw/records/meta/dp1001.jsonl"], cwd=repo, check=True)
++    rc, msgs = dep_gate.check(repo)
++    assert rc == 1
++    assert any("check.ipd-dependency-malformed" in m for m in msgs)
++
++    # 4. Draft with unresolved is allowed (exit 0), advancing to to-review with unresolved refuses (exit 1)
++    subprocess.run(["git", "reset", "-q", "HEAD"], cwd=repo, check=True)
++    subprocess.run(["git", "checkout", "-q", "--", ".aw/records/meta/dp1001.jsonl"], cwd=repo, check=True)
++    meta.append(
++        "dp1001",
++        [{"op": "set", "fields": {"item_dependencies": "unresolved"}}],
++        project_context=ctx,
++    )
++    subprocess.run(["git", "add", ".aw/records/meta/dp1001.jsonl"], cwd=repo, check=True)
++    rc_draft, msgs_draft = dep_gate.check(repo)
++    assert rc_draft == 0 and msgs_draft == []
++
++    # Advance to to-review (staging both .ipd.md and meta/<id6>.jsonl) -> exit 1
++    meta.append(
++        "dp1001",
++        [{"op": "transition", "from": "draft", "to": "to-review", "message": "advance"}],
++        project_context=ctx,
++    )
++    subprocess.run(
++        [
++            "git",
++            "add",
++            ".aw/records/meta/dp1001.jsonl",
++            ".aw/records/plans/pending/20261125-depset-01-dp1001-p1.ipd.md",
++        ],
++        cwd=repo,
++        check=True,
++    )
++    rc_adv, msgs_adv = dep_gate.check(repo)
++    assert rc_adv == 1
++    assert any("check.ipd-dependency-unresolved" in m for m in msgs_adv)
++
++    # Stage only meta/<id6>.jsonl for advancing-unresolved -> still exit 1
++    subprocess.run(["git", "reset", "-q", "HEAD"], cwd=repo, check=True)
++    subprocess.run(["git", "add", ".aw/records/meta/dp1001.jsonl"], cwd=repo, check=True)
++    rc_adv_meta, msgs_adv_meta = dep_gate.check(repo)
++    assert rc_adv_meta == 1
++    assert any("check.ipd-dependency-unresolved" in m for m in msgs_adv_meta)
 diff --git a/tests/test_history_date_clock_sidecar.py b/tests/test_history_date_clock_sidecar.py
 index f046ad08e..99b89945a 100644
 --- a/tests/test_history_date_clock_sidecar.py
