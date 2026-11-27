@@ -5656,11 +5656,16 @@ def read_text(text: str, *, record_type: Optional[str] = None) -> State:
 
 
 def read_loose_id(text: str) -> Optional[str]:
-    """Return the loose `- Id:` id6 (`^-\\s*Id:`) from `text`'s metadata region, or ``None``.
+    """Return the declared id6 from a post-cutover mirror or loose `- Id:` bullet, or ``None``.
 
-    The permissive spelling the host runners re-export as `_read_id` (both hosts bind this
-    one function). Bounded to `metadata_region`, so a QUOTED `- Id:` in a body is not read.
+    Checks `read_mirror_id6(text)` first so post-cutover YAML front-matter and staged-prompt
+    mirrors resolve cleanly, then falls back to the loose `- Id:` bullet (`^-\\s*Id:`) bounded
+    to `metadata_region` (so a QUOTED `- Id:` in a body is not read). The permissive spelling
+    the host runners re-export as `_read_id` (both hosts bind this one function).
     """
+    mirror_id = read_mirror_id6(text)
+    if mirror_id is not None:
+        return mirror_id
     return read_text(metadata_region(text)).loose_id
 
 
