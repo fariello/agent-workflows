@@ -6,7 +6,7 @@
 - Scope: In an isolated scratch worktree `.aw/state/j1f454/scratch` with both cutover patches applied (including earlier prerequisite and test-batch plans `hdwqex`, `89mtbl`, `nv3upa`, `fljn9b`, `cugg3w`, `szykgd`, `psm9ac`, `otin36`, `x8id25`, `p109wy`, `q6fiws`, and `e0g2gt`), make `agent_workflows/selectors.py` (`_state_matches_status`, `_read_status`, `_read_id`, `resolve._states` fallback, `_declares_typed_subject`) and `agent_workflows/artifact_rename.py` (`run_rename_generic` `--to-id6` path, `_read_existing_id6`, `_existing_type_id6s`, `_id6_write_message`) log-aware while keeping legacy parity intact. Add and pass core behavioral test module `tests/test_cutover_log_selectors_and_rename.py` in the scratch worktree, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. Make no live code changes outside `- Scope-Paths:`.
 - Scope-Paths: .aw/records/plans/pending/20261126-metastore-319-j1f454-make-selectors-status-matching-typed-subject-ownership-and-a.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:q6fiws
-- Status: approved
+- Status: executed
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -19,12 +19,12 @@
 - Highest E allocated: 05
 - Author: antigravity/gemini
 - Id: j1f454
-- Approval: 2026-11-26, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: j1f454 verified (set metastore, attempt 1).
 - 2026-11-26 same-status (aw set): OQ-02 Option 1: re-chain production-fix plans otin36..3e0vfy ahead of test batches psm9ac..x3mig6
 - 2026-11-26 approved (aw set): status set to approved
 - 2026-11-26 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
