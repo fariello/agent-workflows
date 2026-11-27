@@ -61669,6 +61669,8 @@ def continue_session_turn(
         },
     )
 
+    from agent_workflows import runner_stop
+
     try:
         returncode, observed_session_id, log_path, argv = spawn_turn_fn(
             prompt_path=prompt_path,
@@ -61679,7 +61681,11 @@ def continue_session_turn(
             tracker=tracker,
             suffix=suffix,
         )
-    except KeyboardInterrupt:
+    except (
+        KeyboardInterrupt,
+        runner_stop.StopNowForce,
+        runner_stop.StopAtCheckpoint,
+    ):
         if attempt_record is not None:
             attempt_record["ended_at"] = utc_now()
             attempt_record["returncode"] = 130
@@ -61791,7 +61797,19 @@ def run_adhoc_prompt_turn(
             options=options,
             prompt_text=prompt_text,
         )
-        runner_stop.install_stop_signal_handlers(run_dir, command=host_labels.command)
+
+        def _on_terminal_stop(level: int, requester: str) -> None:
+            raise KeyboardInterrupt(
+                f"stop level {level} ({runner_stop.LEVEL_NAMES.get(level, 'unknown')}) requested by "
+                f"{requester or 'SIGINT'} ({FORCED_INTERRUPT_SENTINEL})"
+            )
+
+        runner_stop.install_stop_signal_handlers(
+            run_dir,
+            command=host_labels.command,
+            requester=f"signal pid={os.getpid()}",
+            on_terminal=_on_terminal_stop,
+        )
 
         work_dir: str | None = None
         if isolate_worktree:
@@ -61850,12 +61868,20 @@ def run_adhoc_prompt_turn(
         item["status"] = "completed" if returncode == 0 else "failed"
         save_state(run_dir, state, write_report=effective_write_report)
         return int(returncode)
-    except KeyboardInterrupt:
+    except (
+        KeyboardInterrupt,
+        runner_stop.StopNowForce,
+        runner_stop.StopAtCheckpoint,
+    ):
         if run_dir is not None and state is not None and item is not None:
             item["status"] = "interrupted"
             save_state(run_dir, state, write_report=effective_write_report)
         return 130
-    except DriverError as exc:
+    except (
+        DriverError,
+        worktree_lease.WorktreeError,
+        worktree_lease.LeaseConflictError,
+    ) as exc:
         if run_dir is not None and state is not None and item is not None:
             item["status"] = "failed"
             save_state(run_dir, state, write_report=effective_write_report)

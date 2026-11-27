@@ -20,6 +20,7 @@ from agent_workflows import (
     run_viewer,
     runner_profiles,
     runner_shared,
+    runner_stop,
 )
 
 
@@ -524,6 +525,68 @@ class TestSharedEngineAndSessionContinuation:
         assert len(run_dirs_after) == 2
         new_dir = [d for d in run_dirs_after if d != run_dirs[0]][0]
         assert runner_shared.load_state(new_dir)["queue"][0]["status"] == "failed"
+
+    def test_cooperative_stop_and_worktree_error_exit_codes(
+        self, tmp_path: Path
+    ) -> None:
+        repo = _init_git_repo(tmp_path)
+        runs_root = runner_shared.state_root(repo)
+
+        rc_force = runner_shared.run_adhoc_prompt_turn(
+            repo=repo,
+            host_labels=runner_shared.OC_HOST_LABELS,
+            options={},
+            prompt_text="Force stop me",
+            spawn_turn_fn=lambda **_: (_ for _ in ()).throw(
+                runner_stop.StopNowForce(
+                    level=runner_stop.LEVEL_NOW_FORCE, requester="aw stop"
+                )
+            ),
+            stdout=io.StringIO(),
+            stderr=io.StringIO(),
+        )
+        assert rc_force == 130
+        force_dir = sorted(runs_root.iterdir())[0]
+        force_state = runner_shared.load_state(force_dir)
+        assert force_state["queue"][0]["status"] == "interrupted"
+        assert force_state["queue"][0]["attempts"][0]["returncode"] == 130
+
+        observer = runner_stop.CheckpointObserver(
+            detector=runner_stop.is_oc_safe_checkpoint
+        )
+        rc_ckpt = runner_shared.run_adhoc_prompt_turn(
+            repo=repo,
+            host_labels=runner_shared.AGY_HOST_LABELS,
+            options={},
+            prompt_text="Checkpoint stop me",
+            spawn_turn_fn=lambda **_: (_ for _ in ()).throw(
+                runner_stop.StopAtCheckpoint(observer)
+            ),
+            stdout=io.StringIO(),
+            stderr=io.StringIO(),
+        )
+        assert rc_ckpt == 130
+        ckpt_dir = [d for d in sorted(runs_root.iterdir()) if d != force_dir][0]
+        ckpt_state = runner_shared.load_state(ckpt_dir)
+        assert ckpt_state["queue"][0]["status"] == "interrupted"
+        assert ckpt_state["queue"][0]["attempts"][0]["returncode"] == 130
+
+        # --isolate-worktree in a non-git directory returns exit 2 cleanly (no traceback)
+        non_git = tmp_path / "not_a_repo"
+        non_git.mkdir()
+        err = io.StringIO()
+        rc_wt = runner_shared.run_adhoc_prompt_turn(
+            repo=non_git,
+            host_labels=runner_shared.OC_HOST_LABELS,
+            options={},
+            prompt_text="Need git for worktree",
+            spawn_turn_fn=lambda **_: pytest.fail("should not spawn"),
+            isolate_worktree=True,
+            stdout=io.StringIO(),
+            stderr=err,
+        )
+        assert rc_wt == 2
+        assert err.getvalue().strip()
 
 
 class TestHostDriversAndCliParity:
