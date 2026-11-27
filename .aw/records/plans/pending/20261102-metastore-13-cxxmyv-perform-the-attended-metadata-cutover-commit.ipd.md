@@ -149,6 +149,7 @@ flowchart TD
   - Carrier: 0zylig
 - Writing the E-11 demonstrations and the E-12 measurements as a script. Moved to 33vxoi (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 33vxoi
+  - Carrier-Evidence: .aw/records/plans/executed/20261109-metastore-259-33vxoi-write-the-post-cutover-acceptance-demonstration-script.ipd.md
 - E-17 (full rehearsal on a clone, now on the prepared patches and before the attended turn). Moved to 5qyba0 (round-3 split 2026-11-09 per research nj8zdp guidance).
   - Carrier: 5qyba0
 - The execution record (`finalize` and `turn` events) and the run index: separate specs, implemented after this cutover through the registry.
