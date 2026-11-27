@@ -6148,7 +6148,7 @@ index 6b02552f7..ee5f14e88 100644
          if ctx.is_agent or ctx.is_json:
              res_cmd = CommandResult(
 diff --git a/agent_workflows/ipd_lifecycle.py b/agent_workflows/ipd_lifecycle.py
-index a44c4e097..0f869d2d1 100644
+index a44c4e097..c4ef355f8 100644
 --- a/agent_workflows/ipd_lifecycle.py
 +++ b/agent_workflows/ipd_lifecycle.py
 @@ -156,17 +156,153 @@ def worker_role_active(env: "Mapping[str, str]") -> bool:
@@ -6736,7 +6736,28 @@ index a44c4e097..0f869d2d1 100644
      # 3. Restore the exact prior Git-index entries for lifecycle-owned paths (no disjoint work).
      #    Since mutations moved into a coordinator-owned worktree (plan `u23gbn`), the shared index
      #    is normally untouched, so the common case is a no-op that writes nothing (F-5). When an
-@@ -5249,33 +5486,56 @@ def rollup_history_message(
+@@ -4979,13 +5216,19 @@ def _early_recovery_result(
+     A PRE-COMMIT phase deliberately returns None: the plan is still in its origin directory, and the
+     transaction's own resume-rollback (in `_finalize_transaction`) handles it.
+     """
++    from agent_workflows import artifact_meta as _meta
+     from agent_workflows import ipd_lint as _lint0
+ 
+     try:
+         plan_text = plan_path.read_text(encoding="utf-8")
+     except OSError:
+         return None
+-    early_id = (_lint0.parse(plan_text).meta_fields.get("Id") or "").strip()
++    plan_state = _resolve_plan_state(plan_path, plan_text, repo_root=repo_root)
++    early_id = (
++        _lint0.parse(plan_text, state=plan_state, path=plan_path).meta_fields.get("Id")
++        or _meta.read_mirror_id6(plan_text)
++        or ""
++    ).strip()
+     if not early_id:
+         return None
+     journal = read_finalize_journal(repo_root, early_id)
+@@ -5249,33 +5492,56 @@ def rollup_history_message(
  
  
  def _assert_rollup_touched_only_owned_paths(
@@ -6800,7 +6821,7 @@ index a44c4e097..0f869d2d1 100644
          "commit and attribute it to the runner. Land or set that edit aside and re-run."
      )
  
-@@ -5444,7 +5704,9 @@ def retire_orchestrator(
+@@ -5444,7 +5710,9 @@ def retire_orchestrator(
          return FinalizeResult(
              EXIT_CANNOT_RUN, None, f"cannot read plan: {exc}", evidence
          )
@@ -6811,7 +6832,7 @@ index a44c4e097..0f869d2d1 100644
      plan_id = (meta.get("Id") or "").strip()
      if not plan_id:
          return FinalizeResult(
-@@ -5521,8 +5783,11 @@ def retire_orchestrator(
+@@ -5521,8 +5789,11 @@ def retire_orchestrator(
      storage_ctx = _plan_storage_context(repo_root, plan_path)
      plan_rel = _repo_relative(repo_root, plan_path)
      if storage_ctx.git_root is not None:
@@ -6824,7 +6845,7 @@ index a44c4e097..0f869d2d1 100644
          )
          if unowned is not None:
              return FinalizeResult(
-@@ -5537,7 +5802,7 @@ def retire_orchestrator(
+@@ -5537,7 +5808,7 @@ def retire_orchestrator(
      # Audited before retirement so an orchestrator cannot reach executed carrying untyped or
      # uncovered checklist rows (spec 77tr3o / IPD kjqqzf E-02).
      row_result = _lint.orchestrator_row_conformance(
@@ -6833,7 +6854,7 @@ index a44c4e097..0f869d2d1 100644
      )
      if row_result.applies and not row_result.conforming:
          finding_messages = "; ".join(r.message for r in row_result.findings)
-@@ -5776,8 +6041,10 @@ def finalize(
+@@ -5776,8 +6047,10 @@ def finalize(
          try:
              from agent_workflows import ipd_lint as _lint
  
@@ -6845,7 +6866,7 @@ index a44c4e097..0f869d2d1 100644
                  or ""
              ).strip()
          except OSError:
-@@ -6053,6 +6320,27 @@ def _finalize_transaction(
+@@ -6053,6 +6326,27 @@ def _finalize_transaction(
          )
          rc, pre_head, _err = _git(repo_root, ["rev-parse", "HEAD"])
          pre_head = pre_head.strip() if rc == 0 else "unversioned"
@@ -6873,7 +6894,7 @@ index a44c4e097..0f869d2d1 100644
          journal: Dict[str, Any] = {
              "schema_version": FINALIZE_JOURNAL_SCHEMA_VERSION,
              "plan_id": plan_id,
-@@ -6062,7 +6350,7 @@ def _finalize_transaction(
+@@ -6062,7 +6356,7 @@ def _finalize_transaction(
              "original_mode": replacement_mode(plan_path),
              "dest_path": dest_rel,
              "pre_head": pre_head,
@@ -6882,7 +6903,7 @@ index a44c4e097..0f869d2d1 100644
              "git_index_entries": {},
              "plan_git_mode": storage_ctx.mode,
              "receipt_id": plan_id,
-@@ -6071,6 +6359,10 @@ def _finalize_transaction(
+@@ -6071,6 +6365,10 @@ def _finalize_transaction(
              "phase": PHASE_PREPARED,
              "created_at": _utc_now(),
          }
@@ -6893,7 +6914,7 @@ index a44c4e097..0f869d2d1 100644
          if plan_root.resolve() != repo_root.resolve():
              journal["plan_git_root"] = str(plan_root.resolve())
          _write_finalize_journal(repo_root, journal)
-@@ -6119,8 +6411,17 @@ def _finalize_transaction(
+@@ -6119,8 +6417,17 @@ def _finalize_transaction(
                  journal["moved_bytes"] = dest_path.read_text(encoding="utf-8")
              except OSError:
                  journal["moved_bytes"] = None
@@ -6912,7 +6933,7 @@ index a44c4e097..0f869d2d1 100644
              _write_finalize_journal(repo_root, journal)
              _fault("after_move")
          except _InjectedFault as exc:
-@@ -6144,6 +6445,7 @@ def _finalize_transaction(
+@@ -6144,6 +6451,7 @@ def _finalize_transaction(
          .relative_to(tx_git_root.resolve())
          .as_posix()
      )
@@ -6920,7 +6941,7 @@ index a44c4e097..0f869d2d1 100644
      # The generated plans manifests (INDEX.json/INDEX.md) are deliberately ABSENT here. Finalize no
      # longer writes them at all (plan `lywgzs`, spec `4sd62s` 4.5: the SQLite metadata cache replaces
      # them), and they are generated output that no `aw` verb commits, so naming
-@@ -6152,7 +6454,7 @@ def _finalize_transaction(
+@@ -6152,7 +6460,7 @@ def _finalize_transaction(
      # `git restore --staged -- <p>` emit a spurious "pathspec did not match" error for an untracked
      # path, precisely when something has already gone wrong. `aw index plans --check` byte-compares
      # a rebuild against the file ON DISK, never against git, so it is unaffected.
@@ -6929,7 +6950,7 @@ index a44c4e097..0f869d2d1 100644
  
      # --- PREPARED: snapshot everything needed to roll back, atomically, before any mutation. ---
      rc, pre_head, _err = _git(tx_git_root, ["rev-parse", "HEAD"])
-@@ -6314,7 +6616,13 @@ def _finalize_transaction(
+@@ -6314,7 +6622,13 @@ def _finalize_transaction(
              # old path from disk, and `git add` on a vanished path exits 128 ("pathspec did not match
              # any files"), which would abort the whole transaction. The rename is already in this
              # worktree's index, so the commit carries BOTH halves of the move.
@@ -8868,10 +8889,10 @@ index 409fc31c0..dad31dbd2 100644
          written == target_readiness
      ), "the re-check may write ONLY {0}; refusing to write {1!r}".format(
 diff --git a/agent_workflows/plans.py b/agent_workflows/plans.py
-index 814a91e57..20bf8b069 100644
+index 814a91e57..05989d887 100644
 --- a/agent_workflows/plans.py
 +++ b/agent_workflows/plans.py
-@@ -105,13 +105,80 @@ def normalize_status(raw: Optional[str]) -> Optional[str]:
+@@ -105,13 +105,83 @@ def normalize_status(raw: Optional[str]) -> Optional[str]:
  
  def _status_from_state(st: object) -> Optional[str]:
      """Compute canonical readiness from a cached or in-memory `artifact_meta.State`."""
@@ -8891,6 +8912,9 @@ index 814a91e57..20bf8b069 100644
 +    fields = getattr(st, "fields", None)
 +    if raw_set is None and isinstance(fields, dict):
 +        raw_set = fields.get("set")
++    if isinstance(raw_set, str):
++        tok_prefix = raw_set.split("(", 1)[0].strip()
++        raw_set = tok_prefix.split()[0] if tok_prefix else None
 +    set_id = raw_set if is_set_id_valid(raw_set) else None
 +    raw_order = getattr(st, "order_nn", None)
 +    if raw_order is None and isinstance(fields, dict):
@@ -8953,7 +8977,7 @@ index 814a91e57..20bf8b069 100644
  def _cached_states_by_path(root: Path) -> Dict[Path, object]:
      """Return cached `artifact_meta.State` rows keyed by resolved Path for ``root``."""
      from agent_workflows import artifact_meta as _meta
-@@ -129,7 +196,7 @@ def _cached_states_by_path(root: Path) -> Dict[Path, object]:
+@@ -129,7 +199,7 @@ def _cached_states_by_path(root: Path) -> Dict[Path, object]:
      if not has_tree:
          return {}
      with _meta.ephemeral_if_uninitialized():
@@ -8962,7 +8986,7 @@ index 814a91e57..20bf8b069 100644
      by_path: Dict[Path, object] = {}
      for st in res.rows:
          if not st.path:
-@@ -143,7 +210,7 @@ def _cached_states_by_path(root: Path) -> Dict[Path, object]:
+@@ -143,7 +213,7 @@ def _cached_states_by_path(root: Path) -> Dict[Path, object]:
  
  
  def read_set(md: Path) -> "tuple[Optional[str], Optional[int]]":
@@ -8971,7 +8995,7 @@ index 814a91e57..20bf8b069 100644
  
      ``set_id`` is None when absent or malformed (not a valid lowercase-kebab id); ``order`` is None
      when absent or not a positive integer.
-@@ -154,16 +221,11 @@ def read_set(md: Path) -> "tuple[Optional[str], Optional[int]]":
+@@ -154,16 +224,11 @@ def read_set(md: Path) -> "tuple[Optional[str], Optional[int]]":
          text = md.read_text(encoding="utf-8")
      except OSError:
          return (None, None)
@@ -8992,7 +9016,7 @@ index 814a91e57..20bf8b069 100644
  
  
  def _resolve_area_dir(root: Path, area: str) -> Path:
-@@ -223,15 +285,22 @@ def scan(root: Path, include_prompts: bool = True) -> List[PlanRecord]:
+@@ -223,15 +288,22 @@ def scan(root: Path, include_prompts: bool = True) -> List[PlanRecord]:
                      if f.name == "README.md":
                          continue
                      st = by_path.get(f.resolve())
@@ -20579,10 +20603,10 @@ index 000000000..0df1c5f0c
 +    assert any("check.ipd-dependency-unresolved" in m for m in msgs_adv_meta)
 diff --git a/tests/test_cutover_log_lifecycle_and_hooks.py b/tests/test_cutover_log_lifecycle_and_hooks.py
 new file mode 100644
-index 000000000..8d4bc185c
+index 000000000..da1713901
 --- /dev/null
 +++ b/tests/test_cutover_log_lifecycle_and_hooks.py
-@@ -0,0 +1,1067 @@
+@@ -0,0 +1,1124 @@
 +"""Core behavioral tests for log-aware ipd_lifecycle, partition, plans, untooled checks, hooks, and meta_repair (otin36)."""
 +
 +from __future__ import annotations
@@ -20745,7 +20769,8 @@ index 000000000..8d4bc185c
 +) -> Path:
 +    ctx = project_context or meta.legacy_context(repo)
 +    records_root = Path(ctx.logical_roots["records"])
-+    rel_dest = f"plans/{disposition}/20261126-{setid}-{order:02d}-{id6}-{slug}.ipd.md"
++    set_slug = setid.split("(", 1)[0].strip().split()[0]
++    rel_dest = f"plans/{disposition}/20261126-{set_slug}-{order:02d}-{id6}-{slug}.ipd.md"
 +    initial_status = "to-review" if status in ("reviewed", "approved") else status
 +    fields: dict[str, Any] = {
 +        "status": initial_status,
@@ -21252,6 +21277,50 @@ index 000000000..8d4bc185c
 +    assert not (ext_records / "plans" / "executed" / plan_path.name).exists()
 +
 +
++def test_ipd_lifecycle_early_recovery_recognizes_log_format_plan(
++    tmp_path: Path,
++) -> None:
++    repo = _init_repo(tmp_path)
++    plan_path = _create_log_child_plan(
++        repo, "pl0012", setid="demo", order=1, slug="early-rec", status="approved"
++    )
++    _git_commit_all(repo, "add log plan for early recovery")
++
++    # 1. PHASE_UNKNOWN_OUTCOME must fail closed on finalize preview (apply=False)
++    ipd_lifecycle._write_finalize_journal(
++        repo,
++        {
++            "schema_version": ipd_lifecycle.FINALIZE_JOURNAL_SCHEMA_VERSION,
++            "plan_id": "pl0012",
++            "phase": ipd_lifecycle.PHASE_UNKNOWN_OUTCOME,
++            "findings": ["PRIOR_AMBIGUOUS"],
++        },
++    )
++    res_unknown = ipd_lifecycle.finalize(
++        repo, plan_path, "antigravity/gemini", "retry", apply=False
++    )
++    assert res_unknown.exit_code == ipd_lifecycle.EXIT_CANNOT_RUN
++    assert "unknown-outcome" in res_unknown.message
++    assert "PRIOR_AMBIGUOUS" in res_unknown.findings
++
++    # 2. PHASE_COMMITTED_INCOMPLETE must report WOULD RESUME on preview (apply=False)
++    ipd_lifecycle._write_finalize_journal(
++        repo,
++        {
++            "schema_version": ipd_lifecycle.FINALIZE_JOURNAL_SCHEMA_VERSION,
++            "plan_id": "pl0012",
++            "phase": ipd_lifecycle.PHASE_COMMITTED_INCOMPLETE,
++            "lifecycle_commit": "deadbeef1234",
++        },
++    )
++    res_inc = ipd_lifecycle.finalize(
++        repo, plan_path, "antigravity/gemini", "retry", apply=False
++    )
++    assert res_inc.exit_code == ipd_lifecycle.EXIT_OK
++    assert "WOULD RESUME" in res_inc.message
++    assert ipd_lifecycle.FINDING_FINALIZE_JOURNAL_COMMITTED_INCOMPLETE in res_inc.findings
++
++
 +# --------------------------------------------------------------------------------------
 +# 2. partition and plans: log-aware status, plan_role, set, order, item_dependencies
 +# --------------------------------------------------------------------------------------
@@ -21279,10 +21348,19 @@ index 000000000..8d4bc185c
 +        child_rows=[(1, "ch0001", ch1.name), (2, "ch0002", ch2.name)],
 +    )
 +
-+    # plans.read_set directly on log-format files
++    # plans.read_set directly on log-format files (including descriptive "<id> (<desc>)")
 +    assert plans.read_set(ch1) == ("beta", 1)
 +    assert plans.read_set(ch2) == ("beta", 2)
 +    assert plans.read_set(orch) == ("beta", None)
++    desc_plan = _create_log_child_plan(
++        repo,
++        "ch0003",
++        setid="delta (Delta description)",
++        order=3,
++        slug="desc-set",
++        status="approved",
++    )
++    assert plans.read_set(desc_plan) == ("delta", 3)
 +
 +    # plans.scan reads log-stored status, set_id, and order
 +    scanned = plans.scan(repo, include_prompts=False)
@@ -21296,6 +21374,9 @@ index 000000000..8d4bc185c
 +    assert by_name[orch.name].status == "approved"
 +    assert by_name[orch.name].set_id == "beta"
 +    assert by_name[orch.name].order is None
++    assert by_name[desc_plan.name].status == "approved"
++    assert by_name[desc_plan.name].set_id == "delta"
++    assert by_name[desc_plan.name].order == 3
 +
 +    # partition._is_orchestrator_plan reads log-stored plan_role
 +    att_items, _ = attention.scan(repo, type_filters=("plans",))
