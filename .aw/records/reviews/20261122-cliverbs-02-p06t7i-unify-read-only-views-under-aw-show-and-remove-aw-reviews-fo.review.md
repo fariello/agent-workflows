@@ -4,7 +4,7 @@
 - Subject-Type: ipd
 - Reviewed-At: 2026-11-27
 - Reviewer: antigravity/gemini
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: APPROVE WITH REVISIONS APPLIED
 
 ## Round 1
 
@@ -129,3 +129,81 @@ AW-TIER: complex
 | D-1 | How should `p_show` parse seven named read-only views plus bare artifact selectors without colliding `_runs_viewer_flags` with `selectors.add_selector_args`? | Use a hybrid subparser router (`_ShowViewOrArtifactSubParsersAction` + `_ShowArgumentParser`) modeled on `_ViewerOrLeafSubParsersAction` / `_RunsArgumentParser`, with real subparsers per view (isolating `_runs_viewer_flags` on `show runs` and `--diff` on `show stale-reviews`) and a sibling fallback artifact parser. | Flat flags on `p_show` with manual `argv` inspection in `_run_show` (rejected: crashes `argparse` on `-s`/`-S`/`--status`/`--set` collision, hides leaves from `command_surface.discover_parser_leaves`, and provides no per-view `--help`). | `agent_workflows/cli.py:1098-1188`, `3365-3450`, `5227-5266`; `agent_workflows/command_surface.py:2803-2846`; `mnlaoa` E-03. | yes |
 | D-2 | How should normalized selector flags apply to `show stale-reviews`, `show decisions`, `show graduation`, `show board`, and `show runs`? | Apply `selectors.filter_records` on `stale-reviews` (`include_types=False`), `decisions` (by subject artifact), `graduation` (on cluster artifacts), and `board` (`include_types=False` via `_run_plans`), while exempting `runs` (`_runs_viewer_flags` only, per `ogd2nv` R-05). | Leave selector flags unwired on `stale-reviews`/`decisions`/`graduation` (rejected: violates `ogd2nv` R-09 and silently ignores user flags). | `ogd2nv` R-05, R-09; `9ifwdx` Decision D4; `mnlaoa` E-03; `agent_workflows/reviews.py:262-312`. | yes |
 | D-3 | Should `p06t7i` (Order 02) update `command_surface.py`, `conformance_matrix.py`, and `test_usage_refusal_agent_record.py` itself, or leave them to Order 03 (`xocj8i`)? | Own `show` and `reviews` parity in `p06t7i` E-03 so Order 02's core pytest merge gate passes independently; leave only completion updates and verb-first declarations in `xocj8i` E-03. | Defer `command_surface.py` cleanup to `xocj8i` (rejected: breaks `tests/test_command_surface_declarations.py` and `tests/test_usage_refusal_agent_record.py` when Order 02 runs). | `tests/test_command_surface_declarations.py:52-146`; `tests/test_usage_refusal_agent_record.py:92-94`; `xocj8i` E-03. | yes |
+
+## Round 2
+
+This round ran in the same review-sweep lane worktree (`review-sweep-run-20261127T062613Z-2263911`, attempt 2) after the maintainer answered both blocking questions (`OQ-01` and `OQ-02`) over the terminal channel on 2026-11-27:
+- `OQ-01`: Option 1 - keep top-level `aw reviews` solely for `aw reviews record` until after the `metastore` cutover (`cxxmyv`) lands, remove only `aw reviews decisions`, rename the new `aw show` view from `aw show decisions` to `aw show review-decisions` (matching `aw show stale-reviews`), and track relocating `aw reviews record` and removing `aw reviews` before 2.0.0 in follow-up backlog item `pqqqzf` (gated on `cxxmyv`, blocking release `f33nrj`).
+- `OQ-02`: Option 1 - route `aw show history <id6>` to the durable git-tracked workflow and metadata history renderer matching `aw show <id6> --history` (`agent_workflows/cli.py::_run_show_meta`), while leaving `aw record-history <id6>` intact for the machine-local gitignored sidecar.
+
+Draft spec `ogd2nv` (R-09, R-11, AC-05), sibling `xocj8i` (Order 03), and orchestrator `lmlji2` (Order 00) were already updated on `main` (commit `4a626eb41`), and follow-up backlog `pqqqzf` already exists in `.aw/records/backlog/blocked/20261127-pqqqzf-01-pqqqzf-rename-reviews-record-and-retire-aw-reviews.backlog.md`. Per maintainer instruction, this round updates only `p06t7i` and its review record in this lane, sweeps every superseded `aw show decisions` and `OQ-01`/`OQ-02` gate reference across `p06t7i`, and clears `PR-001` and `PR-002`.
+
+### Step T
+
+1. Yes; unchanged from Round 1 (public CLI surface changes on `aw show` and removal of `aw reviews decisions`, keeping `aw reviews record` intact).
+2. No; unchanged from Round 1.
+3. Yes; 5 E-items across 3 task groups and 16 work Scope-Paths (spec `ogd2nv` removed from `- Scope-Paths:` because `4a626eb41` already synced it).
+4. Yes; `- Scope-Paths:` lists all 16 work paths plus the plan file.
+5. Yes; unchanged from Round 1 (preserving `aw reviews record` and `aw show` compatibility).
+
+AW-TIER: complex
+
+### Step R1
+
+- Checked: updated spec `ogd2nv` (`R-09`, `R-11`, `AC-05`), updated sibling `xocj8i` (`E-03`), and follow-up backlog `pqqqzf` (`.aw/records/backlog/blocked/20261127-pqqqzf-01-pqqqzf-rename-reviews-record-and-retire-aw-reviews.backlog.md`) in this worktree. Confirmed exact alignment on `aw show review-decisions`, `aw reviews record` preservation, `aw show history <id6>` matching `aw show <id6> --history` (`_run_show_meta`), and `- Carrier: pqqqzf`.
+
+### Step R2
+
+- Checked: `5/5` E/V bijection, `- Scope-Paths:` (dropped `ogd2nv` since `4a626eb41` already updated it), `OQ-01` and `OQ-02` marked `Status: resolved` preserving `- Blocking: yes`, `- Owner: maintainer`, and `- Finding: PR-001`/`PR-002`, `- Carrier: pqqqzf` resolving cleanly, and `aw ipd lint --phase review-finalize --agent` returning clean (exit 0, 0 errors; advisory `IPD-Z603` only).
+
+### Step R3
+
+- Checked: preserving `aw reviews record` protects the schema-2 review-round audit writer (`724acb` / approved spec `4sd62s`) and pending cutover `cxxmyv`.
+
+### Step R4
+
+- Checked: `show history <id6>` also accepts `--format text|json` (default `None`) so `aw show history <id6> [--format json]` matches `aw show <id6> --history [--format json]` cleanly through `_run_show_meta`.
+
+### Step R7
+
+- Checked: cross-plan alignment with `ogd2nv` (R-09, R-11, AC-05), `xocj8i` (E-03), `lmlji2`, and `pqqqzf` (commit `4a626eb41`). Zero remaining drift across Set `cliverbs` or Set `metastore`.
+
+### Step S5
+
+- Checked: both `OQ-01` (`- Finding: PR-001`) and `OQ-02` (`- Finding: PR-002`) are now `Status: resolved` by the maintainer (2026-11-27, terminal channel). Both gating findings (`PR-001`, `PR-002`) are marked `FIXED` in this round's `### Findings` table. No open question remains; attempt-2 outcome JSON records `{"questions": []}`.
+
+### Pass 2
+
+- Re-checked the complete revised `p06t7i` end to end and swept for every superseded `show decisions` / `aw show decisions` / `OQ-01` / `OQ-02` gating reference: zero stale `show decisions` tokens remain anywhere in `p06t7i` (only historical references to `aw reviews decisions` where naming the retired command).
+- Verified `5/5` E/V bijection, zero em or en dashes, `- Readiness: go-pending-approval`, and `aw ipd lint --phase review-finalize --agent` passing with exit 0 (advisory `IPD-Z603` only).
+- `AW-REVIEW: DONE`
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|---|---|---|---|---|---|---|---|---|
+| PR-001 | BLOCKER | IN-SCOPE | R1 / R7 / Cross-spec conflict (`aw reviews record` vs removing `aw reviews`) | Maintainer resolution of `OQ-01` (2026-11-27, terminal channel); `ogd2nv` R-09/R-11/AC-05 (commit `4a626eb41`); `.aw/records/backlog/blocked/20261127-pqqqzf-01-pqqqzf-rename-reviews-record-and-retire-aw-reviews.backlog.md` | Removing top-level `aw reviews` outright conflicted with shipped `aw reviews record` (`724acb` / approved spec `4sd62s`) and pending cutover `cxxmyv`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Applied maintainer's `OQ-01` resolution (Option 1): `E-01..E-05` and `V-01..V-05` now retire only `aw reviews decisions`, keep top-level `aw reviews` solely for `aw reviews record`, rename the `aw show` view to `aw show review-decisions`, record `- Carrier: pqqqzf` in `## Deferred / out of scope`, drop `ogd2nv` from `- Scope-Paths:` (already synced in `4a626eb41`), and mark `OQ-01` `resolved` (`D-4`). Recommendation strength: very strong. |
+| PR-002 | HIGH | IN-SCOPE | R1 / R4 / Ambiguous backend for `aw show history <id6>` | Maintainer resolution of `OQ-02` (2026-11-27, terminal channel); `ogd2nv` R-09/AC-05 (commit `4a626eb41`); `agent_workflows/cli.py::_run_show_meta:14509-14563` | `aw show history <id6>` did not specify durable tracked metadata history (`_run_show_meta`) vs the machine-local gitignored sidecar (`_run_record_history`). | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Applied maintainer's `OQ-02` resolution (Option 1): `E-01`, `E-04`, `E-05`, `V-01`, and the Mermaid flowchart route `aw show history <id6>` (with optional `--format` `text` or `json`) to `_run_show_meta(..., want_history=True)` matching `aw show <id6> --history`, leaving `aw record-history <id6>` intact for the local sidecar, and mark `OQ-02` `resolved` (`D-5`). Recommendation strength: very strong. |
+
+### Proofreading
+
+#### Changes
+
+| Location | Old text summary | New text summary | Reason |
+|---|---|---|---|
+| Front matter (`Concern`, `Scope`, `Scope-Paths`, `Readiness`, `Short-Description`), `## Workflow history` | `aw show decisions`, `OQ-01` gate, `ogd2nv` in Scope-Paths, `- Readiness: no-go` | `aw show review-decisions`, `aw reviews record` preserved until `pqqqzf`, `aw show history` routed to `_run_show_meta`, `ogd2nv` removed from Scope-Paths (16 work paths, synced in `4a626eb41`), `- Readiness: go-pending-approval`, Round 2 `/plan-review` history line | PR-001, PR-002 |
+| `## Goal`, Mermaid flowchart, `E-01..E-05`, `V-01..V-05` | `decisions` view name and conditional `OQ-01`/`OQ-02` branches | Unconditional `review-decisions` subparser/cmd/hints, `show history <id6>` wired to `_run_show_meta` (with `--format`), `aw reviews record` preserved, and unconditional test assertions | PR-001, PR-002 |
+| `## Project conventions`, `## Findings`, `## Proposed changes`, `## Deferred / out of scope`, `## Spec / documentation sync`, `## Open questions`, `## Approval and execution gate` | `OQ-01`/`OQ-02` `open` and blocking execution | `OQ-01` and `OQ-02` marked `resolved` with exact maintainer answers, `- Carrier: pqqqzf` added in `## Deferred / out of scope`, `4a626eb41` sync noted, gate cleared of open questions | PR-001, PR-002 |
+
+#### Issues
+
+| ID | Location | Ambiguity | Information needed | Recommended answer | Recommendation strength |
+|---|---|---|---|---|---|
+| (none) | | | | | |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-4 | How should `p06t7i` handle `aw reviews` and name the read-only review-decisions view? | Keep `aw reviews` solely for `aw reviews record` until after `cxxmyv` (tracking full removal in `pqqqzf`), remove only `aw reviews decisions`, and name the new view `aw show review-decisions` (maintainer decision on `OQ-01`). | Remove top-level `aw reviews` now or keep `aw show decisions` (rejected by the maintainer on 2026-11-27). | Maintainer answer to `OQ-01` (2026-11-27, terminal channel); `ogd2nv` R-09/R-11/AC-05 (commit `4a626eb41`); backlog `pqqqzf`. | yes |
+| D-5 | Which history source should `aw show history <id6>` display? | Route `aw show history <id6>` to durable git-tracked workflow and metadata history (`_run_show_meta(..., want_history=True)`, with optional `--format` `text` or `json`), leaving `aw record-history <id6>` intact for the local sidecar (maintainer decision on `OQ-02`). | Route `aw show history` to `_run_record_history` or add `--sidecar` (rejected by the maintainer on 2026-11-27). | Maintainer answer to `OQ-02` (2026-11-27, terminal channel); `ogd2nv` R-09/AC-05 (commit `4a626eb41`). | yes |
