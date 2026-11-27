@@ -4200,7 +4200,7 @@ index 888725a53..da5fd9caf 100644
      except Exception:
          # Journal remains on failure
 diff --git a/agent_workflows/artifact_refs.py b/agent_workflows/artifact_refs.py
-index 5a1fcbc7b..1e0d407de 100644
+index 5a1fcbc7b..1d4d5eeb5 100644
 --- a/agent_workflows/artifact_refs.py
 +++ b/agent_workflows/artifact_refs.py
 @@ -61,7 +61,6 @@ facet (F-09).
@@ -4253,7 +4253,7 @@ index 5a1fcbc7b..1e0d407de 100644
      - SKIPS with a reason any plan whose `Scope-Paths` already declares the destination path, preserving
        deliberate forward declarations (F-07/F-10).
  
-@@ -958,62 +950,87 @@ def plan_scope_path_reference_rewrites(
+@@ -958,50 +950,76 @@ def plan_scope_path_reference_rewrites(
      """
      from agent_workflows import artifact_meta as _meta
      from agent_workflows import ipd_schema as _schema
@@ -4350,33 +4350,23 @@ index 5a1fcbc7b..1e0d407de 100644
 -                file_has_skip = True
 -                break
 -            if old_path in declared_paths:
--                file_scope_edits.append(
--                    RefEdit(
--                        file=plan_file,
--                        kind=FULL_NAME,
--                        old=old_path,
--                        new=new_path,
--                        hits=1,
 +            file_has_skip = False
 +            file_scope_edits: List[RefEdit] = []
 +            for old_path, new_path in path_map.items():
++                if old_path not in declared_paths:
++                    continue
 +                if new_path in declared_paths:
 +                    skipped.append(
 +                        (plan_file, "destination already declared in Scope-Paths")
 +                    )
 +                    file_has_skip = True
 +                    break
-+                if old_path in declared_paths:
-+                    file_scope_edits.append(
-+                        RefEdit(
-+                            file=plan_file,
-+                            kind=FULL_NAME,
-+                            old=old_path,
-+                            new=new_path,
-+                            hits=1,
-+                        )
+                 file_scope_edits.append(
+                     RefEdit(
+                         file=plan_file,
+@@ -1012,8 +1030,8 @@ def plan_scope_path_reference_rewrites(
                      )
--                )
+                 )
  
 -        if not file_has_skip and file_scope_edits:
 -            planned_edits.extend(file_scope_edits)
@@ -4385,7 +4375,7 @@ index 5a1fcbc7b..1e0d407de 100644
  
      return planned_edits, skipped
  
-@@ -1023,10 +1040,11 @@ def apply_scope_path_reference_rewrites(
+@@ -1023,10 +1041,11 @@ def apply_scope_path_reference_rewrites(
      edits: List[RefEdit],
      *,
      prefix: str = ".aw-ref-",
@@ -4398,7 +4388,7 @@ index 5a1fcbc7b..1e0d407de 100644
      and `ipd_schema.parse_scope_paths`, leaving prose mentions and fenced blocks elsewhere in
      the file byte-identical and appending no workflow history entry.
      """
-@@ -1038,45 +1056,57 @@ def apply_scope_path_reference_rewrites(
+@@ -1038,45 +1057,57 @@ def apply_scope_path_reference_rewrites(
          by_file.setdefault(e.file, []).append(e)
  
      modified_files: List[Path] = []
@@ -4491,7 +4481,7 @@ index 5a1fcbc7b..1e0d407de 100644
  
      return modified_files
  
-@@ -1088,6 +1118,7 @@ def rewrite_scope_path_citations(
+@@ -1088,6 +1119,7 @@ def rewrite_scope_path_citations(
      guard_in_flight: bool = False,
      is_agent_or_json: bool = False,
      changes: Optional[List[Any]] = None,
@@ -4499,7 +4489,7 @@ index 5a1fcbc7b..1e0d407de 100644
  ) -> Tuple[List[Path], List[Tuple[Path, str]]]:
      """High-level helper to plan, guard, apply, and report Scope-Paths citation rewrites (E-03, E-04, E-06).
  
-@@ -1114,7 +1145,9 @@ def rewrite_scope_path_citations(
+@@ -1114,7 +1146,9 @@ def rewrite_scope_path_citations(
          edits_to_apply = planned_edits
          all_skips = initial_skips
  
@@ -4510,7 +4500,7 @@ index 5a1fcbc7b..1e0d407de 100644
  
      # Reporting (E-06)
      for p in rewritten_files:
-@@ -1171,23 +1204,52 @@ def post_relocation_citation_rewrite(
+@@ -1171,23 +1205,52 @@ def post_relocation_citation_rewrite(
  ) -> List[str]:
      """Single shared post-relocation citation rewrite entrypoint called by relocating setters (E-05).
  
@@ -10696,7 +10686,7 @@ index 1a49a542a..014ebca73 100644
  
  
 diff --git a/agent_workflows/plan_readiness.py b/agent_workflows/plan_readiness.py
-index 409fc31c0..4d8ae3b0a 100644
+index 409fc31c0..ea68cad20 100644
 --- a/agent_workflows/plan_readiness.py
 +++ b/agent_workflows/plan_readiness.py
 @@ -76,7 +76,7 @@ import dataclasses
@@ -10852,7 +10842,7 @@ index 409fc31c0..4d8ae3b0a 100644
      readiness = _schema.read_readiness(text)
      if readiness is not None:
          # The STRUCTURED signal decides the ANSWER and beats any prose verdict in the history, but it
-@@ -651,6 +762,171 @@ def newest_verdict(text: str) -> Tuple[Optional[str], str]:
+@@ -651,6 +762,174 @@ def newest_verdict(text: str) -> Tuple[Optional[str], str]:
      return None, ""
  
  
@@ -10972,11 +10962,14 @@ index 409fc31c0..4d8ae3b0a 100644
 +                    st = _meta.read(declared_id6, project_context=ctx)
 +                    evts = _meta.history(declared_id6, project_context=ctx)
 +            except Exception:
++                # Fail closed when a companion log exists on disk but cannot be read/replayed:
++                # `readiness=None` with `readiness_present=True` causes both `approval_refusals`
++                # and `recheck_conditions` to refuse rather than approving a corrupt log.
 +                return _ReadinessReviewSnapshot(
 +                    id6=declared_id6,
 +                    has_log=True,
 +                    readiness=None,
-+                    readiness_present=False,
++                    readiness_present=True,
 +                    verdict_polarity=None,
 +                    verdict_token=None,
 +                    reviewed_entry="",
@@ -11024,7 +11017,7 @@ index 409fc31c0..4d8ae3b0a 100644
  def approval_refusals(
      repo_root,
      plan_path,
-@@ -667,11 +943,12 @@ def approval_refusals(
+@@ -667,11 +946,12 @@ def approval_refusals(
  
      It COMPOSES three shipped sources and reimplements none of them:
  
@@ -11041,7 +11034,7 @@ index 409fc31c0..4d8ae3b0a 100644
         THIS GATE DOES NOT ADD THE PROVENANCE REQUIREMENT the auto-approve predicate now applies
         (rdattest ``8v5pwa``): an unattested field there refuses UNATTENDED promotion, which costs one
         deferral, while refusing it here would be an un-overridable lockout on a human's own approval.
-@@ -705,19 +982,19 @@ def approval_refusals(
+@@ -705,19 +985,19 @@ def approval_refusals(
              return []
  
      refusals: List[str] = []
@@ -11067,7 +11060,7 @@ index 409fc31c0..4d8ae3b0a 100644
          refusals.append(
              "a `- Readiness:` field is present but its value is not one of {0}. A CORRUPT "
              "readiness is not treated as an absent one: the review tried to record a readiness "
-@@ -726,16 +1003,17 @@ def approval_refusals(
+@@ -726,16 +1006,17 @@ def approval_refusals(
              )
          )
      else:
@@ -11089,7 +11082,7 @@ index 409fc31c0..4d8ae3b0a 100644
      if declared_id6 is not None:
          try:
              from agent_workflows import review_findings as _rf
-@@ -925,7 +1203,8 @@ def recheck_conditions(
+@@ -925,7 +1206,8 @@ def recheck_conditions(
                  ),
              )
  
@@ -11099,7 +11092,7 @@ index 409fc31c0..4d8ae3b0a 100644
  
      # ---- Condition 1: an unresolved BLOCKING open question (the shipped, blocking-only predicate).
      blocking = has_unresolved_blocking_question(plan_text)
-@@ -995,8 +1274,9 @@ def recheck_conditions(
+@@ -995,8 +1277,9 @@ def recheck_conditions(
          )
  
      # ---- Condition 3: a NEGATIVE, ABSENT, or UNRECOGNIZED verdict in the newest REVIEW history record.
@@ -11111,7 +11104,7 @@ index 409fc31c0..4d8ae3b0a 100644
      if polarity == NEGATIVE:
          c3 = ConditionResult(
              C_NEGATIVE_VERDICT,
-@@ -1028,8 +1308,8 @@ def recheck_conditions(
+@@ -1028,8 +1311,8 @@ def recheck_conditions(
      # ---- Preconditions on the FIELD ITSELF and DISPOSITION. These are refusals, not conditions:
      # they are reasons the re-check may not act at all, as distinct from reasons the plan is not ready.
      refusals: List[str] = []
@@ -11122,7 +11115,7 @@ index 409fc31c0..4d8ae3b0a 100644
      if readiness is None and not present:
          # ABSENT. Refuse rather than mint: absence means NO REVIEW RECORDED A SIGNAL, and writing one
          # here would be exactly the forgery `AGENTS.md` forbids. Absence is also a LEGITIMATE state
-@@ -1290,8 +1570,9 @@ def recheck_readiness(
+@@ -1290,8 +1573,9 @@ def recheck_readiness(
      except OSError:  # pragma: no cover - recheck_conditions already read it
          return result, None
  
@@ -11134,7 +11127,7 @@ index 409fc31c0..4d8ae3b0a 100644
      resolved_date = (date or "").strip() or _core.utc_history_date()
      msg_body = _format_recheck_history_message(
          result, reviewed_entry=reviewed_entry, head=head
-@@ -1338,25 +1619,32 @@ def recheck_readiness(
+@@ -1338,25 +1622,32 @@ def recheck_readiness(
      if review_ref is not None:
          event["review_ref"] = review_ref
  
@@ -11181,7 +11174,7 @@ index 409fc31c0..4d8ae3b0a 100644
      assert (
          written == target_readiness
      ), "the re-check may write ONLY {0}; refusing to write {1!r}".format(
-@@ -1377,19 +1665,50 @@ class ReviewStaleness:
+@@ -1377,19 +1668,50 @@ class ReviewStaleness:
      question_ids: Tuple[str, ...] = ()
  
  
@@ -11235,7 +11228,7 @@ index 409fc31c0..4d8ae3b0a 100644
          return None
      reviewed_oqs: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
      for block in _open_question_blocks(reviewed_text):
-@@ -1440,14 +1759,15 @@ def review_staleness_from_texts(
+@@ -1440,14 +1762,15 @@ def review_staleness_from_texts(
  
      from agent_workflows import ipd_lifecycle as _lifecycle
  
@@ -11259,7 +11252,7 @@ index 409fc31c0..4d8ae3b0a 100644
  
      reasons: List[str] = []
      if answered_blocking_oqs:
-@@ -1465,7 +1785,7 @@ def review_staleness_from_texts(
+@@ -1465,7 +1788,7 @@ def review_staleness_from_texts(
      )
  
  
@@ -11268,7 +11261,7 @@ index 409fc31c0..4d8ae3b0a 100644
  
  
  def clear_review_staleness_cache() -> None:
-@@ -1479,142 +1799,260 @@ def review_staleness_index(
+@@ -1479,142 +1802,260 @@ def review_staleness_index(
      """Bulk-resolve review staleness for candidates among ``plan_paths``.
  
      Filters ``plan_paths`` to plans whose metadata Status is reviewed, approved, or auto-approved.
@@ -27660,10 +27653,10 @@ index 000000000..7c8d660c6
 +
 diff --git a/tests/test_cutover_log_readiness_status_refs_adopt.py b/tests/test_cutover_log_readiness_status_refs_adopt.py
 new file mode 100644
-index 000000000..e92d82929
+index 000000000..9d3499bdd
 --- /dev/null
 +++ b/tests/test_cutover_log_readiness_status_refs_adopt.py
-@@ -0,0 +1,1126 @@
+@@ -0,0 +1,1149 @@
 +"""Core behavioral tests for log-aware plan_readiness, readiness_recheck, status_set, artifact_refs, and artifact_adopt (3e0vfy)."""
 +
 +from __future__ import annotations
@@ -28074,6 +28067,18 @@ index 000000000..e92d82929
 +    assert rc_corrupt.readiness is None
 +    assert rc_corrupt.readiness_present is True
 +    assert any("CORRUPT" in r for r in rc_corrupt.refusals)
++
++    # 2b. Corrupt/unparseable companion log fails closed in both approval_refusals and recheck_conditions
++    p_badlog = _create_log_plan(repo, "pl1008", slug="corrupt-jsonl")
++    (repo / ".aw" / "records" / "meta" / "pl1008.jsonl").write_text(
++        "{not-valid-json\n", encoding="utf-8"
++    )
++    refs_badlog = pr.approval_refusals(repo, p_badlog, allow_open_questions=True)
++    assert any("CORRUPT" in r for r in refs_badlog), refs_badlog
++    rc_badlog = pr.recheck_conditions(repo, p_badlog)
++    assert not rc_badlog.may_write
++    assert rc_badlog.readiness is None
++    assert rc_badlog.readiness_present is True
 +
 +    # 3. Log-format plan with absent readiness falls back to newest review verdict; REJECT refuses with no override
 +    p_reject = _create_log_plan(
@@ -28644,16 +28649,27 @@ index 000000000..e92d82929
 +    assert not any("pl4001-citing-ready.ipd.md" in f for f in committed), committed
 +    assert ".aw/records/meta/pl4002.jsonl" not in committed, committed
 +
-+    # 3. Already-declared destination skip rule still works on log-format plans
++    # 3. Already-declared destination skip rule fires ONLY when a plan cites BOTH old and new
++    #    (a plan declaring only `expected_new_rel`, like `p_ready`, must NOT be spuriously skipped)
++    p_fwd = _create_log_plan(
++        repo,
++        "pl4003",
++        status="to-review",
++        slug="citing-forward",
++        set_id="cite",
++        order=3,
++        scope_paths=[bkl_repo_rel, expected_new_rel],
++    )
 +    edits_dup, skips_dup = refs.plan_scope_path_reference_rewrites(
 +        repo, {bkl_repo_rel: expected_new_rel}
 +    )
 +    assert any(
-+        p.resolve() == p_ready.resolve()
++        p.resolve() == p_fwd.resolve()
 +        and reason == "destination already declared in Scope-Paths"
 +        for p, reason in skips_dup
 +    ), skips_dup
-+    assert all(e.file.resolve() != p_ready.resolve() for e in edits_dup)
++    assert all(p.resolve() != p_ready.resolve() for p, _ in skips_dup), skips_dup
++    assert all(e.file.resolve() not in {p_ready.resolve(), p_fwd.resolve()} for e in edits_dup)
 +
 +
 +def test_artifact_adopt_persists_complete_metadata_and_rolls_back_log(
