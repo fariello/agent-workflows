@@ -11072,6 +11072,2677 @@ index 1f8617379..13aaa318b 100644
  
      git(root, "add", "-A")
      git(root, "commit", "-m", "initial", "-q")
+diff --git a/tests/test_artifact_meta_legacy.py b/tests/test_artifact_meta_legacy.py
+index dbb14b718..ca6334285 100644
+--- a/tests/test_artifact_meta_legacy.py
++++ b/tests/test_artifact_meta_legacy.py
+@@ -10,6 +10,7 @@ import pytest
+ 
+ from agent_workflows import artifact_meta as meta
+ from agent_workflows import artifact_naming as naming
++from agent_workflows.migrations import m0001_metadata_v2
+ 
+ 
+ pytestmark = pytest.mark.core
+@@ -33,7 +34,7 @@ def test_legacy_naming_precedence_artifact(tmp_path: Path):
+         "# Assess Workflow\n\n- Id: spc001\n- Status: draft\n", encoding="utf-8"
+     )
+ 
+-    art_row, _ = meta.load_legacy_artifact(p, records_root)
++    art_row, _ = m0001_metadata_v2.load_legacy_artifact(p, records_root)
+     assert art_row["filename_date"] == "20260818"
+     assert art_row["order_nn"] == 2
+     assert art_row["id6"] == "spc001"
+@@ -75,7 +76,7 @@ def test_legacy_load_plan_artifact(tmp_path: Path):
+ Plan body text.
+ """
+     p.write_text(content, encoding="utf-8")
+-    art_row, _ = meta.load_legacy_artifact(p, records_root)
++    art_row, _ = m0001_metadata_v2.load_legacy_artifact(p, records_root)
+     assert art_row["id6"] == "pln001"
+     assert art_row["type"] == "ipd"
+     assert art_row["status"] == "draft"
+@@ -99,7 +100,7 @@ def test_legacy_load_spec_artifact(tmp_path: Path):
+ ## Details
+ """
+     p.write_text(content, encoding="utf-8")
+-    art_row, _ = meta.load_legacy_artifact(p, records_root)
++    art_row, _ = m0001_metadata_v2.load_legacy_artifact(p, records_root)
+     assert art_row["id6"] == "spc002"
+     assert art_row["type"] == "spec"
+     assert art_row["status"] == "to-review"
+@@ -121,7 +122,7 @@ def test_legacy_load_backlog_artifact(tmp_path: Path):
+ ## Content
+ """
+     p.write_text(content, encoding="utf-8")
+-    art_row, _ = meta.load_legacy_artifact(p, records_root)
++    art_row, _ = m0001_metadata_v2.load_legacy_artifact(p, records_root)
+     assert art_row["id6"] == "bck003"
+     assert art_row["type"] == "backlog"
+     assert art_row["status"] == "open"
+@@ -146,7 +147,7 @@ order: 1
+ Prose content.
+ """
+     p.write_text(content, encoding="utf-8")
+-    art_row, _ = meta.load_legacy_artifact(p, records_root)
++    art_row, _ = m0001_metadata_v2.load_legacy_artifact(p, records_root)
+     assert art_row["id6"] == "res004"
+     assert art_row["type"] == "research"
+     assert art_row["status"] == "active"
+@@ -165,7 +166,7 @@ def test_legacy_load_staged_prompt_with_comment_artifact(tmp_path: Path):
+ Execute prompt here.
+ """
+     p.write_text(content, encoding="utf-8")
+-    art_row, _ = meta.load_legacy_artifact(p, records_root)
++    art_row, _ = m0001_metadata_v2.load_legacy_artifact(p, records_root)
+     assert art_row["id6"] == "prm005"
+     assert art_row["type"] == "prompt"
+     assert art_row["status"] == "pending"
+@@ -185,7 +186,7 @@ def test_legacy_load_aw_prompt_maps_kind_and_created_day(tmp_path: Path):
+         "# Research Prompt\n\nInvestigate legacy prompt metadata.\n",
+         encoding="utf-8",
+     )
+-    art_row, _ = meta.load_legacy_artifact(p_title_case, records_root)
++    art_row, _ = m0001_metadata_v2.load_legacy_artifact(p_title_case, records_root)
+     assert art_row["id6"] == "prm011"
+     assert art_row["type"] == "prompt"
+     assert art_row["fields"]["prompt_kind"] == "research"
+@@ -198,7 +199,7 @@ def test_legacy_load_aw_prompt_maps_kind_and_created_day(tmp_path: Path):
+         "# Handoff Prompt\n\nContinue task.\n",
+         encoding="utf-8",
+     )
+-    art_row_lower, _ = meta.load_legacy_artifact(p_lower_case, records_root)
++    art_row_lower, _ = m0001_metadata_v2.load_legacy_artifact(p_lower_case, records_root)
+     assert art_row_lower["id6"] == "prm012"
+     assert art_row_lower["type"] == "prompt"
+     assert art_row_lower["fields"]["prompt_kind"] == "session-handoff"
+@@ -217,7 +218,7 @@ def test_legacy_load_non_prompt_kind_mappings_preserved(tmp_path: Path):
+         "# IPD: Sample\n\n- Id: pln021\n- Status: draft\n- Kind: child\n- Created: 2026-11-19\n\n## Goal\nG\n",
+         encoding="utf-8",
+     )
+-    ipd_row, _ = meta.load_legacy_artifact(ipd_path, records_root)
++    ipd_row, _ = m0001_metadata_v2.load_legacy_artifact(ipd_path, records_root)
+     assert ipd_row["fields"]["plan_role"] == "child"
+     assert "prompt_kind" not in ipd_row["fields"]
+     assert ipd_row["created_day"] is None
+@@ -229,7 +230,7 @@ def test_legacy_load_non_prompt_kind_mappings_preserved(tmp_path: Path):
+         "- Id: bkl021\n- Status: open\n- Kind: bug\n- Priority: medium\n",
+         encoding="utf-8",
+     )
+-    bkl_fallback_row, _ = meta.load_legacy_artifact(bkl_fallback, records_root)
++    bkl_fallback_row, _ = m0001_metadata_v2.load_legacy_artifact(bkl_fallback, records_root)
+     assert bkl_fallback_row["fields"]["work_kind"] == "bug"
+     assert bkl_fallback_row["created_day"] is None
+ 
+@@ -238,7 +239,7 @@ def test_legacy_load_non_prompt_kind_mappings_preserved(tmp_path: Path):
+         "- Id: bkl022\n- Status: open\n- Work-Kind: feature\n- Kind: bug\n- Priority: high\n",
+         encoding="utf-8",
+     )
+-    bkl_explicit_row, _ = meta.load_legacy_artifact(bkl_explicit, records_root)
++    bkl_explicit_row, _ = m0001_metadata_v2.load_legacy_artifact(bkl_explicit, records_root)
+     assert bkl_explicit_row["fields"]["work_kind"] == "feature"
+     assert bkl_explicit_row["created_day"] is None
+ 
+@@ -249,7 +250,7 @@ def test_legacy_load_non_prompt_kind_mappings_preserved(tmp_path: Path):
+         "---\nid: res021\ncreated: 20261119\nkind: investigation\nstatus: active\nset: rset\n---\n\n# Research\n",
+         encoding="utf-8",
+     )
+-    res_row, _ = meta.load_legacy_artifact(res_path, records_root)
++    res_row, _ = m0001_metadata_v2.load_legacy_artifact(res_path, records_root)
+     assert res_row["fields"]["research_kind"] == "investigation"
+     assert res_row["fields"]["created"] == "20261119"
+     assert res_row["created_day"] is None
+@@ -266,7 +267,7 @@ def test_legacy_load_staged_prompt_without_comment_artifact(tmp_path: Path):
+ Do something.
+ """
+     p.write_text(content, encoding="utf-8")
+-    art_row, _ = meta.load_legacy_artifact(p, records_root)
++    art_row, _ = m0001_metadata_v2.load_legacy_artifact(p, records_root)
+     assert art_row["id6"] == "prm006"
+     assert art_row["type"] == "prompt"
+     assert art_row["title"] == "Bare Prompt"
+@@ -286,7 +287,7 @@ def test_legacy_load_release_artifact(tmp_path: Path):
+ ## Scope
+ """
+     p.write_text(content, encoding="utf-8")
+-    art_row, _ = meta.load_legacy_artifact(p, records_root)
++    art_row, _ = m0001_metadata_v2.load_legacy_artifact(p, records_root)
+     assert art_row["id6"] == "rel007"
+     assert art_row["type"] == "release"
+     assert art_row["status"] == "planned"
+@@ -303,7 +304,7 @@ def test_legacy_load_walkthrough_artifact(tmp_path: Path):
+ Narrative walkthrough.
+ """
+     p.write_text(content, encoding="utf-8")
+-    art_row, _ = meta.load_legacy_artifact(p, records_root)
++    art_row, _ = m0001_metadata_v2.load_legacy_artifact(p, records_root)
+     assert art_row["id6"] == "wlk008"
+     assert art_row["type"] == "walkthrough"
+     assert art_row["status"] is None
+@@ -326,7 +327,7 @@ def test_legacy_unregistered_bullet_artifact(tmp_path: Path):
+ ## Work
+ """
+     p.write_text(content, encoding="utf-8")
+-    art_row, _ = meta.load_legacy_artifact(p, records_root)
++    art_row, _ = m0001_metadata_v2.load_legacy_artifact(p, records_root)
+     assert art_row["valid"] == 1
+     assert art_row["id6"] == "pln009"
+ 
+@@ -345,7 +346,7 @@ def test_legacy_multiword_status_artifact(tmp_path: Path):
+ ## Work
+ """
+     p.write_text(content, encoding="utf-8")
+-    art_row, _ = meta.load_legacy_artifact(p, records_root)
++    art_row, _ = m0001_metadata_v2.load_legacy_artifact(p, records_root)
+     # Single token check: 'draft (waiting on spec)' has multiple tokens
+     assert art_row["status"] is None
+     assert art_row["valid"] == 1
+@@ -453,7 +454,7 @@ def test_legacy_history_lines_order_and_last_history_day(tmp_path: Path):
+ ## Other section
+ """
+     p.write_text(content, encoding="utf-8")
+-    art_row, hist_rows = meta.load_legacy_artifact(p, records_root)
++    art_row, hist_rows = m0001_metadata_v2.load_legacy_artifact(p, records_root)
+ 
+     # Order maintained
+     assert len(hist_rows) == 3
+diff --git a/tests/test_artifact_meta_legacy_write.py b/tests/test_artifact_meta_legacy_write.py
+deleted file mode 100644
+index a5201712e..000000000
+--- a/tests/test_artifact_meta_legacy_write.py
++++ /dev/null
+@@ -1,815 +0,0 @@
+-"""The phase-B LEGACY write branch of `artifact_meta.append` (plan 2xwb9b E-03 to E-06).
+-
+-Until the cutover no record has a `meta/<id6>.jsonl` log, so `append` renders its events into the
+-record's bullet-format Markdown. These tests drive `artifact_meta.append` directly on `tmp_path`
+-fixtures and assert on file bytes, raised refusals and the sidecar file:
+-
+-- `render`: each W-row behavior renders the same bytes the setter wrote before the move;
+-- `preview`/`fresh`/`pathkey`: dry-run previews, the source-digest freshness check, id-less targets;
+-- `move`/`sidecar`/`order`: the disposition move, the specs/backlog sidecar record, failure order;
+-- `owned`/`review_kind`/`refinement`: the event-owned field rules (AC-15, AC-14a (1)-(3)).
+-"""
+-
+-from __future__ import annotations
+-
+-import json
+-import os
+-import subprocess
+-from pathlib import Path
+-
+-import pytest
+-
+-from agent_workflows import artifact_core
+-from agent_workflows import artifact_meta as meta
+-
+-pytestmark = pytest.mark.core
+-
+-DAY = "2030-01-02"
+-
+-
+-@pytest.fixture()
+-def repo(tmp_path: Path) -> Path:
+-    root = tmp_path / "repo"
+-    root.mkdir()
+-    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+-    subprocess.run(["git", "config", "user.email", "t@example.invalid"], cwd=root)
+-    subprocess.run(["git", "config", "user.name", "T"], cwd=root)
+-    (root / ".aw" / "records").mkdir(parents=True)
+-    return root
+-
+-
+-def _write(root: Path, rel: str, text: str) -> Path:
+-    p = root / ".aw" / "records" / rel
+-    p.parent.mkdir(parents=True, exist_ok=True)
+-    p.write_text(text, encoding="utf-8")
+-    return p
+-
+-
+-def _append(
+-    root: Path, path: Path, plural: str, events, *, tag: str = "same-status", **kw
+-):
+-    id6 = kw.pop("id6", None)
+-    render = kw.pop("render", None) or meta.LegacyRender(tag, DAY, "aw set")
+-    return meta.append(
+-        meta.LegacyTarget(path, plural, id6),
+-        events,
+-        legacy_render=render,
+-        repo_root=root,
+-        **kw,
+-    )
+-
+-
+-PLAN = (
+-    "# IPD: P\n\n- Date: 2026-01-01\n- Status: draft\n- Work-Kind: chore\n- Priority: low\n"
+-    "- Set: pset\n- Id: pl0001\n\n## Workflow history\n- 2026-01-01 draft (a): c\n\n## Goal\nG\n"
+-)
+-
+-
+-# --------------------------------------------------------------------------------------------------
+-# render: the legacy branch renders today's bytes
+-# --------------------------------------------------------------------------------------------------
+-
+-
+-def test_render_w01_status_bullet_and_w18_history_line(repo: Path) -> None:
+-    p = _write(repo, "plans/pending/20260101-pset-01-pl0001-p.ipd.md", PLAN)
+-    _append(
+-        repo,
+-        p,
+-        "plans",
+-        [
+-            {
+-                "op": "transition",
+-                "from": "draft",
+-                "to": "to-review",
+-                "message": "status set to to-review",
+-            }
+-        ],
+-        tag="to-review",
+-        id6="pl0001",
+-    )
+-    assert p.read_text(encoding="utf-8") == PLAN.replace(
+-        "- Status: draft", "- Status: to-review"
+-    ).replace(
+-        "## Workflow history\n",
+-        f"## Workflow history\n- {DAY} to-review (aw set): status set to to-review\n",
+-    )
+-
+-
+-def test_render_w02_yaml_status_and_w04_insert_before_closing_fence(repo: Path) -> None:
+-    with_status = _write(
+-        repo,
+-        "research/20260101-r-01-rs0001-x.research-report.md",
+-        "---\nid: rs0001\nstatus: active\n---\n\n# R\n",
+-    )
+-    _append(
+-        repo,
+-        with_status,
+-        "research",
+-        [{"op": "transition", "from": "active", "to": "todo", "message": "m"}],
+-        tag="todo",
+-        render=meta.LegacyRender("todo", DAY, "aw set", history=False),
+-    )
+-    assert (
+-        with_status.read_text(encoding="utf-8")
+-        == "---\nid: rs0001\nstatus: todo\n---\n\n# R\n"
+-    )
+-
+-    without = _write(
+-        repo,
+-        "research/20260101-r-01-rs0002-x.research-report.md",
+-        "---\nid: rs0002\n---\n\n# R\n",
+-    )
+-    _append(
+-        repo,
+-        without,
+-        "research",
+-        [{"op": "transition", "from": "draft", "to": "todo", "message": "m"}],
+-        render=meta.LegacyRender("todo", DAY, "aw set", history=False),
+-    )
+-    assert (
+-        without.read_text(encoding="utf-8")
+-        == "---\nid: rs0002\nstatus: todo\n---\n\n# R\n"
+-    )
+-
+-
+-def test_render_w03_prompt_comment_status_and_commentless_note(repo: Path) -> None:
+-    p = _write(
+-        repo,
+-        "prompts/pending/20260101-pq-01-pq0001-x.prompt.md",
+-        "<!-- aw-prompt: Id: pq0001 | Set: pq | Status: pending -->\n# P\n\nBody\n",
+-    )
+-    _append(
+-        repo,
+-        p,
+-        "prompts",
+-        [{"op": "transition", "from": "pending", "to": "executed", "message": "m"}],
+-        render=meta.LegacyRender("executed", DAY, "aw set", history=False),
+-    )
+-    assert p.read_text(encoding="utf-8").splitlines()[0] == (
+-        "<!-- aw-prompt: Id: pq0001 | Set: pq | Status: executed -->"
+-    )
+-    bare = _write(
+-        repo, "prompts/pending/20260101-pq-01-pq0002-x.prompt.md", "# P\n\nBody\n"
+-    )
+-    notes: list = []
+-    _append(
+-        repo,
+-        bare,
+-        "prompts",
+-        [{"op": "transition", "from": "pending", "to": "executed", "message": "m"}],
+-        render=meta.LegacyRender("executed", DAY, "aw set", history=False),
+-        notes_out=notes,
+-    )
+-    assert bare.read_text(encoding="utf-8") == "# P\n\nBody\n"
+-    assert any("has no metadata comment" in n for n in notes)
+-
+-
+-def test_render_w04_plan_without_status_inserts_after_title(repo: Path) -> None:
+-    p = _write(
+-        repo,
+-        "plans/pending/20260101-n-01-ns0001-x.ipd.md",
+-        "# IPD: X\n\n- Date: 2026-01-01\n- Id: ns0001\n",
+-    )
+-    _append(
+-        repo,
+-        p,
+-        "plans",
+-        [{"op": "transition", "from": "draft", "to": "to-review"}],
+-        render=meta.LegacyRender("to-review", DAY, "aw set", history=False),
+-    )
+-    assert (
+-        p.read_text(encoding="utf-8")
+-        == "# IPD: X\n- Status: to-review\n\n- Date: 2026-01-01\n- Id: ns0001\n"
+-    )
+-
+-
+-BACKLOG = (
+-    "- Id: bk0001\n- Status: open\n- Priority: low\n- Work-Kind: chore\n- Summary: x\n\n"
+-    "## Workflow history\n- 2026-01-01 created (a): c\n"
+-)
+-
+-
+-def test_render_w05_gate_block_written_after_status_and_stripped_on_leaving(
+-    repo: Path,
+-) -> None:
+-    p = _write(repo, "backlog/open/20260101-b-01-bk0001-x.backlog.md", BACKLOG)
+-    _append(
+-        repo,
+-        p,
+-        "backlog",
+-        [
+-            {"op": "transition", "from": "open", "to": "blocked"},
+-            {
+-                "op": "set",
+-                "fields": {
+-                    "gate_kind": "decision",
+-                    "gate_ref": "D7",
+-                    "gate_summary": "wait",
+-                },
+-            },
+-        ],
+-        render=meta.LegacyRender("blocked", DAY, "aw set", history=False),
+-    )
+-    text = p.read_text(encoding="utf-8")
+-    assert text.startswith(
+-        "- Id: bk0001\n- Status: blocked\n- Gate-Kind: decision\n- Gate-Ref: D7\n- Gate-Summary: wait\n- Priority: low\n"
+-    )
+-    _append(
+-        repo,
+-        p,
+-        "backlog",
+-        [
+-            {"op": "transition", "from": "blocked", "to": "open"},
+-            {"op": "unset", "fields": ["gate_kind", "gate_ref", "gate_summary"]},
+-        ],
+-        render=meta.LegacyRender("open", DAY, "aw set", history=False),
+-    )
+-    assert p.read_text(encoding="utf-8") == BACKLOG
+-
+-
+-@pytest.mark.parametrize(
+-    ("field", "value", "bullet"),
+-    [
+-        ("blocks_release", "next", "- Blocks-Release: next"),  # W-06
+-        ("from_backlog", "bk0009", "- From-Backlog: bk0009"),  # W-08
+-        ("from_spec", "sp0009", "- From-Spec: sp0009"),  # W-09
+-        (
+-            "item_dependencies",
+-            "executed:aa0001",
+-            "- Item-Dependencies: executed:aa0001",
+-        ),  # W-10
+-        ("priority", "high", "- Priority: high"),  # W-11
+-        ("work_kind", "bug", "- Work-Kind: bug"),  # W-11
+-    ],
+-)
+-def test_render_w06_to_w11_value_bullets_set_and_clear(
+-    repo: Path, field, value, bullet
+-) -> None:
+-    p = _write(repo, "plans/pending/20260101-pset-01-pl0001-p.ipd.md", PLAN)
+-    _append(
+-        repo,
+-        p,
+-        "plans",
+-        [{"op": "set", "fields": {field: value}}],
+-        render=meta.LegacyRender("same-status", DAY, "aw set", history=False),
+-    )
+-    assert bullet in p.read_text(encoding="utf-8").splitlines()
+-    _append(
+-        repo,
+-        p,
+-        "plans",
+-        [{"op": "unset", "fields": [field]}],
+-        render=meta.LegacyRender("same-status", DAY, "aw set", history=False),
+-    )
+-    label = bullet.split(":")[0] + ":"
+-    assert not any(
+-        ln.startswith(label) for ln in p.read_text(encoding="utf-8").splitlines()
+-    )
+-
+-
+-def test_render_w07_w12_w15_backlog_value_bullets(repo: Path) -> None:
+-    p = _write(repo, "backlog/open/20260101-b-01-bk0001-x.backlog.md", BACKLOG)
+-    _append(
+-        repo,
+-        p,
+-        "backlog",
+-        [
+-            {"op": "set", "fields": {"release_exempt_ref": "D9"}},
+-            {"op": "set", "fields": {"release_exempt_kind": "decision"}},
+-            {"op": "set", "fields": {"graduated_to": "someset"}},
+-            {"op": "set", "fields": {"close_evidence": "docs/x.md"}},
+-        ],
+-        render=meta.LegacyRender("same-status", DAY, "aw set", history=False),
+-    )
+-    lines = p.read_text(encoding="utf-8").splitlines()
+-    for want in (
+-        "- Release-Exempt-Kind: decision",
+-        "- Release-Exempt-Ref: D9",
+-        "- Graduated-To: someset",
+-        "- Close-Evidence: docs/x.md",
+-    ):
+-        assert want in lines
+-
+-
+-def test_render_w14_kind_canonicalized_to_work_kind(repo: Path) -> None:
+-    p = _write(
+-        repo,
+-        "backlog/open/20260101-b-01-bk0002-x.backlog.md",
+-        BACKLOG.replace("bk0001", "bk0002").replace(
+-            "- Work-Kind: chore", "- Kind: chore"
+-        ),
+-    )
+-    _append(
+-        repo,
+-        p,
+-        "backlog",
+-        [{"op": "note", "message": "n"}],
+-        render=meta.LegacyRender("same-status", DAY, "aw set", history=False),
+-    )
+-    assert p.read_text(encoding="utf-8") == BACKLOG.replace("bk0001", "bk0002")
+-
+-
+-def test_render_w16_approval_after_id_and_w17_backward_unsets(repo: Path) -> None:
+-    p = _write(
+-        repo,
+-        "plans/pending/20260101-pset-01-pl0001-p.ipd.md",
+-        PLAN.replace("- Status: draft", "- Status: reviewed"),
+-    )
+-    _append(
+-        repo,
+-        p,
+-        "plans",
+-        [
+-            {"op": "transition", "from": "reviewed", "to": "approved"},
+-            {
+-                "op": "set",
+-                "fields": {"approval": f"{DAY}, recorded via aw ipd set: go"},
+-            },
+-        ],
+-        render=meta.LegacyRender("approved", DAY, "aw set", history=False),
+-    )
+-    lines = p.read_text(encoding="utf-8").splitlines()
+-    assert (
+-        lines[lines.index("- Id: pl0001") + 1]
+-        == f"- Approval: {DAY}, recorded via aw ipd set: go"
+-    )
+-    p.write_text(
+-        p.read_text(encoding="utf-8").replace(
+-            "- Id: pl0001\n", "- Id: pl0001\n- Readiness: go\n"
+-        ),
+-        encoding="utf-8",
+-    )
+-    _append(
+-        repo,
+-        p,
+-        "plans",
+-        [
+-            {"op": "transition", "from": "approved", "to": "to-review"},
+-            {"op": "unset", "fields": ["approval"]},
+-            {"op": "unset", "fields": ["readiness"]},
+-        ],
+-        render=meta.LegacyRender("to-review", DAY, "aw set", history=False),
+-    )
+-    text = p.read_text(encoding="utf-8")
+-    assert "- Approval:" not in text and "- Readiness:" not in text
+-    assert "- Status: to-review\n" in text
+-
+-
+-def test_render_w18_history_heading_created_and_duplicate_suppressed(
+-    repo: Path,
+-) -> None:
+-    p = _write(
+-        repo,
+-        "plans/pending/20260101-h-01-nh0001-x.ipd.md",
+-        "# IPD: H\n\n- Status: draft\n- Id: nh0001\n\n## Goal\nG\n",
+-    )
+-    _append(repo, p, "plans", [{"op": "note", "message": "hello"}])
+-    assert p.read_text(encoding="utf-8") == (
+-        "# IPD: H\n\n- Status: draft\n- Id: nh0001\n\n## Workflow history\n"
+-        f"- {DAY} same-status (aw set): hello\n\n## Goal\nG\n"
+-    )
+-    before = p.read_bytes()
+-    _append(
+-        repo,
+-        p,
+-        "plans",
+-        [{"op": "note", "message": "hello"}],
+-        render=meta.LegacyRender("same-status", DAY, "aw set", history=False),
+-    )
+-    assert p.read_bytes() == before
+-
+-
+-def test_render_storage_format_dispatch_log_vs_legacy(
+-    repo: Path, tmp_path: Path
+-) -> None:
+-    records = tmp_path / "logrec"
+-    state = tmp_path / "logstate"
+-    records.mkdir()
+-    state.mkdir()
+-    ctx = type("Ctx", (), {"logical_roots": {"records": records, "state": state}})()
+-    meta.create(
+-        "lg0001",
+-        "ipd",
+-        {"status": "draft"},
+-        "# Body\n",
+-        destination="plans/pending/lg0001.ipd.md",
+-        project_context=ctx,
+-    )
+-    assert meta._storage_format(records, "lg0001") == "log"
+-    res = meta.append("lg0001", [{"op": "note", "message": "x"}], project_context=ctx)
+-    assert res["committed"] is True
+-    assert (
+-        len(
+-            (records / "meta" / "lg0001.jsonl").read_text(encoding="utf-8").splitlines()
+-        )
+-        == 2
+-    )
+-    assert meta._storage_format(records, "zz0001") == "legacy"
+-    p = _write(repo, "plans/pending/20260101-pset-01-pl0001-p.ipd.md", PLAN)
+-    out = _append(repo, p, "plans", [{"op": "note", "message": "y"}], id6="pl0001")
+-    assert isinstance(out, meta.WritePreview)
+-    assert not (repo / ".aw" / "records" / "meta").exists()
+-
+-
+-# --------------------------------------------------------------------------------------------------
+-# preview / fresh / pathkey
+-# --------------------------------------------------------------------------------------------------
+-
+-
+-def test_preview_dry_run_text_equals_written_bytes_and_writes_nothing(
+-    repo: Path,
+-) -> None:
+-    p = _write(repo, "plans/pending/20260101-pset-01-pl0001-p.ipd.md", PLAN)
+-    before = p.read_bytes()
+-    ev = [{"op": "transition", "from": "draft", "to": "to-review", "message": "m"}]
+-    prev = _append(repo, p, "plans", ev, tag="to-review", dry_run=True)
+-    assert p.read_bytes() == before
+-    assert prev.changed is True and prev.destination == p
+-    _append(repo, p, "plans", ev, tag="to-review")
+-    assert p.read_text(encoding="utf-8") == prev.text
+-
+-
+-def test_fresh_out_of_band_edit_refuses_naming_the_file(repo: Path) -> None:
+-    p = _write(repo, "plans/pending/20260101-pset-01-pl0001-p.ipd.md", PLAN)
+-    digest = meta._compute_digest(p)
+-    p.write_text(PLAN + "\nedited elsewhere\n", encoding="utf-8")
+-    before = p.read_bytes()
+-    with pytest.raises(ValueError, match=r"changed since it was read") as exc:
+-        meta.append(
+-            meta.LegacyTarget(p, "plans", "pl0001", source_digest=digest),
+-            [{"op": "note", "message": "m"}],
+-            legacy_render=meta.LegacyRender("same-status", DAY, "aw set"),
+-            repo_root=repo,
+-        )
+-    assert p.name in str(exc.value)
+-    assert p.read_bytes() == before
+-
+-
+-def test_pathkey_id_less_legacy_spec_is_written_by_path(repo: Path) -> None:
+-    p = _write(
+-        repo,
+-        "specs/draft/20260809-2211-01-legacy.spec.md",
+-        "# Spec: L\n\n- Status: draft\n\n## Workflow history\n- 2026-01-01 draft (a): c\n",
+-    )
+-    target = meta.LegacyTarget(p, "specs")
+-    assert target.key.startswith("path-")
+-    _append(repo, p, "specs", [{"op": "note", "message": "m"}], tag="draft")
+-    assert f"- {DAY} draft (aw set): m" in p.read_text(encoding="utf-8")
+-
+-
+-# --------------------------------------------------------------------------------------------------
+-# move / sidecar / order
+-# --------------------------------------------------------------------------------------------------
+-
+-
+-def _sidecar(root: Path) -> list:
+-    p = root / ".aw" / "records" / "history.jsonl"
+-    if not p.exists():
+-        return []
+-    return [
+-        json.loads(x) for x in p.read_text(encoding="utf-8").splitlines() if x.strip()
+-    ]
+-
+-
+-def test_move_spec_is_git_mv_staged_with_rendered_bytes(repo: Path) -> None:
+-    src = _write(
+-        repo,
+-        "specs/draft/20260101-sp0001-01-sp0001-s.spec.md",
+-        "# Spec: S\n\n- Status: draft\n- Id: sp0001\n\n## Workflow history\n- 2026-01-01 draft (a): c\n",
+-    )
+-    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+-    subprocess.run(["git", "commit", "-qm", "i"], cwd=repo, check=True)
+-    dest = repo / ".aw/records/specs/to-review" / src.name
+-    prev = _append(
+-        repo,
+-        src,
+-        "specs",
+-        [{"op": "transition", "from": "draft", "to": "to-review", "message": "m"}],
+-        tag="to-review",
+-        id6="sp0001",
+-        destination=dest,
+-        sidecar=meta.SidecarRecord("specs", "aw specs", "aw specs", "to-review: m"),
+-    )
+-    assert not src.exists()
+-    assert dest.read_text(encoding="utf-8") == prev.text
+-    st = subprocess.run(
+-        ["git", "status", "--porcelain"], cwd=repo, capture_output=True, text=True
+-    ).stdout
+-    assert any(
+-        ln.startswith("R") and "specs/to-review/" in ln for ln in st.splitlines()
+-    )
+-    assert [r["tree"] for r in _sidecar(repo)] == ["specs"]
+-
+-
+-def test_sidecar_backlog_writes_one_record_and_plan_writes_none(repo: Path) -> None:
+-    b = _write(repo, "backlog/open/20260101-b-01-bk0001-x.backlog.md", BACKLOG)
+-    _append(
+-        repo,
+-        b,
+-        "backlog",
+-        [{"op": "note", "message": "n"}],
+-        id6="bk0001",
+-        sidecar=meta.SidecarRecord("backlog", "aw backlog set", "aw backlog", "n"),
+-    )
+-    assert len(_sidecar(repo)) == 1
+-    p = _write(repo, "plans/pending/20260101-pset-01-pl0001-p.ipd.md", PLAN)
+-    _append(repo, p, "plans", [{"op": "note", "message": "n"}], id6="pl0001")
+-    assert len(_sidecar(repo)) == 1
+-    _append(
+-        repo,
+-        b,
+-        "backlog",
+-        [{"op": "note", "message": "dry"}],
+-        id6="bk0001",
+-        dry_run=True,
+-        sidecar=meta.SidecarRecord("backlog", "aw backlog set", "aw backlog", "dry"),
+-    )
+-    assert len(_sidecar(repo)) == 1
+-
+-
+-@pytest.mark.skipif(
+-    os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+-    reason="needs POSIX permissions and a non-root user",
+-)
+-def test_order_read_only_destination_raises_with_source_and_sidecar_unchanged(
+-    repo: Path,
+-) -> None:
+-    src = _write(repo, "backlog/open/20260101-b-01-bk0001-x.backlog.md", BACKLOG)
+-    parked = repo / ".aw/records/backlog/parked"
+-    parked.mkdir(parents=True)
+-    before = src.read_bytes()
+-    os.chmod(parked, 0o500)
+-    try:
+-        with pytest.raises(OSError):
+-            _append(
+-                repo,
+-                src,
+-                "backlog",
+-                [{"op": "transition", "from": "open", "to": "parked", "message": "m"}],
+-                tag="parked",
+-                id6="bk0001",
+-                destination=parked / src.name,
+-                sidecar=meta.SidecarRecord(
+-                    "backlog", "aw backlog set", "aw backlog", "m"
+-                ),
+-            )
+-    finally:
+-        os.chmod(parked, 0o700)
+-    assert src.read_bytes() == before
+-    assert _sidecar(repo) == []
+-
+-
+-def test_order_content_write_failure_leaves_file_and_sidecar_unchanged(
+-    repo: Path, monkeypatch: pytest.MonkeyPatch
+-) -> None:
+-    p = _write(repo, "backlog/open/20260101-b-01-bk0001-x.backlog.md", BACKLOG)
+-    before = p.read_bytes()
+-
+-    def boom(path, text, **kw):
+-        raise OSError("injected write failure")
+-
+-    monkeypatch.setattr(artifact_core, "atomic_write", boom)
+-    with pytest.raises(OSError, match="injected"):
+-        _append(
+-            repo,
+-            p,
+-            "backlog",
+-            [{"op": "note", "message": "n"}],
+-            id6="bk0001",
+-            sidecar=meta.SidecarRecord("backlog", "aw backlog set", "aw backlog", "n"),
+-        )
+-    assert p.read_bytes() == before
+-    assert _sidecar(repo) == []
+-
+-
+-# --------------------------------------------------------------------------------------------------
+-# owned / review_kind / refinement: AC-15 (1)-(5) and AC-14a (1)-(3)
+-# --------------------------------------------------------------------------------------------------
+-
+-
+-def _refused(repo: Path, path: Path, plural: str, events, match: str) -> str:
+-    before = path.read_bytes()
+-    with pytest.raises(ValueError, match=match) as exc:
+-        _append(repo, path, plural, events)
+-    assert path.read_bytes() == before
+-    return str(exc.value)
+-
+-
+-def test_owned_ac15_1_set_readiness_refused_alone_and_beside_a_review(
+-    repo: Path,
+-) -> None:
+-    p = _write(repo, "plans/pending/20260101-pset-01-pl0001-p.ipd.md", PLAN)
+-    reason = _refused(
+-        repo,
+-        p,
+-        "plans",
+-        [{"op": "set", "fields": {"readiness": "go"}}],
+-        "review-owned field 'readiness'",
+-    )
+-    print("set readiness refusal:", reason)
+-    _refused(
+-        repo,
+-        p,
+-        "plans",
+-        [
+-            {"op": "review", "round": 1, "review_kind": "gate", "verdict": "APPROVE"},
+-            {"op": "set", "fields": {"readiness": "go"}},
+-        ],
+-        "review-owned",
+-    )
+-
+-
+-def test_owned_ac15_2_gate_review_readiness_renders_the_bullet(repo: Path) -> None:
+-    p = _write(repo, "plans/pending/20260101-pset-01-pl0001-p.ipd.md", PLAN)
+-    _append(
+-        repo,
+-        p,
+-        "plans",
+-        [
+-            {
+-                "op": "review",
+-                "round": 1,
+-                "review_kind": "gate",
+-                "verdict": "APPROVE",
+-                "readiness": "go",
+-            },
+-        ],
+-        render=meta.LegacyRender("same-status", DAY, "aw set", history=False),
+-    )
+-    assert "- Readiness: go" in p.read_text(encoding="utf-8").splitlines()
+-
+-
+-def test_owned_ac15_3_set_coverage_refused_and_coverage_event_renders_three_bullets(
+-    repo: Path,
+-) -> None:
+-    p = _write(repo, "plans/pending/20260101-pset-01-pl0001-p.ipd.md", PLAN)
+-    _refused(
+-        repo,
+-        p,
+-        "plans",
+-        [{"op": "set", "fields": {"coverage": "pass"}}],
+-        "coverage-owned",
+-    )
+-    _append(
+-        repo,
+-        p,
+-        "plans",
+-        [
+-            {"op": "coverage", "coverage": "pass", "coverage_fingerprint": "abc123"},
+-        ],
+-        render=meta.LegacyRender("same-status", DAY, "model-x", history=False),
+-    )
+-    lines = p.read_text(encoding="utf-8").splitlines()
+-    i = lines.index("- Coverage: pass")
+-    assert lines[i + 1 : i + 3] == [
+-        "- Coverage-Fingerprint: abc123",
+-        f"- Coverage-Checked: {DAY} by model-x",
+-    ]
+-
+-
+-def test_owned_ac15_4_approval_owned_by_the_approved_transition(repo: Path) -> None:
+-    p = _write(
+-        repo,
+-        "plans/pending/20260101-pset-01-pl0001-p.ipd.md",
+-        PLAN.replace("- Status: draft", "- Status: reviewed"),
+-    )
+-    _refused(repo, p, "plans", [{"op": "set", "fields": {"approval": "x"}}], "approval")
+-    _append(
+-        repo,
+-        p,
+-        "plans",
+-        [
+-            {"op": "transition", "from": "reviewed", "to": "approved"},
+-            {
+-                "op": "set",
+-                "fields": {"approval": f"{DAY}, recorded via aw ipd set: go"},
+-            },
+-        ],
+-        render=meta.LegacyRender("approved", DAY, "aw set", history=False),
+-    )
+-    assert any(
+-        ln.startswith("- Approval:")
+-        for ln in p.read_text(encoding="utf-8").splitlines()
+-    )
+-    _refused(
+-        repo,
+-        p,
+-        "plans",
+-        [{"op": "transition", "from": "approved", "to": "reviewed"}],
+-        "approval must be unset",
+-    )
+-
+-
+-def test_owned_ac15_5_backward_transition_requires_unset_readiness(repo: Path) -> None:
+-    p = _write(
+-        repo,
+-        "plans/pending/20260101-pset-01-pl0001-p.ipd.md",
+-        PLAN.replace("- Status: draft", "- Status: reviewed"),
+-    )
+-    _refused(
+-        repo,
+-        p,
+-        "plans",
+-        [{"op": "transition", "from": "reviewed", "to": "draft"}],
+-        "readiness must be unset",
+-    )
+-    _append(
+-        repo,
+-        p,
+-        "plans",
+-        [
+-            {"op": "transition", "from": "reviewed", "to": "draft"},
+-            {"op": "unset", "fields": ["readiness"]},
+-        ],
+-        render=meta.LegacyRender("draft", DAY, "aw set", history=False),
+-    )
+-    assert "- Status: draft\n" in p.read_text(encoding="utf-8")
+-
+-
+-def test_review_kind_ac14a_1_gate_review_with_refinement_verdict_refused(
+-    repo: Path,
+-) -> None:
+-    p = _write(
+-        repo,
+-        "specs/draft/20260101-sp0001-01-sp0001-s.spec.md",
+-        "# Spec: S\n\n- Status: draft\n- Id: sp0001\n",
+-    )
+-    _refused(
+-        repo,
+-        p,
+-        "specs",
+-        [
+-            {
+-                "op": "review",
+-                "round": 1,
+-                "review_kind": "gate",
+-                "verdict": "REVIEWED - MATERIAL CHANGES APPLIED",
+-            }
+-        ],
+-        "invalid gate verdict",
+-    )
+-
+-
+-def test_review_kind_ac14a_2_refinement_review_with_readiness_refused(
+-    repo: Path,
+-) -> None:
+-    p = _write(
+-        repo,
+-        "specs/draft/20260101-sp0001-01-sp0001-s.spec.md",
+-        "# Spec: S\n\n- Status: draft\n- Id: sp0001\n",
+-    )
+-    _refused(
+-        repo,
+-        p,
+-        "specs",
+-        [{"op": "review", "round": 1, "review_kind": "refinement", "readiness": "go"}],
+-        "refinement review must not carry 'readiness'",
+-    )
+-
+-
+-def test_refinement_ac14a_3_rounds_appended_in_turn_keep_seq_order(
+-    tmp_path: Path,
+-) -> None:
+-    records = tmp_path / "rec"
+-    state = tmp_path / "st"
+-    records.mkdir()
+-    state.mkdir()
+-    ctx = type("Ctx", (), {"logical_roots": {"records": records, "state": state}})()
+-    meta.create(
+-        "rr0001",
+-        "spec",
+-        {"status": "draft"},
+-        "# S\n",
+-        destination="specs/draft/rr0001.spec.md",
+-        project_context=ctx,
+-    )
+-    for n in (1, 2, 3):
+-        meta.append(
+-            "rr0001",
+-            [
+-                {
+-                    "op": "review",
+-                    "round": n,
+-                    "review_kind": "refinement",
+-                    "verdict": "REVIEWED - MATERIAL CHANGES APPLIED",
+-                }
+-            ],
+-            project_context=ctx,
+-        )
+-    lines = (
+-        (records / "meta" / "rr0001.jsonl")
+-        .read_text(encoding="utf-8")
+-        .splitlines(keepends=True)
+-    )
+-    _state, _fc, _ap, proj = meta.replay("rr0001", "spec", lines)
+-    rounds = [(r["seq"], r["round"]) for r in proj["reviews"]]
+-    assert rounds == [(2, 1), (3, 2), (4, 3)]
+-
+-
+-def test_owned_message_with_home_path_is_refused_by_the_writer(repo: Path) -> None:
+-    p = _write(repo, "plans/pending/20260101-pset-01-pl0001-p.ipd.md", PLAN)
+-    home = "/" + "home" + "/someone/a.md"
+-    reason = _refused(
+-        repo, p, "plans", [{"op": "note", "message": f"see {home}"}], "message"
+-    )
+-    print("home path refusal:", reason)
+diff --git a/tests/test_artifact_meta_legacy_writer.py b/tests/test_artifact_meta_legacy_writer.py
+deleted file mode 100644
+index 1859a0c0a..000000000
+--- a/tests/test_artifact_meta_legacy_writer.py
++++ /dev/null
+@@ -1,982 +0,0 @@
+-"""Core tests for the phase-B legacy writer (`write_legacy`, `render_legacy_text`,
+-`restore_legacy_snapshot`, and the phase-B branch of `artifact_meta.create`; plan 7yr827 E-02).
+-
+-Uses `tmp_path` fixtures only and drives the real `artifact_meta` API without reading source.
+-"""
+-
+-from __future__ import annotations
+-
+-import hashlib
+-import io
+-import re
+-import sqlite3
+-import subprocess
+-from contextlib import redirect_stderr, redirect_stdout
+-from pathlib import Path
+-from typing import Dict, List, Optional, Tuple
+-
+-import pytest
+-
+-from agent_workflows import artifact_meta as meta
+-from agent_workflows import cli
+-
+-pytestmark = pytest.mark.core
+-
+-DAY = "2030-01-02"
+-REPO_ROOT = Path(__file__).resolve().parent.parent
+-
+-
+-def _init_repo(tmp_path: Path) -> Path:
+-    root = tmp_path / "repo"
+-    root.mkdir()
+-    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+-    subprocess.run(["git", "config", "user.email", "t@example.invalid"], cwd=root)
+-    subprocess.run(["git", "config", "user.name", "T"], cwd=root)
+-    (root / ".aw" / "records").mkdir(parents=True)
+-    (root / ".aw" / "state").mkdir(parents=True)
+-    return root
+-
+-
+-def _write_rec(root: Path, rel: str, text: str) -> Path:
+-    p = root / ".aw" / "records" / rel
+-    p.parent.mkdir(parents=True, exist_ok=True)
+-    p.write_text(text, encoding="utf-8")
+-    return p
+-
+-
+-def _sha256(p: Path) -> str:
+-    return hashlib.sha256(p.read_bytes()).hexdigest()
+-
+-
+-def _render(
+-    tag: str = "same-status", *, history: bool = False, is_prompt: bool = False
+-):
+-    return meta.LegacyRender(tag, DAY, "aw set", history=history, is_prompt=is_prompt)
+-
+-
+-# --------------------------------------------------------------------------------------------------
+-# (1) In-place bullet edit and unset
+-# --------------------------------------------------------------------------------------------------
+-
+-
+-def test_inplace_bullet_edit_and_unset(tmp_path: Path) -> None:
+-    root = _init_repo(tmp_path)
+-    ctx = meta.legacy_context(root)
+-    plan_text = (
+-        "# IPD: Sample\n\n"
+-        "- Date: 2026-01-01\n"
+-        "- Kind: child\n"
+-        "- Scope-Paths: agent_workflows/a.py\n"
+-        "- Item-Dependencies: none\n"
+-        "- Status: draft\n"
+-        "- Set: oldset\n"
+-        "- Order: 1\n"
+-        "- Highest E allocated: 02\n"
+-        "- Id: ab1234\n\n"
+-        "## Workflow history\n"
+-        "- 2026-01-01 draft (a): created.\n\n"
+-        "## Goal\n"
+-        "G\n"
+-    )
+-    p = _write_rec(
+-        root, "plans/pending/20260101-oldset-01-ab1234-sample.ipd.md", plan_text
+-    )
+-
+-    meta.write_legacy(
+-        p,
+-        [
+-            {
+-                "op": "set",
+-                "fields": {
+-                    "set": "newset",
+-                    "order": 3,
+-                    "plan_role": "orchestrator",
+-                    "pipeline": "quick",
+-                    "short_description": "Concise plan summary",
+-                    "scope_paths": "agent_workflows/a.py, tests/test_a.py",
+-                    "highest_e_allocated": "04",
+-                    "item_dependencies": "executed:cd5678",
+-                    "attended": "required",
+-                    "from_plan": "xy9999",
+-                    "supersedes": "zz0000",
+-                },
+-            }
+-        ],
+-        record_type="ipd",
+-        render=_render(),
+-        repo_root=root,
+-        project_context=ctx,
+-    )
+-    updated = p.read_text(encoding="utf-8")
+-    assert "- Kind: orchestrator\n" in updated
+-    assert "- Set: newset\n" in updated
+-    assert "- Order: 3\n" in updated
+-    assert "- Highest E allocated: 04\n" in updated
+-    assert "- Scope-Paths: agent_workflows/a.py, tests/test_a.py\n" in updated
+-    assert "- Item-Dependencies: executed:cd5678\n" in updated
+-    assert "- Pipeline: quick\n" in updated
+-    assert "- Short-Description: Concise plan summary\n" in updated
+-    assert "- Attended: required\n" in updated
+-    assert "- From-Plan: xy9999\n" in updated
+-    assert "- Supersedes: zz0000\n" in updated
+-
+-    meta.write_legacy(
+-        p,
+-        [
+-            {
+-                "op": "unset",
+-                "fields": [
+-                    "attended",
+-                    "pipeline",
+-                    "short_description",
+-                    "from_plan",
+-                    "supersedes",
+-                ],
+-            }
+-        ],
+-        record_type="plans",
+-        render=_render(),
+-        repo_root=root,
+-        project_context=ctx,
+-    )
+-    cleared = p.read_text(encoding="utf-8")
+-    for absent in (
+-        "- Attended:",
+-        "- Pipeline:",
+-        "- Short-Description:",
+-        "- From-Plan:",
+-        "- Supersedes:",
+-    ):
+-        assert absent not in cleared
+-    assert "- Set: newset\n" in cleared
+-
+-
+-# --------------------------------------------------------------------------------------------------
+-# (2) New bullet anchor fallback (- Status:, - Id:, block end) and a88210 prose-only non-insertion
+-# --------------------------------------------------------------------------------------------------
+-
+-
+-def test_new_bullet_anchor_fallback_and_a88210_prose_only_non_insertion() -> None:
+-    r = _render()
+-
+-    # Anchor 1: after - Status:
+-    with_status = (
+-        "# IPD: A\n\n- Date: 2026-01-01\n- Status: draft\n- Id: aa0001\n\n## Goal\nG\n"
+-    )
+-    out_status = meta.render_legacy_text(
+-        with_status,
+-        [{"op": "set", "fields": {"attended": "required"}}],
+-        record_type="ipd",
+-        render=r,
+-    )
+-    assert out_status == (
+-        "# IPD: A\n\n- Date: 2026-01-01\n- Status: draft\n- Attended: required\n- Id: aa0001\n\n## Goal\nG\n"
+-    )
+-
+-    # Anchor 2: after - Id: when - Status: is absent
+-    no_status = (
+-        "# IPD: B\n\n- Date: 2026-01-01\n- Id: bb0001\n- Author: a\n\n## Goal\nG\n"
+-    )
+-    out_id = meta.render_legacy_text(
+-        no_status,
+-        [{"op": "set", "fields": {"attended": "required"}}],
+-        record_type="ipd",
+-        render=r,
+-    )
+-    assert out_id == (
+-        "# IPD: B\n\n- Date: 2026-01-01\n- Id: bb0001\n- Attended: required\n- Author: a\n\n## Goal\nG\n"
+-    )
+-
+-    # Anchor 3: end of existing metadata bullet block when neither - Status: nor - Id: is present
+-    block_only = "# IPD: C\n\n- Date: 2026-01-01\n- Author: a\n\n## Goal\nG\n"
+-    out_block = meta.render_legacy_text(
+-        block_only,
+-        [{"op": "set", "fields": {"attended": "required"}}],
+-        record_type="ipd",
+-        render=r,
+-    )
+-    assert out_block == (
+-        "# IPD: C\n\n- Date: 2026-01-01\n- Author: a\n- Attended: required\n\n## Goal\nG\n"
+-    )
+-
+-    # a88210 prose-only plan: no metadata bullet block before first ## -> writes nothing into body
+-    prose_only = "# IPD: Prose Only\n\nThis plan has prose only and no metadata bullets.\n\n## Goal\nG\n"
+-    out_prose = meta.render_legacy_text(
+-        prose_only,
+-        [
+-            {
+-                "op": "set",
+-                "fields": {"attended": "required", "short_description": "Prose plan"},
+-            }
+-        ],
+-        record_type="ipd",
+-        render=r,
+-    )
+-    assert out_prose == prose_only
+-
+-
+-# --------------------------------------------------------------------------------------------------
+-# (3) Prompt aw-prompt comment edit, create comment rendering, and comment-less legacy purity
+-# --------------------------------------------------------------------------------------------------
+-
+-
+-def test_prompt_aw_prompt_comment_edit_create_and_commentless_purity(
+-    tmp_path: Path,
+-) -> None:
+-    root = _init_repo(tmp_path)
+-    ctx = meta.legacy_context(root)
+-
+-    # Create via phase-B branch of artifact_meta.create
+-    create_preview = meta.create(
+-        "pr0001",
+-        "prompt",
+-        {
+-            "prompt_kind": "research",
+-            "set": "prset",
+-            "status": "pending",
+-            "created_day": "2030-01-02",
+-            "author": "opencode model-x",
+-            "targets": "gpt-6",
+-            "concerns": "metadata store",
+-            "results_go_to": ".aw/records/research/",
+-            "results": "none-yet",
+-            "grounding": "spec 4sd62s",
+-            "goal": "verify prompt rendering",
+-            "reviews_spec": "4sd62s",
+-            "basis": "phase B",
+-            "relation": "extends pr0000",
+-            "short_description": "Prompt short desc",
+-        },
+-        "You are a principal researcher.\n",
+-        destination="prompts/pending/20300102-prset-01-pr0001-probe.prompt.md",
+-        project_context=ctx,
+-        legacy_render=_render("pending", history=False, is_prompt=True),
+-        repo_root=root,
+-    )
+-    created_file = (
+-        root
+-        / ".aw"
+-        / "records"
+-        / "prompts/pending/20300102-prset-01-pr0001-probe.prompt.md"
+-    )
+-    assert created_file.is_file()
+-    assert create_preview.destination == created_file
+-    assert not (root / ".aw" / "records" / "meta" / "pr0001.jsonl").exists()
+-    created_lines = created_file.read_text(encoding="utf-8").splitlines()
+-    assert len(created_lines) == 2
+-    assert created_lines[0].startswith(
+-        "<!-- aw-prompt: Kind: research | Id: pr0001 | Set: prset | Status: pending"
+-    )
+-    assert "Short-Description: Prompt short desc" in created_lines[0]
+-    assert "Reviews-spec: 4sd62s" in created_lines[0]
+-    assert created_lines[1] == "You are a principal researcher."
+-
+-    # Edit aw-prompt comment keys in place
+-    meta.write_legacy(
+-        created_file,
+-        [
+-            {
+-                "op": "set",
+-                "fields": {
+-                    "targets": "gemini-4, gpt-6",
+-                    "short_description": "Updated prompt desc",
+-                    "basis": "updated basis",
+-                },
+-            }
+-        ],
+-        record_type="prompt",
+-        render=_render("same-status", history=False, is_prompt=True),
+-        repo_root=root,
+-        project_context=ctx,
+-    )
+-    edited_lines = created_file.read_text(encoding="utf-8").splitlines()
+-    assert edited_lines[0].startswith("<!-- aw-prompt:")
+-    assert "Targets: gemini-4, gpt-6" in edited_lines[0]
+-    assert "Short-Description: Updated prompt desc" in edited_lines[0]
+-    assert "Basis: updated basis" in edited_lines[0]
+-    assert edited_lines[1] == "You are a principal researcher."
+-    assert "- Short-Description:" not in created_file.read_text(encoding="utf-8")
+-
+-    # Comment-less legacy prompt purity: body stays byte-identical with zero bullets added
+-    bare_body = "# Legacy Prompt\n\nDo the work with zero preamble.\n"
+-    bare_file = _write_rec(
+-        root, "prompts/executed/20260701-0000-01-bare.prompt.md", bare_body
+-    )
+-    before_bytes = bare_file.read_bytes()
+-    meta.write_legacy(
+-        bare_file,
+-        [
+-            {
+-                "op": "set",
+-                "fields": {"short_description": "Must not be added", "set": "x"},
+-            }
+-        ],
+-        record_type="prompts",
+-        render=_render("same-status", history=False, is_prompt=True),
+-        repo_root=root,
+-        project_context=ctx,
+-    )
+-    assert bare_file.read_bytes() == before_bytes
+-
+-
+-def test_write_legacy_noop_preserves_crlf_bytes(tmp_path: Path) -> None:
+-    """No-op write_legacy preserves original CRLF bytes on disk (Windows core.autocrlf parity)."""
+-    root = _init_repo(tmp_path)
+-    ctx = meta.legacy_context(root)
+-    crlf_body = b"# Legacy Prompt\r\n\r\nDo the work with zero preamble.\r\n"
+-    crlf_file = (
+-        root
+-        / ".aw"
+-        / "records"
+-        / "prompts"
+-        / "executed"
+-        / "20260701-0000-01-crlf.prompt.md"
+-    )
+-    crlf_file.parent.mkdir(parents=True, exist_ok=True)
+-    crlf_file.write_bytes(crlf_body)
+-
+-    preview = meta.write_legacy(
+-        crlf_file,
+-        [{"op": "set", "fields": {"short_description": "Must not be added"}}],
+-        record_type="prompts",
+-        render=_render("same-status", history=False, is_prompt=True),
+-        repo_root=root,
+-        project_context=ctx,
+-    )
+-    assert preview.changed is False
+-    assert crlf_file.read_bytes() == crlf_body
+-
+-
+-# --------------------------------------------------------------------------------------------------
+-# (4) Research --- YAML front matter field edit
+-# --------------------------------------------------------------------------------------------------
+-
+-
+-def test_research_yaml_front_matter_field_edit(tmp_path: Path) -> None:
+-    root = _init_repo(tmp_path)
+-    ctx = meta.legacy_context(root)
+-    research_text = (
+-        "---\n"
+-        "id: rs0001\n"
+-        "created: 20260901\n"
+-        "set: oldset\n"
+-        "order: 01\n"
+-        "topic: [alpha]\n"
+-        "kind: research-report\n"
+-        "status: todo\n"
+-        "outcome: none-yet\n"
+-        "consumed-by: []\n"
+-        "---\n\n"
+-        "# Research Title\n\n"
+-        "Body prose.\n"
+-    )
+-    p = _write_rec(
+-        root,
+-        "research/20260901-oldset-01-rs0001-topic.research-report.md",
+-        research_text,
+-    )
+-    meta.write_legacy(
+-        p,
+-        [
+-            {
+-                "op": "set",
+-                "fields": {
+-                    "set": "newset",
+-                    "order": "02",
+-                    "research_kind": "findings",
+-                    "outcome": "ingested",
+-                    "priority": "high",
+-                    "consumed_by": ["ab1234", "cd5678"],
+-                    "topic": ["alpha", "beta"],
+-                    "short_description": "YAML research summary",
+-                },
+-            }
+-        ],
+-        record_type="research",
+-        render=_render("same-status", history=False),
+-        repo_root=root,
+-        project_context=ctx,
+-    )
+-    out = p.read_text(encoding="utf-8")
+-    assert out == (
+-        "---\n"
+-        "id: rs0001\n"
+-        "created: 20260901\n"
+-        "set: newset\n"
+-        "order: 02\n"
+-        "topic: [alpha, beta]\n"
+-        "kind: findings\n"
+-        "status: todo\n"
+-        "outcome: ingested\n"
+-        "consumed-by: [ab1234, cd5678]\n"
+-        "priority: high\n"
+-        "short-description: YAML research summary\n"
+-        "---\n\n"
+-        "# Research Title\n\n"
+-        "Body prose.\n"
+-    )
+-
+-    meta.write_legacy(
+-        p,
+-        [{"op": "unset", "fields": ["priority", "short_description"]}],
+-        record_type="research",
+-        render=_render("same-status", history=False),
+-        repo_root=root,
+-        project_context=ctx,
+-    )
+-    after_unset = p.read_text(encoding="utf-8")
+-    assert "priority:" not in after_unset
+-    assert "short-description:" not in after_unset
+-
+-
+-# --------------------------------------------------------------------------------------------------
+-# (5) ## Workflow history prepend (blank line kept, without blank line kept, section creation, legacy op)
+-# --------------------------------------------------------------------------------------------------
+-
+-
+-def test_workflow_history_prepend_blank_line_rules_and_legacy_op() -> None:
+-    r = _render("note", history=True)
+-
+-    # With existing blank line under ## Workflow history: keep blank line and insert after it
+-    with_blank = (
+-        "# IPD: H1\n\n- Status: draft\n- Id: hb0001\n\n"
+-        "## Workflow history\n\n"
+-        "- 2026-01-01 draft (a): created.\n\n"
+-        "## Goal\nG\n"
+-    )
+-    out_with_blank = meta.render_legacy_text(
+-        with_blank,
+-        [{"op": "note", "message": "added note"}],
+-        record_type="ipd",
+-        render=r,
+-    )
+-    assert out_with_blank == (
+-        "# IPD: H1\n\n- Status: draft\n- Id: hb0001\n\n"
+-        "## Workflow history\n\n"
+-        f"- {DAY} note (aw set): added note\n"
+-        "- 2026-01-01 draft (a): created.\n\n"
+-        "## Goal\nG\n"
+-    )
+-
+-    # Without blank line under ## Workflow history: keep zero blank line
+-    no_blank = (
+-        "# IPD: H2\n\n- Status: draft\n- Id: hb0002\n\n"
+-        "## Workflow history\n"
+-        "- 2026-01-01 draft (a): created.\n\n"
+-        "## Goal\nG\n"
+-    )
+-    out_no_blank = meta.render_legacy_text(
+-        no_blank,
+-        [{"op": "note", "message": "added note"}],
+-        record_type="ipd",
+-        render=r,
+-    )
+-    assert out_no_blank == (
+-        "# IPD: H2\n\n- Status: draft\n- Id: hb0002\n\n"
+-        "## Workflow history\n"
+-        f"- {DAY} note (aw set): added note\n"
+-        "- 2026-01-01 draft (a): created.\n\n"
+-        "## Goal\nG\n"
+-    )
+-
+-    # Section-absent creation: before first ## for non-prompts, at end of file for prompts
+-    no_section_plan = "# IPD: H3\n\n- Status: draft\n- Id: hb0003\n\n## Goal\nG\n"
+-    out_created_plan = meta.render_legacy_text(
+-        no_section_plan,
+-        [{"op": "note", "message": "created section"}],
+-        record_type="ipd",
+-        render=r,
+-    )
+-    assert out_created_plan == (
+-        "# IPD: H3\n\n- Status: draft\n- Id: hb0003\n\n"
+-        "## Workflow history\n"
+-        f"- {DAY} note (aw set): created section\n\n"
+-        "## Goal\nG\n"
+-    )
+-
+-    no_section_prompt = (
+-        "<!-- aw-prompt: Kind: run-once | Id: hp0001 | Status: pending -->\n"
+-        "## Section One\nPrompt body.\n"
+-    )
+-    out_created_prompt = meta.render_legacy_text(
+-        no_section_prompt,
+-        [{"op": "note", "message": "prompt note"}],
+-        record_type="prompt",
+-        render=_render("note", history=True, is_prompt=True),
+-    )
+-    assert out_created_prompt == (
+-        "<!-- aw-prompt: Kind: run-once | Id: hp0001 | Status: pending -->\n"
+-        "## Section One\nPrompt body.\n"
+-        "## Workflow history\n"
+-        f"- {DAY} note (aw set): prompt note\n"
+-    )
+-
+-    # op == "legacy" (source == "history") verbatim prepend
+-    out_legacy = meta.render_legacy_text(
+-        with_blank,
+-        [
+-            {
+-                "op": "legacy",
+-                "source": "history",
+-                "line": "- 2030-01-05 note (lane): status unchanged (no lifecycle transition)",
+-            }
+-        ],
+-        record_type="ipd",
+-        render=_render("legacy", history=False),
+-    )
+-    assert out_legacy == (
+-        "# IPD: H1\n\n- Status: draft\n- Id: hb0001\n\n"
+-        "## Workflow history\n\n"
+-        "- 2030-01-05 note (lane): status unchanged (no lifecycle transition)\n"
+-        "- 2026-01-01 draft (a): created.\n\n"
+-        "## Goal\nG\n"
+-    )
+-
+-
+-# --------------------------------------------------------------------------------------------------
+-# (6) Phase-B create dry_run vs apply, lock acquisition, and source_digest mismatch refusal
+-# --------------------------------------------------------------------------------------------------
+-
+-
+-def test_phase_b_create_preview_apply_lock_and_source_digest_refusal(
+-    tmp_path: Path,
+-) -> None:
+-    root = _init_repo(tmp_path)
+-    ctx = meta.legacy_context(root)
+-    rel_dest = "plans/pending/20300102-crset-01-cr0001-new-plan.ipd.md"
+-    dest = root / ".aw" / "records" / rel_dest
+-
+-    preview = meta.create(
+-        "cr0001",
+-        "ipd",
+-        {
+-            "status": "draft",
+-            "plan_role": "child",
+-            "set": "crset",
+-            "order": 1,
+-            "work_kind": "feature",
+-            "priority": "high",
+-            "short_description": "Create test plan",
+-        },
+-        "# IPD: New Plan\n\n## Goal\nTest phase-B create.\n",
+-        destination=rel_dest,
+-        dry_run=True,
+-        project_context=ctx,
+-        legacy_render=_render("draft", history=True),
+-        repo_root=root,
+-        message="created.",
+-    )
+-    assert isinstance(preview, meta.WritePreview)
+-    assert preview.changed is True
+-    assert not dest.exists()
+-    assert not (root / ".aw" / "records" / "meta" / "cr0001.jsonl").exists()
+-    assert not (root / ".aw" / "state" / "meta_journal" / "cr0001.json").exists()
+-
+-    applied = meta.create(
+-        "cr0001",
+-        "ipd",
+-        {
+-            "status": "draft",
+-            "plan_role": "child",
+-            "set": "crset",
+-            "order": 1,
+-            "work_kind": "feature",
+-            "priority": "high",
+-            "short_description": "Create test plan",
+-        },
+-        "# IPD: New Plan\n\n## Goal\nTest phase-B create.\n",
+-        destination=rel_dest,
+-        dry_run=False,
+-        project_context=ctx,
+-        legacy_render=_render("draft", history=True),
+-        repo_root=root,
+-        message="created.",
+-    )
+-    assert applied.text == preview.text
+-    assert dest.read_text(encoding="utf-8") == preview.text
+-    # Lock was acquired under <state>/locks/meta-<id6>.lock
+-    assert (root / ".aw" / "state" / "locks" / "meta-cr0001.lock").exists()
+-    # No v2 log or recovery journal created
+-    assert not (root / ".aw" / "records" / "meta" / "cr0001.jsonl").exists()
+-    assert not (root / ".aw" / "state" / "meta_journal" / "cr0001.json").exists()
+-
+-    # source_digest mismatch refusal leaves existing file byte-identical
+-    digest_before = _sha256(dest)
+-    with pytest.raises(ValueError, match="source digest"):
+-        meta.create(
+-            "cr0001",
+-            "ipd",
+-            {"status": "draft", "set": "crset"},
+-            "# IPD: Overwrite\n",
+-            destination=rel_dest,
+-            project_context=ctx,
+-            legacy_render=_render("draft", history=False),
+-            repo_root=root,
+-            source_digest="0" * 64,
+-        )
+-    assert _sha256(dest) == digest_before
+-
+-
+-# --------------------------------------------------------------------------------------------------
+-# (7) Refused set readiness leaves sha256 identical + restore_legacy_snapshot (D-5)
+-# --------------------------------------------------------------------------------------------------
+-
+-
+-def test_set_readiness_refusal_sha256_and_restore_legacy_snapshot(
+-    tmp_path: Path,
+-) -> None:
+-    root = _init_repo(tmp_path)
+-    ctx = meta.legacy_context(root)
+-    pre_pass_text = (
+-        "# IPD: Snapshot\n\n"
+-        "- Date: 2026-01-01\n"
+-        "- Kind: child\n"
+-        "- Status: to-review\n"
+-        "- Set: snap\n"
+-        "- Order: 1\n"
+-        "- Id: sn0001\n\n"
+-        "## Workflow history\n"
+-        "- 2026-01-01 to-review (aw set): status set to to-review\n"
+-        "- 2026-01-01 draft (a): created.\n\n"
+-        "## Goal\nG\n"
+-    )
+-    p = _write_rec(
+-        root, "plans/pending/20260101-snap-01-sn0001-snapshot.ipd.md", pre_pass_text
+-    )
+-    digest_before = _sha256(p)
+-
+-    # AC-15: set readiness is refused by write_legacy and render_legacy_text; target sha256 unchanged
+-    with pytest.raises(ValueError, match="readiness"):
+-        meta.write_legacy(
+-            p,
+-            [{"op": "set", "fields": {"readiness": "go"}}],
+-            record_type="plans",
+-            render=_render(),
+-            repo_root=root,
+-            project_context=ctx,
+-        )
+-    digest_after = _sha256(p)
+-    assert digest_before == digest_after
+-    print(f"set_readiness_refusal_sha256: before={digest_before} after={digest_after}")
+-
+-    with pytest.raises(ValueError, match="readiness"):
+-        meta.render_legacy_text(
+-            pre_pass_text,
+-            [{"op": "set", "fields": {"readiness": "go"}}],
+-            record_type="ipd",
+-            render=_render(),
+-            repo_root=root,
+-        )
+-
+-    # D-5: restore_legacy_snapshot reverts premature - Status:, - Readiness:, and review history
+-    corrupted_text = (
+-        "# IPD: Snapshot\n\n"
+-        "- Date: 2026-01-01\n"
+-        "- Kind: child\n"
+-        "- Status: reviewed\n"
+-        "- Readiness: go\n"
+-        "- Set: snap\n"
+-        "- Order: 1\n"
+-        "- Id: sn0001\n\n"
+-        "## Workflow history\n"
+-        "- 2026-01-02 /plan-review (agy): APPROVE; readiness go\n"
+-        "- 2026-01-02 reviewed (aw set): status set to reviewed\n"
+-        "- 2026-01-01 to-review (aw set): status set to to-review\n"
+-        "- 2026-01-01 draft (a): created.\n\n"
+-        "## Goal\nG\n"
+-    )
+-    restored = meta.restore_legacy_snapshot(
+-        corrupted_text, pre_pass_text, record_type="ipd"
+-    )
+-    assert restored == pre_pass_text
+-
+-    # Also test restoring when pre-pass ALREADY carried a prior - Readiness: value
+-    pre_with_rd = pre_pass_text.replace(
+-        "- Status: to-review\n", "- Status: to-review\n- Readiness: no-go\n"
+-    )
+-    changed_rd = pre_with_rd.replace(
+-        "- Readiness: no-go\n", "- Readiness: go\n"
+-    ).replace("- Status: to-review\n", "- Status: reviewed\n")
+-    restored_rd = meta.restore_legacy_snapshot(
+-        changed_rd, pre_with_rd, record_type="ipd"
+-    )
+-    assert restored_rd == pre_with_rd
+-
+-
+-# --------------------------------------------------------------------------------------------------
+-# (8) Tracked-corpus 5-type byte-identity and State equality round trip
+-# --------------------------------------------------------------------------------------------------
+-
+-
+-_CORPUS_BULLET_FIELDS: Dict[str, str] = {
+-    "Set": "set",
+-    "Order": "order",
+-    "Version": "version",
+-    "Priority": "priority",
+-    "Work-Kind": "work_kind",
+-    "Kind": "plan_role",
+-    "Pipeline": "pipeline",
+-    "Blocks-Release": "blocks_release",
+-    "From-Backlog": "from_backlog",
+-    "From-Spec": "from_spec",
+-    "From-Plan": "from_plan",
+-    "Supersedes": "supersedes",
+-    "Scope-Paths": "scope_paths",
+-    "Highest E allocated": "highest_e_allocated",
+-    "Graduated-To": "graduated_to",
+-    "Short-Description": "short_description",
+-    "Attended": "attended",
+-}
+-
+-_CORPUS_PROMPT_FIELDS: Dict[str, str] = {
+-    "Kind": "prompt_kind",
+-    "Set": "set",
+-    "Author": "author",
+-    "Targets": "targets",
+-    "Concerns": "concerns",
+-    "Results": "results",
+-    "Results-go-to": "results_go_to",
+-    "Grounding": "grounding",
+-    "Goal": "goal",
+-    "Reviews-spec": "reviews_spec",
+-    "Basis": "basis",
+-    "Relation": "relation",
+-    "Short-Description": "short_description",
+-}
+-
+-
+-def _pick_writable_field(plural: str, text: str) -> Optional[Tuple[str, str]]:
+-    if plural == "prompts":
+-        first = text.split("\n", 1)[0]
+-        if "<!-- aw-prompt:" not in first:
+-            return None
+-        inner = first.split("<!-- aw-prompt:", 1)[1].rsplit("-->", 1)[0]
+-        inner = inner.split(" . This HTML comment", 1)[0]
+-        for seg in inner.split("|"):
+-            if ":" in seg:
+-                k, v = seg.split(":", 1)
+-                k, v = k.strip(), v.strip()
+-                if k in _CORPUS_PROMPT_FIELDS and v:
+-                    return (_CORPUS_PROMPT_FIELDS[k], v)
+-        return None
+-    region = meta.metadata_region(text)
+-    for ln in region.splitlines():
+-        m = re.match(r"^-\s*([A-Za-z][A-Za-z0-9 /-]*?):\s*(.+?)\s*$", ln)
+-        if m and m.group(1) in _CORPUS_BULLET_FIELDS:
+-            return (_CORPUS_BULLET_FIELDS[m.group(1)], m.group(2))
+-    return None
+-
+-
+-def test_tracked_corpus_five_type_byte_identity_round_trip(tmp_path: Path) -> None:
+-    src_records = REPO_ROOT / ".aw" / "records"
+-    root = _init_repo(tmp_path)
+-    ctx = meta.legacy_context(root)
+-
+-    per_type_counts: Dict[str, int] = {}
+-    selected: List[Tuple[str, Path, str, str, str]] = []
+-
+-    for plural in ("plans", "specs", "backlog", "releases", "prompts"):
+-        files = sorted(
+-            p
+-            for p in (src_records / plural).rglob("*.md")
+-            if p.name != "README.md" and "untracked" not in p.parts
+-        )
+-        picked_for_type = 0
+-        for p in files:
+-            txt = p.read_text(encoding="utf-8")
+-            picked = _pick_writable_field(plural, txt)
+-            if picked is None:
+-                continue
+-            rel = p.relative_to(src_records)
+-            dest = root / ".aw" / "records" / rel
+-            dest.parent.mkdir(parents=True, exist_ok=True)
+-            dest.write_bytes(p.read_bytes())
+-
+-            id6 = meta.read_text(txt).loose_id
+-            if not id6:
+-                m_id = re.search(r"-([0-9a-z]{6})-", p.name)
+-                id6 = m_id.group(1) if m_id else ""
+-            assert id6, f"Missing id6 for selected corpus file {rel}"
+-
+-            fk, fv = picked
+-            selected.append((plural, dest, id6, fk, fv))
+-            picked_for_type += 1
+-            if picked_for_type == 8:
+-                break
+-        per_type_counts[plural] = picked_for_type
+-
+-    assert set(per_type_counts.keys()) == {
+-        "plans",
+-        "specs",
+-        "backlog",
+-        "releases",
+-        "prompts",
+-    }
+-    assert all(cnt >= 1 for cnt in per_type_counts.values())
+-    assert len(selected) >= 33
+-
+-    states_before: Dict[str, meta.State] = {}
+-    raw_before_map: Dict[str, bytes] = {}
+-    for plural, dest, id6, fk, fv in selected:
+-        raw_before_map[str(dest)] = dest.read_bytes()
+-        states_before[id6] = meta.read(id6, project_context=ctx)
+-
+-    for plural, dest, id6, fk, fv in selected:
+-        meta.write_legacy(
+-            dest,
+-            [{"op": "set", "fields": {fk: fv}}],
+-            record_type=plural,
+-            render=_render("same-status", history=False),
+-            repo_root=root,
+-            project_context=ctx,
+-        )
+-
+-    identical = 0
+-    for plural, dest, id6, fk, fv in selected:
+-        state_after = meta.read(id6, project_context=ctx)
+-        raw_after = dest.read_bytes()
+-        assert states_before[id6] == state_after, f"State changed on {dest}"
+-        assert (
+-            raw_before_map[str(dest)] == raw_after
+-        ), f"Bytes changed on {dest} ({fk}={fv!r})"
+-        identical += 1
+-
+-    assert identical == len(selected)
+-    print(f"corpus_round_trip: {identical}/{len(selected)} byte-identical")
+-
+-
+-# --------------------------------------------------------------------------------------------------
+-# (9) Prompt prompt_kind and created_day round-trip via create, aw prompts new, and stale cache
+-# --------------------------------------------------------------------------------------------------
+-
+-
+-def test_prompt_create_and_cli_new_preserve_prompt_kind_and_created_day(
+-    tmp_path: Path,
+-) -> None:
+-    root = _init_repo(tmp_path)
+-    ctx = meta.legacy_context(root)
+-
+-    # Path 1: artifact_meta.create on a legacy root -> artifact_meta.read
+-    meta.create(
+-        "pr1001",
+-        "prompt",
+-        {
+-            "prompt_kind": "session-handoff",
+-            "set": "prset",
+-            "status": "pending",
+-            "created_day": "2030-01-02",
+-        },
+-        "Hand off this work cleanly.\n",
+-        destination="prompts/pending/20300102-prset-01-pr1001-handoff.prompt.md",
+-        project_context=ctx,
+-        legacy_render=_render("pending", history=False, is_prompt=True),
+-        repo_root=root,
+-    )
+-    st_created = meta.read("pr1001", project_context=ctx)
+-    assert st_created.type == "prompt"
+-    assert st_created.fields["prompt_kind"] == "session-handoff"
+-    assert st_created.fields["created_day"] == "2030-01-02"
+-    assert st_created.created_day == "2030-01-02"
+-
+-    # Path 2: aw prompts new via cli.main -> artifact_meta.read
+-    out, err = io.StringIO(), io.StringIO()
+-    with redirect_stdout(out), redirect_stderr(err):
+-        rc = cli.main(
+-            [
+-                "prompts",
+-                "new",
+-                "--slug",
+-                "cache-roundtrip",
+-                "--kind",
+-                "research",
+-                "--set",
+-                "prset",
+-                "--date",
+-                "2030-01-03",
+-                "--apply",
+-                "--dir",
+-                str(root),
+-            ]
+-        )
+-    assert rc == 0, out.getvalue() + err.getvalue()
+-    cli_files = sorted(
+-        (root / ".aw" / "records" / "prompts" / "pending").glob(
+-            "*cache-roundtrip.prompt.md"
+-        )
+-    )
+-    assert len(cli_files) == 1
+-    cli_text = cli_files[0].read_text(encoding="utf-8")
+-    cli_id6 = meta.read_text(cli_text, record_type="prompt").id6 or None
+-    assert cli_id6 is not None
+-
+-    st_cli = meta.read(cli_id6, project_context=ctx)
+-    assert st_cli.type == "prompt"
+-    assert st_cli.fields["prompt_kind"] == "research"
+-    assert st_cli.fields["created_day"] == "2030-01-03"
+-    assert st_cli.created_day == "2030-01-03"
+-
+-
+-def test_stale_prompt_cache_rebuilt_under_legacy_loader_version(
+-    tmp_path: Path,
+-) -> None:
+-    root = _init_repo(tmp_path)
+-    ctx = meta.legacy_context(root)
+-
+-    meta.create(
+-        "pr2001",
+-        "prompt",
+-        {
+-            "prompt_kind": "research",
+-            "set": "prset",
+-            "status": "pending",
+-            "created_day": "2030-02-04",
+-        },
+-        "Analyze cache rebuild behavior.\n",
+-        destination="prompts/pending/20300204-prset-01-pr2001-rebuild.prompt.md",
+-        project_context=ctx,
+-        legacy_render=_render("pending", history=False, is_prompt=True),
+-        repo_root=root,
+-    )
+-    initial = meta.read("pr2001", project_context=ctx)
+-    assert initial.fields["prompt_kind"] == "research"
+-    assert initial.fields["created_day"] == "2030-02-04"
+-    assert initial.created_day == "2030-02-04"
+-
+-    # Simulate a pre-legacy_v8 index.db with NULL prompt_kind/created_day and an older schema_hash
+-    db_path = root / ".aw" / "state" / "index.db"
+-    con = sqlite3.connect(str(db_path))
+-    try:
+-        con.execute(
+-            "UPDATE prompt SET prompt_kind = NULL, created_day = NULL WHERE id6 = ?",
+-            ("pr2001",),
+-        )
+-        con.execute(
+-            "UPDATE artifacts SET created_day = NULL WHERE id6 = ?",
+-            ("pr2001",),
+-        )
+-        con.execute(
+-            "UPDATE meta SET value = 'stale_legacy_v7_schema_hash' WHERE key = 'schema_hash'"
+-        )
+-        con.commit()
+-    finally:
+-        con.close()
+-
+-    rebuilt = meta.read("pr2001", project_context=ctx)
+-    assert rebuilt.fields["prompt_kind"] == "research"
+-    assert rebuilt.fields["created_day"] == "2030-02-04"
+-    assert rebuilt.created_day == "2030-02-04"
+-
+-    con = sqlite3.connect(str(db_path))
+-    try:
+-        stored_hash = con.execute(
+-            "SELECT value FROM meta WHERE key = 'schema_hash'"
+-        ).fetchone()[0]
+-        assert stored_hash == meta.compute_schema_hash()
+-        assert con.execute(
+-            "SELECT prompt_kind, created_day FROM prompt WHERE id6 = ?", ("pr2001",)
+-        ).fetchone() == ("research", "2030-02-04")
+-        assert con.execute(
+-            "SELECT created_day FROM artifacts WHERE id6 = ?", ("pr2001",)
+-        ).fetchone() == ("2030-02-04",)
+-    finally:
+-        con.close()
+diff --git a/tests/test_artifact_meta_shapes.py b/tests/test_artifact_meta_shapes.py
+index 79db74583..93b6507ca 100644
+--- a/tests/test_artifact_meta_shapes.py
++++ b/tests/test_artifact_meta_shapes.py
+@@ -1,268 +1,93 @@
+-"""Cache shape parity and stable derived-identity tests for artifact_meta (IPD 6oi2nu).
++"""Derived-identity (`derive_id6`) determinism and collision tests for `m0001_metadata_v2`.
+ 
+-Exercises the five-shape migration fixture corpus (`tests/migration_corpus.py`) through real
+-`artifact_meta`, `project_context`, `status_set`, and `artifact_core` calls.
++Multi-shape legacy migration coverage lives in `tests/test_m0001_any_repo.py`; phase-B legacy
++cache-scanning and legacy-writer tests were retired per spec `4sd62s` C10a and Sections 5.2
++and 5.3 (IPD `nv3upa`).
+ """
+ 
+ from __future__ import annotations
+ 
+-import sqlite3
+ from pathlib import Path
+-from types import SimpleNamespace
+ 
+ import pytest
+ 
+-from agent_workflows import (
+-    artifact_core,
+-    artifact_meta,
+-    project_context,
+-    selectors,
+-    status_set,
+-)
++from agent_workflows import artifact_core, artifact_meta
++from agent_workflows.migrations import m0001_metadata_v2
+ from tests import migration_corpus as mc
+ 
+ pytestmark = pytest.mark.core
+ 
+ 
+-def _build_shape(shape: str, tmp_path: Path) -> Path:
+-    dest = tmp_path / f"shape_{shape}"
+-    dest.mkdir()
+-    selectors._record_dirs_cached.cache_clear()
+-    return mc.SHAPES[shape](dest)
+-
+-
+-def _resolved_query_map(
+-    ctx: object,
+-) -> dict[Path, artifact_meta.State]:
+-    records_root = Path(ctx.logical_roots["records"])  # type: ignore[attr-defined]
+-    repo_root = (
+-        getattr(ctx, "repo_root", None)
+-        or getattr(ctx, "target_repo", None)
+-        or project_context.record_git_root(records_root)
+-    )
+-    rows = artifact_meta.query(project_context=ctx)
+-    return {
+-        artifact_meta.source_path(r.path, records_root, repo_root).resolve(): r
+-        for r in rows
+-        if r.path is not None
+-    }
+-
+-
+-@pytest.mark.parametrize("shape", sorted(mc.SHAPES))
+-def test_a_shapes_query_parity(shape: str, tmp_path: Path) -> None:
+-    """Case (a): artifact_meta.query matches status_set.inventory_all_artifacts across all shapes."""
+-    root = _build_shape(shape, tmp_path)
+-    inv = status_set.inventory_all_artifacts(root)
+-    ctx = artifact_meta.legacy_context(root)
+-    by_path = _resolved_query_map(ctx)
+-
+-    if shape == "mixed_layout":
+-        # `mixed_layout` has byte-identical copies of `qa1z03` in `.aw/records/` and `.agents/`.
+-        # `artifacts.id6` is PRIMARY KEY, so `query` holds one row per unique id6 (preferring
+-        # `.aw/records/`) while both paths appear in `files`.
+-        by_id6 = {r.id6: r for r in by_path.values()}
+-        for rec in inv:
+-            assert rec.id6 is not None
+-            assert rec.id6 in by_id6
+-            assert (by_id6[rec.id6].status or "") == (rec.status or "").lower()
+-        non_legacy_dup = {
+-            rec.path.resolve()
+-            for rec in inv
+-            if not (rec.id6 == "qa1z03" and ".agents" in rec.path.parts)
+-        }
+-        assert non_legacy_dup <= set(by_path)
+-        db_path = Path(ctx.logical_roots["state"]) / "index.db"
+-        conn = sqlite3.connect(str(db_path))
+-        try:
+-            cached_files = {
+-                r[0] for r in conn.execute("SELECT path FROM files").fetchall()
+-            }
+-        finally:
+-            conn.close()
+-        assert "plans/executed/20260710-beta-01-qa1z03-shared-plan.md" in cached_files
+-        assert (
+-            "@repo/.agents/plans/executed/20260710-beta-01-qa1z03-shared-plan.md"
+-            in cached_files
+-        )
+-        return
+-
+-    inv_by_path = {rec.path.resolve(): rec for rec in inv}
+-    assert set(inv_by_path) <= set(by_path)
+-    for rpath, rec in inv_by_path.items():
+-        st = by_path[rpath]
+-        if rec.id6 is not None:
+-            assert st.id6 == rec.id6
+-        assert (st.status or "") == (rec.status or "").lower()
+-
+-
+ @pytest.mark.parametrize("shape", ["idless_prose", "legacy_agents_layout"])
+-def test_b_idless_derived_id6_stability(shape: str, tmp_path: Path) -> None:
+-    """Case (b): id-less records keep stable derived id6 across cold, warm, edit, and rebuild."""
+-    root = _build_shape(shape, tmp_path)
+-    ctx = artifact_meta.legacy_context(root)
+-    records_root = Path(ctx.logical_roots["records"])
+-    declared_ids = artifact_core.global_id6s(root)
+-    inv_idless_paths = {
+-        rec.path.resolve()
+-        for rec in status_set.inventory_all_artifacts(root)
+-        if rec.id6 is None
+-    }
+-    assert inv_idless_paths
+-
+-    cold_map = _resolved_query_map(ctx)
+-    derived_cold = {p: st.id6 for p, st in cold_map.items() if st.id_derived}
+-    assert set(derived_cold) == inv_idless_paths
+-    for st in cold_map.values():
+-        if st.id_derived:
+-            assert artifact_core.ID6_RE.fullmatch(st.id6)
+-            artifact_meta.validate_id6(st.id6)
+-            assert st.id6 not in declared_ids
+-        else:
+-            assert st.id6 in declared_ids
+-
+-    # Warm build
+-    warm_map = _resolved_query_map(ctx)
+-    assert {p: st.id6 for p, st in warm_map.items() if st.id_derived} == derived_cold
+-
+-    # After editing every id-less file in place
+-    for p in inv_idless_paths:
+-        p.write_text(
+-            p.read_text(encoding="utf-8") + "\nAppended line.\n", encoding="utf-8"
+-        )
+-    edited_map = _resolved_query_map(ctx)
+-    assert {p: st.id6 for p, st in edited_map.items() if st.id_derived} == derived_cold
+-
+-    # After deleting index.db
+-    db_file = Path(ctx.logical_roots["state"]) / "index.db"
+-    assert db_file.is_file()
+-    db_file.unlink()
+-    rebuilt_map = _resolved_query_map(ctx)
+-    assert {p: st.id6 for p, st in rebuilt_map.items() if st.id_derived} == derived_cold
+-    assert all(
+-        st.id6 not in declared_ids for st in rebuilt_map.values() if st.id_derived
+-    )
+-    assert records_root is not None
+-
+-
+-def test_c_legacy_agents_read_and_history(tmp_path: Path) -> None:
+-    """Case (c): read and history work on derived id6s under legacy_agents_layout."""
+-    root = _build_shape("legacy_agents_layout", tmp_path)
+-    ctx = artifact_meta.legacy_context(root)
+-    records_root = Path(ctx.logical_roots["records"])
+-
+-    derived_rows = [r for r in artifact_meta.query(project_context=ctx) if r.id_derived]
+-    assert derived_rows
+-
+-    for row in derived_rows:
+-        st = artifact_meta.read(row.id6, project_context=ctx)
+-        resolved = artifact_meta.source_path(st.path, records_root, root)
+-        assert resolved.is_file()
+-        assert ".agents" in resolved.parts
+-        hist = artifact_meta.history(row.id6, project_context=ctx)
+-        assert isinstance(hist, list)
+-
+-
+-@pytest.mark.parametrize("shape", sorted(mc.SHAPES))
+-def test_d_query_resolved_and_logical_roots_contexts(
++def test_derive_id6_deterministic_and_valid_across_idless_shapes(
+     shape: str, tmp_path: Path
+ ) -> None:
+-    """Case (d): resolve_project_context and logical_roots-only context match legacy_context."""
+-    root = _build_shape(shape, tmp_path)
+-    ctx_legacy = artifact_meta.legacy_context(root)
+-    paths_legacy = set(_resolved_query_map(ctx_legacy))
+-
+-    ctx_resolved = project_context.resolve_project_context(target_repo=str(root))
+-    paths_resolved = set(_resolved_query_map(ctx_resolved))
+-    assert paths_resolved == paths_legacy
+-
+-    ctx_logical_only = SimpleNamespace(logical_roots=dict(ctx_legacy.logical_roots))
+-    paths_logical_only = set(_resolved_query_map(ctx_logical_only))
+-    assert paths_logical_only == paths_legacy
+-
+-
+-def test_e_declared_id_collision_rederives_idless(tmp_path: Path) -> None:
+-    """Case (e): a record declaring an id6 derived at k=0 forces re-derivation."""
+-    root = _build_shape("idless_prose", tmp_path)
+-    ctx = artifact_meta.legacy_context(root)
+-    records_root = Path(ctx.logical_roots["records"])
+-
+-    initial = artifact_meta.query(project_context=ctx)
+-    target_row = next(
+-        r for r in initial if r.path and "prose-migration-ipd.md" in r.path
+-    )
+-    assert target_row.id_derived is True
+-    colliding_id6 = target_row.id6
+-
+-    declared_path = (
+-        records_root
+-        / "plans"
+-        / "pending"
+-        / f"20260901-col-01-{colliding_id6}-declared-plan.ipd.md"
+-    )
+-    declared_path.parent.mkdir(parents=True, exist_ok=True)
+-    declared_path.write_text(
+-        f"# IPD: Declared collision plan\n\n- Id: {colliding_id6}\n- Status: draft\n- Set: col\n- Order: 01\n\nBody.\n",
+-        encoding="utf-8",
+-    )
+-
+-    after_rows = artifact_meta.query(project_context=ctx)
+-    by_path = {r.path: r for r in after_rows}
+-    declared_st = by_path[f"plans/pending/{declared_path.name}"]
+-    assert declared_st.id6 == colliding_id6
+-    assert declared_st.id_derived is False
+-
+-    rederived_st = by_path[target_row.path]
+-    assert rederived_st.id_derived is True
+-    assert rederived_st.id6 != colliding_id6
+-    expected_k1 = artifact_meta.derive_id6(
+-        target_row.path, set(artifact_core.global_id6s(root)) | {colliding_id6}
+-    )
+-    assert rederived_st.id6 == expected_k1
+-
+-
+-def test_f_note_append_on_derived_spec_writes_no_id_or_sidecar(tmp_path: Path) -> None:
+-    """Case (f): note append on a derived id6 leaves no - Id: in file or sidecar."""
+-    root = _build_shape("legacy_agents_layout", tmp_path)
+-    ctx = artifact_meta.legacy_context(root)
+-    records_root = Path(ctx.logical_roots["records"])
+-
+-    spec_row = next(
+-        r
+-        for r in artifact_meta.query(project_context=ctx)
+-        if r.type == "spec" and r.id_derived
++    """`m0001_metadata_v2.derive_id6` returns deterministic, valid, non-colliding id6s."""
++    dest = tmp_path / f"shape_{shape}"
++    dest.mkdir()
++    root = mc.SHAPES[shape](dest)
++    declared_ids = set(artifact_core.global_id6s(root))
++
++    idless_stored_paths = sorted(
++        p.relative_to(root).as_posix()
++        for p in root.rglob("*.md")
++        if p.name != "README.md"
++        and artifact_meta.read_text(p.read_text(encoding="utf-8")).loose_id is None
+     )
+-    derived_id6 = spec_row.id6
+-    spec_file = artifact_meta.source_path(spec_row.path, records_root, root)
+-    assert "- Id:" not in spec_file.read_text(encoding="utf-8")
++    assert idless_stored_paths
++
++    first_pass = {}
++    taken = set(declared_ids)
++    for stored in idless_stored_paths:
++        derived = m0001_metadata_v2.derive_id6(stored, taken)
++        assert artifact_core.ID6_RE.fullmatch(derived)
++        artifact_meta.validate_id6(derived)
++        assert derived not in taken
++        first_pass[stored] = derived
++        taken.add(derived)
++
++    # Repeating with the same taken set produces the exact same derived id6s
++    second_pass = {}
++    taken_again = set(declared_ids)
++    for stored in idless_stored_paths:
++        derived = m0001_metadata_v2.derive_id6(stored, taken_again)
++        second_pass[stored] = derived
++        taken_again.add(derived)
++
++    assert second_pass == first_pass
++
++
++def test_derive_id6_declared_id_collision_rederives_distinct_id6(
++    tmp_path: Path,
++) -> None:
++    """When the k=0 derived id6 is already taken, `derive_id6` re-derives a distinct valid id6."""
++    dest = tmp_path / "shape_idless_prose"
++    dest.mkdir()
++    root = mc.SHAPES["idless_prose"](dest)
++    declared_ids = set(artifact_core.global_id6s(root))
+ 
+-    render = artifact_meta.LegacyRender(
+-        day="2026-11-17",
+-        tag="note",
+-        actor_label="test",
+-        history=True,
+-        history_at_end=True,
+-    )
+-    sidecar = artifact_meta.SidecarRecord(
+-        tree="specs",
+-        workflow="note",
+-        actor="test",
+-        message="derived id note test",
+-        date="2026-11-17",
++    target_stored = next(
++        p.relative_to(root).as_posix()
++        for p in sorted(root.rglob("*.md"))
++        if "prose-migration-ipd.md" in p.name
+     )
+-    preview = artifact_meta.append(
+-        derived_id6,
+-        [{"op": "note", "message": "derived id note test"}],
+-        project_context=ctx,
+-        legacy_render=render,
+-        sidecar=sidecar,
+-    )
+-    assert preview.changed is True
+-
+-    updated_text = spec_file.read_text(encoding="utf-8")
+-    assert "- Id:" not in updated_text
+-    assert derived_id6 not in updated_text
+-    assert "derived id note test" in updated_text
+ 
+-    sidecar_file = records_root / "history.jsonl"
+-    if sidecar_file.exists():
+-        assert derived_id6 not in sidecar_file.read_text(encoding="utf-8")
++    k0 = m0001_metadata_v2.derive_id6(target_stored, declared_ids)
++    assert artifact_core.ID6_RE.fullmatch(k0)
++    artifact_meta.validate_id6(k0)
++    assert k0 not in declared_ids
++
++    k1 = m0001_metadata_v2.derive_id6(target_stored, declared_ids | {k0})
++    assert artifact_core.ID6_RE.fullmatch(k1)
++    artifact_meta.validate_id6(k1)
++    assert k1 != k0
++    assert k1 not in declared_ids
++
++    k2 = m0001_metadata_v2.derive_id6(target_stored, declared_ids | {k0, k1})
++    assert artifact_core.ID6_RE.fullmatch(k2)
++    artifact_meta.validate_id6(k2)
++    assert k2 not in {k0, k1}
++    assert k2 not in declared_ids
++
++    # Stable across repeated calls with the same collision set
++    assert m0001_metadata_v2.derive_id6(target_stored, declared_ids | {k0}) == k1
+diff --git a/tests/test_artifact_meta_write.py b/tests/test_artifact_meta_write.py
+index 4c4a1c52a..1a7961345 100644
+--- a/tests/test_artifact_meta_write.py
++++ b/tests/test_artifact_meta_write.py
+@@ -557,3 +557,338 @@ def test_repair_git_merge_two_branch_divergence(tmp_path: Path):
+     st = meta.read("mrg001", project_context=ctx)
+     assert st.id6 == "mrg001"
+     assert st.valid == 1
++
++
++# --------------------------------------------------------------------------------------
++# Event-owned fields (spec 4sd62s AC-15), review_kind / refinement (AC-14a), and leak refusal
++# (Migrated from retired tests/test_artifact_meta_legacy_write.py under IPD nv3upa E-03)
++# --------------------------------------------------------------------------------------
++
++
++def _make_log_ctx(tmp_path: Path):
++    records_root = tmp_path / "records"
++    state_root = tmp_path / "state"
++    records_root.mkdir()
++    state_root.mkdir()
++    ctx = type(
++        "Ctx", (), {"logical_roots": {"records": records_root, "state": state_root}}
++    )()
++    return records_root, ctx
++
++
++def _refuse_append(
++    records_root: Path,
++    ctx: object,
++    id6: str,
++    events: list[dict],
++    match: str,
++) -> str:
++    log_p = records_root / "meta" / f"{id6}.jsonl"
++    before = log_p.read_bytes()
++    with pytest.raises(ValueError, match=match) as exc:
++        meta.append(id6, events, project_context=ctx)
++    assert log_p.read_bytes() == before
++    return str(exc.value)
++
++
++def test_append_ac15_1_set_readiness_refused_alone_and_beside_review(
++    tmp_path: Path,
++) -> None:
++    """AC-15 (1): generic set of review-owned readiness is refused alone and beside a review."""
++    records_root, ctx = _make_log_ctx(tmp_path)
++    meta.create(
++        "ac1501",
++        "ipd",
++        {"status": "draft", "set": "pset", "order": 1},
++        "# IPD: P\n\n## Goal\nG\n",
++        destination="plans/pending/20260101-pset-01-ac1501-p.ipd.md",
++        project_context=ctx,
++    )
++    _refuse_append(
++        records_root,
++        ctx,
++        "ac1501",
++        [{"op": "set", "fields": {"readiness": "go"}}],
++        "review-owned field 'readiness'",
++    )
++    _refuse_append(
++        records_root,
++        ctx,
++        "ac1501",
++        [
++            {"op": "review", "round": 1, "review_kind": "gate", "verdict": "APPROVE"},
++            {"op": "set", "fields": {"readiness": "go"}},
++        ],
++        "review-owned",
++    )
++
++
++def test_append_ac15_2_gate_review_sets_readiness(tmp_path: Path) -> None:
++    """AC-15 (2): a gate review event carrying readiness persists and projects readiness."""
++    _, ctx = _make_log_ctx(tmp_path)
++    meta.create(
++        "ac1502",
++        "ipd",
++        {"status": "to-review", "set": "pset", "order": 1},
++        "# IPD: P\n\n## Goal\nG\n",
++        destination="plans/pending/20260101-pset-01-ac1502-p.ipd.md",
++        project_context=ctx,
++    )
++    res = meta.append(
++        "ac1502",
++        [
++            {
++                "op": "review",
++                "round": 1,
++                "review_kind": "gate",
++                "verdict": "APPROVE",
++                "readiness": "go",
++            }
++        ],
++        project_context=ctx,
++    )
++    assert res["committed"] is True
++    st = meta.read("ac1502", project_context=ctx)
++    assert st.fields["readiness"] == "go"
++
++
++def test_append_ac15_3_set_coverage_refused_and_coverage_event_persists(
++    tmp_path: Path,
++) -> None:
++    """AC-15 (3): generic set of coverage is refused; op='coverage' records coverage and fingerprint."""
++    records_root, ctx = _make_log_ctx(tmp_path)
++    meta.create(
++        "ac1503",
++        "ipd",
++        {"status": "draft", "set": "pset", "order": 1},
++        "# IPD: P\n\n## Goal\nG\n",
++        destination="plans/pending/20260101-pset-01-ac1503-p.ipd.md",
++        project_context=ctx,
++    )
++    _refuse_append(
++        records_root,
++        ctx,
++        "ac1503",
++        [{"op": "set", "fields": {"coverage": "pass"}}],
++        "coverage-owned",
++    )
++    res = meta.append(
++        "ac1503",
++        [{"op": "coverage", "coverage": "pass", "coverage_fingerprint": "abc123"}],
++        project_context=ctx,
++    )
++    assert res["committed"] is True
++    st = meta.read("ac1503", project_context=ctx)
++    assert st.fields["coverage"] == "pass"
++    assert st.fields["coverage_fingerprint"] == "abc123"
++
++
++def test_append_ac15_4_approval_owned_by_approved_transition(tmp_path: Path) -> None:
++    """AC-15 (4): approval may be set only alongside transition->approved and must be unset leaving approved."""
++    records_root, ctx = _make_log_ctx(tmp_path)
++    meta.create(
++        "ac1504",
++        "ipd",
++        {"status": "reviewed", "set": "pset", "order": 1},
++        "# IPD: P\n\n## Goal\nG\n",
++        destination="plans/pending/20260101-pset-01-ac1504-p.ipd.md",
++        project_context=ctx,
++    )
++    _refuse_append(
++        records_root,
++        ctx,
++        "ac1504",
++        [{"op": "set", "fields": {"approval": "x"}}],
++        "approval",
++    )
++    res = meta.append(
++        "ac1504",
++        [
++            {"op": "transition", "from": "reviewed", "to": "approved"},
++            {
++                "op": "set",
++                "fields": {"approval": "2030-01-02, recorded via aw ipd set: go"},
++            },
++        ],
++        project_context=ctx,
++    )
++    assert res["committed"] is True
++    st_approved = meta.read("ac1504", project_context=ctx)
++    assert st_approved.status == "approved"
++    assert st_approved.fields["approval"] == "2030-01-02, recorded via aw ipd set: go"
++
++    _refuse_append(
++        records_root,
++        ctx,
++        "ac1504",
++        [{"op": "transition", "from": "approved", "to": "reviewed"}],
++        "approval must be unset",
++    )
++    res_leave = meta.append(
++        "ac1504",
++        [
++            {"op": "transition", "from": "approved", "to": "reviewed"},
++            {"op": "unset", "fields": ["approval"]},
++        ],
++        project_context=ctx,
++    )
++    assert res_leave["committed"] is True
++    st_reviewed = meta.read("ac1504", project_context=ctx)
++    assert st_reviewed.status == "reviewed"
++    assert st_reviewed.fields.get("approval") is None
++
++
++def test_append_ac15_5_backward_transition_requires_unset_readiness(
++    tmp_path: Path,
++) -> None:
++    """AC-15 (5): backward plan transition refuses unless readiness is unset in the same append."""
++    records_root, ctx = _make_log_ctx(tmp_path)
++    meta.create(
++        "ac1505",
++        "ipd",
++        {"status": "reviewed", "set": "pset", "order": 1},
++        "# IPD: P\n\n## Goal\nG\n",
++        destination="plans/pending/20260101-pset-01-ac1505-p.ipd.md",
++        project_context=ctx,
++    )
++    # Record a gate review setting readiness in current_fields before testing backward transition
++    meta.append(
++        "ac1505",
++        [
++            {
++                "op": "review",
++                "round": 1,
++                "review_kind": "gate",
++                "verdict": "APPROVE",
++                "readiness": "go",
++            }
++        ],
++        project_context=ctx,
++    )
++    assert meta.read("ac1505", project_context=ctx).fields["readiness"] == "go"
++
++    _refuse_append(
++        records_root,
++        ctx,
++        "ac1505",
++        [{"op": "transition", "from": "reviewed", "to": "draft"}],
++        "readiness must be unset",
++    )
++    res = meta.append(
++        "ac1505",
++        [
++            {"op": "transition", "from": "reviewed", "to": "draft"},
++            {"op": "unset", "fields": ["readiness"]},
++        ],
++        project_context=ctx,
++    )
++    assert res["committed"] is True
++    st = meta.read("ac1505", project_context=ctx)
++    assert st.status == "draft"
++    assert st.fields.get("readiness") is None
++
++
++def test_append_ac14a_1_gate_review_with_refinement_verdict_refused(
++    tmp_path: Path,
++) -> None:
++    """AC-14a (1): a gate review event with a refinement verdict is refused."""
++    records_root, ctx = _make_log_ctx(tmp_path)
++    meta.create(
++        "ac1401",
++        "spec",
++        {"status": "draft"},
++        "# Spec: S\n",
++        destination="specs/draft/20260101-ac1401-01-ac1401-s.spec.md",
++        project_context=ctx,
++    )
++    _refuse_append(
++        records_root,
++        ctx,
++        "ac1401",
++        [
++            {
++                "op": "review",
++                "round": 1,
++                "review_kind": "gate",
++                "verdict": "REVIEWED - MATERIAL CHANGES APPLIED",
++            }
++        ],
++        "invalid gate verdict",
++    )
++
++
++def test_append_ac14a_2_refinement_review_with_readiness_refused(
++    tmp_path: Path,
++) -> None:
++    """AC-14a (2): a refinement review event carrying readiness is refused."""
++    records_root, ctx = _make_log_ctx(tmp_path)
++    meta.create(
++        "ac1402",
++        "spec",
++        {"status": "draft"},
++        "# Spec: S\n",
++        destination="specs/draft/20260101-ac1402-01-ac1402-s.spec.md",
++        project_context=ctx,
++    )
++    _refuse_append(
++        records_root,
++        ctx,
++        "ac1402",
++        [{"op": "review", "round": 1, "review_kind": "refinement", "readiness": "go"}],
++        "refinement review must not carry 'readiness'",
++    )
++
++
++def test_append_ac14a_3_refinement_rounds_keep_seq_order(tmp_path: Path) -> None:
++    """AC-14a (3): sequential refinement review rounds keep monotonic seq and round order."""
++    records_root, ctx = _make_log_ctx(tmp_path)
++    meta.create(
++        "ac1403",
++        "spec",
++        {"status": "draft"},
++        "# Spec: S\n",
++        destination="specs/draft/ac1403.spec.md",
++        project_context=ctx,
++    )
++    for n in (1, 2, 3):
++        meta.append(
++            "ac1403",
++            [
++                {
++                    "op": "review",
++                    "round": n,
++                    "review_kind": "refinement",
++                    "verdict": "REVIEWED - MATERIAL CHANGES APPLIED",
++                }
++            ],
++            project_context=ctx,
++        )
++    lines = (
++        (records_root / "meta" / "ac1403.jsonl")
++        .read_text(encoding="utf-8")
++        .splitlines(keepends=True)
++    )
++    _state, _fc, _ap, proj = meta.replay("ac1403", "spec", lines)
++    rounds = [(r["seq"], r["round"]) for r in proj["reviews"]]
++    assert rounds == [(2, 1), (3, 2), (4, 3)]
++
++
++def test_append_message_with_home_path_refused(tmp_path: Path) -> None:
++    """Writer leak check refuses a machine-local home path in an event message."""
++    records_root, ctx = _make_log_ctx(tmp_path)
++    meta.create(
++        "lk0001",
++        "ipd",
++        {"status": "draft", "set": "pset", "order": 1},
++        "# IPD: P\n\n## Goal\nG\n",
++        destination="plans/pending/20260101-pset-01-lk0001-p.ipd.md",
++        project_context=ctx,
++    )
++    home = "/" + "home" + "/someone/a.md"
++    _refuse_append(
++        records_root,
++        ctx,
++        "lk0001",
++        [{"op": "note", "message": f"see {home}"}],
++        "message",
++    )
 diff --git a/tests/test_artifact_refs_rewrite.py b/tests/test_artifact_refs_rewrite.py
 index 4d7401242..0134d0099 100644
 --- a/tests/test_artifact_refs_rewrite.py
@@ -12666,6 +15337,21 @@ index daadd37f9..a78721bd0 100644
  
  
  # --------------------------------------------------------------------------------------
+diff --git a/tests/test_m0001_sidecar.py b/tests/test_m0001_sidecar.py
+index 0dbe6d86c..d5819838a 100644
+--- a/tests/test_m0001_sidecar.py
++++ b/tests/test_m0001_sidecar.py
+@@ -308,8 +308,8 @@ def test_sidecar_classification_queueing_and_orphan_export(
+         for ev in ev_list:
+             assert set(ev.keys()).issubset(allowed_keys)
+ 
+-    # Inline history from artifact_meta.load_legacy_artifact remains untouched with distinct source
+-    _, inline_hist = artifact_meta.load_legacy_artifact(spec_path, rec_root)
++    # Inline history from m0001_metadata_v2.load_legacy_artifact remains untouched with distinct source
++    _, inline_hist = m0001_metadata_v2.load_legacy_artifact(spec_path, rec_root)
+     assert len(inline_hist) == 1
+     assert "human approved" in inline_hist[0]["line"]
+ 
 diff --git a/tests/test_readers_runner.py b/tests/test_readers_runner.py
 index 9237d2d04..f2f07a857 100644
 --- a/tests/test_readers_runner.py
