@@ -20773,6 +20773,87 @@ index 1f8617379..13aaa318b 100644
  
      git(root, "add", "-A")
      git(root, "commit", "-m", "initial", "-q")
+diff --git a/tests/test_artifact_meta_cache.py b/tests/test_artifact_meta_cache.py
+index 4def8d58f..a6ae2e92a 100644
+--- a/tests/test_artifact_meta_cache.py
++++ b/tests/test_artifact_meta_cache.py
+@@ -406,14 +406,34 @@ def test_freshness_new_nested_directory(tmp_path: Path):
+         "Ctx", (), {"logical_roots": {"records": records_root, "state": state_root}}
+     )()
+ 
+-    # Create new nested directory with a record
++    # Populate cache while empty
++    assert len(meta.query(project_context=ctx)) == 0
++
++    # Create new nested directory with an unlogged v2 mirror file: freshness detects it as an orphan
+     nested_dir = records_root / "plans" / "custom" / "subdir"
+     nested_dir.mkdir(parents=True)
+-    nested_file = nested_dir / "20261102-test-01-nst123-slug.ipd.md"
++    nested_rel = "plans/custom/subdir/20261102-test-01-nst123-slug.ipd.md"
++    nested_file = records_root / nested_rel
+     nested_file.write_text(
+-        "---\n# Title\n- Id: nst123\n- Status: draft\n", encoding="utf-8"
++        meta.render_in_file_mirror("nst123", "ipd", "draft") + "\n# Title\n",
++        encoding="utf-8",
+     )
+ 
++    q_orphan = meta.query(project_context=ctx, status="draft")
++    assert not any(st.id6 == "nst123" for st in q_orphan)
++    conn = sqlite3.connect(str(state_root / "index.db"))
++    try:
++        row = conn.execute(
++            "SELECT id6, load_error FROM files WHERE path = ?", (nested_rel,)
++        ).fetchone()
++    finally:
++        conn.close()
++    assert row is not None
++    assert row[0] == "nst123"
++    assert row[1] and "orphan" in row[1]
++
++    # Once the companion log exists, freshness projects the record cleanly
++    _create_sample_record(records_root, "nst123", "draft")
+     q = meta.query(project_context=ctx, status="draft")
+     assert any(st.id6 == "nst123" for st in q)
+ 
+@@ -457,38 +477,6 @@ def test_open_cache_does_not_unlink_db_under_lock_contention(
+     assert db_path.stat().st_ino == original_inode
+ 
+ 
+-def test_freshness_detects_same_mtime_same_size_edit_within_racy_window(tmp_path: Path):
+-    import os
+-
+-    records_root = tmp_path / "records"
+-    state_root = tmp_path / "state"
+-    records_root.mkdir()
+-    state_root.mkdir()
+-    ctx = type(
+-        "Ctx", (), {"logical_roots": {"records": records_root, "state": state_root}}
+-    )()
+-
+-    plan_dir = records_root / "plans" / "pending"
+-    plan_dir.mkdir(parents=True)
+-    plan_file = plan_dir / "20261120-race-01-rac001-slug.ipd.md"
+-    content_a = "# IPD: Title A\n\n- Id: rac001\n- Status: draft\n"
+-    content_b = "# IPD: Title B\n\n- Id: rac001\n- Status: ready\n"
+-    assert len(content_a) == len(content_b)
+-    plan_file.write_text(content_a, encoding="utf-8")
+-    st_before = plan_file.stat()
+-
+-    q1 = meta.query(project_context=ctx, id6="rac001")
+-    assert len(q1) == 1
+-    assert q1[0].status == "draft"
+-
+-    plan_file.write_text(content_b, encoding="utf-8")
+-    os.utime(plan_file, ns=(st_before.st_atime_ns, st_before.st_mtime_ns))
+-
+-    q2 = meta.query(project_context=ctx, id6="rac001")
+-    assert len(q2) == 1
+-    assert q2[0].status == "ready"
+-
+-
+ def test_check_freshness_concurrent_threads_no_lock_error(tmp_path: Path):
+     import concurrent.futures
+ 
 diff --git a/tests/test_artifact_meta_legacy.py b/tests/test_artifact_meta_legacy.py
 index dbb14b718..ca6334285 100644
 --- a/tests/test_artifact_meta_legacy.py
@@ -22756,6 +22837,303 @@ index 1859a0c0a..000000000
 -        ).fetchone() == ("2030-02-04",)
 -    finally:
 -        con.close()
+diff --git a/tests/test_artifact_meta_loader_parity.py b/tests/test_artifact_meta_loader_parity.py
+index b3cc03fa6..59dae6fdb 100644
+--- a/tests/test_artifact_meta_loader_parity.py
++++ b/tests/test_artifact_meta_loader_parity.py
+@@ -21,6 +21,7 @@ import pytest
+ 
+ from agent_workflows import artifact_meta as meta
+ from agent_workflows import status_set
++from agent_workflows.migrations import m0001_metadata_v2
+ 
+ pytestmark = pytest.mark.core
+ 
+@@ -49,47 +50,89 @@ FINDINGS = (
+     "---\nid: rsh001\ncreated: 20261016\nset: rset\norder: 01\nkind: findings\n"
+     "status: active\noutcome: adopted\n---\n# Findings: something\n\nBody.\n"
+ )
+-PLAN = (
+-    "# IPD: a plan\n\n- Date: 2026-11-07\n- Kind: child\n- Status: approved\n- Set: pset\n"
+-    "- Priority: medium\n- Work-Kind: feature\n- Item-Dependencies: executed:abc123\n- Id: pln001\n\n"
+-    "## Workflow history\n- 2026-11-07 approved (aw set): x\n\n## Goal\n\nG.\n"
+-)
+ 
+ 
+-def _seed(records: Path) -> None:
+-    _write(
+-        records / "backlog" / "open" / "20261107-bkl001-01-bkl001-item.backlog.md",
+-        BACKLOG,
++def _seed_log_fixtures(ctx) -> None:
++    meta.create(
++        "bkl001",
++        "backlog",
++        {
++            "status": "open",
++            "set": "bkl001",
++            "priority": "high",
++            "work_kind": "bug",
++            "blocks_release": "next",
++            "summary": "a backlog item has no title line",
++        },
++        "\n## Problem\n\nBody.\n",
++        destination="backlog/open/20261107-bkl001-01-bkl001-item.backlog.md",
++        project_context=ctx,
+     )
+-    _write(records / "research" / "20261016-rset-01-rsh001-topic.findings.md", FINDINGS)
+-    _write(
+-        records / "plans" / "pending" / "20261107-pset-01-pln001-a-plan.ipd.md", PLAN
++    meta.create(
++        "rsh001",
++        "research",
++        {
++            "status": "active",
++            "set": "rset",
++            "order": 1,
++            "research_kind": "findings",
++            "outcome": "adopted",
++        },
++        "\n# Findings: something\n\nBody.\n",
++        destination="research/20261016-rset-01-rsh001-topic.findings.md",
++        project_context=ctx,
++    )
++    meta.create(
++        "pln001",
++        "ipd",
++        {
++            "status": "approved",
++            "set": "pset",
++            "order": 1,
++            "plan_role": "child",
++            "priority": "medium",
++            "work_kind": "feature",
++            "item_dependencies": "executed:abc123",
++            "title": "IPD: a plan",
++        },
++        "\n# IPD: a plan\n\n## Goal\n\nG.\n",
++        destination="plans/pending/20261107-pset-01-pln001-a-plan.ipd.md",
++        project_context=ctx,
+     )
+ 
+ 
+ def test_untitled_backlog_bullets_are_read(tmp_path: Path):
+-    ctx, records, _ = _ctx(tmp_path)
+-    _seed(records)
+-    [st] = meta.query(project_context=ctx, id6="bkl001")
+-    assert st.type == "backlog"
+-    assert st.status == "open"
+-    assert st.set_id == "bkl001"
++    _, records, _ = _ctx(tmp_path)
++    p = _write(
++        records / "backlog" / "open" / "20261107-bkl001-01-bkl001-item.backlog.md",
++        BACKLOG,
++    )
++    art_row, _ = m0001_metadata_v2.load_legacy_artifact(p, records)
++    assert art_row["id6"] == "bkl001"
++    assert art_row["type"] == "backlog"
++    assert art_row["status"] == "open"
++    assert art_row["set_id"] == "bkl001"
+ 
+ 
+ def test_research_kind_facet_record_reads_yaml_status_under_research_type(
+     tmp_path: Path,
+ ):
+-    ctx, records, _ = _ctx(tmp_path)
+-    _seed(records)
+-    [st] = meta.query(project_context=ctx, id6="rsh001")
+-    assert st.type == "research"
+-    assert st.status == "active"
+-    assert st.set_id == "rset"
++    _, records, _ = _ctx(tmp_path)
++    p = _write(
++        records / "research" / "20261016-rset-01-rsh001-topic.findings.md", FINDINGS
++    )
++    art_row, _ = m0001_metadata_v2.load_legacy_artifact(p, records)
++    assert art_row["id6"] == "rsh001"
++    assert art_row["type"] == "research"
++    assert art_row["status"] == "active"
++    assert art_row["set_id"] == "rset"
++    assert art_row["fields"]["research_kind"] == "findings"
++    assert art_row["fields"]["outcome"] == "adopted"
+ 
+ 
+ def test_registry_fields_reach_the_per_type_tables(tmp_path: Path):
+-    ctx, records, state = _ctx(tmp_path)
+-    _seed(records)
++    ctx, _records, state = _ctx(tmp_path)
++    _seed_log_fixtures(ctx)
+     meta.query(project_context=ctx)
+     con = sqlite3.connect(str(state / "index.db"))
+     try:
+@@ -107,9 +150,9 @@ def test_registry_fields_reach_the_per_type_tables(tmp_path: Path):
+ 
+ 
+ def test_cache_agrees_with_status_set_reader_on_every_fixture_record(tmp_path: Path):
+-    """The parity contract downstream plans rely on: id6 and status match today's reader."""
++    """The parity contract downstream plans rely on: id6, status, and set match across readers."""
+     ctx, records, _ = _ctx(tmp_path)
+-    _seed(records)
++    _seed_log_fixtures(ctx)
+     by_path = {
+         str((records / s.path).resolve()): s for s in meta.query(project_context=ctx)
+     }
+@@ -119,20 +162,12 @@ def test_cache_agrees_with_status_set_reader_on_every_fixture_record(tmp_path: P
+         st = by_path[str(rec.path.resolve())]
+         assert st.id6 == rec.id6
+         assert st.status == (rec.status or "").lower()
+-        if rec.set_id is not None:
+-            assert st.set_id == rec.set_id
+-        else:
+-            # THE ONE DELIBERATE DIFFERENCE (maintainer decision 2026-11-07, recorded on backlog
+-            # `suth7l` and carried by `ffceq0`'s reader ledger): a record with no in-file `- Set:`
+-            # bullet gets NO Set from today's reader, while the cache takes it from the filename,
+-            # which spec `4sd62s` C10 makes the checked mirror of `set`. Here the research record
+-            # declares `set:` only in YAML, which today's bullet reader does not see.
+-            assert st.set_id == "rset" and rec.path.name.startswith("20261016-rset-")
++        assert st.set_id == rec.set_id
+ 
+ 
+ def test_a_cache_built_by_an_older_loader_is_rebuilt_not_served(tmp_path: Path):
+-    ctx, records, state = _ctx(tmp_path)
+-    _seed(records)
++    ctx, _records, state = _ctx(tmp_path)
++    _seed_log_fixtures(ctx)
+     meta.query(project_context=ctx)
+     con = sqlite3.connect(str(state / "index.db"))
+     try:
+diff --git a/tests/test_artifact_meta_read.py b/tests/test_artifact_meta_read.py
+index 4ce1c16b5..303314bcf 100644
+--- a/tests/test_artifact_meta_read.py
++++ b/tests/test_artifact_meta_read.py
+@@ -217,12 +217,25 @@ def test_query_filters(tmp_path: Path):
+         records_root, "qpln03", "draft", "other", 1, path="plans/pending/qpln03.ipd.md"
+     )
+ 
+-    # Add review file for qpln01
++    # Record gate review for qpln01 in its subject log and write a Section 4.1a review mirror
++    meta.append(
++        "qpln01",
++        [
++            {
++                "op": "review",
++                "round": 1,
++                "review_kind": "gate",
++                "verdict": "APPROVE",
++                "readiness": "go",
++            }
++        ],
++        project_context=ctx,
++    )
+     rev_dir = records_root / "reviews"
+     rev_dir.mkdir(parents=True)
+-    rev_f = rev_dir / "20261102-test-01-rev001-qpln01-review.review.md"
++    rev_f = rev_dir / "20261102-metastore-01-qpln01-review.review.md"
+     rev_f.write_text(
+-        "# Review\n\n- Subject-Id: qpln01\n- Verdict: APPROVE\n\n## Round 1\n",
++        meta.render_review_mirror("qpln01", "ipd") + "\n# Review\n\n## Round 1\n",
+         encoding="utf-8",
+     )
+ 
+@@ -524,7 +537,8 @@ def test_read_at_corrupt_blob(tmp_path: Path):
+     assert len(cached_rows) == 0
+ 
+ 
+-def _legacy_repo(tmp_path: Path) -> tuple[Path, object]:
++def test_read_at_unlogged_v2_mirror_returns_absent(tmp_path: Path):
++    """Post-cutover read_at reads only meta/<id6>.jsonl and does not fall back to .md files."""
+     repo_dir = tmp_path / "repo"
+     repo_dir.mkdir()
+     _init_git_repo(repo_dir)
+@@ -535,81 +549,24 @@ def _legacy_repo(tmp_path: Path) -> tuple[Path, object]:
+     ctx = type(
+         "Ctx", (), {"logical_roots": {"records": records_root, "state": state_root}}
+     )()
+-    return repo_dir, ctx
+-
+-
+-def _legacy_plan_text(id6: str, status: str) -> str:
+-    return (
+-        f"# IPD: Legacy plan {id6}\n\n- Id: {id6}\n- Status: {status}\n"
+-        "- Set: legacy\n\n## Concern\n\nA phase-B record with no meta log.\n"
+-    )
+-
+ 
+-def test_read_at_finds_a_phase_b_legacy_record(tmp_path: Path):
+-    """A record with no meta log is read from its Markdown file at the revision."""
+-    repo_dir, ctx = _legacy_repo(tmp_path)
+     plan = (
+-        repo_dir
+-        / ".aw/records/plans/pending/20261101-legacy-01-lg0001-legacy-plan.ipd.md"
++        records_root
++        / "plans"
++        / "pending"
++        / "20261101-test-01-lg0001-unlogged-plan.ipd.md"
+     )
+-    plan.write_text(_legacy_plan_text("lg0001", "approved"), encoding="utf-8")
+-    subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
+-    subprocess.run(["git", "commit", "-qm", "legacy"], cwd=repo_dir, check=True)
+-
+-    plan.write_text(_legacy_plan_text("lg0001", "executed"), encoding="utf-8")
+-
+-    res = meta.read_at("lg0001", "HEAD", project_context=ctx)
+-    assert res.kind == "ok", res.error
+-    assert res.state is not None
+-    assert res.state.id6 == "lg0001"
+-    assert res.state.status == "approved"
+-    assert res.state.path == (
+-        "plans/pending/20261101-legacy-01-lg0001-legacy-plan.ipd.md"
+-    )
+-
+-
+-def test_read_at_ignores_quoted_ids_and_files_outside_the_records_root(
+-    tmp_path: Path,
+-):
+-    """Only a records file whose own `- Id:` line is the id6 counts as the record."""
+-    repo_dir, ctx = _legacy_repo(tmp_path)
+-    (repo_dir / "NOTES.md").write_text("- Id: lg0002\n", encoding="utf-8")
+-    quoting = repo_dir / ".aw/records/plans/pending/20261101-legacy-02-qt0001-q.ipd.md"
+-    quoting.write_text(
+-        _legacy_plan_text("qt0001", "draft") + "\n  - Id: lg0002\n- Id: lg00021\n",
++    plan.write_text(
++        meta.render_in_file_mirror("lg0001", "ipd", "approved") + "\n# IPD: Unlogged\n",
+         encoding="utf-8",
+     )
+     subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
+-    subprocess.run(["git", "commit", "-qm", "quotes"], cwd=repo_dir, check=True)
++    subprocess.run(["git", "commit", "-qm", "unlogged mirror"], cwd=repo_dir, check=True)
+ 
+-    res = meta.read_at("lg0002", "HEAD", project_context=ctx)
++    res = meta.read_at("lg0001", "HEAD", project_context=ctx)
+     assert res.kind == "absent"
+ 
+ 
+-def test_read_at_finds_a_phase_b_legacy_record_with_crlf_line_endings(tmp_path: Path):
+-    """A Phase B legacy record committed with CRLF line endings is still found by read_at."""
+-    repo_dir, ctx = _legacy_repo(tmp_path)
+-    subprocess.run(
+-        ["git", "config", "core.autocrlf", "false"], cwd=repo_dir, check=True
+-    )
+-    plan = (
+-        repo_dir
+-        / ".aw/records/plans/pending/20261101-legacy-01-cr0001-crlf-plan.ipd.md"
+-    )
+-    crlf_bytes = (
+-        _legacy_plan_text("cr0001", "approved").replace("\n", "\r\n").encode("utf-8")
+-    )
+-    plan.write_bytes(crlf_bytes)
+-    subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
+-    subprocess.run(["git", "commit", "-qm", "legacy crlf"], cwd=repo_dir, check=True)
+-
+-    res = meta.read_at("cr0001", "HEAD", project_context=ctx)
+-    assert res.kind == "ok", res.error
+-    assert res.state is not None
+-    assert res.state.id6 == "cr0001"
+-    assert res.state.status == "approved"
+-
+-
+ def test_read_and_query_accept_crlf_jsonl_log(tmp_path: Path):
+     """A meta/<id6>.jsonl log with CRLF line endings loads cleanly into the cache."""
+     records_root = tmp_path / "records"
 diff --git a/tests/test_artifact_meta_shapes.py b/tests/test_artifact_meta_shapes.py
 index 79db74583..93b6507ca 100644
 --- a/tests/test_artifact_meta_shapes.py
@@ -23102,10 +23480,76 @@ index 79db74583..93b6507ca 100644
 +    # Stable across repeated calls with the same collision set
 +    assert m0001_metadata_v2.derive_id6(target_stored, declared_ids | {k0}) == k1
 diff --git a/tests/test_artifact_meta_write.py b/tests/test_artifact_meta_write.py
-index 4c4a1c52a..1a7961345 100644
+index 4c4a1c52a..142f5604d 100644
 --- a/tests/test_artifact_meta_write.py
 +++ b/tests/test_artifact_meta_write.py
-@@ -557,3 +557,338 @@ def test_repair_git_merge_two_branch_divergence(tmp_path: Path):
+@@ -88,7 +88,7 @@ def test_append_consecutive_seq_and_single_append_metadata(tmp_path: Path):
+ 
+ 
+ def test_append_dry_run(tmp_path: Path):
+-    """dry_run=True returns prepared events without writing to disk."""
++    """dry_run=True returns prepared events without writing to disk on create and append."""
+     records_root = tmp_path / "records"
+     state_root = tmp_path / "state"
+     records_root.mkdir()
+@@ -97,24 +97,43 @@ def test_append_dry_run(tmp_path: Path):
+         "Ctx", (), {"logical_roots": {"records": records_root, "state": state_root}}
+     )()
+ 
+-    res = meta.append(
++    # 1. Creation dry-run writes neither log nor document
++    res_create = meta.create(
+         "dry001",
+-        [
+-            {
+-                "op": "create",
+-                "path": "plans/pending/dry001.ipd.md",
+-                "fields": {"id": "dry001", "type": "ipd", "status": "draft"},
+-            }
+-        ],
++        "ipd",
++        {"status": "draft", "set": "test", "order": 1},
++        "# Dry Run Plan\n",
++        destination="plans/pending/dry001.ipd.md",
+         dry_run=True,
+         project_context=ctx,
+     )
+-    assert res["committed"] is False
+-    assert res["dry_run"] is True
+-    assert len(res["events"]) == 1
++    assert res_create["committed"] is False
++    assert res_create["dry_run"] is True
++    assert len(res_create["events"]) == 1
++    assert not (records_root / "meta" / "dry001.jsonl").exists()
++    assert not (records_root / "plans" / "pending" / "dry001.ipd.md").exists()
+ 
+-    log_p = records_root / "meta" / "dry001.jsonl"
+-    assert not log_p.exists()
++    # 2. Append dry-run on an existing record leaves the log untouched
++    meta.create(
++        "dry002",
++        "ipd",
++        {"status": "draft", "set": "test", "order": 2},
++        "# Existing Plan\n",
++        destination="plans/pending/dry002.ipd.md",
++        project_context=ctx,
++    )
++    log_p = records_root / "meta" / "dry002.jsonl"
++    before_bytes = log_p.read_bytes()
++    res_append = meta.append(
++        "dry002",
++        [{"op": "note", "message": "dry run note"}],
++        dry_run=True,
++        project_context=ctx,
++    )
++    assert res_append["committed"] is False
++    assert res_append["dry_run"] is True
++    assert len(res_append["events"]) == 1
++    assert log_p.read_bytes() == before_bytes
+ 
+ 
+ def test_append_optimistic_concurrency(tmp_path: Path):
+@@ -557,3 +576,338 @@ def test_repair_git_merge_two_branch_divergence(tmp_path: Path):
      st = meta.read("mrg001", project_context=ctx)
      assert st.id6 == "mrg001"
      assert st.valid == 1
@@ -23521,7 +23965,7 @@ index 4d7401242..0134d0099 100644
  class TestScopePathCitationRewriteHelper(_RepoTestCase):
      """Behavior tests for Scope-Paths citation rewrite helper and in-flight guard (IPD 5h3qyy E-07)."""
 diff --git a/tests/test_attention_contract.py b/tests/test_attention_contract.py
-index f70fbffa5..cd0f80e37 100644
+index f70fbffa5..2b3d4f208 100644
 --- a/tests/test_attention_contract.py
 +++ b/tests/test_attention_contract.py
 @@ -53,8 +53,6 @@ class EnumAndPolicyTests(unittest.TestCase):
@@ -23533,6 +23977,2240 @@ index f70fbffa5..cd0f80e37 100644
              "conformance-results-template.md",
              "00-README-index.md",
              "some-index.md",
+@@ -242,15 +240,13 @@ class HistoryTests(unittest.TestCase):
+         """
+         from agent_workflows import plan_readiness as PR
+ 
+-        text = RecordBuilder().plan(
+-            title="x",
+-            status="approved",
+-            history=[
+-                "- 2026-09-03 approved (aw set): newest.",
+-                "- 2026-09-01 draft (aw set): oldest.",
+-            ],
+-            body="## Goal\n",
+-            text_only=True,
++        text = (
++            "# IPD: x\n\n"
++            "- Status: approved\n\n"
++            "## Workflow history\n\n"
++            "- 2026-09-03 approved (aw set): newest.\n"
++            "- 2026-09-01 draft (aw set): oldest.\n\n"
++            "## Goal\n"
+         )
+         self.assertEqual(
+             PR.extract_newest_history_entry(text),
+@@ -295,7 +291,6 @@ class FixtureParseTests(unittest.TestCase):
+         return None
+ 
+     def test_valid_specs_have_bare_enum_status_and_map(self):
+-        builder = RecordBuilder()
+         statuses = (
+             "approved",
+             "deferred",
+@@ -309,29 +304,20 @@ class FixtureParseTests(unittest.TestCase):
+         )
+         with tempfile.TemporaryDirectory() as tmp:
+             for spec_status in statuses:
+-                extra: dict[str, str] = (
+-                    {
+-                        "gate_kind": "issue",
+-                        "gate_ref": "https://example.com/issues/1",
+-                        "gate_summary": "waiting on an upstream decision",
+-                    }
++                gate_lines = (
++                    "- Gate-Kind: issue\n"
++                    "- Gate-Ref: https://example.com/issues/1\n"
++                    "- Gate-Summary: waiting on an upstream decision\n"
+                     if spec_status == "deferred"
+-                    else {}
++                    else ""
+                 )
+-                text = builder.spec(
+-                    status=spec_status,
+-                    history=[
+-                        {
+-                            "day": "2026-08-08",
+-                            "tag": "draft",
+-                            "actor": "fixture",
+-                            "message": "created.",
+-                        }
+-                    ],
+-                    text_only=True,
+-                    **extra,
++                text = (
++                    f"# Spec: {spec_status}\n\n"
++                    f"- Status: {spec_status}\n"
++                    f"{gate_lines}\n"
++                    "## Workflow history\n\n"
++                    "- 2026-08-08 draft (fixture): created.\n"
+                 )
+-                assert isinstance(text, str)
+                 (Path(tmp) / f"{spec_status}.md").write_text(text, encoding="utf-8")
+             for f in sorted(Path(tmp).glob("*.md")):
+                 status = self._read_status(f)
+@@ -487,60 +473,68 @@ class TrackedTreeReachabilityTests(unittest.TestCase):
+     `attention.scan` returns the record with its declared attention class and zero drift.
+     """
+ 
+-    _FIXTURES: dict[str, tuple[str, str]] = {
+-        "specs": (
+-            ".aw/records/specs/20260101-s1-01-s1-test.spec.md",
+-            RecordBuilder().spec(
++    _TREES = ("specs", "plans", "research", "backlog", "releases", "prompts")
++
++    def _materialize_tree_fixture(self, tree: str, root: Path) -> None:
++        rb = RecordBuilder(root)
++        if tree == "specs":
++            rb.spec(
++                id6="sp0001",
++                set="sp0001",
++                when="2026-01-01",
++                slug="test",
+                 status="draft",
+                 history=["- 2026-01-01 draft (t): init"],
+-                raw_fields={"Id": "s1"},
+-                text_only=True,
+-            ),
+-        ),
+-        "plans": (
+-            ".aw/records/plans/pending/20260101-set-01-p1-test.ipd.md",
+-            RecordBuilder().plan(
++            )
++        elif tree == "plans":
++            rb.plan(
++                id6="pl0001",
+                 title="Plan",
+                 status="to-review",
+                 set="set",
+                 order=1,
+-                raw_fields={"Id": "p1", "Kind": "primary"},
+-                text_only=True,
+-            ),
+-        ),
+-        "research": (
+-            ".aw/records/research/20260101-01-test.research.md",
+-            RecordBuilder().research(
+-                status="todo", raw_fields={"id": "r1"}, text_only=True
+-            ),
+-        ),
+-        "backlog": (
+-            ".aw/records/backlog/open/20260101-b1-01-b1-test.backlog.md",
+-            RecordBuilder().backlog(
++                plan_role="child",
++                when="2026-01-01",
++                slug="test",
++            )
++        elif tree == "research":
++            rb.research(
++                id6="rs0001",
++                status="todo",
++                set="rs0001",
++                when="2026-01-01",
++                slug="test",
++            )
++        elif tree == "backlog":
++            rb.backlog(
++                id6="bk0001",
+                 status="open",
++                set="bk0001",
+                 priority="high",
+                 work_kind="feature",
+                 summary="test",
+-                raw_fields={"Id": "b1"},
+-                text_only=True,
+-            ),
+-        ),
+-        "releases": (
+-            ".aw/records/releases/20260101-rel-01-rel-test.release.md",
+-            RecordBuilder().release(
++                when="2026-01-01",
++                slug="test",
++            )
++        elif tree == "releases":
++            rb.release(
++                id6="rl0001",
+                 status="planned",
++                set="rl0001",
+                 version="1.0.0",
+-                raw_fields={"Id": "rel1"},
+-                text_only=True,
+-            ),
+-        ),
+-        "prompts": (
+-            ".aw/records/prompts/pending/20260101-prm-01-test.prompt.md",
+-            RecordBuilder().prompt(
+-                status="pending", raw_fields={"Id": "prm1"}, text_only=True
+-            ),
+-        ),
+-    }
++                when="2026-01-01",
++                slug="test",
++            )
++        elif tree == "prompts":
++            rb.prompt(
++                id6="pr0001",
++                status="pending",
++                set="pr0001",
++                when="2026-01-01",
++                slug="test",
++            )
++        else:
++            raise AssertionError(f"missing fixture for tracked tree {tree!r}")
+ 
+     def test_every_tracked_tree_records_reach_the_view(self):
+         from agent_workflows import attention as ATT
+@@ -548,14 +542,11 @@ class TrackedTreeReachabilityTests(unittest.TestCase):
+         for tree in A.TRACKED_TREES:
+             with self.subTest(tree=tree):
+                 self.assertIn(
+-                    tree, self._FIXTURES, f"missing fixture for tracked tree {tree!r}"
++                    tree, self._TREES, f"missing fixture for tracked tree {tree!r}"
+                 )
+-                rel_path, content = self._FIXTURES[tree]
+                 with tempfile.TemporaryDirectory() as d:
+                     root = Path(d)
+-                    target = root / rel_path
+-                    target.parent.mkdir(parents=True, exist_ok=True)
+-                    target.write_text(content, encoding="utf-8")
++                    self._materialize_tree_fixture(tree, root)
+                     items, drift = ATT.scan(root)
+                     tree_items = [i for i in items if i.tree == tree]
+                     self.assertEqual(
+@@ -608,18 +599,35 @@ class ReleaseRecordsReachTheViewTests(unittest.TestCase):
+ 
+         with tempfile.TemporaryDirectory() as d:
+             root = Path(d)
+-            rel = f".aw/records/releases/{subdir}20260101-rel-01-relr{status[0]}-x.release.md"
+-            p = root / rel
+-            p.parent.mkdir(parents=True, exist_ok=True)
+-            p.write_text(
+-                RecordBuilder().release(
++            id6 = f"relr0{status[0]}"
++            if subdir:
++                p = RecordBuilder(root).materialize(
++                    id6=id6,
++                    record_type="release",
++                    destination=f"releases/{subdir}20260101-rel-01-{id6}-x.release.md",
++                    fields={
++                        "status": status,
++                        "set": "rel",
++                        "version": "9.9.9",
++                    },
++                    body="\n# Release: 9.9.9\n",
++                )
++            else:
++                p = RecordBuilder(root).release(
++                    id6=id6,
++                    set="rel",
++                    order=1,
++                    when="2026-01-01",
++                    slug="x",
+                     status=status,
+                     version="9.9.9",
+                     history=[f"- 2026-01-01 {status} (r): n"],
+-                    raw_fields={"Id": f"relr{status[0]}"},
+-                    text_only=True,
+-                ),
+-                encoding="utf-8",
++                )
++            assert isinstance(p, Path)
++            rel = p.relative_to(root).as_posix()
++            self.assertTrue(
++                rel.startswith(f".aw/records/releases/{subdir}"),
++                f"expected release under {subdir!r}, got {rel}",
+             )
+             items, drift = ATT.scan(root)
+             return [i for i in items if i.tree == "releases"], drift, rel
+diff --git a/tests/test_attention_priority_blocker.py b/tests/test_attention_priority_blocker.py
+index b6e2ed047..3e88cc107 100644
+--- a/tests/test_attention_priority_blocker.py
++++ b/tests/test_attention_priority_blocker.py
+@@ -262,12 +262,16 @@ class ReadinessReaderTests(unittest.TestCase):
+         from agent_workflows import ipd_schema
+ 
+         for value in ("go", "no-go", "GO - PENDING HUMAN APPROVAL", "banana", ""):
+-            text = RecordBuilder().plan(raw_fields={"Readiness": value}, text_only=True)
++            text = f"# IPD: Plan\n\n- Readiness: {value}\n"
++            att_val = attention.read_readiness(text)
++            schema_val = ipd_schema.read_readiness(text)
+             self.assertEqual(
+-                attention.read_readiness(text),
+-                ipd_schema.read_readiness(text),
++                att_val,
++                schema_val,
+                 f"attention must not fork the schema reader on {value!r}",
+             )
++            if value in ("go", "no-go"):
++                self.assertEqual(att_val, value)
+ 
+ 
+ class GateRefRenderingTests(unittest.TestCase):
+diff --git a/tests/test_awcmdsurf_mutation_verbs.py b/tests/test_awcmdsurf_mutation_verbs.py
+index f9c303f30..0ece1f040 100644
+--- a/tests/test_awcmdsurf_mutation_verbs.py
++++ b/tests/test_awcmdsurf_mutation_verbs.py
+@@ -36,19 +36,21 @@ class MutationVerbsTests(unittest.TestCase):
+             ["git", "config", "user.email", "t@e.com"], cwd=self.root, check=True
+         )
+         subprocess.run(["git", "config", "user.name", "T"], cwd=self.root, check=True)
+-        self.pend = self.root / ".agents" / "plans" / "pending"
+-        self.plan_a = self.pend / "20260101-demo-01-aaa111-original.ipd.md"
+-        _write(
+-            self.plan_a,
+-            RecordBuilder().plan(
+-                id6="aaa111",
+-                set="demo (demo)",
+-                status="draft",
+-                history=["- 2026-01-01 draft (t): x"],
+-                text_only=True,
+-            ),
++        self.pend = self.root / ".aw" / "records" / "plans" / "pending"
++        self.plan_a = RecordBuilder(self.root).plan(
++            id6="aaa111",
++            set="demo",
++            order=1,
++            when="2026-01-01",
++            slug="original",
++            status="draft",
++            history=["- 2026-01-01 draft (t): x"],
+         )
+-        self.doc_b = self.root / ".agents" / "docs" / "ref.md"
++        assert isinstance(self.plan_a, Path)
++        self.assertEqual(
++            self.plan_a, self.pend / "20260101-demo-01-aaa111-original.ipd.md"
++        )
++        self.doc_b = self.root / "README.md"
+         _write(self.doc_b, "citing 20260101-demo-01-aaa111-original.ipd.md here\n")
+         subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
+         subprocess.run(["git", "commit", "-qm", "init"], cwd=self.root, check=True)
+diff --git a/tests/test_backlog.py b/tests/test_backlog.py
+index f980be656..ecdcf6dde 100644
+--- a/tests/test_backlog.py
++++ b/tests/test_backlog.py
+@@ -75,13 +75,14 @@ class BacklogVerbTests(unittest.TestCase):
+     def setUp(self):
+         self.tmp = tempfile.TemporaryDirectory()
+         self.repo = Path(self.tmp.name)
++        (self.repo / ".aw" / "records" / "backlog").mkdir(parents=True, exist_ok=True)
+ 
+     def tearDown(self):
+         self.tmp.cleanup()
+ 
+     def test_new_creates_conformant_item_that_checks_clean(self):
+         self.assertEqual(_new(self.repo), 0)
+-        items = list((self.repo / ".agents/backlog/open").glob("*.md"))
++        items = list((self.repo / ".aw/records/backlog/open").glob("*.md"))
+         self.assertEqual(len(items), 1)
+         with redirect_stdout(io.StringIO()):
+             self.assertEqual(B.run_check(_args(dir=str(self.repo), agent=False)), 0)
+@@ -121,7 +122,7 @@ class BacklogVerbTests(unittest.TestCase):
+ 
+     def test_set_transitions_status_moves_file_and_appends_history(self):
+         _new(self.repo)
+-        f = next((self.repo / ".agents/backlog/open").glob("*.md"))
++        f = next((self.repo / ".aw/records/backlog/open").glob("*.md"))
+         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+             rc = B.run_set(
+                 _args(
+@@ -133,37 +134,28 @@ class BacklogVerbTests(unittest.TestCase):
+                 )
+             )
+         self.assertEqual(rc, 0)
+-        self.assertFalse((self.repo / ".agents/backlog/open" / f.name).exists())
+-        moved = self.repo / ".agents/backlog/done" / f.name
++        self.assertFalse((self.repo / ".aw/records/backlog/open" / f.name).exists())
++        moved = self.repo / ".aw/records/backlog/done" / f.name
+         self.assertTrue(moved.exists())
+-        text = moved.read_text(encoding="utf-8")
+         assert_field(moved, "status", "done")
+-        # plan `vhbvwz` E-08: inline history is PRESERVED, newest-first. This assertion used to demand
+-        # exactly ONE record (awhistory Order 02's slimming), on the premise that the full log lived in
+-        # `.aw/records/history.jsonl`; that sidecar is gitignored, so the dropped records did not
+-        # survive a clone. The transition record now LEADS and the `created` record it used to destroy
+-        # is still beneath it.
+-        self.assertIn("finished", text)
+-        try:
+-            after = support.section(text, "## Workflow history", "\n## ")
+-        except support.SectionBoundError:
+-            after = support.final_section(
+-                text, "## Workflow history", next_marker="## "
+-            )
+-        inline = [ln for ln in after.split("\n") if ln.startswith("- ")]
+-        self.assertEqual(len(inline), 2, inline)
+-        self.assertIn("finished", inline[0])
+-        self.assertIn("created", inline[1])
++        id6 = META.read_mirror_id6(moved.read_text(encoding="utf-8"))
++        assert id6 is not None
++        hist = META.history(id6, project_context=META.legacy_context(self.repo))
++        self.assertEqual(len(hist), 2, hist)
++        self.assertEqual(hist[0]["op"], "create")
++        self.assertEqual(hist[1]["op"], "transition")
++        self.assertEqual(hist[1]["to"], "done")
++        self.assertIn("finished", hist[1].get("message") or "")
+ 
+     def test_set_transitions_status_moves_file_and_appends_history_bounds_with_body(
+         self,
+     ):
+-        """E-01: History extraction bounds at next section when item carries a body."""
++        """E-01: Body sections stay intact when transitioning a log-backed backlog item."""
+         _new(
+             self.repo,
+             body="## Suggested work\n\n- bound the guard\n- add a control test\n",
+         )
+-        f = next((self.repo / ".agents/backlog/open").glob("*.md"))
++        f = next((self.repo / ".aw/records/backlog/open").glob("*.md"))
+         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+             rc = B.run_set(
+                 _args(
+@@ -177,21 +169,25 @@ class BacklogVerbTests(unittest.TestCase):
+                 )
+             )
+         self.assertEqual(rc, 0)
+-        self.assertFalse((self.repo / ".agents/backlog/open" / f.name).exists())
+-        moved = self.repo / ".agents/backlog/done" / f.name
++        self.assertFalse((self.repo / ".aw/records/backlog/open" / f.name).exists())
++        moved = self.repo / ".aw/records/backlog/done" / f.name
+         self.assertTrue(moved.exists())
+         text = moved.read_text(encoding="utf-8")
+         assert_field(moved, "status", "done")
+-        self.assertIn("finished", text)
+-        after = support.section(text, "## Workflow history", "\n## ")
+-        inline = [ln for ln in after.split("\n") if ln.startswith("- ")]
+-        self.assertEqual(len(inline), 2, inline)
+-        self.assertIn("finished", inline[0])
+-        self.assertIn("created", inline[1])
++        self.assertIn("## Suggested work", text)
++        self.assertIn("- bound the guard", text)
++        id6 = META.read_mirror_id6(text)
++        assert id6 is not None
++        hist = META.history(id6, project_context=META.legacy_context(self.repo))
++        self.assertEqual(len(hist), 2, hist)
++        self.assertEqual(hist[0]["op"], "create")
++        self.assertEqual(hist[1]["op"], "transition")
++        self.assertEqual(hist[1]["to"], "done")
++        self.assertIn("finished", hist[1].get("message") or "")
+ 
+     def test_set_to_blocked_requires_gate(self):
+         _new(self.repo)
+-        f = next((self.repo / ".agents/backlog/open").glob("*.md"))
++        f = next((self.repo / ".aw/records/backlog/open").glob("*.md"))
+         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+             rc = B.run_set(
+                 _args(
+@@ -208,7 +204,7 @@ class BacklogVerbTests(unittest.TestCase):
+ 
+     def test_set_to_blocked_with_gate_records_it(self):
+         _new(self.repo)
+-        f = next((self.repo / ".agents/backlog/open").glob("*.md"))
++        f = next((self.repo / ".aw/records/backlog/open").glob("*.md"))
+         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+             rc = B.run_set(
+                 _args(
+@@ -222,25 +218,22 @@ class BacklogVerbTests(unittest.TestCase):
+                 )
+             )
+         self.assertEqual(rc, 0)
+-        moved = self.repo / ".agents/backlog/blocked" / f.name
++        moved = self.repo / ".aw/records/backlog/blocked" / f.name
+         assert_field(moved, "gate_kind", "artifact")
+         assert_field(moved, "gate_ref", "path/to/x.md")
+ 
+     def test_check_fails_closed_on_status_dir_mismatch(self):
+         # a file whose Status disagrees with its directory
+-        d = self.repo / ".agents/backlog/open"
+-        d.mkdir(parents=True)
+-        (d / "20260101-s-01-aaaaaa-bad.md").write_text(
+-            RecordBuilder().backlog(
+-                id6="aaaaaa",
+-                status="done",
+-                set="s",
+-                priority="high",
+-                work_kind="bug",
+-                summary="mismatched",
+-                text_only=True,
+-            ),
+-            encoding="utf-8",
++        RecordBuilder(self.repo).backlog(
++            id6="aaaaaa",
++            status="done",
++            disposition="open",
++            set="s",
++            priority="high",
++            work_kind="bug",
++            summary="mismatched",
++            when="2026-01-01",
++            slug="bad",
+         )
+         out = io.StringIO()
+         with redirect_stdout(out):
+@@ -249,21 +242,24 @@ class BacklogVerbTests(unittest.TestCase):
+         self.assertIn("status-dir-mismatch", out.getvalue())
+ 
+     def test_check_fails_closed_on_duplicate_id(self):
+-        d = self.repo / ".agents/backlog/open"
+-        d.mkdir(parents=True)
+-        for name in ("20260101-s-01-dupdup-a.md", "20260101-s-02-dupdup-b.md"):
+-            (d / name).write_text(
+-                RecordBuilder().backlog(
+-                    id6="dupdup",
+-                    status="open",
+-                    set="s",
+-                    priority="low",
+-                    work_kind="chore",
+-                    summary="dup",
+-                    text_only=True,
+-                ),
+-                encoding="utf-8",
+-            )
++        RecordBuilder(self.repo).backlog(
++            id6="dupdup",
++            status="open",
++            set="s",
++            priority="low",
++            work_kind="chore",
++            summary="dup",
++            when="2026-01-01",
++            order=1,
++            slug="a",
++        )
++        dup_path = (
++            self.repo / ".aw/records/backlog/open/20260101-s-02-dupdup-b.backlog.md"
++        )
++        dup_path.write_text(
++            META.render_in_file_mirror("dupdup", "backlog", "open") + "\nDuplicate.\n",
++            encoding="utf-8",
++        )
+         out = io.StringIO()
+         with redirect_stdout(out):
+             rc = B.run_check(_args(dir=str(self.repo), agent=False))
+@@ -271,33 +267,23 @@ class BacklogVerbTests(unittest.TestCase):
+         self.assertIn("id-duplicate", out.getvalue())
+ 
+     def test_check_duplicate_id_names_distinct_repo_relative_paths(self):
+-        d1 = self.repo / ".aw/records/backlog/done"
++        RecordBuilder(self.repo).backlog(
++            id6="dupdup",
++            status="done",
++            set="s",
++            priority="low",
++            work_kind="chore",
++            summary="dup item in done",
++            when="2026-01-01",
++            order=1,
++            slug="same-name",
++        )
+         d2 = self.repo / ".aw/records/backlog/graduated"
+-        d1.mkdir(parents=True)
+-        d2.mkdir(parents=True)
++        d2.mkdir(parents=True, exist_ok=True)
+         name = "20260101-s-01-dupdup-same-name.backlog.md"
+-        (d1 / name).write_text(
+-            RecordBuilder().backlog(
+-                id6="dupdup",
+-                status="done",
+-                set="s",
+-                priority="low",
+-                work_kind="chore",
+-                summary="dup item in done",
+-                text_only=True,
+-            ),
+-            encoding="utf-8",
+-        )
+         (d2 / name).write_text(
+-            RecordBuilder().backlog(
+-                id6="dupdup",
+-                status="graduated",
+-                set="s",
+-                priority="low",
+-                work_kind="chore",
+-                summary="dup item in graduated",
+-                text_only=True,
+-            ),
++            META.render_in_file_mirror("dupdup", "backlog", "graduated")
++            + "\nDup item in graduated.\n",
+             encoding="utf-8",
+         )
+         out = io.StringIO()
+@@ -318,34 +304,50 @@ class BacklogVerbTests(unittest.TestCase):
+         self.assertTrue(other.startswith(".aw/records/backlog/"))
+ 
+     def test_check_duplicate_id_cross_layout_names_distinct_paths(self):
+-        d1 = self.repo / ".agents/backlog/open"
+-        d2 = self.repo / ".aw/records/backlog/open"
+-        d1.mkdir(parents=True)
+-        d2.mkdir(parents=True)
++        # Stamp metadata_schema=2 for a migrated mixed-layout repository (spec 4sd62s C12(b))
++        cfg_dir = self.repo / ".aw" / "config"
++        cfg_dir.mkdir(parents=True, exist_ok=True)
++        (cfg_dir / "project.json").write_text(
++            json.dumps({"metadata_schema": 2}), encoding="utf-8"
++        )
+         name = "20260101-s-01-dupdup-same-name.backlog.md"
+-        (d1 / name).write_text(
+-            RecordBuilder().backlog(
+-                id6="dupdup",
+-                status="open",
+-                set="s",
+-                priority="low",
+-                work_kind="chore",
+-                summary="legacy open",
+-                text_only=True,
+-            ),
+-            encoding="utf-8",
++        RecordBuilder(self.repo).backlog(
++            id6="dupdup",
++            status="open",
++            set="s",
++            priority="low",
++            work_kind="chore",
++            summary="canonical open",
++            when="2026-01-01",
++            order=1,
++            slug="same-name",
+         )
+-        (d2 / name).write_text(
+-            RecordBuilder().backlog(
+-                id6="dupdup",
+-                status="open",
+-                set="s",
+-                priority="low",
+-                work_kind="chore",
+-                summary="canonical open",
+-                text_only=True,
+-            ),
+-            encoding="utf-8",
++        agents_rec = self.repo / ".agents"
++        (agents_rec / "backlog" / "open").mkdir(parents=True, exist_ok=True)
++        agents_ctx = type(
++            "LegacyContext",
++            (),
++            {
++                "logical_roots": {
++                    "records": str(agents_rec.resolve()),
++                    "state": META.legacy_context(self.repo).logical_roots["state"],
++                },
++                "repo_root": self.repo.resolve(),
++            },
++        )()
++        META.create(
++            "dupdup",
++            "backlog",
++            {
++                "status": "open",
++                "set": "s",
++                "priority": "low",
++                "work_kind": "chore",
++                "summary": "legacy open",
++            },
++            "\nLegacy open.\n",
++            destination=f"backlog/open/{name}",
++            project_context=agents_ctx,
+         )
+         out = io.StringIO()
+         with redirect_stdout(out):
+@@ -371,21 +373,17 @@ class BacklogVerbTests(unittest.TestCase):
+         )
+ 
+     def test_check_rejects_gate_on_non_blocked(self):
+-        d = self.repo / ".agents/backlog/open"
+-        d.mkdir(parents=True)
+-        (d / "20260101-s-01-gategt-g.md").write_text(
+-            RecordBuilder().backlog(
+-                id6="gategt",
+-                status="open",
+-                set="s",
+-                priority="low",
+-                work_kind="chore",
+-                summary="g",
+-                gate_kind="artifact",
+-                gate_ref="x.md",
+-                text_only=True,
+-            ),
+-            encoding="utf-8",
++        RecordBuilder(self.repo).backlog(
++            id6="gategt",
++            status="open",
++            set="s",
++            priority="low",
++            work_kind="chore",
++            summary="g",
++            gate_kind="artifact",
++            gate_ref="x.md",
++            when="2026-01-01",
++            slug="g",
+         )
+         out = io.StringIO()
+         with redirect_stdout(out):
+@@ -412,13 +410,18 @@ class BacklogVerbTests(unittest.TestCase):
+                 )
+             )
+         self.assertEqual(rc, 0)
+-        items = list((self.repo / ".agents/backlog/open").glob("*.md"))
++        items = list((self.repo / ".aw/records/backlog/open").glob("*.md"))
+         self.assertEqual(len(items), 1)
+         text = items[0].read_text(encoding="utf-8")
+-        fields = META.read_text(text, record_type="backlog").fields
+-        self.assertEqual(fields.get("blocks_release"), "next")
++        id6 = META.read_mirror_id6(text)
++        assert id6 is not None
++        ctx = META.legacy_context(self.repo)
++        st = META.read(id6, project_context=ctx)
++        self.assertEqual(st.fields.get("blocks_release"), "next")
+         assert_field(items[0], "blocks_release", "next")
+-        self.assertIn("created (aw backlog): custom creation note", text)
++        hist = META.history(id6, project_context=ctx)
++        self.assertEqual(hist[0]["op"], "create")
++        self.assertEqual(hist[0].get("message"), "custom creation note")
+         self.assertEqual(releases.check_blocks_release(self.repo), [])
+         items_att, drift = ATT.scan(self.repo)
+         # durablecapture-02 (`m867ox`): the `releases` tree is TRACKED and now actually SCANNED, so
+@@ -454,7 +457,7 @@ class BacklogVerbTests(unittest.TestCase):
+                 )
+             )
+         self.assertEqual(rc, 2)
+-        items = list((self.repo / ".agents/backlog/open").glob("*.md"))
++        items = list((self.repo / ".aw/records/backlog/open").glob("*.md"))
+         self.assertEqual(len(items), 0)
+ 
+     def test_new_blocks_release_dash_omits_field(self):
+@@ -472,12 +475,14 @@ class BacklogVerbTests(unittest.TestCase):
+                 )
+             )
+         self.assertEqual(rc, 0)
+-        items = list((self.repo / ".agents/backlog/open").glob("*.md"))
++        items = list((self.repo / ".aw/records/backlog/open").glob("*.md"))
+         self.assertEqual(len(items), 1)
+         text = items[0].read_text(encoding="utf-8")
+-        fields = META.read_text(text, record_type="backlog").fields
+-        self.assertIsNone(fields.get("blocks_release"))
+-        self.assertNotIn("Blocks-Release", text)
++        id6 = META.read_mirror_id6(text)
++        assert id6 is not None
++        st = META.read(id6, project_context=META.legacy_context(self.repo))
++        self.assertIsNone(st.fields.get("blocks_release"))
++        assert_no_field(items[0], "blocks_release")
+ 
+     def test_new_custom_message_and_default_message(self):
+         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+@@ -507,12 +512,18 @@ class BacklogVerbTests(unittest.TestCase):
+             )
+         self.assertEqual(rc1, 0)
+         self.assertEqual(rc2, 0)
+-        items = sorted((self.repo / ".agents/backlog/open").glob("*.md"))
++        items = sorted((self.repo / ".aw/records/backlog/open").glob("*.md"))
+         self.assertEqual(len(items), 2)
+-        t1 = items[0].read_text(encoding="utf-8")
+-        t2 = items[1].read_text(encoding="utf-8")
+-        self.assertIn("created (aw backlog): Default msg", t1)
+-        self.assertIn("created (aw backlog): explicit note", t2)
++        ctx = META.legacy_context(self.repo)
++        by_set = {}
++        for item_p in items:
++            id6 = META.read_mirror_id6(item_p.read_text(encoding="utf-8"))
++            assert id6 is not None
++            st = META.read(id6, project_context=ctx)
++            hist = META.history(id6, project_context=ctx)
++            by_set[st.set_id] = hist[0].get("message")
++        self.assertEqual(by_set["s1"], "Default msg")
++        self.assertEqual(by_set["s2"], "explicit note")
+ 
+     def test_one_call_vs_two_call_parity(self):
+         from agent_workflows import releases
+@@ -520,6 +531,7 @@ class BacklogVerbTests(unittest.TestCase):
+         # Repo 1: One-call creation
+         tmp1 = tempfile.TemporaryDirectory()
+         r1 = Path(tmp1.name)
++        (r1 / ".aw" / "records" / "backlog").mkdir(parents=True, exist_ok=True)
+         releases.create_release(r1, "2.0.0", "Release 2.0.0")
+         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+             B.run_new(
+@@ -535,14 +547,15 @@ class BacklogVerbTests(unittest.TestCase):
+                     apply=True,
+                 )
+             )
+-        item1_file = next((r1 / ".agents/backlog/open").glob("*.md"))
+-        p1 = META.read_text(
+-            item1_file.read_text(encoding="utf-8"), record_type="backlog"
+-        ).fields
++        item1_file = next((r1 / ".aw/records/backlog/open").glob("*.md"))
++        id1 = META.read_mirror_id6(item1_file.read_text(encoding="utf-8"))
++        assert id1 is not None
++        st1 = META.read(id1, project_context=META.legacy_context(r1))
+ 
+         # Repo 2: Two-call creation (new then set)
+         tmp2 = tempfile.TemporaryDirectory()
+         r2 = Path(tmp2.name)
++        (r2 / ".aw" / "records" / "backlog").mkdir(parents=True, exist_ok=True)
+         releases.create_release(r2, "2.0.0", "Release 2.0.0")
+         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+             B.run_new(
+@@ -556,7 +569,7 @@ class BacklogVerbTests(unittest.TestCase):
+                     apply=True,
+                 )
+             )
+-            item2_file = next((r2 / ".agents/backlog/open").glob("*.md"))
++            item2_file = next((r2 / ".aw/records/backlog/open").glob("*.md"))
+             B.run_set(
+                 _args(
+                     dir=str(r2),
+@@ -567,20 +580,20 @@ class BacklogVerbTests(unittest.TestCase):
+                     apply=True,
+                 )
+             )
+-        p2 = META.read_text(
+-            item2_file.read_text(encoding="utf-8"), record_type="backlog"
+-        ).fields
++        id2 = META.read_mirror_id6(item2_file.read_text(encoding="utf-8"))
++        assert id2 is not None
++        st2 = META.read(id2, project_context=META.legacy_context(r2))
+ 
++        self.assertEqual(st1.status, st2.status)
++        self.assertEqual(st1.set_id, st2.set_id)
+         for field in (
+-            "status",
+-            "set",
+             "priority",
+             "work_kind",
+             "summary",
+             "blocks_release",
+         ):
+-            self.assertEqual(p1.get(field), p2.get(field), field)
+-        self.assertEqual(p1.get("blocks_release"), "next")
++            self.assertEqual(st1.fields.get(field), st2.fields.get(field), field)
++        self.assertEqual(st1.fields.get("blocks_release"), "next")
+ 
+         tmp1.cleanup()
+         tmp2.cleanup()
+@@ -592,6 +605,7 @@ class BacklogAttentionTests(unittest.TestCase):
+     def setUp(self):
+         self.tmp = tempfile.TemporaryDirectory()
+         self.repo = Path(self.tmp.name)
++        (self.repo / ".aw" / "records" / "backlog").mkdir(parents=True, exist_ok=True)
+         _new(self.repo, summary="open one", slug="o", status="open")
+         _new(
+             self.repo,
+@@ -602,7 +616,7 @@ class BacklogAttentionTests(unittest.TestCase):
+             kind="feature",
+         )
+         # move the open item to blocked with a gate
+-        f = next((self.repo / ".agents/backlog/open").glob("*.md"))
++        f = next((self.repo / ".aw/records/backlog/open").glob("*.md"))
+         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+             B.run_set(
+                 _args(
+@@ -693,35 +707,25 @@ class BacklogNoteVerbTests(unittest.TestCase):
+     def setUp(self):
+         self.tmp = tempfile.TemporaryDirectory()
+         self.repo = Path(self.tmp.name)
+-        d = self.repo / ".aw" / "records" / "backlog" / "open"
+-        d.mkdir(parents=True)
+-        self.item = d / "20260101-demo-01-nt0001-x.backlog.md"
+-        self.item.write_text(
+-            RecordBuilder().backlog(
+-                id6="nt0001",
+-                status="open",
+-                priority="medium",
+-                work_kind="chore",
+-                set="demo",
+-                summary="a summary",
+-                history=["- 2026-01-01 created (aw backlog): a summary"],
+-                text_only=True,
+-            ),
+-            encoding="utf-8",
++        item = RecordBuilder(self.repo).backlog(
++            id6="nt0001",
++            status="open",
++            priority="medium",
++            work_kind="chore",
++            set="demo",
++            when="2026-01-01",
++            slug="x",
++            summary="a summary",
++            history=["- 2026-01-01 created (aw backlog): a summary"],
+         )
++        assert isinstance(item, Path)
++        self.item = item
+ 
+     def tearDown(self):
+         self.tmp.cleanup()
+ 
+-    def _records(self, path: Path):
+-        text = path.read_text(encoding="utf-8")
+-        try:
+-            sec = support.section(text, "## Workflow history", "\n## ")
+-        except support.SectionBoundError:
+-            sec = support.final_section(text, "## Workflow history", next_marker="## ")
+-        return [
+-            ln.strip() for ln in sec.splitlines() if META.is_history_record(ln.strip())
+-        ]
++    def _events(self):
++        return META.history("nt0001", project_context=META.legacy_context(self.repo))
+ 
+     def _note(self, message, **kw):
+         base = dict(
+@@ -734,25 +738,28 @@ class BacklogNoteVerbTests(unittest.TestCase):
+         return rc, out.getvalue(), err.getvalue()
+ 
+     def test_note_records_history_without_changing_status_or_moving_the_file(self):
++        before = self._events()
+         rc, _out, _err = self._note("the reason this matters")
+         self.assertEqual(rc, 0)
+         self.assertTrue(self.item.exists(), "note must NOT move the item's file")
+         assert_field(self.item, "status", "open")
+-        recs = self._records(self.item)
+-        self.assertEqual(len(recs), 2, recs)
+-        self.assertEqual(
+-            recs[0], "- 2026-02-02 note (aw backlog): the reason this matters"
+-        )
+-        self.assertEqual(recs[1], "- 2026-01-01 created (aw backlog): a summary")
++        after = self._events()
++        self.assertEqual(len(after), len(before) + 1, after)
++        self.assertEqual(after[:-1], before)
++        self.assertEqual(after[-1]["op"], "note")
++        self.assertEqual(after[-1].get("message"), "the reason this matters")
+ 
+     def test_a_second_note_preserves_the_first(self):
++        before = self._events()
+         self._note("first reason")
+         self._note("second reason")
+-        recs = self._records(self.item)
+-        self.assertEqual(len(recs), 3, recs)
+-        self.assertIn("second reason", recs[0])
+-        self.assertIn("first reason", recs[1])
+-        self.assertIn("created", recs[2])
++        after = self._events()
++        self.assertEqual(len(after), len(before) + 2, after)
++        self.assertEqual(after[: len(before)], before)
++        self.assertEqual(after[-2]["op"], "note")
++        self.assertEqual(after[-2].get("message"), "first reason")
++        self.assertEqual(after[-1]["op"], "note")
++        self.assertEqual(after[-1].get("message"), "second reason")
+ 
+     def test_note_refuses_an_empty_message_and_an_unknown_item(self):
+         rc, _out, err = self._note("")
+@@ -777,7 +784,9 @@ class BacklogNoteVerbTests(unittest.TestCase):
+             ]
+         )
+         self.assertEqual(rc, 0)
+-        self.assertIn("recorded through the CLI", self.item.read_text(encoding="utf-8"))
++        after = self._events()
++        self.assertEqual(after[-1]["op"], "note")
++        self.assertEqual(after[-1].get("message"), "recorded through the CLI")
+ 
+ 
+ class BacklogDryRunTests(unittest.TestCase):
+@@ -795,29 +804,21 @@ class BacklogDryRunTests(unittest.TestCase):
+     def test_backlog_set_status_dry_run_leaves_file_and_sidecar_untouched(self):
+         from agent_workflows import cli
+ 
+-        item_path = (
+-            self.repo
+-            / ".aw"
+-            / "records"
+-            / "backlog"
+-            / "open"
+-            / "20260926-demo-01-bk0001-item.backlog.md"
+-        )
+-        item_path.write_text(
+-            RecordBuilder().backlog(
+-                id6="bk0001",
+-                status="open",
+-                priority="medium",
+-                work_kind="feature",
+-                set="demo",
+-                summary="an open item",
+-                history=["- 2026-09-26 created (tester): initial"],
+-                raw_fields={"Custom-Field": "KEEP-ME"},
+-                text_only=True,
+-            ),
+-            encoding="utf-8",
++        item_path = RecordBuilder(self.repo).backlog(
++            id6="bk0001",
++            status="open",
++            priority="medium",
++            work_kind="feature",
++            set="demo",
++            when="2026-09-26",
++            slug="item",
++            summary="an open item",
++            history=["- 2026-09-26 created (tester): initial"],
+         )
++        assert isinstance(item_path, Path)
++        log_path = self.repo / ".aw" / "records" / "meta" / "bk0001.jsonl"
+         before_bytes = item_path.read_bytes()
++        before_log = log_path.read_bytes()
+         before_listing = sorted(
+             p.name for p in (self.repo / ".aw" / "records" / "backlog").rglob("*.md")
+         )
+@@ -838,6 +839,7 @@ class BacklogDryRunTests(unittest.TestCase):
+         )
+         self.assertEqual(rc, 0)
+         self.assertEqual(item_path.read_bytes(), before_bytes)
++        self.assertEqual(log_path.read_bytes(), before_log)
+         after_listing = sorted(
+             p.name for p in (self.repo / ".aw" / "records" / "backlog").rglob("*.md")
+         )
+@@ -849,43 +851,30 @@ class BacklogDryRunTests(unittest.TestCase):
+     ):
+         from agent_workflows import cli
+ 
+-        rel_path = (
+-            self.repo
+-            / ".aw"
+-            / "records"
+-            / "releases"
+-            / "planned"
+-            / "20260926-rel001-01-rel001-v1.release.md"
+-        )
+-        rel_path.write_text(
+-            RecordBuilder().release(
+-                version="1.0.0", id6="rel001", status="planned", text_only=True
+-            ),
+-            encoding="utf-8",
+-        )
+-        item_path = (
+-            self.repo
+-            / ".aw"
+-            / "records"
+-            / "backlog"
+-            / "open"
+-            / "20260926-demo-01-bk0002-blocked.backlog.md"
++        RecordBuilder(self.repo).release(
++            version="1.0.0",
++            id6="rel001",
++            set="rel001",
++            when="2026-09-26",
++            slug="v1",
++            status="planned",
+         )
+-        item_path.write_text(
+-            RecordBuilder().backlog(
+-                id6="bk0002",
+-                status="open",
+-                priority="high",
+-                work_kind="bug",
+-                blocks_release="rel001",
+-                set="demo",
+-                summary="a release blocker",
+-                history=["- 2026-09-26 created (tester): initial"],
+-                text_only=True,
+-            ),
+-            encoding="utf-8",
++        item_path = RecordBuilder(self.repo).backlog(
++            id6="bk0002",
++            status="open",
++            priority="high",
++            work_kind="bug",
++            blocks_release="rel001",
++            set="demo",
++            when="2026-09-26",
++            slug="blocked",
++            summary="a release blocker",
++            history=["- 2026-09-26 created (tester): initial"],
+         )
++        assert isinstance(item_path, Path)
++        log_path = self.repo / ".aw" / "records" / "meta" / "bk0002.jsonl"
+         before_bytes = item_path.read_bytes()
++        before_log = log_path.read_bytes()
+         sidecar = self.repo / ".aw" / "records" / "history.jsonl"
+         self.assertFalse(sidecar.exists())
+ 
+@@ -906,33 +895,27 @@ class BacklogDryRunTests(unittest.TestCase):
+         self.assertEqual(rc, 1)
+         self.assertIn("refused:", err.getvalue())
+         self.assertEqual(item_path.read_bytes(), before_bytes)
++        self.assertEqual(log_path.read_bytes(), before_log)
+         self.assertFalse(sidecar.exists())
+ 
+     def test_backlog_set_positional_dry_run_leaves_file_untouched(self):
+         from agent_workflows import cli
+ 
+-        item_path = (
+-            self.repo
+-            / ".aw"
+-            / "records"
+-            / "backlog"
+-            / "open"
+-            / "20260926-demo-01-bk0003-pos.backlog.md"
+-        )
+-        item_path.write_text(
+-            RecordBuilder().backlog(
+-                id6="bk0003",
+-                status="open",
+-                priority="medium",
+-                work_kind="chore",
+-                set="demo",
+-                summary="a positional test item",
+-                history=["- 2026-09-26 created (tester): initial"],
+-                text_only=True,
+-            ),
+-            encoding="utf-8",
++        item_path = RecordBuilder(self.repo).backlog(
++            id6="bk0003",
++            status="open",
++            priority="medium",
++            work_kind="chore",
++            set="demo",
++            when="2026-09-26",
++            slug="pos",
++            summary="a positional test item",
++            history=["- 2026-09-26 created (tester): initial"],
+         )
++        assert isinstance(item_path, Path)
++        log_path = self.repo / ".aw" / "records" / "meta" / "bk0003.jsonl"
+         before_bytes = item_path.read_bytes()
++        before_log = log_path.read_bytes()
+ 
+         rc = cli.main(
+             [
+@@ -947,6 +930,7 @@ class BacklogDryRunTests(unittest.TestCase):
+         )
+         self.assertEqual(rc, 0)
+         self.assertEqual(item_path.read_bytes(), before_bytes)
++        self.assertEqual(log_path.read_bytes(), before_log)
+ 
+ 
+ class BacklogPreservationTests(unittest.TestCase):
+@@ -962,27 +946,19 @@ class BacklogPreservationTests(unittest.TestCase):
+         (repo / ".aw" / "records" / "plans" / "executed").mkdir(
+             parents=True, exist_ok=True
+         )
+-        rel = (
+-            repo
+-            / ".aw"
+-            / "records"
+-            / "releases"
+-            / "20260901-rel001-01-rel001-v1.release.md"
+-        )
+-        rel.write_text(
+-            RecordBuilder().release(
+-                version="1.0.0",
+-                id6="rel001",
+-                status="planned",
+-                summary="test release",
+-                text_only=True,
+-            ),
+-            encoding="utf-8",
++        RecordBuilder(repo).release(
++            version="1.0.0",
++            id6="rel001",
++            set="rel001",
++            when="2026-09-01",
++            slug="v1",
++            status="planned",
++            summary="test release",
+         )
+ 
+     def test_backlog_set_metadata_preservation_both_spellings_agree(self):
+         """(a) BOTH SPELLINGS AGREE: two identical scratch repos, one item carrying
+-        Blocks-Release, Custom-Field, Graduated-To; both spellings produce equal metadata blocks."""
++        Blocks-Release and Graduated-To; both spellings produce equal files and log fields."""
+         from agent_workflows import cli
+ 
+         with (
+@@ -993,37 +969,35 @@ class BacklogPreservationTests(unittest.TestCase):
+             self._setup_repo(r1)
+             self._setup_repo(r2)
+ 
+-            item_content = RecordBuilder().backlog(
++            p1 = RecordBuilder(r1).backlog(
+                 id6="bk0001",
+                 status="open",
+                 blocks_release="rel001",
+                 graduated_to="foo",
+                 set="demo",
++                when="2026-09-26",
++                slug="item",
+                 priority="medium",
+                 work_kind="bug",
+                 summary="test item",
++                body="## Notes\n\nKEEP-ME-PROSE\n",
+                 history=["- 2026-09-26 created (tester): initial"],
+-                raw_fields={"Custom-Field": "keepme"},
+-                text_only=True,
+             )
+-            p1 = (
+-                r1
+-                / ".aw"
+-                / "records"
+-                / "backlog"
+-                / "open"
+-                / "20260926-demo-01-bk0001-item.backlog.md"
+-            )
+-            p2 = (
+-                r2
+-                / ".aw"
+-                / "records"
+-                / "backlog"
+-                / "open"
+-                / "20260926-demo-01-bk0001-item.backlog.md"
++            p2 = RecordBuilder(r2).backlog(
++                id6="bk0001",
++                status="open",
++                blocks_release="rel001",
++                graduated_to="foo",
++                set="demo",
++                when="2026-09-26",
++                slug="item",
++                priority="medium",
++                work_kind="bug",
++                summary="test item",
++                body="## Notes\n\nKEEP-ME-PROSE\n",
++                history=["- 2026-09-26 created (tester): initial"],
+             )
+-            p1.write_text(item_content, encoding="utf-8")
+-            p2.write_text(item_content, encoding="utf-8")
++            assert isinstance(p1, Path) and isinstance(p2, Path)
+ 
+             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                 rc1 = cli.main(
+@@ -1060,49 +1034,37 @@ class BacklogPreservationTests(unittest.TestCase):
+ 
+             t1 = parked1.read_text(encoding="utf-8")
+             t2 = parked2.read_text(encoding="utf-8")
+-            self.assertIn("\n## Workflow history", t1)
+-            self.assertIn("\n## Workflow history", t2)
+-            meta1 = t1.split("\n## Workflow history")[0]
+-            meta2 = t2.split("\n## Workflow history")[0]
+-
+-            self.assertEqual(meta1, meta2)
++            self.assertEqual(t1, t2)
++            self.assertIn("KEEP-ME-PROSE", t1)
+             assert_field(parked1, "blocks_release", "rel001")
+-            self.assertIn("- Custom-Field: keepme", meta1)
+             assert_field(parked1, "graduated_to", "foo")
++            st1 = META.read("bk0001", project_context=META.legacy_context(r1))
++            st2 = META.read("bk0001", project_context=META.legacy_context(r2))
++            self.assertEqual(st1.status, st2.status)
++            self.assertEqual(st1.fields, st2.fields)
+ 
+     def test_backlog_set_status_graduated_to_replaces_and_preserves_custom_field(self):
+-        """(b) --status graduated --graduated-to bar replaces value and keeps Custom-Field."""
++        """(b) --status graduated --graduated-to bar replaces value and keeps body prose."""
+         from agent_workflows import cli
+ 
+         with tempfile.TemporaryDirectory() as tmp:
+             r = Path(tmp)
+             self._setup_repo(r)
+ 
+-            p = (
+-                r
+-                / ".aw"
+-                / "records"
+-                / "backlog"
+-                / "open"
+-                / "20260926-demo-01-bk0002-item.backlog.md"
+-            )
+-            p.write_text(
+-                RecordBuilder().backlog(
+-                    id6="bk0002",
+-                    status="open",
+-                    graduated_to="foo",
+-                    set="demo",
+-                    priority="medium",
+-                    work_kind="bug",
+-                    summary="item with custom field",
+-                    history=["- 2026-09-26 created (tester): initial"],
+-                    raw_fields={"Custom-Field": "keepme"},
+-                    text_only=True,
+-                ),
+-                encoding="utf-8",
++            p = RecordBuilder(r).backlog(
++                id6="bk0002",
++                status="open",
++                graduated_to="foo",
++                set="demo",
++                when="2026-09-26",
++                slug="item",
++                priority="medium",
++                work_kind="bug",
++                summary="item with custom field",
++                body="## Notes\n\nKEEP-ME-PROSE\n",
++                history=["- 2026-09-26 created (tester): initial"],
+             )
+-            plan_dir = r / ".aw" / "records" / "plans" / "pending"
+-            plan_dir.mkdir(parents=True, exist_ok=True)
++            assert isinstance(p, Path)
+             plan_body = (
+                 "## Goal\n\nGoal pl0001.\n\n"
+                 "## Detailed Implementation Checklist (TODO)\n\n"
+@@ -1136,30 +1098,27 @@ class BacklogPreservationTests(unittest.TestCase):
+                 "- Size assessment: standard\n"
+                 "- Cohesion rationale: not required\n"
+             )
+-            (plan_dir / "20260926-bar-01-pl0001-plan.ipd.md").write_text(
+-                RecordBuilder().plan(
+-                    id6="pl0001",
+-                    title="Test Plan pl0001",
+-                    when="2026-09-26",
+-                    status="to-review",
+-                    work_kind="chore",
+-                    priority="medium",
+-                    set="bar",
+-                    order=1,
+-                    from_backlog="bk0002",
+-                    scope_paths="README.md",
+-                    highest_e_allocated="01",
+-                    author="test",
+-                    item_dependencies="none",
+-                    history=["- 2026-09-26 to-review (test): created"],
+-                    body=plan_body,
+-                    raw_fields={
+-                        "Concern": "Test concern.",
+-                        "Scope": "Test scope.",
+-                    },
+-                    text_only=True,
+-                ),
+-                encoding="utf-8",
++            RecordBuilder(r).plan(
++                id6="pl0001",
++                title="Test Plan pl0001",
++                when="2026-09-26",
++                slug="plan",
++                status="to-review",
++                work_kind="chore",
++                priority="medium",
++                set="bar",
++                order=1,
++                from_backlog="bk0002",
++                scope_paths="README.md",
++                highest_e_allocated="01",
++                author="test",
++                item_dependencies="none",
++                history=["- 2026-09-26 to-review (test): created"],
++                body=plan_body,
++                raw_fields={
++                    "Concern": "Test concern.",
++                    "Scope": "Test scope.",
++                },
+             )
+ 
+             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+@@ -1183,41 +1142,32 @@ class BacklogPreservationTests(unittest.TestCase):
+             self.assertTrue(grad.exists())
+             text = grad.read_text(encoding="utf-8")
+             assert_field(grad, "graduated_to", "bar")
+-            self.assertIn("- Custom-Field: keepme", text)
++            self.assertIn("KEEP-ME-PROSE", text)
+ 
+     def test_backlog_set_blocks_release_dash_removes_gate_and_preserves_custom_field(
+         self,
+     ):
+-        """(c) --blocks-release - removes the gate and keeps Custom-Field."""
++        """(c) --blocks-release - removes the gate and keeps body prose."""
+         from agent_workflows import cli
+ 
+         with tempfile.TemporaryDirectory() as tmp:
+             r = Path(tmp)
+             self._setup_repo(r)
+ 
+-            p = (
+-                r
+-                / ".aw"
+-                / "records"
+-                / "backlog"
+-                / "open"
+-                / "20260926-demo-01-bk0003-item.backlog.md"
+-            )
+-            p.write_text(
+-                RecordBuilder().backlog(
+-                    id6="bk0003",
+-                    status="open",
+-                    blocks_release="rel001",
+-                    set="demo",
+-                    priority="medium",
+-                    work_kind="bug",
+-                    summary="item with gate and custom field",
+-                    history=["- 2026-09-26 created (tester): initial"],
+-                    raw_fields={"Custom-Field": "keepme"},
+-                    text_only=True,
+-                ),
+-                encoding="utf-8",
++            p = RecordBuilder(r).backlog(
++                id6="bk0003",
++                status="open",
++                blocks_release="rel001",
++                set="demo",
++                when="2026-09-26",
++                slug="item",
++                priority="medium",
++                work_kind="bug",
++                summary="item with gate and custom field",
++                body="## Notes\n\nKEEP-ME-PROSE\n",
++                history=["- 2026-09-26 created (tester): initial"],
+             )
++            assert isinstance(p, Path)
+ 
+             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                 rc = cli.main(
+@@ -1240,10 +1190,10 @@ class BacklogPreservationTests(unittest.TestCase):
+             self.assertTrue(parked.exists())
+             text = parked.read_text(encoding="utf-8")
+             assert_no_field(parked, "blocks_release")
+-            self.assertIn("- Custom-Field: keepme", text)
++            self.assertIn("KEEP-ME-PROSE", text)
+ 
+     def test_close_on_answer_preserves_custom_field_and_handed_off_blocks_release(self):
+-        """(d) close_on_answer keeps Custom-Field and Blocks-Release when gate is handed off."""
++        """(d) close_on_answer keeps body prose and Blocks-Release when gate is handed off."""
+         from agent_workflows import set_records
+ 
+         with tempfile.TemporaryDirectory() as tmp:
+@@ -1251,144 +1201,113 @@ class BacklogPreservationTests(unittest.TestCase):
+             self._setup_repo(r)
+ 
+             # Carrier plan in executed/
+-            carrier = (
+-                r
+-                / ".aw"
+-                / "records"
+-                / "plans"
+-                / "executed"
+-                / "20260901-rel001-01-pln001-plan.ipd.md"
+-            )
+-            carrier.write_text(
+-                RecordBuilder().plan(
+-                    title="Carrier",
+-                    id6="pln001",
+-                    status="executed",
+-                    from_backlog="bk0004",
+-                    blocks_release="rel001",
+-                    set="rel001",
+-                    priority="high",
+-                    work_kind="bug",
+-                    history=["- 2026-09-01 executed (tester): finished"],
+-                    raw_fields={"Summary": "carrier plan"},
+-                    text_only=True,
+-                ),
+-                encoding="utf-8",
++            RecordBuilder(r).plan(
++                title="Carrier",
++                id6="pln001",
++                status="executed",
++                disposition="executed",
++                from_backlog="bk0004",
++                blocks_release="rel001",
++                set="rel001",
++                order=1,
++                when="2026-09-01",
++                slug="plan",
++                priority="high",
++                work_kind="bug",
++                history=["- 2026-09-01 executed (tester): finished"],
+             )
+ 
+-            p = (
+-                r
+-                / ".aw"
+-                / "records"
+-                / "backlog"
+-                / "blocked"
+-                / "20260926-demo-01-bk0004-item.backlog.md"
+-            )
+-            p.write_text(
+-                RecordBuilder().backlog(
+-                    id6="bk0004",
+-                    status="blocked",
+-                    gate_kind="spec",
+-                    gate_ref="rel001",
+-                    blocks_release="rel001",
+-                    set="demo",
+-                    priority="medium",
+-                    work_kind="bug",
+-                    summary="blocked item",
+-                    history=["- 2026-09-26 created (tester): initial"],
+-                    raw_fields={"Custom-Field": "keepme"},
+-                    text_only=True,
+-                ),
+-                encoding="utf-8",
++            p = RecordBuilder(r).backlog(
++                id6="bk0004",
++                status="blocked",
++                gate_kind="spec",
++                gate_ref="rel001",
++                blocks_release="rel001",
++                set="demo",
++                when="2026-09-26",
++                slug="item",
++                priority="medium",
++                work_kind="bug",
++                summary="blocked item",
++                body="## Notes\n\nKEEP-ME-PROSE\n",
++                history=["- 2026-09-26 created (tester): initial"],
+             )
++            assert isinstance(p, Path)
+ 
+             dest = set_records.close_on_answer(r, p)
+             self.assertTrue(dest.exists())
+             text = dest.read_text(encoding="utf-8")
+-            self.assertIn("- Custom-Field: keepme", text)
++            self.assertIn("KEEP-ME-PROSE", text)
+             assert_field(dest, "blocks_release", "rel001")
+             assert_no_field(dest, "gate_kind")
+             assert_no_field(dest, "gate_ref")
+ 
+     def test_close_on_answer_preserves_prior_history_records(self):
+-        """(a) close_on_answer on a 3-record item yields 4 records, close-record first, originals byte-identical."""
++        """(a) close_on_answer preserves all prior log events and appends the close transition."""
+         from agent_workflows import set_records
+ 
+         with tempfile.TemporaryDirectory() as tmp:
+             r = Path(tmp)
+             self._setup_repo(r)
+-            p = (
+-                r
+-                / ".aw"
+-                / "records"
+-                / "backlog"
+-                / "blocked"
+-                / "20260901-demo-01-bk0001-test.backlog.md"
+-            )
+             original_records = [
+                 "- 2026-09-20 note (aw backlog): note 1",
+                 "- 2026-09-10 set (aw backlog): set 1",
+                 "- 2026-09-01 created (aw backlog): created 1",
+             ]
+-            p.write_text(
+-                RecordBuilder().backlog(
+-                    id6="bk0001",
+-                    status="blocked",
+-                    set="demo",
+-                    priority="high",
+-                    work_kind="bug",
+-                    gate_kind="decision",
+-                    gate_ref="D1",
+-                    summary="test item",
+-                    history=original_records,
+-                    body="## Body\nTest body",
+-                    text_only=True,
+-                ),
+-                encoding="utf-8",
++            p = RecordBuilder(r).backlog(
++                id6="bk0001",
++                status="blocked",
++                set="demo",
++                when="2026-09-01",
++                slug="test",
++                priority="high",
++                work_kind="bug",
++                gate_kind="decision",
++                gate_ref="D1",
++                summary="test item",
++                history=original_records,
++                body="## Body\nTest body",
+             )
++            assert isinstance(p, Path)
++            ctx = META.legacy_context(r)
++            before_hist = META.history("bk0001", project_context=ctx)
+ 
+             dest = set_records.close_on_answer(r, p)
+             self.assertTrue(dest.exists())
+-            text = dest.read_text(encoding="utf-8")
+-            history_lines = META.history_records(text).records
+-            self.assertEqual(len(history_lines), 4)
+-            self.assertIn("question answered; close-on-answer", history_lines[0])
+-            self.assertIn("done (aw backlog)", history_lines[0])
+-            self.assertEqual(history_lines[1:], original_records)
+-            self.assertNotIn("created (aw backlog): test item", text)
++            after_hist = META.history("bk0001", project_context=ctx)
++            self.assertGreater(len(after_hist), len(before_hist))
++            self.assertEqual(after_hist[: len(before_hist)], before_hist)
++            added = after_hist[len(before_hist) :]
++            trans = [ev for ev in added if ev["op"] == "transition"]
++            self.assertEqual(len(trans), 1)
++            self.assertEqual(trans[0]["to"], "done")
++            self.assertIn("question answered; close-on-answer", trans[0].get("message") or "")
+ 
+     def test_close_on_answer_preserves_pre_history_prose_exactly_once(self):
+-        """(b) close_on_answer on an item with pre-history prose keeps it exactly once."""
++        """(b) close_on_answer preserves distinctive body paragraphs exactly once."""
+         from agent_workflows import set_records
+ 
+         with tempfile.TemporaryDirectory() as tmp:
+             r = Path(tmp)
+             self._setup_repo(r)
+-            p = (
+-                r
+-                / ".aw"
+-                / "records"
+-                / "backlog"
+-                / "blocked"
+-                / "20260901-demo-01-bk0002-test.backlog.md"
+-            )
+-            p.write_text(
+-                RecordBuilder().backlog(
+-                    id6="bk0002",
+-                    status="blocked",
+-                    set="demo",
+-                    priority="high",
+-                    work_kind="bug",
+-                    gate_kind="decision",
+-                    gate_ref="D1",
+-                    summary="test item",
+-                    history=["- 2026-09-01 created (aw backlog): created 1"],
+-                    body="## Body\n\nPOST_HISTORY_PROSE_PARA_DISTINCTIVE",
+-                    raw_fields={"Gate-Ref": "D1\n\nPRE_HISTORY_PROSE_PARA_DISTINCTIVE"},
+-                    text_only=True,
++            p = RecordBuilder(r).backlog(
++                id6="bk0002",
++                status="blocked",
++                set="demo",
++                when="2026-09-01",
++                slug="test",
++                priority="high",
++                work_kind="bug",
++                gate_kind="decision",
++                gate_ref="D1",
++                summary="test item",
++                history=["- 2026-09-01 created (aw backlog): created 1"],
++                body=(
++                    "PRE_HISTORY_PROSE_PARA_DISTINCTIVE\n\n"
++                    "## Body\n\nPOST_HISTORY_PROSE_PARA_DISTINCTIVE"
+                 ),
+-                encoding="utf-8",
+             )
++            assert isinstance(p, Path)
+ 
+             dest = set_records.close_on_answer(r, p)
+             self.assertTrue(dest.exists())
+@@ -1397,51 +1316,44 @@ class BacklogPreservationTests(unittest.TestCase):
+             self.assertEqual(text.count("POST_HISTORY_PROSE_PARA_DISTINCTIVE"), 1)
+ 
+     def test_close_on_answer_does_not_promote_indented_prose_quoted_history_lines(self):
+-        """(c) indented prose-quoted history-shaped line in body is not promoted into history block."""
++        """(c) indented prose-quoted history-shaped line in body is not promoted into event log."""
+         from agent_workflows import set_records
+ 
+         with tempfile.TemporaryDirectory() as tmp:
+             r = Path(tmp)
+             self._setup_repo(r)
+-            p = (
+-                r
+-                / ".aw"
+-                / "records"
+-                / "backlog"
+-                / "blocked"
+-                / "20260901-demo-01-bk0003-test.backlog.md"
+-            )
+-            p.write_text(
+-                RecordBuilder().backlog(
+-                    id6="bk0003",
+-                    status="blocked",
+-                    set="demo",
+-                    priority="high",
+-                    work_kind="bug",
+-                    gate_kind="decision",
+-                    gate_ref="D1",
+-                    summary="test item",
+-                    history=["- 2026-09-01 created (aw backlog): created 1"],
+-                    body="## Body\n\nHere is an indented quote:\n\n    - 2020-01-01 fake (aw fake): DO_NOT_PROMOTE\n\nEnd of body.",
+-                    text_only=True,
+-                ),
+-                encoding="utf-8",
++            p = RecordBuilder(r).backlog(
++                id6="bk0003",
++                status="blocked",
++                set="demo",
++                when="2026-09-01",
++                slug="test",
++                priority="high",
++                work_kind="bug",
++                gate_kind="decision",
++                gate_ref="D1",
++                summary="test item",
++                history=["- 2026-09-01 created (aw backlog): created 1"],
++                body="## Body\n\nHere is an indented quote:\n\n    - 2020-01-01 fake (aw fake): DO_NOT_PROMOTE\n\nEnd of body.",
+             )
++            assert isinstance(p, Path)
+ 
+             dest = set_records.close_on_answer(r, p)
+             self.assertTrue(dest.exists())
+             text = dest.read_text(encoding="utf-8")
+-            history_lines = META.history_records(text).records
+-            self.assertEqual(len(history_lines), 2)
++            hist = META.history("bk0003", project_context=META.legacy_context(r))
+             self.assertTrue(
+-                any("question answered; close-on-answer" in ln for ln in history_lines)
++                any(
++                    "question answered; close-on-answer" in (ev.get("message") or "")
++                    for ev in hist
++                )
+             )
+-            for h in history_lines:
+-                self.assertNotIn("DO_NOT_PROMOTE", h)
++            for ev in hist:
++                self.assertNotIn("DO_NOT_PROMOTE", json.dumps(ev))
+             self.assertEqual(text.count("DO_NOT_PROMOTE"), 1)
+ 
+     def test_header_prose_survives(self):
+-        """(a) Header prose between metadata bullets and ## Workflow history survives re-render."""
++        """(a) Body prose survives both backlog set CLI spellings identically."""
+         from agent_workflows import cli
+ 
+         with (
+@@ -1452,41 +1364,35 @@ class BacklogPreservationTests(unittest.TestCase):
+             self._setup_repo(r1)
+             self._setup_repo(r2)
+ 
+-            item_text = RecordBuilder().backlog(
++            body_prose = (
++                "## What is wrong\n\n"
++                "This is important header prose describing the problem in detail."
++            )
++            p1 = RecordBuilder(r1).backlog(
+                 id6="bk0005",
+                 status="open",
+                 set="demo",
++                when="2026-09-26",
++                slug="item",
+                 priority="high",
+                 work_kind="bug",
+                 summary="item with header prose",
++                body=body_prose,
+                 history=["- 2026-09-26 created (tester): initial"],
+-                raw_fields={
+-                    "Summary": (
+-                        "item with header prose\n\n"
+-                        "## What is wrong\n\n"
+-                        "This is important header prose describing the problem in detail."
+-                    )
+-                },
+-                text_only=True,
+-            )
+-            p1 = (
+-                r1
+-                / ".aw"
+-                / "records"
+-                / "backlog"
+-                / "open"
+-                / "20260926-demo-01-bk0005-item.backlog.md"
+             )
+-            p2 = (
+-                r2
+-                / ".aw"
+-                / "records"
+-                / "backlog"
+-                / "open"
+-                / "20260926-demo-01-bk0005-item.backlog.md"
++            p2 = RecordBuilder(r2).backlog(
++                id6="bk0005",
++                status="open",
++                set="demo",
++                when="2026-09-26",
++                slug="item",
++                priority="high",
++                work_kind="bug",
++                summary="item with header prose",
++                body=body_prose,
++                history=["- 2026-09-26 created (tester): initial"],
+             )
+-            p1.write_text(item_text, encoding="utf-8")
+-            p2.write_text(item_text, encoding="utf-8")
++            assert isinstance(p1, Path) and isinstance(p2, Path)
+ 
+             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                 rc1 = cli.main(
+@@ -1523,111 +1429,32 @@ class BacklogPreservationTests(unittest.TestCase):
+ 
+             t1 = parked1.read_text(encoding="utf-8")
+             t2 = parked2.read_text(encoding="utf-8")
+-            self.assertIn(
+-                "## What is wrong\n\nThis is important header prose describing the problem in detail.",
+-                t1,
+-            )
+-
+-            self.assertIn("\n## Workflow history", t1)
+-            self.assertIn("\n## Workflow history", t2)
+-            head1 = t1.split("\n## Workflow history")[0]
+-            head2 = t2.split("\n## Workflow history")[0]
+-            self.assertEqual(head1, head2)
+-
+-    def test_duplicate_work_kind_deduped(self):
+-        """(b) Item carrying both - Kind: chore and - Work-Kind: bug renders exactly one Work-Kind line."""
+-        from agent_workflows import backlog, cli
+-
+-        raw_item = RecordBuilder().backlog(
+-            id6="bk0006",
+-            status="open",
+-            set="demo",
+-            priority="high",
+-            work_kind="bug",
+-            summary="item with dual kinds",
+-            history=["- 2026-09-26 created (tester): initial"],
+-            raw_fields={"Work-Kind": None, "Kind": "chore\n- Work-Kind: bug"},
+-            text_only=True,
+-        )
+-        parsed = backlog.item_from_text(raw_item)
+-        direct_rendered = backlog._render_item(parsed, "", source_text=raw_item)
+-        wk_direct = [
+-            ln for ln in direct_rendered.splitlines() if ln.startswith("- Work-Kind:")
+-        ]
+-        self.assertEqual(len(wk_direct), 1)
+-        self.assertEqual(wk_direct[0], "- Work-Kind: bug")
+-
+-        with tempfile.TemporaryDirectory() as tmp:
+-            r = Path(tmp)
+-            self._setup_repo(r)
+-
+-            p = (
+-                r
+-                / ".aw"
+-                / "records"
+-                / "backlog"
+-                / "open"
+-                / "20260926-demo-01-bk0006-item.backlog.md"
+-            )
+-            p.write_text(raw_item, encoding="utf-8")
+-
+-            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+-                rc = cli.main(
+-                    [
+-                        "backlog",
+-                        "set",
+-                        str(p),
+-                        "--status",
+-                        "parked",
+-                        "--dir",
+-                        str(r),
+-                        "--no-commit",
+-                    ]
+-                )
+-            self.assertEqual(rc, 0)
+-
+-            parked = r / ".aw" / "records" / "backlog" / "parked" / p.name
+-            text = parked.read_text(encoding="utf-8")
+-            wk_lines = [ln for ln in text.splitlines() if ln.startswith("- Work-Kind:")]
+-            self.assertEqual(len(wk_lines), 1)
+-            self.assertEqual(wk_lines[0], "- Work-Kind: bug")
+-            self.assertFalse(any(ln.startswith("- Kind:") for ln in text.splitlines()))
++            self.assertIn(body_prose, t1)
++            self.assertEqual(t1, t2)
+ 
+     def test_stale_gate_summary_dropped(self):
+         """(c) Blocked item carrying Gate-Summary transitioned to done drops Gate-Summary."""
+-        from agent_workflows import backlog, cli
+-
+-        raw_item = RecordBuilder().backlog(
+-            id6="bk0007",
+-            status="blocked",
+-            gate_kind="spec",
+-            gate_ref="rel001",
+-            gate_summary="waiting on a ruling",
+-            set="demo",
+-            priority="medium",
+-            work_kind="chore",
+-            summary="blocked item with gate summary",
+-            history=["- 2026-09-26 created (tester): initial"],
+-            text_only=True,
+-        )
+-        parsed = backlog.item_from_text(raw_item)
+-        parsed.status = "done"
+-        direct_rendered = backlog._render_item(parsed, "", source_text=raw_item)
+-        self.assertNotIn("- Gate-Summary:", direct_rendered)
++        from agent_workflows import cli
+ 
+         with tempfile.TemporaryDirectory() as tmp:
+             r = Path(tmp)
+             self._setup_repo(r)
+ 
+-            p = (
+-                r
+-                / ".aw"
+-                / "records"
+-                / "backlog"
+-                / "blocked"
+-                / "20260926-demo-01-bk0007-item.backlog.md"
++            p = RecordBuilder(r).backlog(
++                id6="bk0007",
++                status="blocked",
++                gate_kind="spec",
++                gate_ref="rel001",
++                gate_summary="waiting on a ruling",
++                set="demo",
++                when="2026-09-26",
++                slug="item",
++                priority="medium",
++                work_kind="chore",
++                summary="blocked item with gate summary",
++                history=["- 2026-09-26 created (tester): initial"],
+             )
+-            p.write_text(raw_item, encoding="utf-8")
++            assert isinstance(p, Path)
+ 
+             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                 rc = cli.main(
+@@ -1658,30 +1485,21 @@ class BacklogPreservationTests(unittest.TestCase):
+             r = Path(tmp)
+             self._setup_repo(r)
+ 
+-            p = (
+-                r
+-                / ".aw"
+-                / "records"
+-                / "backlog"
+-                / "blocked"
+-                / "20260926-demo-01-bk0008-item.backlog.md"
+-            )
+-            p.write_text(
+-                RecordBuilder().backlog(
+-                    id6="bk0008",
+-                    status="blocked",
+-                    gate_kind="spec",
+-                    gate_ref="rel001",
+-                    blocks_release="rel001",
+-                    set="demo",
+-                    priority="medium",
+-                    work_kind="bug",
+-                    summary="blocked item with gate",
+-                    history=["- 2026-09-26 created (tester): initial"],
+-                    text_only=True,
+-                ),
+-                encoding="utf-8",
++            p = RecordBuilder(r).backlog(
++                id6="bk0008",
++                status="blocked",
++                gate_kind="spec",
++                gate_ref="rel001",
++                blocks_release="rel001",
++                set="demo",
++                when="2026-09-26",
++                slug="item",
++                priority="medium",
++                work_kind="bug",
++                summary="blocked item with gate",
++                history=["- 2026-09-26 created (tester): initial"],
+             )
++            assert isinstance(p, Path)
+             before_bytes = p.read_bytes()
+ 
+             with self.assertRaises(ValueError) as ctx:
+@@ -1696,161 +1514,78 @@ class BacklogPreservationTests(unittest.TestCase):
+     def test_validate_item_release_exempt_findings(self):
+         """Validate item release exemption rules: incomplete, kind-invalid, ref-invalid, contradicts-gate."""
+         with tempfile.TemporaryDirectory() as tmp:
+-            d = Path(tmp)
+-            p = d / "test.backlog.md"
++            root = Path(tmp)
+ 
+-            # 1. kind without ref -> backlog.release-exempt-incomplete
+-            p.write_text(
+-                RecordBuilder().backlog(
++            def _case(idx: int, **kw):
++                case_repo = root / f"case_{idx}"
++                p = RecordBuilder(case_repo).backlog(
+                     id6="b00001",
+                     status="open",
+                     set="s",
+                     priority="high",
+                     work_kind="bug",
+                     summary="Item",
+-                    release_exempt_kind="decision",
+-                    text_only=True,
++                    when="2026-09-26",
++                    slug="test",
++                    **kw,
+                 )
+-            )
+-            drift = B.validate_item(p, p.read_text())
+-            rules = [x.rule for x in drift]
+-            self.assertIn("backlog.release-exempt-incomplete", rules)
++                assert isinstance(p, Path)
++                return B.validate_item(
++                    p, p.read_text(encoding="utf-8"), repo_root=case_repo
++                )
++
++            # 1. kind without ref -> backlog.release-exempt-incomplete
++            drift = _case(1, release_exempt_kind="decision")
++            self.assertIn("backlog.release-exempt-incomplete", [x.rule for x in drift])
+ 
+             # 2. ref without kind -> backlog.release-exempt-incomplete
+-            p.write_text(
+-                RecordBuilder().backlog(
+-                    id6="b00001",
+-                    status="open",
+-                    set="s",
+-                    priority="high",
+-                    work_kind="bug",
+-                    summary="Item",
+-                    release_exempt_ref="D42",
+-                    text_only=True,
+-                )
+-            )
+-            drift = B.validate_item(p, p.read_text())
+-            rules = [x.rule for x in drift]
+-            self.assertIn("backlog.release-exempt-incomplete", rules)
++            drift = _case(2, release_exempt_ref="D42")
++            self.assertIn("backlog.release-exempt-incomplete", [x.rule for x in drift])
+ 
+             # 3. kind bogus -> backlog.release-exempt-kind-invalid
+-            p.write_text(
+-                RecordBuilder().backlog(
+-                    id6="b00001",
+-                    status="open",
+-                    set="s",
+-                    priority="high",
+-                    work_kind="bug",
+-                    summary="Item",
+-                    release_exempt_kind="bogus",
+-                    release_exempt_ref="D42",
+-                    text_only=True,
+-                )
++            drift = _case(
++                3,
++                release_exempt_kind="bogus",
++                release_exempt_ref="D42",
++            )
++            self.assertIn(
++                "backlog.release-exempt-kind-invalid", [x.rule for x in drift]
+             )
+-            drift = B.validate_item(p, p.read_text())
+-            rules = [x.rule for x in drift]
+-            self.assertIn("backlog.release-exempt-kind-invalid", rules)
+ 
+             # 4. decision + garbage -> backlog.release-exempt-ref-invalid
+-            p.write_text(
+-                RecordBuilder().backlog(
+-                    id6="b00001",
+-                    status="open",
+-                    set="s",
+-                    priority="high",
+-                    work_kind="bug",
+-                    summary="Item",
+-                    release_exempt_kind="decision",
+-                    release_exempt_ref="garbage",
+-                    text_only=True,
+-                )
++            drift = _case(
++                4,
++                release_exempt_kind="decision",
++                release_exempt_ref="garbage",
++            )
++            self.assertIn(
++                "backlog.release-exempt-ref-invalid", [x.rule for x in drift]
+             )
+-            drift = B.validate_item(p, p.read_text())
+-            rules = [x.rule for x in drift]
+-            self.assertIn("backlog.release-exempt-ref-invalid", rules)
+ 
+             # 5. valid pair, no gate -> clean (no new findings)
+-            p.write_text(
+-                RecordBuilder().backlog(
+-                    id6="b00001",
+-                    status="open",
+-                    set="s",
+-                    priority="high",
+-                    work_kind="bug",
+-                    summary="Item",
+-                    release_exempt_kind="decision",
+-                    release_exempt_ref="D42",
+-                    text_only=True,
+-                )
++            drift = _case(
++                5,
++                release_exempt_kind="decision",
++                release_exempt_ref="D42",
+             )
+-            drift = B.validate_item(p, p.read_text())
+             exempt_rules = [
+                 x.rule for x in drift if x.rule.startswith("backlog.release-exempt-")
+             ]
+             self.assertEqual(exempt_rules, [])
+ 
+-            # 6. valid pair PLUS - Blocks-Release: next -> backlog.release-exempt-contradicts-gate
+-            p.write_text(
+-                RecordBuilder().backlog(
+-                    id6="b00001",
+-                    status="open",
+-                    set="s",
+-                    priority="high",
+-                    work_kind="bug",
+-                    summary="Item",
+-                    blocks_release="next",
+-                    release_exempt_kind="decision",
+-                    release_exempt_ref="D42",
+-                    text_only=True,
+-                )
++            # 6. valid pair PLUS Blocks-Release: next -> backlog.release-exempt-contradicts-gate
++            drift = _case(
++                6,
++                blocks_release="next",
++                release_exempt_kind="decision",
++                release_exempt_ref="D42",
++            )
++            self.assertIn(
++                "backlog.release-exempt-contradicts-gate", [x.rule for x in drift]
+             )
+-            drift = B.validate_item(p, p.read_text())
+-            rules = [x.rule for x in drift]
+-            self.assertIn("backlog.release-exempt-contradicts-gate", rules)
+-
+-    def test_render_item_preserves_release_exempt_with_source_text(self):
+-        """_render_item preserves Release-Exempt-Kind and Release-Exempt-Ref in original order when source_text is passed."""
+-        text = RecordBuilder().backlog(
+-            id6="b00001",
+-            status="open",
+-            set="s",
+-            priority="high",
+-            work_kind="bug",
+-            summary="Item",
+-            release_exempt_kind="decision",
+-            release_exempt_ref="D42",
+-            history=["- 2026-09-01 created (aw backlog): initial"],
+-            body="Prose body",
+-            text_only=True,
+-        )
+-        item = B.item_from_text(text)
+-        rendered = B._render_item(item, "Prose body\n", source_text=text)
+-        self.assertIn("- Release-Exempt-Kind: decision\n", rendered)
+-        self.assertIn("- Release-Exempt-Ref: D42\n", rendered)
+-        kind_pos = rendered.index("- Release-Exempt-Kind: decision\n")
+-        ref_pos = rendered.index("- Release-Exempt-Ref: D42\n")
+-        self.assertLess(kind_pos, ref_pos)
+-
+-    def test_render_item_drops_unknown_without_source_text_and_creation_emits_pair(
+-        self,
+-    ):
+-        """_render_item drops exempt fields when source_text is omitted, and run_new emits them via post-render writer."""
+-        text = RecordBuilder().backlog(
+-            id6="b00001",
+-            status="open",
+-            set="s",
+-            priority="high",
+-            work_kind="bug",
+-            summary="Item",
+-            release_exempt_kind="decision",
+-            release_exempt_ref="D42",
+-            text_only=True,
+-        )
+-        item = B.item_from_text(text)
+-        rendered_no_source = B._render_item(item, "body")
+-        self.assertNotIn("- Release-Exempt-Kind:", rendered_no_source)
+-        self.assertNotIn("- Release-Exempt-Ref:", rendered_no_source)
+ 
++    def test_new_emits_release_exempt_pair(self):
++        """run_new records release_exempt_kind and release_exempt_ref and omits blocks_release."""
+         with tempfile.TemporaryDirectory() as tmp:
+             repo = Path(tmp)
+             (repo / ".aw" / "records" / "backlog" / "open").mkdir(
+@@ -1879,7 +1614,7 @@ class BacklogPreservationTests(unittest.TestCase):
+             assert_no_field(created_files[0], "blocks_release")
+ 
+     def test_release_exempt_setter_roundtrip_and_parity(self):
+-        """Setter roundtrip through both spellings writes bullets and history, and produces field-identical output."""
++        """Setter roundtrip through both spellings records log fields and history with parity."""
+         from agent_workflows import status_set
+ 
+         with tempfile.TemporaryDirectory() as tmp:
+@@ -1888,46 +1623,32 @@ class BacklogPreservationTests(unittest.TestCase):
+                 parents=True, exist_ok=True
+             )
+ 
+-            item1_text = RecordBuilder().backlog(
++            f1 = RecordBuilder(repo).backlog(
+                 id6="bk0001",
+                 status="open",
+                 set="s",
++                when="2026-09-01",
++                slug="bug-1",
+                 priority="high",
+                 work_kind="bug",
+                 summary="Bug 1",
+                 history=["- 2026-09-01 created (tester): initial"],
+                 body="Prose",
+-                text_only=True,
+             )
+-            item2_text = RecordBuilder().backlog(
++            f2 = RecordBuilder(repo).backlog(
+                 id6="bk0002",
+                 status="open",
+                 set="s",
++                when="2026-09-01",
++                slug="bug-2",
+                 priority="high",
+                 work_kind="bug",
+                 summary="Bug 2",
+                 history=["- 2026-09-01 created (tester): initial"],
+                 body="Prose",
+-                text_only=True,
+-            )
+-            f1 = (
+-                repo
+-                / ".aw"
+-                / "records"
+-                / "backlog"
+-                / "open"
+-                / "20260901-s-01-bk0001-bug-1.backlog.md"
+             )
+-            f2 = (
+-                repo
+-                / ".aw"
+-                / "records"
+-                / "backlog"
+-                / "open"
+-                / "20260901-s-01-bk0002-bug-2.backlog.md"
+-            )
+-            f1.write_text(item1_text, encoding="utf-8")
+-            f2.write_text(item2_text, encoding="utf-8")
++            assert isinstance(f1, Path) and isinstance(f2, Path)
++            ctx = META.legacy_context(repo)
+ 
+             # Route 1: run_set (--status spelling)
+             set_args1 = _args(
+@@ -1944,7 +1665,10 @@ class BacklogPreservationTests(unittest.TestCase):
+             res1_text = f1.read_text(encoding="utf-8")
+             assert_field(f1, "release_exempt_kind", "decision")
+             assert_field(f1, "release_exempt_ref", "D42")
+-            self.assertIn("exempted reason", res1_text)
++            hist1 = META.history("bk0001", project_context=ctx)
++            self.assertTrue(
++                any("exempted reason" in (ev.get("message") or "") for ev in hist1)
++            )
+ 
+             # Route 2: positional spelling via run_set_command
+             set_args2 = _args(
+@@ -1965,22 +1689,26 @@ class BacklogPreservationTests(unittest.TestCase):
+             res2_text = f2.read_text(encoding="utf-8")
+             assert_field(f2, "release_exempt_kind", "decision")
+             assert_field(f2, "release_exempt_ref", "D42")
+-            self.assertIn("exempted reason", res2_text)
+-
+-            # One asymmetry is normalized away here:
+-            # 1. Actor: (aw backlog) vs (aw set) truthfully identifies the code path and is deliberate.
+-            # (History dates now both use UTC per spec 4sd62s 4.2b and are compared literally).
+-            norm1 = (
+-                res1_text.replace("bk0001", "bkXXXX")
+-                .replace("Bug 1", "Bug X")
+-                .replace("same-status (aw backlog)", "HIST_ACTOR")
+-            )
+-            norm2 = (
+-                res2_text.replace("bk0002", "bkXXXX")
+-                .replace("Bug 2", "Bug X")
+-                .replace("same-status (aw set)", "HIST_ACTOR")
++            hist2 = META.history("bk0002", project_context=ctx)
++            self.assertTrue(
++                any("exempted reason" in (ev.get("message") or "") for ev in hist2)
+             )
+-            self.assertEqual(norm1, norm2)
++
++            # On-disk mirror+body and log fields match across both spellings (modulo id6 and summary)
++            self.assertEqual(
++                res1_text.replace("bk0001", "bkXXXX"),
++                res2_text.replace("bk0002", "bkXXXX"),
++            )
++            st1 = META.read("bk0001", project_context=ctx)
++            st2 = META.read("bk0002", project_context=ctx)
++            self.assertEqual(st1.status, st2.status)
++            f1_norm = {
++                k: v for k, v in st1.fields.items() if k not in ("id", "summary")
++            }
++            f2_norm = {
++                k: v for k, v in st2.fields.items() if k not in ("id", "summary")
++            }
++            self.assertEqual(f1_norm, f2_norm)
+ 
+ 
+ if __name__ == "__main__":
 diff --git a/tests/test_backlog_log_format.py b/tests/test_backlog_log_format.py
 new file mode 100644
 index 000000000..10b8f3ad2
