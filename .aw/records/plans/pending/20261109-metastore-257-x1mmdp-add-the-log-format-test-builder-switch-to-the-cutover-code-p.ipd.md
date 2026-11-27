@@ -114,6 +114,7 @@ flowchart TD
   - Carrier: 89mtbl
 - Making `ipd_lint` and `ipd_authoring.build_skeleton` log-aware (`jycxw8`), which every log-format plan fixture needs first.
   - Carrier: hdwqex
+  - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-305-hdwqex-make-ipd-lint-and-ipd-scaffold-log-aware-in-the-cutover-code.ipd.md
 - Making `agent_workflows/backlog.py` validation and readers and their production callers log-aware in the cutover code patch (`cugg3w` OQ-01, maintainer answer 2026-11-26).
   - Carrier: fljn9b
 - Making `specs.py`, `releases.py`, `check_engine.py` spec-link checks, `cli._run_search`, and `hooks/ipd_dependency_statement_gate.py` log-aware in the cutover code patch (`psm9ac` OQ-01, maintainer answer 2026-11-26).

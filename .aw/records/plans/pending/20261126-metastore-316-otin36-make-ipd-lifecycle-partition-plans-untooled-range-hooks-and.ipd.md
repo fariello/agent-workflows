@@ -129,6 +129,7 @@ flowchart TD
 
 - Making `ipd_lint`, `ipd_schema`, and `ipd_authoring` log-aware: already owned by Order 305.
   - Carrier: hdwqex
+  - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-305-hdwqex-make-ipd-lint-and-ipd-scaffold-log-aware-in-the-cutover-code.ipd.md
 - Making `backlog.py` and `specs.py`/`releases.py`/`check_engine.py` spec-link/`cli._run_search`/`ipd_dependency_statement_gate.py` log-aware: already owned by Orders 314 and 315.
   - Carrier: fljn9b, szykgd
 - Remaining production log-awareness fixes (`p109wy` -> `q6fiws` -> `j1f454` -> `lec341` -> `3e0vfy`): chained immediately after this plan (`p109wy` depends on `executed:otin36`) and ahead of test batches B through F per `psm9ac` OQ-02 Option 1.
