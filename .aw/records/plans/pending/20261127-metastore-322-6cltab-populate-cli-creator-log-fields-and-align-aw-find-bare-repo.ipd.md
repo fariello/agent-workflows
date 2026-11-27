@@ -6,7 +6,7 @@
 - Scope: In an isolated scratch worktree `.aw/state/6cltab/scratch` with both cutover patches applied (after executed plans `hdwqex`, `89mtbl`, `nv3upa`, `fljn9b`, and prerequisite production-fix plans `szykgd` through `3e0vfy`, and ahead of test-conversion batches `cugg3w` through `x3mig6`), populate the missing `artifact_meta.create` fields in `agent_workflows/ipd_authoring.py::run_scaffold`, `agent_workflows/specs.py::run_new`, `agent_workflows/releases.py::_create_release_via_meta`, and `agent_workflows/prompts.py::run_new` (`0b3ynm`); switch `agent_workflows/cli.py::_find_type_records` to `artifact_meta.legacy_context(repo_root)` (`2etrjf`); add the bare-repo in-tree `artifact_meta.legacy_context(repo_root)` fallback helper across all `resolve_project_context` metadata reader sites in `agent_workflows/status_set.py` and `agent_workflows/check_engine.py` while leaving non-reader `records_backend` checks in `status_set` on `resolve_project_context` and wrapping `check_engine` history reads in `artifact_meta.ephemeral_if_uninitialized()` (`3pxjya`); add and pass core behavioral tests in `tests/test_cutover_log_cli_creators_and_find.py`; pass every visibility and parity test in `tests/test_record_builder_slow.py`; and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. Make no live code or test changes outside `- Scope-Paths:`.
 - Scope-Paths: .aw/records/plans/pending/20261127-metastore-322-6cltab-populate-cli-creator-log-fields-and-align-aw-find-bare-repo.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:3e0vfy
-- Status: reviewed
+- Status: approved
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -19,11 +19,13 @@
 - Highest E allocated: 05
 - Author: antigravity/gemini
 - Id: 6cltab
+- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 approved (aw set): status set to approved
 - 2026-11-27 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-27 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005 (all FIXED); review record .aw/records/reviews/20261127-metastore-322-6cltab-populate-cli-creator-log-fields-and-align-aw-find-bare-repo.review.md
 - 2026-11-27 note (antigravity/gemini): expanded scope to include backlog 3pxjya (status_set.py and check_engine.py bare-repo resolve_project_context fallbacks) and re-chained after 3e0vfy ahead of test batches cugg3w through x3mig6 per maintainer Option 2 decision on run-20261127T045218Z-1963184 question g-b366f2ff84656927 (proposal igbr4f).
