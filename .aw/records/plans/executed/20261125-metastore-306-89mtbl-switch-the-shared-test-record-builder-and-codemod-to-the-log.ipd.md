@@ -5,8 +5,9 @@
 - Concern: Backlog `ldfefd` (`x1mmdp` F-05 to F-07): the cutover code patch removes the legacy bullet API (`_LEGACY_BULLET_LABEL`, `LegacyRender`, `LegacyTarget`, `render_legacy_text`, `set_legacy_bullet_line`, `_format_legacy_value`, `_RESEARCH_YAML_KEY`, `_format_yaml_value`, `_PROMPT_COMMENT_KEY`) that `tests/record_builder.py` and `tools/fixture_codemod.py` call. On the switched tree, the shared builder fails at import (`AttributeError` on `_LEGACY_BULLET_LABEL`) and every test importing `tests/support.py` fails with it. In addition, the builder's `text_only=True` mode (about 1690 calls across 310 files, about 650 written to disk by callers) needs an explicit log-format contract because a log-format artifact requires a paired `meta/<id6>.jsonl` log (and a review record stores events in its subject's log per spec `4sd62s` Section 4.1a).
 - Scope: In an isolated scratch worktree with both cutover patches applied (including `hdwqex`), record the log-format `text_only` and `raw_fields` contract in F-02, switch `tests/record_builder.py` to `RECORD_FORMAT = "log"` across all eight record types (7 log-backed artifact types through `artifact_meta.create`/`append`, plus `review` through `artifact_meta.render_review_mirror` and subject-log `op: "review"` events per spec `4sd62s` Section 4.1a) with the log branch of `assert_field`/`assert_no_field`, update `tests/support.py` (`_conforming_orchestrator_path` and `ready_plan_text`) as required by F-02, repoint `tools/fixture_codemod.py::_registry_field_map` onto `agent_workflows/migrations/m0001_convert.py::FIELD_DESTINATIONS` and align its rewrite/proof target with F-02, update and pass the four builder and codemod test modules (plus their fixture/golden baselines), measure the per-module core-gate failure census in F-04, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. No live code changes.
 - Scope-Paths: .aw/records/plans/pending/20261125-metastore-306-89mtbl-switch-the-shared-test-record-builder-and-codemod-to-the-log.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
+- Scope-Exceeded: .aw/records/backlog/blocked/20261127-metastore-01-2etrjf-cutover-find-bare-repo-research-drop.backlog.md (Filed during 89mtbl E-04 slow-test diagnosis and transitioned to blocked gated on Order 322 plan 6cltab per maintainer resolution of 89mtbl OQ-01 question 219-89mtbl-a1-89mtbl-slow-tests-circular-dep.); .aw/records/backlog/graduated/20261127-metastore-01-0b3ynm-cutover-cli-creators-missing-fields.backlog.md (Filed during 89mtbl E-04 slow-test diagnosis and graduated to Order 322 plan 6cltab in set metastore per maintainer resolution of 89mtbl OQ-01 question 219-89mtbl-a1-89mtbl-slow-tests-circular-dep.)
 - Item-Dependencies: executed:hdwqex
-- Status: approved
+- Status: executed
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -19,12 +20,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 89mtbl
-- Approval: 2026-11-26, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: 89mtbl verified (set metastore, attempt 3). [Scope reconciliation - out-of-scope .aw/records/backlog/blocked/20261127-metastore-01-2etrjf-cutover-find-bare-repo-research-drop.backlog.md: Filed during 89mtbl E-04 slow-test diagnosis and transitioned to blocked (gated on Order 322 plan 6cltab) per maintainer resolution of 89mtbl OQ-01 (question 219-89mtbl-a1-89mtbl-slow-tests-circular-dep).; out-of-scope .aw/records/backlog/graduated/20261127-metastore-01-0b3ynm-cutover-cli-creators-missing-fields.backlog.md: Filed during 89mtbl E-04 slow-test diagnosis and graduated to Order 322 plan 6cltab in set metastore per maintainer resolution of 89mtbl OQ-01 (question 219-89mtbl-a1-89mtbl-slow-tests-circular-dep).]
 - 2026-11-27 note (antigravity/gemini): resolved OQ-01 per maintainer answer to run-20261127T045218Z-1963184 question 219-89mtbl-a1-89mtbl-slow-tests-circular-dep ("Defer slow integration test to final rollup plan x1mmdp and add a child plan for 0b3ynm and 2etrjf"); authored Order 322 child plan 6cltab and deferred tests/test_record_builder_slow.py to x1mmdp E-04/V-04.
 - 2026-11-26 approved (aw set): status set to approved
 - 2026-11-26 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 FIXED
