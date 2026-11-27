@@ -2261,3 +2261,203 @@ def test_edge_satisfied_allows_reviewed_or_approved_target_for_review_action(
             f"target 5o1jye is '{status}' (directory 'pending'), needs one of ['executed']"
             in exec_reason
         )
+
+
+def test_render_disposition_summary_distinguishes_post_dispatch_refusal_from_zero_work():
+    """Post-dispatch refusals (e.g. BACKLOG-INTEGRATION-REFUSED with attempts) must NOT claim NO WORK WAS PERFORMED."""
+    from agent_workflows import render_stream
+    from agent_workflows import run_selection_policy as policy
+
+    dispatched_refused = {
+        "id6": "bej1qz",
+        "action": "plan",
+        "status": "fail-gate",
+        "attempts": [{"number": 1, "disposition": "fail-gate"}],
+        "refusal": {
+            "code": "BACKLOG-INTEGRATION-REFUSED",
+            "reason": "[aw-integration-cause=artifact-conformance] uncarried obligation",
+            "remedy": "aw agy run bej1qz",
+        },
+    }
+    lines = policy.render_disposition_summary(
+        [dispatched_refused], refusal_reader=render_stream.refusal_of_item
+    )
+    text = "\n".join(lines)
+    assert "NO WORK WAS PERFORMED" not in text
+    assert "nothing was dispatched" not in text
+    assert "dispatched 1, but 1 ended refused/blocked before landing" in text
+    assert "BACKLOG-INTEGRATION-REFUSED (1)" in text
+    assert "remedy: aw agy run bej1qz" in text
+    assert "1 dispatched but refused" in text
+
+    # Contrast: a pre-dispatch refusal (attempts=[]) still prints NO WORK WAS PERFORMED.
+    pre_dispatch_refused = {
+        "id6": "pre111",
+        "action": "execute",
+        "status": "fail-gate",
+        "attempts": [],
+        "refusal": {
+            "code": "BEGIN-REFUSED",
+            "reason": "pre-execution lint failed",
+            "remedy": "aw ipd lint pre111",
+        },
+    }
+    pre_lines = policy.render_disposition_summary(
+        [pre_dispatch_refused], refusal_reader=render_stream.refusal_of_item
+    )
+    pre_text = "\n".join(pre_lines)
+    assert "NO WORK WAS PERFORMED" in pre_text
+    assert "nothing was dispatched" in pre_text
+
+
+def test_production_lane_integration_conformance_self_heal_retry(tmp_path: Path):
+    """`_integrate_production_lane_with_conformance_retry` runs a bounded correction turn on artifact-conformance refusal."""
+    from unittest import mock
+    from agent_workflows import runner_shared
+
+    run_dir = tmp_path / "run"
+    run_dir.mkdir(parents=True)
+    plan_path = tmp_path / "bej1qz.backlog.md"
+    plan_path.write_text("# Backlog\n", encoding="utf-8")
+
+    conformance_err = runner_shared.tag_integration_cause(
+        runner_shared.INTEGRATION_CAUSE_ARTIFACT_CONFORMANCE,
+        "integration refused: review artifact check failed: plan 'x.ipd.md' has uncarried obligation (check.ipd-uncarried-obligation)",
+    )
+    integ_calls = {"n": 0}
+
+    def _fake_integrate(_item, _handle):
+        integ_calls["n"] += 1
+        if integ_calls["n"] == 1:
+            return False, conformance_err, runner_shared.INTEGRATION_REFUSAL_CONFLICT
+        return True, "merged cleanly after carrier fix", "integrated"
+
+    launched_prompts: list[str] = []
+
+    def _fake_launcher(state, rdir, item, prompt_path, attempt_no, **kwargs):
+        launched_prompts.append(Path(prompt_path).read_text(encoding="utf-8"))
+        return (0, "ses-corr-1")
+
+    committed = {"n": 0}
+
+    def _fake_commit():
+        committed["n"] += 1
+        return ("abc1234", [".aw/records/plans/pending/x.ipd.md"], [])
+
+    state: dict = {
+        "run_id": "run-test-corr",
+        "options": {"retry_budget": 2},
+        "queue": [],
+    }
+    item: dict = {
+        "position": 1,
+        "id6": "bej1qz",
+        "setid": "bej1qz",
+        "action": "plan",
+        "attempts": [],
+    }
+    attempt: dict = {"number": 1, "session_id": "ses-1"}
+    handle = mock.Mock(path=str(tmp_path), branch="aw/lane/bej1qz")
+
+    with mock.patch.object(
+        runner_shared,
+        "integrate_under_repository_lock",
+        side_effect=lambda repo, it, h, **kw: kw["integrate"](it, h),
+    ):
+        ok, reason, kind, stall = (
+            runner_shared._integrate_production_lane_with_conformance_retry(
+                repo=tmp_path,
+                run_dir=run_dir,
+                state=state,
+                item=item,
+                attempt=attempt,
+                attempt_no=1,
+                wt_handle=handle,
+                work_dir=str(tmp_path),
+                plan_path=plan_path,
+                raw_launcher=_fake_launcher,
+                host_labels=runner_shared.AGY_HOST_LABELS,
+                tracker=None,
+                integrate_fn=_fake_integrate,
+                commit_output_fn=_fake_commit,
+                save_state=lambda _rd, _st: None,
+                append_jsonl=runner_shared.append_jsonl,
+                run_checked=None,
+                seq=1,
+                total=1,
+                is_review=False,
+                pal=lambda s, *_a, **_kw: s,
+            )
+        )
+
+    assert ok is True
+    assert stall is False
+    assert kind == "integrated"
+    assert integ_calls["n"] == 2
+    assert committed["n"] == 1
+    assert len(launched_prompts) == 1
+    assert "check.ipd-uncarried-obligation" in launched_prompts[0]
+    assert "- Carrier: <sibling-id6>" in launched_prompts[0]
+    assert item[runner_shared.PRODUCTION_SET_RETRY_COUNT_KEY] == 1
+    assert len(attempt["corrections"]) == 1
+
+    # Non-conformance refusals (e.g. git conflict) are NOT retried here.
+    non_conf_calls = {"n": 0}
+    non_conf_launches = {"n": 0}
+
+    def _fake_non_conf(_item, _handle):
+        non_conf_calls["n"] += 1
+        return (
+            False,
+            runner_shared.tag_integration_cause(
+                runner_shared.INTEGRATION_CAUSE_GIT_CONFLICT,
+                "integration refused: merge conflict",
+            ),
+            runner_shared.INTEGRATION_REFUSAL_CONFLICT,
+        )
+
+    item2: dict = {
+        "position": 1,
+        "id6": "bej2qz",
+        "setid": "bej2qz",
+        "action": "plan",
+        "attempts": [],
+    }
+    attempt2: dict = {"number": 1}
+    with mock.patch.object(
+        runner_shared,
+        "integrate_under_repository_lock",
+        side_effect=lambda repo, it, h, **kw: kw["integrate"](it, h),
+    ):
+        ok2, _r2, _k2, stall2 = (
+            runner_shared._integrate_production_lane_with_conformance_retry(
+                repo=tmp_path,
+                run_dir=run_dir,
+                state=state,
+                item=item2,
+                attempt=attempt2,
+                attempt_no=1,
+                wt_handle=handle,
+                work_dir=str(tmp_path),
+                plan_path=plan_path,
+                raw_launcher=lambda *a, **kw: (
+                    non_conf_launches.__setitem__("n", non_conf_launches["n"] + 1)
+                    or (0, None)
+                ),
+                host_labels=runner_shared.AGY_HOST_LABELS,
+                tracker=None,
+                integrate_fn=_fake_non_conf,
+                commit_output_fn=_fake_commit,
+                save_state=lambda _rd, _st: None,
+                append_jsonl=runner_shared.append_jsonl,
+                run_checked=None,
+                seq=1,
+                total=1,
+                is_review=False,
+                pal=lambda s, *_a, **_kw: s,
+            )
+        )
+    assert ok2 is False
+    assert stall2 is False
+    assert non_conf_calls["n"] == 1
+    assert non_conf_launches["n"] == 0

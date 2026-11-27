@@ -11352,12 +11352,29 @@ def carrier_severity_for_plan(plan_text: str, repo_root: Optional[Path] = None) 
     return "error" if date >= cutover else _CARRIER_LEGACY_SEVERITY
 
 
+_MD_LEADING_EMPH_RE = _re.compile(r"^(?:\*\*|__|\*|_)([^*\n_]+)(?:\*\*|__|\*|_)")
+_NONE_DEFERRED_SENTINEL_RE = _re.compile(
+    r"^(?:none|n/a|nothing\s+deferred)(?:$|[.;:(\[]|\s+[-–—(])",
+    _re.IGNORECASE,
+)
+
+
+def _is_none_deferred_sentinel(bullet_line: str) -> bool:
+    """Return True for non-obligation sentinel bullets like ``- None.`` or ``- N/A.``."""
+    body = (
+        bullet_line[2:].strip() if bullet_line.startswith("- ") else bullet_line.strip()
+    )
+    body = _MD_LEADING_EMPH_RE.sub(r"\1", body).strip()
+    return bool(_NONE_DEFERRED_SENTINEL_RE.match(body))
+
+
 def _deferred_section_obligations(plan_text: str) -> List[CarrierObligation]:
     """Every top-level `## Deferred / out of scope` bullet, with its indented typed subfields.
 
     Walks the FENCE-AWARE structural view (`ipd_lint._structural_lines`), so a bullet inside a code
-    fence or a block quote is not mistaken for a row. Never raises: an unparseable plan yields no
-    obligations, and the structural linter owns that complaint.
+    fence or a block quote is not mistaken for a row. Skips explicit non-obligation sentinel bullets
+    such as ``- None.`` or ``- N/A.``. Never raises: an unparseable plan yields no obligations, and
+    the structural linter owns that complaint.
     """
     out: List[CarrierObligation] = []
     try:
@@ -11390,6 +11407,8 @@ def _deferred_section_obligations(plan_text: str) -> List[CarrierObligation]:
             continue
         if raw.startswith("- "):
             _flush()
+            if _is_none_deferred_sentinel(raw):
+                continue
             index += 1
             current = CarrierObligation("deferred", f"deferred row {index}", lineno, {})
             continue

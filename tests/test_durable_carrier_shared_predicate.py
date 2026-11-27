@@ -239,6 +239,61 @@ class DurableCarrierSharedPredicateTests(unittest.TestCase):
         author = ipd_lint.lint_file(self.plan, checkpoint="author")
         self.assertNotIn(RULE, [d.code for d in author.diagnostics])
 
+    def test_none_deferred_sentinel_bullets_are_not_uncarried_obligations(self):
+        """`- None.` / `- N/A.` sentinel bullets in `## Deferred / out of scope` are not obligations."""
+        sentinel_bullets = [
+            "- None.",
+            "- None. This child completes the final testing and verification.",
+            "- **None.** All requirements are covered in this plan.",
+            "- N/A. Final wrap-up child.",
+            "- Nothing deferred.",
+        ]
+        for bullet in sentinel_bullets:
+            text = (
+                "# Plan\n\n"
+                "- Id: abc123\n"
+                "- Date: 2026-11-27\n"
+                "- Status: to-review\n\n"
+                f"## {S.H_DEFERRED}\n\n"
+                f"{bullet}\n"
+            )
+            drifts = ce.evaluate_durable_carrier(
+                self.repo,
+                plan_path=self.plan,
+                plan_text=text,
+                open_questions=[],
+            )
+            self.assertEqual(
+                drifts,
+                [],
+                f"sentinel bullet {bullet!r} should not trigger {RULE}, got {drifts}",
+            )
+
+        # Non-sentinel bullets starting with "None of..." or real deferred work MUST still trigger.
+        real_bullets = [
+            "- None of the Windows smoke tests were converted yet.",
+            "- Defer packaging to a follow-up.",
+        ]
+        for bullet in real_bullets:
+            text = (
+                "# Plan\n\n"
+                "- Id: abc123\n"
+                "- Date: 2026-11-27\n"
+                "- Status: to-review\n\n"
+                f"## {S.H_DEFERRED}\n\n"
+                f"{bullet}\n"
+            )
+            drifts = ce.evaluate_durable_carrier(
+                self.repo,
+                plan_path=self.plan,
+                plan_text=text,
+                open_questions=[],
+            )
+            self.assertTrue(
+                any(d.rule == RULE for d in drifts),
+                f"real deferred bullet {bullet!r} must trigger {RULE}, got {drifts}",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

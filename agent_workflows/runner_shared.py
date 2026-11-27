@@ -33700,6 +33700,251 @@ def build_production_set_correction_prompt(
     return "\n".join(lines)
 
 
+def build_production_conformance_correction_prompt(
+    item: Mapping[str, Any],
+    refusal_reason: str,
+    *,
+    correction_turn: int,
+    budget: int,
+) -> str:
+    """Build a bounded correction prompt when production-lane integration refuses on artifact conformance."""
+    lines = [
+        f"# Correction Turn: Artifact Conformance for {item.get('id6', '')}",
+        "",
+        f"This is bounded correction turn {correction_turn} of {budget}.",
+        "Your authored plans passed local execution, but post-turn lane integration refused them for an artifact conformance violation:",
+        "",
+        "```text",
+        refusal_reason.strip(),
+        "```",
+        "",
+        "## How to Fix",
+        "",
+        "- Fix ONLY the reported conformance violation(s) in the plans/records inside this lane worktree; do not discard or rewrite unrelated work.",
+    ]
+    if "check.ipd-uncarried-obligation" in refusal_reason:
+        lines.extend(
+            [
+                "- For every real deferred bullet under `## Deferred / out of scope` (and every `open`/`deferred` question under `## Open questions`), add an indented typed carrier subfield naming a live sibling plan or backlog item id6, for example:",
+                "  ```markdown",
+                "  - Deferred item description.",
+                "    - Carrier: <sibling-id6>",
+                "  ```",
+                "- Prose citations alone (like `deferred to child <id6>`) do not satisfy `check.ipd-uncarried-obligation`; the indented `- Carrier: <id6>` subfield is required.",
+                "- If a plan has no deferred work, either leave `## Deferred / out of scope` with a single `- None.` bullet or remove non-obligation prose bullets.",
+            ]
+        )
+    lines.extend(
+        [
+            "- Run `aw ipd lint --phase review-finalize <plan>` (and `aw check plans`) on each modified plan to verify zero blocking findings before finishing.",
+            "- Commit your fix inside this lane using `aw commit --no-plan -m ... -- <paths>`.",
+            "",
+            FIX_IT_RULE_TEXT,
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _integrate_production_lane_with_conformance_retry(
+    *,
+    repo: Path,
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    attempt: dict[str, Any],
+    attempt_no: int,
+    wt_handle: Any,
+    work_dir: str | None,
+    plan_path: Path,
+    raw_launcher: Any,
+    host_labels: HostLabels,
+    tracker: Any,
+    integrate_fn: Callable[[Any, Any], tuple[bool, str, str]],
+    commit_output_fn: Callable[[], tuple[str | None, Sequence[str], Sequence[str]]],
+    save_state: Callable[[Path, dict[str, Any]], Any],
+    append_jsonl: Callable[[Path, Mapping[str, Any]], Any],
+    run_checked: Any,
+    seq: int,
+    total: int,
+    is_review: bool,
+    pal: Any,
+) -> tuple[bool, str, str, bool]:
+    """Integrate a production (`plan`) lane, granting bounded self-heal turns on `artifact-conformance` refusal.
+
+    Returns ``(integrated, reason, kind, stall_handled)``. When ``stall_handled`` is True,
+    ``_handle_stall_timeout`` has already finalized the attempt and the caller should return.
+    """
+    prod_integrated, prod_reason, prod_kind = integrate_under_repository_lock(
+        repo,
+        item,
+        wt_handle,
+        state=state,
+        holder_label=integration_lock_holder_label(state),
+        integrate=integrate_fn,
+        progress=integration_lock_progress_reporter(),
+        run_checked=run_checked,
+    )
+
+    last_reason: str | None = None
+    while (
+        not prod_integrated
+        and read_integration_cause(prod_reason)[0]
+        == INTEGRATION_CAUSE_ARTIFACT_CONFORMANCE
+    ):
+        used = production_set_retry_attempts(item)
+        budget = frozen_retry_budget(state)
+        cap_dec = fix_it_cap_decision(item, state)
+        if used >= budget or cap_dec.reached or prod_reason == last_reason:
+            if cap_dec.reached:
+                record_fix_it_cap_stop(item, cap_dec, host_labels, run_dir=run_dir)
+                attempt["fix_it_cap"] = cap_dec._asdict()
+            break
+
+        last_reason = prod_reason
+        turn_num = used + 1
+        item[PRODUCTION_SET_RETRY_COUNT_KEY] = turn_num
+        save_state(run_dir, state)
+
+        prompt_text = build_production_conformance_correction_prompt(
+            item,
+            prod_reason,
+            correction_turn=turn_num,
+            budget=budget,
+        )
+        corr_prompt_path = write_prompt(
+            run_dir,
+            item,
+            prompt_text,
+            attempt_no,
+            suffix=f"conformance-correction-{turn_num}",
+        )
+        corr_session = attempt.get("session_id")
+        try:
+            if host_labels == OC_HOST_LABELS:
+                corr_res = resume_via_launcher(
+                    raw_launcher,
+                    (
+                        state,
+                        run_dir,
+                        item,
+                        plan_path,
+                        corr_prompt_path,
+                        attempt_no,
+                    ),
+                    {
+                        "log_suffix": f"conformance-correction-{turn_num}",
+                        "label_suffix": "conformance-correction",
+                        "tracker": tracker,
+                        "work_dir": work_dir,
+                        "resume_session": corr_session,
+                    },
+                )
+            else:
+                corr_res = resume_via_launcher(
+                    raw_launcher,
+                    (
+                        state,
+                        run_dir,
+                        item,
+                        corr_prompt_path,
+                        attempt_no,
+                    ),
+                    {
+                        "session_id": corr_session,
+                        "use_continue": False,
+                        "log_suffix": f"conformance-correction-{turn_num}",
+                        "label_suffix": "conformance-correction",
+                        "work_dir": work_dir,
+                        "tracker": tracker,
+                    },
+                )
+        except KeyboardInterrupt:
+            raise
+        except StallTimeout as stall_exc:
+            _handle_stall_timeout(
+                stall_exc,
+                run_dir=run_dir,
+                state=state,
+                item=item,
+                attempt=attempt,
+                attempt_no=attempt_no,
+                repo=repo,
+                wt_handle=wt_handle,
+                host_labels=host_labels,
+                work_dir=work_dir,
+                seq=seq,
+                total=total,
+                is_review=is_review,
+                pal=pal,
+                save_state=save_state,
+                append_jsonl=append_jsonl,
+            )
+            return False, prod_reason, prod_kind, True
+
+        if isinstance(corr_res, tuple) and len(corr_res) > 1 and corr_res[1]:
+            attempt["session_id"] = corr_res[1]
+
+        if work_dir:
+            with contextlib.suppress(Exception):
+                from agent_workflows import lane_containment as _lane_containment
+
+                _lane_containment.collect_lane_submissions(
+                    run_dir=run_dir,
+                    item=item,
+                    run_id=state["run_id"],
+                    lane_root=Path(work_dir),
+                    plan_path=plan_path,
+                    attempt=attempt_no,
+                )
+
+        c_commit, c_paths, _c_oos = commit_output_fn()
+        if c_commit:
+            attempt["conformance_correction_commit"] = c_commit
+            attempt["conformance_correction_paths"] = list(c_paths)
+
+        prev_reason = prod_reason
+        prod_integrated, prod_reason, prod_kind = integrate_under_repository_lock(
+            repo,
+            item,
+            wt_handle,
+            state=state,
+            holder_label=integration_lock_holder_label(state),
+            integrate=integrate_fn,
+            progress=integration_lock_progress_reporter(),
+            run_checked=run_checked,
+        )
+
+        corr_rec = {
+            "action": "production-integration-conformance-correction",
+            "attempt": attempt_no,
+            "turn": turn_num,
+            "reason_before": prev_reason,
+            "integrated_after": prod_integrated,
+            "reason_after": prod_reason,
+            "at": utc_now(),
+        }
+        attempt.setdefault("corrections", []).append(corr_rec)
+        attempt["correction_turns"] = turn_num
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "production-integration-conformance-correction",
+                "id6": item["id6"],
+                "attempt": attempt_no,
+                "correction_turn": turn_num,
+                "budget": budget,
+                "integrated": prod_integrated,
+                "reason_before": prev_reason,
+                "reason_after": prod_reason,
+            },
+        )
+        save_state(run_dir, state)
+
+    return prod_integrated, prod_reason, prod_kind, False
+
+
 def build_review_orchestrator_correction_prompt(
     item: Mapping[str, Any],
     readiness: Any,
@@ -53020,22 +53265,47 @@ def execute_item_core(
                     attempt["generated_next_actions"] = gen_actions
 
                     if wt_handle is not None:
-                        prod_integrated, prod_reason, prod_kind = (
-                            integrate_under_repository_lock(
-                                repo,
-                                item,
-                                wt_handle,
-                                state=state,
-                                holder_label=integration_lock_holder_label(state),
-                                integrate=lambda _item, _handle: (
-                                    integrate_review_lane_branch(
-                                        repo, _handle, _item["id6"]
-                                    )
-                                ),
-                                progress=integration_lock_progress_reporter(),
-                                run_checked=run_checked,
-                            )
+                        (
+                            prod_integrated,
+                            prod_reason,
+                            prod_kind,
+                            _stall_handled,
+                        ) = _integrate_production_lane_with_conformance_retry(
+                            repo=repo,
+                            run_dir=run_dir,
+                            state=state,
+                            item=item,
+                            attempt=attempt,
+                            attempt_no=attempt_no,
+                            wt_handle=wt_handle,
+                            work_dir=work_dir,
+                            plan_path=plan_path,
+                            raw_launcher=raw_launcher,
+                            host_labels=host_labels,
+                            tracker=tracker,
+                            integrate_fn=lambda _item, _handle: (
+                                integrate_review_lane_branch(
+                                    repo, _handle, _item["id6"]
+                                )
+                            ),
+                            commit_output_fn=lambda: commit_spec_production_output(
+                                target_tree,
+                                item["id6"],
+                                baseline_plan_ids,
+                                host_label=host_labels.command,
+                                run_id=str(state.get("run_id") or "") or None,
+                                continued_plan_ids=continued_plan_ids,
+                            ),
+                            save_state=save_state,
+                            append_jsonl=append_jsonl,
+                            run_checked=run_checked,
+                            seq=seq,
+                            total=total,
+                            is_review=is_review,
+                            pal=pal,
                         )
+                        if _stall_handled:
+                            return
                         attempt["prod_integrated"] = prod_integrated
                         attempt["prod_integration_reason"] = prod_reason
                         attempt["prod_integration_kind"] = prod_kind
@@ -53849,24 +54119,47 @@ def execute_item_core(
                             attempt["generated_next_actions"] = gen_actions
 
                             if wt_handle is not None:
-                                prod_integrated, prod_reason, prod_kind = (
-                                    integrate_under_repository_lock(
-                                        repo,
-                                        item,
-                                        wt_handle,
-                                        state=state,
-                                        holder_label=integration_lock_holder_label(
-                                            state
-                                        ),
-                                        integrate=lambda _item, _handle: (
-                                            integrate_review_lane_branch(
-                                                repo, _handle, _item["id6"]
-                                            )
-                                        ),
-                                        progress=integration_lock_progress_reporter(),
-                                        run_checked=run_checked,
-                                    )
+                                (
+                                    prod_integrated,
+                                    prod_reason,
+                                    prod_kind,
+                                    _stall_handled,
+                                ) = _integrate_production_lane_with_conformance_retry(
+                                    repo=repo,
+                                    run_dir=run_dir,
+                                    state=state,
+                                    item=item,
+                                    attempt=attempt,
+                                    attempt_no=attempt_no,
+                                    wt_handle=wt_handle,
+                                    work_dir=work_dir,
+                                    plan_path=plan_path,
+                                    raw_launcher=raw_launcher,
+                                    host_labels=host_labels,
+                                    tracker=tracker,
+                                    integrate_fn=lambda _item, _handle: (
+                                        integrate_review_lane_branch(
+                                            repo, _handle, _item["id6"]
+                                        )
+                                    ),
+                                    commit_output_fn=lambda: commit_backlog_production_output(
+                                        target_tree,
+                                        item["id6"],
+                                        baseline_plan_ids,
+                                        host_label=host_labels.command,
+                                        run_id=str(state.get("run_id") or "") or None,
+                                        continued_plan_ids=continued_plan_ids,
+                                    ),
+                                    save_state=save_state,
+                                    append_jsonl=append_jsonl,
+                                    run_checked=run_checked,
+                                    seq=seq,
+                                    total=total,
+                                    is_review=is_review,
+                                    pal=pal,
                                 )
+                                if _stall_handled:
+                                    return
                                 attempt["prod_integrated"] = prod_integrated
                                 attempt["prod_integration_reason"] = prod_reason
                                 attempt["prod_integration_kind"] = prod_kind

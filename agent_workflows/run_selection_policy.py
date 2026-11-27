@@ -2219,6 +2219,15 @@ SUMMARY_NO_ACTION_VERDICT = (
     "This is not a failed launch; nothing was dispatched. See the remedies below."
 )
 
+#: The verdict line when artifacts WERE dispatched (have recorded attempts) but ended refused or
+#: blocked before landing (for example `BACKLOG-INTEGRATION-REFUSED` after an authoring turn).
+#: Printing `SUMMARY_NO_ACTION_VERDICT` ("nothing was dispatched") in that case contradicts the
+#: real agent work that just ran.
+SUMMARY_DISPATCHED_REFUSED_VERDICT = (
+    "This run matched {matched} artifact(s) and dispatched {dispatched}, "
+    "but {refused} ended refused/blocked before landing. See the remedies below."
+)
+
 #: The verdict line for a run that acted on some but not all of what it matched.
 SUMMARY_PARTIAL_VERDICT = "This run matched {matched} artifact(s) and acted on {acted}; {skipped} were not acted on."
 
@@ -2309,8 +2318,24 @@ def render_disposition_summary(
     matched = sum(count for _code, count, _remedy in rows)
     acted = sum(count for code, count, _remedy in rows if code == DISPOSITION_ACTED_ON)
     skipped = matched - acted
-    if acted == 0:
+    dispatched_refused = 0
+    for entry in entries:
+        if not isinstance(entry, Mapping) or not entry.get("attempts"):
+            continue
+        decided = derive_item_disposition(
+            entry, refusal_reader, in_queue_id6s=in_queue_id6s
+        )
+        if decided.code != DISPOSITION_ACTED_ON:
+            dispatched_refused += 1
+
+    if acted == 0 and dispatched_refused == 0:
         verdict = SUMMARY_NO_ACTION_VERDICT.format(matched=matched)
+    elif acted == 0 and dispatched_refused > 0:
+        verdict = SUMMARY_DISPATCHED_REFUSED_VERDICT.format(
+            matched=matched,
+            dispatched=dispatched_refused,
+            refused=dispatched_refused,
+        )
     elif skipped:
         verdict = SUMMARY_PARTIAL_VERDICT.format(
             matched=matched, acted=acted, skipped=skipped
@@ -2331,9 +2356,17 @@ def render_disposition_summary(
             lines.append("    remedy: {0}".format(remedy))
     # The counts are RESTATED as a total rather than left for the reader to add up, so the block's own
     # guarantee (nothing matched is omitted) is checkable on its face by a `tail` reader.
-    lines.append(
-        "  total: {0} matched, {1} acted on, {2} not acted on".format(
-            matched, acted, skipped
+    if dispatched_refused > 0:
+        not_dispatched = max(0, skipped - dispatched_refused)
+        lines.append(
+            "  total: {0} matched, {1} acted on, {2} dispatched but refused, {3} not acted on".format(
+                matched, acted, dispatched_refused, not_dispatched
+            )
         )
-    )
+    else:
+        lines.append(
+            "  total: {0} matched, {1} acted on, {2} not acted on".format(
+                matched, acted, skipped
+            )
+        )
     return lines
