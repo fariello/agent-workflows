@@ -42,22 +42,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: scratch worktree
 
-- [ ] E-01 Create the scratch worktree following the SCRATCH PROCEDURE of executed plan `2k5t16` (Step 0): run `git worktree add --detach .aw/state/j1f454/scratch HEAD`; inside `.aw/state/j1f454/scratch`, run `git apply --index .aw/system/cutover/metastore-docs.cutover.patch`, record `BASE=$(git write-tree)` in F-01, and then run `git apply --index .aw/system/cutover/metastore-code.cutover.patch`. If either patch rejects, stop and report.
+- [x] E-01 Create the scratch worktree following the SCRATCH PROCEDURE of executed plan `2k5t16` (Step 0): run `git worktree add --detach .aw/state/j1f454/scratch HEAD`; inside `.aw/state/j1f454/scratch`, run `git apply --index .aw/system/cutover/metastore-docs.cutover.patch`, record `BASE=$(git write-tree)` in F-01, and then run `git apply --index .aw/system/cutover/metastore-code.cutover.patch`. If either patch rejects, stop and report.
   - Depends on: none
   - Expected outcome: `.aw/state/j1f454/scratch` holds HEAD plus both patches staged, and F-01 records the base tree id.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: log-aware selectors and artifact_rename (scratch worktree only)
 
-- [ ] E-02 Make `agent_workflows/selectors.py` status matching, mirror identity reading, and typed-subject ownership log-aware in `.aw/state/j1f454/scratch` while preserving legacy parity:
+- [x] E-02 Make `agent_workflows/selectors.py` status matching, mirror identity reading, and typed-subject ownership log-aware in `.aw/state/j1f454/scratch` while preserving legacy parity:
   1. In `agent_workflows/selectors.py::_state_matches_status` and `_read_status`, read `getattr(st, "status", None)` before falling back to `getattr(st, "legacy_raw_status", None)` so log-format `State` rows (where `legacy_raw_status is None` and `status` holds the canonical status) match `MATCH_STATUS` across `plans`, `specs`, `backlog`, `research`, `releases`, and `prompts` while preserving `plans.normalize_status` normalization for legacy multi-word plan statuses (`"EXECUTED (...)"`). Also pass `record_type=_META_TYPE_FOR_RECORD.get(record_type)` into `_meta.read_text(_meta.metadata_region(hdr), record_type=...)` inside `resolve`'s `_states()` fallback so uncached staged prompts expose `id` and `status` mirrors.
   2. In `agent_workflows/selectors.py::_read_id(text)` (used by `declared_id6`, `declares_id6`, and `id6_ownership`), check `artifact_meta.read_mirror_id6(text)` first so post-cutover staged prompts (`<!-- aw-managed-prompt: id: <id6> ... -->`) and BOM-prefixed YAML mirrors are recognized as declaring their own `id6` (`OWNERSHIP_DECLARED` rather than false `OWNERSHIP_SLOT_ONLY`), falling back to the existing `metadata_region` + `read_text` check for legacy bullet/YAML files.
   3. In `agent_workflows/selectors.py::_declares_typed_subject(path, id6)`, check spec `4sd62s` Section 4.1a `.review.md` YAML mirrors via `artifact_meta.read_review_subject_id(text)` (matching `subject: <id6>`). When `own_id6 = artifact_meta.read_mirror_id6(text)` exists, resolve the file's owning repository via `project_context.record_owner_root(path)` and read the companion log via `artifact_meta.read(own_id6, project_context=artifact_meta.legacy_context(owner))` inside `artifact_meta.ephemeral_if_uninitialized()` (never defaulting to the process CWD's repo) to check log-stored typed reference fields (`subject_id`, `target_id`, `references`, `from_backlog`, `from_spec`, `reviewed_id`, handling scalar id6 tokens and list/link values safely) before falling back to `artifact_meta.read_text(metadata_region(text))`.
   - Depends on: E-01
   - Expected outcome: `selectors.resolve(repo, <type>, <status>)` and `aw find <type> <status>` return `MATCH_STATUS` for log-format records across all status-bearing types, `selectors.declared_id6` and `id6_ownership` classify post-cutover staged prompts as `OWNERSHIP_DECLARED`, and `selectors.id6_ownership` classifies spec `4sd62s` Section 4.1a `.review.md` files and log-backed typed references as `OWNERSHIP_REFERENCE`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make `agent_workflows/artifact_rename.py` (`--to-id6` conversion and id6 helpers) log-aware in `.aw/state/j1f454/scratch` while preserving legacy parity:
+- [x] E-03 Make `agent_workflows/artifact_rename.py` (`--to-id6` conversion and id6 helpers) log-aware in `.aw/state/j1f454/scratch` while preserving legacy parity:
   1. In `agent_workflows/artifact_rename.py::_read_existing_id6` and `_existing_type_id6s`, check `artifact_meta.read_mirror_id6(text)` before falling back to legacy `_bullet_id6(text)` (and `has_prompt_metadata_comment` + `read_text(..., record_type="prompt")` for prompts, already updated by `p109wy`) so post-cutover YAML-mirror specs, plans, walkthroughs, and managed prompts are recognized as already carrying their id6 (idempotent `--to-id6`, zero re-minting, and accurate mint collision sets).
   2. In `agent_workflows/artifact_rename.py::run_rename_generic` (`--to-id6 --apply` when `log_id6 is None` and `inject_id6` is minted), distinguish records with metadata from bulletless or commentless filename-only records:
      - For a file carrying metadata bullets (`_metadata_bullets` containing `Status` or `Date`) or a prompt metadata comment (`has_prompt_metadata_comment`), resolve the singular registry type `registry_type, plural = artifact_meta._normalize_legacy_types(artifact_type, dst, m_rroot)` (e.g. `"spec"`, `"walkthrough"`, `"ipd"`, `"prompt"`, NOT plural `"specs"`/`"walkthroughs"`), map parsed metadata into fields allowed by `artifact_meta.REGISTRY[registry_type]` (omitting `status` for `"walkthrough"`, which has no status per spec `4sd62s` Section 4.1, and applying any `new_set`/`new_order` registered for `registry_type`), strip the legacy bullet block (or leading `<!-- aw-prompt: ... -->` comment for prompts) so `body` holds clean prose only, and call `artifact_meta.create(inject_id6, registry_type, fields, body, destination=m_rel, dry_run=False, overwrite=True, project_context=m_ctx, actor={"tool": "aw rename"})`. If `create` raises or returns `committed=False`, roll back any `git_mv` (matching `move_with_log_event`) and return a structured exit-2 refusal; when `create` commits, append `_rel_to_repo(m_rroot / "meta" / f"{inject_id6}.jsonl", repo_root)` to `touched`.
@@ -65,22 +65,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   3. Update `agent_workflows/artifact_rename.py::_id6_write_message` to check `artifact_meta.read_mirror_id6(_src_text)` before checking legacy `_metadata_bullets(_src_text)` so post-write `--apply` output reports the real YAML mirror and log write rather than falsely claiming `FILENAME ONLY`, while preserving `"would inject"` on preview for bulleted legacy files and `"FILENAME ONLY"` for bulletless/commentless files. Record the verified caller audit across `selectors.py` and `artifact_rename.py` in F-02.
   - Depends on: E-02
   - Expected outcome: `aw rename specs <legacy> --to-id6 --apply` and `aw rename walkthroughs <dated> --to-id6 --apply` create conforming log-backed records with singular `registry_type`, clean bodies, and `meta/<id6>.jsonl` in `touched` (rolling back `git_mv` if `create` fails); bulletless files rename filename-only without body mutation; already-clustered log-format records are idempotent (`no re-mint`); and F-02 records the caller audit.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add and run core behavioral test module `tests/test_cutover_log_selectors_and_rename.py` (`pytestmark = pytest.mark.core`) in `.aw/state/j1f454/scratch` (asserting real outputs, exit codes, and side effects; no code-pinning tests):
+- [x] E-04 Add and run core behavioral test module `tests/test_cutover_log_selectors_and_rename.py` (`pytestmark = pytest.mark.core`) in `.aw/state/j1f454/scratch` (asserting real outputs, exit codes, and side effects; no code-pinning tests):
   1. Cover `selectors.resolve` (`MATCH_STATUS`, `MATCH_ID6`, `MATCH_SETID`), `selectors._read_status`, and `aw find <type> <status>` across log-format `plans`, `specs`, `backlog`, `research`, `releases`, and `prompts` (including BOM-prefixed YAML mirrors and legacy multi-word plan status fallback), plus `selectors.declared_id6` and `selectors.id6_ownership` returning `OWNERSHIP_DECLARED` for post-cutover staged prompts (`<!-- aw-managed-prompt: ... -->`) and YAML-mirror plans, `OWNERSHIP_FOREIGN_ID` for foreign mirrors, and `OWNERSHIP_REFERENCE` for spec `4sd62s` Section 4.1a `.review.md` mirrors (`subject: <id6>`) and log-stored typed references (`_declares_typed_subject` resolving `path`'s owning repo under `tmp_path`).
   2. Cover `artifact_rename` `--to-id6` (preview and `--apply --no-commit`): legacy spec with bullets prints `"would inject"` on preview, initializes `meta/<id6>.jsonl` with `type == "spec"`, writes YAML mirror `id: <id6>` with legacy bullets stripped from body, does not print `FILENAME ONLY` on apply, and includes the log path in `touched`; dated walkthrough with bullets initializes `meta/<id6>.jsonl` with `type == "walkthrough"` (and no `status` field); bulletless walkthrough prints `FILENAME ONLY` and renames filename-only without modifying body text or creating a log; already-clustered log-format spec reports `no re-mint` and leaves files unchanged; `_existing_type_id6s` collects YAML-mirror and managed-prompt id6 values.
   3. Run `python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_selectors_and_rename.py` in `.aw/state/j1f454/scratch` and confirm every test passes.
   - Depends on: E-03
   - Expected outcome: `tests/test_cutover_log_selectors_and_rename.py` passes every test in `.aw/state/j1f454/scratch`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: package
 
-- [ ] E-05 In `.aw/state/j1f454/scratch`, run `git add -A` and write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch` in the executing checkout; remove the scratch worktree (`git worktree remove --force .aw/state/j1f454/scratch`); run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout; verify `git status --short` shows only `- Scope-Paths:` modified; and commit through `aw commit j1f454 -- .aw/records/plans/pending/20261126-metastore-319-j1f454-make-selectors-status-matching-typed-subject-ownership-and-a.ipd.md .aw/system/cutover/metastore-code.cutover.patch`; never push.
+- [x] E-05 In `.aw/state/j1f454/scratch`, run `git add -A` and write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch` in the executing checkout; remove the scratch worktree (`git worktree remove --force .aw/state/j1f454/scratch`); run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout; verify `git status --short` shows only `- Scope-Paths:` modified; and commit through `aw commit j1f454 -- .aw/records/plans/pending/20261126-metastore-319-j1f454-make-selectors-status-matching-typed-subject-ownership-and-a.ipd.md .aw/system/cutover/metastore-code.cutover.patch`; never push.
   - Depends on: E-04
   - Expected outcome: `.aw/system/cutover/metastore-code.cutover.patch` contains all prior code-patch hunks plus this plan's changes; `tests/test_metastore_cutover_code_patch.py` passes; scratch worktree is removed; no live files outside `- Scope-Paths:` are modified; one path-scoped commit is created.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -93,8 +93,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-01 | (written by E-01) | Base tree id after applying `.aw/system/cutover/metastore-docs.cutover.patch`. |
-| F-02 | (written by E-03) | Caller and behavior audit across `selectors.py` and `artifact_rename.py`. |
+| F-01 | E-01, 2026-11-27: `git apply --index .aw/system/cutover/metastore-docs.cutover.patch` (exit 0) in `.aw/state/j1f454/scratch` on HEAD `1414099d563255ea47b296b0af8661c0a8d46fb7`, followed by `git write-tree`. | Base tree id after applying `.aw/system/cutover/metastore-docs.cutover.patch`: `74cfc86af17e38497495010dd6960d976a9ac540`. |
+| F-02 | E-03 caller and behavior audit in `.aw/state/j1f454/scratch` (`tests/test_cutover_log_selectors_and_rename.py`: `6 passed in 2.36s`; sibling cutover suite `test_cutover_log_lifecycle_and_hooks.py` + `test_cutover_log_readiness_runner_and_review_seq.py` + `test_cutover_log_reviews_prompts_and_checks.py` + `test_cutover_log_checkers.py` + `test_backlog_log_format.py`: `43 passed in 21.59s`; `test_selector_two_dialect_readers.py` + `test_front_matter_loose_whitespace.py`: `15 passed`; `ruff check --select F`: `All checks passed!`; `mypy`: `Success: no issues found in 2 source files`): (1) `agent_workflows/selectors.py`: `_state_matches_status` and `_read_status` (consumed by `selectors.resolve`, `aw find`, and legacy status tests) read `st.status` before `st.legacy_raw_status` while preserving `plans.normalize_status` on multi-word legacy plan statuses (`EXECUTED (...)`), BOM-prefixed YAML mirrors, and staged-prompt mirrors; `resolve._states` checks `by_path.get(p)` / `by_path.get(p.resolve())` and passes `record_type=_META_TYPE_FOR_RECORD.get(record_type)` into `_meta.read_text(_meta.metadata_region(hdr.lstrip("\ufeff")), record_type=...)` so uncached staged prompts expose `id` and `status`; `_read_id` (consumed by `declared_id6`, `declares_id6`, `id6_ownership`, `artifact_audit.py`, `doctor.py`, and `runner_shared.py`) checks `artifact_meta.read_mirror_id6(text)` first before BOM-stripped `metadata_region` + `read_text`; `id6_ownership` (consumed by `cli.py` and `runner_shared.py`) and `_declares_typed_subject` check `artifact_meta.read_review_subject_id(text)` for spec `4sd62s` Section 4.1a `.review.md` YAML mirrors, resolve the owning repository via `_owner_root_for_record(path)` (`project_context.record_owner_root(path)` then `.aw`/`.agents`/`.git` ancestor walk without defaulting to CWD), read the companion log under `ephemeral_if_uninitialized()` to inspect `subject_id`, `target_id`, `references`, `from_backlog`, `from_spec`, and `reviewed_id` (scalar, link, list, and dict forms), and return `OWNERSHIP_REFERENCE` for typed references and `OWNERSHIP_FOREIGN_ID` for non-referencing foreign mirrors; (2) `agent_workflows/artifact_rename.py`: `_read_existing_id6` (consumed by `_meta_target_for_file`, `log_format_id6`, `run_rename_generic`, `run_group_generic`) and `_existing_type_id6s` (consumed by `run_rename_generic`) check `artifact_meta.read_mirror_id6(text)` first before legacy prompt-comment and `_bullet_id6` fallbacks; `run_rename_generic` (`--to-id6 --apply` with `log_id6 is None` and minted `inject_id6`, dispatched by `run_rename_specs`, `run_rename_walkthroughs`, `run_rename_prompts`, `run_rename_backlog`, `run_rename_releases`, `run_rename_roadmaps`, `run_rename_other`) resolves singular `registry_type` via `_meta._normalize_legacy_types` (mapping `roadmaps` to `roadmap`), maps parsed metadata into `REGISTRY[registry_type]` via `_fields_for_to_id6_create` (omitting `status` on statusless types such as `walkthrough` and `roadmap`), strips legacy bullets or leading `aw-prompt` comments via `_strip_legacy_metadata_for_create`, calls `_meta.create(..., overwrite=True)`, rolls back `git_mv` with exit-2 `meta-validation-error` refusal if `create` raises or returns `committed=False`, appends `.aw/records/meta/<id6>.jsonl` (via `Path(m_ctx.logical_roots["records"])`) to `touched`, and leaves bulletless/commentless files filename-only with no body mutation or log creation; `_id6_write_message` checks `artifact_meta.read_mirror_id6(_src_text)` before `_metadata_bullets(_src_text)` so apply output reports the mirror and log write while preview preserves `"would inject"` and bulletless/commentless files keep `"FILENAME ONLY"`. | Complete verified caller and behavior audit across `selectors.py`, `artifact_rename.py`, and their callers (`cli.py`, `runner_shared.py`, `artifact_audit.py`, `doctor.py`, and `run_rename_*` / `run_group_generic`). |
 | F-03 | `qi0kl6` F-05 and static audit of `.aw/system/cutover/metastore-code.cutover.patch`: `selectors.py::_state_matches_status`, `_declares_typed_subject`; `artifact_rename.py::run_rename_generic`, `_read_existing_id6`, `_existing_type_id6s`, `_id6_write_message` | Two verified production cutover gaps (items 1 and 4 of `qi0kl6` F-05) block `tests/test_readers_selectors_find.py`, `tests/test_spec_id6_filenames.py`, and post-cutover `aw find <type> <status>` / `aw rename --to-id6` workflows; split into Order 319 (`j1f454`) ahead of Order 320 (`lec341`) and `qi0kl6` per maintainer decision on `run-20261126T055808Z-863961` question `05-qi0kl6-a1-batch-e-production-log-aware-gaps`. |
 | F-04 | Plan-review static audit of post-patch `agent_workflows/selectors.py` (`_read_id`, `_read_status`, `_state_matches_status`, `resolve._states`, `declared_id6`, `id6_ownership`, `_declares_typed_subject`), `agent_workflows/artifact_rename.py` (`_meta_target_for_file`, `_id6_write_message`, `_existing_type_id6s`, `move_with_log_event`, `run_rename_generic`), and `agent_workflows/artifact_meta.py` (`_normalize_legacy_types`, `create`) | Verified four additional cutover constraints folded into E-02 through E-04: (1) `selectors._read_id` calls `read_text(region)` without `record_type="prompt"` or BOM handling, misclassifying post-cutover staged prompts as `OWNERSHIP_SLOT_ONLY` instead of `OWNERSHIP_DECLARED`, and `resolve._states` omits `record_type` on its fallback `read_text` call; (2) `selectors._declares_typed_subject(path, id6)` takes no `repo_root`, so companion log reads must resolve `owner = project_context.record_owner_root(path)` and pass `project_context=artifact_meta.legacy_context(owner)` inside `ephemeral_if_uninitialized()`; (3) `artifact_rename._meta_target_for_file` returns plural `m_type` whereas `artifact_meta.create` requires singular `registry_type`, registry-filtered `fields` (no `status` on `"walkthrough"`), legacy bullets/comments stripped from `body`, and `git_mv` rollback if `create` fails; (4) `_id6_write_message(..., preview=False, src=dst)` reads `dst` after `create` strips legacy bullets, so it must check `read_mirror_id6` first to avoid falsely printing `FILENAME ONLY` while preserving `"would inject"` on preview. |
 
@@ -151,26 +151,79 @@ None open.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git worktree add --detach .aw/state/j1f454/scratch HEAD` command, both `git apply --index` commands (for `.aw/system/cutover/metastore-docs.cutover.patch` and `.aw/system/cutover/metastore-code.cutover.patch`) with exit status 0, and the base tree id recorded in F-01.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    ```text
+    $ git worktree add --detach .aw/state/j1f454/scratch HEAD && (cd .aw/state/j1f454/scratch && git apply --index .aw/system/cutover/metastore-docs.cutover.patch && BASE=$(git write-tree) && echo "BASE=$BASE" && git apply --index .aw/system/cutover/metastore-code.cutover.patch && echo "CODE_PATCH_EXIT=$?")
+    Preparing worktree (detached HEAD 1414099d5)
+    HEAD is now at 1414099d5 chore(plans): record Carrier-Evidence for executed q6fiws in x1mmdp, e0g2gt, qi0kl6, j1f454, and lec341
+    BASE=74cfc86af17e38497495010dd6960d976a9ac540
+    CODE_PATCH_EXIT=0
+    Command exited with code 0.
+    ```
+    F-01 records base tree id `74cfc86af17e38497495010dd6960d976a9ac540`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste observed outputs on `.aw/state/j1f454/scratch` (code paths updated by E-02) showing `selectors.resolve` matching `MATCH_STATUS` on log-format `plans`, `specs`, `backlog`, `research`, `releases`, and `prompts` records, `selectors.declared_id6` and `selectors.id6_ownership` returning `OWNERSHIP_DECLARED` on a post-cutover staged prompt (`<!-- aw-managed-prompt: ... -->`) and BOM-prefixed YAML mirror, and `selectors.id6_ownership` returning `OWNERSHIP_REFERENCE` on a spec `4sd62s` Section 4.1a `.review.md` mirror (`subject: <id6>`) and on a log-stored typed reference under `tmp_path`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    Throwaway-repository smoke output on `.aw/state/j1f454/scratch`:
+    ```text
+    === V-02 SMOKE ===
+    resolve_status: {'plans': ('status', ['20261126-demo-01-pln901-p.ipd.md']), 'specs': ('status', ['20261126-spc901-01-spc901-s.spec.md']), 'backlog': ('status', ['20261126-bset-01-bkl901-b.backlog.md']), 'research': ('status', ['20261126-rset-01-res901-r.research-report.md']), 'releases': ('status', ['20261126-vset-01-rel901-v.release.md']), 'prompts': ('status', ['20261126-pset-01-prm901-q.prompt.md'])}
+    prompt_declared: prm901 ownership: declared
+    bom_plan_declared: pln901 ownership: declared
+    review_mirror_ownership: reference
+    log_ref_typed_subject: True ownership: reference
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste F-02 (verified caller audit) and observed outputs on `.aw/state/j1f454/scratch` (code paths updated by E-03) showing `aw rename specs <legacy> --to-id6` printing `"would inject"` on preview and `--apply --no-commit` creating `.aw/records/meta/<id6>.jsonl` with `type == "spec"`, YAML mirror `id: <id6>`, legacy bullets stripped from body, log path in `touched`, and no false `FILENAME ONLY` message; a dated bulleted walkthrough creating `type == "walkthrough"` with no `status` field; a bulletless walkthrough renaming filename-only without body edits or log creation; and an already-clustered log-format spec reporting `no re-mint`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    F-02 records the complete verified caller and behavior audit across `selectors.py`, `artifact_rename.py`, and their callers. Throwaway-repository smoke output on `.aw/state/j1f454/scratch`:
+    ```text
+    === V-03 SMOKE ===
+    spec_preview_has_would_inject: True | line: --- would inject '- Id: nkrbkp' into 20260701-nkrbkp-01-nkrbkp-legacy.spec.md ---
+    spec_apply: {'rc': 0, 'id6': '8xj9zk', 'type': 'spec', 'status': 'reviewed', 'mirror_id': '8xj9zk', 'has_legacy_bullets': False, 'log_in_touched': True, 'has_filename_only_msg': False}
+    dated_wt_apply: {'rc': 0, 'id6': 's606w2', 'type': 'walkthrough', 'status': None, 'status_in_fields': False, 'log_in_touched': True}
+    bulletless_wt_apply: {'rc': 0, 'id6': 'o8de7z', 'body_unchanged': True, 'log_exists': False, 'has_filename_only_msg': True}
+    clustered_spec_preview: --- would rename .aw/records/specs/to-review/20261126-spc901-01-spc901-s.spec.md -> 20261126-spc901-01-spc901-s.spec.md ---
+    --- reuses existing '- Id: spc901' (no re-mint) ---
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste the full `python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_selectors_and_rename.py` output in `.aw/state/j1f454/scratch` showing every test PASSED across `selectors` and `artifact_rename`.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    ```text
+    $ (cd .aw/state/j1f454/scratch && python3 -m pytest -o addopts="" -m '' -v tests/test_cutover_log_selectors_and_rename.py)
+    collected 6 items
+
+    tests/test_cutover_log_selectors_and_rename.py::test_selectors_declared_id6_and_id6_ownership_on_mirrors_reviews_and_log_refs PASSED [ 16%]
+    tests/test_cutover_log_selectors_and_rename.py::test_artifact_rename_existing_type_id6s_and_read_existing_id6_cover_mirrors PASSED [ 33%]
+    tests/test_cutover_log_selectors_and_rename.py::test_artifact_rename_to_id6_rolls_back_git_mv_on_create_failure PASSED [ 50%]
+    tests/test_cutover_log_selectors_and_rename.py::test_selectors_resolve_and_aw_find_status_across_log_format_types PASSED [ 66%]
+    tests/test_cutover_log_selectors_and_rename.py::test_artifact_rename_to_id6_spec_walkthrough_prompt_and_idempotence PASSED [ 83%]
+    tests/test_cutover_log_selectors_and_rename.py::test_selectors_uncached_staged_prompt_fallback_and_legacy_multiword_plan PASSED [100%]
+    ============================== SLOW TESTS REPORT ===============================
+
+    0 unlisted slow tests (all tests > 2s are documented in tests/slow_allowlist.txt).
+    ============================== 6 passed in 2.36s ===============================
+    ```
+    Sibling regression check in `.aw/state/j1f454/scratch`: `python3 -m pytest -o addopts="" -m '' tests/test_cutover_log_reviews_prompts_and_checks.py tests/test_cutover_log_readiness_runner_and_review_seq.py tests/test_backlog_log_format.py tests/test_cutover_log_checkers.py tests/test_cutover_log_lifecycle_and_hooks.py` -> `43 passed in 21.59s`; `ruff check --select F agent_workflows/selectors.py agent_workflows/artifact_rename.py tests/test_cutover_log_selectors_and_rename.py` -> `All checks passed!`; `python3 -m mypy agent_workflows/selectors.py agent_workflows/artifact_rename.py` -> `Success: no issues found in 2 source files`.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste `git apply --stat .aw/system/cutover/metastore-code.cutover.patch`, the `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` run showing every guard behavior (docs+code patch apply check, non-empty numstat, bad-patch refusal) PASSED, `git worktree list` showing `.aw/state/j1f454/scratch` removed, `git status --short` confirming no live edits outside `- Scope-Paths:`, and the `aw commit j1f454` output naming the commit hash.
   - Observed evidence:
-  - Result: pending
+    - `git apply --stat .aw/system/cutover/metastore-code.cutover.patch`: `88 files changed, 15010 insertions(+), 9053 deletions(-)` (exit 0; includes `agent_workflows/selectors.py` 134, `agent_workflows/artifact_rename.py` 352, and `tests/test_cutover_log_selectors_and_rename.py` 696).
+    - `python3 -m pytest -o addopts="" -v tests/test_metastore_cutover_code_patch.py`:
+      - `tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_check_refuses_a_patch_that_no_longer_applies PASSED [ 33%]`
+      - `tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_code_patch_applies_after_docs_patch PASSED [ 66%]`
+      - `tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_code_patch_touches_files PASSED [100%]`
+      - Summary: `3 passed in 0.43s` (exit 0).
+    - `git worktree list`: `.aw/state/j1f454/scratch` removed (only primary checkout `[main]`, lane `cugg3w`, and lane `j1f454` listed).
+    - `git status --short`: ` M .aw/system/cutover/metastore-code.cutover.patch` before commit (only declared `- Scope-Paths:` modified; zero live code or test edits).
+    - `aw commit j1f454 -- .aw/system/cutover/metastore-code.cutover.patch`: `aw commit: committed 1 path(s): b680a0aaa4569a5643da7f5ce7d15c908deb97b2`.
+  - Result: pass
 
 ## Approval and execution gate
 
