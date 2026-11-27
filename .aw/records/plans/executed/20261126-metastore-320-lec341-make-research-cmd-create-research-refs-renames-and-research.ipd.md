@@ -6,7 +6,7 @@
 - Scope: In an isolated scratch worktree `.aw/state/lec341/scratch` with both cutover patches applied (including earlier prerequisite and test-batch plans `hdwqex`, `89mtbl`, `nv3upa`, `fljn9b`, `cugg3w`, `szykgd`, `psm9ac`, `otin36`, `x8id25`, `p109wy`, `q6fiws`, `e0g2gt`, and `j1f454`), fix `agent_workflows/research_cmd.py` (`PlannedFile`, `plan_new`, `plan_new_comparison`, `_render_research_create`, `_write_planned_research_file`), `agent_workflows/research_refs.py` (`_apply_renames`), and `agent_workflows/research_archive.py` (`apply_moves`) inside `.aw/system/cutover/metastore-code.cutover.patch`. Add and pass core behavioral test module `tests/test_cutover_log_research_writers.py` in the scratch worktree, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. Make no live code or test changes outside `- Scope-Paths:`.
 - Scope-Paths: .aw/records/plans/pending/20261126-metastore-320-lec341-make-research-cmd-create-research-refs-renames-and-research.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:j1f454
-- Status: approved
+- Status: executed
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -19,12 +19,12 @@
 - Highest E allocated: 05
 - Author: antigravity/gemini
 - Id: lec341
-- Approval: 2026-11-26, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: lec341 verified (set metastore, attempt 1).
 - 2026-11-26 approved (aw set): status set to approved
 - 2026-11-26 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 FIXED
 - 2026-11-26 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004 (all FIXED); review record .aw/records/reviews/20261126-metastore-320-lec341-make-research-cmd-create-research-refs-renames-and-research.review.md
