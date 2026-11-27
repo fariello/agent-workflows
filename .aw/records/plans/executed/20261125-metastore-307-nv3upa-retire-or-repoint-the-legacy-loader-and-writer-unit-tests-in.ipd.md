@@ -6,7 +6,7 @@
 - Scope: In an isolated scratch worktree with both cutover patches applied (including `hdwqex` and `89mtbl`), repoint `tests/test_artifact_meta_legacy.py` onto `agent_workflows/migrations/m0001_metadata_v2.py::load_legacy_artifact`, retain `m0001_metadata_v2.derive_id6` determinism/collision coverage from `tests/test_artifact_meta_shapes.py` while retiring its phase-B legacy cache-scan and `LegacyRender`/`SidecarRecord` tests, audit and retire `tests/test_artifact_meta_legacy_write.py` and `tests/test_artifact_meta_legacy_writer.py` (migrating any uncovered AC-14a, AC-15, or writer-leak invariant to `tests/test_artifact_meta_write.py` and citing the removing spec `4sd62s` clause per deleted node id in F-02), repoint `tests/test_m0001_sidecar.py` from `artifact_meta.load_legacy_artifact` to `m0001_metadata_v2.load_legacy_artifact`, verify all surviving modules pass with zero removed-symbol references, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. No live code changes.
 - Scope-Paths: .aw/records/plans/pending/20261125-metastore-307-nv3upa-retire-or-repoint-the-legacy-loader-and-writer-unit-tests-in.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:89mtbl
-- Status: approved
+- Status: executed
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -19,12 +19,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: nv3upa
-- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-27 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: nv3upa verified (set metastore, attempt 1).
 - 2026-11-27 approved (aw set): status set to approved
 - 2026-11-26 auto-approved (aw agy run --full-auto): auto-approved by --full-auto: review readiness cleared (not human approval)
 - 2026-11-26 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-006, PR-007, PR-008, PR-009; review record .aw/records/reviews/20261125-metastore-307-nv3upa-retire-or-repoint-the-legacy-loader-and-writer-unit-tests-in.review.md
