@@ -5,7 +5,7 @@
 - Concern: Backlog `ldfefd`: on the switched tree (HEAD plus both cutover patches), these 18 test modules (batch B, alphabetical slice from `test_backlog_handoff_close` to `test_ipd_dependency_statement_gate`) fail due to legacy bullet/YAML fixtures (`MetadataSchemaError` or orphan errors), calls to removed legacy API symbols (`LegacyRender`, `LegacyTarget`, `render_legacy_text`), removed Phase-B and sidecar behaviors, and inline-metadata `.read_text()` assertions (the six unpatched production cutover gaps documented in F-05 are fixed ahead of this plan by `fljn9b` for the `backlog.run_new` writing-standard pointer and prerequisite Order 315 `szykgd` for specs, releases, spec-link, search, and dep-gate log-awareness per OQ-01). Historical attempt-1 core census provenance (`x1mmdp` attempt-1, 2026-11-25) counted 70 failing core tests across these 18 modules; execution starts from `89mtbl` F-04 after the builder switch.
 - Scope: In an isolated scratch worktree with both cutover patches applied (including `hdwqex`, `89mtbl`, `nv3upa`, `fljn9b`, `cugg3w`, `szykgd`, `otin36`, `p109wy`, `q6fiws`, `j1f454`, `lec341`, and `3e0vfy`), convert the 18 batch B test modules under the shared conversion rules and per-module rules in E-02 through E-04 (localizing the two imported fixture helpers in `tests/test_inlane_retirement_lands.py`), run them on both tiers, record deleted legacy-behavior tests in F-02 and any remaining refusal of this repository's own unmigrated records in F-03, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. No live code changes outside the cutover code patch.
 - Scope-Paths: .aw/records/plans/pending/20261125-metastore-309-psm9ac-convert-test-batch-b-backlog-handoff-close-through-ipd-depen.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
-- Item-Dependencies: executed:cugg3w
+- Item-Dependencies: executed:639g02
 - Status: approved
 - Review-Depth: standard
 - Readiness: go-pending-approval
@@ -25,6 +25,7 @@
 
 ## Workflow history
 
+- 2026-11-27 same-status (aw set): Wait on Order 323 (ztvubn) and Order 324 (639g02) fixing 8 batch B prod bugs; preserved batch B WIP patch at .aw/state/lane-submissions/run-20261127T195325Z-3081649/03-psm9ac/attempt-1/batch-b-tests-wip.patch
 - 2026-11-27 same-status (aw set): Option 2 re-chain (igbr4f): chain batch B after batch A (cugg3w)
 - 2026-11-27 approved (aw set): status set to approved
 - 2026-11-27 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-009, PR-010, PR-011, PR-012; review record .aw/records/reviews/20261125-metastore-309-psm9ac-convert-test-batch-b-backlog-handoff-close-through-ipd-depen.review.md
