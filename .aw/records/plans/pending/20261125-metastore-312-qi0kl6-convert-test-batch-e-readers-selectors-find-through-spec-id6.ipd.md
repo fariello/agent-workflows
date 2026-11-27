@@ -133,6 +133,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-318-q6fiws-make-coverage-record-readiness-runner-and-review-sequence-ev.ipd.md
 - Making `selectors.py` status matching/typed-subject ownership and `artifact_rename.py` `--to-id6` log-aware (`OQ-01` Option 2, Order 319): first prerequisite production fix ahead of batch E.
   - Carrier: j1f454
+  - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-319-j1f454-make-selectors-status-matching-typed-subject-ownership-and-a.ipd.md
 - Making `research_cmd.py` create, `research_refs.py` renames, and `research_archive.py` moves log-aware (`OQ-01` Option 2, Order 320): second prerequisite production fix ahead of batch E.
   - Carrier: lec341
 - Modules outside batch E: the other batch children.

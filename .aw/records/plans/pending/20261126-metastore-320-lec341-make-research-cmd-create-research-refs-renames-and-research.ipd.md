@@ -124,6 +124,7 @@ flowchart TD
 
 - Making `selectors.py` and `artifact_rename.py` (`--to-id6`) log-aware: prerequisite Order 319 plan that executes immediately before this plan.
   - Carrier: j1f454
+  - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-319-j1f454-make-selectors-status-matching-typed-subject-ownership-and-a.ipd.md
 - Converting batch E's 14 test modules (`tests/test_readers_selectors_find.py` through `tests/test_spec_id6_filenames.py`): runs immediately after this plan executes.
   - Carrier: qi0kl6
 - Updating `artifact_adopt.py` (`AdoptionPlan`, `plan_adoption`, `apply_adoption`) to consume `PlannedFile.fields` alongside `plan_readiness`, `status_set`, and `artifact_refs`: owned by Order 321 after `qi0kl6`.

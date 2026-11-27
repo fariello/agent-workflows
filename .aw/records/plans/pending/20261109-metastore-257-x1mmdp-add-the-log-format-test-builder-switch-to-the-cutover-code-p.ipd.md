@@ -134,6 +134,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-318-q6fiws-make-coverage-record-readiness-runner-and-review-sequence-ev.ipd.md
 - Making `selectors.py` status matching and typed-subject ownership and `artifact_rename.py` `--to-id6` log-aware in the cutover code patch (`qi0kl6` OQ-01, maintainer answer 2026-11-26).
   - Carrier: j1f454
+  - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-319-j1f454-make-selectors-status-matching-typed-subject-ownership-and-a.ipd.md
 - Making `research_cmd.py` create, `research_refs.py` renames, and `research_archive.py` moves log-aware in the cutover code patch (`qi0kl6` OQ-01, maintainer answer 2026-11-26).
   - Carrier: lec341
 - Making `plan_readiness.py`/`readiness_recheck.py`, `status_set.py`, `artifact_refs.py`, and `artifact_adopt.py` log-aware in the cutover code patch (`x3mig6` OQ-01, maintainer answer 2026-11-26).
