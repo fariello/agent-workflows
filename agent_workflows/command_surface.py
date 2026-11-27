@@ -2198,6 +2198,16 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     # `discover_parser_leaves` that did not de-duplicate aliases; that function has since changed and
     # the count was re-measured rather than trusted.
     CommandDeclaration(
+        command="oc prompt",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
         command="oc review",
         command_class="alias",
         human_recipe="status",
@@ -2432,6 +2442,16 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         empty_error_renderer="renderer_boundary",
         legacy_flags=(),
         exit_contract=(0, 1, 2, 3),
+    ),
+    CommandDeclaration(
+        command="agy prompt",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
     ),
     CommandDeclaration(
         command="agy exec",

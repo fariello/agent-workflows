@@ -2648,9 +2648,9 @@ def run_opencode(
     state: dict[str, Any],
     run_dir: Path,
     item: dict[str, Any],
-    plan_path: Path,
-    prompt_path: Path,
-    attempt_no: int,
+    plan_path: Path | None = None,
+    prompt_path: Path | None = None,
+    attempt_no: int = 1,
     fresh_session: bool = False,
     log_suffix: str = "",
     label_suffix: str = "",
@@ -2668,7 +2668,10 @@ def run_opencode(
     # Keyword-only and defaulted, so no existing call site changes and no existing turn's argv moves.
     # See where it is consumed below for why resuming here is safe on an isolated lane.
     resume_session: str | None = None,
+    use_continue: bool = False,
 ) -> tuple[int, str | None, Path, list[str]]:
+    if prompt_path is None:
+        raise DriverError("run_opencode requires prompt_path")
     options = state.get("options", {})
     opencode = options.get("opencode") or "opencode"
     argv = [opencode, "run"]
@@ -2795,6 +2798,8 @@ def run_opencode(
         session = resume_session
     if session:
         argv.extend(["--session", session])
+    elif use_continue and not isolated_turn:
+        argv.append("--continue")
 
     argv.extend(["--dir", agent_dir, "--format", "json"])
     # runprofile-06 (`kgpptv`) E-03: WHICH frozen launch this turn uses. ONE argv builder serves
@@ -2830,7 +2835,10 @@ def run_opencode(
         argv.append("--auto")
 
     is_review = item.get("action") == "review"
-    action_label = label_suffix or ("review" if is_review else "exec")
+    is_adhoc_prompt = plan_path is None or item.get("action") == "prompt"
+    action_label = label_suffix or (
+        "prompt" if is_adhoc_prompt else ("review" if is_review else "exec")
+    )
     argv.extend(
         [
             "--title",
@@ -2874,6 +2882,7 @@ def run_opencode(
 
     if (
         not is_review
+        and not is_adhoc_prompt
         and not log_suffix
         and state.get("runbook")
         and Path(state["runbook"]).exists()
@@ -2890,15 +2899,21 @@ def run_opencode(
             ]
         )
 
+    if not is_adhoc_prompt and plan_path is not None:
+        argv.extend(
+            [
+                "--file",
+                lane_containment.localize_attachment(
+                    lane_root=lane_root_for_attachments,
+                    fallback=plan_path,
+                    input_class=lane_containment.INPUT_CLASS_PLAN,
+                    revision=turn_revision,
+                ),
+            ]
+        )
+
     argv.extend(
         [
-            "--file",
-            lane_containment.localize_attachment(
-                lane_root=lane_root_for_attachments,
-                fallback=plan_path,
-                input_class=lane_containment.INPUT_CLASS_PLAN,
-                revision=turn_revision,
-            ),
             "--",
             prompt_path.read_text(encoding="utf-8"),
         ]
@@ -3280,7 +3295,9 @@ def run_opencode(
             turn_bounds = lane_containment.TurnBoundWatch(
                 reap=lane_containment.bound_expiry_reaper(process, run_dir, item),
                 is_alive=lambda: process.poll() is None,
-                max_turn_timeout=lane_containment.driver_bound_for_host(None),
+                max_turn_timeout=lane_containment.driver_bound_for_host(
+                    lane_containment.parse_host_ceiling_seconds(options.get("timeout"))
+                ),
             )
 
             # lanectn Order 04 (`y5od1h`) E-01/E-06, spec R3.1/R3.2/R3.5: the missing-input
@@ -6237,6 +6254,197 @@ def main(argv: list[str] | None = None) -> int:
         )
     finally:
         _tab_stack.close()
+
+
+def build_prompt_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="aw oc prompt",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Run an ad-hoc prompt turn through OpenCode with live streaming output, "
+            "launch-profile resolution, optional session continuation, optional worktree "
+            "isolation, and lightweight aw runs logging."
+        ),
+    )
+    parser.add_argument(
+        "prompt",
+        nargs="?",
+        default=None,
+        help="Inline prompt text, or '-' to read prompt text from stdin.",
+    )
+    parser.add_argument(
+        "-f",
+        "--file",
+        dest="file",
+        default=None,
+        metavar="PATH",
+        help="Read prompt text from a file (strips optional UTF-8 BOM and leading aw-prompt metadata comment).",
+    )
+    parser.add_argument(
+        "--session",
+        default=None,
+        metavar="SESSION_ID",
+        help="Continue an existing OpenCode session ID.",
+    )
+    parser.add_argument(
+        "-c",
+        "--continue",
+        dest="use_continue",
+        action="store_true",
+        default=False,
+        help="Continue the most recent OpenCode session.",
+    )
+    parser.add_argument(
+        "--isolate-worktree",
+        dest="isolate_worktree",
+        action="store_true",
+        default=False,
+        help="Execute in a temporary isolated git worktree (torn down when clean; preserved if changes exist).",
+    )
+    parser.add_argument(
+        "--repo",
+        default=".",
+        metavar="PATH",
+        help="Target Git repository root (default: current directory).",
+    )
+    parser.add_argument(
+        "--as",
+        dest="profile",
+        default=None,
+        metavar="PROFILE",
+        help="Named OpenCode launch profile from runner-profiles.json.",
+    )
+    parser.add_argument(
+        "--model",
+        default=None,
+        metavar="MODEL",
+        help="OpenCode model identifier (overrides any profile model).",
+    )
+    parser.add_argument(
+        "--variant",
+        default=None,
+        metavar="VARIANT",
+        help="OpenCode provider variant/reasoning level (overrides any profile variant).",
+    )
+    parser.add_argument(
+        "--oc-agent",
+        dest="agent",
+        default=None,
+        metavar="AGENT",
+        help="OpenCode agent name (overrides any profile agent).",
+    )
+    parser.add_argument(
+        "--opencode",
+        default="opencode",
+        metavar="PATH",
+        help="Path to opencode executable (default: opencode).",
+    )
+    parser.add_argument(
+        "--timeout",
+        default=None,
+        metavar="DURATION",
+        help="Per-turn timeout duration (e.g. 480m, 120s, 300).",
+    )
+    parser.add_argument(
+        "--stall-timeout",
+        dest="stall_timeout",
+        type=float,
+        default=DEFAULT_STALL_TIMEOUT,
+        metavar="SECONDS",
+        help=f"Seconds without stream output before stalling (default: {DEFAULT_STALL_TIMEOUT}).",
+    )
+    _add_output_mode_flags(parser)
+    return parser
+
+
+def main_prompt(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    from agent_workflows import term as _term_stdio
+
+    _term_stdio.ensure_encodable_stdio()
+    parser = build_prompt_parser()
+    args = parser.parse_args(argv)
+
+    try:
+        runner_shared.validate_adhoc_prompt_options(
+            session_id=args.session,
+            use_continue=bool(args.use_continue),
+            isolate_worktree=bool(args.isolate_worktree),
+        )
+        if (
+            args.timeout is not None
+            and lane_containment.parse_host_ceiling_seconds(args.timeout) is None
+        ):
+            raise DriverError(
+                f"Invalid --timeout duration: {args.timeout!r} (expected e.g. 480m, 120s, 300)."
+            )
+        prompt_text = runner_shared.resolve_adhoc_prompt_text(args.prompt, args.file)
+        resolved = resolve_launch_profile(args)
+    except DriverError as exc:
+        print(f"oc prompt: {exc}", file=sys.stderr)
+        return 2
+    except KeyboardInterrupt:
+        return 130
+
+    from agent_workflows import tab_status as _tab_status
+
+    options: dict[str, Any] = {
+        "opencode": args.opencode,
+        "model": resolved.model,
+        "variant": resolved.variant,
+        "agent": resolved.agent,
+        "launch_profile": launch_profile_record(resolved),
+        "timeout": args.timeout,
+        "stall_timeout": args.stall_timeout,
+        "output_mode": args.output_mode,
+        "verbosity": args.verbosity or 0,
+        "title_style": args.title_style or _tab_status.get_title_style_override(),
+        "auto": True,
+        "self_finalize": False,
+    }
+
+    def _spawn_turn(
+        *,
+        state: dict[str, Any],
+        run_dir: Path,
+        item: dict[str, Any],
+        prompt_path: Path,
+        attempt_no: int,
+        session_id: str | None,
+        use_continue: bool,
+        work_dir: str | None,
+        tracker: Any,
+        suffix: str = "",
+    ) -> tuple[int, str | None, Path, list[str]]:
+        return run_opencode(
+            state,
+            run_dir,
+            item,
+            plan_path=None,
+            prompt_path=prompt_path,
+            attempt_no=attempt_no,
+            fresh_session=False,
+            log_suffix=suffix,
+            label_suffix=suffix or "prompt",
+            tracker=tracker,
+            work_dir=work_dir,
+            resume_session=session_id,
+            use_continue=use_continue,
+        )
+
+    install_exit_signal_handler()
+    return runner_shared.run_adhoc_prompt_turn(
+        repo=Path(args.repo),
+        host_labels=runner_shared.OC_HOST_LABELS,
+        options=options,
+        prompt_text=prompt_text,
+        spawn_turn_fn=_spawn_turn,
+        session_id=args.session,
+        use_continue=bool(args.use_continue),
+        isolate_worktree=bool(args.isolate_worktree),
+        write_report_fn=write_report,
+    )
 
 
 if __name__ == "__main__":

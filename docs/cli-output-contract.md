@@ -123,9 +123,9 @@ scripted around. It is reached two ways, and the difference is visible only in `
    are declared ONCE on shared argparse parents (`presentation` and `common`) and inherited by every subcommand
    that `aw` itself handles.
 2. **By consumption.** The host-driver leaves that forward their argv VERBATIM to another program
-   (`aw oc run`, `aw agy run`, the `review`/`integrate` aliases, `aw run as`, `aw run ipd`,
-   `aw agy sessions|view|exec`) deliberately declare NO flags of their own, so that the downstream
-   parser owns every flag and its `--help` and the two spellings cannot drift. `aw` therefore
+   (`aw oc run`, `aw oc prompt`, `aw agy run`, `aw agy prompt`, the `review`/`integrate` aliases,
+   `aw run as`, `aw run ipd`, `aw agy sessions|view|exec`) deliberately declare NO flags of their own,
+   so that the downstream parser owns every flag and its `--help` and the two spellings cannot drift. `aw` therefore
    CONSUMES `--color`/`--no-color` and `--interactive`/`--no-interactive` from the raw argv before forwarding it.
    The flags work; they are simply absent from that leaf's own `--help`, which renders the driver's help rather
    than `aw`'s.

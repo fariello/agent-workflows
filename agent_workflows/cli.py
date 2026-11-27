@@ -6327,13 +6327,14 @@ def _build_parser_impl(_only_cmd: Optional[str] = None) -> argparse.ArgumentPars
         "oc",
         aliases=["opencode"],
         parents=[common],
-        help="OpenCode host tooling. 'aw oc runipd' runs the restartable IPD review/execute driver; 'aw oc update-models' syncs provider models/pricing from your configured gateways. Alias: 'aw opencode'.",
+        help="OpenCode host tooling. 'aw oc runipd' runs the restartable IPD review/execute driver; 'aw oc prompt' runs an ad-hoc streaming prompt turn; 'aw oc update-models' syncs provider models/pricing from your configured gateways. Alias: 'aw opencode'.",
         description=(
             "Everything specific to the OpenCode host, grouped under one noun. `aw oc runipd` (alias "
             "`aw oc run`) is the restartable driver that reviews or executes IPDs in a durable queue, "
-            "and `aw oc update-models` refreshes model and pricing data from the gateways declared in "
-            "your own OpenCode config. Spelled `aw opencode` if you prefer the long form; the two are "
-            "the same commands."
+            "`aw oc prompt` runs a single ad-hoc prompt turn with live streaming output and optional "
+            "session continuation, and `aw oc update-models` refreshes model and pricing data from the "
+            "gateways declared in your own OpenCode config. Spelled `aw opencode` if you prefer the "
+            "long form; the two are the same commands."
         ),
     )
     oc_sub = p_oc.add_subparsers(dest="oc_command")
@@ -6354,6 +6355,22 @@ def _build_parser_impl(_only_cmd: Optional[str] = None) -> argparse.ArgumentPars
         "runipd_args",
         nargs=argparse.REMAINDER,
         help="Arguments forwarded verbatim to the runipd driver (start/resume/status/report ...).",
+    )
+    p_oc_prompt = oc_sub.add_parser(
+        "prompt",
+        help="Run an ad-hoc prompt turn through OpenCode with live streaming and optional session continuation.",
+        add_help=False,
+        description=(
+            "Run an inline, file-backed, or stdin prompt through OpenCode with live streaming output, "
+            "launch-profile resolution, optional session continuation (--session or -c/--continue), "
+            "optional isolated worktree execution, and lightweight aw runs logging. ALL arguments after "
+            "`prompt` are forwarded verbatim to the OpenCode prompt driver; see `aw oc prompt --help`."
+        ),
+    )
+    p_oc_prompt.add_argument(
+        "prompt_args",
+        nargs=argparse.REMAINDER,
+        help="Arguments forwarded verbatim to the OpenCode ad-hoc prompt driver.",
     )
     # revsweep 76gsmv E-02: `aw oc review [<selector>]` is a THIN ALIAS of `runipd <selector>
     # --action review`, per spec 25kzda 2.1. It is declared HERE, at the host-subcommand seam, because
@@ -6643,13 +6660,14 @@ def _build_parser_impl(_only_cmd: Optional[str] = None) -> argparse.ArgumentPars
         "agy",
         aliases=["antigravity"],
         parents=[common],
-        help="Antigravity host tooling. 'aw agy runipd' runs the restartable IPD review/execute driver. Alias: 'aw antigravity'.",
+        help="Antigravity host tooling. 'aw agy runipd' runs the restartable IPD review/execute driver; 'aw agy prompt' runs an ad-hoc streaming prompt turn. Alias: 'aw antigravity'.",
         description=(
             "Everything specific to the Antigravity host, grouped under one noun. `aw agy runipd` "
-            "(aliases `run`, `runagy`) is the restartable multi-IPD queue driver; `aw agy exec` runs a "
-            "SINGLE target with the two-turn skeptical audit and is deliberately a separate verb; "
-            "`aw agy sessions` and `aw agy view` inspect sessions and event logs. Spelled "
-            "`aw antigravity` if you prefer the long form."
+            "(aliases `run`, `runagy`) is the restartable multi-IPD queue driver; `aw agy prompt` runs "
+            "a single ad-hoc prompt turn with live streaming output and optional session continuation; "
+            "`aw agy exec` runs a SINGLE target with the two-turn skeptical audit and is deliberately "
+            "a separate verb; `aw agy sessions` and `aw agy view` inspect sessions and event logs. "
+            "Spelled `aw antigravity` if you prefer the long form."
         ),
     )
     agy_sub = p_agy.add_subparsers(dest="agy_command")
@@ -6670,6 +6688,23 @@ def _build_parser_impl(_only_cmd: Optional[str] = None) -> argparse.ArgumentPars
         "runipd_args",
         nargs=argparse.REMAINDER,
         help="Arguments forwarded verbatim to the runagy driver (start/resume/status/report ...).",
+    )
+    p_agy_prompt = agy_sub.add_parser(
+        "prompt",
+        help="Run an ad-hoc prompt turn through Antigravity with live streaming and optional session continuation.",
+        add_help=False,
+        description=(
+            "Run an inline, file-backed, or stdin prompt through Antigravity with live streaming output, "
+            "launch-profile resolution, optional session continuation (--session or -c/--continue), "
+            "optional isolated worktree execution, and lightweight aw runs logging. Distinct from "
+            "`aw agy exec`, which runs the two-turn skeptical audit protocol. ALL arguments after "
+            "`prompt` are forwarded verbatim to the Antigravity prompt driver; see `aw agy prompt --help`."
+        ),
+    )
+    p_agy_prompt.add_argument(
+        "prompt_args",
+        nargs=argparse.REMAINDER,
+        help="Arguments forwarded verbatim to the Antigravity ad-hoc prompt driver.",
     )
     # revsweep 76gsmv E-02: `aw agy review [<selector>]`, the same thin alias as `aw oc review`
     # (which carries the full rationale). Declared at the host-subcommand seam because `cli` resolves
@@ -21391,12 +21426,28 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return oc_runipd.main(list(argv_list[2:]))
     if (
         len(argv_list) >= 2
+        and argv_list[0] in ("oc", "opencode")
+        and argv_list[1] == "prompt"
+    ):
+        from agent_workflows import oc_runipd
+
+        return oc_runipd.main_prompt(list(argv_list[2:]))
+    if (
+        len(argv_list) >= 2
         and argv_list[0] in ("agy", "antigravity")
         and argv_list[1] in ("runipd", "run", "runagy")
     ):
         from agent_workflows import agy_runipd
 
         return agy_runipd.main(list(argv_list[2:]))
+    if (
+        len(argv_list) >= 2
+        and argv_list[0] in ("agy", "antigravity")
+        and argv_list[1] == "prompt"
+    ):
+        from agent_workflows import agy_runipd
+
+        return agy_runipd.main_prompt(list(argv_list[2:]))
     # runprofile Order 04 (ygzq71) E-01/E-02: `aw run as <profile> ...` / `aw run ipd ...` forward
     # their tail VERBATIM to the resolved host runner's own parser, exactly as the two host blocks
     # above do, and for the same two reasons. FIRST, the driver's parser must own every flag and its
@@ -22141,6 +22192,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             if getattr(args, "agent", False) and "--as-agent" not in forwarded:
                 forwarded.append("--as-agent")
             return oc_runipd.main(forwarded)
+        if oc_cmd == "prompt":
+            from agent_workflows import oc_runipd
+
+            return oc_runipd.main_prompt(list(getattr(args, "prompt_args", []) or []))
         # revsweep 76gsmv E-02: the alias's parsed-namespace path. `_dispatch` intercepts `oc review`
         # before `parse_args`, so this is not the live route today; it exists so the leaf cannot
         # silently fall through to family help if that interception is ever reordered, and it calls
@@ -22229,6 +22284,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             if getattr(args, "agent", False) and "--as-agent" not in forwarded:
                 forwarded.append("--as-agent")
             return agy_runipd.main(forwarded)
+        if agy_cmd == "prompt":
+            from agent_workflows import agy_runipd
+
+            return agy_runipd.main_prompt(list(getattr(args, "prompt_args", []) or []))
         # revsweep 76gsmv E-02: the alias's parsed-namespace path, the twin of the `oc` one above and
         # calling the SAME expansion function, so neither host's spelling can drift from the other's.
         if agy_cmd == "review":

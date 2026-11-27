@@ -655,7 +655,7 @@ from agent_workflows.runner_shared import (
 
 # The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
 # live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
-from agent_workflows import runner_shared, runner_stop, suite_cache
+from agent_workflows import runner_profiles, runner_shared, runner_stop, suite_cache
 
 # rununify 06 (`sy7uwh`) E-02/E-03: the ONE plan record, its ONE reader, and the readers/constants that
 # reader closes over. This module used to define its own `PlanRecord` (identical to oc's except that it
@@ -4967,6 +4967,219 @@ def main(argv: list[str] | None = None) -> int:
         )
     finally:
         _tab_stack.close()
+
+
+def build_prompt_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="aw agy prompt",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Run an ad-hoc prompt turn through Antigravity with live streaming output, "
+            "launch-profile resolution, optional session continuation, optional worktree "
+            "isolation, and lightweight aw runs logging."
+        ),
+    )
+    parser.add_argument(
+        "prompt",
+        nargs="?",
+        default=None,
+        help="Inline prompt text, or '-' to read prompt text from stdin.",
+    )
+    parser.add_argument(
+        "-f",
+        "--file",
+        dest="file",
+        default=None,
+        metavar="PATH",
+        help="Read prompt text from a file (strips optional UTF-8 BOM and leading aw-prompt metadata comment).",
+    )
+    parser.add_argument(
+        "--session",
+        default=None,
+        metavar="SESSION_ID",
+        help="Continue an existing Antigravity conversation/session ID.",
+    )
+    parser.add_argument(
+        "-c",
+        "--continue",
+        dest="use_continue",
+        action="store_true",
+        default=False,
+        help="Continue the most recent Antigravity conversation.",
+    )
+    parser.add_argument(
+        "--isolate-worktree",
+        dest="isolate_worktree",
+        action="store_true",
+        default=False,
+        help="Execute in a temporary isolated git worktree (torn down when clean; preserved if changes exist).",
+    )
+    parser.add_argument(
+        "--repo",
+        default=".",
+        metavar="PATH",
+        help="Target Git repository root (default: current directory).",
+    )
+    parser.add_argument(
+        "--as",
+        dest="profile",
+        default=None,
+        metavar="PROFILE",
+        help="Named Antigravity launch profile from runner-profiles.json.",
+    )
+    parser.add_argument(
+        "--model",
+        default=None,
+        metavar="MODEL",
+        help="Antigravity model identifier (overrides any profile model).",
+    )
+    parser.add_argument(
+        "--effort",
+        default=None,
+        metavar="EFFORT",
+        help="Reasoning effort (low|medium|high).",
+    )
+    parser.add_argument(
+        "--agy",
+        "--agy-executable",
+        dest="agy_executable",
+        default=None,
+        metavar="PATH",
+        help="Path to agy executable.",
+    )
+    parser.add_argument(
+        "--dangerously-skip-permissions",
+        dest="dangerously_skip_permissions",
+        action="store_true",
+        default=True,
+        help="Auto-approve tool permission requests in agy (default: True).",
+    )
+    parser.add_argument(
+        "--no-dangerously-skip-permissions",
+        dest="dangerously_skip_permissions",
+        action="store_false",
+        help="Require interactive tool permissions in agy.",
+    )
+    parser.add_argument(
+        "--timeout",
+        default=DEFAULT_TIMEOUT,
+        metavar="DURATION",
+        help=f"Per-turn timeout duration (default: {DEFAULT_TIMEOUT}; e.g. 480m, 120s, 300).",
+    )
+    parser.add_argument(
+        "--stall-timeout",
+        dest="stall_timeout",
+        type=float,
+        default=DEFAULT_STALL_TIMEOUT,
+        metavar="SECONDS",
+        help=f"Seconds without stream output before stalling (default: {DEFAULT_STALL_TIMEOUT}).",
+    )
+    _add_output_mode_flags(parser)
+    return parser
+
+
+def main_prompt(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    from agent_workflows import term as _term_stdio
+
+    _term_stdio.ensure_encodable_stdio()
+    parser = build_prompt_parser()
+    args = parser.parse_args(argv)
+
+    try:
+        runner_shared.validate_adhoc_prompt_options(
+            session_id=args.session,
+            use_continue=bool(args.use_continue),
+            isolate_worktree=bool(args.isolate_worktree),
+        )
+        if (
+            args.timeout is not None
+            and lane_containment.parse_host_ceiling_seconds(args.timeout) is None
+        ):
+            raise DriverError(
+                f"Invalid --timeout duration: {args.timeout!r} (expected e.g. 480m, 120s, 300)."
+            )
+        prompt_text = runner_shared.resolve_adhoc_prompt_text(args.prompt, args.file)
+        try:
+            cfg = runner_profiles.load()
+            resolved = runner_profiles.resolve(
+                cfg,
+                runner="agy",
+                profile=args.profile,
+                model=args.model,
+            )
+        except runner_profiles.RunnerProfileError as exc:
+            raise DriverError(f"runner profile: {exc}") from exc
+    except DriverError as exc:
+        print(f"agy prompt: {exc}", file=sys.stderr)
+        return 2
+    except KeyboardInterrupt:
+        return 130
+
+    if resolved.model is not None:
+        effective_model: str | None = resolved.model
+        explicit_model: str | None = resolved.model
+    else:
+        config_model, _model_source = agy_models.resolve_agy_default_model()
+        effective_model = config_model
+        explicit_model = None
+
+    from agent_workflows import tab_status as _tab_status
+
+    options: dict[str, Any] = {
+        "agy_executable": args.agy_executable,
+        "model": effective_model,
+        "explicit_model": explicit_model,
+        "effort": args.effort,
+        "timeout": args.timeout,
+        "stall_timeout": args.stall_timeout,
+        "dangerously_skip_permissions": bool(args.dangerously_skip_permissions),
+        "output_mode": args.output_mode,
+        "verbosity": args.verbosity or 0,
+        "title_style": args.title_style or _tab_status.get_title_style_override(),
+        "self_finalize": False,
+    }
+
+    def _spawn_turn(
+        *,
+        state: dict[str, Any],
+        run_dir: Path,
+        item: dict[str, Any],
+        prompt_path: Path,
+        attempt_no: int,
+        session_id: str | None,
+        use_continue: bool,
+        work_dir: str | None,
+        tracker: Any,
+        suffix: str = "",
+    ) -> tuple[int, str | None, Path, list[str]]:
+        return run_agy_turn(
+            state,
+            run_dir,
+            item,
+            prompt_path=prompt_path,
+            attempt_no=attempt_no,
+            session_id=session_id,
+            use_continue=use_continue,
+            log_suffix=suffix,
+            label_suffix=suffix or "prompt",
+            work_dir=work_dir,
+            tracker=tracker,
+        )
+
+    install_exit_signal_handler()
+    return runner_shared.run_adhoc_prompt_turn(
+        repo=Path(args.repo),
+        host_labels=runner_shared.AGY_HOST_LABELS,
+        options=options,
+        prompt_text=prompt_text,
+        spawn_turn_fn=_spawn_turn,
+        session_id=args.session,
+        use_continue=bool(args.use_continue),
+        isolate_worktree=bool(args.isolate_worktree),
+        write_report_fn=write_report,
+    )
 
 
 if __name__ == "__main__":
