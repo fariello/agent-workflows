@@ -6,7 +6,7 @@
 - Scope: In an isolated scratch worktree with both cutover patches applied (including `hdwqex`, `89mtbl`, `nv3upa`, `fljn9b`, `cugg3w`, `szykgd`, `otin36`, `p109wy`, `q6fiws`, `j1f454`, `lec341`, and `3e0vfy`), convert the 18 batch B test modules under the shared conversion rules and per-module rules in E-02 through E-04 (localizing the two imported fixture helpers in `tests/test_inlane_retirement_lands.py`), run them on both tiers, record deleted legacy-behavior tests in F-02 and any remaining refusal of this repository's own unmigrated records in F-03, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. No live code changes outside the cutover code patch.
 - Scope-Paths: .aw/records/plans/pending/20261125-metastore-309-psm9ac-convert-test-batch-b-backlog-handoff-close-through-ipd-depen.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:639g02
-- Status: approved
+- Status: executed
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -19,12 +19,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: psm9ac
-- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-28 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: psm9ac verified (set metastore, attempt 1).
 - 2026-11-27 same-status (aw set): Wait on Order 323 (ztvubn) and Order 324 (639g02) fixing 8 batch B prod bugs; preserved batch B WIP patch at .aw/state/lane-submissions/run-20261127T195325Z-3081649/03-psm9ac/attempt-1/batch-b-tests-wip.patch
 - 2026-11-27 same-status (aw set): Option 2 re-chain (igbr4f): chain batch B after batch A (cugg3w)
 - 2026-11-27 approved (aw set): status set to approved
