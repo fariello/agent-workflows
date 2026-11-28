@@ -687,8 +687,9 @@ class StaleResearchReclassifyTests(unittest.TestCase):
             )
             buf_col = io.StringIO()
             term = att.T.Term(stream=buf_col, color=True)
-            with mock.patch("sys.stdout", buf_col), mock.patch(
-                "agent_workflows.attention.T.Term", return_value=term
+            with (
+                mock.patch("sys.stdout", buf_col),
+                mock.patch("agent_workflows.attention.T.Term", return_value=term),
             ):
                 self.assertEqual(att.run(args_col), 0)
             stripped = re.sub(r"\033\[[0-9;]*m", "", buf_col.getvalue())
@@ -2467,9 +2468,10 @@ class StrandedLaneViewTests(unittest.TestCase):
                 }
             ],
         }
-        with tempfile.TemporaryDirectory() as td, mock.patch.object(
-            worktree_lease, "inspect_lane"
-        ) as mock_inspect:
+        with (
+            tempfile.TemporaryDirectory() as td,
+            mock.patch.object(worktree_lease, "inspect_lane") as mock_inspect,
+        ):
             repo = Path(td)
             with worktree_lease.memoize_worktrees(repo):
                 records = rs.stranded_lane_records(repo, [state], attention_only=True)
@@ -4392,3 +4394,335 @@ class InboxAgentEvidenceTests(unittest.TestCase):
         self.assertEqual(rec.get("findings"), 0)
         self.assertEqual(rec.get("exit"), 0)
         self.assertEqual(rec.get("outcome"), "clean")
+
+
+class SelectorDirectIdentityVisibilityTests(unittest.TestCase):
+    """Option 4 visibility: sets hide done/parked without --all; directly named IDs/paths always show."""
+
+    def _build_fixture_repo(self, root: Path) -> dict[str, Path]:
+        (root / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
+        (root / ".aw" / "records" / "plans" / "executed").mkdir(parents=True)
+        (root / ".aw" / "records" / "plans" / "superseded").mkdir(parents=True)
+        (root / ".aw" / "records" / "specs" / "implemented").mkdir(parents=True)
+
+        rb = RecordBuilder()
+        p_open = (
+            root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261120-demo-01-aaa111-open-work.ipd.md"
+        )
+        p_open.write_text(
+            rb.plan(
+                title="Open work",
+                id6="aaa111",
+                status="approved",
+                set_name="demo",
+                order=1,
+                when="2026-11-20",
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
+        p_exec = (
+            root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "executed"
+            / "20261120-demo-02-bbb222-done-work.ipd.md"
+        )
+        p_exec.write_text(
+            rb.plan(
+                title="Done work",
+                id6="bbb222",
+                status="executed",
+                set_name="demo",
+                order=2,
+                when="2026-11-20",
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
+        p_sup = (
+            root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "superseded"
+            / "20261120-demo-03-ccc333-parked-work.ipd.md"
+        )
+        p_sup.write_text(
+            rb.plan(
+                title="Parked work",
+                id6="ccc333",
+                status="superseded",
+                set_name="demo",
+                order=3,
+                when="2026-11-20",
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
+        # 6-char setid that collides with a done spec's own id6 ("spc999")
+        s_done = (
+            root
+            / ".aw"
+            / "records"
+            / "specs"
+            / "implemented"
+            / "20261120-spc999-01-spc999-legacy-spec.spec.md"
+        )
+        s_done.write_text(
+            rb.spec(
+                title="Legacy spec",
+                id6="spc999",
+                status="implemented",
+                when="2026-11-20",
+                history=["- 2026-11-20 implemented (t): done."],
+                body="## Body\n\nok",
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
+        p_child_exec = (
+            root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "executed"
+            / "20261120-spc999-01-ddd444-spec-child-done.ipd.md"
+        )
+        p_child_exec.write_text(
+            rb.plan(
+                title="Spec child done",
+                id6="ddd444",
+                status="executed",
+                set_name="spc999",
+                order=1,
+                when="2026-11-20",
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
+        p_child_open = (
+            root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261120-spc999-02-eee555-spec-child-open.ipd.md"
+        )
+        p_child_open.write_text(
+            rb.plan(
+                title="Spec child open",
+                id6="eee555",
+                status="approved",
+                set_name="spc999",
+                order=2,
+                when="2026-11-20",
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
+        # Completed-only 6-char setid ("attcor") with zero open items
+        p_attcor_done = (
+            root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "executed"
+            / "20261120-attcor-01-fff666-finished-set.ipd.md"
+        )
+        p_attcor_done.write_text(
+            rb.plan(
+                title="Finished set item",
+                id6="fff666",
+                status="executed",
+                set_name="attcor",
+                order=1,
+                when="2026-11-20",
+                text_only=True,
+            ),
+            encoding="utf-8",
+        )
+        return {
+            "open": p_open,
+            "exec": p_exec,
+            "sup": p_sup,
+            "spec_done": s_done,
+            "child_exec": p_child_exec,
+            "child_open": p_child_open,
+            "attcor_done": p_attcor_done,
+        }
+
+    def _run(
+        self,
+        root: Path,
+        selectors: tuple[str, ...] | list[str] = (),
+        *,
+        show_all: bool = False,
+        id6_only: bool = False,
+        no_color: bool = True,
+        types: tuple[str, ...] | list[str] = (),
+        status: tuple[str, ...] | list[str] = (),
+    ) -> tuple[int, str]:
+        args = argparse.Namespace(
+            dir=str(root),
+            format=None,
+            check=False,
+            selectors=list(selectors),
+            types=list(types),
+            status=list(status),
+            no_color=no_color,
+            all=show_all,
+            long=False,
+            details=False,
+            id6_only=id6_only,
+        )
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            rc = att.run(args)
+        return rc, buf.getvalue()
+
+    def test_set_selector_hides_done_and_parked_without_all(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self._build_fixture_repo(root)
+
+            rc, out = self._run(root, selectors=["demo"], types=["plans"])
+            self.assertEqual(rc, 0)
+            self.assertIn("aaa111", out)
+            self.assertNotIn("bbb222", out)
+            self.assertNotIn("ccc333", out)
+            self.assertIn(
+                "1 artifact shown (2 done or parked hidden; 3 total matched; use --all)",
+                out,
+            )
+
+            rc_id, out_id = self._run(
+                root, selectors=["demo"], types=["plans"], id6_only=True
+            )
+            self.assertEqual(rc_id, 0)
+            self.assertEqual(out_id.splitlines(), ["aaa111"])
+
+            rc_all, out_all = self._run(
+                root, selectors=["demo"], types=["plans"], show_all=True
+            )
+            self.assertEqual(rc_all, 0)
+            self.assertIn("aaa111", out_all)
+            self.assertIn("bbb222", out_all)
+            self.assertIn("ccc333", out_all)
+            self.assertIn("3 artifacts shown\n", out_all)
+
+    def test_completed_six_char_setid_hides_executed_items(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self._build_fixture_repo(root)
+
+            rc, out = self._run(root, selectors=["attcor"])
+            self.assertEqual(rc, 0)
+            self.assertNotIn("fff666", out)
+            self.assertIn(
+                "0 artifacts shown (1 done or parked hidden; 1 total matched; use --all)",
+                out,
+            )
+
+    def test_direct_id6_and_path_always_show_even_when_terminal(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            paths = self._build_fixture_repo(root)
+
+            rc_exec, out_exec = self._run(root, selectors=["bbb222"])
+            self.assertEqual(rc_exec, 0)
+            self.assertIn("bbb222", out_exec)
+            self.assertIn("1 artifact shown\n", out_exec)
+            self.assertNotIn("hidden", out_exec)
+
+            rc_sup, out_sup = self._run(root, selectors=["ccc333"])
+            self.assertEqual(rc_sup, 0)
+            self.assertIn("ccc333", out_sup)
+            self.assertIn("1 artifact shown\n", out_sup)
+
+            rc_id, out_id = self._run(root, selectors=["bbb222"], id6_only=True)
+            self.assertEqual(rc_id, 0)
+            self.assertEqual(out_id.splitlines(), ["bbb222"])
+
+            rel_path = paths["exec"].relative_to(root).as_posix()
+            rc_path, out_path = self._run(root, selectors=[rel_path])
+            self.assertEqual(rc_path, 0)
+            self.assertIn("bbb222", out_path)
+            self.assertIn("1 artifact shown\n", out_path)
+
+    def test_legacy_spec_id6_shared_as_child_setid_shows_spec_but_hides_done_children(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self._build_fixture_repo(root)
+
+            rc, out = self._run(root, selectors=["spc999"])
+            self.assertEqual(rc, 0)
+            self.assertIn("spc999-legacy-spec.spec.md", out)
+            self.assertIn("eee555", out)
+            self.assertNotIn("ddd444", out)
+            self.assertIn(
+                "2 artifacts shown (1 done or parked hidden; 3 total matched; use --all)",
+                out,
+            )
+
+    def test_mixed_set_and_direct_executed_id6_shows_open_set_plus_direct_id6_only(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self._build_fixture_repo(root)
+
+            rc, out = self._run(root, selectors=["demo", "bbb222"])
+            self.assertEqual(rc, 0)
+            self.assertIn("aaa111", out)
+            self.assertIn("bbb222", out)
+            self.assertNotIn("ccc333", out)
+            self.assertIn(
+                "2 artifacts shown (1 done or parked hidden; 3 total matched; use --all)",
+                out,
+            )
+
+    def test_positional_terminal_status_selector_and_status_flag_reveal_terminal_items(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self._build_fixture_repo(root)
+
+            rc_pos, out_pos = self._run(root, selectors=["executed"])
+            self.assertEqual(rc_pos, 0)
+            self.assertIn("bbb222", out_pos)
+            self.assertIn("ddd444", out_pos)
+            self.assertIn("fff666", out_pos)
+
+            rc_flag, out_flag = self._run(root, selectors=["demo"], status=["executed"])
+            self.assertEqual(rc_flag, 0)
+            self.assertIn("bbb222", out_flag)
+            self.assertNotIn("hidden", out_flag)
+
+    def test_colored_table_respects_direct_identity_bypass(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self._build_fixture_repo(root)
+            items, drift = att.scan(root)
+            demo_items = att.filter_items_by_selectors(items, ["demo", "bbb222"], root)
+            direct = att.directly_named_item_paths(demo_items, ["demo", "bbb222"], root)
+
+            table = att.render_table(
+                demo_items,
+                drift,
+                show_all=False,
+                term=att.T.Term(color=False),
+                directly_named=direct,
+            )
+            self.assertIn("aaa111", table)
+            self.assertIn("bbb222", table)
+            self.assertNotIn("ccc333", table)
