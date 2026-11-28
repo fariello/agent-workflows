@@ -1,5 +1,5 @@
 - Id: 0wilvu
-- Status: graduated
+- Status: done
 - Graduated-To: 639g02
 - Set: metastore
 - Work-Kind: bug
@@ -11,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-28 done (aw backlog): closed by aw agy run: IPD 639g02 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261127-metastore-324-639g02-fix-post-cutover-check-engine-log-readers-and-dependency-hoo.ipd.md); evidence .aw/records/plans/executed/20261127-metastore-324-639g02-fix-post-cutover-check-engine-log-readers-and-dependency-hoo.ipd.md
 - 2026-11-27 graduated (aw set): Graduated to Order 324 child plan 639g02 in Set metastore.
 - 2026-11-27 created (aw backlog): check_collisions and check_name_identity ignore meta JSONL logs and suppress YAML-mirror ids on log-format records
 
