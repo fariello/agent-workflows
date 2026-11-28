@@ -6,7 +6,7 @@
 - Scope: Work inside an isolated scratch worktree `.aw/state/639g02/scratch` with both cutover patches applied, sequenced after Order 323 (`ztvubn`) and ahead of test batch B (`psm9ac`). Fix all four defects inside `.aw/system/cutover/metastore-code.cutover.patch`: (1) update `agent_workflows/check_engine.py::check_collisions` and `check_name_identity` to read `id` and `set` from `_meta_state_map` and `artifact_meta.read_mirror_id6` without suppressing log-format YAML-mirror ids (`0wilvu`); (2) reuse `ipd_lint._resolve_state_date` across `agent_workflows/check_engine.py::_plan_date_compact` (with optional `state` and `path`), `carrier_severity_for_plan` (threaded from `evaluate_durable_carrier`), `check_ipd_lint_reach` (both cached and uncached branches), and `_is_grandfathered_plan` (`ay07de`); (3) update `agent_workflows/check_engine.py::_evaluate_ipd_dependencies_impl` to consult `state_map` (by raw or resolved path) and fall back `own_id` and `_is_grandfathered_plan` state when `plans=[(path, text)]` is passed for a log-format plan (`1fmcdk`); and (4) update `agent_workflows/hooks/ipd_dependency_statement_gate.py::_staged_ipd_overlay` and `check` to fail closed with `check.ipd-dependency-malformed` (exit 1, deduplicated across staged `.ipd.md` and `meta/<id6>.jsonl` loops) when `artifact_meta.read_at` returns `ReadAtResult(kind='corrupt')` for a staged IPD or unparseable meta log (`197ak8`). Add and pass core behavioral tests in `tests/test_cutover_log_check_engine_and_dep_hook.py`, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. Make no live code or test changes outside `- Scope-Paths:`.
 - Scope-Paths: .aw/records/plans/pending/20261127-metastore-324-639g02-fix-post-cutover-check-engine-log-readers-and-dependency-hoo.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:ztvubn
-- Status: approved
+- Status: executed
 - Review-Depth: complex
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -19,12 +19,12 @@
 - Highest E allocated: 05
 - Author: antigravity/gemini
 - Id: 639g02
-- Approval: 2026-11-27, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-28 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: 639g02 verified (set metastore, attempt 2).
 - 2026-11-27 approved (aw set): status set to approved
 - 2026-11-27 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 FIXED
 - 2026-11-27 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005; review record .aw/records/reviews/20261127-metastore-324-639g02-fix-post-cutover-check-engine-log-readers-and-dependency-hoo.review.md
