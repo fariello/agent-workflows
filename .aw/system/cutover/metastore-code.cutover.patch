@@ -10017,18 +10017,18 @@ index fda535307..3b73e936d 100644
      except Exception:
          return None, None
      return None, None
-@@ -739,6 +932,7 @@ def parse(
+@@ -759,6 +952,7 @@ def parse(
      *,
      state: Optional[Any] = None,
      _state_from_read_text: bool = False,
 +    path: Optional[Path] = None,
  ) -> ParsedDoc:
      """Parse an IPD into its structural pieces, fence-aware. Never raises on ordinary content."""
-     raw_lines = (text or "").splitlines()
-@@ -760,11 +954,31 @@ def parse(
-             first_h2_seen = True
-         if not first_h2_seen:
-             meta_slice.append(raw)
+     src = text or ""
+@@ -780,11 +974,31 @@ def parse(
+         if raw.startswith("## ") and _H2_RE.match(raw):
+             break
+         meta_slice.append(raw)
 -    meta_fields, meta_errors = _parse_metadata_slice(meta_slice)
 +    raw_meta_fields, meta_errors = _parse_metadata_slice(meta_slice)
 +    has_bullets = bool(raw_meta_fields)
@@ -10057,8 +10057,8 @@ index fda535307..3b73e936d 100644
 +                if body_val is not None:
 +                    meta_fields[section_name] = body_val
  
-     for lineno, raw in struct:
-         mh = _H2_RE.match(raw)
+     # Walk leaves within the execution + validation sections (identified by H2 title).
+     exec_title = S.H_EXECUTION
 @@ -941,6 +1155,7 @@ def parse(
          size_assessment=size_assessment,
          history_lines=history_lines,
@@ -10112,7 +10112,7 @@ index fda535307..3b73e936d 100644
  ) -> List[Diagnostic]:
      """Advisory: a code citation with no durable anchor beside it (spec Section 10.2, `IPD-C801`).
  
-@@ -1685,7 +1912,9 @@ def check_citation_anchors(
+@@ -1719,7 +1946,9 @@ def check_citation_anchors(
      ``_group_logical_units``) within a proximity window (``CITATION_ANCHOR_PROXIMITY_WINDOW``),
      curing continuation-line false positives while ensuring candidate anchors accompany the citation.
      """
@@ -10121,8 +10121,8 @@ index fda535307..3b73e936d 100644
 +        doc, state=state, path=path
 +    ):
          return []
-     out: List[Diagnostic] = []
-     for lineno, unit_text in _group_logical_units(_structural_lines(text)):
+     if ":" not in text or "." not in text or not _CITATION_QUICK_RE.search(text):
+         return []
 @@ -1894,13 +2123,19 @@ def check_coverage_record(
      )
      remedy_msg = f"Fix it with `aw ipd coverage {id6}`."
