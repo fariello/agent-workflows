@@ -44029,15 +44029,6 @@ index bb22d28e3..c98a4f3fa 100644
          )
          _commit_all(self.root, "add prompt")
          rc, out = self._run_cli(["set", "executed", "pr0mp7", "--yes"])
-@@ -2802,7 +2927,7 @@ class DelegationAndBypassRemovalTests(unittest.TestCase):
-             _completed_plan_text(
-                 plan_id="drf123",
-                 scope_paths="grandfathered",
--                status="to-review",
-+                status="reviewed",
-             ),
-             "20260824-demo-03-drf123-draft.ipd.md",
-         )
 @@ -2997,8 +3122,7 @@ class ParenthesizedActorIsRefusedBeforeAnyWrite(unittest.TestCase):
              ]
          )
