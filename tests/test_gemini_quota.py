@@ -97,6 +97,7 @@ def _isolate_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     home = tmp_path / "home"
     home.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
     monkeypatch.delenv("AGY_QUOTA_FILE", raising=False)
     monkeypatch.delenv("NO_COLOR", raising=False)
     monkeypatch.delenv("FORCE_COLOR", raising=False)
@@ -291,6 +292,16 @@ def test_dashboard_lower_table_layout_connected_borders_and_idle_clock(
     assert "∞" in tp_wk_row
     assert "100%" in tp_wk_row
     assert "7d 00h00m" in tp_wk_row
+
+
+def test_abbreviate_timezone_caps_verbose_windows_names() -> None:
+    assert gemini_quota._abbreviate_timezone("UTC") == "UTC"
+    assert gemini_quota._abbreviate_timezone("EST") == "EST"
+    assert gemini_quota._abbreviate_timezone("Coordinated Universal Time") == "UTC"
+    assert gemini_quota._abbreviate_timezone("Greenwich Mean Time") == "GMT"
+    assert gemini_quota._abbreviate_timezone("Eastern Standard Time") == "EST"
+    assert gemini_quota._abbreviate_timezone("Pacific Daylight Time") == "PDT"
+    assert len(gemini_quota._abbreviate_timezone("Central European Summer Time")) <= 5
 
 
 def test_dashboard_negative_clock_on_burnout_and_exhausted(

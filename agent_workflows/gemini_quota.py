@@ -374,10 +374,28 @@ def format_datetime_str(
         return "N/A", "N/A"
 
 
+def _abbreviate_timezone(tz_name: str, *, max_width: int = 5) -> str:
+    """Shorten verbose platform timezone names (e.g. Windows 'Coordinated Universal Time') to <= max_width."""
+    tz = tz_name.strip()
+    if len(tz) <= max_width:
+        return tz
+    low = tz.lower()
+    if low in ("coordinated universal time", "utc"):
+        return "UTC"
+    if low in ("greenwich mean time", "gmt"):
+        return "GMT"
+    words = [w for w in tz.split() if w]
+    if len(words) >= 2:
+        initials = "".join(w[0].upper() for w in words if w[0].isalpha())
+        if initials:
+            return initials[:max_width]
+    return tz[:max_width]
+
+
 def format_timezone_str(
     bucket: dict[str, Any] | None, color_enabled: bool = True
 ) -> tuple[str, str]:
-    """Format bucket timezone abbreviation, e.g. 'EST'."""
+    """Format bucket timezone abbreviation, e.g. 'EST' or 'UTC'."""
     if not isinstance(bucket, dict):
         return "", ""
     r_ts = parse_reset_timestamp(bucket)
@@ -387,7 +405,7 @@ def format_timezone_str(
         local_dt = datetime.datetime.fromtimestamp(
             r_ts, tz=datetime.timezone.utc
         ).astimezone()
-        tz = local_dt.strftime("%Z")
+        tz = _abbreviate_timezone(local_dt.strftime("%Z"))
         if not color_enabled:
             return tz, tz
         return f"\033[38;5;110m{tz}{RESET}", tz
