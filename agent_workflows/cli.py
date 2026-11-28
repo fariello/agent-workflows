@@ -6157,7 +6157,9 @@ def _build_parser_impl(_only_cmd: Optional[str] = None) -> argparse.ArgumentPars
         ),
     )
     p_attention.add_argument(
-        "--all", action="store_true", help="Show done/parked groups in the board."
+        "--all",
+        action="store_true",
+        help="Show done/parked items in the board (hidden by default unless --all, a terminal status, or an item's own ID/path is given).",
     )
     # worksequence i6015i E-04: the `choices` are GENERATED from the single contract tuple
     # (attention_contract.ORDER_KEYS) rather than re-typed here, so the CLI, the completion list and
@@ -20103,8 +20105,9 @@ def _run_migrate_bare(
             buf_out = io.StringIO()
             buf_err = io.StringIO()
             cap_term = Term(color=False, stream=buf_out)
-            with _contextlib.redirect_stdout(buf_out), _contextlib.redirect_stderr(
-                buf_err
+            with (
+                _contextlib.redirect_stdout(buf_out),
+                _contextlib.redirect_stderr(buf_err),
             ):
                 layout_rc = _run_migrate_layout(layout_args, cap_term)
             parsed_layout: Any = None

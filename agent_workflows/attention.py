@@ -3684,6 +3684,120 @@ def is_explicit_order(order_by: Optional[str]) -> bool:
     return bool(order_by and order_by != A.ORDER_CLASS)
 
 
+def _is_item_visible(
+    it: Item,
+    *,
+    show_all: bool,
+    directly_named: Collection[str] = (),
+) -> bool:
+    """Return whether ``it`` is visible under default terminal-item hiding.
+
+    Terminal (``done`` / ``parked``) items stay hidden unless ``show_all`` is True or the item
+    was directly addressed by identity (its own ID or exact path/filename).
+    """
+    if show_all:
+        return True
+    if it.attention_class not in (A.DONE, A.PARKED):
+        return True
+    return it.path in directly_named
+
+
+def _terminal_status_tokens() -> frozenset[str]:
+    """Return all status/class tokens that map to terminal (``done`` / ``parked``) attention classes."""
+    tokens = {A.DONE, A.PARKED, "abandoned", "synthesized"}
+    for mapping in A.CLASS_MAPS.values():
+        for status, cls in mapping.items():
+            if cls in (A.DONE, A.PARKED):
+                tokens.add(status.lower().replace("_", "-"))
+    return frozenset(tokens)
+
+
+def directly_named_item_paths(
+    items: Sequence[Item],
+    selectors_list: Sequence[str],
+    repo_root: Path,
+) -> set[str]:
+    """Return the ``it.path`` set of items directly addressed by a selector token's identity.
+
+    An item is directly addressed when a selector token matches:
+    - the item's own ``it.id`` (case-insensitive exact match), OR
+    - the item's exact repo-relative path, resolved path, filename, or stem.
+
+    Collection/group selectors (set IDs, trees, priorities, substrings, or a legacy spec ID
+    shared as a ``Set:`` by child plans) do NOT mark other items as directly named.
+    """
+    tokens = [str(t).strip() for t in selectors_list if str(t).strip()]
+    if not tokens:
+        return set()
+
+    token_lowers: set[str] = set()
+    token_norm_paths: set[str] = set()
+    token_resolved_paths: set[Path] = set()
+    for tok in tokens:
+        low = tok.lower()
+        token_lowers.add(low)
+        norm = tok.replace("\\", "/").lstrip("./").lower()
+        token_norm_paths.add(norm)
+        if "/" in tok or "\\" in tok or "." in tok:
+            try:
+                cand = Path(tok)
+                resolved = (
+                    cand.resolve()
+                    if cand.is_absolute()
+                    else (repo_root / cand).resolve()
+                )
+                token_resolved_paths.add(resolved)
+            except (OSError, ValueError):
+                pass
+
+    direct: set[str] = set()
+    for it in items:
+        if it.id and it.id.lower() in token_lowers:
+            direct.add(it.path)
+            continue
+        it_path_norm = it.path.replace("\\", "/").lstrip("./").lower()
+        if it_path_norm in token_norm_paths:
+            direct.add(it.path)
+            continue
+        it_name = Path(it.path).name.lower()
+        if it_name in token_norm_paths:
+            direct.add(it.path)
+            continue
+        it_stem = Path(it.path).stem.lower()
+        if it_stem in token_norm_paths:
+            direct.add(it.path)
+            continue
+        # Also match compound artifact stems (e.g. foo.ipd.md -> foo)
+        if it_name.endswith(".md"):
+            compound_stem = it_name[:-3]
+            for suffix in (
+                ".ipd",
+                ".spec",
+                ".backlog",
+                ".research",
+                ".research-report",
+                ".prompt",
+                ".review",
+                ".release",
+                ".roadmap",
+                ".walkthrough",
+            ):
+                if compound_stem.endswith(suffix):
+                    compound_stem = compound_stem[: -len(suffix)]
+                    break
+            if compound_stem in token_norm_paths:
+                direct.add(it.path)
+                continue
+        if token_resolved_paths:
+            try:
+                if (repo_root / it.path).resolve() in token_resolved_paths:
+                    direct.add(it.path)
+                    continue
+            except (OSError, ValueError):
+                pass
+    return direct
+
+
 def render_table(
     items: List[Item],
     drift: List[core.Drift],
@@ -3697,6 +3811,7 @@ def render_table(
     id_map: Optional[Dict[str, Item]] = None,
     runs_mode: bool = False,
     run_map: Optional[Dict[str, str]] = None,
+    directly_named: Optional[Collection[str]] = None,
 ) -> str:
     """Render items in a compact columnar table for interactive/TTY viewing.
 
@@ -3737,10 +3852,12 @@ def render_table(
             lines.append(f"  ! {d.location}: {d.rule}: {d.detail}")
         lines.append("")
 
-    if not show_all:
-        visible = [it for it in items if it.attention_class not in (A.DONE, A.PARKED)]
-    else:
-        visible = list(items)
+    direct_set = set(directly_named) if directly_named else set()
+    visible = [
+        it
+        for it in items
+        if _is_item_visible(it, show_all=show_all, directly_named=direct_set)
+    ]
 
     if not visible:
         return "\n".join(lines).rstrip("\n") + "\n" if lines else ""
@@ -3902,6 +4019,7 @@ def render_board(
     id_map: Optional[Dict[str, Item]] = None,
     runs_mode: bool = False,
     run_map: Optional[Dict[str, str]] = None,
+    directly_named: Optional[Collection[str]] = None,
 ) -> str:
     """Render the attention board.
 
@@ -3929,10 +4047,12 @@ def render_board(
             id_map=id_map,
             runs_mode=runs_mode,
             run_map=run_map,
+            directly_named=directly_named,
         )
     if legend is None:
         legend = colored
 
+    direct_set = set(directly_named) if directly_named else set()
     lines: List[str] = []
     # Match `render_json`'s `valid` and `core.drift_exit_code`: advisory `info` drift (such as
     # `attention.lane-superseded`) must NOT mark the human board `VIEW INVALID`.
@@ -3948,13 +4068,12 @@ def render_board(
     if is_explicit_order(order_by):
         # Under an explicit order, emit ONE globally-ordered list instead of class-partitioned sections.
         # Items were already sorted upstream by cmd_attention; do not re-sort here.
-        # Preserve the done/parked suppression unless show_all is True.
-        if not show_all:
-            visible = [
-                it for it in items if it.attention_class not in (A.DONE, A.PARKED)
-            ]
-        else:
-            visible = list(items)
+        # Preserve the done/parked suppression unless show_all is True or the item was directly named.
+        visible = [
+            it
+            for it in items
+            if _is_item_visible(it, show_all=show_all, directly_named=direct_set)
+        ]
 
         for it in visible:
             run_st = _item_run_status(it, run_map) if runs_mode else None
@@ -3991,8 +4110,27 @@ def render_board(
                 header_extra = f" in {shared_gate}"
 
         if cls in (A.DONE, A.PARKED) and not show_all:
-            if not colored:
-                lines.append(f"## {cls} ({len(group)}) [hidden; use --all]")
+            direct_group = [it for it in group if it.path in direct_set]
+            hidden_in_cls = len(group) - len(direct_group)
+            if direct_group:
+                lines.append(f"## {cls} ({len(direct_group)})")
+                for it in direct_group:
+                    run_st = _item_run_status(it, run_map) if runs_mode else None
+                    lines.append(
+                        _render_item_row(
+                            it,
+                            cls,
+                            term,
+                            colored,
+                            long,
+                            details=details,
+                            gate_in_header=False,
+                            runs_mode=runs_mode,
+                            run_state=run_st,
+                        )
+                    )
+            if hidden_in_cls > 0 and not colored:
+                lines.append(f"## {cls} ({hidden_in_cls}) [hidden; use --all]")
             continue
 
         # awdoctorfix Order 02: the colored default view shows a compact identity stem per item
@@ -4925,20 +5063,9 @@ def _run_with_scan_once(args, repo_root, check, ctx, type_filters) -> int:
             selector_facts, args=args, ctx=ctx, repo_root=repo_root
         )
 
+    terminal_tokens = _terminal_status_tokens()
     status_filters = parse_status_filters(getattr(args, "status", None))
-    has_terminal_status = any(
-        s
-        in (
-            "done",
-            "parked",
-            "superseded",
-            "not-executed",
-            "implemented",
-            "shipped",
-            "abandoned",
-        )
-        for s in status_filters
-    )
+    has_terminal_status = any(s in terminal_tokens for s in status_filters)
     if status_filters:
         items = [it for it in items if matches_status(it, status_filters)]
 
@@ -5123,20 +5250,31 @@ def _run_with_scan_once(args, repo_root, check, ctx, type_filters) -> int:
             sys.stdout.write(f"aw attention --check: the view is valid. {summary}.\n")
         return exit_code
 
+    has_terminal_selector = any(
+        str(tok).strip().lower().replace("_", "-") in terminal_tokens
+        for tok in selectors_arg
+    )
+    directly_named = (
+        directly_named_item_paths(items, selectors_arg, repo_root)
+        if selectors_arg
+        else set()
+    )
+    effective_show_all = (
+        getattr(args, "all", False) or has_terminal_status or has_terminal_selector
+    )
+
     id6_only = getattr(args, "id6_only", False)
     paths_only = getattr(args, "paths", False)
     filenames_only = getattr(args, "filenames", False)
 
     if id6_only or paths_only or filenames_only:
-        show_all = (
-            getattr(args, "all", False) or bool(selectors_arg) or has_terminal_status
-        )
-        if not show_all:
-            visible = [
-                it for it in items if it.attention_class not in (A.DONE, A.PARKED)
-            ]
-        else:
-            visible = list(items)
+        visible = [
+            it
+            for it in items
+            if _is_item_visible(
+                it, show_all=effective_show_all, directly_named=directly_named
+            )
+        ]
 
         if id6_only:
             for it in visible:
@@ -5249,9 +5387,7 @@ def _run_with_scan_once(args, repo_root, check, ctx, type_filters) -> int:
         term = T.Term(stream=sys.stdout, color=color)
         colored = bool(getattr(term, "color", False))
         long = getattr(args, "long", False)
-        show_all = (
-            getattr(args, "all", False) or bool(selectors_arg) or has_terminal_status
-        )
+        show_all = effective_show_all
         details = getattr(args, "details", False)
         runs_mode = runs_needed
 
@@ -5269,6 +5405,7 @@ def _run_with_scan_once(args, repo_root, check, ctx, type_filters) -> int:
                     order_by=order_by,
                     runs_mode=runs_mode,
                     run_map=run_map,
+                    directly_named=directly_named,
                 )
             else:
                 blockers = release_blockers(items, repo_root)
@@ -5287,6 +5424,7 @@ def _run_with_scan_once(args, repo_root, check, ctx, type_filters) -> int:
                     order_by=order_by,
                     runs_mode=runs_mode,
                     run_map=run_map,
+                    directly_named=directly_named,
                 )
                 if blockers:
                     # Name the release the blockers gate (id6 + version), not just a count, so the
@@ -5331,16 +5469,16 @@ def _run_with_scan_once(args, repo_root, check, ctx, type_filters) -> int:
                 id_map=all_items_by_id,
                 runs_mode=runs_mode,
                 run_map=run_map,
+                directly_named=directly_named,
             )
 
         total_matching = len(items)
-        if not show_all:
-            visible_count = len(
-                [it for it in items if it.attention_class not in (A.DONE, A.PARKED)]
-            )
-            hidden_count = total_matching - visible_count
-        else:
-            hidden_count = 0
+        visible_count = sum(
+            1
+            for it in items
+            if _is_item_visible(it, show_all=show_all, directly_named=directly_named)
+        )
+        hidden_count = total_matching - visible_count
 
         # Lead with what is ON SCREEN. `737 matching artifacts (723 hidden)` above a 14-row table
         # read as a row count and was wrong at a glance (maintainer, 2026-09-24).
