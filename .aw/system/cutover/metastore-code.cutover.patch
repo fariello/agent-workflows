@@ -10647,10 +10647,10 @@ index b5148eef9..8a363349e 100644
          Change(kind=c.kind, path=c.path, applied=True) for c in change_objs
      ]
 diff --git a/agent_workflows/migrations/chain.py b/agent_workflows/migrations/chain.py
-index d4be00e56..293ffaa54 100644
+index d4be00e56..f90faf0dd 100644
 --- a/agent_workflows/migrations/chain.py
 +++ b/agent_workflows/migrations/chain.py
-@@ -67,7 +67,7 @@ class Migration:
+@@ -67,10 +67,10 @@ class Migration:
          )
  
  
@@ -10658,7 +10658,11 @@ index d4be00e56..293ffaa54 100644
 +CURRENT_METADATA_SCHEMA = 2
  
  _EXCLUDED_FILENAMES = frozenset({"README.md", "STATUS.md"})
- _EXCLUDED_DIRNAMES = frozenset({"comms", "prompt-library"})
+-_EXCLUDED_DIRNAMES = frozenset({"comms", "prompt-library"})
++_EXCLUDED_DIRNAMES = frozenset({"comms", "prompt-library", "runs"})
+ # Non-record subdirectories under legacy `.agents/` (host skill packages installed by `aw install`,
+ # legacy system workflows, inbox, run records, and runtime state).
+ _AGENTS_NON_RECORD_TOP_DIRS = frozenset({"workflows", "inbox", "runs", "state"})
 diff --git a/agent_workflows/migrations/m0001_convert.py b/agent_workflows/migrations/m0001_convert.py
 index 4f3998e8a..f8edf079e 100644
 --- a/agent_workflows/migrations/m0001_convert.py
@@ -12883,7 +12887,7 @@ index d19c789b3..3b5861d3b 100644
              touched.append(src_rel)
              touched.append(dst_rel)
 diff --git a/agent_workflows/production_checks.py b/agent_workflows/production_checks.py
-index 5f2610b9b..970c56aca 100644
+index 5f2610b9b..040b2277b 100644
 --- a/agent_workflows/production_checks.py
 +++ b/agent_workflows/production_checks.py
 @@ -1621,20 +1621,25 @@ def backlog_graduate_legitimacy(
@@ -12922,6 +12926,44 @@ index 5f2610b9b..970c56aca 100644
      history_rows = [row for row in raw_history if row.get("op") != "review"]
      if not history_rows:
          return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
+@@ -1646,14 +1651,31 @@ def backlog_graduate_legitimacy(
+         if not re.search(r"[a-z0-9]{6}|run-[0-9a-zA-Z]+", newest):
+             return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
+     else:
+-        newest_ev = history_rows[-1]
+-        if (
+-            newest_ev.get("op") != "transition"
+-            or str(newest_ev.get("to") or "").strip().lower() != "graduated"
+-        ):
++        latest_append = history_rows[-1].get("append")
++        if latest_append is not None:
++            latest_tx = [
++                row for row in history_rows if row.get("append") == latest_append
++            ]
++        else:
++            latest_tx = [history_rows[-1]]
++        grad_transitions = [
++            row
++            for row in latest_tx
++            if row.get("op") == "transition"
++            and str(row.get("to") or "").strip().lower() == "graduated"
++        ]
++        if not grad_transitions:
+             return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
++        newest_ev = grad_transitions[-1]
+         ev_msg = str(newest_ev.get("message") or "")
+-        if not re.search(r"[a-z0-9]{6}|run-[0-9a-zA-Z]+", ev_msg):
++        tx_grad_targets = [
++            str((row.get("fields") or {}).get("graduated_to") or "")
++            for row in latest_tx
++            if isinstance(row.get("fields"), dict)
++        ]
++        if not re.search(r"[a-z0-9]{6}|run-[0-9a-zA-Z]+", ev_msg) and not any(
++            re.search(r"[a-z0-9]{6}|run-[0-9a-zA-Z]+", tgt) for tgt in tx_grad_targets
++        ):
+             return [("BACKLOG-GRADUATE-LEGITIMACY", item_id6, msg)]
+ 
+     # Clause 3: only after the handoff commit (commit ancestry check)
 diff --git a/agent_workflows/prompts.py b/agent_workflows/prompts.py
 index 113c66d30..4241f088a 100644
 --- a/agent_workflows/prompts.py
@@ -16143,7 +16185,7 @@ index 6306a7c02..704fb813c 100644
      return {
          "kind": kind,
 diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
-index 461caf32a..1e975949d 100644
+index 461caf32a..60cc4135c 100644
 --- a/agent_workflows/runner_shared.py
 +++ b/agent_workflows/runner_shared.py
 @@ -4792,6 +4792,36 @@ def commit_review_shared_output(
@@ -16454,7 +16496,127 @@ index 461caf32a..1e975949d 100644
      2. Requires the file to sit under a recognized lifecycle bucket of a supported type
         (:data:`lifecycle_dirs.LIFECYCLE_SUBDIRS`).
      3. Requires the type's own facet suffix (:data:`artifact_naming.TYPE_FACET`, e.g. ``.ipd.md`` for
-@@ -9174,12 +9240,75 @@ def check_review_lane_artifacts(
+@@ -9134,13 +9200,113 @@ def check_review_lane_artifacts(
+ 
+                 doc = None
+                 try:
+-                    doc = ipd_lint.parse(content)
+-                    lint_res = ipd_lint.lint_text(
+-                        content,
+-                        checkpoint="author",
+-                        directory="pending",
+-                        doc=doc,
++                    plan_abs = (
++                        (wt_path / norm_p)
++                        if (wt_path and (wt_path / norm_p).is_file())
++                        else None
+                     )
++                    tracked_state: Any = None
++                    tracked_ctx: Any = None
++                    plan_history_loader: Any = None
++                    with _meta.ephemeral_if_uninitialized(), _meta.scan_once():
++                        if plan_abs is not None:
++                            tracked_state, tracked_ctx = (
++                                ipd_lint._lookup_tracked_state(plan_abs)
++                            )
++                            if tracked_state is not None and getattr(
++                                tracked_state, "id6", None
++                            ):
++                                _st_id6 = tracked_state.id6
++                                _st_ctx = tracked_ctx
++
++                                def _load_wt_history(
++                                    _id6: str = _st_id6, _ctx: Any = _st_ctx
++                                ) -> list[dict[str, Any]] | None:
++                                    try:
++                                        with (
++                                            _meta.ephemeral_if_uninitialized(),
++                                            _meta.scan_once(),
++                                        ):
++                                            return _meta.history(
++                                                _id6, project_context=_ctx
++                                            )
++                                    except Exception:
++                                        return None
++
++                                plan_history_loader = _load_wt_history
++                        elif branch:
++                            ctx = check_engine._git_read_at_context(
++                                repo, rel_path=norm_p
++                            )
++                            if (
++                                norm_p.startswith(".aw/records/")
++                                and (repo / ".git").exists()
++                            ):
++                                in_tree_rec = (repo / ".aw" / "records").resolve()
++                                if (
++                                    Path(ctx.logical_roots["records"]).resolve()
++                                    != in_tree_rec
++                                ):
++                                    ctx = type(
++                                        "_BranchPlanCtx",
++                                        (),
++                                        {
++                                            "logical_roots": {
++                                                **ctx.logical_roots,
++                                                "records": str(in_tree_rec),
++                                            },
++                                            "repo_root": getattr(
++                                                ctx, "repo_root", repo.resolve()
++                                            ),
++                                        },
++                                    )()
++                            tracked_state = _read_record_state_at_rev(
++                                repo, branch, norm_p, ctx=ctx
++                            )
++                            if tracked_state is not None and getattr(
++                                tracked_state, "id6", None
++                            ):
++                                _br_id6 = tracked_state.id6
++                                _br_rev = branch
++
++                                def _load_branch_history(
++                                    _id6: str = _br_id6, _rev: str = _br_rev
++                                ) -> list[dict[str, Any]] | None:
++                                    rc_h, out_h, _ = _run_git(
++                                        repo,
++                                        [
++                                            "show",
++                                            f"{_rev}:.aw/records/meta/{_id6}.jsonl",
++                                        ],
++                                    )
++                                    if rc_h != 0 or not out_h.strip():
++                                        return None
++                                    evs: list[dict[str, Any]] = []
++                                    for ln in out_h.splitlines():
++                                        s_ln = ln.strip()
++                                        if not s_ln:
++                                            continue
++                                        try:
++                                            evs.append(json.loads(s_ln))
++                                        except Exception:
++                                            continue
++                                    return evs or None
++
++                                plan_history_loader = _load_branch_history
++
++                        lint_path = plan_abs if plan_abs is not None else Path(norm_p)
++                        doc = ipd_lint.parse(
++                            content, state=tracked_state, path=lint_path
++                        )
++                        lint_res = ipd_lint.lint_text(
++                            content,
++                            checkpoint="author",
++                            directory="pending",
++                            doc=doc,
++                            path=lint_path,
++                            state=tracked_state,
++                            _history_loader=plan_history_loader,
++                        )
+                     if not lint_res.passing:
+                         blocking = [
+                             d
+@@ -9174,12 +9340,75 @@ def check_review_lane_artifacts(
  
          # 3. Specs (.spec.md)
          elif norm_p.endswith(".spec.md"):
@@ -16533,7 +16695,7 @@ index 461caf32a..1e975949d 100644
                          return (
                              False,
                              f"spec '{norm_p}' contract violation ({drift.rule}): {drift.detail}",
-@@ -17162,19 +17291,35 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
+@@ -17162,19 +17391,35 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
  
  
  def plan_kind_from_file(path: Path) -> str | None:
@@ -16575,7 +16737,7 @@ index 461caf32a..1e975949d 100644
  
  
  def resolve_manifest_kind(
-@@ -17433,7 +17578,7 @@ def discover_plans(
+@@ -17433,7 +17678,7 @@ def discover_plans(
                  root == resolved or root in resolved.parents for root in plans_roots
              ):
                  continue
@@ -16584,7 +16746,7 @@ index 461caf32a..1e975949d 100644
                  continue
              if resolved in seen or not resolved.is_file():
                  continue
-@@ -17542,7 +17687,7 @@ def discover_specs(repo: Path) -> dict[str, SpecRecord]:
+@@ -17542,7 +17787,7 @@ def discover_specs(repo: Path) -> dict[str, SpecRecord]:
                      sr == resolved or sr in resolved.parents for sr in spec_roots
                  ):
                      continue
@@ -16593,7 +16755,7 @@ index 461caf32a..1e975949d 100644
                      continue
                  if not resolved.is_file():
                      continue
-@@ -17932,8 +18077,8 @@ def resolve_plan_path(repo: Path, configured: str, id6: str) -> Path:
+@@ -17932,8 +18177,8 @@ def resolve_plan_path(repo: Path, configured: str, id6: str) -> Path:
                  raise DriverError(
                      f"Refusing {configured!r} for IPD {id6}: it is {what}, not an IPD plan"
                  )
@@ -16604,7 +16766,7 @@ index 461caf32a..1e975949d 100644
                  raise DriverError(
                      f"Refusing {configured!r} for IPD {id6}: it is {what}, not an IPD plan"
                  )
-@@ -24604,8 +24749,8 @@ def probe_orchestrator(
+@@ -24604,8 +24849,8 @@ def probe_orchestrator(
  
      options = state.get("options") or {}
      model = options.get("model") or ""
@@ -16615,7 +16777,7 @@ index 461caf32a..1e975949d 100644
          ans = (
              PROBE_ANSWER_NO_EXECUTIONS
              if rec.verdict == coverage_record.COVERAGE_PASS
-@@ -25396,14 +25541,21 @@ def enforce_freeze_time_refusal(
+@@ -25396,14 +25641,21 @@ def enforce_freeze_time_refusal(
              try:
                  content_bytes = abs_path.read_bytes()
                  digest = hashlib.sha256(content_bytes).hexdigest()
@@ -16642,7 +16804,7 @@ index 461caf32a..1e975949d 100644
                      _FREEZE_GATE_CACHE[cache_key] = drifts
                  for d in drifts:
                      if getattr(d, "severity", "") != "info":
-@@ -25423,14 +25575,21 @@ def enforce_freeze_time_refusal(
+@@ -25423,14 +25675,21 @@ def enforce_freeze_time_refusal(
              try:
                  content_bytes = abs_path.read_bytes()
                  digest = hashlib.sha256(content_bytes).hexdigest()
@@ -16669,7 +16831,7 @@ index 461caf32a..1e975949d 100644
                      _FREEZE_GATE_CACHE[cache_key] = drifts
                  for d in drifts:
                      if getattr(d, "severity", "") != "info":
-@@ -27864,13 +28023,31 @@ def hold_attended_plan(
+@@ -27864,13 +28123,31 @@ def hold_attended_plan(
      """
      if q_entry.get("action") != "execute" or plan_path is None:
          return False
@@ -16705,7 +16867,7 @@ index 461caf32a..1e975949d 100644
          return False
      if interactive:
          q_entry[ATTENDED_KEY] = True
-@@ -34497,17 +34674,53 @@ def run_review_sequence(
+@@ -34497,17 +34774,53 @@ def run_review_sequence(
              else (target_root / item.get("configured_file", ""))
          )
  
@@ -16763,7 +16925,7 @@ index 461caf32a..1e975949d 100644
      facts_md = review_tier.render_tier_facts(tf)
  
      _rc_h, head_out, _ = _run_git(target_root, ["rev-parse", "HEAD"])
-@@ -34626,7 +34839,10 @@ def run_review_sequence(
+@@ -34626,7 +34939,10 @@ def run_review_sequence(
          return 0, cur_session, run_dir / f"{log_suffix}.jsonl", []
  
      def _check_verdict_guard(cur_text: str) -> bool:
@@ -16775,7 +16937,7 @@ index 461caf32a..1e975949d 100644
          if cur_verdicts != baseline_verdicts:
              return True
          if baseline_head:
-@@ -34682,6 +34898,7 @@ def run_review_sequence(
+@@ -34682,6 +34998,7 @@ def run_review_sequence(
      limit_reached = False
      limit_instruction = ""
      after_r_text: str | None = None
@@ -16783,7 +16945,7 @@ index 461caf32a..1e975949d 100644
  
      if review_steps:
          last_step = review_steps[-1]
-@@ -34754,26 +34971,20 @@ def run_review_sequence(
+@@ -34754,26 +35071,20 @@ def run_review_sequence(
          else:
              plan_file.write_text(plan_text_initial, encoding="utf-8")
          cur = plan_file.read_text(encoding="utf-8")
@@ -16820,7 +16982,7 @@ index 461caf32a..1e975949d 100644
              )
          save_state(run_dir, state)
          return 1, s_id, last_log, last_argv
-@@ -34854,8 +35065,12 @@ def run_review_sequence(
+@@ -34854,8 +35165,12 @@ def run_review_sequence(
  
          # Check structural diff on P
          if "P" in p1_checks:
@@ -16834,7 +16996,7 @@ index 461caf32a..1e975949d 100644
              )
              if refused_diff:
                  plan_file.write_text(plan_text_initial, encoding="utf-8")
-@@ -34874,8 +35089,12 @@ def run_review_sequence(
+@@ -34874,8 +35189,12 @@ def run_review_sequence(
                  plan_text_after = plan_file.read_text(encoding="utf-8")
                  reply_text = _get_reply_text(log_path)
                  review_text = _get_review_text()
@@ -16848,7 +17010,7 @@ index 461caf32a..1e975949d 100644
                  )
                  if refused_diff2:
                      return _fail_incomplete(
-@@ -34978,6 +35197,7 @@ def run_review_sequence(
+@@ -34978,6 +35297,7 @@ def run_review_sequence(
  
          if any(c in ("R2", "R4") for c in p1_checks):
              after_r_text = plan_text_after
@@ -16856,7 +17018,7 @@ index 461caf32a..1e975949d 100644
          p1_sha = hashlib.sha256(plan_text_after.encode("utf-8")).hexdigest()
          (snap_dir / f"{p1_sha}.plan.md").write_text(plan_text_after, encoding="utf-8")
          step_1_rec = {
-@@ -35031,6 +35251,7 @@ def run_review_sequence(
+@@ -35031,6 +35351,7 @@ def run_review_sequence(
              p_text = p_text + "\n\n" + limit_instruction
  
          plan_text_before = plan_file.read_text(encoding="utf-8")
@@ -16864,7 +17026,7 @@ index 461caf32a..1e975949d 100644
  
          if not (resumed_rereview and k == s6_idx):
              p_path = write_prompt(
-@@ -35086,10 +35307,12 @@ def run_review_sequence(
+@@ -35086,10 +35407,12 @@ def run_review_sequence(
                  )
  
              plan_text_after = plan_file.read_text(encoding="utf-8")
@@ -16877,7 +17039,7 @@ index 461caf32a..1e975949d 100644
              reply_text = ""
              review_text = _get_review_text()
  
-@@ -35126,6 +35349,7 @@ def run_review_sequence(
+@@ -35126,6 +35449,7 @@ def run_review_sequence(
                      reply_text,
                      repo_root=target_root,
                      plan_path=plan_file,
@@ -16885,7 +17047,7 @@ index 461caf32a..1e975949d 100644
                  )
                  if err:
                      failed_check, failed_reason = "S5", err
-@@ -35146,7 +35370,14 @@ def run_review_sequence(
+@@ -35146,7 +35470,14 @@ def run_review_sequence(
  
              if failed_check is None and "S7" in group_checks:
                  err = review_sequence.check_S7(
@@ -16901,7 +17063,7 @@ index 461caf32a..1e975949d 100644
                  )
                  if err:
                      failed_check, failed_reason = "S7", err
-@@ -35154,7 +35385,9 @@ def run_review_sequence(
+@@ -35154,7 +35485,9 @@ def run_review_sequence(
                      from agent_workflows import review_rereview
  
                      err_lim = review_rereview.check_limit_s7(
@@ -16912,7 +17074,7 @@ index 461caf32a..1e975949d 100644
                      )
                      if err_lim:
                          failed_check, failed_reason = "S7", err_lim
-@@ -35185,6 +35418,7 @@ def run_review_sequence(
+@@ -35185,6 +35518,7 @@ def run_review_sequence(
                      reask_p, k, f"{lbl}-reask", session_id
                  )
                  plan_text_after = plan_file.read_text(encoding="utf-8")
@@ -16920,7 +17082,7 @@ index 461caf32a..1e975949d 100644
                  reply_text = _get_reply_text(step_log_path)
                  review_text = _get_review_text()
  
-@@ -35202,6 +35436,7 @@ def run_review_sequence(
+@@ -35202,6 +35536,7 @@ def run_review_sequence(
                          reply_text,
                          repo_root=target_root,
                          plan_path=plan_file,
@@ -16928,7 +17090,7 @@ index 461caf32a..1e975949d 100644
                      )
                  elif failed_check == "S6":
                      err2 = review_sequence.check_S6(
-@@ -35209,13 +35444,22 @@ def run_review_sequence(
+@@ -35209,13 +35544,22 @@ def run_review_sequence(
                      )
                  elif failed_check == "S7":
                      err2 = review_sequence.check_S7(
@@ -16953,7 +17115,7 @@ index 461caf32a..1e975949d 100644
                          )
                  else:
                      err2 = review_sequence.check_steps(
-@@ -35335,6 +35579,7 @@ def run_review_sequence(
+@@ -35335,6 +35679,7 @@ def run_review_sequence(
  
              if any(c in ("R2", "R4") for c in group_checks):
                  after_r_text = plan_text_after
@@ -16961,7 +17123,7 @@ index 461caf32a..1e975949d 100644
  
          # Delegate S6 if review_rereview is present
          if "S6" in group_checks:
-@@ -35398,6 +35643,7 @@ def run_review_sequence(
+@@ -35398,6 +35743,7 @@ def run_review_sequence(
                      )
                      last_rereview_log = Path(r_log_path)
                      plan_text_a = plan_file.read_text(encoding="utf-8")
@@ -16969,7 +17131,7 @@ index 461caf32a..1e975949d 100644
                      r_reply = _get_reply_text(r_log_path)
                      r_review = _get_review_text()
  
-@@ -35420,6 +35666,7 @@ def run_review_sequence(
+@@ -35420,6 +35766,7 @@ def run_review_sequence(
                                  r_reply,
                                  repo_root=target_root,
                                  plan_path=plan_file,
@@ -16977,7 +17139,7 @@ index 461caf32a..1e975949d 100644
                              )
                              if err:
                                  failed_chk, failed_rsn = "S5", err
-@@ -35445,6 +35692,7 @@ def run_review_sequence(
+@@ -35445,6 +35792,7 @@ def run_review_sequence(
                              )
                              last_rereview_log = Path(r_log_path)
                              plan_text_a = plan_file.read_text(encoding="utf-8")
@@ -16985,7 +17147,7 @@ index 461caf32a..1e975949d 100644
                              r_reply = _get_reply_text(r_log_path)
                              r_review = _get_review_text()
                              if failed_chk == "S5":
-@@ -35455,6 +35703,7 @@ def run_review_sequence(
+@@ -35455,6 +35803,7 @@ def run_review_sequence(
                                      r_reply,
                                      repo_root=target_root,
                                      plan_path=plan_file,
@@ -16993,7 +17155,7 @@ index 461caf32a..1e975949d 100644
                                  )
                              else:
                                  err2 = review_sequence.check_steps(
-@@ -35566,7 +35815,12 @@ def run_review_sequence(
+@@ -35566,7 +35915,12 @@ def run_review_sequence(
                  try:
                      s6_arg = "" if resumed_rereview else reply_text
                      rereview_res = review_rereview.run_rereview_loop(
@@ -17007,7 +17169,7 @@ index 461caf32a..1e975949d 100644
                      )
                  except (
                      KeyboardInterrupt,
-@@ -56928,35 +57182,126 @@ def _collect_lane_added_open_backlogs(
+@@ -56928,35 +57282,126 @@ def _collect_lane_added_open_backlogs(
      return candidates, skipped
  
  
@@ -17149,7 +17311,7 @@ index 461caf32a..1e975949d 100644
  
  
  _PROPOSAL_SUMMARY_STRIP_CHARS = " .,;:!?-_/([{'\""
-@@ -57126,7 +57471,6 @@ def perform_coordinator_proposal_file(
+@@ -57126,7 +57571,6 @@ def perform_coordinator_proposal_file(
          skipped_backlog_reasons: tuple[tuple[str, str], ...] = (),
      ) -> ProposalFilingResult:
          from agent_workflows import artifact_core as _core
@@ -17157,7 +17319,7 @@ index 461caf32a..1e975949d 100644
  
          proposals_dir = run_dir / "proposals"
          proposals_dir.mkdir(parents=True, exist_ok=True)
-@@ -57145,23 +57489,16 @@ def perform_coordinator_proposal_file(
+@@ -57145,23 +57589,16 @@ def perform_coordinator_proposal_file(
                  f"- Id: {item_id6}\n\n"
                  f"{body_text}\n"
              )
@@ -17191,7 +17353,7 @@ index 461caf32a..1e975949d 100644
              )
          else:
              base_content = (
-@@ -57171,26 +57508,14 @@ def perform_coordinator_proposal_file(
+@@ -57171,26 +57608,14 @@ def perform_coordinator_proposal_file(
                  f"- Summary: Proposal from {item_id6}: {clean_summary}\n\n"
                  f"{body_text}\n"
              )
@@ -17226,7 +17388,7 @@ index 461caf32a..1e975949d 100644
              )
          _core.atomic_write(fallback_file, fallback_content)
          rel_path = str(fallback_file)
-@@ -57216,12 +57541,18 @@ def perform_coordinator_proposal_file(
+@@ -57216,12 +57641,18 @@ def perform_coordinator_proposal_file(
          *,
          records_dir_override: Path | None = None,
          commit_root_override: Path | None = None,
@@ -17248,7 +17410,7 @@ index 461caf32a..1e975949d 100644
  
          from agent_workflows import (
              artifact_core as _core,
-@@ -57254,21 +57585,76 @@ def perform_coordinator_proposal_file(
+@@ -57254,21 +57685,76 @@ def perform_coordinator_proposal_file(
                  skipped.append((rel_path, "invalid-utf8"))
                  continue
  
@@ -17332,7 +17494,7 @@ index 461caf32a..1e975949d 100644
                  )
                  else None
              )
-@@ -57318,6 +57704,23 @@ def perform_coordinator_proposal_file(
+@@ -57318,6 +57804,23 @@ def perform_coordinator_proposal_file(
  
              target_path.parent.mkdir(parents=True, exist_ok=True)
              _core.atomic_write(target_path, text)
@@ -17356,7 +17518,7 @@ index 461caf32a..1e975949d 100644
              if parsed_id:
                  existing_ids.add(parsed_id)
              if commit_root_override is not None:
-@@ -57335,7 +57738,7 @@ def perform_coordinator_proposal_file(
+@@ -57335,7 +57838,7 @@ def perform_coordinator_proposal_file(
              else:
                  recovered.append(rel_path)
  
@@ -17365,7 +17527,7 @@ index 461caf32a..1e975949d 100644
  
      from agent_workflows import project_context as _proj_ctx
  
-@@ -57392,17 +57795,15 @@ def perform_coordinator_proposal_file(
+@@ -57392,17 +57895,15 @@ def perform_coordinator_proposal_file(
                              f"needs-attended: the proposing plan could not be resolved: {exc}",
                              skipped_backlog_reasons=tuple(lane_pre_skipped),
                          )
@@ -17387,7 +17549,7 @@ index 461caf32a..1e975949d 100644
                          commit_msg = f"plan({item_id6}): mark Attended: required (agent proposal)"
                  elif size == "small":
                      setid = f"prop-{item_id6}"
-@@ -57475,25 +57876,27 @@ def perform_coordinator_proposal_file(
+@@ -57475,25 +57976,27 @@ def perform_coordinator_proposal_file(
                      created_path = created_plan
                      created_is_new = True
                      plan_content = created_plan.read_text(encoding="utf-8")
@@ -17426,7 +17588,7 @@ index 461caf32a..1e975949d 100644
                          )
                      commit_msg = (
                          f"Scaffold draft plan for agent proposal from {item_id6}"
-@@ -57565,7 +57968,11 @@ def perform_coordinator_proposal_file(
+@@ -57565,7 +58068,11 @@ def perform_coordinator_proposal_file(
                      commit_msg = f"File backlog item for agent proposal from {item_id6}"
  
                  assert created_path is not None
@@ -17439,7 +17601,7 @@ index 461caf32a..1e975949d 100644
                      repo,
                      record_id6,
                      records_dir_override=resolved_records_dir,
-@@ -57607,10 +58014,27 @@ def perform_coordinator_proposal_file(
+@@ -57607,10 +58114,27 @@ def perform_coordinator_proposal_file(
                          skipped_backlog_reasons=tuple(skipped_reasons),
                      )
  
@@ -17469,7 +17631,7 @@ index 461caf32a..1e975949d 100644
                  )
                  commit_sha = None
                  commit_exc = None
-@@ -57632,11 +58056,22 @@ def perform_coordinator_proposal_file(
+@@ -57632,11 +58156,22 @@ def perform_coordinator_proposal_file(
                          with contextlib.suppress(OSError):
                              (git_root_res / rec_rel).unlink()
                          skipped_reasons.append((rec_rel, "commit-hook-rejected"))
@@ -17493,7 +17655,7 @@ index 461caf32a..1e975949d 100644
                      if needs_attended_unchanged:
                          return ProposalFilingResult(
                              filed=True,
-@@ -57653,7 +58088,7 @@ def perform_coordinator_proposal_file(
+@@ -57653,7 +58188,7 @@ def perform_coordinator_proposal_file(
                      try:
                          commit_outcome = _gch.offer_commit(
                              git_root_res,
@@ -17502,7 +17664,7 @@ index 461caf32a..1e975949d 100644
                              message=commit_msg,
                              assume_yes=True,
                              interactive=False,
-@@ -57728,19 +58163,17 @@ def perform_coordinator_proposal_file(
+@@ -57728,19 +58263,17 @@ def perform_coordinator_proposal_file(
                                  f"needs-attended: the proposing plan could not be resolved: {exc}",
                                  skipped_backlog_reasons=tuple(lane_pre_skipped),
                              )
@@ -17526,7 +17688,7 @@ index 461caf32a..1e975949d 100644
                              commit_msg = f"plan({item_id6}): mark Attended: required (agent proposal)"
                      elif size == "small":
                          setid = f"prop-{item_id6}"
-@@ -57803,7 +58236,9 @@ def perform_coordinator_proposal_file(
+@@ -57803,7 +58336,9 @@ def perform_coordinator_proposal_file(
                          created_plan = matching[0]
                          plan_content = created_plan.read_text(encoding="utf-8")
                          record_id6 = (
@@ -17537,7 +17699,7 @@ index 461caf32a..1e975949d 100644
                          )
  
                          from agent_workflows import artifact_core as _core
-@@ -57811,23 +58246,21 @@ def perform_coordinator_proposal_file(
+@@ -57811,23 +58346,21 @@ def perform_coordinator_proposal_file(
  
                          plan_content = plan_content.rstrip() + "\n\n" + body_text
                          _core.atomic_write(created_plan, plan_content)
@@ -17569,7 +17731,7 @@ index 461caf32a..1e975949d 100644
                              )
                          new_record_rel = str(
                              created_plan.relative_to(coord.path)
-@@ -57902,9 +58335,11 @@ def perform_coordinator_proposal_file(
+@@ -57902,9 +58435,11 @@ def perform_coordinator_proposal_file(
  
                      # Validate and materialize lane defect backlogs AFTER new_record_rel and
                      # record_id6 are resolved so st_mtime selection cannot pick a recovered file.
@@ -17584,7 +17746,7 @@ index 461caf32a..1e975949d 100644
                      last_skipped = tuple(skipped_reasons)
  
                      if needs_attended_unchanged and not recovered_paths:
-@@ -57920,10 +58355,37 @@ def perform_coordinator_proposal_file(
+@@ -57920,10 +58455,37 @@ def perform_coordinator_proposal_file(
                              skipped_backlog_reasons=tuple(skipped_reasons),
                          )
  
@@ -17624,7 +17786,7 @@ index 461caf32a..1e975949d 100644
                      )
                      commit_sha = None
                      commit_exc = None
-@@ -57945,11 +58407,22 @@ def perform_coordinator_proposal_file(
+@@ -57945,11 +58507,22 @@ def perform_coordinator_proposal_file(
                              with contextlib.suppress(OSError):
                                  (coord.path / rec_rel).unlink()
                              skipped_reasons.append((rec_rel, "commit-hook-rejected"))
@@ -17648,7 +17810,7 @@ index 461caf32a..1e975949d 100644
                          last_skipped = tuple(skipped_reasons)
                          if needs_attended_unchanged:
                              return ProposalFilingResult(
-@@ -57967,7 +58440,7 @@ def perform_coordinator_proposal_file(
+@@ -57967,7 +58540,7 @@ def perform_coordinator_proposal_file(
                          try:
                              commit_outcome = _gch.offer_commit(
                                  coord.path,
@@ -30735,6 +30897,197 @@ index 000000000..81a33369a
 +        Path(git_ctx_comp.logical_roots["records"]).resolve()
 +        == (comp_repo / "records").resolve()
 +    )
+diff --git a/tests/test_cutover_log_gradcover_gates.py b/tests/test_cutover_log_gradcover_gates.py
+new file mode 100644
+index 000000000..327f7afde
+--- /dev/null
++++ b/tests/test_cutover_log_gradcover_gates.py
+@@ -0,0 +1,185 @@
++"""Core behavioral tests for post-cutover graduation gates and chain exclusions (xa8mfp)."""
++
++from __future__ import annotations
++
++import subprocess
++from pathlib import Path
++from types import SimpleNamespace
++
++import pytest
++
++from agent_workflows import cli, production_checks, runner_shared
++from agent_workflows.migrations import chain as migrations_chain
++from tests.record_builder import RecordBuilder
++
++pytestmark = pytest.mark.core
++
++
++def _init_git_repo(root: Path) -> Path:
++    repo = root / "repo"
++    repo.mkdir(parents=True, exist_ok=True)
++    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
++    subprocess.run(
++        ["git", "config", "user.email", "test@example.invalid"], cwd=repo, check=True
++    )
++    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
++    for rel in (
++        ".aw/records/backlog/open",
++        ".aw/records/backlog/graduated",
++        ".aw/records/plans/pending",
++    ):
++        (repo / rel).mkdir(parents=True, exist_ok=True)
++    (repo / "README.md").write_text("seed\n", encoding="utf-8")
++    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
++    subprocess.run(["git", "commit", "-qm", "init"], cwd=repo, check=True)
++    return repo
++
++
++def test_backlog_graduate_legitimacy_accepts_same_append_graduated_to_set(
++    tmp_path: Path,
++) -> None:
++    """backlog_graduate_legitimacy passes when --graduated-to appends op=='set' in the same transaction."""
++    repo = _init_git_repo(tmp_path)
++    rb = RecordBuilder(repo)
++    rb.backlog(
++        id6="bg1111",
++        summary="Test graduation item",
++        status="open",
++        priority="high",
++        work_kind="feature",
++    )
++    rb.plan(
++        id6="pl1111",
++        title="Graduated Plan",
++        set="bg1111",
++        order=1,
++        status="to-review",
++        priority="high",
++        work_kind="feature",
++        from_backlog="bg1111",
++        scope_paths="README.md",
++        item_dependencies="none",
++        body=(
++            "## Goal\nShip it.\n\n"
++            "## Detailed Implementation Checklist (TODO)\n"
++            "### Task group 1: work\n"
++            "- [ ] E-01 Do work\n"
++            "  - Depends on: none\n"
++            "  - Expected outcome: done\n"
++            "  - Execution state: pending\n\n"
++            "## Project conventions discovered (Step 0)\nNone.\n\n"
++            "## Findings\nNone.\n\n"
++            "## Proposed changes (ordered, validatable)\nNone.\n\n"
++            "## Deferred / out of scope (with reason)\nNone.\n\n"
++            "## Scope check\n- Over-scope: none.\n- Under-scope: none.\n\n"
++            "## Required tests / validation\nNone.\n\n"
++            "## Spec / documentation sync\nN/A.\n\n"
++            "## Open questions\nNone.\n\n"
++            "## Validation and cross-check (verify before reporting done)\n"
++            "- [ ] V-01 validates E-01\n"
++            "  - Required evidence: diff\n"
++            "  - Observed evidence:\n"
++            "  - Result: pending\n\n"
++            "## Approval and execution gate\nReady.\n"
++        ),
++    )
++    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
++    subprocess.run(["git", "commit", "-qm", "handoff plan"], cwd=repo, check=True)
++    handoff_sha = subprocess.check_output(
++        ["git", "rev-parse", "HEAD"], cwd=repo, text=True
++    ).strip()
++
++    rc = cli.main(
++        [
++            "backlog",
++            "set",
++            "graduated",
++            "bg1111",
++            "--graduated-to",
++            "pl1111",
++            "--message",
++            "graduated to pl1111",
++            "--yes",
++            "--dir",
++            str(repo),
++        ]
++    )
++    assert rc == 0
++
++    violations = production_checks.backlog_graduate_legitimacy(
++        repo,
++        "bg1111",
++        handoff_commit=handoff_sha,
++        status_before="open",
++        host="agy",
++    )
++    assert violations == []
++
++
++def test_check_review_lane_artifacts_loads_log_state_for_plans(
++    tmp_path: Path,
++) -> None:
++    """check_review_lane_artifacts passes author lint on log-format pending plans in a worktree and on a branch."""
++    repo = _init_git_repo(tmp_path)
++    rb = RecordBuilder(repo)
++    plan_path = rb.plan(
++        id6="pl2222",
++        title="Log-format review lane plan",
++        set="lane22",
++        order=1,
++        status="to-review",
++        priority="high",
++        work_kind="feature",
++        scope_paths="README.md",
++        item_dependencies="none",
++        body=(
++            "## Goal\nValidate log-format plan.\n\n"
++            "## Detailed Implementation Checklist (TODO)\n"
++            "### Task group 1: work\n"
++            "- [ ] E-01 Do work\n"
++            "  - Depends on: none\n"
++            "  - Expected outcome: done\n"
++            "  - Execution state: pending\n\n"
++            "## Project conventions discovered (Step 0)\nNone.\n\n"
++            "## Findings\nNone.\n\n"
++            "## Proposed changes (ordered, validatable)\nNone.\n\n"
++            "## Deferred / out of scope (with reason)\nNone.\n\n"
++            "## Scope check\n- Over-scope: none.\n- Under-scope: none.\n\n"
++            "## Required tests / validation\nNone.\n\n"
++            "## Spec / documentation sync\nN/A.\n\n"
++            "## Open questions\nNone.\n\n"
++            "## Validation and cross-check (verify before reporting done)\n"
++            "- [ ] V-01 validates E-01\n"
++            "  - Required evidence: diff\n"
++            "  - Observed evidence:\n"
++            "  - Result: pending\n\n"
++            "## Approval and execution gate\nReady.\n"
++        ),
++    )
++    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
++    subprocess.run(["git", "commit", "-qm", "add log plan"], cwd=repo, check=True)
++    rel_plan = plan_path.relative_to(repo).as_posix()
++
++    # Worktree path check
++    ok_wt, reason_wt = runner_shared.check_review_lane_artifacts(
++        repo, SimpleNamespace(path=repo, branch="HEAD"), [rel_plan]
++    )
++    assert ok_wt, f"Expected worktree plan check to pass, got: {reason_wt}"
++
++    # Branch-only path check (no worktree directory)
++    ok_br, reason_br = runner_shared.check_review_lane_artifacts(
++        repo, SimpleNamespace(path=None, branch="HEAD"), [rel_plan]
++    )
++    assert ok_br, f"Expected branch plan check to pass, got: {reason_br}"
++
++
++def test_migrations_chain_excludes_runs_directory(tmp_path: Path) -> None:
++    """migrations.chain.require_current_schema ignores markdown under .aw/records/runs/."""
++    repo = _init_git_repo(tmp_path)
++    runs_dir = repo / ".aw" / "records" / "runs" / "run-20261128T000000Z-1"
++    runs_dir.mkdir(parents=True, exist_ok=True)
++    (runs_dir / "execution-report.md").write_text(
++        "# Report\n\n- Id: fake01\n- Status: draft\n", encoding="utf-8"
++    )
++    assert "runs" in migrations_chain._EXCLUDED_DIRNAMES
++    migrations_chain.require_current_schema(repo)
 diff --git a/tests/test_cutover_log_lifecycle_and_hooks.py b/tests/test_cutover_log_lifecycle_and_hooks.py
 new file mode 100644
 index 000000000..da1713901
