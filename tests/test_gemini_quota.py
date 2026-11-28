@@ -294,7 +294,9 @@ def test_dashboard_lower_table_layout_connected_borders_and_idle_clock(
     assert "7d 00h00m" in tp_wk_row
 
 
-def test_abbreviate_timezone_caps_verbose_windows_names() -> None:
+def test_abbreviate_timezone_caps_verbose_windows_names(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     assert gemini_quota._abbreviate_timezone("UTC") == "UTC"
     assert gemini_quota._abbreviate_timezone("EST") == "EST"
     assert gemini_quota._abbreviate_timezone("Coordinated Universal Time") == "UTC"
@@ -302,6 +304,31 @@ def test_abbreviate_timezone_caps_verbose_windows_names() -> None:
     assert gemini_quota._abbreviate_timezone("Eastern Standard Time") == "EST"
     assert gemini_quota._abbreviate_timezone("Pacific Daylight Time") == "PDT"
     assert len(gemini_quota._abbreviate_timezone("Central European Summer Time")) <= 5
+
+    # Verify full render_dashboard (both upper and lower tables) stays at exact width 92
+    # when the platform timezone name is verbose like Windows' "Coordinated Universal Time".
+    _isolate_home(monkeypatch, tmp_path)
+    now_ts = 1_764_250_000.0
+    monkeypatch.setattr(gemini_quota.time, "time", lambda: now_ts)
+    win_utc = datetime.timezone(
+        datetime.timedelta(0), name="Coordinated Universal Time"
+    )
+
+    class _WinDatetime(datetime.datetime):
+        def astimezone(self, tz: datetime.tzinfo | None = None) -> datetime.datetime:
+            return super().astimezone(win_utc if tz is None else tz)
+
+    monkeypatch.setattr(gemini_quota.datetime, "datetime", _WinDatetime)
+    payload = _sample_payload(now_ts)
+    rendered = gemini_quota.render_dashboard(
+        payload, None, now_ts, color_enabled=False, watch_samples=[]
+    )
+    box_lines = [line for line in rendered.splitlines() if line and line[0] in "╭├│╰"]
+    assert len(box_lines) == 13
+    for line in box_lines:
+        assert gemini_quota.visible_width(line) == 92, f"Bad width: {line!r}"
+    assert "Coordinated Universal Time" not in rendered
+    assert "UTC" in rendered
 
 
 def test_dashboard_negative_clock_on_burnout_and_exhausted(

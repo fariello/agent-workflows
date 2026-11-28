@@ -1296,9 +1296,10 @@ def _format_local_clock(ts: float, now_ts: float) -> str:
     now_dt = datetime.datetime.fromtimestamp(
         now_ts, tz=datetime.timezone.utc
     ).astimezone()
+    tz_abbr = _abbreviate_timezone(dt.strftime("%Z"))
     if dt.date() == now_dt.date():
-        return dt.strftime("%H:%M %Z")
-    return dt.strftime("%b %d %H:%M %Z")
+        return f"{dt.strftime('%H:%M')} {tz_abbr}".rstrip()
+    return f"{dt.strftime('%b %d %H:%M')} {tz_abbr}".rstrip()
 
 
 def _choose_nice_ymax(peak: float) -> float:
@@ -2042,7 +2043,7 @@ def render_dashboard(
                 zero_ts, tz=datetime.timezone.utc
             ).astimezone()
             dt_str = z_dt.strftime("%b %d %H:%M")
-            tz_str = z_dt.strftime("%Z")
+            tz_str = _abbreviate_timezone(z_dt.strftime("%Z"))
             if color_enabled:
                 eta_val = f"{dur_c} {c_date}{dt_str}{c_reset} {c_hdr}{tz_str}{c_reset}"
             else:
