@@ -6,8 +6,7 @@
 - Scope: TODO.
 - Scope-Paths: TODO (comma-separated repo-relative paths or pathspecs)
 - Item-Dependencies: unresolved
-- Status: draft
-- Blocks-Release: next
+- Status: not-executed
 - Work-Kind: followup
 - Priority: high
 - Set: prop-psm9ac
@@ -20,6 +19,7 @@
 
 ## Workflow history
 
+- 2026-11-28 not-executed (aw set): Fixed directly in metastore-code.cutover.patch (backlog_graduate_legitimacy, check_review_lane_artifacts Plans, chain._EXCLUDED_DIRNAMES 'runs') with tests/test_cutover_log_gradcover_gates.py.
 - 2026-11-28 draft (aw agy run model=Gemini-4-Neon-High): created.
 
 ## Goal
