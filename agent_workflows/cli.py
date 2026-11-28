@@ -16055,14 +16055,15 @@ def _find_type_records(
             if meta_type is not None:
                 kwargs["type"] = meta_type
             qr = _meta.query(**kwargs)
+            records_root_res = records_root.resolve()
+            scan_repo_res = scan_repo.resolve() if scan_repo is not None else None
             by_p: Dict[Path, _meta.State] = {}
             for st in qr.rows:
                 if not st.path:
                     continue
                 try:
-                    by_p[
-                        _meta.source_path(st.path, records_root, scan_repo).resolve()
-                    ] = st
+                    src = _meta.source_path(st.path, records_root_res, scan_repo_res)
+                    by_p[Path(os.path.normpath(src))] = st
                 except Exception:
                     continue
             return by_p

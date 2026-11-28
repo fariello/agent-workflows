@@ -162,18 +162,23 @@ def pytest_collection_modifyitems(
             items[:] = core_items
 
     if len(items) > 1:
-        long_pole: list[pytest.Item] = []
+        long_pole_both: list[pytest.Item] = []
+        long_pole_slow: list[pytest.Item] = []
+        long_pole_live: list[pytest.Item] = []
         rest: list[pytest.Item] = []
         for item in items:
-            if (
-                item.get_closest_marker("slow") is not None
-                and item.get_closest_marker("livecorpus") is not None
-            ):
-                long_pole.append(item)
+            is_slow = item.get_closest_marker("slow") is not None
+            is_live = item.get_closest_marker("livecorpus") is not None
+            if is_slow and is_live:
+                long_pole_both.append(item)
+            elif is_slow:
+                long_pole_slow.append(item)
+            elif is_live:
+                long_pole_live.append(item)
             else:
                 rest.append(item)
-        if long_pole:
-            items[:] = long_pole + rest
+        if long_pole_both or long_pole_slow or long_pole_live:
+            items[:] = long_pole_both + long_pole_slow + long_pole_live + rest
 
 
 _CORE_TEST_DURATIONS: list[tuple[float, str]] = []
@@ -443,12 +448,13 @@ if _REPO_ROOT not in _current_pp.split(os.pathsep):
 # fixture restores both variables after EVERY test, so a test that pops or rewrites them
 # damages only itself. A test that wants a different home still sets one for its own
 # duration, exactly as before.
-_HOME_KEYS = ("AW_HOME", "XDG_CONFIG_HOME")
+_HOME_KEYS = ("AW_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME")
 _AW_TEST_SANDBOX = _tempfile.mkdtemp(prefix="aw-test-home-")
 _atexit.register(_shutil.rmtree, _AW_TEST_SANDBOX, True)
 _SANDBOX_ENV = {
     "AW_HOME": _AW_TEST_SANDBOX,
     "XDG_CONFIG_HOME": os.path.join(_AW_TEST_SANDBOX, "xdg-config"),
+    "XDG_DATA_HOME": os.path.join(_AW_TEST_SANDBOX, "xdg-data"),
     "AW_PROJECT_CEILING": _tempfile.gettempdir(),
 }
 os.environ.update(_SANDBOX_ENV)
@@ -456,15 +462,16 @@ os.environ.update(_SANDBOX_ENV)
 
 @pytest.fixture(autouse=True)
 def _restore_home_sandbox():
-    """Re-point AW_HOME/XDG_CONFIG_HOME at the session sandbox around every test."""
+    """Re-point AW_HOME/XDG_CONFIG_HOME/XDG_DATA_HOME at the session sandbox around every test."""
     os.environ.update(_SANDBOX_ENV)
     os.environ.pop("AW_CONFIG_DIR", None)
     yield
     os.environ.update(_SANDBOX_ENV)
     os.environ.pop("AW_CONFIG_DIR", None)
-    _xdg_dir = _SANDBOX_ENV["XDG_CONFIG_HOME"]
-    if os.path.exists(_xdg_dir):
-        _shutil.rmtree(_xdg_dir, ignore_errors=True)
+    for _xdg_key in ("XDG_CONFIG_HOME", "XDG_DATA_HOME"):
+        _xdg_dir = _SANDBOX_ENV[_xdg_key]
+        if os.path.exists(_xdg_dir):
+            _shutil.rmtree(_xdg_dir, ignore_errors=True)
 
 
 @pytest.fixture(scope="session", autouse=True)

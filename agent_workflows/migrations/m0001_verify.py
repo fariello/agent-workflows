@@ -625,6 +625,8 @@ def _legacy_field_pairs_for_record(
     rec_path: Path,
     records_root: Path,
     art_type: str,
+    *,
+    text: Optional[str] = None,
 ) -> Tuple[
     Optional[str],
     Dict[str, Any],
@@ -632,7 +634,8 @@ def _legacy_field_pairs_for_record(
     List[Tuple[str, Optional[str]]],
 ]:
     """Extract ``(status, raw_fields, ordered_pairs, inline_history)`` from a legacy record."""
-    text = rec_path.read_text(encoding="utf-8")
+    if text is None:
+        text = rec_path.read_text(encoding="utf-8")
     is_statusless = art_type in ("walkthrough", "roadmap")
 
     if art_type == "prompt":
@@ -716,13 +719,14 @@ def verify_round_trip(
     for rec_path in m0001_convert._walk_target_records(
         post_root, record_types=m0001_convert.ALL_RECORD_TYPES
     ):
+        if not artifact_naming._LEGACY_TIMESTAMP_RE.match(rec_path.name):
+            continue
         rel = rec_path.relative_to(post_root).as_posix()
         if _is_oq02_excluded_template(
             rel, text=rec_path.read_text(encoding="utf-8", errors="replace")
         ):
             continue
-        if artifact_naming._LEGACY_TIMESTAMP_RE.match(rec_path.name):
-            legacy_filename_leftovers.append(rel)
+        legacy_filename_leftovers.append(rel)
 
     if legacy_filename_leftovers:
         errors.append(
@@ -738,8 +742,7 @@ def verify_round_trip(
     leak_fails: List[Dict[str, str]] = []
     leak_warns: List[Dict[str, str]] = []
 
-    def _scan_file(fpath: Path, loc_label: str) -> None:
-        txt = fpath.read_text(encoding="utf-8", errors="replace")
+    def _scan_text(txt: str, loc_label: str) -> None:
         for f in leak_sanitizer.scan_text(txt, loc_label, ruleset, include_warn=True):
             item = {
                 "location": f.location,
@@ -752,6 +755,9 @@ def verify_round_trip(
             else:
                 leak_warns.append(item)
 
+    def _scan_file(fpath: Path, loc_label: str) -> None:
+        _scan_text(fpath.read_text(encoding="utf-8", errors="replace"), loc_label)
+
     replayed_count = 0
     for rel_path, id6, art_type, rec_path in converted_records:
         log_path = post_root / "meta" / f"{id6}.jsonl"
@@ -761,14 +767,12 @@ def verify_round_trip(
             )
             continue
 
-        _scan_file(log_path, f"meta/{id6}.jsonl")
-        _scan_file(rec_path, rel_path)
+        log_text = log_path.read_text(encoding="utf-8")
+        rewritten_text = rec_path.read_text(encoding="utf-8")
+        _scan_text(log_text, f"meta/{id6}.jsonl")
+        _scan_text(rewritten_text, rel_path)
 
-        raw_lines = [
-            ln
-            for ln in log_path.read_text(encoding="utf-8").splitlines(keepends=True)
-            if ln.strip()
-        ]
+        raw_lines = [ln for ln in log_text.splitlines(keepends=True) if ln.strip()]
         events = [artifact_meta.decode_line(ln) for ln in raw_lines]
 
         try:
@@ -783,7 +787,6 @@ def verify_round_trip(
             continue
 
         replayed_count += 1
-        rewritten_text = rec_path.read_text(encoding="utf-8")
 
         # Mirror check
         try:
@@ -845,13 +848,22 @@ def verify_round_trip(
             )
             continue
 
+        field_text = field_path.read_text(encoding="utf-8")
         leg_status, _raw_fields, ordered_pairs, _post_hist = (
-            _legacy_field_pairs_for_record(field_path, field_source_root, art_type)
+            _legacy_field_pairs_for_record(
+                field_path, field_source_root, art_type, text=field_text
+            )
         )
         if post_step3_records_root is not None:
-            _pre_st, _pre_rf, _pre_pairs, hist_entries = _legacy_field_pairs_for_record(
-                pre_path, pre_root, art_type
-            )
+            pre_text = pre_path.read_text(encoding="utf-8")
+            if pre_text == field_text:
+                hist_entries = _post_hist
+            else:
+                _pre_st, _pre_rf, _pre_pairs, hist_entries = (
+                    _legacy_field_pairs_for_record(
+                        pre_path, pre_root, art_type, text=pre_text
+                    )
+                )
         else:
             hist_entries = _post_hist
         if art_type not in ("walkthrough", "roadmap") and state.status != leg_status:

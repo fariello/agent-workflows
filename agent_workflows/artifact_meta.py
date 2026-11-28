@@ -3367,13 +3367,59 @@ def history_section_lines(text: str) -> List[Tuple[int, str]]:
     unfenced ``## `` heading, skipping fenced code blocks and collecting every bullet line
     matching ``raw_line.lstrip().startswith("- ")``.
     """
+    if not text or "## " not in text:
+        return []
 
+    raw_lines = text.split("\n")
+    if raw_lines and raw_lines[-1] == "":
+        raw_lines.pop()
+
+    has_fences = ("```" in text) or ("~~~" in text)
     in_hist = False
     out: List[Tuple[int, str]] = []
 
-    for lineno, _start, _next_start, line in _iter_unfenced_lines(text):
+    if not has_fences:
+        for lineno, raw in enumerate(raw_lines, 1):
+            line = raw.rstrip("\r") if raw.endswith("\r") else raw
+            if not in_hist:
+                if line.startswith("## ") and _HISTORY_SECTION_HEADING_RE.match(line):
+                    in_hist = True
+                continue
+            if line.startswith("## "):
+                break
+            if line.lstrip().startswith("- "):
+                out.append((lineno, line))
+        return out
+
+    in_fence = False
+    fence_char = ""
+    fence_len = 0
+    for lineno, raw in enumerate(raw_lines, 1):
+        line = raw.rstrip("\r") if raw.endswith("\r") else raw
+        if "`" in line or "~" in line:
+            stripped = line.strip()
+            if not in_fence:
+                if stripped.startswith("```") or stripped.startswith("~~~"):
+                    ch = stripped[0]
+                    flen = len(stripped) - len(stripped.lstrip(ch))
+                    if not (ch == "`" and "`" in stripped[flen:]):
+                        in_fence = True
+                        fence_char = ch
+                        fence_len = flen
+                        continue
+            else:
+                if (
+                    stripped.startswith(fence_char * fence_len)
+                    and stripped.lstrip(fence_char) == ""
+                ):
+                    in_fence = False
+                    fence_char = ""
+                    fence_len = 0
+                continue
+        elif in_fence:
+            continue
         if not in_hist:
-            if _HISTORY_SECTION_HEADING_RE.match(line):
+            if line.startswith("## ") and _HISTORY_SECTION_HEADING_RE.match(line):
                 in_hist = True
             continue
         if line.startswith("## "):

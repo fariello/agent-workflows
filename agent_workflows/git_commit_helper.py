@@ -1156,14 +1156,38 @@ def offer_commit(
     # behind in the shared index (F-11). Deleted plain files must NOT match, so we ensure the contained
     # set is not exactly `[p]` itself.
     dir_paths = []
+    missing_for_dir_check: List[str] = []
     for p in rel_paths:
         target = repo_root / p
         if target.is_dir():
             dir_paths.append(p)
         elif not target.exists():
-            contained = _contained_files(repo_root, [p])
-            if contained and contained != [p]:
-                dir_paths.append(p)
+            missing_for_dir_check.append(p)
+    if missing_for_dir_check:
+        # Batch `git status --porcelain -z -uall -- <chunk>` instead of spawning one git
+        # subprocess per missing path (which turns a 200-file migration rename into 200+ spawns).
+        contained_all: List[str] = []
+        chunk_size = 200
+        for i in range(0, len(missing_for_dir_check), chunk_size):
+            contained_all.extend(
+                _contained_files(repo_root, missing_for_dir_check[i : i + chunk_size])
+            )
+        if contained_all:
+            # Build ancestor directory prefixes of every contained changed path for O(1) lookup.
+            contained_set = set(contained_all)
+            ancestor_dirs: set[str] = set()
+            for cp in contained_all:
+                parts = cp.split("/")
+                for k in range(1, len(parts)):
+                    ancestor_dirs.add("/".join(parts[:k]))
+            for p in missing_for_dir_check:
+                p_norm = p.rstrip("/")
+                if p_norm in ancestor_dirs:
+                    dir_paths.append(p)
+                elif p_norm and p_norm not in contained_set:
+                    # Neither a deleted plain file nor an ancestor of any changed path;
+                    # matches the original `contained and contained != [p]` being False.
+                    pass
     if dir_paths:
         contained = _contained_files(repo_root, dir_paths)
         hint = f": {', '.join(contained)}" if contained else ""
@@ -1258,10 +1282,25 @@ def offer_commit(
             # `_staged_paths()`: for a staged rename git reports only the DESTINATION there, so the source
             # is absent from it and a `p not in _staged_paths()` test wrongly keeps the source in the ADD
             # set, which is the same failure with extra steps (measured while writing this fix).
+            missing_for_index = [p for p in rel_paths if not (repo_root / p).exists()]
+            in_index_set: set[str] = set()
+            if missing_for_index:
+                chunk_size = 200
+                for i in range(0, len(missing_for_index), chunk_size):
+                    chunk = missing_for_index[i : i + chunk_size]
+                    rc_ls, out_ls, _err_ls = _git(
+                        repo_root, ["ls-files", "-z", "--", *chunk]
+                    )
+                    if rc_ls == 0 and out_ls:
+                        for entry in out_ls.split("\0"):
+                            if entry:
+                                in_index_set.add(entry)
+                    elif rc_ls != 0:
+                        for p in chunk:
+                            if _in_index(repo_root, p):
+                                in_index_set.add(p)
             add_paths = [
-                p
-                for p in rel_paths
-                if (repo_root / p).exists() or _in_index(repo_root, p)
+                p for p in rel_paths if (repo_root / p).exists() or p in in_index_set
             ]
             if add_paths:
                 rc, _out, err = _git(repo_root, ["add", "--", *add_paths])

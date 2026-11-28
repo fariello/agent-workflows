@@ -2802,7 +2802,7 @@ class DelegationAndBypassRemovalTests(unittest.TestCase):
             _completed_plan_text(
                 plan_id="drf123",
                 scope_paths="grandfathered",
-                status="to-review",
+                status="reviewed",
             ),
             "20260824-demo-03-drf123-draft.ipd.md",
         )

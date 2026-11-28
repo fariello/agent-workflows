@@ -26,7 +26,7 @@ def find_prose_dashes(text: str) -> List[Tuple[int, int, str]]:
     fenced code blocks, indented code blocks, block quotes, inline code spans, YAML `---`
     front matter, and the metadata block (every line before the first `## ` heading).
     """
-    if not text:
+    if not text or (_EM_DASH not in text and _EN_DASH not in text):
         return []
     lines = text.splitlines()
     n = len(lines)

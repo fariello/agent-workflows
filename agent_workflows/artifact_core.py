@@ -590,6 +590,41 @@ def repo_relative_posix(
         p_str = str(path)
         r_str = str(repo_root)
         sep = os.sep
+        if (
+            not os.path.isabs(p_str)
+            and r_str in (".", "")
+            and p_str
+            and p_str != "."
+            and not p_str.startswith((".", "/", "\\"))
+            and "//" not in p_str
+            and "/./" not in p_str
+            and "/../" not in p_str
+            and not p_str.endswith(("/.", "/.."))
+            and (
+                sep == "/"
+                or (
+                    "\\\\" not in p_str
+                    and "\\.\\" not in p_str
+                    and "\\..\\" not in p_str
+                    and not p_str.endswith(("\\.", "\\.."))
+                )
+            )
+        ):
+            rel = p_str.rstrip(sep) if p_str.endswith(sep) else p_str
+            if rel:
+                return rel.replace("\\", "/") if sep != "/" else rel
+            return "."
+        if (
+            not os.path.isabs(p_str)
+            and r_str in (".", "")
+            and p_str.startswith((".aw/", ".agents/"))
+            and "//" not in p_str
+            and "/./" not in p_str
+            and "/../" not in p_str
+            and not p_str.endswith(("/.", "/.."))
+            and "\\" not in p_str
+        ):
+            return p_str.rstrip("/")
         if os.path.isabs(p_str) and os.path.isabs(r_str):
             r_clean = r_str.rstrip(sep) or sep if len(r_str) > 1 else r_str
             if p_str == r_clean:

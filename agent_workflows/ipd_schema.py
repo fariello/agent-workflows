@@ -1568,6 +1568,8 @@ _WORD_RE = re.compile(r"\b[a-z]+\b")
 _PREP_START_RE = re.compile(
     r"^(?:in|under|across|from|between|through|for|into|with)\s+", re.IGNORECASE
 )
+_E_ITEM_PREFIX_RE = re.compile(r"^E-[0-9]{2,}\b\s*:?\s*(.*)$", re.DOTALL)
+_PARENS_SPAN_RE = re.compile(r"\([^)]*\)")
 
 
 def e_item_density_advisory(action: str) -> Optional[str]:
@@ -1584,18 +1586,19 @@ def e_item_density_advisory(action: str) -> Optional[str]:
     text = action.strip()
     if text.startswith("- [ ] ") or text.startswith("- [x] "):
         text = text[6:].strip()
-    m = re.match(r"^E-[0-9]{2,}\b\s*:?\s*(.*)$", text, re.DOTALL)
-    if m:
-        text = m.group(1).strip()
+    if text.startswith("E-"):
+        m = _E_ITEM_PREFIX_RE.match(text)
+        if m:
+            text = m.group(1).strip()
     if not text:
         return None
 
     # Exclude code spans to analyze natural language structure
-    cleaned = _CODE_SPAN_RE.sub("CODE", text)
+    cleaned = _CODE_SPAN_RE.sub("CODE", text) if "`" in text else text
 
     # 1. Multi-part explicit enumeration of distinct major actions / deliverables: (a)...(b)...(c)
     # Exclude single test file assertion breakdowns (e.g. "Add tests/test_x.py: (a) ... (b) ...")
-    if not _SINGLE_TEST_ITEM_RE.match(cleaned):
+    if "(" in cleaned and not _SINGLE_TEST_ITEM_RE.match(cleaned):
         enum_match = _ENUM_PARTS_RE.search(cleaned)
         if enum_match:
             part_a, part_b, part_c = (
@@ -1625,7 +1628,7 @@ def e_item_density_advisory(action: str) -> Optional[str]:
         return "names multiple distinct test surfaces across subsystems"
 
     # 3. Three or more distinct action verb clauses targeting deliverables joined by commas/conjunctions/semicolons
-    cleaned_no_parens = re.sub(r"\([^)]*\)", "", cleaned)
+    cleaned_no_parens = _PARENS_SPAN_RE.sub("", cleaned) if "(" in cleaned else cleaned
     segments = [
         s.strip() for s in _CLAUSE_SPLIT_RE.split(cleaned_no_parens) if s.strip()
     ]
@@ -1648,7 +1651,10 @@ def e_item_density_advisory(action: str) -> Optional[str]:
             return f"names multiple independent deliverables or action clauses (likely multi-concern; {len(matched_clauses)} clauses: {snippets})"
 
     # 4. Semicolon-separated chain of 3+ distinct action verb clauses
-    semi_parts = [p.strip() for p in cleaned.split(";") if p.strip()]
+    if ";" in cleaned:
+        semi_parts = [p.strip() for p in cleaned.split(";") if p.strip()]
+    else:
+        semi_parts = []
     if len(semi_parts) >= 3:
         verb_clauses = []
         for p in semi_parts:

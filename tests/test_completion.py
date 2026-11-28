@@ -431,6 +431,7 @@ class BashCompletionDrivenTests(unittest.TestCase):
                 "integrate",
                 "profile",
                 "profiles",
+                "prompt",
                 "review",
                 "run",
                 "runipd",

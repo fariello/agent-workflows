@@ -1787,8 +1787,9 @@ def _plan_and_apply_stage2_locked(
         rename_map,
         citation_plan,
         tx_data,
-        save_callback=lambda: mgr._save_transaction(tx_data),
+        save_callback=None,
     )
+    mgr._save_transaction(tx_data)
     post_step3_dir = scratch_dir / "post_step3_records"
     if post_step3_dir.exists():
         shutil.rmtree(post_step3_dir)

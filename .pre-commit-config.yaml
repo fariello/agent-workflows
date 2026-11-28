@@ -137,10 +137,10 @@ repos:
         fail_fast: true
         verbose: true
 
-      # cihealth: static type gate before push.
+      # cihealth: static type gate before push (uses shared <git-common-dir>/aw-mypy-cache).
       - id: static-type-gate
         name: static type gate before push (mypy agent_workflows)
-        entry: python3 -m mypy agent_workflows
+        entry: python3 -m agent_workflows.typecheck_gate tree HEAD
         language: system
         pass_filenames: false
         always_run: true

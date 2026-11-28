@@ -452,11 +452,14 @@ _HISTORY_ATTRIB_RE = re.compile(
 _GENERIC_ACTORS: FrozenSet[str] = frozenset(("aw set", "aw set, --by-human"))
 
 
-def _structural_lines(text: str) -> List[Tuple[int, str]]:
+def _structural_lines(
+    text: str, *, lines: Optional[List[str]] = None
+) -> List[Tuple[int, str]]:
     """Yield (1-based line number, line) for lines OUTSIDE fenced code, indented code, actual YAML
     front matter, and block quotes. This is what structural checks see (spec Section 4.1)."""
     out: List[Tuple[int, str]] = []
-    lines = text.splitlines()
+    if lines is None:
+        lines = text.splitlines()
     in_fence = False
     fence_marker = ""
     # YAML front matter: only if the very first line is exactly '---'.
@@ -468,27 +471,44 @@ def _structural_lines(text: str) -> List[Tuple[int, str]]:
         while idx < n and lines[idx].strip() != "---":
             idx += 1
         idx += 1  # skip the closing fence
+    has_fences = ("```" in text) or ("~~~" in text)
+    if not has_fences:
+        for i in range(idx, n):
+            raw = lines[i]
+            if not raw:
+                out.append((i + 1, raw))
+                continue
+            ch0 = raw[0]
+            if ch0 == "\t" or (ch0 == " " and raw.startswith("    ")):
+                continue
+            if ch0 == ">" or (ch0 == " " and raw.lstrip().startswith(">")):
+                continue
+            out.append((i + 1, raw))
+        return out
     for i in range(idx, n):
         raw = lines[i]
         lineno = i + 1
-        m = _FENCE_RE.match(raw)
-        if m:
-            marker = m.group(2)
-            if not in_fence:
-                in_fence = True
-                fence_marker = marker
-            elif marker == fence_marker:
-                in_fence = False
-                fence_marker = ""
-            continue
+        if "`" in raw or "~" in raw:
+            m = _FENCE_RE.match(raw)
+            if m:
+                marker = m.group(2)
+                if not in_fence:
+                    in_fence = True
+                    fence_marker = marker
+                elif marker == fence_marker:
+                    in_fence = False
+                    fence_marker = ""
+                continue
         if in_fence:
             continue
-        if raw.startswith("    ") or raw.startswith("\t"):
-            # indented code block (4 spaces / tab) - excluded from structure, but indented
-            # sub-fields of a leaf use 2 spaces so they are NOT excluded here.
-            continue
-        if raw.lstrip().startswith(">"):
-            continue  # block quote
+        if raw:
+            ch0 = raw[0]
+            if ch0 == "\t" or (ch0 == " " and raw.startswith("    ")):
+                # indented code block (4 spaces / tab) - excluded from structure, but indented
+                # sub-fields of a leaf use 2 spaces so they are NOT excluded here.
+                continue
+            if ch0 == ">" or (ch0 == " " and raw.lstrip().startswith(">")):
+                continue  # block quote
         out.append((lineno, raw))
     return out
 
@@ -741,39 +761,37 @@ def parse(
     _state_from_read_text: bool = False,
 ) -> ParsedDoc:
     """Parse an IPD into its structural pieces, fence-aware. Never raises on ordinary content."""
-    raw_lines = (text or "").splitlines()
-    struct = _structural_lines(text)
+    src = text or ""
+    raw_lines = src.splitlines()
+    struct = _structural_lines(src, lines=raw_lines)
     title = ""
     h2: List[H2] = []
     # Metadata block: contiguous "- Field:" bullet lines after the H1, before the first H2.
     meta_slice: List[str] = []
     seen_h1 = False
-    first_h2_seen = False
-    for lineno, raw in struct:
+    for _lineno, raw in struct:
         if not seen_h1:
-            m1 = _H1_RE.match(raw)
-            if m1:
-                title = m1.group(1).strip()
-                seen_h1 = True
+            if raw.startswith("# "):
+                m1 = _H1_RE.match(raw)
+                if m1:
+                    title = m1.group(1).strip()
+                    seen_h1 = True
             continue
-        if not first_h2_seen and _H2_RE.match(raw):
-            first_h2_seen = True
-        if not first_h2_seen:
-            meta_slice.append(raw)
+        if raw.startswith("## ") and _H2_RE.match(raw):
+            break
+        meta_slice.append(raw)
     meta_fields, meta_errors = _parse_metadata_slice(meta_slice)
     if state is not None:
         meta_fields = _overlay_state_into_meta_fields(
             meta_fields, state, authoritative_keys_only=_state_from_read_text
         )
 
-    for lineno, raw in struct:
-        mh = _H2_RE.match(raw)
-        if mh:
-            h2.append(H2(mh.group(1).strip(), lineno))
-
     # Walk leaves within the execution + validation sections (identified by H2 title).
     exec_title = S.H_EXECUTION
-    valid_titles = {S.H_VALIDATION_CHILD, S.H_VALIDATION_ORCH}
+    valid_titles = frozenset((S.H_VALIDATION_CHILD, S.H_VALIDATION_ORCH))
+    leaf_sections = frozenset((exec_title, S.H_VALIDATION_CHILD, S.H_VALIDATION_ORCH))
+    oq_h2 = S.H_OPEN_QUESTIONS
+    gate_h2 = S.H_APPROVAL_GATE
     exec_leaves: List[Leaf] = []
     valid_leaves: List[Leaf] = []
     exec_task_groups = 0
@@ -781,7 +799,7 @@ def parse(
     from agent_workflows import artifact_meta as _meta
 
     size_assessment: Optional[str] = None
-    history_lines: List[Tuple[int, str]] = _meta.history_section_lines(text or "")
+    history_lines: List[Tuple[int, str]] = _meta.history_section_lines(src)
     gate_lines: List[Tuple[int, str]] = []
 
     current_h2 = ""
@@ -809,111 +827,123 @@ def parse(
         pending_oq = None
 
     for lineno, raw in struct:
-        mh = _H2_RE.match(raw)
-        if mh:
-            _flush_leaf()
-            _flush_oq()
-            current_h2 = mh.group(1).strip()
+        if not raw:
             continue
-        # Task-group H3 inside the execution section.
-        mh3 = _H3_RE.match(raw)
-        if mh3:
-            _flush_leaf()
-            if current_h2 == exec_title and mh3.group(1).strip().lower().startswith(
-                "task group"
-            ):
-                exec_task_groups += 1
-            # Open-question H3 (OQ-NN:)
-            if current_h2 == S.H_OPEN_QUESTIONS:
-                _flush_oq()
-                moq = S.OQ_HEADING_RE.match(raw)
-                if moq:
-                    pending_oq = {"id": moq.group(1), "line": str(lineno)}
+        ch0 = raw[0]
+        if ch0 == "#":
+            if raw.startswith("## "):
+                mh = _H2_RE.match(raw)
+                if mh:
+                    _flush_leaf()
+                    _flush_oq()
+                    h2_title = mh.group(1).strip()
+                    h2.append(H2(h2_title, lineno))
+                    current_h2 = h2_title
+                    continue
+            elif raw.startswith("### "):
+                mh3 = _H3_RE.match(raw)
+                if mh3:
+                    _flush_leaf()
+                    if current_h2 == exec_title and mh3.group(
+                        1
+                    ).strip().lower().startswith("task group"):
+                        exec_task_groups += 1
+                    # Open-question H3 (OQ-NN:)
+                    if current_h2 == oq_h2:
+                        _flush_oq()
+                        moq = S.OQ_HEADING_RE.match(raw)
+                        if moq:
+                            pending_oq = {"id": moq.group(1), "line": str(lineno)}
+                    continue
             continue
         # Leaf line.
-        ml = _LEAF_RE.match(raw)
-        if ml and current_h2 in ({exec_title} | valid_titles):
-            _flush_leaf()
-            checked = ml.group(1) == "x"
-            body = ml.group(2)
-            me = S.E_ROW_RE.match(raw)
-            mv = S.V_ROW_RE.match(raw)
-            if current_h2 == exec_title:
-                if me:
-                    ident = me.group(1)
-                    current_leaf = Leaf(
-                        "E", ident, checked, body, lineno, current_h2, {}, ""
-                    )
-                else:
-                    current_leaf = Leaf(
-                        "other", "", checked, body, lineno, current_h2, {}, ""
-                    )
-            else:  # validation section
-                if mv:
-                    current_leaf = Leaf(
-                        "V",
-                        mv.group(1),
-                        checked,
-                        body,
-                        lineno,
-                        current_h2,
-                        {},
-                        mv.group(2),
-                    )
-                else:
-                    current_leaf = Leaf(
-                        "other", "", checked, body, lineno, current_h2, {}, ""
-                    )
-            cur_fields = {}
-            continue
+        if ch0 == "-" and current_h2 in leaf_sections and raw.startswith("- ["):
+            ml = _LEAF_RE.match(raw)
+            if ml:
+                _flush_leaf()
+                checked = ml.group(1) == "x"
+                body = ml.group(2)
+                if current_h2 == exec_title:
+                    me = S.E_ROW_RE.match(raw)
+                    if me:
+                        ident = me.group(1)
+                        current_leaf = Leaf(
+                            "E", ident, checked, body, lineno, current_h2, {}, ""
+                        )
+                    else:
+                        current_leaf = Leaf(
+                            "other", "", checked, body, lineno, current_h2, {}, ""
+                        )
+                else:  # validation section
+                    mv = S.V_ROW_RE.match(raw)
+                    if mv:
+                        current_leaf = Leaf(
+                            "V",
+                            mv.group(1),
+                            checked,
+                            body,
+                            lineno,
+                            current_h2,
+                            {},
+                            mv.group(2),
+                        )
+                    else:
+                        current_leaf = Leaf(
+                            "other", "", checked, body, lineno, current_h2, {}, ""
+                        )
+                cur_fields = {}
+                continue
         # Indented sub-field of the current leaf.
-        msf = _SUBFIELD_RE.match(raw)
-        if msf and current_leaf is not None:
-            key = msf.group(1).strip()
-            val = msf.group(2).strip()
-            if key in _CONTINUATION_SUBFIELDS:
-                collected = [val] if val else []
-                in_fence = False
-                fence_marker = ""
-                for cont_raw in raw_lines[lineno:]:
-                    m_fence = _FENCE_RE.match(cont_raw)
-                    if m_fence:
-                        marker = m_fence.group(2)
-                        if not in_fence:
-                            in_fence = True
-                            fence_marker = marker
+        if current_leaf is not None and ch0.isspace():
+            msf = _SUBFIELD_RE.match(raw)
+            if msf:
+                key = msf.group(1).strip()
+                val = msf.group(2).strip()
+                if key in _CONTINUATION_SUBFIELDS:
+                    collected = [val] if val else []
+                    in_fence = False
+                    fence_marker = ""
+                    for cont_raw in raw_lines[lineno:]:
+                        if "`" in cont_raw or "~" in cont_raw:
+                            m_fence = _FENCE_RE.match(cont_raw)
+                            if m_fence:
+                                marker = m_fence.group(2)
+                                if not in_fence:
+                                    in_fence = True
+                                    fence_marker = marker
+                                    continue
+                                elif marker == fence_marker:
+                                    in_fence = False
+                                    fence_marker = ""
+                                    continue
+                        if in_fence:
+                            stripped = cont_raw.strip()
+                            if stripped:
+                                collected.append(stripped)
                             continue
-                        elif marker == fence_marker:
-                            in_fence = False
-                            fence_marker = ""
-                            continue
-                    if in_fence:
                         stripped = cont_raw.strip()
-                        if stripped:
-                            collected.append(stripped)
-                        continue
-                    stripped = cont_raw.strip()
-                    if not stripped:
-                        continue
-                    if _SUBFIELD_RE.match(cont_raw):
-                        break
-                    if cont_raw.startswith("- [") or cont_raw.startswith("#"):
-                        break
-                    if not cont_raw[:1].isspace():
-                        break
-                    collected.append(stripped)
-                cur_fields[key] = " ".join(collected).strip()
-            else:
-                cur_fields[key] = val
-            continue
+                        if not stripped:
+                            continue
+                        if cont_raw[0].isspace() and _SUBFIELD_RE.match(cont_raw):
+                            break
+                        if cont_raw.startswith("- [") or cont_raw.startswith("#"):
+                            break
+                        if not cont_raw[:1].isspace():
+                            break
+                        collected.append(stripped)
+                    cur_fields[key] = " ".join(collected).strip()
+                else:
+                    cur_fields[key] = val
+                continue
         # OQ sub-fields + size assessment (plain "- Field: value" bullets under their H2).
-        body_field = _body_field(raw)
-        if body_field is not None:
-            fld, val = body_field
-            if current_h2 == S.H_OPEN_QUESTIONS and pending_oq is not None:
-                pending_oq[fld] = val
-            elif current_h2 == S.H_APPROVAL_GATE and fld == "Size assessment":
-                size_assessment = val
+        if (current_h2 == oq_h2 and pending_oq is not None) or current_h2 == gate_h2:
+            body_field = _body_field(raw)
+            if body_field is not None:
+                fld, val = body_field
+                if current_h2 == oq_h2 and pending_oq is not None:
+                    pending_oq[fld] = val
+                elif current_h2 == gate_h2 and fld == "Size assessment":
+                    size_assessment = val
 
     _flush_leaf()
     _flush_oq()
@@ -1517,6 +1547,8 @@ _CITATION_SRC_EXT = (
 )
 #: A `path/to/file.ext:123` or `path/to/file.ext:123-456` citation.
 _CITATION_RE = re.compile(r"\b[\w./-]*[\w-]\." + _CITATION_SRC_EXT + r":\d+(?:-\d+)?\b")
+#: Fast literal-dot prefilter for `_CITATION_RE` (avoids backtracking `\b[\w./-]*` on every prose word).
+_CITATION_QUICK_RE = re.compile(r"\." + _CITATION_SRC_EXT + r":\d")
 _BACKTICK_TOKEN_RE = re.compile(r"`([^`]+)`")
 #: A backticked BARE line range (`:906-915`) - the filename-less continuation form. NOT an anchor.
 _BARE_LINE_RANGE_RE = re.compile(r"^:\d+(?:-\d+)?$")
@@ -1633,6 +1665,8 @@ def _has_durable_anchor(
     window: int = CITATION_ANCHOR_PROXIMITY_WINDOW,
 ) -> bool:
     """True when ``unit`` carries a durable anchor BESIDE its citation within ``window`` chars (spec Section 10.2)."""
+    if "`" not in unit:
+        return False
     if cit_start is None:
         m = _CITATION_RE.search(unit)
         if m is not None:
@@ -1641,16 +1675,16 @@ def _has_durable_anchor(
         tok = m_tok.group(1).strip()
         if not tok:
             continue
-        if _CITATION_RE.search(tok):
+        if ":" in tok and _CITATION_QUICK_RE.search(tok) and _CITATION_RE.search(tok):
             continue  # the citation itself is not evidence that the citation is anchored
-        if _BARE_LINE_RANGE_RE.match(tok):
+        if tok[0] == ":" and _BARE_LINE_RANGE_RE.match(tok):
             continue  # `:906-915` - a second offset, not an anchor
-        if _BARE_PATH_RE.match(tok):
+        if "." in tok and _BARE_PATH_RE.match(tok):
             continue  # `check_engine.py` - names the file the citation already named
         is_anchor = False
-        if re.search(r"\s", tok):
+        if any(ch.isspace() for ch in tok):
             is_anchor = True  # a quoted content string (Section 10.2 (b))
-        elif _QUALIFIED_IDENT_RE.match(tok):
+        elif "." in tok and _QUALIFIED_IDENT_RE.match(tok):
             is_anchor = True  # `module.function` / `Class.method` (Section 10.2 (a))
         if not is_anchor:
             continue
@@ -1687,10 +1721,18 @@ def check_citation_anchors(
     """
     if not include_pre_cutover and not _citation_anchor_applies(doc, state=state):
         return []
+    if ":" not in text or "." not in text or not _CITATION_QUICK_RE.search(text):
+        return []
     out: List[Diagnostic] = []
     for lineno, unit_text in _group_logical_units(_structural_lines(text)):
+        if ":" not in unit_text or "." not in unit_text:
+            continue
         for unit in _citation_units(unit_text):
-            if not _CITATION_RE.search(unit):
+            if (
+                ":" not in unit
+                or "." not in unit
+                or not _CITATION_QUICK_RE.search(unit)
+            ):
                 continue
             for m in _CITATION_RE.finditer(unit):
                 if _has_durable_anchor(unit, m.start(), m.end()):
@@ -4202,6 +4244,8 @@ def run_lint(args: argparse.Namespace) -> int:
                     )
                 except Exception:
                     pass
+                if checkpoint in ("author", "review-finalize") and len(paths) > 1:
+                    _prewarm_review_staleness(paths)
             for path in paths:
                 if not path.is_file():
                     err_msg = f"not a file: {path}"
