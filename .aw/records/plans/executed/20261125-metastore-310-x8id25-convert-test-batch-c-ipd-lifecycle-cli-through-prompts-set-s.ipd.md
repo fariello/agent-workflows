@@ -6,7 +6,7 @@
 - Scope: In an isolated scratch worktree `.aw/state/x8id25/scratch` with both cutover patches applied (`.aw/system/cutover/metastore-docs.cutover.patch` and `.aw/system/cutover/metastore-code.cutover.patch`, including `hdwqex`, `89mtbl`, `nv3upa`, `fljn9b`, `cugg3w`, `szykgd`, `psm9ac`, and `otin36`), convert the 18 batch C test modules under the shared conversion rules, run them on both tiers (`-m ''`), record deleted rule-4 tests in F-02 and any remaining refusal of this repository's own unmigrated records in F-03, and regenerate `.aw/system/cutover/metastore-code.cutover.patch`. No live code or test changes outside `- Scope-Paths:`.
 - Scope-Paths: .aw/records/plans/pending/20261125-metastore-310-x8id25-convert-test-batch-c-ipd-lifecycle-cli-through-prompts-set-s.ipd.md, .aw/system/cutover/metastore-code.cutover.patch
 - Item-Dependencies: executed:psm9ac
-- Status: approved
+- Status: executed
 - Review-Depth: standard
 - Readiness: go-pending-approval
 - From-Spec: 4sd62s
@@ -19,12 +19,12 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: x8id25
-- Approval: 2026-11-26, recorded via aw ipd set: status set to approved
 
 > Write and proofread this plan per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
 
+- 2026-11-28 executed (aw agy run model=Gemini-4-Neon-High): aw agy run self-finalize: x8id25 verified (set metastore, attempt 1).
 - 2026-11-26 same-status (aw set): OQ-02 Option 1: re-chain production-fix plans otin36..3e0vfy ahead of test batches psm9ac..x3mig6
 - 2026-11-26 approved (aw set): status set to approved
 - 2026-11-26 /plan-review (antigravity/gemini): APPROVE WITH REVISIONS APPLIED; PR-001 FIXED (OQ-01 resolved via Order 316 otin36); review record .aw/records/reviews/20261125-metastore-310-x8id25-convert-test-batch-c-ipd-lifecycle-cli-through-prompts-set-s.review.md
@@ -43,14 +43,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: scratch worktree
 
-- [ ] E-01 Create the scratch worktree following the SCRATCH PROCEDURE of `2k5t16` (Step 0): run `git worktree add --detach .aw/state/x8id25/scratch HEAD`; inside `.aw/state/x8id25/scratch`, apply `.aw/system/cutover/metastore-docs.cutover.patch` with `git apply --index .aw/system/cutover/metastore-docs.cutover.patch`, record `BASE=$(git write-tree)` in F-01, and then apply `.aw/system/cutover/metastore-code.cutover.patch` with `git apply --index .aw/system/cutover/metastore-code.cutover.patch`. If either patch rejects, stop and report.
+- [x] E-01 Create the scratch worktree following the SCRATCH PROCEDURE of `2k5t16` (Step 0): run `git worktree add --detach .aw/state/x8id25/scratch HEAD`; inside `.aw/state/x8id25/scratch`, apply `.aw/system/cutover/metastore-docs.cutover.patch` with `git apply --index .aw/system/cutover/metastore-docs.cutover.patch`, record `BASE=$(git write-tree)` in F-01, and then apply `.aw/system/cutover/metastore-code.cutover.patch` with `git apply --index .aw/system/cutover/metastore-code.cutover.patch`. If either patch rejects, stop and report.
   - Depends on: none
   - Expected outcome: `.aw/state/x8id25/scratch` holds HEAD plus both cutover patches staged, and F-01 holds the base tree id.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: convert batch C (scratch worktree only)
 
-- [ ] E-02 Convert the first six modules of batch C under the conversion rules in Step 0, starting each module from its `89mtbl` F-04 census row:
+- [x] E-02 Convert the first six modules of batch C under the conversion rules in Step 0, starting each module from its `89mtbl` F-04 census row:
   1. `tests/test_ipd_lifecycle_cli.py` (unblocked by prerequisite `otin36` making `ipd_lifecycle.py` log-aware): replace the removed `artifact_meta.render_legacy_text` calls and `text_only=True` fixtures with log-backed `RecordBuilder(self.root)` fixtures and `artifact_meta.append`; update finalize assertions that checked inline `## Workflow history` text (`opencode/test` in `moved_text`) and commit-touched prefixes (`.aw/records/plans/` only) to assert on `artifact_meta.history(...)` and the companion `.aw/records/meta/<id6>.jsonl` log alongside `.aw/records/plans/`.
   2. `tests/test_ipd_schema.py`: align `HeadingOrderTests` (`CHILD_H2_ORDER` and `ORCHESTRATOR_H2_ORDER`) with the post-cutover H2 orders updated by `hdwqex` (no required `Workflow history` H2) and the log-format `CONFORMING_ORCHESTRATOR` fixture updated by `89mtbl`; record any `REPO_ROOT` corpus refusal in `test_executed_conforming_corpus_low_overfire_rate` in F-03 rather than weakening it.
   3. `tests/test_ipd_set_executor.py`: materialize the orchestrator and child fixtures in `_approved_manifest` through `RecordBuilder(root)` (removing `text_only=True`) so `ipd_set_plan.resolve_set` reads log-backed records via `plans_index.scan_plans`.
@@ -60,9 +60,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Run `python3 -m pytest -o addopts="" -m '' tests/test_ipd_lifecycle_cli.py tests/test_ipd_schema.py tests/test_ipd_set_executor.py tests/test_lane_rule_break_detection.py tests/test_log_rename_events.py tests/test_m0001_any_repo.py` in `.aw/state/x8id25/scratch`; record every rule-4 deletion in F-02 and every `REPO_ROOT`/`livecorpus` refusal in F-03. Any other failure stops the plan here.
   - Depends on: E-01
   - Expected outcome: each listed module imports no removed symbol, builds its fixtures in log format (or invokes `m0001` for legacy-input subjects), and passes on both tiers apart from its F-03 rows.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Convert the second six modules of batch C under the conversion rules in Step 0, starting each module from its `89mtbl` F-04 census row:
+- [x] E-03 Convert the second six modules of batch C under the conversion rules in Step 0, starting each module from its `89mtbl` F-04 census row:
   1. `tests/test_m0001_gate_marker.py` (unblocked by prerequisite `otin36` moving `_migration_marker_accepts` ahead of metadata reads): keep the positive `m0001` marker acceptance tests against migration commits, and convert the negative (no-marker, mismatched-marker, corrupt-marker) fixture builders (`_stage_plan_executed_transition`, `_stage_release_blocking_backlog_close`) to stamped schema-2 log-backed fixtures via `RecordBuilder(repo)` so the hooks exercise real post-cutover refusal paths instead of tripping `MetadataSchemaError`.
   2. `tests/test_m0001_review_conversion.py`: remove the pre-migration schema-1 `_find_research_statuses(repo)` calls before `m0001_convert.convert_records` (assert against the known fixture inputs instead), and stamp `chain.write_metadata_schema(repo, 2)` after low-level `m0001_convert.convert_records` calls before running post-conversion `aw check meta`, `aw attention`, and `aw find` CLI checks.
   3. `tests/test_meta_repair_cli.py` (unblocked by prerequisite `otin36` catching `MetadataSchemaError` in `meta_cli.meta_repair`): retire the Phase-B `"nothing to repair (legacy format)"` assertion in `test_legacy_record_reports_nothing_to_repair` under conversion rule 4 citing spec `4sd62s` Sections 4.6, 5.2, and C4 in F-02 (or replace it with a test asserting structured exit-2 `MetadataSchemaError` refusal naming `aw migrate metadata`), keeping all log-repair tests active.
@@ -72,9 +72,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Run `python3 -m pytest -o addopts="" -m '' tests/test_m0001_gate_marker.py tests/test_m0001_review_conversion.py tests/test_meta_repair_cli.py tests/test_metadata_single_owner.py tests/test_migrate_cli.py tests/test_migrations_chain.py` in `.aw/state/x8id25/scratch`; record every rule-4 deletion in F-02 and every `REPO_ROOT`/`livecorpus` refusal in F-03. Any other failure stops the plan here.
   - Depends on: E-02
   - Expected outcome: each listed module imports no removed symbol, builds its fixtures in log format (or invokes `m0001` for legacy-input subjects), and passes on both tiers apart from its F-03 rows.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Convert the final six modules of batch C under the conversion rules in Step 0, starting each module from its `89mtbl` F-04 census row:
+- [x] E-04 Convert the final six modules of batch C under the conversion rules in Step 0, starting each module from its `89mtbl` F-04 census row:
   1. `tests/test_orchestrator_probe_payload.py`: replace `_append_workflow_history`'s removed `meta.render_legacy_text` call with a post-cutover mirror/log-preserving edit (or update invariant a3 for the post-cutover format where history lives in `meta/<id6>.jsonl`), update `_get_corpus_orchestrators()` to discover orchestrators via `artifact_meta.query(type="ipd")` (`plan_role == "orchestrator"`) rather than grepping `^- Kind:`, and record any `REPO_ROOT` livecorpus refusal in F-03.
   2. `tests/test_partition.py` (unblocked by prerequisite `otin36` making `partition.py`/`plans.py` log-aware): materialize all `plan_fixture_repo` and test-local fixtures through `RecordBuilder(repo)` (removing all `text_only=True` and raw-bullet fixture literals).
   3. `tests/test_plans_index.py`: materialize `_plan` fixtures through `RecordBuilder(root)` (removing `text_only=True`), preserving negative drift tests (missing/invalid `Id`, `Set`, `Order`) using log-backed or explicitly unlogged/malformed fixtures matching post-cutover `plans_index.scan_plans` semantics.
@@ -84,14 +84,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Run `python3 -m pytest -o addopts="" -m '' tests/test_orchestrator_probe_payload.py tests/test_partition.py tests/test_plans_index.py tests/test_poll_for_deps.py tests/test_production_prompt_writing_standard.py tests/test_prompts_set_surface.py` in `.aw/state/x8id25/scratch`; record every rule-4 deletion in F-02 and every `REPO_ROOT`/`livecorpus` refusal in F-03. Any other failure stops the plan here.
   - Depends on: E-03
   - Expected outcome: each listed module imports no removed symbol, builds its fixtures in log format, and passes on both tiers apart from its F-03 rows.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: package
 
-- [ ] E-05 In `.aw/state/x8id25/scratch`, run `git add -A` and write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch` in the executing checkout; remove the scratch worktree (`git worktree remove --force .aw/state/x8id25/scratch`); run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout; verify `git status --short` shows only `- Scope-Paths:` modified; and commit through `aw commit x8id25 -- .aw/records/plans/pending/20261125-metastore-310-x8id25-convert-test-batch-c-ipd-lifecycle-cli-through-prompts-set-s.ipd.md .aw/system/cutover/metastore-code.cutover.patch`; never push.
+- [x] E-05 In `.aw/state/x8id25/scratch`, run `git add -A` and write `git diff --cached --binary $BASE` over `.aw/system/cutover/metastore-code.cutover.patch` in the executing checkout; remove the scratch worktree (`git worktree remove --force .aw/state/x8id25/scratch`); run `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` in the executing checkout; verify `git status --short` shows only `- Scope-Paths:` modified; and commit through `aw commit x8id25 -- .aw/records/plans/pending/20261125-metastore-310-x8id25-convert-test-batch-c-ipd-lifecycle-cli-through-prompts-set-s.ipd.md .aw/system/cutover/metastore-code.cutover.patch`; never push.
   - Depends on: E-04
   - Expected outcome: `.aw/system/cutover/metastore-code.cutover.patch` holds all prior changes plus batch C's conversions; `tests/test_metastore_cutover_code_patch.py` passes; scratch worktree is removed; no live files outside `- Scope-Paths:` are modified; one path-scoped commit is created.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -105,11 +105,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Id | Evidence | Finding |
 |---|---|---|
-| F-01 | (written by E-01) | Base tree id after applying `.aw/system/cutover/metastore-docs.cutover.patch`. |
-| F-02 | (written by E-02 to E-04) | Node ids deleted under conversion rule 4, each with its spec `4sd62s` clause (or "none"). |
-| F-03 | (written by E-02 to E-04) | Node ids still refused on the switched, unmigrated tree, each with its refusal text; `x1mmdp` E-04 merges this into its list. |
+| F-01 | `git write-tree` after `git apply --index .aw/system/cutover/metastore-docs.cutover.patch` in `.aw/state/x8id25/scratch` | `BASE=65a494ac9f75f57065a0e9c531324f2fd3d2f5e6` |
+| F-02 | E-02 (`test_log_rename_events.py`), E-03 (`test_meta_repair_cli.py`), E-04 (`test_plans_index.py`, `test_prompts_set_surface.py`) | Six test functions deleted under conversion rule 4: (1) `tests/test_log_rename_events.py::test_rename_on_legacy_format_keeps_bytes_and_writes_no_ledger` (spec `4sd62s` Sections 4.2, 5.2, C6); (2) `tests/test_log_rename_events.py::test_group_on_legacy_format_keeps_bullet_and_writes_no_ledger` (spec `4sd62s` Sections 4.2, 5.2, C6); (3) `tests/test_log_rename_events.py::test_archive_on_legacy_format_moves_bytes_unchanged` (spec `4sd62s` Sections 4.2, 5.2, C6); (4) `tests/test_meta_repair_cli.py::test_legacy_record_reports_nothing_to_repair` (spec `4sd62s` Sections 4.6, 5.2, C4; replaced by `test_legacy_record_refuses_with_migrate_metadata_exit_two`); (5) `tests/test_plans_index.py::CheckDriftTests::test_stale_index_file_is_not_drift` (spec `4sd62s` Sections 4.5, 5.2 step 5); (6) `tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_commentless_prompt_fallback_relocates_without_comment` (spec `4sd62s` Sections 4.1, 4.2, C6). |
+| F-03 | E-04 (`tests/test_orchestrator_probe_payload.py`) | Three `livecorpus` node ids refused on the unmigrated schema-1 repository (`REPO_ROOT`), each with `agent_workflows.migrations.chain.MetadataSchemaError: Repository metadata schema is 1 (current is 2); run \`aw migrate metadata\` before reading metadata.`: (1) `tests/test_orchestrator_probe_payload.py::TestProbePayloadLiveCorpus::test_corpus_group_a_no_op_invariants`; (2) `tests/test_orchestrator_probe_payload.py::TestProbePayloadLiveCorpus::test_corpus_group_b_sensitivity_and_insensitivity`; (3) `tests/test_orchestrator_probe_payload.py::TestProbePayloadLiveCorpus::test_corpus_group_c_identity_and_disjointness`. E-02 and E-03: none (0 refusals). |
 | F-04 | Historical `x1mmdp` attempt-1 pre-split core census (2026-11-25) and `89mtbl` F-04 post-builder census | Batch C is the alphabetical slice from `tests/test_ipd_lifecycle_cli.py` through `tests/test_prompts_set_surface.py`: 18 modules, 55 failing core tests in the initial pre-split census. Execution starts each module from its authoritative `89mtbl` F-04 row. |
 | F-05 | `.aw/system/cutover/metastore-code.cutover.patch`; `agent_workflows/ipd_lifecycle.py` (`_extract_plan_id`, `_requirements_from_plan`, `_frozen_scope_paths`, `_is_grandfathered_scope`, `begin`, `finalize_precheck`, `retire_orchestrator`, `finalize`, `_finalize_transaction`); `agent_workflows/partition.py` (`_is_orchestrator_plan`, `_selectors._read_setid` calls) and `agent_workflows/plans.py::read_set`; `agent_workflows/check_engine.py::_read_plan_state_at_checked` and `check_status_untooled_range`; `agent_workflows/hooks/executed_transition_gate.py::check` and `agent_workflows/hooks/backlog_blocking_close_gate.py::check`; `agent_workflows/meta_cli.py::meta_repair` | Five unpatched production cutover gaps inside `.aw/system/cutover/metastore-code.cutover.patch` (not covered by `hdwqex`, `fljn9b`, or `szykgd`) directly blocked five batch C modules (`test_ipd_lifecycle_cli.py`, `test_partition.py`, `test_lane_rule_break_detection.py`, `test_m0001_gate_marker.py`, `test_meta_repair_cli.py`) and downstream cutover execution: (1) `ipd_lifecycle.py` has 10 bare `ipd_lint.parse(...)` calls without `state=` (failing closed with missing `- Id:` and empty `Scope-Paths` on log-format plans) and `_finalize_transaction` sets `owned_paths = [tx_plan_rel, dest_rel]` without staging `.aw/records/meta/<plan_id>.jsonl` (dropping the finalized log append on worktree teardown); (2) `partition.py::_is_orchestrator_plan`, `partition.py` `_selectors._read_setid` calls, and `plans.py::read_set` call `artifact_meta.read_text` on file text instead of log-backed state, returning `None`/`False` on log-format plans; (3) `check_engine.py::check_status_untooled_range` reads only replayed log state via `read_at` and misses hand-edited in-file YAML mirror status flips; (4) `executed_transition_gate.check` and `backlog_blocking_close_gate.check` read metadata via `read_at`/`check_release_gate_consistency` BEFORE checking `_migration_marker_accepts(root)`, raising `MetadataSchemaError` on unstamped legacy repos before the `m0001` marker can short-circuit; and (5) `meta_cli.py::meta_repair` calls `artifact_meta.resolve` without catching `MetadataSchemaError`, crashing with an uncaught exception on unmigrated legacy repos. Resolved in OQ-01 by splitting out prerequisite Order 316 (`otin36`) ahead of `x8id25`. |
+| F-06 | `agent_workflows/artifact_meta.py::validate_transition_edge` inside `.aw/system/cutover/metastore-code.cutover.patch` (and live HEAD) | Small production bug fixed inside `.aw/state/x8id25/scratch/agent_workflows/artifact_meta.py` (packaged into `.aw/system/cutover/metastore-code.cutover.patch`, no live file modified): `validate_transition_edge` called `prompt_subdirs.keys()` on `_life_dirs.LIFECYCLE_SUBDIRS.get("prompts", {})`, which is a tuple `('pending', 'executed', 'superseded', 'not-executed', 'reusable')`, raising `AttributeError: 'tuple' object has no attribute 'keys'` on every log-format prompt transition (`test_ipd_lifecycle_cli.py::DelegationAndBypassRemovalTests::test_non_delegated_transitions_preserve_direct_paths` and `test_prompts_set_surface.py::TestPromptsSetSurface::test_comment_write_with_body_byte_identity`). Fixed to `prompt_subdirs = _life_dirs.LIFECYCLE_SUBDIRS.get("prompts", ())` and `frozenset(prompt_subdirs)`. Also reported in `defect_report` for live HEAD follow-up. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -183,26 +184,92 @@ No spec change: spec `4sd62s` Sections 4.1 to 4.3 already define the log format 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'. Runtime-demonstration reachability rule: for each `V-*` item demanding the software be observed acting (such as a run, a dispatch, or a transition) - as distinct from items demanding a diff, a file's content, or a test result, which are reachable by construction - name the code path that produces the observation or the sibling `E-*` that creates it, else the demand is UNDER-SCOPE.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `git worktree add --detach .aw/state/x8id25/scratch HEAD` command, both `git apply --index` commands (for `.aw/system/cutover/metastore-docs.cutover.patch` and `.aw/system/cutover/metastore-code.cutover.patch`) with exit status 0, and the base tree id recorded in F-01.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    - Executed `git worktree add --detach .aw/state/x8id25/scratch HEAD` (detached at `860a6b5eb`).
+    - Executed inside `.aw/state/x8id25/scratch`:
+      - `git apply --index .aw/system/cutover/metastore-docs.cutover.patch` -> `DOCS_APPLY_EXIT=0`
+      - `BASE=$(git write-tree)` -> `65a494ac9f75f57065a0e9c531324f2fd3d2f5e6` (recorded in F-01)
+      - `git apply --index .aw/system/cutover/metastore-code.cutover.patch` -> `CODE_APPLY_EXIT=0`
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste, inside `.aw/state/x8id25/scratch`, `rg -n '(LegacyRender|LegacyTarget|render_legacy_text|set_legacy_bullet_line|_LEGACY_BULLET_LABEL|_format_legacy_value|_RESEARCH_YAML_KEY|_format_yaml_value|_PROMPT_COMMENT_KEY|write_legacy|SidecarRecord)' tests/test_ipd_lifecycle_cli.py tests/test_ipd_schema.py tests/test_ipd_set_executor.py tests/test_lane_rule_break_detection.py tests/test_log_rename_events.py tests/test_m0001_any_repo.py` exiting 1 with zero matches; the both-tier pytest summary output (`python3 -m pytest -o addopts="" -m '' ...`) covering all six modules; and the F-02 and F-03 rows added by E-02 (F-03 as node ids each with its refusal text).
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    - Removed-symbol `rg -n` scan over the six E-02 modules inside `.aw/state/x8id25/scratch`: empty stdout, `RG_V02_EXIT=1`.
+    - Both-tier pytest run (`python3 -m pytest -o addopts="" -m '' tests/test_ipd_lifecycle_cli.py tests/test_ipd_schema.py tests/test_ipd_set_executor.py tests/test_lane_rule_break_detection.py tests/test_log_rename_events.py tests/test_m0001_any_repo.py`) inside `.aw/state/x8id25/scratch`:
+      ```text
+      collected 138 items
+      tests/test_m0001_any_repo.py .                                           [  0%]
+      tests/test_ipd_schema.py ..........................                      [ 19%]
+      tests/test_ipd_set_executor.py ...................                       [ 33%]
+      tests/test_m0001_any_repo.py .....                                       [ 36%]
+      tests/test_lane_rule_break_detection.py ..........                       [ 44%]
+      tests/test_log_rename_events.py .....                                    [ 47%]
+      tests/test_ipd_lifecycle_cli.py ........................................ [ 76%]
+      ................................                                         [100%]
+      ======================= 138 passed in 318.34s (0:05:18) ========================
+      ```
+    - F-02 rows added by E-02: `tests/test_log_rename_events.py::test_rename_on_legacy_format_keeps_bytes_and_writes_no_ledger`, `tests/test_log_rename_events.py::test_group_on_legacy_format_keeps_bullet_and_writes_no_ledger`, `tests/test_log_rename_events.py::test_archive_on_legacy_format_moves_bytes_unchanged` (spec `4sd62s` Sections 4.2, 5.2, C6).
+    - F-03 rows added by E-02: none (0 refusals).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste, inside `.aw/state/x8id25/scratch`, `rg -n '(LegacyRender|LegacyTarget|render_legacy_text|set_legacy_bullet_line|_LEGACY_BULLET_LABEL|_format_legacy_value|_RESEARCH_YAML_KEY|_format_yaml_value|_PROMPT_COMMENT_KEY|write_legacy|SidecarRecord)' tests/test_m0001_gate_marker.py tests/test_m0001_review_conversion.py tests/test_meta_repair_cli.py tests/test_metadata_single_owner.py tests/test_migrate_cli.py tests/test_migrations_chain.py` exiting 1 with zero matches; the both-tier pytest summary output (`python3 -m pytest -o addopts="" -m '' ...`) covering all six modules; and the F-02 and F-03 rows added by E-03 (F-03 as node ids each with its refusal text).
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    - Removed-symbol `rg -n` scan over the six E-03 modules inside `.aw/state/x8id25/scratch`: empty stdout, `RG_V03_EXIT=1`.
+    - Both-tier pytest run (`python3 -m pytest -o addopts="" -m '' tests/test_m0001_gate_marker.py tests/test_m0001_review_conversion.py tests/test_meta_repair_cli.py tests/test_metadata_single_owner.py tests/test_migrate_cli.py tests/test_migrations_chain.py`) inside `.aw/state/x8id25/scratch`:
+      ```text
+      collected 80 items
+      tests/test_m0001_review_conversion.py ...................                [ 23%]
+      tests/test_migrate_cli.py ...............                                [ 42%]
+      tests/test_meta_repair_cli.py .......                                    [ 51%]
+      tests/test_migrations_chain.py .............                             [ 67%]
+      tests/test_m0001_gate_marker.py ..............                           [ 85%]
+      tests/test_metadata_single_owner.py ............                         [100%]
+      ============================= 80 passed in 23.88s ==============================
+      ```
+    - F-02 rows added by E-03: `tests/test_meta_repair_cli.py::test_legacy_record_reports_nothing_to_repair` (spec `4sd62s` Sections 4.6, 5.2, C4; replaced by `test_legacy_record_refuses_with_migrate_metadata_exit_two`).
+    - F-03 rows added by E-03: none (0 refusals).
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste, inside `.aw/state/x8id25/scratch`, `rg -n '(LegacyRender|LegacyTarget|render_legacy_text|set_legacy_bullet_line|_LEGACY_BULLET_LABEL|_format_legacy_value|_RESEARCH_YAML_KEY|_format_yaml_value|_PROMPT_COMMENT_KEY|write_legacy|SidecarRecord)' tests/test_orchestrator_probe_payload.py tests/test_partition.py tests/test_plans_index.py tests/test_poll_for_deps.py tests/test_production_prompt_writing_standard.py tests/test_prompts_set_surface.py` exiting 1 with zero matches; the both-tier pytest summary output (`python3 -m pytest -o addopts="" -m '' ...`) covering all six modules; and the F-02 and F-03 rows added by E-04 (F-03 as node ids each with its refusal text).
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    - Removed-symbol `rg -n` scan over the six E-04 modules inside `.aw/state/x8id25/scratch`: empty stdout, `RG_V04_EXIT=1`.
+    - Both-tier pytest run (`python3 -m pytest -o addopts="" -m '' --tb=short tests/test_orchestrator_probe_payload.py tests/test_partition.py tests/test_plans_index.py tests/test_poll_for_deps.py tests/test_production_prompt_writing_standard.py tests/test_prompts_set_surface.py`) inside `.aw/state/x8id25/scratch`:
+      ```text
+      collected 76 items
+      tests/test_partition.py ....................................             [ 47%]
+      tests/test_orchestrator_probe_payload.py FFF........                     [ 61%]
+      tests/test_plans_index.py ..........                                     [ 75%]
+      tests/test_poll_for_deps.py ......                                       [ 82%]
+      tests/test_prompts_set_surface.py ...........                            [ 97%]
+      tests/test_production_prompt_writing_standard.py ..                      [100%]
+      FAILED tests/test_orchestrator_probe_payload.py::TestProbePayloadLiveCorpus::test_corpus_group_b_sensitivity_and_insensitivity
+      FAILED tests/test_orchestrator_probe_payload.py::TestProbePayloadLiveCorpus::test_corpus_group_c_identity_and_disjointness
+      FAILED tests/test_orchestrator_probe_payload.py::TestProbePayloadLiveCorpus::test_corpus_group_a_no_op_invariants
+      ======================== 3 failed, 73 passed in 37.13s =========================
+      ```
+    - F-02 rows added by E-04: `tests/test_plans_index.py::CheckDriftTests::test_stale_index_file_is_not_drift` (spec `4sd62s` Sections 4.5, 5.2 step 5) and `tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_commentless_prompt_fallback_relocates_without_comment` (spec `4sd62s` Sections 4.1, 4.2, C6).
+    - F-03 rows added by E-04 (all 3 `TestProbePayloadLiveCorpus` failures on unmigrated `REPO_ROOT`, each raising `agent_workflows.migrations.chain.MetadataSchemaError: Repository metadata schema is 1 (current is 2); run \`aw migrate metadata\` before reading metadata.`):
+      - `tests/test_orchestrator_probe_payload.py::TestProbePayloadLiveCorpus::test_corpus_group_a_no_op_invariants`
+      - `tests/test_orchestrator_probe_payload.py::TestProbePayloadLiveCorpus::test_corpus_group_b_sensitivity_and_insensitivity`
+      - `tests/test_orchestrator_probe_payload.py::TestProbePayloadLiveCorpus::test_corpus_group_c_identity_and_disjointness`
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: paste `git apply --stat .aw/system/cutover/metastore-code.cutover.patch`, the `python3 -m pytest -o addopts="" tests/test_metastore_cutover_code_patch.py` run with all 3 tests PASSED, `git worktree list` showing `.aw/state/x8id25/scratch` removed, `git status --short` confirming no live edits outside `- Scope-Paths:`, and the `aw commit x8id25` output naming the commit hash.
   - Observed evidence:
-  - Result: pending
+    - `git apply --stat .aw/system/cutover/metastore-code.cutover.patch`: `135 files changed, 24899 insertions(+), 13993 deletions(-)` (exit 0; batch C entries: `tests/test_ipd_lifecycle_cli.py` 395, `tests/test_ipd_set_executor.py` 74, `tests/test_lane_rule_break_detection.py` 245, `tests/test_log_rename_events.py` 105, `tests/test_m0001_any_repo.py` 286, `tests/test_m0001_gate_marker.py` 295, `tests/test_m0001_review_conversion.py` 12, `tests/test_meta_repair_cli.py` 18, `tests/test_metadata_single_owner.py` 87, `tests/test_migrate_cli.py` 2, `tests/test_migrations_chain.py` 6, `tests/test_orchestrator_probe_payload.py` 35, `tests/test_partition.py` 575, `tests/test_plans_index.py` 71, `tests/test_poll_for_deps.py` 161, `tests/test_production_prompt_writing_standard.py` 178, `tests/test_prompts_set_surface.py` 128; plus 2-line fix in `agent_workflows/artifact_meta.py::validate_transition_edge` per F-06; `tests/test_ipd_schema.py` required no edits and passed 26/26).
+    - `python3 -m pytest -o addopts="" -v tests/test_metastore_cutover_code_patch.py`:
+      ```text
+      tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_code_patch_applies_after_docs_patch PASSED [ 33%]
+      tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_check_refuses_a_patch_that_no_longer_applies PASSED [ 66%]
+      tests/test_metastore_cutover_code_patch.py::MetastoreCutoverCodePatchGuardTests::test_code_patch_touches_files PASSED [100%]
+      ============================== 3 passed in 0.63s ===============================
+      ```
+    - `git worktree list`: `.aw/state/x8id25/scratch` removed (only `main` and `aw/lane/x8id25` remain).
+    - `git status --short` before patch commit: `M .aw/system/cutover/metastore-code.cutover.patch` (only declared `- Scope-Paths:` modified; zero live code or test edits).
+    - `aw commit x8id25 -m "metastore(x8id25): convert batch C test modules in cutover code patch" -- .aw/system/cutover/metastore-code.cutover.patch`: `aw commit: committed 1 path(s): c91fb3a5129e99f5dd2849771c7f09ebeb403673`.
+  - Result: pass
 
 ## Approval and execution gate
 

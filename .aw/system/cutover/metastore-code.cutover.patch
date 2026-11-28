@@ -226,7 +226,7 @@ index 3f605a290..015ff87c3 100644
  
      THE MARKDOWN HARD-LINE-BREAK TRADEOFF IS DELIBERATE AND OWNED HERE. A per-line rstrip destroys
 diff --git a/agent_workflows/artifact_meta.py b/agent_workflows/artifact_meta.py
-index 2565952e2..abdf711b2 100644
+index 2565952e2..ce919ee00 100644
 --- a/agent_workflows/artifact_meta.py
 +++ b/agent_workflows/artifact_meta.py
 @@ -26,12 +26,10 @@ import subprocess
@@ -242,6 +242,17 @@ index 2565952e2..abdf711b2 100644
      NamedTuple,
      Optional,
      Sequence,
+@@ -493,8 +491,8 @@ def validate_transition_edge(
+         return False, f"illegal research status {to_status!r}"
+ 
+     elif artifact_type == "prompt":
+-        prompt_subdirs = _life_dirs.LIFECYCLE_SUBDIRS.get("prompts", {})
+-        valid_prompt_statuses = frozenset(prompt_subdirs.keys()) | frozenset(
++        prompt_subdirs = _life_dirs.LIFECYCLE_SUBDIRS.get("prompts", ())
++        valid_prompt_statuses = frozenset(prompt_subdirs) | frozenset(
+             ("pending", "reusable", "executed", "archived", "draft")
+         )
+         if to_status in valid_prompt_statuses:
 @@ -2116,9 +2114,12 @@ def parse_walkthrough_mirror(text: str) -> Dict[str, Any]:
      return {"id": id_val, "status": None}
  
@@ -5043,7 +5054,7 @@ index 5624badf2..66ba05b26 100644
          dst_rel = dst.relative_to(repo_root).as_posix()
          if emit_human:
 diff --git a/agent_workflows/attention.py b/agent_workflows/attention.py
-index 532e10b86..99e92c507 100644
+index f7fdc0034..302750e2e 100644
 --- a/agent_workflows/attention.py
 +++ b/agent_workflows/attention.py
 @@ -1177,7 +1177,7 @@ def _order_key(
@@ -7375,7 +7386,7 @@ index 9b09c151c..1edf458a2 100644
              continue
  
 diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
-index 038a893c1..a2eedc38a 100644
+index 65c8e05f2..61310928c 100644
 --- a/agent_workflows/cli.py
 +++ b/agent_workflows/cli.py
 @@ -600,9 +600,9 @@ _DESCRIPTIONS = {
@@ -7411,7 +7422,7 @@ index 038a893c1..a2eedc38a 100644
          ),
      )
      p_record_history.add_argument(
-@@ -14652,7 +14652,6 @@ def _run_describe(
+@@ -14654,7 +14654,6 @@ def _run_describe(
      args: argparse.Namespace, term: Term, context: Optional[Any] = None
  ) -> int:
      """Preview, set, or clear short_description on a single existing record via artifact_meta."""
@@ -7419,7 +7430,7 @@ index 038a893c1..a2eedc38a 100644
      import shlex
  
      from agent_workflows import artifact_core as _core
-@@ -14780,7 +14779,6 @@ def _run_describe(
+@@ -14782,7 +14781,6 @@ def _run_describe(
          text = raw_bytes.decode("utf-8")
      except (OSError, UnicodeDecodeError) as exc:
          return _emit_error(f"cannot read target record: {exc}")
@@ -7427,7 +7438,7 @@ index 038a893c1..a2eedc38a 100644
  
      id6: Optional[str] = None
      if record_type == "prompts" and _meta.has_prompt_metadata_comment(text):
-@@ -14814,40 +14812,14 @@ def _run_describe(
+@@ -14816,40 +14814,14 @@ def _run_describe(
          ]
  
      apply = bool(getattr(args, "apply", False))
@@ -7469,7 +7480,7 @@ index 038a893c1..a2eedc38a 100644
              actor={"tool": "aw describe"},
              message=msg,
          )
-@@ -16021,7 +15993,6 @@ def _find_type_records(
+@@ -16023,7 +15995,6 @@ def _find_type_records(
      from agent_workflows import agent_schema as _schema
      from agent_workflows import artifact_core as _core
      from agent_workflows import artifact_meta as _meta
@@ -7477,7 +7488,7 @@ index 038a893c1..a2eedc38a 100644
      from agent_workflows import selectors as sel_mod
  
      highlight_tokens = list(selectors_list)
-@@ -16033,7 +16004,7 @@ def _find_type_records(
+@@ -16035,7 +16006,7 @@ def _find_type_records(
          highlight_tokens.append(args.topic)
  
      with _meta.scan_once(), _meta.ephemeral_if_uninitialized(), sel_mod.scan_once():
@@ -7486,7 +7497,7 @@ index 038a893c1..a2eedc38a 100644
          records_root = Path(ctx.logical_roots["records"])
          scan_repo = _meta._scan_repo_root(ctx, records_root)
  
-@@ -17790,6 +17761,10 @@ def _run_search(
+@@ -17792,6 +17763,10 @@ def _run_search(
  
      search_ctx = _proj_ctx.resolve_project_context(target_repo=str(repo_root))
      search_records_root = Path(search_ctx.logical_roots["records"])
@@ -7497,7 +7508,7 @@ index 038a893c1..a2eedc38a 100644
      search_scan_repo = _meta._scan_repo_root(search_ctx, search_records_root)
      search_has_tree = search_records_root.is_dir() or (
          search_scan_repo is not None
-@@ -17799,9 +17774,9 @@ def _run_search(
+@@ -17801,9 +17776,9 @@ def _run_search(
          )
      )
      cached_by_path: Dict[Path, _meta.State] = {}
@@ -7509,7 +7520,7 @@ index 038a893c1..a2eedc38a 100644
          for st_row in _qrows:
              if not st_row.path:
                  continue
-@@ -17814,6 +17789,37 @@ def _run_search(
+@@ -17816,6 +17791,37 @@ def _run_search(
              except Exception:
                  continue
  
@@ -7547,7 +7558,7 @@ index 038a893c1..a2eedc38a 100644
      def _artifact_status(p: Path, text: str) -> str:
          st_row = cached_by_path.get(p.resolve())
          if st_row is None:
-@@ -17929,7 +17935,10 @@ def _run_search(
+@@ -17931,7 +17937,10 @@ def _run_search(
                              end_offset = m_close.end()
                              line_count = text[:end_offset].count("\n") + 1
                              post_fence = text[end_offset:]
@@ -7559,7 +7570,7 @@ index 038a893c1..a2eedc38a 100644
                              if m_h1 is not None:
                                  line_count += text[
                                      end_offset : end_offset + m_h1.end()
-@@ -17954,6 +17963,22 @@ def _run_search(
+@@ -17956,6 +17965,22 @@ def _run_search(
                              {"path": str(p), "line": i, "text": line.strip()}
                          )
  
@@ -43405,6 +43416,733 @@ index 7a6da894c..9e8cabc1f 100644
          _stage(self.repo, p2)
          rc, msgs = HOOK.check(self.repo)
          self.assertEqual((rc, msgs), (0, []))
+diff --git a/tests/test_ipd_lifecycle_cli.py b/tests/test_ipd_lifecycle_cli.py
+index bb22d28e3..c98a4f3fa 100644
+--- a/tests/test_ipd_lifecycle_cli.py
++++ b/tests/test_ipd_lifecycle_cli.py
+@@ -19,6 +19,7 @@ import sys
+ import tempfile
+ import unittest
+ from contextlib import redirect_stdout
++from dataclasses import replace as _dc_replace
+ from pathlib import Path
+ from unittest import mock
+ 
+@@ -32,6 +33,75 @@ from tests import support
+ from tests.record_builder import RecordBuilder, assert_field
+ 
+ 
++class _PlanText(str):
++    """Rendered plan body carrying log-creation parameters for ``_write_plan``."""
++
++    plan_id: str
++    scope_paths: str
++    status: str
++
++    def __new__(cls, text: str, *, plan_id: str, scope_paths: str, status: str):
++        obj = super().__new__(cls, text)
++        obj.plan_id = plan_id
++        obj.scope_paths = scope_paths
++        obj.status = status
++        return obj
++
++
++def _strip_leading_mirror(text: str) -> str:
++    lines = text.splitlines(keepends=True)
++    idx = 0
++    if lines and lines[0].strip() == "---":
++        idx = 1
++        while idx < len(lines) and lines[idx].strip() != "---":
++            idx += 1
++        if idx < len(lines):
++            idx += 1
++    while idx < len(lines) and (
++        not lines[idx].strip() or lines[idx].lstrip().startswith("<!-- aw-managed:")
++    ):
++        idx += 1
++    return "".join(lines[idx:])
++
++
++def _set_plan_scope_paths(root: Path, plan_id: str, scope_paths: str) -> None:
++    res = AM.append(
++        plan_id,
++        [{"op": "set", "fields": {"scope_paths": scope_paths}}],
++        dry_run=False,
++        project_context=AM.legacy_context(root),
++        actor={"tool": "test"},
++    )
++    if not res.get("committed"):
++        raise AssertionError(f"failed to set scope_paths: {res!r}")
++
++
++def _set_plan_status_in_log(
++    root: Path, plan_id: str, old_status: str, new_status: str
++) -> None:
++    events: list[dict[str, object]] = [
++        {"op": "transition", "from": old_status, "to": new_status}
++    ]
++    if new_status != "approved":
++        events.append({"op": "unset", "fields": ["approval", "readiness"]})
++    res = AM.append(
++        plan_id,
++        events,
++        dry_run=False,
++        project_context=AM.legacy_context(root),
++        actor={"tool": "test"},
++    )
++    if not res.get("committed"):
++        raise AssertionError(f"failed to transition status: {res!r}")
++
++
++def _history_dump(root: Path, plan_id: str) -> str:
++    return json.dumps(
++        AM.history(plan_id, project_context=AM.legacy_context(root)),
++        sort_keys=True,
++    )
++
++
+ def _init_git(root: Path) -> None:
+     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+     subprocess.run(["git", "config", "user.email", "t@e.com"], cwd=root, check=True)
+@@ -60,9 +130,10 @@ def _ready_plan_text(
+     function's note for why it resolves real vocabulary values rather than the `grandfathered` sentinel.
+     """
+ 
+-    return support.ready_plan_text(
++    text = support.ready_plan_text(
+         plan_id=plan_id, scope_paths=scope_paths, status=status
+     )
++    return _PlanText(text, plan_id=plan_id, scope_paths=scope_paths, status=status)
+ 
+ 
+ def _completed_plan_text(
+@@ -84,15 +155,60 @@ def _completed_plan_text(
+         )
+         .replace("  - Result: pending", "  - Result: pass", 1)
+     )
+-    return t
++    return _PlanText(t, plan_id=plan_id, scope_paths=scope_paths, status=status)
+ 
+ 
+ def _write_plan(root: Path, text: str, name: str) -> Path:
+-    d = root / ".aw" / "records" / "plans" / "pending"
+-    d.mkdir(parents=True, exist_ok=True)
+-    p = d / name
+-    p.write_text(text, encoding="utf-8")
+-    return p
++    if isinstance(text, _PlanText):
++        plan_id = text.plan_id
++        scope_paths = text.scope_paths
++        status = text.status
++    else:
++        st = AM.read_text(text, record_type="ipd")
++        plan_id = st.id6 or "abc123"
++        scope_paths = str(
++            st.fields.get("scope_paths")
++            or "agent_workflows/demo.py, tests/test_demo.py"
++        )
++        status = st.status or "approved"
++    fields: dict[str, object] = {
++        "status": status,
++        "plan_role": "child",
++        "title": "demo",
++        "author": "tester",
++        "set": "demo",
++        "order": 1,
++        "scope_paths": scope_paths,
++        "item_dependencies": "none",
++        "priority": "medium",
++        "work_kind": "chore",
++        "highest_e_allocated": "01",
++    }
++    if status == "approved":
++        fields["approval"] = "2026-08-24, human: approved"
++    events: list[dict[str, object]] | None = None
++    if status in ("reviewed", "approved", "executed"):
++        events = [
++            {
++                "op": "review",
++                "round": 1,
++                "review_kind": "gate",
++                "verdict": "APPROVE",
++                "readiness": "go-pending-approval",
++                "observed_day": "2026-08-24",
++                "reviewer": "tester",
++                "message": "APPROVE",
++            }
++        ]
++    return RecordBuilder(root).materialize(
++        "ipd",
++        id6=plan_id,
++        destination=f"plans/pending/{name}",
++        fields=fields,
++        body=_strip_leading_mirror(text),
++        events=events,
++        overwrite=True,
++    )
+ 
+ 
+ class BeginHappyPathTests(unittest.TestCase):
+@@ -165,8 +281,11 @@ class BeginHappyPathTests(unittest.TestCase):
+         stored = LC.read_receipt(self.root, "abc123")
+         assert stored is not None
+         self.assertEqual(stored["requirement_digest"], r2["requirement_digest"])
++        cur_state = AM.read("abc123", project_context=AM.legacy_context(self.root))
+         self.assertTrue(
+-            LC.receipt_is_current(stored, self.plan.read_text(encoding="utf-8"))
++            LC.receipt_is_current(
++                stored, self.plan.read_text(encoding="utf-8"), state=cur_state
++            )
+         )
+ 
+     def test_receipt_invalidation_and_persistence(self):
+@@ -174,33 +293,46 @@ class BeginHappyPathTests(unittest.TestCase):
+         LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+         stored = LC.read_receipt(self.root, "abc123")
+         assert stored is not None
++        cur_state = AM.read("abc123", project_context=AM.legacy_context(self.root))
+         self.assertTrue(
+-            LC.receipt_is_current(stored, self.plan.read_text(encoding="utf-8"))
++            LC.receipt_is_current(
++                stored, self.plan.read_text(encoding="utf-8"), state=cur_state
++            )
+         )
+ 
+         # Scope addition invalidates
+-        rescoped = _ready_plan_text(
+-            scope_paths="agent_workflows/demo.py, tests/test_demo.py, agent_workflows/extra.py"
++        rescoped_state = _dc_replace(
++            cur_state,
++            fields={
++                **cur_state.fields,
++                "scope_paths": "agent_workflows/demo.py, tests/test_demo.py, agent_workflows/extra.py",
++            },
++        )
++        self.assertFalse(
++            LC.receipt_is_current(
++                stored, self.plan.read_text(encoding="utf-8"), state=rescoped_state
++            )
+         )
+-        self.assertFalse(LC.receipt_is_current(stored, rescoped))
+ 
+         # E-item rewrite invalidates
+         retasked = self.plan.read_text(encoding="utf-8").replace(
+             "- [ ] E-01 ", "- [ ] E-01 REWRITTEN ", 1
+         )
+-        self.assertFalse(LC.receipt_is_current(stored, retasked))
++        self.assertFalse(LC.receipt_is_current(stored, retasked, state=cur_state))
+ 
+         # Non-contract edit (trailing prose) preserves validity
+         commented = (
+             self.plan.read_text(encoding="utf-8") + "\n<!-- a non-contract edit -->\n"
+         )
+-        self.assertTrue(LC.receipt_is_current(stored, commented))
++        self.assertTrue(LC.receipt_is_current(stored, commented, state=cur_state))
+ 
+         # Disjoint commit preserves validity
+         (self.root / "unrelated.txt").write_text("hello", encoding="utf-8")
+         _commit_all(self.root, "unrelated change on a disjoint path")
+         self.assertTrue(
+-            LC.receipt_is_current(stored, self.plan.read_text(encoding="utf-8"))
++            LC.receipt_is_current(
++                stored, self.plan.read_text(encoding="utf-8"), state=cur_state
++            )
+         )
+ 
+     def test_receipt_invalidation_on_e_item_continuation_rewrite(self):
+@@ -215,8 +347,11 @@ class BeginHappyPathTests(unittest.TestCase):
+         LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+         stored = LC.read_receipt(self.root, "abc123")
+         assert stored is not None
++        cur_state = AM.read("abc123", project_context=AM.legacy_context(self.root))
+         self.assertTrue(
+-            LC.receipt_is_current(stored, self.plan.read_text(encoding="utf-8"))
++            LC.receipt_is_current(
++                stored, self.plan.read_text(encoding="utf-8"), state=cur_state
++            )
+         )
+ 
+         # Rewriting E-01 continuation line makes receipt_is_current False
+@@ -225,7 +360,7 @@ class BeginHappyPathTests(unittest.TestCase):
+             "with REWRITTEN execution continuation prose.",
+             1,
+         )
+-        self.assertFalse(LC.receipt_is_current(stored, rewritten))
++        self.assertFalse(LC.receipt_is_current(stored, rewritten, state=cur_state))
+ 
+     def test_receipt_invalidation_on_v_item_continuation_rewrite(self):
+         """Rewriting a V-item's continuation line invalidates begin receipt (qurgra 168p5j pin b)."""
+@@ -239,8 +374,11 @@ class BeginHappyPathTests(unittest.TestCase):
+         LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+         stored = LC.read_receipt(self.root, "abc123")
+         assert stored is not None
++        cur_state = AM.read("abc123", project_context=AM.legacy_context(self.root))
+         self.assertTrue(
+-            LC.receipt_is_current(stored, self.plan.read_text(encoding="utf-8"))
++            LC.receipt_is_current(
++                stored, self.plan.read_text(encoding="utf-8"), state=cur_state
++            )
+         )
+ 
+         # Rewriting V-01 continuation line makes receipt_is_current False
+@@ -249,7 +387,7 @@ class BeginHappyPathTests(unittest.TestCase):
+             "with REWRITTEN validation continuation prose.",
+             1,
+         )
+-        self.assertFalse(LC.receipt_is_current(stored, rewritten))
++        self.assertFalse(LC.receipt_is_current(stored, rewritten, state=cur_state))
+ 
+     def test_receipt_persistence_on_conforming_self_execution(self):
+         """Full conforming self-execution preserves receipt currency (xmqv5l invariant, qurgra 168p5j pin c)."""
+@@ -271,11 +409,14 @@ class BeginHappyPathTests(unittest.TestCase):
+         LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+         stored = LC.read_receipt(self.root, "abc123")
+         assert stored is not None
++        cur_state = AM.read("abc123", project_context=AM.legacy_context(self.root))
+         self.assertTrue(
+-            LC.receipt_is_current(stored, self.plan.read_text(encoding="utf-8"))
++            LC.receipt_is_current(
++                stored, self.plan.read_text(encoding="utf-8"), state=cur_state
++            )
+         )
+ 
+-        # Conforming self-execution edits: tick checkboxes, set performed/pass, fill evidence, append history
++        # Conforming self-execution edits: tick checkboxes, set performed/pass, fill evidence, append log note
+         executed = (
+             self.plan.read_text(encoding="utf-8")
+             .replace("- [ ] E-01 ", "- [x] E-01 ", 1)
+@@ -290,18 +431,15 @@ class BeginHappyPathTests(unittest.TestCase):
+             )
+             .replace("  - Result: pending", "  - Result: pass", 1)
+         )
+-        executed = AM.render_legacy_text(
+-            executed,
++        AM.append(
++            "abc123",
+             [{"op": "note", "message": "finished."}],
+-            record_type="ipd",
+-            render=AM.LegacyRender(
+-                tag="executed",
+-                day="2026-09-28",
+-                actor_label="tester",
+-                history=True,
+-            ),
++            dry_run=False,
++            project_context=AM.legacy_context(self.root),
++            actor={"tool": "tester"},
+         )
+-        self.assertTrue(LC.receipt_is_current(stored, executed))
++        after_note_state = AM.read("abc123", project_context=AM.legacy_context(self.root))
++        self.assertTrue(LC.receipt_is_current(stored, executed, state=after_note_state))
+ 
+     def test_receipt_persistence_on_trailing_prose_edit(self):
+         """Trailing prose edit outside any item preserves receipt currency (qurgra 168p5j pin d)."""
+@@ -323,15 +461,18 @@ class BeginHappyPathTests(unittest.TestCase):
+         LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+         stored = LC.read_receipt(self.root, "abc123")
+         assert stored is not None
++        cur_state = AM.read("abc123", project_context=AM.legacy_context(self.root))
+         self.assertTrue(
+-            LC.receipt_is_current(stored, self.plan.read_text(encoding="utf-8"))
++            LC.receipt_is_current(
++                stored, self.plan.read_text(encoding="utf-8"), state=cur_state
++            )
+         )
+ 
+         prose_edit = (
+             self.plan.read_text(encoding="utf-8")
+             + "\n<!-- non-contract trailing prose edit -->\n"
+         )
+-        self.assertTrue(LC.receipt_is_current(stored, prose_edit))
++        self.assertTrue(LC.receipt_is_current(stored, prose_edit, state=cur_state))
+ 
+ 
+ class BeginFailClosedTests(unittest.TestCase):
+@@ -391,8 +532,7 @@ class BeginFailClosedTests(unittest.TestCase):
+         self._no_receipt()
+ 
+         # Non-conforming lint (draft status)
+-        bad = _ready_plan_text(status="draft")
+-        self.plan.write_text(bad, encoding="utf-8")
++        _set_plan_status_in_log(self.root, "abc123", "approved", "draft")
+         _commit_all(self.root, "make plan draft")
+         res2 = LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+         self.assertEqual(res2.exit_code, LC.EXIT_FINDINGS)
+@@ -400,6 +540,9 @@ class BeginFailClosedTests(unittest.TestCase):
+         self._no_receipt()
+ 
+         # Missing id
++        meta_log = self.root / ".aw" / "records" / "meta" / "abc123.jsonl"
++        if meta_log.exists():
++            meta_log.unlink()
+         noid = str(
+             RecordBuilder().plan(
+                 plan_id="abc123",
+@@ -482,8 +625,7 @@ class BeginCliTests(unittest.TestCase):
+         self.assertEqual(rc1, LC.EXIT_CANNOT_RUN)
+ 
+         # Non-conforming lint -> 1
+-        bad = _ready_plan_text(status="draft")
+-        self.plan.write_text(bad, encoding="utf-8")
++        _set_plan_status_in_log(self.root, "abc123", "approved", "draft")
+         _commit_all(self.root, "draft")
+         buf2 = io.StringIO()
+         with redirect_stdout(buf2):
+@@ -543,8 +685,7 @@ class FinalizeTests(unittest.TestCase):
+         self.assertFalse(self.plan.exists())
+         moved = self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
+         self.assertTrue(moved.is_file())
+-        moved_text = moved.read_text(encoding="utf-8")
+-        self.assertIn("opencode/test", moved_text)
++        self.assertIn("opencode/test", _history_dump(self.root, "abc123"))
+         assert_field(moved, "status", "executed")
+         self.assertEqual(
+             result.evidence["pre_transition"]["disposition"], S.DISPOSITION_CONFORMING
+@@ -553,7 +694,7 @@ class FinalizeTests(unittest.TestCase):
+             result.evidence["post_transition"]["disposition"], S.DISPOSITION_CONFORMING
+         )
+ 
+-        # Lifecycle commit is path-scoped
++        # Lifecycle commit is path-scoped (plan files + companion metadata log)
+         proc = subprocess.run(
+             ["git", "show", "--name-only", "--format=", "HEAD"],
+             cwd=self.root,
+@@ -562,9 +703,12 @@ class FinalizeTests(unittest.TestCase):
+             check=True,
+         )
+         touched = [ln for ln in proc.stdout.splitlines() if ln.strip()]
++        self.assertIn(".aw/records/meta/abc123.jsonl", touched)
+         for f in touched:
+             self.assertTrue(
+-                f.startswith(".aw/records/plans/"), f"touched non-plan: {f}"
++                f.startswith(".aw/records/plans/")
++                or f == ".aw/records/meta/abc123.jsonl",
++                f"touched non-plan/meta path: {f}",
+             )
+ 
+         # Intervening in-scope commits surfaced
+@@ -669,11 +813,10 @@ class FinalizeTests(unittest.TestCase):
+         self.tearDown()
+         self.setUp()
+         self._begin()
+-        self.plan.write_text(
+-            _completed_plan_text(
+-                scope_paths="agent_workflows/demo.py, tests/test_demo.py, agent_workflows/snuck_in.py"
+-            ),
+-            encoding="utf-8",
++        _set_plan_scope_paths(
++            self.root,
++            "abc123",
++            "agent_workflows/demo.py, tests/test_demo.py, agent_workflows/snuck_in.py",
+         )
+         _commit_all(self.root, "scope edit")
+         res_snuck = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+@@ -768,10 +911,7 @@ class ReconciliationTests(unittest.TestCase):
+             self.root, plan_clean, "opencode/test", "clean", apply=True
+         )
+         self.assertEqual(res_clean.exit_code, LC.EXIT_OK)
+-        moved_clean = (
+-            self.root / ".aw" / "records" / "plans" / "executed" / plan_clean.name
+-        ).read_text(encoding="utf-8")
+-        self.assertNotIn("Scope reconciliation", moved_clean)
++        self.assertNotIn("Scope reconciliation", _history_dump(self.root, "abc123"))
+ 
+         # 2. Both directions at once (out-of-scope + in-scope-unmodified)
+         self.tearDown()
+@@ -791,11 +931,9 @@ class ReconciliationTests(unittest.TestCase):
+             scope_acks={"tests/declared.py": "not-needed"},
+         )
+         self.assertEqual(res_both.exit_code, LC.EXIT_OK)
+-        moved_both = (
+-            self.root / ".aw" / "records" / "plans" / "executed" / plan_both.name
+-        ).read_text(encoding="utf-8")
+-        self.assertIn("out-of-scope tests/extra.py: discovered mid-stream", moved_both)
+-        self.assertIn("in-scope-unmodified tests/declared.py: not-needed", moved_both)
++        hist_both = _history_dump(self.root, "abc123")
++        self.assertIn("out-of-scope tests/extra.py: discovered mid-stream", hist_both)
++        self.assertIn("in-scope-unmodified tests/declared.py: not-needed", hist_both)
+ 
+     def test_headless_reconciliation_refusals(self):
+         """Missing or empty reasons/acks fail closed and refuse finalization."""
+@@ -861,11 +999,9 @@ class ReconciliationTests(unittest.TestCase):
+         )
+         self.assertEqual(res.exit_code, LC.EXIT_OK)
+         self.assertEqual(calls["n"], 1)
+-        moved_text = (
+-            self.root / ".aw" / "records" / "plans" / "executed" / plan.name
+-        ).read_text(encoding="utf-8")
+-        self.assertIn("prompted reason", moved_text)
+-        self.assertIn("prompted-ack", moved_text)
++        hist_prompted = _history_dump(self.root, "abc123")
++        self.assertIn("prompted reason", hist_prompted)
++        self.assertIn("prompted-ack", hist_prompted)
+ 
+         # Empty reason from prompt fails closed
+         self.tearDown()
+@@ -942,22 +1078,28 @@ class AdditiveScopeWideningTests(unittest.TestCase):
+         (self.root / "agent_workflows" / "demo.py").write_text("y\n", encoding="utf-8")
+         (self.root / "tests" / "test_demo.py").write_text("y\n", encoding="utf-8")
+         (self.root / added).write_text("z\n", encoding="utf-8")
+-        self.plan.write_text(
+-            _completed_plan_text(
+-                scope_paths=f"agent_workflows/demo.py, tests/test_demo.py, {added}"
+-            ),
+-            encoding="utf-8",
++        _set_plan_scope_paths(
++            self.root,
++            "abc123",
++            f"agent_workflows/demo.py, tests/test_demo.py, {added}",
+         )
++        st = AM.read("abc123", project_context=AM.legacy_context(self.root))
+         self.assertIn(
+-            added, self.plan.read_text(encoding="utf-8"), "the widening did not apply"
++            added, str(st.fields.get("scope_paths") or ""), "the widening did not apply"
+         )
+         if commit:
+             _commit_all(self.root, "in-scope work plus the newly declared path")
+         else:
+-            # The plan edit itself must be committed for the UNCOMMITTED variant to be about the
+-            # ADDED FILE being uncommitted rather than about the plan being dirty.
++            # The plan metadata edit itself must be committed for the UNCOMMITTED variant to be about
++            # the ADDED FILE being uncommitted rather than about the plan being dirty.
+             subprocess.run(
+-                ["git", "add", "--", str(self.plan.relative_to(self.root))],
++                [
++                    "git",
++                    "add",
++                    "--",
++                    str(self.plan.relative_to(self.root)),
++                    ".aw/records/meta/abc123.jsonl",
++                ],
+                 cwd=self.root,
+                 check=True,
+             )
+@@ -997,17 +1139,17 @@ class AdditiveScopeWideningTests(unittest.TestCase):
+                     / self.plan.name
+                 )
+                 self.assertTrue(moved.is_file(), "the plan did not reach executed/")
+-                text = moved.read_text(encoding="utf-8")
++                hist_text = _history_dump(self.root, "abc123")
+                 # THE ACCEPTED WIDENING IS ON THE PERMANENT RECORD, labelled as a widening rather
+                 # than as an out-of-scope edit, and named exactly ONCE.
+-                self.assertIn("widened-scope tests/test_extra.py", text)
+-                self.assertIn("the approved work needed this test file", text)
++                self.assertIn("widened-scope tests/test_extra.py", hist_text)
++                self.assertIn("the approved work needed this test file", hist_text)
+                 self.assertEqual(
+-                    text.count("tests/test_extra.py:"),
++                    hist_text.count("tests/test_extra.py:"),
+                     1,
+                     "the path must be recorded once, not once per demand",
+                 )
+-                self.assertNotIn("out-of-scope tests/test_extra.py", text)
++                self.assertNotIn("out-of-scope tests/test_extra.py", hist_text)
+                 # And the evidence records the accept explicitly.
+                 widening = result.evidence.get("frozen_region_widening", {})
+                 self.assertTrue(widening.get("accepted"))
+@@ -1117,9 +1259,8 @@ class AdditiveScopeWideningTests(unittest.TestCase):
+             scope_reasons={"tests/test_extra.py": "one reason, both demands"},
+         )
+         self.assertEqual(result.exit_code, LC.EXIT_OK, result.message)
+-        moved = self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
+         self.assertEqual(
+-            moved.read_text(encoding="utf-8").count("tests/test_extra.py:"),
++            _history_dump(self.root, "abc123").count("tests/test_extra.py:"),
+             1,
+             "one supplied reason must produce ONE record, not one per demand",
+         )
+@@ -1178,10 +1319,7 @@ class AdditiveScopeWideningTests(unittest.TestCase):
+         # 4. Scope removal refuses and names removed path
+         self.setUp()
+         (self.root / "agent_workflows" / "demo.py").write_text("y\n", encoding="utf-8")
+-        self.plan.write_text(
+-            _completed_plan_text(scope_paths="agent_workflows/demo.py"),
+-            encoding="utf-8",
+-        )
++        _set_plan_scope_paths(self.root, "abc123", "agent_workflows/demo.py")
+         _commit_all(self.root, "narrow the fence after begin")
+         res_rem = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+         self.assertEqual(res_rem.exit_code, LC.EXIT_FINDINGS)
+@@ -1194,11 +1332,8 @@ class AdditiveScopeWideningTests(unittest.TestCase):
+         # 5. Directory addition refuses and names offending entry
+         self.setUp()
+         self._do_the_work_and_widen(commit=True, added="tests/test_extra.py")
+-        self.plan.write_text(
+-            self.plan.read_text(encoding="utf-8").replace(
+-                ", tests/test_extra.py", ", tests/"
+-            ),
+-            encoding="utf-8",
++        _set_plan_scope_paths(
++            self.root, "abc123", "agent_workflows/demo.py, tests/test_demo.py, tests/"
+         )
+         _commit_all(self.root, "widen to a whole directory")
+         res_dir = LC.finalize(
+@@ -2103,11 +2238,8 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
+         LC.begin(self.root, stale_plan, "opencode/test", timestamp="t")
+         self.assertTrue(LC.receipt_path_for(self.root, "ghi789").exists())
+ 
+-        # Modify frozen region (e.g. modify Goal or Scope)
+-        stale_text = _completed_plan_text(
+-            plan_id="ghi789", scope_paths="agent_workflows/demo.py"
+-        )
+-        stale_plan.write_text(stale_text, encoding="utf-8")
++        # Modify frozen region (narrow Scope-Paths in metadata log)
++        _set_plan_scope_paths(self.root, "ghi789", "agent_workflows/demo.py")
+ 
+         # C1: Without journal -> receipt-stale refusal
+         LC._clear_finalize_journal(self.root, "ghi789")
+@@ -2749,28 +2881,21 @@ class DelegationAndBypassRemovalTests(unittest.TestCase):
+                     / self.plan.name
+                 )
+                 self.assertTrue(exec_path.is_file())
+-                moved = exec_path.read_text(encoding="utf-8")
+                 assert_field(exec_path, "status", "executed")
+-                self.assertIn("opencode/test", moved)
++                self.assertIn("opencode/test", _history_dump(self.root, "abc123"))
+                 self.tearDown()
+ 
+     def test_non_delegated_transitions_preserve_direct_paths(self):
+         """Prompt execution, retirement (superseded), and nonterminal transitions do not delegate."""
+         # 1. Prompt terminal executed transition keeps raw path
+-        pdir = self.root / ".aw" / "records" / "prompts" / "pending"
+-        pdir.mkdir(parents=True)
+-        prompt = pdir / "20260824-demoprompt-01-pr0mp7-x.prompt.md"
+-        prompt.write_text(
+-            str(
+-                RecordBuilder().prompt(
+-                    id6="pr0mp7",
+-                    status="pending",
+-                    set="demoprompt",
+-                    body="# Prompt\n\nbody\n",
+-                    text_only=True,
+-                )
+-            ),
+-            encoding="utf-8",
++        prompt = Path(
++            RecordBuilder(self.root).prompt(
++                id6="pr0mp7",
++                status="pending",
++                set="demoprompt",
++                slug="x",
++                body="# Prompt\n\nbody\n",
++            )
+         )
+         _commit_all(self.root, "add prompt")
+         rc, out = self._run_cli(["set", "executed", "pr0mp7", "--yes"])
+@@ -2802,7 +2927,7 @@ class DelegationAndBypassRemovalTests(unittest.TestCase):
+             _completed_plan_text(
+                 plan_id="drf123",
+                 scope_paths="grandfathered",
+-                status="to-review",
++                status="reviewed",
+             ),
+             "20260824-demo-03-drf123-draft.ipd.md",
+         )
+@@ -2997,8 +3122,7 @@ class ParenthesizedActorIsRefusedBeforeAnyWrite(unittest.TestCase):
+             ]
+         )
+         self.assertEqual(rc, 0, out)
+-        text = self.plan.read_text(encoding="utf-8")
+-        self.assertIn(f"reviewed ({self.GOOD})", text)
++        self.assertIn(self.GOOD, _history_dump(self.root, "abc123"))
+         assert_field(self.plan, "status", "reviewed")
+ 
+ 
+@@ -3022,40 +3146,49 @@ class ScaffoldStopsWritingTheShapeItsOwnSetterRefuses(unittest.TestCase):
+         self.assertIsNotNone(AC.actor_refusal(self.BAD))
+ 
+     def test_scaffold_output_and_history_line_parsing(self):
+-        """Scaffold emitted author is normalized and the history line parses cleanly."""
+-        from agent_workflows import record_history as RH
+-
+-        text = A.build_skeleton(
++        """Scaffold records the normalized author in metadata and never leaks the unnormalized string."""
++        tmp = tempfile.TemporaryDirectory()
++        self.addCleanup(tmp.cleanup)
++        root = Path(tmp.name)
++        pending = root / ".aw" / "records" / "plans" / "pending"
++        pending.mkdir(parents=True)
++        target = pending / "20260909-demo-01-aaa111-t.ipd.md"
++        args = argparse.Namespace(
+             kind=S.KIND_CHILD,
+             title="T",
+             author=self.BAD,
+-            when="2026-09-09",
+-            set_name="demo",
++            set="demo",
+             order=1,
+-            plan_id="aaa111",
++            path=str(target),
++            dir=str(root),
++            apply=True,
++            overwrite=False,
++            priority="medium",
++            work_kind="chore",
+         )
+-        self.assertIn(f"- Author: {self.WANT}", text)
+-        self.assertIn(f"- 2026-09-09 draft ({self.WANT}): created.", text)
++        buf = io.StringIO()
++        with redirect_stdout(buf):
++            rc = A.run_scaffold(args)
++        self.assertEqual(rc, 0, buf.getvalue())
++        text = target.read_text(encoding="utf-8")
+         self.assertNotIn(self.BAD, text)
+-
+-        line = next(
+-            ln.strip()
+-            for ln in text.splitlines()
+-            if ln.strip().startswith("- 2026-09-09 draft ")
+-        )
+-        _d, workflow, actor, message = RH._parse_record_line(line)
+-        self.assertEqual(workflow, "draft")
+-        self.assertEqual(actor, self.WANT)
+-        self.assertEqual(message, "created.")
++        st = AM.read("aaa111", project_context=AM.legacy_context(root))
++        self.assertEqual(st.fields.get("author"), self.WANT)
++        self.assertEqual(st.status, "draft")
++        hist = AM.history("aaa111", project_context=AM.legacy_context(root))
++        self.assertTrue(hist)
++        self.assertEqual(hist[0].get("op"), "create")
+ 
+     def test_run_scaffold_notice_behavior(self):
+         """OQ-02 notice is printed when normalizing, and omitted when author is untouched."""
+         tmp = tempfile.TemporaryDirectory()
+         self.addCleanup(tmp.cleanup)
+         root = Path(tmp.name)
++        pending = root / ".aw" / "records" / "plans" / "pending"
++        pending.mkdir(parents=True)
+ 
+         # Case 1: author normalized -> notice printed
+-        target1 = root / "20260909-demo-01-aaa111-t.ipd.md"
++        target1 = pending / "20260909-demo-01-aaa111-t.ipd.md"
+         args1 = argparse.Namespace(
+             kind=S.KIND_CHILD,
+             title="T",
+@@ -3063,6 +3196,7 @@ class ScaffoldStopsWritingTheShapeItsOwnSetterRefuses(unittest.TestCase):
+             set="demo",
+             order=1,
+             path=str(target1),
++            dir=str(root),
+             apply=True,
+             overwrite=False,
+             priority="medium",
+@@ -3077,7 +3211,7 @@ class ScaffoldStopsWritingTheShapeItsOwnSetterRefuses(unittest.TestCase):
+         self.assertIn(self.WANT, out1)
+ 
+         # Case 2: clean author -> no notice
+-        target2 = root / "20260909-demo-01-aaa112-t.ipd.md"
++        target2 = pending / "20260909-demo-01-aaa112-t.ipd.md"
+         args2 = argparse.Namespace(
+             kind=S.KIND_CHILD,
+             title="T",
+@@ -3085,6 +3219,7 @@ class ScaffoldStopsWritingTheShapeItsOwnSetterRefuses(unittest.TestCase):
+             set="demo",
+             order=1,
+             path=str(target2),
++            dir=str(root),
+             apply=True,
+             overwrite=False,
+             priority="medium",
 diff --git a/tests/test_ipd_log_format.py b/tests/test_ipd_log_format.py
 new file mode 100644
 index 000000000..7070588a2
@@ -44499,6 +45237,429 @@ index 000000000..7070588a2
 +    drifts = _ce.check_ipd_draft_ready(repo, include_untracked=True)
 +    assert len(drifts) == 1
 +    assert drifts[0].rule == "check.ipd-draft-ready-to-review"
+diff --git a/tests/test_ipd_set_executor.py b/tests/test_ipd_set_executor.py
+index b647a6875..eb111ca20 100644
+--- a/tests/test_ipd_set_executor.py
++++ b/tests/test_ipd_set_executor.py
+@@ -95,43 +95,47 @@ def _approved_manifest(ownership=None):
+         "## Goal\n\nx\n"
+     )
+     approval = '2026-08-24, human ("approved. go."): status set to approved'
+-    rb = RecordBuilder()
+-    (pending / "orc.ipd.md").write_text(
+-        str(
+-            rb.plan(
+-                id6="orc000",
+-                kind="orchestrator",
+-                title="x",
+-                when="2026-08-23",
+-                set="s",
+-                order=0,
+-                status="approved",
+-                scope_paths="grandfathered",
+-                approval=approval,
+-                body=orch,
+-                text_only=True,
+-            )
+-        ),
+-        encoding="utf-8",
++    rb = RecordBuilder(root)
++    rb.materialize(
++        "ipd",
++        id6="orc000",
++        destination="plans/pending/orc.ipd.md",
++        fields={
++            "status": "approved",
++            "plan_role": "orchestrator",
++            "title": "x",
++            "author": "tester",
++            "set": "s",
++            "order": 0,
++            "scope_paths": "grandfathered",
++            "item_dependencies": "none",
++            "priority": "medium",
++            "work_kind": "chore",
++            "approval": approval,
++            "highest_e_allocated": "01",
++        },
++        body="# IPD: x\n\n" + orch,
+     )
+     for fname, pid, order in (("a.ipd.md", "aaaaaa", 1), ("b.ipd.md", "bbbbbb", 2)):
+-        (pending / fname).write_text(
+-            str(
+-                rb.plan(
+-                    id6=pid,
+-                    kind="child",
+-                    title="x",
+-                    when="2026-08-23",
+-                    set="s",
+-                    order=order,
+-                    status="approved",
+-                    scope_paths="grandfathered",
+-                    approval=approval,
+-                    body=_child_ipd({"E-01": [], "E-02": []}),
+-                    text_only=True,
+-                )
+-            ),
+-            encoding="utf-8",
++        rb.materialize(
++            "ipd",
++            id6=pid,
++            destination=f"plans/pending/{fname}",
++            fields={
++                "status": "approved",
++                "plan_role": "child",
++                "title": "x",
++                "author": "tester",
++                "set": "s",
++                "order": order,
++                "scope_paths": "grandfathered",
++                "item_dependencies": "none",
++                "priority": "medium",
++                "work_kind": "chore",
++                "approval": approval,
++                "highest_e_allocated": "02",
++            },
++            body="# IPD: x\n\n" + _child_ipd({"E-01": [], "E-02": []}),
+         )
+     inv = SP.resolve_set(plans, "s")
+     return SP.compile_manifest(inv, plans, base_head="deadbeef", ownership=ownership)
+diff --git a/tests/test_lane_rule_break_detection.py b/tests/test_lane_rule_break_detection.py
+index 0ec590a24..6031ddada 100644
+--- a/tests/test_lane_rule_break_detection.py
++++ b/tests/test_lane_rule_break_detection.py
+@@ -17,6 +17,7 @@ from __future__ import annotations
+ 
+ import json
+ import os
++import re
+ import shutil
+ import stat
+ import subprocess
+@@ -29,33 +30,114 @@ from unittest import mock
+ 
+ from agent_workflows import agy_runipd, artifact_meta, oc_runipd, runner_shared
+ from tests import support
+-from tests.test_oc_runipd import _init_repo_with_conforming_plan
+-
+-
+-def _set_plan_status(
+-    text: str,
+-    status: str,
+-    *,
+-    history: bool = False,
+-    day: str = "2026-10-12",
+-    actor: str = "aw set",
+-    message: str | None = None,
+-) -> str:
+-    ev: dict[str, object] = {"op": "transition", "to": status}
+-    if message is not None:
+-        ev["message"] = message
+-    return artifact_meta.render_legacy_text(
+-        text,
+-        [ev],
+-        record_type="ipd",
+-        render=artifact_meta.LegacyRender(
+-            tag=status,
+-            day=day,
+-            actor_label=actor,
+-            status=status,
+-            history=history,
+-        ),
++from tests.record_builder import RecordBuilder
++from tests.repo_template import copy_template_repo
++
++_CONFORMING_BODY = (
++    "## Goal\n\n"
++    "Demo goal sentence.\n\n"
++    "## Detailed Implementation Checklist (TODO)\n\n"
++    "Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.\n\n"
++    "### Task group 1: demo\n\n"
++    "- [x] E-01 Create the demo file.\n"
++    "  - Depends on: none\n"
++    "  - Expected outcome: the demo file exists.\n"
++    "  - Execution state: performed\n\n"
++    "## Project conventions discovered (Step 0)\n\n"
++    "- demo convention.\n\n"
++    "## Findings\n\n"
++    "demo findings.\n\n"
++    "## Proposed changes (ordered, validatable)\n\n"
++    "1. src/demo.txt: create it.\n\n"
++    "## Deferred / out of scope (with reason)\n\n"
++    "none.\n\n"
++    "## Scope check\n\n"
++    "- Over-scope: none.\n"
++    "- Under-scope: none.\n\n"
++    "## Required tests / validation\n\n"
++    "Manual check that src/demo.txt exists.\n\n"
++    "## Spec / documentation sync\n\n"
++    "N/A: demo only.\n\n"
++    "## Open questions\n\n"
++    "### OQ-01: none?\n\n"
++    "- Blocking: no\n"
++    "- Status: resolved\n"
++    "- Owner: none\n"
++    "- Resolution or deferral rationale: none.\n\n"
++    "## Validation and cross-check (verify before reporting done)\n\n"
++    "Validation-state rule: inspect evidence in a separate pass.\n\n"
++    "- [x] V-01 validates E-01\n"
++    "  - Required evidence: src/demo.txt present.\n"
++    "  - Observed evidence: src/demo.txt present.\n"
++    "  - Result: pass\n\n"
++    "## Approval and execution gate\n\n"
++    "- Size assessment: standard\n"
++    "- Cohesion rationale: not required\n\n"
++    "Execution contract: commit path-scoped; do not push."
++)
++
++
++def _init_repo_with_conforming_plan(repo: Path, id6: str = "det001") -> Path:
++    """Create a git repo (with .aw/state gitignored) holding one approved, log-format conforming plan."""
++    copy_template_repo(repo)
++    (repo / ".gitignore").write_text(
++        ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
++    )
++    plan = Path(
++        RecordBuilder(repo).plan(
++            title="Demo self-finalize",
++            when="2026-08-28",
++            plan_role="child",
++            scope_paths="src/",
++            item_dependencies="none",
++            status="approved",
++            disposition="pending",
++            set="demo",
++            order=1,
++            slug="demo",
++            highest_e_allocated="01",
++            priority="medium",
++            work_kind="chore",
++            author="test",
++            id6=id6,
++            approval="2026-08-28, recorded via aw ipd set: status set to approved",
++            readiness="go-pending-approval",
++            body=_CONFORMING_BODY,
++        )
++    )
++    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
++    subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
++    return plan
++
++
++def _hand_edit_mirror_status(plan_file: Path, new_status: str) -> None:
++    """Mutate only the in-file YAML mirror ``status:`` line without updating ``meta/<id6>.jsonl``."""
++    text = plan_file.read_text(encoding="utf-8")
++    updated, count = re.subn(
++        r"(?m)^status:\s*\S+.*$", f"status: {new_status}", text, count=1
+     )
++    if count != 1:
++        raise AssertionError(
++            f"expected exactly one YAML mirror status line in {plan_file}, got {count}"
++        )
++    plan_file.write_text(updated, encoding="utf-8")
++
++
++def _insert_after_mirror(text: str, note: str) -> str:
++    """Insert ``note`` into the markdown body after the leading YAML mirror and managed banner."""
++    lines = text.splitlines(keepends=True)
++    idx = 0
++    if lines and lines[0].strip() == "---":
++        idx = 1
++        while idx < len(lines) and lines[idx].strip() != "---":
++            idx += 1
++        if idx < len(lines):
++            idx += 1
++    while idx < len(lines) and (
++        not lines[idx].strip() or lines[idx].lstrip().startswith("<!-- aw-managed:")
++    ):
++        idx += 1
++    return "".join(lines[:idx]) + note + "".join(lines[idx:])
+ 
+ 
+ _HOSTS = (
+@@ -275,13 +357,8 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
+                         (wt / ".aw" / "records" / "plans" / "pending").glob("*det001*")
+                     )
+                     if call_count == 1:
+-                        # Attempt 1: Hand-edit status without a history line
+-                        text = _set_plan_status(
+-                            plan_file.read_text(encoding="utf-8"),
+-                            "to-review",
+-                            history=False,
+-                        )
+-                        plan_file.write_text(text, encoding="utf-8")
++                        # Attempt 1: Hand-edit YAML mirror status without updating meta/<id6>.jsonl
++                        _hand_edit_mirror_status(plan_file, "to-review")
+                         subprocess.run(
+                             ["git", "commit", "-qam", "hand edit status"],
+                             cwd=wt,
+@@ -289,12 +366,7 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
+                         )
+                     else:
+                         # Attempt 2: Revert hand edit back to approved
+-                        text = _set_plan_status(
+-                            plan_file.read_text(encoding="utf-8"),
+-                            "approved",
+-                            history=False,
+-                        )
+-                        plan_file.write_text(text, encoding="utf-8")
++                        _hand_edit_mirror_status(plan_file, "approved")
+                         # Also create demo.txt so execution succeeds
+                         (wt / "src").mkdir(parents=True, exist_ok=True)
+                         (wt / "src" / "demo.txt").write_text("done", encoding="utf-8")
+@@ -333,7 +405,8 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
+                     runner_shared.UNTOOLED_STATUS_REFUSAL_CODE,
+                 )
+                 self.assertIn(
+-                    "Workflow history", str(item.get("untooled_status_refusal") or "")
++                    "disagrees with metadata log status",
++                    str(item.get("untooled_status_refusal") or ""),
+                 )
+ 
+                 # Check prompt delivered for attempt 2
+@@ -390,15 +463,9 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
+                     exec_dir = wt / ".aw" / "records" / "plans" / "executed"
+                     exec_dir.mkdir(parents=True, exist_ok=True)
+                     if call_count == 1:
+-                        # Attempt 1: hand mv to executed/
++                        # Attempt 1: hand mv to executed/ without a finalize commit
+                         plan_file = next(pending_dir.glob("*det001*"))
+                         dest = exec_dir / plan_file.name
+-                        text = _set_plan_status(
+-                            plan_file.read_text(encoding="utf-8"),
+-                            "executed",
+-                            history=False,
+-                        )
+-                        plan_file.write_text(text, encoding="utf-8")
+                         subprocess.run(
+                             ["git", "mv", str(plan_file), str(dest)], cwd=wt, check=True
+                         )
+@@ -413,12 +480,6 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
+                         if exec_plans:
+                             plan_file = exec_plans[0]
+                             dest = pending_dir / plan_file.name
+-                            text = _set_plan_status(
+-                                plan_file.read_text(encoding="utf-8"),
+-                                "approved",
+-                                history=False,
+-                            )
+-                            plan_file.write_text(text, encoding="utf-8")
+                             subprocess.run(
+                                 ["git", "mv", str(plan_file), str(dest)],
+                                 cwd=wt,
+@@ -623,25 +684,33 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
+                     )
+                     sup = wt / ".aw" / "records" / "plans" / "superseded"
+                     sup.mkdir(parents=True, exist_ok=True)
+-                    text = _set_plan_status(
+-                        pending.read_text(encoding="utf-8"),
+-                        "superseded",
+-                        history=True,
+-                        day="2026-10-12",
+-                        actor="aw set",
+-                        message="premise spent",
++                    dest = sup / pending.name
++                    artifact_meta.append(
++                        "det001",
++                        [
++                            {
++                                "op": "transition",
++                                "from": "approved",
++                                "to": "superseded",
++                                "path": f"plans/superseded/{pending.name}",
++                                "message": "premise spent",
++                            },
++                            {"op": "unset", "fields": ["approval"]},
++                        ],
++                        dry_run=False,
++                        project_context=artifact_meta.legacy_context(wt),
++                        actor={"tool": "aw set"},
+                     )
+-                    pending.write_text(
+-                        "RETIRED 2026-10-12: premise spent.\n\n" + text,
++                    dest.write_text(
++                        _insert_after_mirror(
++                            dest.read_text(encoding="utf-8"),
++                            "RETIRED 2026-10-12: premise spent.\n\n",
++                        ),
+                         encoding="utf-8",
+                     )
++                    subprocess.run(["git", "add", "-A"], cwd=wt, check=True)
+                     subprocess.run(
+-                        ["git", "mv", str(pending), str(sup / pending.name)],
+-                        cwd=wt,
+-                        check=True,
+-                    )
+-                    subprocess.run(
+-                        ["git", "commit", "-qam", "aw ipd set superseded det001"],
++                        ["git", "commit", "-qm", "aw ipd set superseded det001"],
+                         cwd=wt,
+                         check=True,
+                     )
+@@ -683,13 +752,12 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
+                     )
+                     sup = wt / ".aw" / "records" / "plans" / "superseded"
+                     sup.mkdir(parents=True, exist_ok=True)
+-                    text = _set_plan_status(
+-                        pending.read_text(encoding="utf-8"),
+-                        "superseded",
+-                        history=False,
+-                    )
++                    _hand_edit_mirror_status(pending, "superseded")
+                     pending.write_text(
+-                        "RETIRED 2026-10-12: premise spent.\n\n" + text,
++                        _insert_after_mirror(
++                            pending.read_text(encoding="utf-8"),
++                            "RETIRED 2026-10-12: premise spent.\n\n",
++                        ),
+                         encoding="utf-8",
+                     )
+                     subprocess.run(
+@@ -729,7 +797,8 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
+                     runner_shared.UNTOOLED_STATUS_REFUSAL_CODE,
+                 )
+                 self.assertIn(
+-                    "Workflow history", str(item.get("untooled_status_refusal") or "")
++                    "disagrees with metadata log status",
++                    str(item.get("untooled_status_refusal") or ""),
+                 )
+ 
+     def test_case_f_clean_tooled_run_lands_executed(self):
+@@ -825,17 +894,25 @@ class LaneRuleBreakDetectionTests(unittest.TestCase):
+         exec_dir = repo / ".aw" / "records" / "plans" / "executed"
+         exec_dir.mkdir(parents=True, exist_ok=True)
+         executed_plan = exec_dir / plan.name
+-        subprocess.run(
+-            ["git", "mv", str(plan), str(executed_plan)], cwd=repo, check=True
+-        )
+-        content = _set_plan_status(
+-            executed_plan.read_text(encoding="utf-8"),
+-            "executed",
+-            history=False,
++        artifact_meta.append(
++            "det001",
++            [
++                {
++                    "op": "transition",
++                    "from": "approved",
++                    "to": "executed",
++                    "path": f"plans/executed/{plan.name}",
++                    "message": "executed",
++                },
++                {"op": "unset", "fields": ["approval"]},
++            ],
++            dry_run=False,
++            project_context=artifact_meta.legacy_context(repo),
++            actor={"tool": "aw ipd finalize"},
+         )
+-        executed_plan.write_text(content, encoding="utf-8")
++        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+         subprocess.run(
+-            ["git", "commit", "-am", "base executed plan", "--no-verify"],
++            ["git", "commit", "-m", "base executed plan", "--no-verify"],
+             cwd=repo,
+             check=True,
+         )
 diff --git a/tests/test_legacy_finalize.py b/tests/test_legacy_finalize.py
 index 12a41a59c..596f0c1af 100644
 --- a/tests/test_legacy_finalize.py
@@ -44526,7 +45687,7 @@ index 12a41a59c..596f0c1af 100644
  
  class BareSyncRefusalTests(_Repo):
 diff --git a/tests/test_log_rename_events.py b/tests/test_log_rename_events.py
-index daadd37f9..a78721bd0 100644
+index daadd37f9..68e8f8882 100644
 --- a/tests/test_log_rename_events.py
 +++ b/tests/test_log_rename_events.py
 @@ -4,7 +4,8 @@ IPD `v45j1n` (spec `4sd62s` 4.2 PATH HISTORY, AC-31, AC-34, C10a). Each log-form
@@ -44539,49 +45700,976 @@ index daadd37f9..a78721bd0 100644
  
  Node names carry `rename`, `group` or `archive` so the plan's `-k` selections pick them.
  """
-@@ -207,7 +208,7 @@ def test_rename_with_set_on_log_format_pairs_rename_and_set_in_one_append(
+@@ -111,26 +112,6 @@ def log_spec(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+     return repo
+ 
+ 
+-@pytest.fixture
+-def legacy_spec(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+-    """An unmigrated repository holding one legacy (bullet front matter) spec, no log."""
+-    repo = _init_repo(tmp_path, monkeypatch, schema=None)
+-    p = _records(repo) / _SPEC_PATH
+-    p.parent.mkdir(parents=True)
+-    p.write_text(
+-        "# Spec: sample\n\n"
+-        f"- Id: {_SPEC_ID}\n"
+-        "- Status: draft\n"
+-        "- Set: sp34ef\n\n"
+-        "Body.\n\n"
+-        "## Workflow history\n\n"
+-        "- 2026-11-09 created (aw test)\n",
+-        encoding="utf-8",
+-    )
+-    _commit_all(repo)
+-    return repo
+-
+-
+ def _history_rows(
+     repo: Path, id6: str, capsys: pytest.CaptureFixture[str]
+ ) -> List[Dict[str, Any]]:
+@@ -207,33 +188,6 @@ def test_rename_with_set_on_log_format_pairs_rename_and_set_in_one_append(
      assert len({e["append"] for e in added}) == 1
  
  
 -def test_rename_on_legacy_format_keeps_bytes_and_ledger(legacy_spec: Path) -> None:
-+def test_rename_on_legacy_format_keeps_bytes_and_writes_no_ledger(legacy_spec: Path) -> None:
-     repo = legacy_spec
-     src = _records(repo) / _SPEC_PATH
-     original = src.read_bytes()
-@@ -228,10 +229,8 @@ def test_rename_on_legacy_format_keeps_bytes_and_ledger(legacy_spec: Path) -> No
-     assert not src.exists()
-     assert dst.read_bytes() == original
-     assert not (_records(repo) / "meta").exists()
+-    repo = legacy_spec
+-    src = _records(repo) / _SPEC_PATH
+-    original = src.read_bytes()
+-    rc = _run(
+-        [
+-            "rename",
+-            "specs",
+-            _SPEC_ID,
+-            "--slug",
+-            "renamed",
+-            "--dir",
+-            str(repo),
+-            "--apply",
+-        ]
+-    )
+-    assert rc == 0
+-    dst = _records(repo) / "specs/draft/20261109-sp34ef-01-sp34ef-renamed.spec.md"
+-    assert not src.exists()
+-    assert dst.read_bytes() == original
+-    assert not (_records(repo) / "meta").exists()
 -    [line] = _ledger(repo)
 -    assert line["verb"] == "rename"
 -    assert line["from_name"] == "20261109-sp34ef-01-sp34ef-sample.spec.md"
 -    assert line["to_name"] == dst.name
-+    # The rename ledger is retired (spec 4sd62s 5.2 step 2, AC-31): nothing writes the sidecar.
-+    assert _ledger(repo) == []
- 
- 
+-
+-
  def test_rename_refused_by_the_log_leaves_the_file_in_place(
-@@ -304,7 +303,7 @@ def test_group_on_log_format_appends_rename_and_set_in_one_append(
+     log_spec: Path, monkeypatch: pytest.MonkeyPatch
+ ) -> None:
+@@ -304,30 +258,6 @@ def test_group_on_log_format_appends_rename_and_set_in_one_append(
      assert st.set_id == "newset" and st.path == new_rel
  
  
 -def test_group_on_legacy_format_keeps_ledger_and_bullet(legacy_spec: Path) -> None:
-+def test_group_on_legacy_format_keeps_bullet_and_writes_no_ledger(legacy_spec: Path) -> None:
-     repo = legacy_spec
-     rc = _run(
-         [
-@@ -323,9 +322,8 @@ def test_group_on_legacy_format_keeps_ledger_and_bullet(legacy_spec: Path) -> No
-     dst = _records(repo) / "specs/draft/20261109-newset-01-sp34ef-sample.spec.md"
-     assert "- Set: newset" in dst.read_text(encoding="utf-8")
-     assert not (_records(repo) / "meta").exists()
+-    repo = legacy_spec
+-    rc = _run(
+-        [
+-            "group",
+-            "specs",
+-            _SPEC_ID,
+-            "--set",
+-            "newset",
+-            "--rename",
+-            "--dir",
+-            str(repo),
+-            "--apply",
+-        ]
+-    )
+-    assert rc == 0
+-    dst = _records(repo) / "specs/draft/20261109-newset-01-sp34ef-sample.spec.md"
+-    assert "- Set: newset" in dst.read_text(encoding="utf-8")
+-    assert not (_records(repo) / "meta").exists()
 -    [line] = _ledger(repo)
 -    assert line["verb"] == "group"
 -    assert line["to_name"] == dst.name
-+    # The rename ledger is retired (spec 4sd62s 5.2 step 2, AC-31): nothing writes the sidecar.
-+    assert _ledger(repo) == []
- 
- 
+-
+-
  # --------------------------------------------------------------------------------------
+ # E-04 / V-04: aw archive plans
+ # --------------------------------------------------------------------------------------
+@@ -397,27 +327,6 @@ def log_plan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+     return repo
+ 
+ 
+-@pytest.fixture
+-def legacy_plan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+-    """An unmigrated repository holding one executed legacy plan, no log."""
+-    repo = _init_repo(tmp_path, monkeypatch, schema=None)
+-    p = _records(repo) / _PLAN_EXECUTED
+-    p.parent.mkdir(parents=True)
+-    p.write_text(
+-        "# IPD: sample\n\n"
+-        f"- Id: {_PLAN_ID}\n"
+-        "- Status: executed\n"
+-        "- Set: demo\n"
+-        "- Created: 2026-11-09\n\n"
+-        "body\n\n"
+-        "## Workflow history\n\n"
+-        "- 2026-11-09 executed (aw test)\n",
+-        encoding="utf-8",
+-    )
+-    _commit_all(repo)
+-    return repo
+-
+-
+ def _sharded(repo: Path) -> List[Path]:
+     return sorted(
+         p
+@@ -446,13 +355,3 @@ def test_archive_on_log_format_appends_archive_rename_event(
+         new_rel,
+     ]
+     assert _ledger(repo) == []
+-
+-
+-def test_archive_on_legacy_format_moves_bytes_unchanged(legacy_plan: Path) -> None:
+-    repo = legacy_plan
+-    original = (_records(repo) / _PLAN_EXECUTED).read_bytes()
+-    rc = _run(["archive", "plans", _PLAN_ID, "--dir", str(repo), "--apply"])
+-    assert rc == 0
+-    [moved] = _sharded(repo)
+-    assert moved.read_bytes() == original
+-    assert not (_records(repo) / "meta").exists()
+diff --git a/tests/test_m0001_any_repo.py b/tests/test_m0001_any_repo.py
+index 9188283cd..13f20bbfa 100644
+--- a/tests/test_m0001_any_repo.py
++++ b/tests/test_m0001_any_repo.py
+@@ -28,9 +28,8 @@ from agent_workflows import (
+     plans,
+     project_context,
+     selectors,
+-    status_set,
+ )
+-from agent_workflows.migrations import chain, m0001_verify
++from agent_workflows.migrations import chain, m0001_metadata_v2, m0001_verify
+ from tests import migration_corpus as mc
+ 
+ CORPUS_SHAPES: tuple[str, ...] = (
+@@ -247,23 +246,8 @@ def test_ac42_corpus_shapes_end_to_end_migration(
+     """AC-42 items (1)-(7) across all five C12 corpus shapes."""
+     repo, aw_home = _build_corpus_shape(shape, tmp_path, monkeypatch)
+ 
+-    # Preserve pre-migration inventory, `aw find --agent`, `aw attention`, and unclassifiable digests
+-    pre_inventory = status_set.inventory_all_artifacts(repo)
+-    rc_pre_find, out_pre_find, err_pre_find = _run_cli_inproc(
+-        repo, ["find", "--agent"], aw_home=aw_home
+-    )
+-    assert rc_pre_find == 0, err_pre_find or out_pre_find
+-    pre_find_items, pre_find_summary = _parse_find_agent_stream(out_pre_find)
+-    assert pre_find_summary.get("complete") is True
+-
+-    _rc_pre_attn, out_pre_attn, _err_pre_attn = _run_cli_inproc(
+-        repo, ["attention", "--all", "--format", "json"], aw_home=aw_home
+-    )
+-    pre_attn_doc = json.loads(out_pre_attn)
+-    pre_attn_violations = {
+-        (v["location"], v["rule"]) for v in pre_attn_doc.get("violations", [])
+-    }
+-
++    # Preserve unclassifiable digests before migration (schema-2 refuses pre-migration CLI reads
++    # by design per spec 4sd62s C4; expected records come from mc.EXPECTED[shape]).
+     unclassifiable_digests: Dict[str, str] = {}
+     if shape == "idless_prose":
+         scratch_note = repo / ".aw" / "records" / "notes" / "scratch.md"
+@@ -469,13 +453,11 @@ def test_ac42_corpus_shapes_end_to_end_migration(
+         assert attn_doc.get("valid") is True, attn_doc.get("violations")
+         assert rc_attn_all == 0, err_attn_all or out_attn_all
+         assert attn_all_doc.get("valid") is True, attn_all_doc.get("violations")
+-    elif shape in ("mixed_layout", "legacy_agents_layout"):
+-        # No migrated record may gain attention.missing-status, attention.unknown-status,
+-        # or attention.uninventoried-tree violations relative to pre-migration fixtures.
+-        mapped_pre_viols = {
+-            (_map_pre_migration_path(loc, rename_map) or loc, rule)
+-            for loc, rule in pre_attn_violations
+-        }
++    elif shape == "mixed_layout":
++        # No migrated record may exhibit attention.missing-status, attention.unknown-status,
++        # or attention.uninventoried-tree violations after migration.
++        # Note: qa1z05 (draft spec) has no pre-migration workflow history, so attention.history-missing
++        # is a pre-existing violation on that fixture rather than migration drift.
+         post_viols = [
+             v
+             for v in attn_all_doc.get("violations", [])
+@@ -486,19 +468,48 @@ def test_ac42_corpus_shapes_end_to_end_migration(
+                 "attention.unknown-status",
+             )
+         ]
+-        new_migrated_viols = [
++        assert (
++            post_viols == []
++        ), f"Migrated {shape} reported attention violations: {post_viols}"
++        other_viols = [
++            v
++            for v in attn_all_doc.get("violations", [])
++            if v.get("rule") != "attention.history-missing"
++            or "qa1z05" not in v.get("location", "")
++        ]
++        assert other_viols == [], f"Unexpected {shape} attention violations: {other_viols}"
++    elif shape == "legacy_agents_layout":
++        # 20260708-survey-notes.md intentionally carries no status in migration_corpus.EXPECTED,
++        # so attention.missing-status on that research note is pre-existing; no other record may
++        # exhibit missing-status, unknown-status, or uninventoried-tree violations.
++        post_viols = [
+             v
+-            for v in post_viols
+-            if (v.get("location"), v.get("rule")) not in mapped_pre_viols
++            for v in attn_all_doc.get("violations", [])
++            if v.get("rule")
++            in (
++                "attention.uninventoried-tree",
++                "attention.missing-status",
++                "attention.unknown-status",
++            )
++            and not (
++                v.get("rule") == "attention.missing-status"
++                and "survey-notes.md" in v.get("location", "")
++            )
+         ]
+         assert (
+-            new_migrated_viols == []
+-        ), f"Migrated {shape} introduced new attention violations: {new_migrated_viols}"
+-        if not mapped_pre_viols:
+-            assert rc_attn == 0, err_attn or out_attn
+-            assert attn_doc.get("valid") is True, attn_doc.get("violations")
++            post_viols == []
++        ), f"Migrated {shape} reported attention violations: {post_viols}"
++        unexpected_attn_viols = [
++            v
++            for v in attn_doc.get("violations", [])
++            if not (
++                v.get("rule") == "attention.missing-status"
++                and "survey-notes.md" in v.get("location", "")
++            )
++        ]
++        assert unexpected_attn_viols == [], unexpected_attn_viols
+ 
+-    # AC-42 (5) before/after `aw find --agent` parity by mapped path and normalized status
++    # AC-42 (5) expected-corpus vs post-migration `aw find --agent` parity
+     rc_post_find, out_post_find, err_post_find = _run_cli_inproc(
+         repo, ["find", "--agent"], aw_home=aw_home
+     )
+@@ -506,47 +517,61 @@ def test_ac42_corpus_shapes_end_to_end_migration(
+     post_find_items, post_find_summary = _parse_find_agent_stream(out_post_find)
+     assert post_find_summary.get("complete") is True
+ 
+-    pre_mapped: Dict[str, Tuple[str, str]] = {}
+-    for item in pre_find_items:
+-        mapped = _map_pre_migration_path(item["path"], rename_map)
+-        if mapped is None:
+-            continue
+-        norm_st = _normalize_find_status(item["type"], item.get("status"))
+-        if mapped in pre_mapped:
+-            assert pre_mapped[mapped][1] == norm_st
+-        else:
+-            pre_mapped[mapped] = (item["type"], norm_st)
+-
+-    post_by_path: Dict[str, Dict[str, Any]] = {
+-        item["path"]: item for item in post_find_items
++    post_by_id: Dict[str, Dict[str, Any]] = {
++        str(item["id6"]): item
++        for item in post_find_items
++        if item.get("id6") and artifact_core.is_valid_id6(str(item["id6"]))
+     }
+-    dropped_paths = sorted(set(pre_mapped) - set(post_by_path))
+-    assert (
+-        dropped_paths == []
+-    ), f"Pre-migration aw find records dropped: {dropped_paths}"
+-
+-    for mapped_path, (pre_type, pre_norm_status) in sorted(pre_mapped.items()):
+-        post_item = post_by_path[mapped_path]
+-        post_norm_status = _normalize_find_status(
+-            post_item["type"], post_item.get("status")
+-        )
+-        assert post_norm_status == pre_norm_status, (
+-            f"Status drift for {mapped_path} ({pre_type} -> {post_item['type']}): "
+-            f"pre={pre_norm_status!r} vs post={post_norm_status!r}"
+-        )
+-
+-    minted_id_set = set(minted_ids.values())
+-    post_only_paths = sorted(set(post_by_path) - set(pre_mapped))
+-    for extra_path in post_only_paths:
+-        extra_id = post_by_path[extra_path].get("id6")
++    expected_ids: set[str] = set()
++    for exp in mc.EXPECTED[shape]:
++        if exp.id6 is not None:
++            exp_id = exp.id6
++        else:
++            rel_hint = exp.path.split(".aw/records/", 1)[-1].split(".agents/", 1)[-1]
++            matched_mint = [
++                mid
++                for old_rel, mid in minted_ids.items()
++                if old_rel.endswith(Path(rel_hint).name)
++            ]
++            assert len(matched_mint) == 1, (exp, minted_ids)
++            exp_id = matched_mint[0]
++        expected_ids.add(exp_id)
+         assert (
+-            extra_id in minted_id_set
+-        ), f"Post-migration-only aw find item {extra_path} ({extra_id!r}) was not minted"
++            exp_id in post_by_id
++        ), f"Expected migrated record {exp_id} missing from aw find: {post_by_id}"
++        post_item = post_by_id[exp_id]
++        if exp.status is not None:
++            if exp.record_type == "plans":
++                # `aw find --agent` reports directory disposition for plans (`pending`/`executed`),
++                # while native metadata status is verified below against `artifact_meta.query`.
++                rel_after_plans = exp.path.split("plans/", 1)[-1]
++                exp_find_status = (
++                    rel_after_plans.split("/", 1)[0]
++                    if "/" in rel_after_plans
++                    else exp.status
++                )
++            else:
++                exp_find_status = exp.status
++            exp_norm_status = _normalize_find_status(exp.record_type, exp_find_status)
++            post_norm_status = _normalize_find_status(
++                post_item["type"], post_item.get("status")
++            )
++            assert post_norm_status == exp_norm_status, (
++                f"Status drift for {exp_id} ({exp.record_type} -> {post_item['type']}): "
++                f"expected={exp_norm_status!r} vs post={post_norm_status!r}"
++            )
++        if not exp.path.startswith("companion:"):
++            mapped_path = _map_pre_migration_path(exp.path, rename_map)
++            assert mapped_path is not None
++            assert post_item["path"] == mapped_path, (
++                f"Path mismatch for {exp_id}: expected={mapped_path!r} "
++                f"vs post={post_item['path']!r}"
++            )
+ 
+-    # AC-42 (5) pre-migration inventory vs post-migration log reader (`artifact_meta.query`)
+-    ctx = project_context.resolve_project_context(
+-        target_repo=str(repo), aw_home=str(aw_home)
+-    )
++    assert set(post_by_id) == expected_ids
++
++    # AC-42 (5) expected corpus vs post-migration log reader (`artifact_meta.query`)
++    ctx = artifact_meta.legacy_context(repo)
+     q = artifact_meta.query(project_context=ctx)
+     assert not q.incomplete
+     log_rows = [r for r in q.rows if not r.id_derived]
+@@ -573,11 +598,6 @@ def test_ac42_corpus_shapes_end_to_end_migration(
+             if exp.status is not None:
+                 assert log_by_id[minted_id].status == exp.status.lower()
+ 
+-    # Confirm pre-migration inventory records (excluding non-record unclassifiables) match log statuses
+-    for rec in pre_inventory:
+-        if rec.id6 is not None and rec.id6 in log_by_id:
+-            assert log_by_id[rec.id6].status == (rec.status or "").lower()
+-
+ 
+ @pytest.mark.slow
+ @pytest.mark.livecorpus
+@@ -607,22 +627,51 @@ def test_ac42_this_repository_clone_migration(
+     _git(clone, "config", "user.name", "Synthetic Migration Test")
+     _git(clone, "config", "user.email", "migration-test@example.invalid")
+ 
+-    # Pre-migration baselines in the clone
+-    rc_pre_find, out_pre_find, err_pre_find = _run_cli_inproc(
+-        clone, ["find", "--agent"], aw_home=aw_home
+-    )
+-    assert rc_pre_find == 0, err_pre_find or out_pre_find
+-    pre_find_items, pre_find_summary = _parse_find_agent_stream(out_pre_find)
+-    assert pre_find_summary.get("complete") is True
+-    assert len(pre_find_items) > 0
+-
+-    _rc_pre_attn, out_pre_attn, _err_pre_attn = _run_cli_inproc(
+-        clone, ["attention", "--all", "--format", "json"], aw_home=aw_home
+-    )
+-    pre_attn_doc = json.loads(out_pre_attn)
+-    pre_attn_violations = {
+-        (v["location"], v["rule"]) for v in pre_attn_doc.get("violations", [])
++    # Pre-migration legacy baselines via m0001_metadata_v2.load_legacy_artifact (schema-2
++    # refuses pre-migration CLI reads by design per spec 4sd62s C4).
++    pre_records_root = project_context.project_records_dir(clone)
++    pre_legacy_by_id: Dict[str, Tuple[str, str]] = {}
++    _LEGACY_FIND_TYPE_MAP = {
++        "ipd": "plans",
++        "spec": "specs",
++        "backlog": "backlog",
++        "research": "research",
++        "release": "releases",
++        "prompt": "prompts",
++        "walkthrough": "walkthroughs",
+     }
++    for sub in ("plans", "specs", "backlog", "research", "releases", "prompts", "walkthroughs"):
++        sub_dir = pre_records_root / sub
++        if not sub_dir.is_dir():
++            continue
++        for md_path in sorted(sub_dir.rglob("*.md")):
++            rel_posix = md_path.relative_to(pre_records_root).as_posix()
++            if md_path.name in ("README.md", "INDEX.md", "STATUS.md"):
++                continue
++            if any(part.endswith(".data") for part in md_path.parts):
++                continue
++            if rel_posix.startswith("research/") and md_path.name.endswith("-template.md"):
++                continue
++            row, _ = m0001_metadata_v2.load_legacy_artifact(
++                md_path, pre_records_root, repo_root=clone
++            )
++            rid = row.get("id6")
++            rtype = _LEGACY_FIND_TYPE_MAP.get(str(row.get("type") or ""))
++            if rid and rtype and not row.get("id_derived"):
++                if rtype in ("plans", "prompts"):
++                    parts = rel_posix.split("/")
++                    exp_find_status = (
++                        parts[1]
++                        if (rtype == "plans" or not row.get("status")) and len(parts) > 2
++                        else row.get("status")
++                    )
++                else:
++                    exp_find_status = row.get("status")
++                pre_legacy_by_id[str(rid)] = (
++                    rtype,
++                    _normalize_find_status(rtype, exp_find_status),
++                )
++    assert len(pre_legacy_by_id) > 0
+ 
+     # AC-42 (1): dry-run census (refuses without --force when expected sidecar is absent;
+     # succeeds with --force on fresh clone and leaves clone tree untouched).
+@@ -735,24 +784,20 @@ def test_ac42_this_repository_clone_migration(
+         clone / ".aw" / "state" / "durable" / "migrations" / "m0001" / "journal.json"
+     )
+     jdata = json.loads(jpath.read_text(encoding="utf-8"))
+-    rename_map: Dict[str, str] = dict(jdata.get("rename_map") or {})
+     minted_ids: Dict[str, str] = dict(jdata.get("minted_ids") or {})
+ 
+-    mapped_pre_viols = {
+-        (_map_pre_migration_path(loc, rename_map) or loc, rule)
+-        for loc, rule in pre_attn_violations
+-    }
+-    new_attn_viols = [
++    # No migrated record may report attention.missing-status or attention.unknown-status.
++    status_attn_viols = [
+         v
+         for v in attn_all_doc.get("violations", [])
+-        if (v.get("location"), v.get("rule")) not in mapped_pre_viols
++        if v.get("rule") in ("attention.missing-status", "attention.unknown-status")
+     ]
+-    assert new_attn_viols == [], (
+-        f"Migrated clone introduced {len(new_attn_viols)} new attention violations "
+-        f"(sample: {new_attn_viols[:5]})"
++    assert status_attn_viols == [], (
++        f"Migrated clone reported {len(status_attn_viols)} status attention violations "
++        f"(sample: {status_attn_viols[:5]})"
+     )
+ 
+-    # AC-42 (5): before/after `aw find --agent` parity by mapped path and normalized status
++    # AC-42 (5): pre-migration load_legacy_artifact / dry-run census vs post-migration `aw find --agent`
+     rc_post_find, out_post_find, err_post_find = _run_cli_inproc(
+         clone, ["find", "--agent"], aw_home=aw_home
+     )
+@@ -760,42 +805,33 @@ def test_ac42_this_repository_clone_migration(
+     post_find_items, post_find_summary = _parse_find_agent_stream(out_post_find)
+     assert post_find_summary.get("complete") is True
+ 
+-    pre_mapped: Dict[str, Tuple[str, str]] = {}
+-    for item in pre_find_items:
+-        mapped = _map_pre_migration_path(item["path"], rename_map)
+-        if mapped is None:
+-            continue
+-        pre_mapped[mapped] = (
+-            item["type"],
+-            _normalize_find_status(item["type"], item.get("status")),
+-        )
+-
+-    post_by_path: Dict[str, Dict[str, Any]] = {
+-        item["path"]: item for item in post_find_items
++    post_by_id: Dict[str, Dict[str, Any]] = {
++        str(item["id6"]): item
++        for item in post_find_items
++        if item.get("id6") and artifact_core.is_valid_id6(str(item["id6"]))
+     }
+-    dropped = sorted(set(pre_mapped) - set(post_by_path))
+-    assert dropped == [], f"Dropped {len(dropped)} aw find items: {dropped[:10]}"
++    dropped_ids = sorted(set(pre_legacy_by_id) - set(post_by_id))
++    assert dropped_ids == [], f"Dropped {len(dropped_ids)} aw find ids: {dropped_ids[:10]}"
+ 
+     status_diffs: List[Tuple[str, str, str, str]] = []
+-    for mapped_path, (pre_type, pre_norm_status) in sorted(pre_mapped.items()):
+-        post_item = post_by_path[mapped_path]
++    for rid, (pre_type, pre_norm_status) in sorted(pre_legacy_by_id.items()):
++        post_item = post_by_id[rid]
+         post_norm_status = _normalize_find_status(
+             post_item["type"], post_item.get("status")
+         )
+         if post_norm_status != pre_norm_status:
+             status_diffs.append(
+-                (mapped_path, post_item["type"], pre_norm_status, post_norm_status)
++                (rid, post_item["type"], pre_norm_status, post_norm_status)
+             )
+     assert (
+         status_diffs == []
+     ), f"{len(status_diffs)} aw find status mismatches (sample: {status_diffs[:10]})"
+ 
+     minted_id_set = set(minted_ids.values())
+-    for extra_path in sorted(set(post_by_path) - set(pre_mapped)):
+-        extra_id = post_by_path[extra_path].get("id6")
++    for extra_id in sorted(set(post_by_id) - set(pre_legacy_by_id)):
+         assert (
+-            extra_id in minted_id_set
+-        ), f"Post-migration-only aw find item {extra_path} ({extra_id!r}) was not minted"
++            extra_id in minted_id_set or (meta_dir / f"{extra_id}.jsonl").is_file()
++        ), f"Post-migration-only aw find id {extra_id!r} has neither minted id nor log"
+ 
+     # Confirm source checkout is untouched
+     assert _git(repo_root, "rev-parse", "HEAD").stdout.strip() == source_head_before
+diff --git a/tests/test_m0001_gate_marker.py b/tests/test_m0001_gate_marker.py
+index 994ba4114..94d148b0c 100644
+--- a/tests/test_m0001_gate_marker.py
++++ b/tests/test_m0001_gate_marker.py
+@@ -12,12 +12,13 @@ from typing import Tuple
+ 
+ import pytest
+ 
+-from agent_workflows import layout_migration
++from agent_workflows import artifact_meta, layout_migration
+ from agent_workflows.hooks import (
+     backlog_blocking_close_gate,
+     executed_transition_gate,
+ )
+-from agent_workflows.migrations import m0001_metadata_v2
++from agent_workflows.migrations import chain, m0001_metadata_v2
++from tests.record_builder import RecordBuilder
+ 
+ pytestmark = pytest.mark.core
+ 
+@@ -32,7 +33,11 @@ def _git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProce
+ 
+ 
+ def _init_git_repo(
+-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, name: str = "repo"
++    tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
++    *,
++    name: str = "repo",
++    metadata_schema: int | None = None,
+ ) -> Path:
+     aw_home = tmp_path / f"aw_home_{name}"
+     aw_home.mkdir(parents=True, exist_ok=True)
+@@ -44,11 +49,14 @@ def _init_git_repo(
+     _git(repo, "config", "user.name", "Test User")
+     _git(repo, "config", "user.email", "test@example.com")
+     (repo / ".aw" / "config").mkdir(parents=True, exist_ok=True)
++    proj_cfg: dict[str, object] = {
++        "schema_version": 2,
++        "cutovers": {"release_gate_at_rest": "2026-10-01"},
++    }
++    if metadata_schema is not None:
++        proj_cfg["metadata_schema"] = metadata_schema
+     (repo / ".aw" / "config" / "project.json").write_text(
+-        json.dumps(
+-            {"schema_version": 2, "cutovers": {"release_gate_at_rest": "2026-10-01"}}
+-        )
+-        + "\n",
++        json.dumps(proj_cfg) + "\n",
+         encoding="utf-8",
+     )
+     (repo / ".aw" / ".gitignore").write_text(
+@@ -58,38 +66,75 @@ def _init_git_repo(
+     return repo
+ 
+ 
+-def _stage_plan_executed_transition(repo: Path) -> Tuple[Path, Path]:
++def _stage_plan_executed_transition(
++    repo: Path, *, legacy: bool = False
++) -> Tuple[Path, Path]:
+     """Commit a pending plan, then stage its raw move into executed/."""
+     pending_dir = repo / ".aw" / "records" / "plans" / "pending"
+     executed_dir = repo / ".aw" / "records" / "plans" / "executed"
+     pending_dir.mkdir(parents=True, exist_ok=True)
+     executed_dir.mkdir(parents=True, exist_ok=True)
+ 
+-    pending_plan = pending_dir / "20261101-demo-01-pl0001-sample.ipd.md"
+-    pending_plan.write_text(
+-        "# IPD: Sample\n\n- Id: pl0001\n- Status: approved\n- Set: demo\n- Order: 1\n",
+-        encoding="utf-8",
+-    )
+-    _git(repo, "add", "-A")
+-    _git(repo, "commit", "-q", "-m", "seed pending plan")
+-
+-    executed_plan = executed_dir / pending_plan.name
+-    _git(
+-        repo,
+-        "mv",
+-        pending_plan.relative_to(repo).as_posix(),
+-        executed_plan.relative_to(repo).as_posix(),
+-    )
+-    executed_plan.write_text(
+-        "# IPD: Sample\n\n- Id: pl0001\n- Status: executed\n- Set: demo\n- Order: 1\n",
+-        encoding="utf-8",
+-    )
+-    _git(repo, "add", executed_plan.relative_to(repo).as_posix())
++    if legacy:
++        pending_plan = pending_dir / "20261101-demo-01-pl0001-sample.ipd.md"
++        pending_plan.write_text(
++            "# IPD: Sample\n\n- Id: pl0001\n- Status: approved\n- Set: demo\n- Order: 1\n",
++            encoding="utf-8",
++        )
++        _git(repo, "add", "-A")
++        _git(repo, "commit", "-q", "-m", "seed pending plan")
++
++        executed_plan = executed_dir / pending_plan.name
++        _git(
++            repo,
++            "mv",
++            pending_plan.relative_to(repo).as_posix(),
++            executed_plan.relative_to(repo).as_posix(),
++        )
++        executed_plan.write_text(
++            "# IPD: Sample\n\n- Id: pl0001\n- Status: executed\n- Set: demo\n- Order: 1\n",
++            encoding="utf-8",
++        )
++        _git(repo, "add", executed_plan.relative_to(repo).as_posix())
++    else:
++        chain.write_metadata_schema(repo, 2)
++        pending_plan = Path(
++            RecordBuilder(repo).plan(
++                id6="pl0001",
++                title="Sample",
++                when="2026-11-01",
++                set="demo",
++                order=1,
++                slug="sample",
++                status="approved",
++                approval="2026-11-01, human: approved",
++                readiness="go-pending-approval",
++            )
++        )
++        _git(repo, "add", "-A")
++        _git(repo, "commit", "-q", "-m", "seed pending plan")
++
++        executed_plan = executed_dir / pending_plan.name
++        _git(
++            repo,
++            "mv",
++            pending_plan.relative_to(repo).as_posix(),
++            executed_plan.relative_to(repo).as_posix(),
++        )
++        executed_plan.write_text(
++            executed_plan.read_text(encoding="utf-8").replace(
++                "status: approved", "status: executed", 1
++            ),
++            encoding="utf-8",
++        )
++        _git(repo, "add", executed_plan.relative_to(repo).as_posix())
+     journal_dir = repo / ".aw" / "state" / "durable" / "migrations" / "m0001"
+     return executed_plan, journal_dir
+ 
+ 
+-def _stage_release_blocking_backlog_close(repo: Path) -> Tuple[Path, Path]:
++def _stage_release_blocking_backlog_close(
++    repo: Path, *, legacy: bool = False
++) -> Tuple[Path, Path]:
+     """Commit an open release-blocking backlog item, then stage its raw close to done/."""
+     releases_dir = repo / ".aw" / "records" / "releases"
+     open_dir = repo / ".aw" / "records" / "backlog" / "open"
+@@ -98,42 +143,90 @@ def _stage_release_blocking_backlog_close(repo: Path) -> Tuple[Path, Path]:
+     open_dir.mkdir(parents=True, exist_ok=True)
+     done_dir.mkdir(parents=True, exist_ok=True)
+ 
+-    (releases_dir / "20260901-rel001-01-rel001-v1.release.md").write_text(
+-        "# Release: 1.0.0\n\n- Id: rel001\n- Status: planned\n- Version: 1.0.0\n",
+-        encoding="utf-8",
+-    )
+-    open_item = open_dir / "20261101-bk0001-01-bk0001-gate-item.backlog.md"
+-    open_item.write_text(
+-        "- Id: bk0001\n"
+-        "- Status: open\n"
+-        "- Blocks-Release: next\n"
+-        "- Set: bk0001\n"
+-        "- Priority: high\n"
+-        "- Work-Kind: feature\n"
+-        "- Summary: Release blocking item\n",
+-        encoding="utf-8",
+-    )
+-    _git(repo, "add", "-A")
+-    _git(repo, "commit", "-q", "-m", "seed release and open backlog item")
+-
+-    done_item = done_dir / open_item.name
+-    _git(
+-        repo,
+-        "mv",
+-        open_item.relative_to(repo).as_posix(),
+-        done_item.relative_to(repo).as_posix(),
+-    )
+-    done_item.write_text(
+-        "- Id: bk0001\n"
+-        "- Status: done\n"
+-        "- Blocks-Release: next\n"
+-        "- Set: bk0001\n"
+-        "- Priority: high\n"
+-        "- Work-Kind: feature\n"
+-        "- Summary: Release blocking item\n",
+-        encoding="utf-8",
+-    )
+-    _git(repo, "add", done_item.relative_to(repo).as_posix())
++    if legacy:
++        (releases_dir / "20260901-rel001-01-rel001-v1.release.md").write_text(
++            "# Release: 1.0.0\n\n- Id: rel001\n- Status: planned\n- Version: 1.0.0\n",
++            encoding="utf-8",
++        )
++        open_item = open_dir / "20261101-bk0001-01-bk0001-gate-item.backlog.md"
++        open_item.write_text(
++            "- Id: bk0001\n"
++            "- Status: open\n"
++            "- Blocks-Release: next\n"
++            "- Set: bk0001\n"
++            "- Priority: high\n"
++            "- Work-Kind: feature\n"
++            "- Summary: Release blocking item\n",
++            encoding="utf-8",
++        )
++        _git(repo, "add", "-A")
++        _git(repo, "commit", "-q", "-m", "seed release and open backlog item")
++
++        done_item = done_dir / open_item.name
++        _git(
++            repo,
++            "mv",
++            open_item.relative_to(repo).as_posix(),
++            done_item.relative_to(repo).as_posix(),
++        )
++        done_item.write_text(
++            "- Id: bk0001\n"
++            "- Status: done\n"
++            "- Blocks-Release: next\n"
++            "- Set: bk0001\n"
++            "- Priority: high\n"
++            "- Work-Kind: feature\n"
++            "- Summary: Release blocking item\n",
++            encoding="utf-8",
++        )
++        _git(repo, "add", done_item.relative_to(repo).as_posix())
++    else:
++        chain.write_metadata_schema(repo, 2)
++        rb = RecordBuilder(repo)
++        rb.release(
++            id6="rel001",
++            version="1.0.0",
++            status="planned",
++            when="2026-09-01",
++            slug="v1",
++        )
++        open_item = Path(
++            rb.backlog(
++                id6="bk0001",
++                status="open",
++                set="bk0001",
++                priority="high",
++                work_kind="feature",
++                summary="Release blocking item",
++                blocks_release="next",
++                when="2026-11-01",
++                slug="gate-item",
++            )
++        )
++        _git(repo, "add", "-A")
++        _git(repo, "commit", "-q", "-m", "seed release and open backlog item")
++
++        done_item = done_dir / open_item.name
++        _git(
++            repo,
++            "mv",
++            open_item.relative_to(repo).as_posix(),
++            done_item.relative_to(repo).as_posix(),
++        )
++        done_rel = done_item.relative_to(repo / ".aw" / "records").as_posix()
++        ctx = artifact_meta.legacy_context(repo)
++        artifact_meta.append(
++            "bk0001",
++            [{"op": "transition", "from": "open", "to": "done", "path": done_rel}],
++            project_context=ctx,
++            actor={"tool": "test"},
++        )
++        _git(
++            repo,
++            "add",
++            done_item.relative_to(repo).as_posix(),
++            ".aw/records/meta/bk0001.jsonl",
++        )
+     journal_dir = repo / ".aw" / "state" / "durable" / "migrations" / "m0001"
+     return done_item, journal_dir
+ 
+@@ -160,7 +253,9 @@ class TestExecutedTransitionGateMarker:
+         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+     ) -> None:
+         repo = _init_git_repo(tmp_path, monkeypatch, name="exec_match")
+-        _executed_plan, journal_dir = _stage_plan_executed_transition(repo)
++        _executed_plan, journal_dir = _stage_plan_executed_transition(
++            repo, legacy=True
++        )
+ 
+         marker_path = m0001_metadata_v2._step_4a_write_marker(repo, journal_dir)
+         assert marker_path.is_file()
+@@ -274,7 +369,9 @@ class TestBacklogBlockingCloseGateMarker:
+         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+     ) -> None:
+         repo = _init_git_repo(tmp_path, monkeypatch, name="bk_match")
+-        _done_item, journal_dir = _stage_release_blocking_backlog_close(repo)
++        _done_item, journal_dir = _stage_release_blocking_backlog_close(
++            repo, legacy=True
++        )
+         marker_path = m0001_metadata_v2._step_4a_write_marker(repo, journal_dir)
+         assert marker_path.is_file()
+ 
+@@ -320,6 +417,7 @@ class TestBacklogBlockingCloseGateMarker:
+             [
+                 ".aw/records/backlog/open/20261101-bk0001-01-bk0001-gate-item.backlog.md",
+                 ".aw/records/backlog/done/20261101-bk0001-01-bk0001-gate-item.backlog.md",
++                ".aw/records/meta/bk0001.jsonl",
+             ],
+         )
+         assert outcome.status == "committed"
+@@ -330,19 +428,26 @@ class TestBacklogBlockingCloseGateMarker:
+         assert journal_data["terminal_commit_marker"] is None
+ 
+         # A subsequent raw close without a new marker is refused.
+-        done_dir = repo / ".aw" / "records" / "backlog" / "done"
+-        second = done_dir / "20261102-bk0002-01-bk0002-second.backlog.md"
+-        second.write_text(
+-            "- Id: bk0002\n"
+-            "- Status: done\n"
+-            "- Blocks-Release: next\n"
+-            "- Set: bk0002\n"
+-            "- Priority: high\n"
+-            "- Work-Kind: feature\n"
+-            "- Summary: Second ungated close\n",
+-            encoding="utf-8",
++        second = Path(
++            RecordBuilder(repo).backlog(
++                id6="bk0002",
++                status="done",
++                disposition="done",
++                set="bk0002",
++                priority="high",
++                work_kind="feature",
++                summary="Second ungated close",
++                blocks_release="next",
++                when="2026-11-02",
++                slug="second",
++            )
++        )
++        _git(
++            repo,
++            "add",
++            second.relative_to(repo).as_posix(),
++            ".aw/records/meta/bk0002.jsonl",
+         )
+-        _git(repo, "add", second.relative_to(repo).as_posix())
+         rc, msgs = backlog_blocking_close_gate.check(repo)
+         assert rc == 1
+         assert msgs
+@@ -513,7 +618,9 @@ class TestMarkerErrorHandling:
+     def test_unmerged_index_falls_back_to_refusal(
+         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+     ) -> None:
+-        repo = _init_git_repo(tmp_path, monkeypatch, name="err_unmerged")
++        repo = _init_git_repo(
++            tmp_path, monkeypatch, name="err_unmerged", metadata_schema=2
++        )
+         journal_dir = repo / ".aw" / "state" / "durable" / "migrations" / "m0001"
+ 
+         # Build a real merge conflict so git write-tree exits non-zero.
+@@ -541,20 +648,24 @@ class TestMarkerErrorHandling:
+ 
+         # Stage a raw executed plan transition alongside the unmerged index and a marker;
+         # the hook fails closed without crashing when git write-tree fails.
+-        raw_plan = (
+-            repo
+-            / ".aw"
+-            / "records"
+-            / "plans"
+-            / "executed"
+-            / "20261102-demo-01-pl0003-unmerged.ipd.md"
++        raw_plan = Path(
++            RecordBuilder(repo).plan(
++                id6="pl0003",
++                title="Unmerged",
++                when="2026-11-02",
++                set="demo",
++                order=1,
++                slug="unmerged",
++                status="executed",
++                disposition="executed",
++            )
+         )
+-        raw_plan.parent.mkdir(parents=True, exist_ok=True)
+-        raw_plan.write_text(
+-            "# IPD: Unmerged\n\n- Id: pl0003\n- Status: executed\n",
+-            encoding="utf-8",
++        _git(
++            repo,
++            "add",
++            raw_plan.relative_to(repo).as_posix(),
++            ".aw/records/meta/pl0003.jsonl",
+         )
+-        _git(repo, "add", raw_plan.relative_to(repo).as_posix())
+         journal_dir.mkdir(parents=True, exist_ok=True)
+         (journal_dir / "terminal_commit_marker.json").write_text(
+             json.dumps({"migration_id": "m0001", "tree_id": "0" * 40}),
+diff --git a/tests/test_m0001_review_conversion.py b/tests/test_m0001_review_conversion.py
+index 08007868e..28b3bd681 100644
+--- a/tests/test_m0001_review_conversion.py
++++ b/tests/test_m0001_review_conversion.py
+@@ -348,8 +348,7 @@ def test_fields_research_yaml_and_nonleading_prompt_preserved(
+ 
+     pre_rec = tmp_path / "pre_fields_res_records"
+     shutil.copytree(rec, pre_rec)
+-    pre_find_statuses = _find_research_statuses(repo)
+-    assert pre_find_statuses["rs5001"] == "active"
++    expected_find_statuses = {"rs5001": "active", "rs5002": "-"}
+ 
+     summary = m0001_convert.convert_records(
+         repo,
+@@ -359,6 +358,7 @@ def test_fields_research_yaml_and_nonleading_prompt_preserved(
+         include_reviews=False,
+     )
+     assert summary["by_type"]["research"] == 2
++    chain.write_metadata_schema(repo, 2)
+ 
+     ev1 = _read_jsonl(rec / "meta" / "rs5001.jsonl")
+     st1, _, _, _ = artifact_meta.replay(
+@@ -449,7 +449,7 @@ def test_fields_research_yaml_and_nonleading_prompt_preserved(
+     assert att_doc.get("valid") is True
+ 
+     post_find_statuses = _find_research_statuses(repo)
+-    assert post_find_statuses == pre_find_statuses
++    assert post_find_statuses == expected_find_statuses
+ 
+ 
+ def test_fields_walkthrough_and_free_prose_status(
+@@ -1178,8 +1178,7 @@ def test_research_prompt_roundtrip_check_meta_attention_and_find_parity(
+ 
+     pre_rec = tmp_path / "pre_prompt_parity_records"
+     shutil.copytree(rec, pre_rec)
+-    pre_find = _find_research_statuses(repo)
+-    assert pre_find == {"rs5004": "-", "rs5005": "active"}
++    expected_find = {"rs5004": "-", "rs5005": "active"}
+ 
+     summary = m0001_convert.convert_records(
+         repo,
+@@ -1189,6 +1188,7 @@ def test_research_prompt_roundtrip_check_meta_attention_and_find_parity(
+         include_reviews=False,
+     )
+     assert summary["by_type"]["research"] == 2
++    chain.write_metadata_schema(repo, 2)
+ 
+     ev_p = _read_jsonl(rec / "meta" / "rs5004.jsonl")
+     st_p, _, _, _ = artifact_meta.replay(
+@@ -1232,7 +1232,7 @@ def test_research_prompt_roundtrip_check_meta_attention_and_find_parity(
+     ] == []
+ 
+     post_find = _find_research_statuses(repo)
+-    assert post_find == pre_find
++    assert post_find == expected_find
+     assert post_find["rs5004"] == "-"
+     assert post_find["rs5005"] == "active"
+ 
 diff --git a/tests/test_m0001_sidecar.py b/tests/test_m0001_sidecar.py
 index 0dbe6d86c..d5819838a 100644
 --- a/tests/test_m0001_sidecar.py
@@ -44597,6 +46685,1826 @@ index 0dbe6d86c..d5819838a 100644
      assert len(inline_hist) == 1
      assert "human approved" in inline_hist[0]["line"]
  
+diff --git a/tests/test_meta_repair_cli.py b/tests/test_meta_repair_cli.py
+index 85e8264e6..b2887185f 100644
+--- a/tests/test_meta_repair_cli.py
++++ b/tests/test_meta_repair_cli.py
+@@ -321,8 +321,8 @@ def test_diverged_tail_requires_confirm_and_prints_field_changes(
+     assert st.fields["priority"] == "high"
+ 
+ 
+-def test_legacy_record_reports_nothing_to_repair(tmp_path: Path) -> None:
+-    """On a legacy record with no log sidecar, prints `nothing to repair (legacy format)` and exits 0."""
++def test_legacy_record_refuses_with_migrate_metadata_exit_two(tmp_path: Path) -> None:
++    """On an unmigrated legacy repo under schema 2, `aw meta repair` refuses with exit 2 naming `aw migrate metadata`."""
+     repo = _init_repo(tmp_path, "legacy")
+     p = (
+         repo
+@@ -338,19 +338,21 @@ def test_legacy_record_reports_nothing_to_repair(tmp_path: Path) -> None:
+     )
+     _commit_all(repo)
+ 
+-    rc, out, _ = _run_cli(["meta", "repair", "lg0001", "--dir", str(repo)])
+-    assert rc == 0
+-    assert "nothing to repair (legacy format)" in out
++    rc, out, err = _run_cli(["meta", "repair", "lg0001", "--dir", str(repo)])
++    assert rc == 2
++    assert "aw migrate metadata" in (out + err)
+     assert _git(repo, "status", "--porcelain") == ""
+ 
+     rc_a, out_a, _ = _run_cli(
+         ["meta", "repair", "lg0001", "--apply", "--dir", str(repo), "--agent"]
+     )
+-    assert rc_a == 0
++    assert rc_a == 2
+     rec = json.loads(out_a.strip().splitlines()[-1])
+     assert validate_agent_record(rec) == []
+-    assert rec["outcome"] == "clean"
+-    assert rec["applied"] is False
++    assert rec["outcome"] == "cannot-run"
++    assert "aw migrate metadata" in str(rec.get("summary") or "") or "aw migrate metadata" in str(
++        rec.get("next") or ""
++    )
+ 
+ 
+ def test_unknown_and_invalid_id6_exit_two(tmp_path: Path) -> None:
+diff --git a/tests/test_metadata_single_owner.py b/tests/test_metadata_single_owner.py
+index a8078f7e1..4c40f614b 100644
+--- a/tests/test_metadata_single_owner.py
++++ b/tests/test_metadata_single_owner.py
+@@ -128,14 +128,9 @@ def _build_fixture_repo(
+     ):
+         (recs / sub).mkdir(parents=True, exist_ok=True)
+ 
+-    plan_path = (
+-        recs
+-        / "plans"
+-        / "pending"
+-        / f"20261101-cset-01-{_PLAN_ID}-single-owner-plan.ipd.md"
+-    )
+-    plan_text = str(
+-        RecordBuilder().plan(
++    rb = RecordBuilder(repo)
++    plan_path = Path(
++        rb.plan(
+             title="Single Owner Plan",
+             when="2026-11-01",
+             plan_role="child",
+@@ -146,6 +141,7 @@ def _build_fixture_repo(
+             priority="low",
+             set="cset",
+             order=1,
++            slug="single-owner-plan",
+             highest_e_allocated="01",
+             author="tester",
+             review_depth="simple",
+@@ -189,52 +185,32 @@ def _build_fixture_repo(
+                 "Concern": "Verify single metadata owner across read and write surfaces.",
+                 "Scope": "Exercise CLI commands on a minimal fixture.",
+             },
+-            text_only=True,
+         )
+     )
+-    plan_path.write_text(plan_text, encoding="utf-8")
+ 
+-    spec_path = (
+-        recs
+-        / "specs"
+-        / "draft"
+-        / f"20261101-{_SPEC_ID}-01-{_SPEC_ID}-single-owner-spec.spec.md"
+-    )
+-    spec_text = str(
+-        RecordBuilder().spec(
+-            title="Single Owner Spec",
+-            when="2026-11-01",
+-            id6=_SPEC_ID,
+-            status="draft",
+-            set=_SPEC_ID,
+-            order=1,
+-            history=["- 2026-11-01 draft (tester): created"],
+-            body="## Overview\n\nMinimal spec fixture for single-owner write tests.",
+-            text_only=True,
+-        )
++    rb.spec(
++        title="Single Owner Spec",
++        when="2026-11-01",
++        id6=_SPEC_ID,
++        status="draft",
++        set=_SPEC_ID,
++        order=1,
++        slug="single-owner-spec",
++        history=["- 2026-11-01 draft (tester): created"],
++        body="## Overview\n\nMinimal spec fixture for single-owner write tests.",
+     )
+-    spec_path.write_text(spec_text, encoding="utf-8")
+ 
+-    backlog_path = (
+-        recs
+-        / "backlog"
+-        / "open"
+-        / f"20261101-bklset-01-{_BACKLOG_ID}-single-owner-item.backlog.md"
+-    )
+-    backlog_text = str(
+-        RecordBuilder().backlog(
+-            id6=_BACKLOG_ID,
+-            status="open",
+-            set="bklset",
+-            priority="low",
+-            work_kind="chore",
+-            summary="Single owner backlog item",
+-            when="2026-11-01",
+-            body="### Problem Statement\n\nMinimal backlog fixture for single-owner write tests.",
+-            text_only=True,
+-        )
++    rb.backlog(
++        id6=_BACKLOG_ID,
++        status="open",
++        set="bklset",
++        priority="low",
++        work_kind="chore",
++        summary="Single owner backlog item",
++        when="2026-11-01",
++        slug="single-owner-item",
++        body="### Problem Statement\n\nMinimal backlog fixture for single-owner write tests.",
+     )
+-    backlog_path.write_text(backlog_text, encoding="utf-8")
+ 
+     _git(repo, "add", ".")
+     _git(repo, "commit", "-q", "-m", "initial fixture records")
+@@ -260,6 +236,7 @@ def _make_sentinel_state(plan_rel: str) -> artifact_meta.State:
+         valid=1,
+         fields={
+             "date": "2026-11-01",
++            "plan_role": "child",
+             "kind": "child",
+             "set": "cset",
+             "order": 1,
+@@ -379,7 +356,7 @@ def test_read_find_reflects_sentinel_state(
+ ) -> None:
+     repo, plan_path = _build_fixture_repo(tmp_path, "read_find")
+     plan_rel = plan_path.relative_to(repo / ".aw" / "records").as_posix()
+-    assert "- Status: draft" in plan_path.read_text(encoding="utf-8")
++    assert "status: draft" in plan_path.read_text(encoding="utf-8")
+ 
+     _patch_readers_with_sentinel(monkeypatch, plan_rel)
+     rc_sent, out_sent, err_sent = _run_cli(
+@@ -405,7 +382,7 @@ def test_read_find_reflects_sentinel_state(
+         if line.strip() and json.loads(line).get("kind") == "item"
+     ]
+     assert disk_items == []
+-    assert "- Status: draft" in plan_path.read_text(encoding="utf-8")
++    assert "status: draft" in plan_path.read_text(encoding="utf-8")
+ 
+ 
+ def test_read_attention_reflects_sentinel_state(
+@@ -422,7 +399,7 @@ def test_read_attention_reflects_sentinel_state(
+     assert len(plan_items) == 1
+     assert plan_items[0]["native_status"] == _SENTINEL_STATUS
+     assert plan_items[0]["attention_class"] == "done"
+-    assert "- Status: draft" in plan_path.read_text(encoding="utf-8")
++    assert "status: draft" in plan_path.read_text(encoding="utf-8")
+ 
+ 
+ def test_read_show_json_reflects_sentinel_state(
+@@ -441,7 +418,7 @@ def test_read_show_json_reflects_sentinel_state(
+     assert len(records) == 1
+     assert records[0]["id6"] == _PLAN_ID
+     assert records[0]["status"] == _SENTINEL_STATUS
+-    assert "- Status: draft" in plan_path.read_text(encoding="utf-8")
++    assert "status: draft" in plan_path.read_text(encoding="utf-8")
+ 
+ 
+ def test_read_ipd_lint_reflects_sentinel_state(
+@@ -461,7 +438,7 @@ def test_read_ipd_lint_reflects_sentinel_state(
+     assert rc_patched != 0, out_patched + err_patched
+     assert _SENTINEL_STATUS in out_patched
+     assert "IPD-M105" in out_patched or "IPD-S405" in out_patched
+-    assert "- Status: draft" in plan_path.read_text(encoding="utf-8")
++    assert "status: draft" in plan_path.read_text(encoding="utf-8")
+ 
+ 
+ def test_read_check_plans_reflects_sentinel_state(
+@@ -491,7 +468,7 @@ def test_read_check_plans_reflects_sentinel_state(
+     assert "check.ipd-lint-diagnostic" in patched_rules, patched_diags
+     assert "check.ipd-lint-diagnostic" not in unpatched_rules, unpatched_rules
+     assert "check.ipd-draft-ready" not in patched_rules
+-    assert "- Status: draft" in plan_path.read_text(encoding="utf-8")
++    assert "status: draft" in plan_path.read_text(encoding="utf-8")
+ 
+ 
+ def test_read_ipd_executed_gate_reflects_sentinel_state(
+@@ -515,7 +492,7 @@ def test_read_ipd_executed_gate_reflects_sentinel_state(
+     assert rc_patched != 0, out_patched + err_patched
+     combined = out_patched + err_patched
+     assert _PLAN_ID in combined or "executed" in combined.lower()
+-    assert "- Status: draft" in plan_path.read_text(encoding="utf-8")
++    assert "status: draft" in plan_path.read_text(encoding="utf-8")
+ 
+ 
+ # --------------------------------------------------------------------------------------
+diff --git a/tests/test_migrate_cli.py b/tests/test_migrate_cli.py
+index 7b819adae..3ce25f48d 100644
+--- a/tests/test_migrate_cli.py
++++ b/tests/test_migrate_cli.py
+@@ -236,7 +236,7 @@ def test_migrate_metadata_explicit_leaf_runs_before_cutover(tmp_path: Path) -> N
+     repo = tmp_path / "repo"
+     _seed_legacy_aw_repo(repo, with_sidecar=True)
+ 
+-    assert chain.CURRENT_METADATA_SCHEMA == 1
++    assert chain.CURRENT_METADATA_SCHEMA == 2
+     before_tree = _tree_sha256(repo)
+     rc_dry, out_dry, _ = _run_cli_inproc(
+         repo, ["migrate", "metadata", "--dry-run"], aw_home=aw_home
+diff --git a/tests/test_migrations_chain.py b/tests/test_migrations_chain.py
+index dbb31b941..67268bde6 100644
+--- a/tests/test_migrations_chain.py
++++ b/tests/test_migrations_chain.py
+@@ -269,6 +269,7 @@ def test_refusal_under_schema_v1_and_v2(
+     p.write_text(_legacy_plan_text("lg0001"), encoding="utf-8")
+ 
+     # Under CURRENT_METADATA_SCHEMA == 1, nothing refuses.
++    monkeypatch.setattr(chain, "CURRENT_METADATA_SCHEMA", 1)
+     chain.require_current_schema(legacy_aw)
+ 
+     # Under CURRENT_METADATA_SCHEMA == 2, unstamped legacy .aw/records refuses.
+@@ -346,11 +347,6 @@ def test_artifact_meta_read_and_read_at_refuse_legacy_under_v2_and_allow_v2_stub
+         },
+     )()
+ 
+-    # Under CURRENT_METADATA_SCHEMA == 1, both read and read_at succeed.
+-    assert meta.read("lg0001", project_context=ctx).status == "approved"
+-    rat_ok = meta.read_at("lg0001", "HEAD", project_context=ctx)
+-    assert rat_ok.kind == "ok" and rat_ok.state is not None
+-
+     # Under CURRENT_METADATA_SCHEMA == 2, read, history, resolve, query, review_rows, and read_at refuse.
+     monkeypatch.setattr(chain, "CURRENT_METADATA_SCHEMA", 2)
+     with pytest.raises(chain.MetadataSchemaError, match="aw migrate metadata"):
+diff --git a/tests/test_orchestrator_probe_payload.py b/tests/test_orchestrator_probe_payload.py
+index a9a6a2193..7a41398ea 100644
+--- a/tests/test_orchestrator_probe_payload.py
++++ b/tests/test_orchestrator_probe_payload.py
+@@ -29,14 +29,12 @@ KEY_HEADINGS = {
+ 
+ 
+ def _append_workflow_history(text: str) -> str:
+-    return meta.render_legacy_text(
+-        text,
+-        [{"op": "note", "message": "appended history line"}],
+-        record_type="ipd",
+-        render=meta.LegacyRender(
+-            tag="note", day="2026-09-28", actor_label="test", history=True
+-        ),
+-    )
++    entry = "- 2026-09-28 note (test): appended history line"
++    m = re.search(r"(?m)^## Workflow history\s*$", text)
++    if m:
++        insert_at = m.end()
++        return text[:insert_at] + "\n" + entry + text[insert_at:]
++    return text.rstrip("\n") + "\n\n## Workflow history\n\n" + entry + "\n"
+ 
+ 
+ SYNTHETIC_ORCHESTRATOR = str(
+@@ -130,14 +128,21 @@ SYNTHETIC_ORCHESTRATOR_RESIDUAL_GAP = str(
+ 
+ 
+ def _get_corpus_orchestrators() -> list[tuple[str, str]]:
+-    """Return (filename, text) for every - Kind: orchestrator plan under .aw/records/plans/."""
+-    plans_dir = REPO_ROOT / ".aw" / "records" / "plans"
++    """Return (filename, text) for every orchestrator plan under .aw/records/plans/ via artifact_meta."""
++    from pathlib import Path
++
++    ctx = meta.legacy_context(REPO_ROOT)
++    records_root = Path(ctx.logical_roots["records"])
++    with meta.ephemeral_if_uninitialized():
++        res = meta.query(type="ipd", project_context=ctx, include_fields=True)
+     orchs: list[tuple[str, str]] = []
+-    for p in sorted(plans_dir.rglob("*.md")):
+-        text = p.read_text(encoding="utf-8")
+-        m = re.search(r"(?m)^-\s+Kind:\s*(.+)$", text)
+-        if m and m.group(1).strip() == "orchestrator":
+-            orchs.append((p.name, text))
++    for st in sorted(res.rows, key=lambda r: r.path or ""):
++        role = str((st.fields or {}).get("plan_role") or "").strip().lower()
++        if role != "orchestrator" or not st.path:
++            continue
++        p = meta.source_path(st.path, records_root, REPO_ROOT)
++        if p.is_file():
++            orchs.append((p.name, p.read_text(encoding="utf-8")))
+     return orchs
+ 
+ 
+diff --git a/tests/test_partition.py b/tests/test_partition.py
+index 6c52a12fd..009803143 100644
+--- a/tests/test_partition.py
++++ b/tests/test_partition.py
+@@ -299,78 +299,59 @@ def test_packing_determinism() -> None:
+ @pytest.fixture
+ def plan_fixture_repo(tmp_path: Path) -> Path:
+     repo = tmp_path / "repo"
+-    pending = repo / ".aw" / "records" / "plans" / "pending"
+-    executed = repo / ".aw" / "records" / "plans" / "executed"
+-    pending.mkdir(parents=True)
+-    executed.mkdir(parents=True)
++    rb = RecordBuilder(repo)
+ 
+     # 1. Root plan 1 (approved, high)
+-    (pending / "20260926-set1-01-pln001-plan-one.ipd.md").write_text(
+-        str(
+-            RecordBuilder().plan(
+-                id6="pln001",
+-                title="Plan One",
+-                when="2026-09-26",
+-                set="set1",
+-                order=1,
+-                status="approved",
+-                priority="high",
+-                item_dependencies="none",
+-                text_only=True,
+-            )
+-        )
++    rb.plan(
++        id6="pln001",
++        title="Plan One",
++        when="2026-09-26",
++        set="set1",
++        order=1,
++        slug="plan-one",
++        status="approved",
++        priority="high",
++        item_dependencies="none",
+     )
+ 
+     # 2. Child plan 2 (approved, medium, depends on pln001)
+-    (pending / "20260926-set1-02-pln002-plan-two.ipd.md").write_text(
+-        str(
+-            RecordBuilder().plan(
+-                id6="pln002",
+-                title="Plan Two",
+-                when="2026-09-26",
+-                set="set1",
+-                order=2,
+-                status="approved",
+-                priority="medium",
+-                item_dependencies="executed:pln001",
+-                text_only=True,
+-            )
+-        )
++    rb.plan(
++        id6="pln002",
++        title="Plan Two",
++        when="2026-09-26",
++        set="set1",
++        order=2,
++        slug="plan-two",
++        status="approved",
++        priority="medium",
++        item_dependencies="executed:pln001",
+     )
+ 
+     # 3. Plan 3 (to-review, low)
+-    (pending / "20260926-set2-01-pln003-plan-three.ipd.md").write_text(
+-        str(
+-            RecordBuilder().plan(
+-                id6="pln003",
+-                title="Plan Three",
+-                when="2026-09-26",
+-                set="set2",
+-                order=1,
+-                status="to-review",
+-                priority="low",
+-                item_dependencies="none",
+-                text_only=True,
+-            )
+-        )
++    rb.plan(
++        id6="pln003",
++        title="Plan Three",
++        when="2026-09-26",
++        set="set2",
++        order=1,
++        slug="plan-three",
++        status="to-review",
++        priority="low",
++        item_dependencies="none",
+     )
+ 
+     # 4. Terminal plan in executed/ directory
+-    (executed / "20260926-set3-01-pln004-plan-four.ipd.md").write_text(
+-        str(
+-            RecordBuilder().plan(
+-                id6="pln004",
+-                title="Plan Four",
+-                when="2026-09-26",
+-                set="set3",
+-                order=1,
+-                status="executed",
+-                priority="high",
+-                item_dependencies="none",
+-                disposition="executed",
+-                text_only=True,
+-            )
+-        )
++    rb.plan(
++        id6="pln004",
++        title="Plan Four",
++        when="2026-09-26",
++        set="set3",
++        order=1,
++        slug="plan-four",
++        status="executed",
++        priority="high",
++        item_dependencies="none",
++        disposition="executed",
+     )
+ 
+     return repo
+@@ -829,87 +810,84 @@ def test_cli_partition_agent_mode(
+ @pytest.fixture
+ def backlog_fixture_repo(tmp_path: Path) -> Path:
+     repo = tmp_path / "bkl_repo"
+-    open_dir = repo / ".aw" / "records" / "backlog" / "open"
+-    done_dir = repo / ".aw" / "records" / "backlog" / "done"
+-    plan_dir = repo / ".aw" / "records" / "plans" / "pending"
+-    open_dir.mkdir(parents=True)
+-    done_dir.mkdir(parents=True)
+-    plan_dir.mkdir(parents=True)
++    rb = RecordBuilder(repo)
+ 
+     # Cross-tree plan item to test wrong-type selector error
+-    (plan_dir / "20260920-setx-01-plnx01-other-plan.ipd.md").write_text(
+-        str(
+-            RecordBuilder().plan(
+-                id6="plnx01",
+-                title="Other Plan",
+-                when="2026-09-20",
+-                set="setx",
+-                order=1,
+-                status="approved",
+-                item_dependencies="none",
+-                text_only=True,
+-            )
+-        )
++    rb.plan(
++        id6="plnx01",
++        title="Other Plan",
++        when="2026-09-20",
++        set="setx",
++        order=1,
++        slug="other-plan",
++        status="approved",
++        item_dependencies="none",
+     )
+ 
+     # 1. bkl001: oldest open item (2026-09-20)
+-    (open_dir / "20260920-bkl001-01-bkl001-item-one.backlog.md").write_text(
+-        RecordBuilder().backlog(
+-            id6="bkl001",
+-            status="open",
+-            priority="high",
+-            item_dependencies="none",
+-            history=["- 2026-09-20 created: item one"],
+-            text_only=True,
+-        )
++    rb.backlog(
++        id6="bkl001",
++        when="2026-09-20",
++        set="bkl001",
++        order=1,
++        slug="item-one",
++        status="open",
++        priority="high",
++        item_dependencies="none",
++        history=["- 2026-09-20 created: item one"],
+     )
+ 
+     # 2. bkl002: second oldest open item (2026-09-22), depends on bkl001
+-    (open_dir / "20260922-bkl002-01-bkl002-item-two.backlog.md").write_text(
+-        RecordBuilder().backlog(
+-            id6="bkl002",
+-            status="open",
+-            priority="medium",
+-            item_dependencies="exists:backlog:bkl001",
+-            history=["- 2026-09-22 created: item two"],
+-            text_only=True,
+-        )
++    rb.backlog(
++        id6="bkl002",
++        when="2026-09-22",
++        set="bkl002",
++        order=1,
++        slug="item-two",
++        status="open",
++        priority="medium",
++        item_dependencies="exists:backlog:bkl001",
++        history=["- 2026-09-22 created: item two"],
+     )
+ 
+     # 3. bkl003: third oldest open item (2026-09-25)
+-    (open_dir / "20260925-bkl003-01-bkl003-item-three.backlog.md").write_text(
+-        RecordBuilder().backlog(
+-            id6="bkl003",
+-            status="open",
+-            priority="low",
+-            item_dependencies="none",
+-            history=["- 2026-09-25 created: item three"],
+-            text_only=True,
+-        )
++    rb.backlog(
++        id6="bkl003",
++        when="2026-09-25",
++        set="bkl003",
++        order=1,
++        slug="item-three",
++        status="open",
++        priority="low",
++        item_dependencies="none",
++        history=["- 2026-09-25 created: item three"],
+     )
+ 
+     # 4. bkl004: newest open item (2026-09-28), depends on bkl003
+-    (open_dir / "20260928-bkl004-01-bkl004-item-four.backlog.md").write_text(
+-        RecordBuilder().backlog(
+-            id6="bkl004",
+-            status="open",
+-            priority="high",
+-            item_dependencies="exists:backlog:bkl003",
+-            history=["- 2026-09-28 created: item four"],
+-            text_only=True,
+-        )
++    rb.backlog(
++        id6="bkl004",
++        when="2026-09-28",
++        set="bkl004",
++        order=1,
++        slug="item-four",
++        status="open",
++        priority="high",
++        item_dependencies="exists:backlog:bkl003",
++        history=["- 2026-09-28 created: item four"],
+     )
+ 
+     # 5. bkl005: done item (2026-09-10) - non-runnable
+-    (done_dir / "20260910-bkl005-01-bkl005-item-five.backlog.md").write_text(
+-        RecordBuilder().backlog(
+-            id6="bkl005",
+-            status="done",
+-            priority="high",
+-            item_dependencies="none",
+-            history=["- 2026-09-10 created: item five"],
+-            text_only=True,
+-        )
++    rb.backlog(
++        id6="bkl005",
++        when="2026-09-10",
++        set="bkl005",
++        order=1,
++        slug="item-five",
++        status="done",
++        disposition="done",
++        priority="high",
++        item_dependencies="none",
++        history=["- 2026-09-10 created: item five"],
+     )
+ 
+     return repo
+@@ -1022,15 +1000,14 @@ def test_cli_partition_infers_backlog_type_and_clusters_shared_sets(
+ ) -> None:
+     """Omitting -t infers backlog from selectors, and shared backlog Sets stay in one shard."""
+     repo = tmp_path / "bkl_set_repo"
+-    open_dir = repo / ".aw" / "records" / "backlog" / "open"
+-    plans_dir = repo / ".aw" / "records" / "plans" / "pending"
+-    open_dir.mkdir(parents=True)
+-    plans_dir.mkdir(parents=True)
+-    (plans_dir / "20261119-demo-01-pln901-demo-plan.ipd.md").write_text(
+-        RecordBuilder().plan(
+-            id6="pln901", set="demo", order=1, status="approved", text_only=True
+-        ),
+-        encoding="utf-8",
++    rb = RecordBuilder(repo)
++    rb.plan(
++        id6="pln901",
++        when="2026-11-19",
++        set="demo",
++        order=1,
++        slug="demo-plan",
++        status="approved",
+     )
+ 
+     # 3 items in Set 'metastore' and 3 singleton items.
+@@ -1045,19 +1022,24 @@ def test_cli_partition_infers_backlog_type_and_clusters_shared_sets(
+         ),
+         start=1,
+     ):
+-        (open_dir / f"2026111{idx}-{sid}-01-{bid}-item.backlog.md").write_text(
+-            RecordBuilder().backlog(
+-                id6=bid, status="open", work_kind="bug", set=sid, text_only=True
+-            ),
+-            encoding="utf-8",
++        rb.backlog(
++            id6=bid,
++            when=f"2026-11-1{idx}",
++            set=sid,
++            order=1,
++            slug="item",
++            status="open",
++            work_kind="bug",
+         )
+ 
+     # Also add a plan whose Set name collides with backlog id ms0001 (e.g. a sibling plan).
+-    (plans_dir / "20261119-ms0001-01-pln902-sibling.ipd.md").write_text(
+-        RecordBuilder().plan(
+-            id6="pln902", set="ms0001", order=1, status="approved", text_only=True
+-        ),
+-        encoding="utf-8",
++    rb.plan(
++        id6="pln902",
++        when="2026-11-19",
++        set="ms0001",
++        order=1,
++        slug="sibling",
++        status="approved",
+     )
+ 
+     # 1. Passing -t plan --action plan on a backlog selector produces the actionable hint.
+@@ -1141,59 +1123,58 @@ def test_cli_partition_infers_backlog_type_and_clusters_shared_sets(
+ @pytest.fixture
+ def specs_fixture_repo(tmp_path: Path) -> Path:
+     repo = tmp_path / "spc_repo"
+-    toreview_dir = repo / ".aw" / "records" / "specs" / "to-review"
+-    approved_dir = repo / ".aw" / "records" / "specs" / "approved"
+-    implemented_dir = repo / ".aw" / "records" / "specs" / "implemented"
+-    toreview_dir.mkdir(parents=True)
+-    approved_dir.mkdir(parents=True)
+-    implemented_dir.mkdir(parents=True)
++    rb = RecordBuilder(repo)
+ 
+     # 1. spc001: to-review (2026-09-21)
+-    (toreview_dir / "20260921-spc001-01-spc001-spec-one.spec.md").write_text(
+-        RecordBuilder().spec(
+-            id6="spc001",
+-            status="to-review",
+-            priority="high",
+-            item_dependencies="none",
+-            history=["- 2026-09-21 created: spec one"],
+-            text_only=True,
+-        )
++    rb.spec(
++        id6="spc001",
++        when="2026-09-21",
++        set="spc001",
++        order=1,
++        slug="spec-one",
++        status="to-review",
++        priority="high",
++        item_dependencies="none",
++        history=["- 2026-09-21 created: spec one"],
+     )
+ 
+     # 2. spc002: to-review (2026-09-23), depends on spc001
+-    (toreview_dir / "20260923-spc002-01-spc002-spec-two.spec.md").write_text(
+-        RecordBuilder().spec(
+-            id6="spc002",
+-            status="to-review",
+-            priority="medium",
+-            item_dependencies="exists:spec:spc001",
+-            history=["- 2026-09-23 created: spec two"],
+-            text_only=True,
+-        )
++    rb.spec(
++        id6="spc002",
++        when="2026-09-23",
++        set="spc002",
++        order=1,
++        slug="spec-two",
++        status="to-review",
++        priority="medium",
++        item_dependencies="exists:spec:spc001",
++        history=["- 2026-09-23 created: spec two"],
+     )
+ 
+     # 3. spc003: approved (2026-09-24)
+-    (approved_dir / "20260924-spc003-01-spc003-spec-three.spec.md").write_text(
+-        RecordBuilder().spec(
+-            id6="spc003",
+-            status="approved",
+-            priority="high",
+-            item_dependencies="none",
+-            history=["- 2026-09-24 created: spec three"],
+-            text_only=True,
+-        )
++    rb.spec(
++        id6="spc003",
++        when="2026-09-24",
++        set="spc003",
++        order=1,
++        slug="spec-three",
++        status="approved",
++        priority="high",
++        item_dependencies="none",
++        history=["- 2026-09-24 created: spec three"],
+     )
+ 
+     # 4. spc004: implemented (2026-09-18) - non-runnable
+-    (implemented_dir / "20260918-spc004-01-spc004-spec-four.spec.md").write_text(
+-        RecordBuilder().spec(
+-            id6="spc004",
+-            status="implemented",
+-            priority="low",
+-            item_dependencies="none",
+-            history=["- 2026-09-18 created: spec four"],
+-            text_only=True,
+-        )
++    rb.spec(
++        id6="spc004",
++        when="2026-09-18",
++        set="spc004",
++        order=1,
++        slug="spec-four",
++        status="implemented",
++        priority="low",
++        item_dependencies="none",
++        history=["- 2026-09-18 created: spec four"],
+     )
+ 
+     return repo
+@@ -1616,34 +1597,26 @@ def test_cli_partition_ineligible_aggregated_diagnostics(
+     capsys: pytest.CaptureFixture[str],
+ ) -> None:
+     """Multiple ineligible items are aggregated with clear expected status and remedy hints."""
+-    pending = plan_fixture_repo / ".aw" / "records" / "plans" / "pending"
+-    (pending / "20261017-revset-01-r20rid-plan-r20.ipd.md").write_text(
+-        str(
+-            RecordBuilder().plan(
+-                id6="r20rid",
+-                title="Plan R20",
+-                when="2026-10-17",
+-                set="revset",
+-                order=1,
+-                status="reviewed",
+-                item_dependencies="none",
+-                text_only=True,
+-            )
+-        )
+-    )
+-    (pending / "20261017-revset-02-44nfmd-plan-44n.ipd.md").write_text(
+-        str(
+-            RecordBuilder().plan(
+-                id6="44nfmd",
+-                title="Plan 44N",
+-                when="2026-10-17",
+-                set="revset",
+-                order=2,
+-                status="reviewed",
+-                item_dependencies="none",
+-                text_only=True,
+-            )
+-        )
++    rb = RecordBuilder(plan_fixture_repo)
++    rb.plan(
++        id6="r20rid",
++        title="Plan R20",
++        when="2026-10-17",
++        set="revset",
++        order=1,
++        slug="plan-r20",
++        status="reviewed",
++        item_dependencies="none",
++    )
++    rb.plan(
++        id6="44nfmd",
++        title="Plan 44N",
++        when="2026-10-17",
++        set="revset",
++        order=2,
++        slug="plan-44n",
++        status="reviewed",
++        item_dependencies="none",
+     )
+ 
+     monkeypatch.setattr("sys.stdin", io.StringIO("r20rid\n44nfmd\n"))
+@@ -1672,20 +1645,15 @@ def test_cli_partition_skip_ineligible_flag(
+     capsys: pytest.CaptureFixture[str],
+ ) -> None:
+     """--skip-ineligible warns on stderr and partitions the runnable subset."""
+-    pending = plan_fixture_repo / ".aw" / "records" / "plans" / "pending"
+-    (pending / "20261017-revset-01-r20rid-plan-r20.ipd.md").write_text(
+-        str(
+-            RecordBuilder().plan(
+-                id6="r20rid",
+-                title="Plan R20",
+-                when="2026-10-17",
+-                set="revset",
+-                order=1,
+-                status="reviewed",
+-                item_dependencies="none",
+-                text_only=True,
+-            )
+-        )
++    RecordBuilder(plan_fixture_repo).plan(
++        id6="r20rid",
++        title="Plan R20",
++        when="2026-10-17",
++        set="revset",
++        order=1,
++        slug="plan-r20",
++        status="reviewed",
++        item_dependencies="none",
+     )
+ 
+     monkeypatch.setattr("sys.stdin", io.StringIO("r20rid\npln001\n"))
+@@ -1722,20 +1690,15 @@ def test_partition_id6_highlighting_with_color(
+     from agent_workflows import partition
+     from agent_workflows.term import Term
+ 
+-    pending = plan_fixture_repo / ".aw" / "records" / "plans" / "pending"
+-    (pending / "20261017-revset-01-r20rid-plan-r20.ipd.md").write_text(
+-        str(
+-            RecordBuilder().plan(
+-                id6="r20rid",
+-                title="Plan R20",
+-                when="2026-10-17",
+-                set="revset",
+-                order=1,
+-                status="reviewed",
+-                item_dependencies="none",
+-                text_only=True,
+-            )
+-        )
++    RecordBuilder(plan_fixture_repo).plan(
++        id6="r20rid",
++        title="Plan R20",
++        when="2026-10-17",
++        set="revset",
++        order=1,
++        slug="plan-r20",
++        status="reviewed",
++        item_dependencies="none",
+     )
+ 
+     stderr_buf = io.StringIO()
+@@ -1806,6 +1769,7 @@ def test_dag_safe_split_extracts_parallel_branches_and_appends_poll_for_deps(
+     repo = init_repo(tmp_path / "dagrepo")
+     pending = repo / ".aw" / "records" / "plans" / "pending"
+     pending.mkdir(parents=True, exist_ok=True)
++    rb = RecordBuilder(repo)
+ 
+     def _write_plan(
+         id6: str,
+@@ -1814,32 +1778,35 @@ def test_dag_safe_split_extracts_parallel_branches_and_appends_poll_for_deps(
+         kind: str | None = None,
+         children_table: str = "",
+     ) -> None:
+-        text = str(
+-            RecordBuilder().plan(
++        plan_path = Path(
++            rb.plan(
+                 id6=id6,
+                 title=f"Plan {id6}",
+                 when="2026-11-23",
+                 set="dagset",
+                 order=order,
++                slug=f"plan-{id6}",
+                 status="approved",
+                 readiness="go-pending-approval",
+                 approval="2026-11-23, tester",
+                 priority="medium",
+                 item_dependencies=deps,
+-                kind=kind,
++                plan_role=kind or "child",
+                 history=[
+                     "- 2026-11-23 approved (tester): approved",
+                     "- 2026-11-23 /plan-review (tester): APPROVE",
+                     "- 2026-11-23 draft (tester): created.",
+                 ],
+-                text_only=True,
+             )
+         )
+         if children_table:
+-            text += "\n## Child IPDs\n\n" + children_table + "\n"
+-        (pending / f"20261123-dagset-{order:02d}-{id6}-plan-{id6}.ipd.md").write_text(
+-            text, encoding="utf-8"
+-        )
++            plan_path.write_text(
++                plan_path.read_text(encoding="utf-8")
++                + "\n## Child IPDs, sequence, and dependencies\n\n"
++                + children_table
++                + "\n",
++                encoding="utf-8",
++            )
+ 
+     child_ids = [
+         ("br1001", 1, "none"),
+@@ -1859,7 +1826,7 @@ def test_dag_safe_split_extracts_parallel_branches_and_appends_poll_for_deps(
+     _write_plan("orch00", 0, deps="none", kind="orchestrator", children_table=table)
+     for cid, order, deps in child_ids:
+         _write_plan(cid, order, deps=deps)
+-    git(repo, "add", ".aw/records/plans/pending")
++    git(repo, "add", ".aw/records")
+     git(repo, "commit", "-qm", "seed dagset")
+ 
+     def _run(verbose: bool, color: bool) -> tuple[int, str, str]:
+@@ -1984,11 +1951,10 @@ class TestArtifactMetaWidenedFrontMatterReaders:
+     def test_scope_paths_plan_and_apply_rewrites_and_skips(
+         self, tmp_path: Path
+     ) -> None:
+-        from agent_workflows import artifact_refs
++        from agent_workflows import artifact_meta, artifact_refs
+ 
+         repo = tmp_path / "repo"
+-        pending = repo / ".aw" / "records" / "plans" / "pending"
+-        pending.mkdir(parents=True)
++        rb = RecordBuilder(repo)
+ 
+         old_p = ".aw/records/backlog/open/20261124-bk0001-01-bk0001-item.backlog.md"
+         new_p = (
+@@ -2000,47 +1966,53 @@ class TestArtifactMetaWidenedFrontMatterReaders:
+         prose_line = f"Historical prose mentions {old_p} untouched.\n"
+         history_entries = ["- 2026-11-24 draft (tester): seeded plan"]
+ 
+-        # 1. Normal pending plan: Scope-Paths rewritten, prose/fenced/history unchanged.
+-        normal_plan = pending / "20261124-demo-01-pl0001-normal.ipd.md"
+-        normal_text = RecordBuilder().plan(
+-            title="Normal Rewrite Plan",
+-            id6="pl0001",
+-            set="demo",
+-            order=1,
+-            status="approved",
+-            scope_paths=f"{old_p}, agent_workflows/artifact_meta.py",
+-            history=history_entries,
+-            body=f"## Notes\n\n{prose_line}\n{fenced_block}",
+-            text_only=True,
++        # 1. Normal pending plan: Scope-Paths rewritten in log, prose/fenced/history unchanged.
++        normal_plan = Path(
++            rb.plan(
++                title="Normal Rewrite Plan",
++                id6="pl0001",
++                when="2026-11-24",
++                set="demo",
++                order=1,
++                slug="normal",
++                status="approved",
++                scope_paths=f"{old_p}, agent_workflows/artifact_meta.py",
++                history=history_entries,
++                body=f"## Notes\n\n{prose_line}\n{fenced_block}",
++            )
+         )
+-        normal_plan.write_text(normal_text, encoding="utf-8")
++        normal_text_before = normal_plan.read_text(encoding="utf-8")
+ 
+         # 2. Grandfathered Scope-Paths: skipped, bytes untouched.
+-        gf_plan = pending / "20261124-demo-02-pl0002-gf.ipd.md"
+-        gf_text = RecordBuilder().plan(
+-            title="Grandfathered Plan",
+-            id6="pl0002",
+-            set="demo",
+-            order=2,
+-            status="approved",
+-            scope_paths="grandfathered",
+-            body=f"## Notes\n\nMentions {old_p} in prose only.\n",
+-            text_only=True,
++        gf_plan = Path(
++            rb.plan(
++                title="Grandfathered Plan",
++                id6="pl0002",
++                when="2026-11-24",
++                set="demo",
++                order=2,
++                slug="gf",
++                status="approved",
++                scope_paths="grandfathered",
++                body=f"## Notes\n\nMentions {old_p} in prose only.\n",
++            )
+         )
+-        gf_plan.write_text(gf_text, encoding="utf-8")
++        gf_text = gf_plan.read_text(encoding="utf-8")
+ 
+         # 3. Forward declaration (destination already listed): skipped with reason, untouched.
+-        fwd_plan = pending / "20261124-demo-03-pl0003-fwd.ipd.md"
+-        fwd_text = RecordBuilder().plan(
+-            title="Forward Declaration Plan",
+-            id6="pl0003",
+-            set="demo",
+-            order=3,
+-            status="approved",
+-            scope_paths=f"{old_p}, {new_p}",
+-            text_only=True,
++        fwd_plan = Path(
++            rb.plan(
++                title="Forward Declaration Plan",
++                id6="pl0003",
++                when="2026-11-24",
++                set="demo",
++                order=3,
++                slug="fwd",
++                status="approved",
++                scope_paths=f"{old_p}, {new_p}",
++            )
+         )
+-        fwd_plan.write_text(fwd_text, encoding="utf-8")
++        fwd_text = fwd_plan.read_text(encoding="utf-8")
+ 
+         edits, skipped = artifact_refs.plan_scope_path_reference_rewrites(
+             repo, path_map
+@@ -2055,17 +2027,22 @@ class TestArtifactMetaWidenedFrontMatterReaders:
+         modified = artifact_refs.apply_scope_path_reference_rewrites(repo, edits)
+         assert modified == [normal_plan]
+ 
+-        updated = normal_plan.read_text(encoding="utf-8")
+-        assert f"- Scope-Paths: {new_p}, agent_workflows/artifact_meta.py\n" in updated
+-        assert prose_line in updated
+-        assert fenced_block in updated
+-        assert updated.count("2026-11-24 draft (tester): seeded plan") == 1
+-        # No new history entry was appended.
+-        hist_idx = updated.index("## Workflow history")
+-        next_h2 = updated.find("\n## ", hist_idx + 1)
+-        hist_section = updated[hist_idx : next_h2 if next_h2 != -1 else len(updated)]
+-        hist_bullets = [ln for ln in hist_section.splitlines() if ln.startswith("- ")]
+-        assert len(hist_bullets) == 1
++        ctx = artifact_meta.legacy_context(repo)
++        with artifact_meta.ephemeral_if_uninitialized():
++            st_normal = artifact_meta.read("pl0001", project_context=ctx)
++            hist_normal = artifact_meta.history("pl0001", project_context=ctx)
++        assert st_normal.fields.get("scope_paths") == [
++            new_p,
++            "agent_workflows/artifact_meta.py",
++        ]
++        # Markdown body (including prose mentions and fenced block) stays byte-identical.
++        assert normal_plan.read_text(encoding="utf-8") == normal_text_before
++        assert prose_line in normal_plan.read_text(encoding="utf-8")
++        assert fenced_block in normal_plan.read_text(encoding="utf-8")
++        # No new note/transition history entry was appended (only the scope_paths set event).
++        non_set_events = [ev for ev in hist_normal if ev.get("op") != "set"]
++        assert len(non_set_events) == 2  # create + seeded draft note
++        assert any("seeded plan" in str(ev.get("message", "")) for ev in non_set_events)
+         assert gf_plan.read_text(encoding="utf-8") == gf_text
+         assert fwd_plan.read_text(encoding="utf-8") == fwd_text
+ 
+diff --git a/tests/test_plans_index.py b/tests/test_plans_index.py
+index 1a7772da1..f74e9df24 100644
+--- a/tests/test_plans_index.py
++++ b/tests/test_plans_index.py
+@@ -15,6 +15,7 @@ from pathlib import Path
+ 
+ from agent_workflows import artifact_core as _core
+ from agent_workflows import plans_index as I
++from agent_workflows.migrations import chain
+ from tests.record_builder import RecordBuilder
+ 
+ import pytest
+@@ -33,38 +34,47 @@ def _plan(
+     status="executed",
+     date="20260701",
+ ):
+-    d = root / ".agents" / "plans" / disposition
++    d = root / ".aw" / "records" / "plans" / disposition
+     d.mkdir(parents=True, exist_ok=True)
+     when = f"{date[:4]}-{date[4:6]}-{date[6:8]}" if len(date) == 8 else date
+-    raw_fields: dict[str, str | None] = {"Date": date}
+     if plan_id is None:
+-        raw_fields["Id"] = None
+-    if set_id is None:
+-        raw_fields["Set"] = None
+-        raw_fields["Order"] = None
+-    elif order is None:
+-        raw_fields["Order"] = None
+-    text = RecordBuilder().plan(
+-        id6=plan_id or "tmp001",
+-        title="x",
+-        when=when,
+-        plan_role="child",
+-        set=set_id or "demo",
+-        order=order if order is not None else 1,
+-        status=status,
+-        author="t",
+-        body="## Goal\n\nx",
+-        raw_fields=raw_fields,
+-        text_only=True,
++        # Deliberately malformed/idless plan fixture for id-missing negative drift tests.
++        text = (
++            "---\n"
++            f"status: {status}\n"
++            "---\n\n"
++            "# IPD: x\n\n"
++            "## Goal\n\nx\n"
++        )
++        (d / name).write_text(text, encoding="utf-8")
++        return d / name
++    target = d / name
++    fields: dict[str, object] = {
++        "title": "x",
++        "plan_role": "child",
++        "status": status,
++        "author": "t",
++        "created_day": when,
++    }
++    if set_id is not None:
++        fields["set"] = set_id
++    if order is not None:
++        fields["order"] = order
++    RecordBuilder(root).materialize(
++        "ipd",
++        id6=plan_id,
++        fields=fields,
++        body="# IPD: x\n\n## Goal\n\nx\n",
++        destination=target,
+     )
+-    (d / name).write_text(text, encoding="utf-8")
+-    return d / name
++    return target
+ 
+ 
+ class ScanTests(unittest.TestCase):
+     def setUp(self):
+         self.root = Path(tempfile.mkdtemp())
+-        self.pdir = self.root / ".agents" / "plans"
++        chain.write_metadata_schema(self.root, 2)
++        self.pdir = self.root / ".aw" / "records" / "plans"
+         _plan(
+             self.root,
+             "executed",
+@@ -118,7 +128,8 @@ class ScanTests(unittest.TestCase):
+ class FindTests(unittest.TestCase):
+     def setUp(self):
+         self.root = Path(tempfile.mkdtemp())
+-        self.pdir = self.root / ".agents" / "plans"
++        chain.write_metadata_schema(self.root, 2)
++        self.pdir = self.root / ".aw" / "records" / "plans"
+         _plan(
+             self.root,
+             "executed",
+@@ -154,7 +165,8 @@ class FindTests(unittest.TestCase):
+ class CheckDriftTests(unittest.TestCase):
+     def setUp(self):
+         self.root = Path(tempfile.mkdtemp())
+-        self.pdir = self.root / ".agents" / "plans"
++        chain.write_metadata_schema(self.root, 2)
++        self.pdir = self.root / ".aw" / "records" / "plans"
+         _plan(
+             self.root,
+             "executed",
+@@ -214,15 +226,6 @@ class CheckDriftTests(unittest.TestCase):
+         drift = I.check_drift(self.root, self.pdir)
+         self.assertFalse(any(d.rule == "name-metadata-mismatch" for d in drift))
+ 
+-    def test_stale_index_file_is_not_drift(self):
+-        # Plan w819as (spec 4sd62s 4.5): the INDEX-file drift rules are deleted with the INDEX files.
+-        # A leftover manifest with arbitrary bytes is no longer a finding at all.
+-        (self.pdir / "INDEX.json").write_text("[]\n", encoding="utf-8")
+-        (self.pdir / "INDEX.md").write_text("stale", encoding="utf-8")
+-        drift = I.check_drift(self.root, self.pdir)
+-        self.assertEqual(drift, [])
+-        self.assertEqual(_core.drift_exit_code(drift), 0)
+-
+     def test_missing_index_file_is_not_drift(self):
+         """A never-generated manifest is the normal state of a fresh clone or worktree.
+ 
+diff --git a/tests/test_poll_for_deps.py b/tests/test_poll_for_deps.py
+index e0a7fb169..1302d9295 100644
+--- a/tests/test_poll_for_deps.py
++++ b/tests/test_poll_for_deps.py
+@@ -11,7 +11,7 @@ from pathlib import Path
+ 
+ import pytest
+ 
+-from agent_workflows import agy_runipd, oc_runipd, runner_shared
++from agent_workflows import agy_runipd, artifact_meta, oc_runipd, runner_shared
+ from tests.record_builder import RecordBuilder
+ 
+ pytestmark = pytest.mark.core
+@@ -53,71 +53,92 @@ def _write_plan(
+         if status in ("reviewed", "approved", "executed")
+         else None
+     )
+-    text = RecordBuilder().plan(
+-        id6=id6,
+-        title=f"Plan {id6}",
+-        when="2026-11-21",
+-        set="demo",
+-        order=order,
+-        slug=f"plan-{id6}",
+-        status=status,
+-        readiness=readiness,
+-        approval=approval,
+-        scope_paths="README.md",
+-        item_dependencies=dependencies,
+-        work_kind="feature",
+-        priority="medium",
+-        author="tester",
+-        history=history,
+-        body=(
+-            "## Goal\n\n"
+-            f"Deliver {id6}.\n\n"
+-            "## Detailed Implementation Checklist (TODO)\n\n"
+-            "### Task group 1: work\n\n"
+-            "- [ ] E-01 Update README.md.\n"
+-            "  - Depends on: none\n"
+-            "  - Expected outcome: README.md updated.\n"
+-            "  - Execution state: pending\n\n"
+-            "## Project conventions discovered (Step 0)\n\n"
+-            "- Standard conventions.\n\n"
+-            "## Findings\n\n"
+-            "None.\n\n"
+-            "## Proposed changes (ordered, validatable)\n\n"
+-            "1. Update README.md.\n\n"
+-            "## Deferred / out of scope (with reason)\n\n"
+-            "None.\n\n"
+-            "## Scope check\n\n"
+-            "- Over-scope: none.\n"
+-            "- Under-scope: none.\n\n"
+-            "## Required tests / validation\n\n"
+-            "Verify README.md.\n\n"
+-            "## Spec / documentation sync\n\n"
+-            "N/A.\n\n"
+-            "## Open questions\n\n"
+-            "None.\n\n"
+-            "## Validation and cross-check (verify before reporting done)\n\n"
+-            "- [ ] V-01 validates E-01\n"
+-            "  - Required evidence: diff of README.md.\n"
+-            "  - Observed evidence:\n"
+-            "  - Result: pending\n\n"
+-            "## Approval and execution gate\n\n"
+-            "- Size assessment: standard\n"
+-            "- Cohesion rationale: not required\n"
+-        ),
+-        text_only=True,
+-    )
+-    assert isinstance(text, str)
+-    target = (
+-        repo
+-        / ".aw"
+-        / "records"
+-        / "plans"
+-        / subdir
+-        / f"20261121-demo-{order:02d}-{id6}-plan-{id6}.ipd.md"
++    path = Path(
++        RecordBuilder(repo).plan(
++            id6=id6,
++            title=f"Plan {id6}",
++            when="2026-11-21",
++            set="demo",
++            order=order,
++            slug=f"plan-{id6}",
++            status=status,
++            disposition=subdir,
++            readiness=readiness,
++            approval=approval,
++            scope_paths="README.md",
++            item_dependencies=dependencies,
++            work_kind="feature",
++            priority="medium",
++            author="tester",
++            history=history,
++            body=(
++                "## Goal\n\n"
++                f"Deliver {id6}.\n\n"
++                "## Detailed Implementation Checklist (TODO)\n\n"
++                "### Task group 1: work\n\n"
++                "- [ ] E-01 Update README.md.\n"
++                "  - Depends on: none\n"
++                "  - Expected outcome: README.md updated.\n"
++                "  - Execution state: pending\n\n"
++                "## Project conventions discovered (Step 0)\n\n"
++                "- Standard conventions.\n\n"
++                "## Findings\n\n"
++                "None.\n\n"
++                "## Proposed changes (ordered, validatable)\n\n"
++                "1. Update README.md.\n\n"
++                "## Deferred / out of scope (with reason)\n\n"
++                "None.\n\n"
++                "## Scope check\n\n"
++                "- Over-scope: none.\n"
++                "- Under-scope: none.\n\n"
++                "## Required tests / validation\n\n"
++                "Verify README.md.\n\n"
++                "## Spec / documentation sync\n\n"
++                "N/A.\n\n"
++                "## Open questions\n\n"
++                "None.\n\n"
++                "## Validation and cross-check (verify before reporting done)\n\n"
++                "- [ ] V-01 validates E-01\n"
++                "  - Required evidence: diff of README.md.\n"
++                "  - Observed evidence:\n"
++                "  - Result: pending\n\n"
++                "## Approval and execution gate\n\n"
++                "- Size assessment: standard\n"
++                "- Cohesion rationale: not required\n"
++            ),
++        )
+     )
+-    target.parent.mkdir(parents=True, exist_ok=True)
+-    target.write_text(text, encoding="utf-8")
+-    return target
++    return path
++
++
++def _transition_plan(
++    repo: Path, plan_path: Path, id6: str, *, to_status: str, subdir: str
++) -> Path:
++    dest = repo / ".aw" / "records" / "plans" / subdir / plan_path.name
++    dest.parent.mkdir(parents=True, exist_ok=True)
++    plan_path.rename(dest)
++    dest_rel = dest.relative_to(repo / ".aw" / "records").as_posix()
++    events: list[dict[str, object]] = [
++        {
++            "op": "transition",
++            "from": "approved",
++            "to": to_status,
++            "path": dest_rel,
++        },
++        {
++            "op": "unset",
++            "fields": ["approval"],
++        },
++    ]
++    ctx = artifact_meta.legacy_context(repo)
++    with artifact_meta.ephemeral_if_uninitialized():
++        artifact_meta.append(
++            id6,
++            events,
++            project_context=ctx,
++            actor={"tool": "test"},
++        )
++    return dest
+ 
+ 
+ def _make_args(
+@@ -291,8 +312,9 @@ def test_poll_for_deps_waits_until_external_plan_executes_then_starts(
+                 _init_via_core(_make_args(repo, ["cns002"]))
+             conflict_blocked = True
+         if len(sleeps) == 2:
+-            dep_path.unlink()
+-            _write_plan(repo, "dep001", order=1, status="executed", subdir="executed")
++            _transition_plan(
++                repo, dep_path, "dep001", to_status="executed", subdir="executed"
++            )
+ 
+     err = io.StringIO()
+     with contextlib.redirect_stderr(err):
+@@ -433,8 +455,9 @@ def test_poll_for_deps_releases_claim_on_stop_request_and_on_dep_failure(
+     # 2. Upstream dependency becomes permanently unsatisfiable mid-wait -> claim released.
+     def _supersede_dep(_secs: float) -> None:
+         assert attention.get_active_runs_map(repo).get("cns002") == "queued"
+-        dep_path.unlink()
+-        _write_plan(repo, "dep001", order=1, status="superseded", subdir="superseded")
++        _transition_plan(
++            repo, dep_path, "dep001", to_status="superseded", subdir="superseded"
++        )
+ 
+     with pytest.raises(runner_shared.DriverError, match="RUN-DEPENDENCY-UNSATISFIABLE"):
+         _init_via_core(
+diff --git a/tests/test_production_prompt_writing_standard.py b/tests/test_production_prompt_writing_standard.py
+index 3a303c4bd..7bffa356f 100644
+--- a/tests/test_production_prompt_writing_standard.py
++++ b/tests/test_production_prompt_writing_standard.py
+@@ -58,72 +58,57 @@ class ProductionPromptWritingStandardTests(unittest.TestCase):
+             run_dir = repo / "run-001"
+             run_dir.mkdir(parents=True)
+ 
+-            spec_app_path = (
+-                repo
+-                / ".aw"
+-                / "records"
+-                / "specs"
+-                / "approved"
+-                / "20261001-demo-01-demo-test.spec.md"
+-            )
+-            spec_app_path.parent.mkdir(parents=True, exist_ok=True)
+-            spec_app_path.write_text(
+-                RecordBuilder().spec(id6="demo01", status="approved", text_only=True),
+-                encoding="utf-8",
+-            )
+-
+-            spec_imp_path = (
+-                repo
+-                / ".aw"
+-                / "records"
+-                / "specs"
+-                / "implementing"
+-                / "20261001-demo-01-demo-test.spec.md"
+-            )
+-            spec_imp_path.parent.mkdir(parents=True, exist_ok=True)
+-            spec_imp_path.write_text(
+-                RecordBuilder().spec(
+-                    id6="demo01", status="implementing", text_only=True
+-                ),
+-                encoding="utf-8",
+-            )
+-
+-            backlog_path = (
+-                repo
+-                / ".aw"
+-                / "records"
+-                / "backlog"
+-                / "open"
+-                / "20261001-bkl01-01-bkl01-test.backlog.md"
+-            )
+-            backlog_path.parent.mkdir(parents=True, exist_ok=True)
+-            backlog_path.write_text(
+-                RecordBuilder().backlog(id6="bkl001", text_only=True), encoding="utf-8"
+-            )
+-
+-            plan_path = (
+-                repo
+-                / ".aw"
+-                / "records"
+-                / "plans"
+-                / "pending"
+-                / "20261001-test-01-tst01-test.ipd.md"
+-            )
+-            plan_path.parent.mkdir(parents=True, exist_ok=True)
+-            plan_path.write_text(
+-                RecordBuilder().plan(id6="tst001", text_only=True), encoding="utf-8"
++            rb = RecordBuilder(repo)
++            spec_app_path = Path(
++                rb.spec(
++                    id6="demo01",
++                    status="approved",
++                    when="2026-10-01",
++                    set="demo",
++                    order=1,
++                    slug="test",
++                )
++            )
++            spec_imp_path = Path(
++                rb.spec(
++                    id6="demo02",
++                    status="implementing",
++                    when="2026-10-01",
++                    set="demo",
++                    order=2,
++                    slug="test",
++                )
++            )
++            backlog_path = Path(
++                rb.backlog(
++                    id6="bkl001",
++                    when="2026-10-01",
++                    set="bkl01",
++                    order=1,
++                    slug="test",
++                )
++            )
++            plan_path = Path(
++                rb.plan(
++                    id6="tst001",
++                    when="2026-10-01",
++                    set="test",
++                    order=1,
++                    slug="test",
++                )
+             )
+ 
+             state = {"repo": str(repo), "run_id": "run-001"}
+-            spec_item = {"id6": "demo01"}
++            spec_app_item = {"id6": "demo01"}
++            spec_imp_item = {"id6": "demo02"}
+             backlog_item = {"id6": "bkl001"}
+             plan_item = {"id6": "tst001"}
+ 
+             prompt_spc_app = runner_shared.build_spec_production_prompt(
+-                spec_item, state, run_dir, spec_app_path, repo
++                spec_app_item, state, run_dir, spec_app_path, repo
+             )
+             prompt_spc_imp = runner_shared.build_spec_production_prompt(
+-                spec_item, state, run_dir, spec_imp_path, repo
++                spec_imp_item, state, run_dir, spec_imp_path, repo
+             )
+             prompt_bkl = runner_shared.build_backlog_production_prompt(
+                 backlog_item, state, run_dir, backlog_path, repo
+@@ -172,7 +157,7 @@ class ProductionPromptWritingStandardTests(unittest.TestCase):
+             )
+             self.assertEqual(
+                 review_prompt,
+-                "/plan-review .aw/records/plans/pending/20261001-test-01-tst01-test.ipd.md",
++                f"/plan-review {plan_path.relative_to(repo).as_posix()}",
+             )
+ 
+     def test_production_prompts_writing_standard_legacy_layout(self):
+@@ -182,58 +167,47 @@ class ProductionPromptWritingStandardTests(unittest.TestCase):
+             run_dir = repo / "run-001"
+             run_dir.mkdir(parents=True)
+ 
+-            spec_app_path = (
+-                repo
+-                / ".aw"
+-                / "records"
+-                / "specs"
+-                / "approved"
+-                / "20261001-demo-01-demo-test.spec.md"
+-            )
+-            spec_app_path.parent.mkdir(parents=True, exist_ok=True)
+-            spec_app_path.write_text(
+-                RecordBuilder().spec(id6="demo01", status="approved", text_only=True),
+-                encoding="utf-8",
+-            )
+-
+-            spec_imp_path = (
+-                repo
+-                / ".aw"
+-                / "records"
+-                / "specs"
+-                / "implementing"
+-                / "20261001-demo-01-demo-test.spec.md"
+-            )
+-            spec_imp_path.parent.mkdir(parents=True, exist_ok=True)
+-            spec_imp_path.write_text(
+-                RecordBuilder().spec(
+-                    id6="demo01", status="implementing", text_only=True
+-                ),
+-                encoding="utf-8",
+-            )
+-
+-            backlog_path = (
+-                repo
+-                / ".aw"
+-                / "records"
+-                / "backlog"
+-                / "open"
+-                / "20261001-bkl01-01-bkl01-test.backlog.md"
+-            )
+-            backlog_path.parent.mkdir(parents=True, exist_ok=True)
+-            backlog_path.write_text(
+-                RecordBuilder().backlog(id6="bkl001", text_only=True), encoding="utf-8"
++            rb = RecordBuilder(repo)
++            spec_app_path = Path(
++                rb.spec(
++                    id6="demo01",
++                    status="approved",
++                    when="2026-10-01",
++                    set="demo",
++                    order=1,
++                    slug="test",
++                )
++            )
++            spec_imp_path = Path(
++                rb.spec(
++                    id6="demo02",
++                    status="implementing",
++                    when="2026-10-01",
++                    set="demo",
++                    order=2,
++                    slug="test",
++                )
++            )
++            backlog_path = Path(
++                rb.backlog(
++                    id6="bkl001",
++                    when="2026-10-01",
++                    set="bkl01",
++                    order=1,
++                    slug="test",
++                )
+             )
+ 
+             state = {"repo": str(repo), "run_id": "run-001"}
+-            spec_item = {"id6": "demo01"}
++            spec_app_item = {"id6": "demo01"}
++            spec_imp_item = {"id6": "demo02"}
+             backlog_item = {"id6": "bkl001"}
+ 
+             prompt_spc_app = runner_shared.build_spec_production_prompt(
+-                spec_item, state, run_dir, spec_app_path, repo
++                spec_app_item, state, run_dir, spec_app_path, repo
+             )
+             prompt_spc_imp = runner_shared.build_spec_production_prompt(
+-                spec_item, state, run_dir, spec_imp_path, repo
++                spec_imp_item, state, run_dir, spec_imp_path, repo
+             )
+             prompt_bkl = runner_shared.build_backlog_production_prompt(
+                 backlog_item, state, run_dir, backlog_path, repo
+diff --git a/tests/test_prompts_set_surface.py b/tests/test_prompts_set_surface.py
+index 29a938186..fa97ec769 100644
+--- a/tests/test_prompts_set_surface.py
++++ b/tests/test_prompts_set_surface.py
+@@ -22,6 +22,7 @@ from unittest.mock import patch
+ import pytest
+ 
+ from agent_workflows import artifact_meta, artifact_rename, check_engine, cli
++from agent_workflows.migrations import chain
+ 
+ 
+ class TestPromptsSetSurface(unittest.TestCase):
+@@ -41,6 +42,7 @@ class TestPromptsSetSurface(unittest.TestCase):
+         (self.repo_root / ".aw" / "records" / "plans" / "pending").mkdir(
+             parents=True, exist_ok=True
+         )
++        chain.write_metadata_schema(self.repo_root, 2)
+ 
+     def tearDown(self):
+         shutil.rmtree(self.temp_dir, ignore_errors=True)
+@@ -53,8 +55,9 @@ class TestPromptsSetSurface(unittest.TestCase):
+     ) -> tuple[Path, str]:
+         """Create a conforming prompt through `aw prompts new`; return ``(path, id6)``.
+ 
+-        The metadata comment is written by the verb (and so by `artifact_meta`); only the body, which
+-        the verb deliberately leaves to the agent, is appended here.
++        The metadata mirror comment and companion log are written by the verb (and so by
++        `artifact_meta`); only the body, which the verb deliberately leaves to the agent, is
++        appended here.
+         """
+         buf = io.StringIO()
+         with patch("sys.stdout", buf), patch("sys.stderr", io.StringIO()):
+@@ -80,11 +83,13 @@ class TestPromptsSetSurface(unittest.TestCase):
+         p = matches[0]
+         text = p.read_text(encoding="utf-8")
+         self.assertEqual(len(text.splitlines()), 1)
+-        id6 = artifact_meta.read_text(text, record_type="prompt").id6 or None
++        id6 = artifact_meta.read_mirror_id6(text)
+         self.assertIsNotNone(id6)
+         assert id6 is not None
+         self.assertEqual(p.name, f"20261002-{set_id}-01-{id6}-{slug}.prompt.md")
+-        state = artifact_meta.read_text(text, record_type="prompt")
++        ctx = artifact_meta.legacy_context(self.repo_root)
++        with artifact_meta.ephemeral_if_uninitialized():
++            state = artifact_meta.read(id6, project_context=ctx)
+         self.assertEqual(state.id6, id6)
+         self.assertEqual(state.status, "pending")
+         self.assertEqual(state.set_id, set_id)
+@@ -92,20 +97,6 @@ class TestPromptsSetSurface(unittest.TestCase):
+             p.write_text(text.rstrip("\n") + "\n\n" + body, encoding="utf-8")
+         return p, id6
+ 
+-    def create_commentless_prompt(
+-        self,
+-        id6: str,
+-        set_id: str = "testset",
+-        slug: str = "legacy-prompt",
+-        disposition: str = "pending",
+-        body: str = "# Legacy Prompt\n\nSome body content.\n",
+-    ) -> Path:
+-        """Create a prompt artifact without a metadata comment (legacy/grandfathered shape)."""
+-        filename = f"20261002-{set_id}-01-{id6}-{slug}.prompt.md"
+-        p = self.repo_root / ".aw" / "records" / "prompts" / disposition / filename
+-        p.write_text(body, encoding="utf-8")
+-        return p
+-
+     def test_registration_cli_help(self):
+         """aw prompts set --help exits 0 and lists all declared flags."""
+         buf = io.StringIO()
+@@ -193,67 +184,43 @@ class TestPromptsSetSurface(unittest.TestCase):
+         dest_text = dest_path.read_text(encoding="utf-8")
+         lines = dest_text.splitlines()
+ 
+-        # Line 1 is still the metadata comment with updated status
+-        self.assertTrue(lines[0].startswith("<!-- aw-prompt:"))
+-        self.assertIn("Status: executed", lines[0])
++        # Line 1 is the managed prompt mirror comment with updated status
++        self.assertTrue(lines[0].startswith("<!-- aw-managed-prompt:"))
++        self.assertIn("status: executed", lines[0])
+ 
+-        # No - Status: bullet anywhere in the file
++        # No - Status: bullet or inline ## Workflow history anywhere in the file
+         self.assertNotIn("- Status:", dest_text)
++        self.assertNotIn("## Workflow history", dest_text)
+ 
+-        # Extract body between line 1 and ## Workflow history
+-        hist_idx = dest_text.find("## Workflow history")
+-        self.assertNotEqual(hist_idx, -1)
+-        # Content between comment and workflow history
+-        body_region = dest_text[len(lines[0]) : hist_idx].strip()
++        # Body after the mirror line is byte-identical
++        body_region = dest_text[len(lines[0]) :].strip()
+         self.assertEqual(body_region, body_stripped)
+         body_sha_after = hashlib.sha256(body_region.encode("utf-8")).hexdigest()
+         self.assertEqual(body_sha_before, body_sha_after)
+ 
++        # Transition was recorded in the companion metadata log
++        ctx = artifact_meta.legacy_context(self.repo_root)
++        with artifact_meta.ephemeral_if_uninitialized():
++            st_after = artifact_meta.read(id6, project_context=ctx)
++            hist_after = artifact_meta.history(id6, project_context=ctx)
++        self.assertEqual(st_after.status, "executed")
++        self.assertTrue(
++            any(
++                ev.get("op") == "transition" and ev.get("to") == "executed"
++                for ev in hist_after
++            ),
++            hist_after,
++        )
++
+         # Verify checker reports zero errors and zero warnings
+-        findings = check_engine.validate_prompt_content(dest_path)
++        findings = check_engine.validate_prompt_content(
++            dest_path, repo_root=self.repo_root
++        )
+         errors = [f for f in findings if f.severity == "error"]
+         warnings = [f for f in findings if f.severity == "warn"]
+         self.assertEqual(len(errors), 0, f"Checker errors: {errors}")
+         self.assertEqual(len(warnings), 0, f"Checker warnings: {warnings}")
+ 
+-    def test_commentless_prompt_fallback_relocates_without_comment(self):
+-        """Commentless prompt relocates, gains no comment, leaves body untouched (OQ-02)."""
+-        prompt = self.create_commentless_prompt("cl0001", set_id="comset")
+-        original_text = prompt.read_text(encoding="utf-8")
+-
+-        buf = io.StringIO()
+-        with patch("sys.stdout", buf):
+-            rc = cli.main(
+-                [
+-                    "prompts",
+-                    "set",
+-                    "executed",
+-                    "cl0001",
+-                    "--yes",
+-                    "--dir",
+-                    str(self.repo_root),
+-                ]
+-            )
+-        self.assertEqual(rc, 0)
+-        out = buf.getvalue()
+-        self.assertIn("has no metadata comment; status lives in directory only", out)
+-
+-        # Re-resolve path in executed/
+-        dest_path = (
+-            self.repo_root / ".aw" / "records" / "prompts" / "executed" / prompt.name
+-        )
+-        self.assertTrue(dest_path.exists())
+-        self.assertFalse(prompt.exists())
+-
+-        dest_text = dest_path.read_text(encoding="utf-8")
+-        self.assertFalse(artifact_meta.has_prompt_metadata_comment(dest_text))
+-        self.assertNotIn("- Status:", dest_text)
+-        # Check original body is preserved in dest (before workflow history)
+-        hist_idx = dest_text.find("## Workflow history")
+-        self.assertNotEqual(hist_idx, -1)
+-        body_region = dest_text[:hist_idx].strip()
+-        self.assertEqual(body_region, original_text.strip())
+-
+     def test_dry_run_byte_identity(self):
+         """Dry-run previews and leaves file byte-identical without relocating."""
+         prompt, id6 = self.create_conforming_prompt(
+@@ -292,12 +259,13 @@ class TestPromptCommentMetaOwnership(unittest.TestCase):
+             (self.repo_root / ".aw" / "records" / "prompts" / bucket).mkdir(
+                 parents=True, exist_ok=True
+             )
++        chain.write_metadata_schema(self.repo_root, 2)
+ 
+     def tearDown(self):
+         shutil.rmtree(self.temp_dir, ignore_errors=True)
+ 
+     def test_has_prompt_metadata_comment_cases(self):
+-        """Detect conforming and minimal aw-prompt comments; ignore commentless and body comments."""
++        """Detect conforming, managed, and minimal prompt comments; ignore commentless and body comments."""
+         conforming = (
+             f"<!-- aw-prompt: Kind: research | Id: ab12cd | Set: demo | Status: pending "
+             f". {artifact_meta.PROMPT_METADATA_TRAILER} -->\n\nBody.\n"
+@@ -312,7 +280,7 @@ class TestPromptCommentMetaOwnership(unittest.TestCase):
+         self.assertFalse(artifact_meta.has_prompt_metadata_comment(commentless))
+         self.assertFalse(artifact_meta.has_prompt_metadata_comment(""))
+         self.assertFalse(artifact_meta.has_prompt_metadata_comment(non_leading))
+-        self.assertFalse(artifact_meta.has_prompt_metadata_comment(managed))
++        self.assertTrue(artifact_meta.has_prompt_metadata_comment(managed))
+ 
+     def test_inject_prompt_metadata_id6_and_purity(self):
+         """Inject Id:/Set: idempotently while leaving commentless prompts unchanged."""
+@@ -479,19 +447,24 @@ class TestPromptCommentMetaOwnership(unittest.TestCase):
+         self.assertEqual(len(matches), 1, matches)
+         renamed = matches[0]
+         renamed_text = renamed.read_text(encoding="utf-8")
+-        state1 = artifact_meta.read_text(renamed_text, record_type="prompt")
+-        self.assertTrue(state1.id6)
+-        self.assertEqual(state1.fields.get("set"), "firstset")
++        id1 = artifact_meta.read_mirror_id6(renamed_text)
++        self.assertTrue(id1)
++        assert id1 is not None
++        ctx = artifact_meta.legacy_context(self.repo_root)
++        with artifact_meta.ephemeral_if_uninitialized():
++            state1 = artifact_meta.read(id1, project_context=ctx)
++        self.assertEqual(state1.id6, id1)
++        self.assertEqual(state1.set_id, "firstset")
+         self.assertTrue(renamed_text.endswith("\n\nCommented body.\n"))
+ 
+-        # Follow-up Set: rename updates Set: in the metadata comment
++        # Follow-up Set: rename updates Set: in the metadata log
+         buf2 = io.StringIO()
+         with patch("sys.stdout", buf2), patch("sys.stderr", io.StringIO()):
+             rc2 = cli.main(
+                 [
+                     "rename",
+                     "prompts",
+-                    state1.id6,
++                    id1,
+                     "--set",
+                     "secondset",
+                     "--apply",
+@@ -501,13 +474,12 @@ class TestPromptCommentMetaOwnership(unittest.TestCase):
+             )
+         self.assertEqual(rc2, 0, buf2.getvalue())
+         matches2 = sorted(
+-            pending.glob(f"20260901-secondset-01-{state1.id6}-legacy-comment.prompt.md")
++            pending.glob(f"20260901-secondset-01-{id1}-legacy-comment.prompt.md")
+         )
+         self.assertEqual(len(matches2), 1, matches2)
+-        state2 = artifact_meta.read_text(
+-            matches2[0].read_text(encoding="utf-8"), record_type="prompt"
+-        )
+-        self.assertEqual(state2.fields.get("set"), "secondset")
++        with artifact_meta.ephemeral_if_uninitialized():
++            state2 = artifact_meta.read(id1, project_context=ctx)
++        self.assertEqual(state2.set_id, "secondset")
+ 
+         # B. Legacy prompt WITHOUT metadata comment (refusal-to-mint purity)
+         without_comment = pending / "20260901-1201-01-legacy-plain.prompt.md"
 diff --git a/tests/test_readers_runner.py b/tests/test_readers_runner.py
 index 9237d2d04..f2f07a857 100644
 --- a/tests/test_readers_runner.py
