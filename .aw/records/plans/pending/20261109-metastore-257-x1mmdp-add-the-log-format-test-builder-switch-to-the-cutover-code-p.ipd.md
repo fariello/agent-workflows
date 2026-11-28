@@ -153,6 +153,7 @@ flowchart TD
   - Carrier: e0g2gt
   - Carrier: qi0kl6
   - Carrier: x3mig6
+  - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-313-x3mig6-convert-test-batch-f-spec-review-gate-kind-through-writers-s.ipd.md
 - Renaming legacy `Kind`-named CLI options with backward-compatible aliases and updating any F-07 documentation text tests: follows `x1mmdp`.
   - Carrier: 0zylig
 - Applying the patch and running both tiers on the real, switched tree: the cutover.
