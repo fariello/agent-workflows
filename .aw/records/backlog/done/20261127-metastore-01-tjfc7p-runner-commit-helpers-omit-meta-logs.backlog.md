@@ -1,7 +1,6 @@
 - Id: tjfc7p
-- Status: blocked
-- Gate-Kind: artifact
-- Gate-Ref: ztvubn
+- Status: done
+- Close-Evidence: .aw/records/plans/executed/20261127-metastore-323-ztvubn-fix-post-cutover-status-set-selectors-and-runner-commit-log.ipd.md
 - Set: metastore
 - Work-Kind: bug
 - Priority: high
@@ -12,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-28 done (aw set): Fixed and validated by executed Order 323 plan ztvubn.
 - 2026-11-27 blocked (aw set): Covered by Order 323 child plan ztvubn (single-valued From-Backlog carries 2zknl8).
 - 2026-11-27 created (aw backlog): Driver graduation and spec-planning commit helpers exclude meta JSONL logs as out-of-scope or omit them from transition commits
 
