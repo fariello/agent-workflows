@@ -126,6 +126,7 @@ flowchart TD
   - Carrier-Evidence: .aw/records/plans/executed/20261126-metastore-321-3e0vfy-make-plan-readiness-status-set-artifact-refs-and-artifact-ad.ipd.md
 - Modules outside batch F (batches A through E): owned by earlier batch children (`nv3upa`, `cugg3w`, `psm9ac`, `x8id25`, `e0g2gt`, `qi0kl6`).
   - Carrier: qi0kl6
+  - Carrier-Evidence: .aw/records/plans/executed/20261125-metastore-312-qi0kl6-convert-test-batch-e-readers-selectors-find-through-spec-id6.ipd.md
 - The final refusal list across all batches and the full-suite runs: owned by the narrowed capstone plan.
   - Carrier: x1mmdp
 - Applying the cutover patches on the real tree: attended cutover commit.
