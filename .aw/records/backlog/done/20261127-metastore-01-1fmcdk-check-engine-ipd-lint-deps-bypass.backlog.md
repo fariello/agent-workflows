@@ -1,7 +1,6 @@
 - Id: 1fmcdk
-- Status: blocked
-- Gate-Kind: artifact
-- Gate-Ref: 639g02
+- Status: done
+- Close-Evidence: .aw/records/plans/executed/20261127-metastore-324-639g02-fix-post-cutover-check-engine-log-readers-and-dependency-hoo.ipd.md
 - Set: metastore
 - Work-Kind: bug
 - Priority: high
@@ -12,6 +11,7 @@
 > Write and proofread this backlog item per the technical writing standard, `.aw/system/workflows/technical-writing/technical-writing.md` (`.agents/workflows/technical-writing/technical-writing.md` in a legacy-layout install), including requirement 12 (diagrams).
 
 ## Workflow history
+- 2026-11-28 done (aw set): Fixed and validated by executed Order 324 plan 639g02.
 - 2026-11-27 blocked (aw set): Covered by Order 324 child plan 639g02 (single-valued From-Backlog carries 0wilvu).
 - 2026-11-27 created (aw backlog): evaluate_ipd_dependencies bypasses meta state map when plans argument is given, silencing ipd lint dependency checks
 
