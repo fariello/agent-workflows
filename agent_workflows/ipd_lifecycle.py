@@ -752,7 +752,18 @@ def acquire_finalize_lock(
                 "pid": os.getpid(),
                 "timestamp": _utc_now(),
             }
-            _atomic_write_json_at(lock, payload)
+            try:
+                _atomic_write_json_at(lock, payload)
+            except PermissionError as exc:
+                # On Windows, os.replace raises WinError 5/32 (PermissionError with
+                # filename2 set to the destination path) when another process briefly
+                # holds the lock file open for reading, writing, or unlinking. Treat
+                # that target-file sharing violation as contention so wait_until retries
+                # within its bounded budget; still fail fast on directory PermissionError
+                # (where filename2 is None).
+                if sys.platform == "win32" and exc.filename2 is not None:
+                    return False, None
+                raise
             return True, None
         last_holder = holder
         return False, None

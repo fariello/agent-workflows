@@ -51,6 +51,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -770,14 +771,23 @@ def try_acquire(repo_root: Path, *, owner: str) -> bool:
         pid = data.get("pid")
         if pid and pid != os.getpid() and _pid_alive(pid):
             return False
-    _write_lock(
-        lock,
-        {
-            "owner": owner,
-            "pid": os.getpid(),
-            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime()),
-        },
-    )
+    try:
+        _write_lock(
+            lock,
+            {
+                "owner": owner,
+                "pid": os.getpid(),
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime()),
+            },
+        )
+    except PermissionError as exc:
+        # On Windows, os.replace raises WinError 5/32 (PermissionError with
+        # filename2 set to the destination path) when another process briefly
+        # holds the lock file open. Treat target-file sharing contention as busy
+        # so writer_lock retries within its bounded wait budget.
+        if sys.platform == "win32" and exc.filename2 is not None:
+            return False
+        raise
     return True
 
 

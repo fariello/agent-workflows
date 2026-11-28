@@ -1497,7 +1497,9 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
             "import os, sys, time, json\n"
             f"p = {repr(str(lock))}\n"
             f"sentinel = {repr(str(sentinel))}\n"
-            "with open(p, 'w') as f: json.dump({'owner': 'child_worker', 'pid': os.getpid()}, f)\n"
+            "tmp = p + '.child.tmp'\n"
+            "with open(tmp, 'w', encoding='utf-8') as f: json.dump({'owner': 'child_worker', 'pid': os.getpid()}, f)\n"
+            "os.replace(tmp, p)\n"
             "deadline = time.monotonic() + 30.0\n"
             "while not os.path.exists(sentinel) and time.monotonic() < deadline:\n"
             "    time.sleep(0.01)\n"
@@ -1546,6 +1548,66 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
             _json.loads(lock.read_text(encoding="utf-8"))["pid"], _os.getpid()
         )
         LC.release_finalize_lock(self.root)
+
+    def test_windows_replace_sharing_violation_retries_as_contention(self):
+        """Transient Windows os.replace PermissionError (WinError 5) retries cleanly on both locks."""
+        import errno as _errno
+        import json as _json
+        import os as _os
+        from unittest import mock as _mock
+
+        from agent_workflows import commit_lock as _commit_lock
+
+        lock = LC.finalize_lock_path(self.root)
+        real_replace = _os.replace
+        calls = {"n": 0}
+
+        def _flaky_replace(src, dst):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise PermissionError(
+                    _errno.EACCES, "Access is denied", str(src), None, str(dst)
+                )
+            return real_replace(src, dst)
+
+        sleeps = []
+        with _mock.patch.object(LC.sys, "platform", "win32"), _mock.patch.object(
+            LC.os, "replace", side_effect=_flaky_replace
+        ):
+            LC.acquire_finalize_lock(
+                self.root, "abc123", timeout=5.0, sleep=lambda s: sleeps.append(s)
+            )
+        self.assertEqual(calls["n"], 2)
+        self.assertEqual(len(sleeps), 1)
+        self.assertEqual(
+            _json.loads(lock.read_text(encoding="utf-8"))["pid"], _os.getpid()
+        )
+        LC.release_finalize_lock(self.root)
+
+        # commit_lock.try_acquire treats Windows os.replace sharing violation as busy (False).
+        def _deny_replace(src, dst):
+            raise PermissionError(
+                _errno.EACCES, "Access is denied", str(src), None, str(dst)
+            )
+
+        with _mock.patch.object(
+            _commit_lock.sys, "platform", "win32"
+        ), _mock.patch.object(_commit_lock.os, "replace", side_effect=_deny_replace):
+            self.assertFalse(_commit_lock.try_acquire(self.root, owner="test"))
+
+        # Directory-level PermissionError (filename2=None) still propagates immediately.
+        def _deny_dir(*args, **kwargs):
+            raise PermissionError(
+                _errno.EACCES, "Directory read-only", str(lock.parent)
+            )
+
+        with _mock.patch.object(LC.sys, "platform", "win32"), _mock.patch.object(
+            LC.tempfile, "mkstemp", side_effect=_deny_dir
+        ):
+            with self.assertRaises(PermissionError):
+                LC.acquire_finalize_lock(
+                    self.root, "abc123", timeout=5.0, sleep=lambda s: None
+                )
 
     def test_precommit_fault_rollback_and_recovery(self):
         """Pre-commit faults roll back plan and index, preserve disjoint work, and recover on restart."""
